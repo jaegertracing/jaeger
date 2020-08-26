@@ -159,12 +159,10 @@ func createSpanWriter(
 	archive bool,
 ) (spanstore.Writer, error) {
 	var tags []string
-	if cfg.GetTagsFilePath() != "" {
-		var err error
-		if tags, err = config.LoadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
-			logger.Error("Could not open file with tags", zap.Error(err))
-			return nil, err
-		}
+	var err error
+	if tags, err = cfg.TagKeysAsFields(); err != nil {
+		logger.Error("failed to get tag keys", zap.Error(err))
+		return nil, err
 	}
 
 	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())

@@ -97,6 +97,7 @@ type ClientBuilder interface {
 	IsStorageEnabled() bool
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
+	TagKeysAsFields() ([]string, error)
 }
 
 // NewClient creates a new ElasticSearch client
@@ -300,6 +301,37 @@ func (c *Configuration) IsCreateIndexTemplates() bool {
 	return c.CreateIndexTemplates
 }
 
+// TagKeysAsFields returns tags from the file and command line merged
+func (c *Configuration) TagKeysAsFields() ([]string, error) {
+	var tags []string
+
+	// from file
+	if c.Tags.File != "" {
+		file, err := os.Open(filepath.Clean(c.Tags.File))
+		if err != nil {
+			return nil, err
+		}
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if tag := strings.TrimSpace(line); tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+		if err := file.Close(); err != nil {
+			return nil, err
+		}
+	}
+
+	// from params
+	if c.Tags.Include != "" {
+		tags = append(tags, strings.Split(c.Tags.Include, ",")...)
+	}
+
+	return tags, nil
+}
+
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
 
@@ -396,24 +428,4 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
-}
-
-// LoadTagsFromFile loads tags from a file
-func LoadTagsFromFile(filePath string) ([]string, error) {
-	file, err := os.Open(filepath.Clean(filePath))
-	if err != nil {
-		return nil, err
-	}
-	scanner := bufio.NewScanner(file)
-	var tags []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if tag := strings.TrimSpace(line); tag != "" {
-			tags = append(tags, tag)
-		}
-	}
-	if err := file.Close(); err != nil {
-		return nil, err
-	}
-	return tags, nil
 }

@@ -60,7 +60,7 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWr
 	if err != nil {
 		return nil, err
 	}
-	tagsKeysAsFields, err := config.LoadTagsFromFile(params.Tags.File)
+	tagsKeysAsFields, err := params.TagKeysAsFields()
 	if err != nil {
 		return nil, err
 	}
