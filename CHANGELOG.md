@@ -14,6 +14,12 @@ Changes by Version
 
 ### UI Changes
 
+1.20.1 (2020-08-26)
+-------------------
+
+Revert UI back to 1.9 due to a bug https://github.com/jaegertracing/jaeger-ui/issues/628
+
+
 1.19.0 (2020-08-26)
 -------------------
 
@@ -96,8 +102,8 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 #### Breaking Changes
 
 * Remove Tchannel between agent and collector ([#2115](https://github.com/jaegertracing/jaeger/pull/2115), [#2112](https://github.com/jaegertracing/jaeger/pull/2112), [@pavolloffay](https://github.com/pavolloffay))
-    
-    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent. 
+
+    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent.
 
     These flags were removed from agent:
     ```
@@ -230,7 +236,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 * Endpoint changes:
     * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
      is absent or empty, operations from all kinds of spans will be returned.
-    * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please 
+    * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please
     update your client code to process the new response. Example response:
         ```
         curl 'http://localhost:6686/api/operations?service=UserService&spanKind=server' | jq
@@ -252,23 +258,23 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
     * The legacy http endpoint stay untouched:
         ```
         /services/{%s}/operations
-        ```    
+        ```
 * Storage plugin changes:
     * Memory updated to support spanKind on write & read, no migration is required.
-    * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923) 
-    to be implemented:  
+    * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923)
+    to be implemented:
     For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
-    * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):  
-        If you don't run the migration script, nothing will break, the system will used the old table 
-        `operation_names` and set empty `spanKind` in the response.  
+    * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):
+        If you don't run the migration script, nothing will break, the system will used the old table
+        `operation_names` and set empty `spanKind` in the response.
         Steps to get the updated functionality:
         1.  You will need to run the command below on the host where you can use `cqlsh` to connect to Cassandra:
             ```
-            KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' 
+            KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000'
             bash ./v002tov003.sh
             ```
-            The script will create new table `operation_names_v2` and migrate data from the old table.  
-            `spanKind` column will be empty for those data.  
+            The script will create new table `operation_names_v2` and migrate data from the old table.
+            `spanKind` column will be empty for those data.
             At the end, it will ask you whether you want to drop the old table or not.
         2. Restart ingester & query services so that they begin to use the new table
 
