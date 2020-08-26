@@ -17,6 +17,7 @@ package status
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -53,11 +54,20 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			adminURL, _ = adminServer.URL()
 			resp, err := http.Get(adminURL)
 			if err != nil {
-				log.Printf("%s", err)
+				log.Printf("error: %s", err)
 				os.Exit(2)
 			}
-			// Q. Should we deserialize and make sure it's a valid JSON object before reporting success (or printing)?
-			log.Printf("%s", resp.Body)
+			defer resp.Body.Close()
+			// FIXME: Should we deserialize and make sure it's a valid JSON object before reporting success (or printing)?
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				log.Printf("error: %s", err)
+				os.Exit(2)
+			}
+			log.Print(string(body))
+			if resp.StatusCode != http.StatusOK {
+				os.Exit(2)
+			}
 			os.Exit(0)
 		},
 	}
