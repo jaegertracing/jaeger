@@ -210,7 +210,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixTagsAsFieldsInclude,
 		nsConfig.Tags.Include,
-		"(experimental) Comma delimited list of tag keys which will be stored as object fields. Merged with "+suffixTagsFile)
+		"(experimental) Comma delimited list of tag keys which will be stored as object fields. Merged with the contents of "+suffixTagsFile)
 	flagSet.String(
 		nsConfig.namespace+suffixTagsFile,
 		nsConfig.Tags.File,
