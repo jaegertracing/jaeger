@@ -77,7 +77,7 @@ type TagsAsFields struct {
 	DotReplacement string `mapstructure:"dot_replacement"`
 	// File path to tag keys which should be stored as object fields
 	File string `mapstructure:"config_file"`
-	// Comma Delimited list of tags to store as object fields
+	// Comma delimited list of tags to store as object fields
 	Include string `mapstructure:"include"`
 }
 
