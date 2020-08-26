@@ -14,7 +14,7 @@ Changes by Version
 
 ### UI Changes
 
-1.20.1 (2020-08-26)
+1.19.1 (2020-08-26)
 -------------------
 
 Revert UI back to 1.9 due to a bug https://github.com/jaegertracing/jaeger-ui/issues/628
