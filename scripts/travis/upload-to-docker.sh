@@ -31,6 +31,12 @@ if [[ -n $major ]]; then
   fi
 fi
 
+if [[ -f $HOME/.docker/config.json ]]; then
+  rm -f $HOME/.docker/config.json
+else
+  echo "$HOME/.docker/config.json doesn't exist"
+fi
+
 # Do not enable echo before the `docker login` command to avoid revealing the password.
 set -x
 docker login docker.io -u $DOCKER_USER -p $DOCKER_PASS
