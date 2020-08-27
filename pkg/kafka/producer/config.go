@@ -18,13 +18,14 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
 // Builder builds a new kafka producer
 type Builder interface {
-	NewProducer() (sarama.AsyncProducer, error)
+	NewProducer(logger *zap.Logger) (sarama.AsyncProducer, error)
 }
 
 // Configuration describes the configuration properties needed to create a Kafka producer
@@ -36,12 +37,13 @@ type Configuration struct {
 	ProtocolVersion           string                  `mapstructure:"protocol_version"`
 	BatchLinger               time.Duration           `mapstructure:"batch_linger"`
 	BatchSize                 int                     `mapstructure:"batch_size"`
+	BatchMinMessages          int                     `mapstructure:"batch_min_messages"`
 	BatchMaxMessages          int                     `mapstructure:"batch_max_messages"`
 	auth.AuthenticationConfig `mapstructure:"authentication"`
 }
 
 // NewProducer creates a new asynchronous kafka producer
-func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
+func (c *Configuration) NewProducer(logger *zap.Logger) (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.RequiredAcks = c.RequiredAcks
 	saramaConfig.Producer.Compression = c.Compression
@@ -49,6 +51,7 @@ func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig.Producer.Return.Successes = true
 	saramaConfig.Producer.Flush.Bytes = c.BatchSize
 	saramaConfig.Producer.Flush.Frequency = c.BatchLinger
+	saramaConfig.Producer.Flush.Messages = c.BatchMinMessages
 	saramaConfig.Producer.Flush.MaxMessages = c.BatchMaxMessages
 	if len(c.ProtocolVersion) > 0 {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
@@ -57,7 +60,7 @@ func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 		}
 		saramaConfig.Version = ver
 	}
-	if err := c.AuthenticationConfig.SetConfiguration(saramaConfig); err != nil {
+	if err := c.AuthenticationConfig.SetConfiguration(saramaConfig, logger); err != nil {
 		return nil, err
 	}
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)

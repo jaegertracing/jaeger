@@ -77,6 +77,8 @@ type TagsAsFields struct {
 	DotReplacement string `mapstructure:"dot_replacement"`
 	// File path to tag keys which should be stored as object fields
 	File string `mapstructure:"config_file"`
+	// Comma delimited list of tags to store as object fields
+	Include string `mapstructure:"include"`
 }
 
 // ClientBuilder creates new es.Client
@@ -95,6 +97,7 @@ type ClientBuilder interface {
 	IsStorageEnabled() bool
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
+	TagKeysAsFields() ([]string, error)
 }
 
 // NewClient creates a new ElasticSearch client
@@ -218,6 +221,18 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if !c.SnifferTLSEnabled {
 		c.SnifferTLSEnabled = source.SnifferTLSEnabled
 	}
+	if !c.Tags.AllAsFields {
+		c.Tags.AllAsFields = source.Tags.AllAsFields
+	}
+	if c.Tags.DotReplacement == "" {
+		c.Tags.DotReplacement = source.Tags.DotReplacement
+	}
+	if c.Tags.Include == "" {
+		c.Tags.Include = source.Tags.Include
+	}
+	if c.Tags.File == "" {
+		c.Tags.File = source.Tags.File
+	}
 }
 
 // GetNumShards returns number of shards from Configuration
@@ -286,6 +301,37 @@ func (c *Configuration) IsCreateIndexTemplates() bool {
 	return c.CreateIndexTemplates
 }
 
+// TagKeysAsFields returns tags from the file and command line merged
+func (c *Configuration) TagKeysAsFields() ([]string, error) {
+	var tags []string
+
+	// from file
+	if c.Tags.File != "" {
+		file, err := os.Open(filepath.Clean(c.Tags.File))
+		if err != nil {
+			return nil, err
+		}
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if tag := strings.TrimSpace(line); tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+		if err := file.Close(); err != nil {
+			return nil, err
+		}
+	}
+
+	// from params
+	if c.Tags.Include != "" {
+		tags = append(tags, strings.Split(c.Tags.Include, ",")...)
+	}
+
+	return tags, nil
+}
+
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
 
@@ -313,7 +359,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 // GetHTTPRoundTripper returns configured http.RoundTripper
 func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if c.TLS.Enabled {
-		ctlsConfig, err := c.TLS.Config()
+		ctlsConfig, err := c.TLS.Config(logger)
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +374,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
 	}
 	if c.TLS.CAPath != "" {
-		ctlsConfig, err := c.TLS.Config()
+		ctlsConfig, err := c.TLS.Config(logger)
 		if err != nil {
 			return nil, err
 		}
@@ -382,24 +428,4 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
-}
-
-// LoadTagsFromFile loads tags from a file
-func LoadTagsFromFile(filePath string) ([]string, error) {
-	file, err := os.Open(filepath.Clean(filePath))
-	if err != nil {
-		return nil, err
-	}
-	scanner := bufio.NewScanner(file)
-	var tags []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if tag := strings.TrimSpace(line); tag != "" {
-			tags = append(tags, tag)
-		}
-	}
-	if err := file.Close(); err != nil {
-		return nil, err
-	}
-	return tags, nil
 }

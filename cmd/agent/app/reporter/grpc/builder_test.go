@@ -302,7 +302,7 @@ func TestProxyClientTLS(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var opts []grpc.ServerOption
 			if test.serverTLS.Enabled {
-				tlsCfg, err := test.serverTLS.Config()
+				tlsCfg, err := test.serverTLS.Config(zap.NewNop())
 				require.NoError(t, err)
 				opts = []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}
 			}

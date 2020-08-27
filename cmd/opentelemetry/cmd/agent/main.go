@@ -20,7 +20,7 @@ import (
 	"os"
 
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/service"
 	"go.opentelemetry.io/collector/service/builder"
@@ -51,7 +51,7 @@ func main() {
 	v := viper.New()
 
 	cmpts := defaultcomponents.Components(v)
-	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
+	cfgFactory := func(otelViper *viper.Viper, f component.Factories) (*configmodels.Config, error) {
 		cfgConfig := defaultconfig.ComponentSettings{
 			ComponentType: defaultconfig.Agent,
 			Factories:     cmpts,

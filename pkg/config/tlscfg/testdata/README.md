@@ -21,8 +21,8 @@ openssl req -new -nodes -key example-server-key.pem -out example-server.csr -sub
 openssl req -new -nodes -key example-client-key.pem -out example-client.csr -subj /CN="example-client"
 
 # creating the client and server certificate
-openssl x509 -req -in example-server.csr -CA example-CA-cert.pem -CAkey example-CA-key.pem -CAcreateserial -out example-server-cert.pem
-openssl x509 -req -in example-client.csr -CA example-CA-cert.pem -CAkey example-CA-key.pem -CAcreateserial -out example-client-cert.pem
+openssl x509 -req -in example-server.csr -days 3650 -CA example-CA-cert.pem -CAkey example-CA-key.pem -CAcreateserial -out example-server-cert.pem
+openssl x509 -req -in example-client.csr -days 3650 -CA example-CA-cert.pem -CAkey example-CA-key.pem -CAcreateserial -out example-client-cert.pem
 
 # cleanup
 rm example-CA-cert.srl

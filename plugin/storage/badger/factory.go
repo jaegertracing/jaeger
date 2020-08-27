@@ -170,6 +170,9 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
 	close(f.maintenanceDone)
+	if f.store == nil {
+		return nil
+	}
 	err := f.store.Close()
 
 	// Remove tmp files if this was ephemeral storage
