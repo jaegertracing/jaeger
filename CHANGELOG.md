@@ -14,6 +14,12 @@ Changes by Version
 
 ### UI Changes
 
+1.19.2 (2020-08-26)
+-------------------
+
+Upgrade to a working UI version before React refactoring.
+
+
 1.19.1 (2020-08-26)
 -------------------
 
