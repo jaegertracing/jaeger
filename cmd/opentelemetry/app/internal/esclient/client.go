@@ -164,7 +164,7 @@ type Hit struct {
 	Source *json.RawMessage `json:"_source"`
 }
 
-// AggregationResponse defines aggregation reponse.
+// AggregationResponse defines aggregation response.
 type AggregationResponse struct {
 	Buckets []struct {
 		Key string `json:"key"`
