@@ -15,13 +15,16 @@
 package grpc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
@@ -90,5 +93,25 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
-	return grpc.Dial(dialTarget, dialOptions...)
+	conn, err := grpc.Dial(dialTarget, dialOptions...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	for {
+		s := conn.GetState()
+		if s == connectivity.Ready {
+			break
+		}
+		if !conn.WaitForStateChange(ctx, s) {
+			logger.Fatal("Could not get connection state", zap.String("dialTarget", dialTarget))
+		}
+	}
+
+	logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.String("status", conn.GetState().String()))
+
+	return conn, nil
 }
