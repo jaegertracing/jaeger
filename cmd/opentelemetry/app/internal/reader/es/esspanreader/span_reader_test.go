@@ -99,6 +99,7 @@ func TestGetTrace(t *testing.T) {
 	require.NoError(t, err)
 	domain := dbmodel.NewToDomain("@")
 	modelSpan, err := domain.SpanToDomain(&s)
+	require.NoError(t, err)
 	assert.Equal(t, &model.Trace{Spans: []*model.Span{modelSpan}}, trace)
 }
 
@@ -145,6 +146,7 @@ func TestFindTraces(t *testing.T) {
 
 	domain := dbmodel.NewToDomain("@")
 	modelSpan, err := domain.SpanToDomain(&dbSpan)
+	require.NoError(t, err)
 	assert.Equal(t, []*model.Trace{{Spans: []*model.Span{modelSpan}}}, traces)
 }
 
