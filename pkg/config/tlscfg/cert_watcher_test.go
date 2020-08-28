@@ -84,11 +84,11 @@ func TestReload(t *testing.T) {
 	// update the content with client certs
 	certData, err = ioutil.ReadFile(clientCert)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(certFile.Name(), certData, 0644)
+	err = syncWrite(certFile.Name(), certData, 0644)
 	require.NoError(t, err)
 	keyData, err = ioutil.ReadFile(clientKey)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(keyFile.Name(), keyData, 0644)
+	err = syncWrite(keyFile.Name(), keyData, 0644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
@@ -138,11 +138,11 @@ func TestReload_ca_certs(t *testing.T) {
 	// update the content with client certs
 	caData, err = ioutil.ReadFile(caCert)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(caFile.Name(), caData, 0644)
+	err = syncWrite(caFile.Name(), caData, 0644)
 	require.NoError(t, err)
 	clientCaData, err = ioutil.ReadFile(caCert)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(clientCaFile.Name(), clientCaData, 0644)
+	err = syncWrite(clientCaFile.Name(), clientCaData, 0644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
@@ -200,11 +200,11 @@ func TestReload_err_cert_update(t *testing.T) {
 	// update the content with client certs
 	certData, err = ioutil.ReadFile(badCaCert)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(certFile.Name(), certData, 0644)
+	err = syncWrite(certFile.Name(), certData, 0644)
 	require.NoError(t, err)
 	keyData, err = ioutil.ReadFile(clientKey)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(keyFile.Name(), keyData, 0644)
+	err = syncWrite(keyFile.Name(), keyData, 0644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
@@ -314,4 +314,15 @@ func waitUntil(f func() bool, iterations int, sleepInterval time.Duration) {
 		}
 		time.Sleep(sleepInterval)
 	}
+}
+
+func syncWrite(filename string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, perm)
+	if err != nil {
+		return err
+	}
+	if _, err = f.Write(data); err != nil {
+		return err
+	}
+	return f.Sync()
 }
