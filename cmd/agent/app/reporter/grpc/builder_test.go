@@ -154,7 +154,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, conn)
 				if test.checkConnectioState {
-					assertConntectionState(t, conn, test.expectedState)
+					assertConnectionState(t, conn, test.expectedState)
 				}
 				if test.checkSuffixOnly {
 					assert.True(t, strings.HasSuffix(conn.Target(), test.target))
@@ -382,7 +382,7 @@ func TestProxyClientTLS(t *testing.T) {
 	}
 }
 
-func assertConntectionState(t *testing.T, conn *grpc.ClientConn, expectedState string) {
+func assertConnectionState(t *testing.T, conn *grpc.ClientConn, expectedState string) {
 	for {
 		s := conn.GetState()
 		if s == connectivity.Ready {
