@@ -316,6 +316,8 @@ func waitUntil(f func() bool, iterations int, sleepInterval time.Duration) {
 	}
 }
 
+// syncWrite ensures data is written to the given filename and flushed to disk.
+// This ensures that any watchers looking for file system changes can be reliably alerted.
 func syncWrite(filename string, data []byte, perm os.FileMode) error {
 	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, perm)
 	if err != nil {
