@@ -99,19 +99,22 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	for {
-		s := conn.GetState()
-		if s == connectivity.Ready {
-			break
+	go func(cc *grpc.ClientConn) {
+		logger.Info("Checking connection to collector")
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		for {
+			s := cc.GetState()
+			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
+			if s == connectivity.Ready {
+				return
+			}
+			if !cc.WaitForStateChange(ctx, s) {
+				logger.Error("Could not get collector connection state", zap.String("error", ctx.Err().Error()))
+				return
+			}
 		}
-		if !conn.WaitForStateChange(ctx, s) {
-			logger.Fatal("Could not get connection state", zap.String("dialTarget", dialTarget))
-		}
-	}
-
-	logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.String("status", conn.GetState().String()))
+	}(conn)
 
 	return conn, nil
 }
