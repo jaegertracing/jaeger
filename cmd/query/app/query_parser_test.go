@@ -18,12 +18,13 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"strings"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -43,8 +44,8 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=string", errParseInt, nil},
 		{"x?service=service&end=string", errParseInt, nil},
 		{"x?service=service&limit=string", errParseInt, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", "cannot not parse minDuration: time: missing unit in duration", nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", "cannot not parse maxDuration: time: missing unit in duration", nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", `cannot not parse minDuration: time: missing unit in duration "?20"?$`, nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", `cannot not parse maxDuration: time: missing unit in duration "?30"?$`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `malformed 'tag' parameter, expecting key:value, received: k`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
@@ -163,7 +164,9 @@ func TestParseTraceQuery(t *testing.T) {
 					}
 				}
 			} else {
-				assert.True(t, strings.HasPrefix(err.Error(), test.errMsg), fmt.Sprintf("Error \"%s\" should start with \"%s\"", err.Error(), test.errMsg))
+				matched, matcherr := regexp.MatchString(test.errMsg, err.Error())
+				require.NoError(t, matcherr)
+				assert.True(t, matched, fmt.Sprintf("Error \"%s\" should match \"%s\"", err.Error(), test.errMsg))
 			}
 		})
 	}
