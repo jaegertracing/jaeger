@@ -16,7 +16,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -100,10 +99,9 @@ func TestServer(t *testing.T) {
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
-func TestServer2(t *testing.T) {
+func TestServerWithDedicatedPorts(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
-	// hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
 
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
@@ -191,6 +189,5 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	onlyEntry := message.All()[0]
 	port := onlyEntry.ContextMap()["port"]
-	fmt.Println(port)
 	assert.Greater(t, port, int64(0))
 }

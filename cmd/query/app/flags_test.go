@@ -64,51 +64,21 @@ func TestQueryBuilderFlags(t *testing.T) {
 func TestQueryBuilderFlagsSeparatePorts(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
-		"--query.static-files=/dev/null",
-		"--query.ui-config=some.json",
-		"--query.base-path=/jaeger",
 		"--query.http-server.host-port=127.0.0.1:8080",
-		"--query.additional-headers=access-control-allow-origin:blerg",
-		"--query.additional-headers=whatever:thing",
-		"--query.max-clock-skew-adjustment=10s",
 	})
 	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
-	assert.Equal(t, "some.json", qOpts.UIConfig)
-	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTPHostPort)
 	assert.Equal(t, ports.PortToHostPort(ports.QueryGRPC), qOpts.GRPCHostPort)
-
-	assert.Equal(t, http.Header{
-		"Access-Control-Allow-Origin": []string{"blerg"},
-		"Whatever":                    []string{"thing"},
-	}, qOpts.AdditionalHeaders)
-	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
 }
 
 func TestQueryBuilderFlagsSeparateNoPorts(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--query.static-files=/dev/null",
-		"--query.ui-config=some.json",
-		"--query.base-path=/jaeger",
-		"--query.additional-headers=access-control-allow-origin:blerg",
-		"--query.additional-headers=whatever:thing",
-		"--query.max-clock-skew-adjustment=10s",
-	})
+	command.ParseFlags([]string{})
 	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
-	assert.Equal(t, "some.json", qOpts.UIConfig)
-	assert.Equal(t, "/jaeger", qOpts.BasePath)
+
 	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.HTTPHostPort)
 	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.GRPCHostPort)
 	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.HostPort)
-
-	assert.Equal(t, http.Header{
-		"Access-Control-Allow-Origin": []string{"blerg"},
-		"Whatever":                    []string{"thing"},
-	}, qOpts.AdditionalHeaders)
-	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
 }
 
 func TestQueryBuilderBadHeadersFlags(t *testing.T) {

@@ -40,6 +40,7 @@ const (
 	queryHostPort           = "query.host-port"
 	queryPort               = "query.port"
 	queryPortWarning        = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
+	queryHOSTPortWarning    = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
 	queryHTTPHostPort       = "query.http-server.host-port"
 	queryGRPCHostPort       = "query.grpc-server.host-port"
 	queryBasePath           = "query.base-path"
@@ -72,7 +73,7 @@ type QueryOptions struct {
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
-	// TLS configures secure transport`
+	// TLS configures secure transport
 	TLS tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
@@ -83,9 +84,9 @@ type QueryOptions struct {
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Var(&config.StringSlice{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
-	flagSet.String(queryHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")
+	flagSet.String(queryHostPort, ports.PortToHostPort(ports.QueryHTTP), queryHOSTPortWarning+" see --"+queryHTTPHostPort+" and --"+queryGRPCHostPort)
 	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")
-	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")
+	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's gRPC server")
 	flagSet.Int(queryPort, 0, queryPortWarning+" see --"+queryHostPort)
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
