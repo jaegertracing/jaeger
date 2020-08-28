@@ -61,6 +61,10 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.aux.num-replicas=10",
 		"--es.tls.enabled=true",
 		"--es.tls.skip-host-verify=true",
+		"--es.tags-as-fields.all=true",
+		"--es.tags-as-fields.include=test,tags",
+		"--es.tags-as-fields.config-file=./file.txt",
+		"--es.tags-as-fields.dot-replacement=!",
 	})
 	opts.InitFromViper(v)
 
@@ -73,6 +77,10 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.True(t, primary.SnifferTLSEnabled)
 	assert.Equal(t, true, primary.TLS.Enabled)
 	assert.Equal(t, true, primary.TLS.SkipHostVerify)
+	assert.True(t, primary.Tags.AllAsFields)
+	assert.Equal(t, "!", primary.Tags.DotReplacement)
+	assert.Equal(t, "./file.txt", primary.Tags.File)
+	assert.Equal(t, "test,tags", primary.Tags.Include)
 
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
@@ -82,5 +90,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, int64(10), aux.NumReplicas)
 	assert.Equal(t, 24*time.Hour, aux.MaxSpanAge)
 	assert.True(t, aux.Sniffer)
-
+	assert.True(t, aux.Tags.AllAsFields)
+	assert.Equal(t, "!", aux.Tags.DotReplacement)
+	assert.Equal(t, "./file.txt", aux.Tags.File)
+	assert.Equal(t, "test,tags", aux.Tags.Include)
 }

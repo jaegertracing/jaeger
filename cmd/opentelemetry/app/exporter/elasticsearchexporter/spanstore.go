@@ -60,7 +60,7 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWr
 	if err != nil {
 		return nil, err
 	}
-	tagsKeysAsFields, err := config.LoadTagsFromFile(params.Tags.File)
+	tagsKeysAsFields, err := params.TagKeysAsFields()
 	if err != nil {
 		return nil, err
 	}
@@ -219,4 +219,8 @@ type bulkItem struct {
 	span *dbmodel.Span
 	// isService indicates that this bulk operation is for service index
 	isService bool
+}
+
+func (w *esSpanWriter) esClientVersion() int {
+	return w.client.MajorVersion()
 }

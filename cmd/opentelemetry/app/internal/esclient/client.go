@@ -27,6 +27,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
+var errMissingURL = fmt.Errorf("missing Elasticsearch URL")
+
 // ElasticsearchClient exposes Elasticsearch API used by Jaeger.
 // This is not a general purpose ES client implementation.
 // The exposed APIs are the bare minimum that is used by Jaeger project to store and query data.
@@ -44,6 +46,9 @@ type ElasticsearchClient interface {
 	Search(ctx context.Context, query SearchBody, size int, indices ...string) (*SearchResponse, error)
 	// MultiSearch searches data via /_msearch
 	MultiSearch(ctx context.Context, queries []SearchBody) (*MultiSearchResponse, error)
+
+	// Major version returns major ES version
+	MajorVersion() int
 }
 
 // BulkResponse is a response returned by Elasticsearch Bulk API
@@ -159,7 +164,7 @@ type Hit struct {
 	Source *json.RawMessage `json:"_source"`
 }
 
-// AggregationResponse defines aggregation reponse.
+// AggregationResponse defines aggregation response.
 type AggregationResponse struct {
 	Buckets []struct {
 		Key string `json:"key"`
@@ -168,24 +173,28 @@ type AggregationResponse struct {
 
 // NewElasticsearchClient returns an instance of Elasticsearch client
 func NewElasticsearchClient(params config.Configuration, logger *zap.Logger) (ElasticsearchClient, error) {
+	if len(params.Servers) == 0 {
+		return nil, errMissingURL
+	}
+
 	roundTripper, err := config.GetHTTPRoundTripper(&params, logger)
 	if err != nil {
 		return nil, err
 	}
-	if params.GetVersion() == 0 {
+	esVersion := int(params.GetVersion())
+	if esVersion == 0 {
 		esPing := elasticsearchPing{
 			username:     params.Username,
 			password:     params.Password,
 			roundTripper: roundTripper,
 		}
-		esVersion, err := esPing.getVersion(params.Servers[0])
+		esVersion, err = esPing.getVersion(params.Servers[0])
 		if err != nil {
 			return nil, err
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		params.Version = uint(esVersion)
 	}
-	return newElasticsearchClient(int(params.Version), clientConfig{
+	return newElasticsearchClient(esVersion, clientConfig{
 		DiscoverNotesOnStartup: params.Sniffer,
 		Addresses:              params.Servers,
 		Username:               params.Username,

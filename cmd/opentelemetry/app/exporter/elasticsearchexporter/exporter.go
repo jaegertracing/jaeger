@@ -31,7 +31,7 @@ func new(ctx context.Context, config *Config, params component.ExporterCreatePar
 		return nil, err
 	}
 	if config.Primary.IsCreateIndexTemplates() {
-		spanMapping, serviceMapping := es.GetSpanServiceMappings(esCfg.GetNumShards(), esCfg.GetNumReplicas(), esCfg.GetVersion())
+		spanMapping, serviceMapping := es.GetSpanServiceMappings(esCfg.GetNumShards(), esCfg.GetNumReplicas(), uint(w.esClientVersion()))
 		if err = w.CreateTemplates(ctx, spanMapping, serviceMapping); err != nil {
 			return nil, err
 		}

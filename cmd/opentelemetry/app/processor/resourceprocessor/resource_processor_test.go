@@ -70,6 +70,30 @@ func TestDefaultValueFromViper(t *testing.T) {
 	}, cfg.AttributesActions)
 }
 
+func TestLegacyJaegerTagsOnly(t *testing.T) {
+	v, c := jConfig.Viperize(AddFlags)
+	err := c.ParseFlags([]string{"--jaeger.tags=foo=legacy,leg=head"})
+	require.NoError(t, err)
+
+	f := &Factory{
+		Wrapped: resourceprocessor.NewFactory(),
+		Viper:   v,
+	}
+
+	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
+	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, &componenttest.ExampleExporterConsumer{}, cfg)
+	require.NoError(t, err)
+	assert.NotNil(t, p)
+
+	sort.Slice(cfg.AttributesActions, func(i, j int) bool {
+		return strings.Compare(cfg.AttributesActions[i].Key, cfg.AttributesActions[j].Key) < 0
+	})
+	assert.Equal(t, []processorhelper.ActionKeyValue{
+		{Key: "foo", Value: "legacy", Action: processorhelper.UPSERT},
+		{Key: "leg", Value: "head", Action: processorhelper.UPSERT},
+	}, cfg.AttributesActions)
+}
+
 func TestLoadConfigAndFlags(t *testing.T) {
 	factories, err := componenttest.ExampleComponents()
 	require.NoError(t, err)
