@@ -16,6 +16,7 @@ package elasticsearchexporter
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -35,7 +36,8 @@ const archiveNamespace = "es-archive"
 
 // StorageFactory implements storage.Factory and storage.ArchiveFactory
 type StorageFactory struct {
-	Options *es.Options
+	options *es.Options
+	name    string
 	logger  *zap.Logger
 }
 
@@ -43,9 +45,9 @@ var _ storage.Factory = (*StorageFactory)(nil)
 var _ storage.ArchiveFactory = (*StorageFactory)(nil)
 
 // NewStorageFactory creates StorageFactory
-func NewStorageFactory(opts *es.Options, logger *zap.Logger) *StorageFactory {
+func NewStorageFactory(opts *es.Options, logger *zap.Logger, name string) *StorageFactory {
 	return &StorageFactory{
-		Options: opts,
+		options: opts,
 		logger:  logger,
 	}
 }
@@ -58,8 +60,8 @@ func (s *StorageFactory) Initialize(_ metrics.Factory, logger *zap.Logger) error
 
 // CreateSpanWriter creates spanstore.Writer
 func (s *StorageFactory) CreateSpanWriter() (spanstore.Writer, error) {
-	cfg := s.Options.GetPrimary()
-	writer, err := newEsSpanWriter(*cfg, s.logger, false)
+	cfg := s.options.GetPrimary()
+	writer, err := newEsSpanWriter(*cfg, s.logger, false, s.name)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +77,7 @@ func (s *StorageFactory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateSpanReader creates spanstore.Reader
 func (s *StorageFactory) CreateSpanReader() (spanstore.Reader, error) {
-	cfg := s.Options.GetPrimary()
+	cfg := s.options.GetPrimary()
 	client, err := esclient.NewElasticsearchClient(*cfg, s.logger)
 	if err != nil {
 		return nil, err
@@ -92,7 +94,7 @@ func (s *StorageFactory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateDependencyReader creates dependencystore.Reader
 func (s *StorageFactory) CreateDependencyReader() (dependencystore.Reader, error) {
-	cfg := s.Options.GetPrimary()
+	cfg := s.options.GetPrimary()
 	client, err := esclient.NewElasticsearchClient(*cfg, s.logger)
 	if err != nil {
 		return nil, err
@@ -102,7 +104,7 @@ func (s *StorageFactory) CreateDependencyReader() (dependencystore.Reader, error
 
 // CreateArchiveSpanReader creates archive spanstore.Reader
 func (s *StorageFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	cfg := s.Options.Get(archiveNamespace)
+	cfg := s.options.Get(archiveNamespace)
 	client, err := esclient.NewElasticsearchClient(*cfg, s.logger)
 	if err != nil {
 		return nil, err
@@ -119,8 +121,8 @@ func (s *StorageFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 
 // CreateArchiveSpanWriter creates archive spanstore.Writer
 func (s *StorageFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	cfg := s.Options.Get(archiveNamespace)
-	writer, err := newEsSpanWriter(*cfg, s.logger, true)
+	cfg := s.options.Get(archiveNamespace)
+	writer, err := newEsSpanWriter(*cfg, s.logger, true, fmt.Sprintf("%s/%s", s.name, archiveNamespace))
 	if err != nil {
 		return nil, err
 	}

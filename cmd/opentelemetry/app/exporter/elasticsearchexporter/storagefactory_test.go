@@ -28,10 +28,12 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 )
 
+const testExporterName = "test"
+
 func TestFactoryCreateSpanWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{Version: 6, Servers: []string{"foo:9200"}}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		assert.NoError(t, factory.Initialize(nil, nil))
 		writer, err := factory.CreateSpanWriter()
 		require.NoError(t, err)
@@ -39,7 +41,7 @@ func TestFactoryCreateSpanWriter(t *testing.T) {
 	})
 	t.Run("error_es_client", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		writer, err := factory.CreateSpanWriter()
 		require.Error(t, err)
 		assert.Nil(t, writer)
@@ -49,14 +51,14 @@ func TestFactoryCreateSpanWriter(t *testing.T) {
 func TestFactoryCreateSpanReader(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{Version: 6, Servers: []string{"foo:9200"}}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		reader, err := factory.CreateSpanReader()
 		require.NoError(t, err)
 		assert.NotNil(t, reader)
 	})
 	t.Run("error_es_client", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		reader, err := factory.CreateSpanReader()
 		require.Error(t, err)
 		assert.Nil(t, reader)
@@ -66,14 +68,14 @@ func TestFactoryCreateSpanReader(t *testing.T) {
 func TestFactoryCreateDependencyReader(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{Version: 6, Servers: []string{"foo:9200"}}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		reader, err := factory.CreateDependencyReader()
 		require.NoError(t, err)
 		assert.NotNil(t, reader)
 	})
 	t.Run("error_es_client", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		reader, err := factory.CreateDependencyReader()
 		require.Error(t, err)
 		assert.Nil(t, reader)
@@ -83,14 +85,14 @@ func TestFactoryCreateDependencyReader(t *testing.T) {
 func TestFactoryCreateArchiveSpanReader(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{}, config.Configuration{Version: 6, Servers: []string{"foo:9200"}})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		reader, err := factory.CreateArchiveSpanReader()
 		require.NoError(t, err)
 		assert.NotNil(t, reader)
 	})
 	t.Run("error_es_client", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		reader, err := factory.CreateArchiveSpanReader()
 		require.Error(t, err)
 		assert.Nil(t, reader)
@@ -100,14 +102,14 @@ func TestFactoryCreateArchiveSpanReader(t *testing.T) {
 func TestFactoryCreateArchiveSpanWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{}, config.Configuration{Version: 6, Servers: []string{"foo:9200"}})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		writer, err := factory.CreateArchiveSpanWriter()
 		require.NoError(t, err)
 		assert.NotNil(t, writer)
 	})
 	t.Run("error_es_client", func(t *testing.T) {
 		opts := es.NewOptionsFromConfig(config.Configuration{}, config.Configuration{})
-		factory := NewStorageFactory(opts, zap.NewNop())
+		factory := NewStorageFactory(opts, zap.NewNop(), testExporterName)
 		writer, err := factory.CreateArchiveSpanWriter()
 		require.Error(t, err)
 		assert.Nil(t, writer)

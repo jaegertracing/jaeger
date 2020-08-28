@@ -42,6 +42,10 @@ func main() {
 		}
 	}
 
+	if err := app.RegisterMetricViews(); err != nil {
+		handleErr(err)
+	}
+
 	ver := version.Get()
 	info := service.ApplicationStartInfo{
 		ExeName:  "jaeger-opentelemetry-ingester",

@@ -17,6 +17,7 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/uber/jaeger-client-go v2.23.1+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
+	go.opencensus.io v0.22.4
 	go.opentelemetry.io/collector v0.8.1-0.20200820012544-1e65674799c8
 	go.uber.org/zap v1.16.0
 )

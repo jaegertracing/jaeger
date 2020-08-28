@@ -78,16 +78,16 @@ func (s *IntegrationTest) initializeES(allTagsAsFields bool) error {
 
 	s.initSpanstore(allTagsAsFields)
 	s.CleanUp = func() error {
-		return s.esCleanUp()
+		return s.esCleanUp(allTagsAsFields)
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp()
+	s.esCleanUp(allTagsAsFields)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.NotSupportSpanKindWithOperation = true
 	return nil
 }
 
-func (s *IntegrationTest) esCleanUp() error {
+func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
 	request, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/*", esURL), strings.NewReader(""))
 	if err != nil {
 		return err
@@ -96,7 +96,8 @@ func (s *IntegrationTest) esCleanUp() error {
 	if err != nil {
 		return err
 	}
-	return response.Body.Close()
+	defer response.Body.Close()
+	return s.initSpanstore(allTagsAsFields)
 }
 
 func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
@@ -107,12 +108,12 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 			AllAsFields: allTagsAsFields,
 		},
 	}
-	w, err := newEsSpanWriter(cfg, s.logger, false)
+	w, err := newEsSpanWriter(cfg, s.logger, false, "elasticsearch")
 	if err != nil {
 		return err
 	}
 	esVersion := uint(w.esClientVersion())
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, esVersion)
+	spanMapping, serviceMapping := es.GetSpanServiceMappings(1, 0, esVersion)
 	err = w.CreateTemplates(context.Background(), spanMapping, serviceMapping)
 	if err != nil {
 		return err
