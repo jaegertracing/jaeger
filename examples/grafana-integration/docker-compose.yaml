@@ -1,11 +1,12 @@
 version: '2'
+
 services:
   grafana:
     image: grafana/grafana:7.1.4
     ports:
       - '3000:3000'
     volumes:
-      - ./datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
     logging:
       driver: loki
       options:
@@ -16,6 +17,7 @@ services:
     ports:
       - '3100:3100'
     command: -config.file=/etc/loki/local-config.yaml
+    # send Loki traces to Jaeger
     environment:
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
@@ -39,9 +41,9 @@ services:
   hotrod:
     image: jaegertracing/example-hotrod:latest
     ports:
-      - "8080:8080"
-      - "8083:8083"
-    command: ["-m", "prometheus","all"]
+      - '8080:8080'
+      - '8083:8083'
+    command: ["-m","prometheus","all"]
     environment:
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
@@ -51,11 +53,11 @@ services:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   prometheus:
-    image: prom/prometheus:v2.19.0
+    image: prom/prometheus:v2.19.1
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - 9090:9090
+      - '9090:9090'
     command:
     - --config.file=/etc/prometheus/prometheus.yml
     logging:
