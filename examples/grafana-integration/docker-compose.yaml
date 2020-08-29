@@ -6,7 +6,9 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./grafana/hotrod_metrics_logs.json:/etc/grafana/provisioning/dashboards/hotrod_metrics_logs.json
     logging:
       driver: loki
       options:
