@@ -364,7 +364,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	}
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
-	actual, err := s.DependencyReader.GetDependencies(time.Now(), 5*time.Minute)
+	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
 	assert.EqualValues(t, expected, actual)
 }

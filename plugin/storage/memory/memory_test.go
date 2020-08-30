@@ -139,7 +139,7 @@ func withMemoryStore(f func(store *Store)) {
 
 func TestStoreGetEmptyDependencies(t *testing.T) {
 	withMemoryStore(func(store *Store) {
-		links, err := store.GetDependencies(time.Now(), time.Hour)
+		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 	})
@@ -151,11 +151,11 @@ func TestStoreGetDependencies(t *testing.T) {
 		assert.NoError(t, store.WriteSpan(childSpan1))
 		assert.NoError(t, store.WriteSpan(childSpan2))
 		assert.NoError(t, store.WriteSpan(childSpan2_1))
-		links, err := store.GetDependencies(time.Now(), time.Hour)
+		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 
-		links, err = store.GetDependencies(time.Unix(0, 0).Add(time.Hour), time.Hour)
+		links, err = store.GetDependencies(context.Background(), time.Unix(0, 0).Add(time.Hour), time.Hour)
 		assert.NoError(t, err)
 		assert.Equal(t, []model.DependencyLink{{
 			Parent:    "serviceName",

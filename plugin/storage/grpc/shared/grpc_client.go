@@ -206,8 +206,8 @@ func (c *grpcClient) WriteSpan(span *model.Span) error {
 }
 
 // GetDependencies returns all interservice dependencies
-func (c *grpcClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	resp, err := c.depsReaderClient.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{
+func (c *grpcClient) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	resp, err := c.depsReaderClient.GetDependencies(ctx, &storage_v1.GetDependenciesRequest{
 		EndTime:   endTs,
 		StartTime: endTs.Add(-lookback),
 	})

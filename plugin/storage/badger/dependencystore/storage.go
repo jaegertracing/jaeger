@@ -35,7 +35,7 @@ func NewDependencyStore(store spanstore.Reader) *DependencyStore {
 }
 
 // GetDependencies returns all interservice dependencies, implements DependencyReader
-func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	deps := map[string]*model.DependencyLink{}
 
 	params := &spanstore.TraceQueryParameters{

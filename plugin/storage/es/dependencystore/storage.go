@@ -81,13 +81,13 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 }
 
 // GetDependencies returns all interservice dependencies
-func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	indices := getIndices(s.indexPrefix, endTs, lookback)
 	searchResult, err := s.client.Search(indices...).
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).
-		Do(s.ctx)
+		Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for dependencies: %w", err)
 	}

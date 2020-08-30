@@ -285,7 +285,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	}
 	endTs := time.Unix(0, 0).Add(time.Duration(endTsMillis) * time.Millisecond)
 
-	dependencies, err := aH.queryService.GetDependencies(endTs, lookback)
+	dependencies, err := aH.queryService.GetDependencies(r.Context(), endTs, lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}

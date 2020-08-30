@@ -82,11 +82,11 @@ func (r *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 }
 
 // GetDependencies implements dependencystore.Reader
-func (r *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (r *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	searchBody := getSearchBody(endTs, lookback)
 
 	indices := dailyIndices(r.indexPrefix, endTs, lookback)
-	response, err := r.client.Search(context.Background(), searchBody, defaultDocCount, indices...)
+	response, err := r.client.Search(ctx, searchBody, defaultDocCount, indices...)
 	if err != nil {
 		return nil, err
 	}

@@ -259,7 +259,7 @@ func TestGetDependencies(t *testing.T) {
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
 	depsMock.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
 
-	actualDependencies, err := qs.GetDependencies(time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
+	actualDependencies, err := qs.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDependencies, actualDependencies)
 }

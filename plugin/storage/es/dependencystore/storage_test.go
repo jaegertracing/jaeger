@@ -16,6 +16,7 @@
 package dependencystore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -171,7 +172,7 @@ func TestGetDependencies(t *testing.T) {
 			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
 
-			actual, err := r.storage.GetDependencies(fixedTime, 24*time.Hour)
+			actual, err := r.storage.GetDependencies(context.Background(), fixedTime, 24*time.Hour)
 			if testCase.expectedError != "" {
 				assert.EqualError(t, err, testCase.expectedError)
 				assert.Nil(t, actual)
