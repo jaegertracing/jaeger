@@ -72,72 +72,72 @@ func TestBuilderWithCollectors(t *testing.T) {
 	defer s1.Stop()
 
 	tests := []struct {
-		target              string
-		name                string
-		hostPorts           []string
-		checkSuffixOnly     bool
-		notifier            discovery.Notifier
-		discoverer          discovery.Discoverer
-		expectedError       string
-		checkConnectioState bool
-		expectedState       string
+		target               string
+		name                 string
+		hostPorts            []string
+		checkSuffixOnly      bool
+		notifier             discovery.Notifier
+		discoverer           discovery.Discoverer
+		expectedError        string
+		checkConnectionState bool
+		expectedState        string
 	}{
 		{
-			target:              "///round_robin",
-			name:                "with roundrobin schema",
-			hostPorts:           []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
-			checkSuffixOnly:     true,
-			notifier:            nil,
-			discoverer:          nil,
-			checkConnectioState: false,
+			target:               "///round_robin",
+			name:                 "with roundrobin schema",
+			hostPorts:            []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
+			checkSuffixOnly:      true,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: false,
 		},
 		{
-			target:              "127.0.0.1:9876",
-			name:                "with single host",
-			hostPorts:           []string{"127.0.0.1:9876"},
-			checkSuffixOnly:     false,
-			notifier:            nil,
-			discoverer:          nil,
-			checkConnectioState: false,
+			target:               "127.0.0.1:9876",
+			name:                 "with single host",
+			hostPorts:            []string{"127.0.0.1:9876"},
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: false,
 		},
 		{
-			target:              "///round_robin",
-			name:                "with custom resolver and fixed discoverer",
-			hostPorts:           []string{"dns://random_stuff"},
-			checkSuffixOnly:     true,
-			notifier:            noopNotifier{},
-			discoverer:          discovery.FixedDiscoverer{},
-			checkConnectioState: false,
+			target:               "///round_robin",
+			name:                 "with custom resolver and fixed discoverer",
+			hostPorts:            []string{"dns://random_stuff"},
+			checkSuffixOnly:      true,
+			notifier:             noopNotifier{},
+			discoverer:           discovery.FixedDiscoverer{},
+			checkConnectionState: false,
 		},
 		{
-			target:              "",
-			name:                "without collectorPorts and resolver",
-			hostPorts:           nil,
-			checkSuffixOnly:     false,
-			notifier:            nil,
-			discoverer:          nil,
-			expectedError:       "at least one collector hostPort address is required when resolver is not available",
-			checkConnectioState: false,
+			target:               "",
+			name:                 "without collectorPorts and resolver",
+			hostPorts:            nil,
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			expectedError:        "at least one collector hostPort address is required when resolver is not available",
+			checkConnectionState: false,
 		},
 		{
-			target:              addr1.String(),
-			name:                "with collector connection status ready",
-			hostPorts:           []string{addr1.String()},
-			checkSuffixOnly:     false,
-			notifier:            nil,
-			discoverer:          nil,
-			checkConnectioState: true,
-			expectedState:       "READY",
+			target:               addr1.String(),
+			name:                 "with collector connection status ready",
+			hostPorts:            []string{addr1.String()},
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: true,
+			expectedState:        "READY",
 		},
 		{
-			target:              "random_stuff",
-			name:                "with collector connection status failure",
-			hostPorts:           []string{"random_stuff"},
-			checkSuffixOnly:     false,
-			notifier:            nil,
-			discoverer:          nil,
-			checkConnectioState: true,
-			expectedState:       "TRANSIENT_FAILURE",
+			target:               "random_stuff",
+			name:                 "with collector connection status failure",
+			hostPorts:            []string{"random_stuff"},
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: true,
+			expectedState:        "TRANSIENT_FAILURE",
 		},
 	}
 
@@ -153,7 +153,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 			if test.expectedError == "" {
 				require.NoError(t, err)
 				require.NotNil(t, conn)
-				if test.checkConnectioState {
+				if test.checkConnectionState {
 					assertConnectionState(t, conn, test.expectedState)
 				}
 				if test.checkSuffixOnly {

@@ -19,12 +19,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
@@ -101,18 +99,10 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 
 	go func(cc *grpc.ClientConn) {
 		logger.Info("Checking connection to collector")
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
 		for {
 			s := cc.GetState()
 			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
-			if s == connectivity.Ready {
-				return
-			}
-			if !cc.WaitForStateChange(ctx, s) {
-				logger.Error("Could not get collector connection state", zap.String("error", ctx.Err().Error()))
-				return
-			}
+			cc.WaitForStateChange(context.Background(), s)
 		}
 	}(conn)
 
