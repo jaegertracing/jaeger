@@ -163,7 +163,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				w.client.On("Index").Return(indexService)
 
-				err = w.writer.WriteSpan(span)
+				err = w.writer.WriteSpan(context.Background(), span)
 
 				if testCase.expectedError == "" {
 					require.NoError(t, err)

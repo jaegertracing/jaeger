@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"hash"
 	"hash/fnv"
 	"math"
@@ -70,14 +71,14 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 }
 
 // WriteSpan calls WriteSpan on wrapped span writer.
-func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
+func (ds *DownsamplingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	if !ds.sampler.ShouldSample(span) {
 		// Drops spans when hashVal falls beyond computed threshold.
 		ds.metrics.SpansDropped.Inc(1)
 		return nil
 	}
 	ds.metrics.SpansAccepted.Inc(1)
-	return ds.spanWriter.WriteSpan(span)
+	return ds.spanWriter.WriteSpan(ctx, span)
 }
 
 // hashBytes returns the uint64 hash value of byte slice.

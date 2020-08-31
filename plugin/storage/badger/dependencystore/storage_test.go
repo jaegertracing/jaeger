@@ -91,7 +91,7 @@ func TestDependencyReader(t *testing.T) {
 				if j > 0 {
 					s.References = []model.SpanRef{model.NewChildOfRef(s.TraceID, model.SpanID(j-1))}
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}

@@ -83,11 +83,12 @@ type writer struct {
 var _ spanstore.Writer = (*writer)(nil)
 
 // WriteSpan writes a span to the next consumer.
-func (w writer) WriteSpan(span *model.Span) error {
+func (w writer) WriteSpan(ctx context.Context, span *model.Span) error {
 	batch := model.Batch{
 		Spans:   []*model.Span{span},
 		Process: span.Process,
 	}
 	traces := jaegertranslator.ProtoBatchToInternalTraces(batch)
+	// TODO what does w.ctx represent?
 	return w.nextConsumer.ConsumeTraces(w.ctx, traces)
 }

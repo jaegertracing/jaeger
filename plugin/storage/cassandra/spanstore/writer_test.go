@@ -16,6 +16,7 @@
 package spanstore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -209,7 +210,7 @@ func TestSpanWriter(t *testing.T) {
 
 				w.writer.serviceNamesWriter = func(serviceName string) error { return testCase.serviceNameError }
 				w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return testCase.serviceNameError }
-				err := w.writer.WriteSpan(span)
+				err := w.writer.WriteSpan(context.Background(), span)
 
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
@@ -323,7 +324,7 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
 		w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
 
-		err := w.writer.WriteSpan(span)
+		err := w.writer.WriteSpan(context.Background(), span)
 
 		assert.NoError(t, err)
 		serviceNameQuery.AssertExpectations(t)
@@ -349,7 +350,7 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 				ServiceName: "service-a",
 			},
 		}
-		err := w.writer.WriteSpan(span)
+		err := w.writer.WriteSpan(context.Background(), span)
 		assert.NoError(t, err)
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceOperationIndex), matchEverything())
@@ -393,7 +394,7 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
 		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
 
-		err := w.writer.WriteSpan(span)
+		err := w.writer.WriteSpan(context.Background(), span)
 		assert.NoError(t, err)
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", stringMatcher(tagIndex), matchEverything())
@@ -425,7 +426,7 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 		spanQuery.On("Exec").Return(nil)
 		w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
 
-		err := w.writer.WriteSpan(span)
+		err := w.writer.WriteSpan(context.Background(), span)
 
 		assert.NoError(t, err)
 		spanQuery.AssertExpectations(t)

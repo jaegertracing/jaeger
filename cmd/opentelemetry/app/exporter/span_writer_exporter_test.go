@@ -125,7 +125,7 @@ type spanWriter struct {
 	err error
 }
 
-func (w spanWriter) WriteSpan(span *model.Span) error {
+func (w spanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	if span.GetOperationName() == "error" {
 		return w.err
 	}
@@ -139,7 +139,7 @@ func (spanWriter) Close() error {
 type noClosableWriter struct {
 }
 
-func (noClosableWriter) WriteSpan(span *model.Span) error {
+func (noClosableWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	return nil
 }
 

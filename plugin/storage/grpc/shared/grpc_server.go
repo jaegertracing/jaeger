@@ -43,7 +43,7 @@ func (s *grpcServer) GetDependencies(ctx context.Context, r *storage_v1.GetDepen
 
 // WriteSpan saves the span
 func (s *grpcServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	err := s.Impl.SpanWriter().WriteSpan(r.Span)
+	err := s.Impl.SpanWriter().WriteSpan(ctx, r.Span)
 	if err != nil {
 		return nil, err
 	}

@@ -277,7 +277,7 @@ func TestGRPCClientWriteSpan(t *testing.T) {
 			Span: &mockTraceSpans[0],
 		}).Return(&storage_v1.WriteSpanResponse{}, nil)
 
-		err := r.client.WriteSpan(&mockTraceSpans[0])
+		err := r.client.WriteSpan(context.Background(), &mockTraceSpans[0])
 		assert.NoError(t, err)
 	})
 }
