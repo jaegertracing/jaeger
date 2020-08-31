@@ -101,6 +101,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
+			AggregationSize:   999,
 		}),
 	}
 	fn(r)
@@ -840,7 +841,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.MatchedBy(func(i int) bool {
-		return i == 0 || i == defaultDocCount
+		return i == 0
 	})).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)

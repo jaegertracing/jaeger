@@ -53,8 +53,10 @@ const (
 	suffixCreateIndexTemplate = ".create-index-templates"
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
+	suffixAggregationSize     = ".aggregation.size"
 
-	defaultServerURL = "http://127.0.0.1:9200"
+	defaultServerURL       = "http://127.0.0.1:9200"
+	defaultAggregationSize = 10000 // the default elasticsearch allowed limit
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -97,6 +99,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				CreateIndexTemplates: true,
 				Version:              0,
 				Servers:              []string{defaultServerURL},
+				AggregationSize:      defaultAggregationSize,
 			},
 			namespace: primaryNamespace,
 		},
@@ -237,6 +240,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSnifferTLSEnabled,
 		nsConfig.SnifferTLSEnabled,
 		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
+	flagSet.Int(
+		nsConfig.namespace+suffixAggregationSize,
+		nsConfig.AggregationSize,
+		"The aggregation size to set in Elasticsearch queries to limit the number of results returned; used primarily for querying for distinct services and operations.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -279,6 +286,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
+	cfg.AggregationSize = v.GetInt(cfg.namespace + suffixAggregationSize)
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)

@@ -65,6 +65,7 @@ type Configuration struct {
 	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
 	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
 	Version               uint           `mapstructure:"version"`
+	AggregationSize       int            `mapstructure:"-"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -98,6 +99,7 @@ type ClientBuilder interface {
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
 	TagKeysAsFields() ([]string, error)
+	GetAggregationSize() int
 }
 
 // NewClient creates a new ElasticSearch client
@@ -233,6 +235,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Tags.File == "" {
 		c.Tags.File = source.Tags.File
 	}
+	if c.AggregationSize == 0 {
+		c.AggregationSize = source.AggregationSize
+	}
 }
 
 // GetNumShards returns number of shards from Configuration
@@ -289,6 +294,11 @@ func (c *Configuration) GetUseReadWriteAliases() bool {
 // GetTokenFilePath returns file path containing the bearer token
 func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
+}
+
+// GetAggregationSize returns the number of results (buckets) to return from a query
+func (c *Configuration) GetAggregationSize() int {
+	return c.AggregationSize
 }
 
 // IsStorageEnabled determines whether storage is enabled
