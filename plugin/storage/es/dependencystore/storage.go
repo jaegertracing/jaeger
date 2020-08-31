@@ -37,7 +37,6 @@ const (
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	ctx         context.Context
 	client      es.Client
 	logger      *zap.Logger
 	indexPrefix string
@@ -50,7 +49,6 @@ func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string
 		prefix = indexPrefix + "-"
 	}
 	return &DependencyStore{
-		ctx:         context.Background(),
 		client:      client,
 		logger:      logger,
 		indexPrefix: prefix + dependencyIndex,
