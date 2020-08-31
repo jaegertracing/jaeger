@@ -38,7 +38,7 @@ func TestArchiveWriter_WriteSpan(t *testing.T) {
 	archiveWriter := new(mocks.ArchiveSpanWriterPluginClient)
 	archiveWriter.On("WriteArchiveSpan", mock.Anything, &storage_v1.WriteSpanRequest{Span: mockSpan}).
 		Return(&storage_v1.WriteSpanResponse{}, nil)
-	writer := &ArchiveWriter{archiveWriter}
+	writer := &ArchiveWriter{client: archiveWriter}
 
 	err := writer.WriteSpan(mockSpan)
 	assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 	archiveReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
 		TraceID: mockTraceID,
 	}).Return(traceClient, nil)
-	reader := &ArchiveReader{archiveReader}
+	reader := &ArchiveReader{client: archiveReader}
 
 	trace, err := reader.GetTrace(context.Background(), mockTraceID)
 	assert.NoError(t, err)
@@ -74,28 +74,28 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 
 func TestArchiveReader_FindTraceIDs(t *testing.T) {
 	assert.Panics(t, func() {
-		reader := ArchiveReader{&mocks.ArchiveSpanReaderPluginClient{}}
+		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 		_, _ = reader.FindTraceIDs(context.Background(), nil)
 	})
 }
 
 func TestArchiveReader_FindTraces(t *testing.T) {
 	assert.Panics(t, func() {
-		reader := ArchiveReader{&mocks.ArchiveSpanReaderPluginClient{}}
+		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 		_, _ = reader.FindTraces(context.Background(), nil)
 	})
 }
 
 func TestArchiveReader_GetOperations(t *testing.T) {
 	assert.Panics(t, func() {
-		reader := ArchiveReader{&mocks.ArchiveSpanReaderPluginClient{}}
+		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 		_, _ = reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
 	})
 }
 
 func TestArchiveReader_GetServices(t *testing.T) {
 	assert.Panics(t, func() {
-		reader := ArchiveReader{&mocks.ArchiveSpanReaderPluginClient{}}
+		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 		_, _ = reader.GetServices(context.Background())
 	})
 }

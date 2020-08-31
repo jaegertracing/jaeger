@@ -71,11 +71,11 @@ func (c *grpcClient) SpanWriter() spanstore.Writer {
 }
 
 func (c *grpcClient) ArchiveSpanReader() spanstore.Reader {
-	return &ArchiveReader{c.archiveReaderClient}
+	return &ArchiveReader{client: c.archiveReaderClient}
 }
 
 func (c *grpcClient) ArchiveSpanWriter() spanstore.Writer {
-	return &ArchiveWriter{c.archiveWriterClient}
+	return &ArchiveWriter{client: c.archiveWriterClient}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
