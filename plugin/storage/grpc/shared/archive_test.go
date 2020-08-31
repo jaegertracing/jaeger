@@ -73,29 +73,25 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 }
 
 func TestArchiveReader_FindTraceIDs(t *testing.T) {
-	assert.Panics(t, func() {
-		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
-		_, _ = reader.FindTraceIDs(context.Background(), nil)
-	})
+	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	_, err := reader.FindTraceIDs(context.Background(), nil)
+	assert.Error(t, err)
 }
 
 func TestArchiveReader_FindTraces(t *testing.T) {
-	assert.Panics(t, func() {
-		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
-		_, _ = reader.FindTraces(context.Background(), nil)
-	})
+	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	_, err := reader.FindTraces(context.Background(), nil)
+	assert.Error(t, err)
 }
 
 func TestArchiveReader_GetOperations(t *testing.T) {
-	assert.Panics(t, func() {
-		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
-		_, _ = reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
-	})
+	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
+	assert.Error(t, err)
 }
 
 func TestArchiveReader_GetServices(t *testing.T) {
-	assert.Panics(t, func() {
-		reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
-		_, _ = reader.GetServices(context.Background())
-	})
+	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	_, err := reader.GetServices(context.Background())
+	assert.Error(t, err)
 }
