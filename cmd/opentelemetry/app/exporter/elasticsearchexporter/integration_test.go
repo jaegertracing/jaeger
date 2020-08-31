@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -61,13 +62,15 @@ type storageWrapper struct {
 	writer *esSpanWriter
 }
 
-func (s storageWrapper) WriteSpan(span *model.Span) error {
+var _ spanstore.Writer = (*storageWrapper)(nil)
+
+func (s storageWrapper) WriteSpan(ctx context.Context, span *model.Span) error {
 	// This fails because there is no binary tag type in OTEL and also OTEL span's status code is always created
 	//traces := jaegertranslator.ProtoBatchesToInternalTraces([]*model.Batch{{Process: span.Process, Spans: []*model.Span{span}}})
 	//_, err := s.writer.WriteTraces(context.Background(), traces)
 	converter := dbmodel.FromDomain{}
 	dbSpan := converter.FromDomainEmbedProcess(span)
-	_, err := s.writer.writeSpans(context.Background(), []*dbmodel.Span{dbSpan})
+	_, err := s.writer.writeSpans(ctx, []*dbmodel.Span{dbSpan})
 	return err
 }
 
