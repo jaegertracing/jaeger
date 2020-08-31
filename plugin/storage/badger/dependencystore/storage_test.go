@@ -15,6 +15,7 @@
 package dependencystore_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -66,7 +67,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 func TestDependencyReader(t *testing.T) {
 	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader) {
 		tid := time.Now()
-		links, err := dr.GetDependencies(tid, time.Hour)
+		links, err := dr.GetDependencies(context.Background(), tid, time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 
@@ -94,7 +95,7 @@ func TestDependencyReader(t *testing.T) {
 				assert.NoError(t, err)
 			}
 		}
-		links, err = dr.GetDependencies(time.Now(), time.Hour)
+		links, err = dr.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, links)
 		assert.Equal(t, spans-1, len(links))                // First span does not create a dependency

@@ -297,7 +297,7 @@ func TestGRPCClientGetDependencies(t *testing.T) {
 			EndTime:   end,
 		}).Return(&storage_v1.GetDependenciesResponse{Dependencies: deps}, nil)
 
-		s, err := r.client.GetDependencies(end, lookback)
+		s, err := r.client.GetDependencies(context.Background(), end, lookback)
 		assert.NoError(t, err)
 		assert.Equal(t, deps, s)
 	})

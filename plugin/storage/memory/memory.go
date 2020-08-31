@@ -58,7 +58,7 @@ func WithConfiguration(configuration config.Configuration) *Store {
 }
 
 // GetDependencies returns dependencies between services
-func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (m *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
 	defer m.Unlock()

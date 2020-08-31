@@ -86,7 +86,7 @@ func TestGetDependencies(t *testing.T) {
 		},
 	}
 	store := NewDependencyStore(client, zap.NewNop(), "foo")
-	dependencies, err := store.GetDependencies(tsNow, time.Hour)
+	dependencies, err := store.GetDependencies(context.Background(), tsNow, time.Hour)
 	require.NoError(t, err)
 	assert.Equal(t, timeDependencies, dbmodel.TimeDependencies{
 		Timestamp:    tsNow,
@@ -108,7 +108,7 @@ func TestGetDependencies_err_unmarshall(t *testing.T) {
 		},
 	}
 	store := NewDependencyStore(client, zap.NewNop(), "foo")
-	dependencies, err := store.GetDependencies(tsNow, time.Hour)
+	dependencies, err := store.GetDependencies(context.Background(), tsNow, time.Hour)
 	require.Contains(t, err.Error(), "invalid character")
 	assert.Nil(t, dependencies)
 }
@@ -120,7 +120,7 @@ func TestGetDependencies_err_client(t *testing.T) {
 	}
 	store := NewDependencyStore(client, zap.NewNop(), "foo")
 	tsNow := time.Now()
-	dependencies, err := store.GetDependencies(tsNow, time.Hour)
+	dependencies, err := store.GetDependencies(context.Background(), tsNow, time.Hour)
 	require.Error(t, err)
 	assert.Nil(t, dependencies)
 	assert.Contains(t, err.Error(), searchErr.Error())

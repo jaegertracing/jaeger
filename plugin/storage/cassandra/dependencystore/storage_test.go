@@ -16,6 +16,7 @@
 package dependencystore
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -225,7 +226,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 
 				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
-				deps, err := s.storage.GetDependencies(time.Now(), 48*time.Hour)
+				deps, err := s.storage.GetDependencies(context.Background(), time.Now(), 48*time.Hour)
 
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
