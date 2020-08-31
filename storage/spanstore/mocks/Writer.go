@@ -18,9 +18,9 @@ package mocks
 import (
 	"context"
 
-	model "github.com/jaegertracing/jaeger/model"
 	mock "github.com/stretchr/testify/mock"
 
+	model "github.com/jaegertracing/jaeger/model"
 	spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
