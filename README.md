@@ -8,7 +8,7 @@
 
 [![Gitter chat][gitter-img]][gitter] [![Project+Community stats][community-badge]][community-stats]
 
-[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) 
+[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield)
 
 # Jaeger - a Distributed Tracing System
 
