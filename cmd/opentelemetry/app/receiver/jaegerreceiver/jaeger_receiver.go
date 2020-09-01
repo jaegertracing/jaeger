@@ -90,7 +90,7 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 			},
 		}
 	}
-	if cOpts.TLS.Enabled == true {
+	if cOpts.TLS.Enabled {
 		if cfg.GRPC == nil {
 			cfg.GRPC = &configgrpc.GRPCServerSettings{
 				NetAddr: confignet.NetAddr{
