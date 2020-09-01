@@ -63,5 +63,6 @@ func (s KafkaSpanProcessor) Process(message Message) error {
 	if err != nil {
 		return fmt.Errorf("cannot unmarshall byte array into span: %w", err)
 	}
+	// TODO context should be propagated from upstream components
 	return s.writer.WriteSpan(context.TODO(), span)
 }

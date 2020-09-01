@@ -141,6 +141,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	}
 
 	startTime := time.Now()
+	// TODO context should be propagated from upstream components
 	if err := sp.spanWriter.WriteSpan(context.TODO(), span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
