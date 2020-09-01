@@ -108,6 +108,7 @@ func (f Factory) createStorageFactory(params component.ExporterCreateParams, cfg
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
 	f.mutex.Lock()
+	defer f.mutex.Unlock()
 	if instance != nil {
 		return instance, nil
 	}
@@ -118,6 +119,5 @@ func (f Factory) createStorageFactory(params component.ExporterCreateParams, cfg
 		return nil, err
 	}
 	instance = factory
-	f.mutex.Unlock()
 	return factory, nil
 }
