@@ -149,6 +149,9 @@ func (r *Reader) findTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 	if err != nil {
 		return nil, err
 	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("%s", response.Error)
+	}
 
 	var traceIDs []string
 	for _, k := range response.Aggs[traceIDField].Buckets {
@@ -166,6 +169,9 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("%s", response.Error)
+	}
 
 	var serviceNames []string
 	for _, k := range response.Aggs[serviceNameField].Buckets {
@@ -179,13 +185,16 @@ func (r *Reader) GetOperations(ctx context.Context, query spanstore.OperationQue
 	searchBody := getOperationsSearchBody(query.ServiceName)
 	currentTime := time.Now()
 	indices := r.serviceIndexName.get(currentTime.Add(-r.maxSpanAge), currentTime)
-	searchResponse, err := r.client.Search(ctx, searchBody, 0, indices...)
+	response, err := r.client.Search(ctx, searchBody, 0, indices...)
 	if err != nil {
 		return nil, err
 	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("%s", response.Error)
+	}
 
 	var operations []spanstore.Operation
-	for _, k := range searchResponse.Aggs[operationNameField].Buckets {
+	for _, k := range response.Aggs[operationNameField].Buckets {
 		operations = append(operations, spanstore.Operation{
 			Name: k.Key,
 		})
@@ -221,6 +230,9 @@ func (r *Reader) traceIDsMultiSearch(ctx context.Context, traceIDs []model.Trace
 		}
 
 		for _, resp := range response.Responses {
+			if resp.Error != nil {
+				return nil, fmt.Errorf("%s", resp.Error)
+			}
 			if resp.Hits.Total == 0 {
 				continue
 			}
@@ -280,9 +292,9 @@ func (r *Reader) multiSearchRequests(indices []string, traceIDs []model.TraceID,
 			Query:          traceIDQuery(traceID),
 			Size:           defaultDocCount,
 			TerminateAfter: r.maxNumberOfSpans,
-			SearchAfter:    []interface{}{nextTime},
 		}
 		if !r.archive {
+			s.SearchAfter = []interface{}{nextTime}
 			s.Sort = []map[string]esclient.Order{{startTimeField: esclient.AscOrder}}
 		}
 		queries[i] = s

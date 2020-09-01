@@ -149,8 +149,23 @@ type MultiSearchResponse struct {
 
 // SearchResponse defines search response.
 type SearchResponse struct {
-	Hits Hits                           `json:"hits"`
-	Aggs map[string]AggregationResponse `json:"aggregations,omitempty"`
+	Hits  Hits                           `json:"hits"`
+	Aggs  map[string]AggregationResponse `json:"aggregations,omitempty"`
+	Error *SearchResponseError           `json:"error,omitempty"`
+}
+
+// SearchResponseError defines search response error.
+type SearchResponseError struct {
+	json.RawMessage
+}
+
+var _ fmt.Stringer = (*SearchResponseError)(nil)
+
+func (e *SearchResponseError) String() string {
+	if e.RawMessage == nil {
+		return ""
+	}
+	return string(e.RawMessage)
 }
 
 // Hits defines search hits.
