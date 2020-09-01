@@ -17,6 +17,7 @@ package grpcpluginexporter
 import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter"
 	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
@@ -30,5 +31,8 @@ func new(config *Config, params component.ExporterCreateParams) (component.Trace
 	if err != nil {
 		return nil, err
 	}
-	return storageOtelExporter.NewSpanWriterExporter(&config.ExporterSettings, factory)
+	return storageOtelExporter.NewSpanWriterExporter(&config.ExporterSettings, factory,
+		exporterhelper.WithTimeout(config.TimeoutSettings),
+		exporterhelper.WithQueue(config.QueueSettings),
+		exporterhelper.WithRetry(config.RetrySettings))
 }

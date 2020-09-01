@@ -17,6 +17,7 @@ package cassandraexporter
 import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -31,5 +32,8 @@ func new(config *Config, params component.ExporterCreateParams) (component.Trace
 	if err != nil {
 		return nil, err
 	}
-	return exporter.NewSpanWriterExporter(config, f)
+	return exporter.NewSpanWriterExporter(config, f,
+		exporterhelper.WithTimeout(config.TimeoutSettings),
+		exporterhelper.WithQueue(config.QueueSettings),
+		exporterhelper.WithRetry(config.RetrySettings))
 }

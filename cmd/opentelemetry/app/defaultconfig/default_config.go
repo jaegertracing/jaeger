@@ -24,7 +24,6 @@ import (
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
-	"go.opentelemetry.io/collector/processor/queuedprocessor"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
@@ -107,9 +106,6 @@ func createProcessors(factories component.Factories) (configmodels.Processors, [
 	batch := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
 	processors[batch.Name()] = batch
 	names = append(names, batch.Name())
-	queuedRetry := factories.Processors["queued_retry"].CreateDefaultConfig().(*queuedprocessor.Config)
-	processors[queuedRetry.Name()] = queuedRetry
-	names = append(names, queuedRetry.Name())
 	return processors, names
 }
 

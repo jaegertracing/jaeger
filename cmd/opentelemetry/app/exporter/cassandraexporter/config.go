@@ -16,12 +16,17 @@ package cassandraexporter
 
 import (
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
 
 // Config holds configuration of Jaeger Cassandra exporter/storage.
 type Config struct {
-	configmodels.ExporterSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
-	cassandra.Options             `mapstructure:",squash"`
+	configmodels.ExporterSettings  `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
+	exporterhelper.TimeoutSettings `mapstructure:",squash"`
+	exporterhelper.QueueSettings   `mapstructure:"sending_queue"`
+	exporterhelper.RetrySettings   `mapstructure:"retry_on_failure"`
+
+	cassandra.Options `mapstructure:",squash"`
 }

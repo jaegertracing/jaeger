@@ -41,13 +41,6 @@ func TestCreateTraceExporter(t *testing.T) {
 	assert.Contains(t, err.Error(), "gocql: unable to create session")
 }
 
-func TestCreateTraceExporter_NilConfig(t *testing.T) {
-	factory := Factory{}
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
-	require.Nil(t, exporter)
-	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_cassandra")
-}
-
 func TestCreateDefaultConfig(t *testing.T) {
 	factory := Factory{OptionsFactory: DefaultOptions}
 	cfg := factory.CreateDefaultConfig()
