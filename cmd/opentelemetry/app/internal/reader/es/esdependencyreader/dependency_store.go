@@ -38,8 +38,8 @@ const (
 
 	// default number of documents to fetch in a query
 	// see search.max_buckets and index.max_result_window
-	defaultDocCount = 10_000
-	indexDateFormat = "2006-01-02" // date format for index e.g. 2020-01-20
+	defaultMaxDocCount = 10_000
+	indexDateFormat    = "2006-01-02" // date format for index e.g. 2020-01-20
 )
 
 // DependencyStore defines Elasticsearch dependency store.
@@ -87,7 +87,7 @@ func (r *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	searchBody := getSearchBody(endTs, lookback)
 
 	indices := dailyIndices(r.indexPrefix, endTs, lookback)
-	response, err := r.client.Search(ctx, searchBody, defaultDocCount, indices...)
+	response, err := r.client.Search(ctx, searchBody,defaultMaxDocCount, indices...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func getSearchBody(endTs time.Time, lookback time.Duration) esclient.SearchBody 
 		Query: &esclient.Query{
 			RangeQueries: map[string]esclient.RangeQuery{timestampField: {GTE: endTs.Add(-lookback), LTE: endTs}},
 		},
-		Size: defaultDocCount,
+		Size: defaultMaxDocCount,
 	}
 }
 

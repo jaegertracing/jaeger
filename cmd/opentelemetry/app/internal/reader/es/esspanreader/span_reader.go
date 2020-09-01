@@ -32,9 +32,6 @@ import (
 const (
 	// by default UI fetches 20 results
 	defaultNumTraces = 20
-	// default number of documents to fetch in a query
-	// see search.max_buckets and index.max_result_window
-	defaultAggregationSize = 10_000
 
 	spanIndexBaseName    = "jaeger-span"
 	serviceIndexBaseName = "jaeger-service"
@@ -65,7 +62,7 @@ type Reader struct {
 	// maximum number of spans to fetch per query in multi search
 	maxNumberOfSpans int
 	archive          bool
-	aggregationSize  int
+	maxDocCount      int
 }
 
 var _ spanstore.Reader = (*Reader)(nil)
@@ -78,7 +75,7 @@ type Config struct {
 	MaxSpanAge          time.Duration
 	MaxNumSpans         int
 	TagDotReplacement   string
-	AggregationSize     int
+	MaxDocCount         int
 }
 
 // NewEsSpanReader creates Elasticseach span reader.
@@ -92,7 +89,7 @@ func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, co
 		converter:        dbmodel.NewToDomain(config.TagDotReplacement),
 		spanIndexName:    newIndexNameProvider(spanIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
 		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
-		aggregationSize:  config.AggregationSize,
+		maxDocCount:      config.MaxDocCount,
 	}
 }
 
@@ -165,7 +162,7 @@ func (r *Reader) findTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 
 // GetServices implements spanstore.Reader
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
-	searchBody := getServicesSearchBody(r.aggregationSize)
+	searchBody := getServicesSearchBody(r.maxDocCount)
 	currentTime := time.Now()
 	indices := r.serviceIndexName.get(currentTime.Add(-r.maxSpanAge), currentTime)
 	response, err := r.client.Search(ctx, searchBody, 0, indices...)
@@ -185,7 +182,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 
 // GetOperations implements spanstore.Reader
 func (r *Reader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-	searchBody := getOperationsSearchBody(query.ServiceName, r.aggregationSize)
+	searchBody := getOperationsSearchBody(query.ServiceName, r.maxDocCount)
 	currentTime := time.Now()
 	indices := r.serviceIndexName.get(currentTime.Add(-r.maxSpanAge), currentTime)
 	response, err := r.client.Search(ctx, searchBody, 0, indices...)
@@ -293,7 +290,7 @@ func (r *Reader) multiSearchRequests(indices []string, traceIDs []model.TraceID,
 		s := esclient.SearchBody{
 			Indices:        indices,
 			Query:          traceIDQuery(traceID),
-			Size:           defaultAggregationSize,
+			Size:           r.maxDocCount,
 			TerminateAfter: r.maxNumberOfSpans,
 		}
 		if !r.archive {

@@ -65,7 +65,7 @@ type Configuration struct {
 	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
 	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
 	Version               uint           `mapstructure:"version"`
-	AggregationSize       int            `mapstructure:"-"`
+	MaxDocCount           int            `mapstructure:"-"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -99,7 +99,7 @@ type ClientBuilder interface {
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
 	TagKeysAsFields() ([]string, error)
-	GetAggregationSize() int
+	GetMaxDocCount() int
 }
 
 // NewClient creates a new ElasticSearch client
@@ -235,8 +235,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Tags.File == "" {
 		c.Tags.File = source.Tags.File
 	}
-	if c.AggregationSize == 0 {
-		c.AggregationSize = source.AggregationSize
+	if c.MaxDocCount == 0 {
+		c.MaxDocCount = source.MaxDocCount
 	}
 }
 
@@ -296,9 +296,9 @@ func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
 }
 
-// GetAggregationSize returns the number of results (buckets) to return from a query
-func (c *Configuration) GetAggregationSize() int {
-	return c.AggregationSize
+// GetMaxDocCount returns the number of results (buckets) to return from a query
+func (c *Configuration) GetMaxDocCount() int {
+	return c.MaxDocCount
 }
 
 // IsStorageEnabled determines whether storage is enabled

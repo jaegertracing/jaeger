@@ -187,15 +187,15 @@ func findTraceIDsSearchBody(converter dbmodel.ToDomain, query *spanstore.TraceQu
 	}
 }
 
-func getServicesSearchBody(aggregationSize int) esclient.SearchBody {
-	aggs := fmt.Sprintf(getServicesAggregation, aggregationSize)
+func getServicesSearchBody(maxDocCount int) esclient.SearchBody {
+	aggs := fmt.Sprintf(getServicesAggregation, maxDocCount)
 	return esclient.SearchBody{
 		Aggregations: json.RawMessage(aggs),
 	}
 }
 
-func getOperationsSearchBody(serviceName string, aggregationSize int) esclient.SearchBody {
-	aggs := fmt.Sprintf(getOperationsAggregation, aggregationSize)
+func getOperationsSearchBody(serviceName string, maxDocCount int) esclient.SearchBody {
+	aggs := fmt.Sprintf(getOperationsAggregation, maxDocCount)
 	return esclient.SearchBody{
 		Aggregations: json.RawMessage(aggs),
 		Query: &esclient.Query{

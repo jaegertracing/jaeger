@@ -231,14 +231,14 @@ const (
 )
 
 func TestGetServicesSearchBody(t *testing.T) {
-	sb := getServicesSearchBody(defaultAggregationSize)
+	sb := getServicesSearchBody(defaultMaxDocCount)
 	jsonQuery, err := json.MarshalIndent(sb, "", "  ")
 	require.NoError(t, err)
 	assert.Equal(t, servicesSearchBodyFixture, string(jsonQuery))
 }
 
 func TestGetOperationsSearchBody(t *testing.T) {
-	sb := getOperationsSearchBody("foo", defaultAggregationSize)
+	sb := getOperationsSearchBody("foo", defaultMaxDocCount)
 	jsonQuery, err := json.MarshalIndent(sb, "", "  ")
 	require.NoError(t, err)
 	assert.Equal(t, operationsSearchBodyFixture, string(jsonQuery))

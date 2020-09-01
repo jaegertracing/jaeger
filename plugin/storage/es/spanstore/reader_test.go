@@ -101,7 +101,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
-			AggregationSize:   999,
+			MaxDocCount:       999,
 		}),
 	}
 	fn(r)

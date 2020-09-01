@@ -77,8 +77,8 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 	}
 }
 
-func (s *ServiceOperationStorage) getServices(context context.Context, indices []string, aggregationSize int) ([]string, error) {
-	serviceAggregation := getServicesAggregation(aggregationSize)
+func (s *ServiceOperationStorage) getServices(context context.Context, indices []string, maxDocCount int) ([]string, error) {
+	serviceAggregation := getServicesAggregation(maxDocCount)
 
 	searchService := s.client.Search(indices...).
 		Size(0). // set to 0 because we don't want actual documents.
@@ -100,15 +100,15 @@ func (s *ServiceOperationStorage) getServices(context context.Context, indices [
 	return bucketToStringArray(serviceNamesBucket)
 }
 
-func getServicesAggregation(aggregationSize int) elastic.Query {
+func getServicesAggregation(maxDocCount int) elastic.Query {
 	return elastic.NewTermsAggregation().
 		Field(serviceName).
-		Size(aggregationSize) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+		Size(maxDocCount) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
-func (s *ServiceOperationStorage) getOperations(context context.Context, indices []string, service string, aggregationSize int) ([]string, error) {
+func (s *ServiceOperationStorage) getOperations(context context.Context, indices []string, service string, maxDocCount int) ([]string, error) {
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
-	serviceFilter := getOperationsAggregation(aggregationSize)
+	serviceFilter := getOperationsAggregation(maxDocCount)
 
 	searchService := s.client.Search(indices...).
 		Size(0).
@@ -131,10 +131,10 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 	return bucketToStringArray(operationNamesBucket)
 }
 
-func getOperationsAggregation(aggregationSize int) elastic.Query {
+func getOperationsAggregation(maxDocCount int) elastic.Query {
 	return elastic.NewTermsAggregation().
 		Field(operationNameField).
-		Size(aggregationSize) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+		Size(maxDocCount) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
 func hashCode(s dbmodel.Service) string {

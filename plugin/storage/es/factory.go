@@ -148,7 +148,7 @@ func createSpanReader(
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		Archive:             archive,
-		AggregationSize:     cfg.GetAggregationSize(),
+		MaxDocCount:         cfg.GetMaxDocCount(),
 	}), nil
 }
 
