@@ -129,7 +129,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 			AllAsFields: allTagsAsFields,
 		},
 	}
-	w, err := newEsSpanWriter(cfg, s.logger)
+	w, err := newEsSpanWriter(cfg, s.logger, false)
 	if err != nil {
 		return err
 	}
