@@ -16,16 +16,16 @@ package elasticsearchexporter
 
 import (
 	"context"
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 )
 
 func TestFactoryCreateSpanWriter(t *testing.T) {
@@ -115,15 +115,15 @@ func TestFactoryCreateArchiveSpanWriter(t *testing.T) {
 }
 
 func TestSingleSpanWriter(t *testing.T) {
-   converter := dbmodel.NewFromDomain(false, []string{}, "@")
-    mw := &mockWriter{}
+	converter := dbmodel.NewFromDomain(false, []string{}, "@")
+	mw := &mockWriter{}
 	w := singleSpanWriter{
-		writer: mw,
+		writer:    mw,
 		converter: converter,
 	}
 	s := &model.Span{
 		OperationName: "foo",
-		Process: model.NewProcess("service", []model.KeyValue{}),
+		Process:       model.NewProcess("service", []model.KeyValue{}),
 	}
 	err := w.WriteSpan(s)
 	require.NoError(t, err)

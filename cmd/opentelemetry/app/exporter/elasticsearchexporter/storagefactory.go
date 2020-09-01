@@ -16,6 +16,7 @@ package elasticsearchexporter
 
 import (
 	"context"
+
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -149,4 +150,3 @@ func (s singleSpanWriter) WriteSpan(span *model.Span) error {
 	_, err := s.writer.writeSpans(context.Background(), []*dbmodel.Span{dbSpan})
 	return err
 }
-
