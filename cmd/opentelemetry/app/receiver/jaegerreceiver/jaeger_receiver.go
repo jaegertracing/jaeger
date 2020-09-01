@@ -16,6 +16,7 @@ package jaegerreceiver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
@@ -31,6 +32,7 @@ import (
 	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // Factory wraps jaegerreceiver.Factory and makes the default config configurable via viper.
@@ -87,14 +89,21 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 				Endpoint: cOpts.CollectorGRPCHostPort,
 			},
 		}
-		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
-			cfg.GRPC.TLSSetting = &configtls.TLSServerSetting{
-				ClientCAFile: cOpts.TLS.ClientCAPath,
-				TLSSetting: configtls.TLSSetting{
-					KeyFile:  cOpts.TLS.KeyPath,
-					CertFile: cOpts.TLS.CertPath,
+	}
+	if cOpts.TLS.Enabled == true {
+		if cfg.GRPC == nil {
+			cfg.GRPC = &configgrpc.GRPCServerSettings{
+				NetAddr: confignet.NetAddr{
+					Endpoint: fmt.Sprintf(":%d", ports.CollectorGRPC),
 				},
 			}
+		}
+		cfg.GRPC.TLSSetting = &configtls.TLSServerSetting{
+			ClientCAFile: cOpts.TLS.ClientCAPath,
+			TLSSetting: configtls.TLSSetting{
+				CertFile: cOpts.TLS.CertPath,
+				KeyFile:  cOpts.TLS.KeyPath,
+			},
 		}
 	}
 	if v.IsSet(collectorApp.CollectorHTTPHostPort) {

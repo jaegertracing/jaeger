@@ -24,8 +24,11 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configerror"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/configtest"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/jaegerexporter"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/jaegerreceiver"
@@ -59,10 +62,28 @@ func TestDefaultValueFromViper(t *testing.T) {
 	}
 
 	cfg := f.CreateDefaultConfig().(*jaegerexporter.Config)
-	assert.Equal(t, "foo", cfg.GRPCClientSettings.Endpoint)
-	tlsConfig := cfg.TLSSetting
-	assert.Equal(t, false, tlsConfig.Insecure)
-	assert.Equal(t, "ca.crt", tlsConfig.CAFile)
+
+	qs := exporterhelper.CreateDefaultQueueSettings()
+	qs.Enabled = false
+	assert.Equal(t, &jaegerexporter.Config{
+		ExporterSettings: configmodels.ExporterSettings{
+			TypeVal: "jaeger",
+			NameVal: "jaeger",
+		},
+		TimeoutSettings: exporterhelper.CreateDefaultTimeoutSettings(),
+		RetrySettings:   exporterhelper.CreateDefaultRetrySettings(),
+		QueueSettings:   qs,
+		GRPCClientSettings: configgrpc.GRPCClientSettings{
+			WriteBufferSize: 512 * 1024,
+			Endpoint:        "foo",
+			TLSSetting: configtls.TLSClientSetting{
+				Insecure: false,
+				TLSSetting: configtls.TLSSetting{
+					CAFile: "ca.crt",
+				},
+			},
+		},
+	}, cfg)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {

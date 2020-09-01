@@ -157,6 +157,31 @@ func TestDefaultValueFromViper(t *testing.T) {
 				Protocols: jaegerreceiver.Protocols{},
 			},
 		},
+		{
+			name: "collectorTLS",
+			flags: []string{
+				"--collector.grpc.tls.enabled=true",
+				"--collector.grpc.tls.cert=/cert.pem",
+				"--collector.grpc.tls.key=/key.pem",
+				"--collector.grpc.tls.client-ca=/client-ca.pem",
+			},
+			expected: &jaegerreceiver.Config{
+				Protocols: jaegerreceiver.Protocols{
+					GRPC: &configgrpc.GRPCServerSettings{
+						NetAddr: confignet.NetAddr{
+							Endpoint: ":14250",
+						},
+						TLSSetting: &configtls.TLSServerSetting{
+							TLSSetting: configtls.TLSSetting{
+								CertFile: "/cert.pem",
+								KeyFile:  "/key.pem",
+							},
+							ClientCAFile: "/client-ca.pem",
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
