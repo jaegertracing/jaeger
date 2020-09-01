@@ -28,6 +28,7 @@ import (
 )
 
 const (
+	defaultMaxDocCount        = 10000
 	servicesSearchBodyFixture = `{
   "aggs": {
     "serviceName": {
