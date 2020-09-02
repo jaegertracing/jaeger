@@ -20,12 +20,12 @@ package elasticsearchexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
-	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -43,9 +43,9 @@ import (
 
 const (
 	host            = "0.0.0.0"
-	queryPort       = "9200"
-	queryHostPort   = host + ":" + queryPort
-	queryURL        = "http://" + queryHostPort
+	esPort          = "9200"
+	esHostPort      = host + ":" + esPort
+	esURL           = "http://" + esHostPort
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
 	maxSpanAge      = time.Hour * 72
@@ -54,7 +54,6 @@ const (
 type IntegrationTest struct {
 	integration.StorageIntegration
 
-	client *elastic.Client
 	logger *zap.Logger
 }
 
@@ -74,56 +73,35 @@ func (s storageWrapper) WriteSpan(ctx context.Context, span *model.Span) error {
 	return err
 }
 
-func (s *IntegrationTest) getVersion() (uint, error) {
-	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
-	if err != nil {
-		return 0, err
-	}
-	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-	if err != nil {
-		return 0, err
-	}
-	return uint(esVersion), nil
-}
-
 func (s *IntegrationTest) initializeES(allTagsAsFields bool) error {
-	rawClient, err := elastic.NewClient(
-		elastic.SetURL(queryURL),
-		elastic.SetSniff(false))
-	if err != nil {
-		return err
-	}
 	s.logger, _ = testutils.NewLogger()
 
-	s.client = rawClient
 	s.initSpanstore(allTagsAsFields)
 	s.CleanUp = func() error {
-		return s.esCleanUp(allTagsAsFields)
+		return s.esCleanUp()
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp(allTagsAsFields)
+	s.esCleanUp()
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.NotSupportSpanKindWithOperation = true
 	return nil
 }
 
-func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
-	_, err := s.client.DeleteIndex("*").Do(context.Background())
+func (s *IntegrationTest) esCleanUp() error {
+	request, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/*", esURL), strings.NewReader(""))
 	if err != nil {
 		return err
 	}
-	return s.initSpanstore(allTagsAsFields)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return err
+	}
+	return response.Body.Close()
 }
 
 func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
-	esVersion, err := s.getVersion()
-	if err != nil {
-		return err
-	}
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, esVersion)
-
 	cfg := config.Configuration{
-		Servers:     []string{queryURL},
+		Servers:     []string{esURL},
 		IndexPrefix: indexPrefix,
 		Tags: config.TagsAsFields{
 			AllAsFields: allTagsAsFields,
@@ -133,6 +111,8 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	if err != nil {
 		return err
 	}
+	esVersion := uint(w.esClientVersion())
+	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, esVersion)
 	err = w.CreateTemplates(context.Background(), spanMapping, serviceMapping)
 	if err != nil {
 		return err
@@ -153,7 +133,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	})
 	s.SpanReader = reader
 
-	depMapping := es.GetDependenciesMappings(5, 1, esVersion)
+	depMapping := es.GetDependenciesMappings(1, 0, esVersion)
 	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix)
 	if err := depStore.CreateTemplates(depMapping); err != nil {
 		return nil
@@ -164,13 +144,16 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 }
 
 func (s *IntegrationTest) esRefresh() error {
-	_, err := s.client.Refresh().Do(context.Background())
-	return err
+	response, err := http.Post(fmt.Sprintf("%s/_refresh", esURL), "application/json", strings.NewReader(""))
+	if err != nil {
+		return err
+	}
+	return response.Body.Close()
 }
 
 func healthCheck() error {
 	for i := 0; i < 200; i++ {
-		if _, err := http.Get(queryURL); err == nil {
+		if _, err := http.Get(esURL); err == nil {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
