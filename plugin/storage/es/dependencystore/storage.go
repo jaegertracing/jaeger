@@ -40,10 +40,11 @@ type DependencyStore struct {
 	client      es.Client
 	logger      *zap.Logger
 	indexPrefix string
+	maxDocCount int
 }
 
 // NewDependencyStore returns a DependencyStore
-func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string) *DependencyStore {
+func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string, maxDocCount int) *DependencyStore {
 	var prefix string
 	if indexPrefix != "" {
 		prefix = indexPrefix + "-"
@@ -52,6 +53,7 @@ func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string
 		client:      client,
 		logger:      logger,
 		indexPrefix: prefix + dependencyIndex,
+		maxDocCount: maxDocCount,
 	}
 }
 
@@ -82,7 +84,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	indices := getIndices(s.indexPrefix, endTs, lookback)
 	searchResult, err := s.client.Search(indices...).
-		Size(10000). // the default elasticsearch allowed limit
+		Size(s.maxDocCount).
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).
 		Do(ctx)

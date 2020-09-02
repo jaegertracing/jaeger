@@ -187,7 +187,7 @@ func createSpanWriter(
 }
 
 func createDependencyReader(client es.Client, logger *zap.Logger, cfg config.ClientBuilder) (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStore(client, logger, cfg.GetIndexPrefix())
+	reader := esDepStore.NewDependencyStore(client, logger, cfg.GetIndexPrefix(), cfg.GetMaxDocCount())
 	return reader, nil
 }
 

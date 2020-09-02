@@ -130,7 +130,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 	})
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
+	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, 0)
 	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
 	err = dependencyStore.CreateTemplates(depMapping)
 	if err != nil {
