@@ -61,26 +61,34 @@ func NewTranslator(allTagsAsFields bool, tagsKeysAsFields []string, tagDotReplac
 	}
 }
 
+// ConvertedData holds DB span and the original data used to construct it.
+type ConvertedData struct {
+	Span                   pdata.Span
+	Resource               pdata.Resource
+	InstrumentationLibrary pdata.InstrumentationLibrary
+	DBSpan                 *dbmodel.Span
+}
+
 // ConvertSpans converts spans from OTEL model to Jaeger Elasticsearch model
-func (c *Translator) ConvertSpans(traces pdata.Traces) ([]*dbmodel.Span, error) {
+func (c *Translator) ConvertSpans(traces pdata.Traces) ([]ConvertedData, error) {
 	rss := traces.ResourceSpans()
 	if rss.Len() == 0 {
 		return nil, nil
 	}
-	dbSpans := make([]*dbmodel.Span, 0, traces.SpanCount())
+	containers := make([]ConvertedData, 0, traces.SpanCount())
 	for i := 0; i < rss.Len(); i++ {
 		// this would correspond to a single batch
-		err := c.resourceSpans(rss.At(i), &dbSpans)
+		err := c.resourceSpans(rss.At(i), &containers)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return dbSpans, nil
+	return containers, nil
 }
 
-func (c *Translator) resourceSpans(spans pdata.ResourceSpans, dbSpans *[]*dbmodel.Span) error {
-	ils := spans.InstrumentationLibrarySpans()
-	process := c.process(spans.Resource())
+func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, containers *[]ConvertedData) error {
+	ils := rspans.InstrumentationLibrarySpans()
+	process := c.process(rspans.Resource())
 	for i := 0; i < ils.Len(); i++ {
 		// TODO convert instrumentation library info
 		//ils.At(i).InstrumentationLibrary()
@@ -91,7 +99,12 @@ func (c *Translator) resourceSpans(spans pdata.ResourceSpans, dbSpans *[]*dbmode
 				return err
 			}
 			dbSpan.Process = *process
-			*dbSpans = append(*dbSpans, dbSpan)
+			*containers = append(*containers, ConvertedData{
+				Span:                   spans.At(j),
+				Resource:               rspans.Resource(),
+				InstrumentationLibrary: ils.At(i).InstrumentationLibrary(),
+				DBSpan:                 dbSpan,
+			})
 		}
 	}
 	return nil
