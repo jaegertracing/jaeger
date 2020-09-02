@@ -78,16 +78,16 @@ func (s *IntegrationTest) initializeES(allTagsAsFields bool) error {
 
 	s.initSpanstore(allTagsAsFields)
 	s.CleanUp = func() error {
-		return s.esCleanUp(allTagsAsFields)
+		return s.esCleanUp()
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp(allTagsAsFields)
+	s.esCleanUp()
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.NotSupportSpanKindWithOperation = true
 	return nil
 }
 
-func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
+func (s *IntegrationTest) esCleanUp() error {
 	request, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/*", esURL), strings.NewReader(""))
 	if err != nil {
 		return err
@@ -96,11 +96,7 @@ func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
 	if err != nil {
 		return err
 	}
-	err = response.Body.Close()
-	if err != nil {
-		return err
-	}
-	return s.initSpanstore(allTagsAsFields)
+	return response.Body.Close()
 }
 
 func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
@@ -137,7 +133,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	})
 	s.SpanReader = reader
 
-	depMapping := es.GetDependenciesMappings(5, 1, esVersion)
+	depMapping := es.GetDependenciesMappings(1, 0, esVersion)
 	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix)
 	if err := depStore.CreateTemplates(depMapping); err != nil {
 		return nil
