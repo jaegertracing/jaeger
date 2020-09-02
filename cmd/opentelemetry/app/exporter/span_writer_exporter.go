@@ -63,7 +63,7 @@ func (s *store) traceDataPusher(ctx context.Context, td pdata.Traces) (droppedSp
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			span.Process = batch.Process
-			err := s.Writer.WriteSpan(span)
+			err := s.Writer.WriteSpan(ctx, span)
 			if err != nil {
 				errs = append(errs, err)
 				dropped++

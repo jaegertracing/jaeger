@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"errors"
 	"math"
 	"testing"
@@ -26,7 +27,7 @@ import (
 
 type noopWriteSpanStore struct{}
 
-func (n *noopWriteSpanStore) WriteSpan(span *model.Span) error {
+func (n *noopWriteSpanStore) WriteSpan(ct context.Context, span *model.Span) error {
 	return nil
 }
 
@@ -34,7 +35,7 @@ var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
 
 type errorWriteSpanStore struct{}
 
-func (n *errorWriteSpanStore) WriteSpan(span *model.Span) error {
+func (n *errorWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
 	return errIWillAlwaysFail
 }
 
@@ -52,11 +53,11 @@ func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 		HashSalt: "jaeger-test",
 	}
 	c := NewDownsamplingWriter(&errorWriteSpanStore{}, downsamplingOptions)
-	assert.NoError(t, c.WriteSpan(span))
+	assert.NoError(t, c.WriteSpan(context.Background(), span))
 
 	downsamplingOptions.Ratio = 1
 	c = NewDownsamplingWriter(&errorWriteSpanStore{}, downsamplingOptions)
-	assert.Error(t, c.WriteSpan(span))
+	assert.Error(t, c.WriteSpan(context.Background(), span))
 }
 
 // This test is to make sure h.hash.Reset() works and same traceID will always hash to the same value.

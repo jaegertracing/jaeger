@@ -103,7 +103,7 @@ func TestArchiveTrace_NoStorage(t *testing.T) {
 
 func TestArchiveTrace_Success(t *testing.T) {
 	mockWriter := &spanstoremocks.Writer{}
-	mockWriter.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+	mockWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(nil).Times(2)
 	withTestServer(t, func(ts *testServer) {
 		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -116,7 +116,7 @@ func TestArchiveTrace_Success(t *testing.T) {
 
 func TestArchiveTrace_WriteErrors(t *testing.T) {
 	mockWriter := &spanstoremocks.Writer{}
-	mockWriter.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+	mockWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(errors.New("cannot save")).Times(2)
 	withTestServer(t, func(ts *testServer) {
 		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).

@@ -203,7 +203,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
-	require.NoError(t, s.SpanWriter.WriteSpan(expected))
+	require.NoError(t, s.SpanWriter.WriteSpan(context.Background(), expected))
 	s.refresh(t)
 
 	var actual *model.Trace

@@ -245,7 +245,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) error {
 	for _, span := range trace.Spans {
-		if err := s.SpanWriter.WriteSpan(span); err != nil {
+		if err := s.SpanWriter.WriteSpan(context.Background(), span); err != nil {
 			return err
 		}
 	}

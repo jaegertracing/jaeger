@@ -177,7 +177,7 @@ func TestGRPCServerFindTraceIDs(t *testing.T) {
 
 func TestGRPCServerWriteSpan(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.spanWriter.On("WriteSpan", &mockTraceSpans[0]).
+		r.impl.spanWriter.On("WriteSpan", context.Background(), &mockTraceSpans[0]).
 			Return(nil)
 
 		s, err := r.server.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{

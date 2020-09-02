@@ -114,7 +114,7 @@ func (m *Store) traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model
 }
 
 // WriteSpan writes the given span
-func (m *Store) WriteSpan(span *model.Span) error {
+func (m *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {

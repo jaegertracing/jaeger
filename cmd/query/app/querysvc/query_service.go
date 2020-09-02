@@ -107,7 +107,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) 
 
 	var writeErrors []error
 	for _, span := range trace.Spans {
-		err := qs.options.ArchiveSpanWriter.WriteSpan(span)
+		err := qs.options.ArchiveSpanWriter.WriteSpan(ctx, span)
 		if err != nil {
 			writeErrors = append(writeErrors, err)
 		}

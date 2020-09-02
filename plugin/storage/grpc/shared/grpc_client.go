@@ -194,8 +194,8 @@ func (c *grpcClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQue
 }
 
 // WriteSpan saves the span
-func (c *grpcClient) WriteSpan(span *model.Span) error {
-	_, err := c.writerClient.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{
+func (c *grpcClient) WriteSpan(ctx context.Context, span *model.Span) error {
+	_, err := c.writerClient.WriteSpan(ctx, &storage_v1.WriteSpanRequest{
 		Span: span,
 	})
 	if err != nil {

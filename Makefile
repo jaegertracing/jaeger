@@ -418,6 +418,7 @@ install-mockery:
 .PHONY: generate-mocks
 generate-mocks: install-mockery
 	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
+	$(MOCKERY) -all -dir ./storage/spanstore/ -output ./storage/spanstore/mocks
 
 .PHONY: echo-version
 echo-version:

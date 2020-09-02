@@ -15,6 +15,7 @@
 package kafka
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -97,7 +98,7 @@ func TestKafkaWriter(t *testing.T) {
 
 		w.producer.ExpectInputAndSucceed()
 
-		err := w.writer.WriteSpan(span)
+		err := w.writer.WriteSpan(context.Background(), span)
 		assert.NoError(t, err)
 
 		for i := 0; i < 100; i++ {
@@ -129,7 +130,7 @@ func TestKafkaWriterErr(t *testing.T) {
 	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
 
 		w.producer.ExpectInputAndFail(sarama.ErrRequestTimedOut)
-		err := w.writer.WriteSpan(span)
+		err := w.writer.WriteSpan(context.Background(), span)
 		assert.NoError(t, err)
 
 		for i := 0; i < 100; i++ {
@@ -164,7 +165,7 @@ func TestMarshallerErr(t *testing.T) {
 		marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).Return([]byte{}, errors.New(""))
 		w.writer.marshaller = marshaller
 
-		err := w.writer.WriteSpan(span)
+		err := w.writer.WriteSpan(context.Background(), span)
 		assert.Error(t, err)
 
 		w.writer.Close()
