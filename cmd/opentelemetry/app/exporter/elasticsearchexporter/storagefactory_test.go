@@ -125,7 +125,7 @@ func TestSingleSpanWriter(t *testing.T) {
 		OperationName: "foo",
 		Process:       model.NewProcess("service", []model.KeyValue{}),
 	}
-	err := w.WriteSpan(s)
+	err := w.WriteSpan(context.Background(), s)
 	require.NoError(t, err)
 	dbSpan := converter.FromDomainEmbedProcess(s)
 	assert.Equal(t, []*dbmodel.Span{dbSpan}, mw.spans)

@@ -145,8 +145,8 @@ type batchSpanWriter interface {
 
 var _ spanstore.Writer = (*singleSpanWriter)(nil)
 
-func (s singleSpanWriter) WriteSpan(span *model.Span) error {
+func (s singleSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	dbSpan := s.converter.FromDomainEmbedProcess(span)
-	_, err := s.writer.writeSpans(context.Background(), []*dbmodel.Span{dbSpan})
+	_, err := s.writer.writeSpans(ctx, []*dbmodel.Span{dbSpan})
 	return err
 }

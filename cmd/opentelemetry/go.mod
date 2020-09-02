@@ -19,5 +19,5 @@ require (
 	github.com/uber/jaeger-client-go v2.23.1+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
 	go.opentelemetry.io/collector v0.8.1-0.20200820012544-1e65674799c8
-	go.uber.org/zap v1.15.0
+	go.uber.org/zap v1.16.0
 )
