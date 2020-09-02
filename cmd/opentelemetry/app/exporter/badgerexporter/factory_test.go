@@ -42,13 +42,6 @@ func TestCreateTraceExporter(t *testing.T) {
 	assert.NotNil(t, exporter)
 }
 
-func TestCreateTraceExporter_NilConfig(t *testing.T) {
-	factory := Factory{}
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
-	require.Nil(t, exporter)
-	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_badger")
-}
-
 func TestCreateDefaultConfig(t *testing.T) {
 	factory := NewFactory(DefaultOptions)
 	cfg := factory.CreateDefaultConfig()

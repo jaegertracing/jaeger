@@ -16,11 +16,11 @@ package cassandraexporter
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
@@ -55,11 +55,14 @@ func (Factory) Type() configmodels.Type {
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
 	return &Config{
-		Options: *opts,
 		ExporterSettings: configmodels.ExporterSettings{
 			TypeVal: TypeStr,
 			NameVal: TypeStr,
 		},
+		TimeoutSettings: exporterhelper.CreateDefaultTimeoutSettings(),
+		RetrySettings:   exporterhelper.CreateDefaultRetrySettings(),
+		QueueSettings:   exporterhelper.CreateDefaultQueueSettings(),
+		Options:         *opts,
 	}
 }
 
@@ -70,10 +73,7 @@ func (f Factory) CreateTraceExporter(
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
-	}
+	config := cfg.(*Config)
 	return new(config, params)
 }
 

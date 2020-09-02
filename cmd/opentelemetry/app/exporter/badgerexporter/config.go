@@ -16,12 +16,17 @@ package badgerexporter
 
 import (
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
 
 // Config holds configuration of Jaeger Badger exporter/storage.
 type Config struct {
-	badger.Options                `mapstructure:",squash"`
-	configmodels.ExporterSettings `mapstructure:",squash"`
+	configmodels.ExporterSettings  `mapstructure:",squash"`
+	exporterhelper.TimeoutSettings `mapstructure:",squash"`
+	exporterhelper.QueueSettings   `mapstructure:"sending_queue"`
+	exporterhelper.RetrySettings   `mapstructure:"retry_on_failure"`
+
+	badger.Options `mapstructure:",squash"`
 }

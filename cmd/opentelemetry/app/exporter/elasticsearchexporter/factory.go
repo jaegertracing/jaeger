@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
@@ -55,11 +56,14 @@ var _ component.ExporterFactory = (*Factory)(nil)
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
 	return &Config{
-		Options: *opts,
 		ExporterSettings: configmodels.ExporterSettings{
 			TypeVal: TypeStr,
 			NameVal: TypeStr,
 		},
+		TimeoutSettings: exporterhelper.CreateDefaultTimeoutSettings(),
+		RetrySettings:   exporterhelper.CreateDefaultRetrySettings(),
+		QueueSettings:   exporterhelper.CreateDefaultQueueSettings(),
+		Options:         *opts,
 	}
 }
 

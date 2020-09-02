@@ -31,21 +31,22 @@ import (
 )
 
 // NewSpanWriterExporter returns component.TraceExporter
-func NewSpanWriterExporter(config configmodels.Exporter, factory storage.Factory) (component.TraceExporter, error) {
+func NewSpanWriterExporter(config configmodels.Exporter, factory storage.Factory, opts ...exporterhelper.ExporterOption) (component.TraceExporter, error) {
 	spanWriter, err := factory.CreateSpanWriter()
 	if err != nil {
 		return nil, err
 	}
 	storage := store{Writer: spanWriter}
+	opts = append(opts, exporterhelper.WithShutdown(func(ctx context.Context) error {
+		if closer, ok := spanWriter.(io.Closer); ok {
+			return closer.Close()
+		}
+		return nil
+	}))
 	return exporterhelper.NewTraceExporter(
 		config,
 		storage.traceDataPusher,
-		exporterhelper.WithShutdown(func(context.Context) error {
-			if closer, ok := spanWriter.(io.Closer); ok {
-				return closer.Close()
-			}
-			return nil
-		}))
+		opts...)
 }
 
 type store struct {
