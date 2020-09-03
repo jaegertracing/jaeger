@@ -49,6 +49,7 @@ func NewStorageFactory(opts *es.Options, logger *zap.Logger, name string) *Stora
 	return &StorageFactory{
 		options: opts,
 		logger:  logger,
+		name: name,
 	}
 }
 
