@@ -32,13 +32,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esdependencyreader"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esspanreader"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -49,6 +47,8 @@ const (
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
 	maxSpanAge      = time.Hour * 72
+	numShards       = 5
+	numReplicas     = 0
 )
 
 type IntegrationTest struct {
@@ -57,37 +57,21 @@ type IntegrationTest struct {
 	logger *zap.Logger
 }
 
-type storageWrapper struct {
-	writer *esSpanWriter
-}
-
-var _ spanstore.Writer = (*storageWrapper)(nil)
-
-func (s storageWrapper) WriteSpan(ctx context.Context, span *model.Span) error {
-	// This fails because there is no binary tag type in OTEL and also OTEL span's status code is always created
-	//traces := jaegertranslator.ProtoBatchesToInternalTraces([]*model.Batch{{Process: span.Process, Spans: []*model.Span{span}}})
-	//_, err := s.writer.WriteTraces(context.Background(), traces)
-	converter := dbmodel.FromDomain{}
-	dbSpan := converter.FromDomainEmbedProcess(span)
-	_, err := s.writer.writeSpans(ctx, []*dbmodel.Span{dbSpan})
-	return err
-}
-
 func (s *IntegrationTest) initializeES(allTagsAsFields bool) error {
 	s.logger, _ = testutils.NewLogger()
 
 	s.initSpanstore(allTagsAsFields)
 	s.CleanUp = func() error {
-		return s.esCleanUp()
+		return s.esCleanUp(allTagsAsFields)
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp()
+	s.esCleanUp(allTagsAsFields)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.NotSupportSpanKindWithOperation = true
 	return nil
 }
 
-func (s *IntegrationTest) esCleanUp() error {
+func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
 	request, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/*", esURL), strings.NewReader(""))
 	if err != nil {
 		return err
@@ -96,7 +80,12 @@ func (s *IntegrationTest) esCleanUp() error {
 	if err != nil {
 		return err
 	}
-	return response.Body.Close()
+	err = response.Body.Close()
+	if err != nil {
+		return err
+	}
+	// initialize writer, it caches service names
+	return s.initSpanstore(allTagsAsFields)
 }
 
 func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
@@ -107,18 +96,19 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 			AllAsFields: allTagsAsFields,
 		},
 	}
-	w, err := newEsSpanWriter(cfg, s.logger, false)
+	w, err := newEsSpanWriter(cfg, s.logger, false, "")
 	if err != nil {
 		return err
 	}
 	esVersion := uint(w.esClientVersion())
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, esVersion)
+	spanMapping, serviceMapping := es.GetSpanServiceMappings(numShards, numReplicas, esVersion)
 	err = w.CreateTemplates(context.Background(), spanMapping, serviceMapping)
 	if err != nil {
 		return err
 	}
-	s.SpanWriter = storageWrapper{
-		writer: w,
+	s.SpanWriter = singleSpanWriter{
+		writer:    w,
+		converter: dbmodel.NewFromDomain(allTagsAsFields, []string{}, tagKeyDeDotChar),
 	}
 
 	elasticsearchClient, err := esclient.NewElasticsearchClient(cfg, s.logger)
@@ -133,7 +123,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	})
 	s.SpanReader = reader
 
-	depMapping := es.GetDependenciesMappings(1, 0, esVersion)
+	depMapping := es.GetDependenciesMappings(numShards, numReplicas, esVersion)
 	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix)
 	if err := depStore.CreateTemplates(depMapping); err != nil {
 		return nil
