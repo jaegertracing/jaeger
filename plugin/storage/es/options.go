@@ -35,7 +35,7 @@ const (
 	suffixTokenPath           = ".token-file"
 	suffixServerURLs          = ".server-urls"
 	suffixMaxSpanAge          = ".max-span-age"
-	suffixMaxNumSpans         = ".max-num-spans"
+	suffixMaxNumSpans         = ".max-num-spans" // deprecated
 	suffixNumShards           = ".num-shards"
 	suffixNumReplicas         = ".num-replicas"
 	suffixBulkSize            = ".bulk.size"
@@ -179,7 +179,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
 		nsConfig.MaxNumSpans,
-		"The maximum number of spans to fetch at a time per query in Elasticsearch")
+		"(deprecated, will be removed in release v1.21.0. Please use es.max-doc-count.). The maximum number of spans to fetch at a time per query in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
