@@ -18,10 +18,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -77,7 +77,8 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	trace := model.Trace{}
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
-			if strings.Contains(err.Error(), spanstore.ErrTraceNotFound.Error()) {
+			traceNotFoundStatus, _ := status.FromError(spanstore.ErrTraceNotFound)
+			if err.Error() == traceNotFoundStatus.Err().Error() {
 				return nil, spanstore.ErrTraceNotFound
 			}
 			return nil, fmt.Errorf("grpc stream error: %w", err)
