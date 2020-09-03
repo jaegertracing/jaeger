@@ -8,6 +8,7 @@ import os
 import requests
 import ssl
 import sys
+import re
 from pathlib2 import Path
 from requests.auth import HTTPBasicAuth
 
@@ -36,6 +37,7 @@ def main():
         print('ES_TLS_CERT ... Path to TLS certificate file.')
         print('ES_TLS_KEY ... Path to TLS key file.')
         print('ES_TLS_SKIP_HOST_VERIFY ... (insecure) Skip server\'s certificate chain and host name verification.')
+        print('USE_ILM ... Use ILM to manage jaeger span and service indices')
         print('ES_VERSION ... The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.')
         print('init configuration:')
         print('\tSHARDS ...  the number of shards per index in Elasticsearch (default {}).'.format(SHARDS))
@@ -54,6 +56,13 @@ def main():
 
     action = sys.argv[1]
 
+    if str2bool(os.getenv('USE_ILM', 'false')):
+        span_template = 'jaeger-span-with-ilm'
+        service_template = 'jaeger-service-with-ilm'
+    else:
+        span_template = 'jaeger-span'
+        service_template = 'jaeger-service'
+
     if str2bool(os.getenv('ARCHIVE', 'false')):
         write_alias = prefix + ARCHIVE_INDEX + '-write'
         read_alias = prefix + ARCHIVE_INDEX + '-read'
@@ -61,10 +70,10 @@ def main():
     else:
         write_alias = prefix + 'jaeger-span-write'
         read_alias = prefix + 'jaeger-span-read'
-        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span', 'jaeger-span')
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span', span_template)
         write_alias = prefix + 'jaeger-service-write'
         read_alias = prefix + 'jaeger-service-read'
-        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-service', 'jaeger-service')
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-service', service_template)
 
 
 def perform_action(action, client, write_alias, read_alias, index_to_rollover, template_name):
@@ -118,9 +127,12 @@ def create_aliases(client, alias_name, archive_index_name):
     """
     ilo = curator.IndexList(client)
     ilo.filter_by_regex(kind='regex', value='^'+archive_index_name+'$')
-    alias = curator.Alias(client=client, name=alias_name)
     for index in ilo.working_list():
         print("Adding index {} to alias {}".format(index, alias_name))
+    if re.search(r'write', alias_name):
+        alias = curator.Alias(client=client, name=alias_name, extra_settings={'is_write_index': True})
+    else:
+        alias = curator.Alias(client=client, name=alias_name)
     alias.add(ilo)
     alias.do_action()
 
