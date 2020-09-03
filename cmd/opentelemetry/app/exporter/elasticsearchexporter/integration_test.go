@@ -47,8 +47,8 @@ const (
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
 	maxSpanAge      = time.Hour * 72
-	numShards = 5
-	numReplicas = 0
+	numShards       = 5
+	numReplicas     = 0
 )
 
 type IntegrationTest struct {
@@ -107,7 +107,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 		return err
 	}
 	s.SpanWriter = singleSpanWriter{
-		writer: w,
+		writer:    w,
 		converter: dbmodel.NewFromDomain(allTagsAsFields, []string{}, tagKeyDeDotChar),
 	}
 
