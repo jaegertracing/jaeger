@@ -67,6 +67,7 @@ func (s storageWrapper) WriteSpan(ctx context.Context, span *model.Span) error {
 	// This fails because there is no binary tag type in OTEL and also OTEL span's status code is always created
 	//traces := jaegertranslator.ProtoBatchesToInternalTraces([]*model.Batch{{Process: span.Process, Spans: []*model.Span{span}}})
 	//_, err := s.writer.WriteTraces(context.Background(), traces)
+	// TODO set tags as keys
 	converter := dbmodel.FromDomain{}
 	dbSpan := converter.FromDomainEmbedProcess(span)
 	_, err := s.writer.writeSpans(ctx, []*dbmodel.Span{dbSpan})
@@ -108,7 +109,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 			AllAsFields: allTagsAsFields,
 		},
 	}
-	w, err := newEsSpanWriter(cfg, s.logger, false, "elasticsearch")
+	w, err := newEsSpanWriter(cfg, s.logger, false, "")
 	if err != nil {
 		return err
 	}
