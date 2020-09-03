@@ -850,6 +850,8 @@ func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Ca
 	return multiSearchService.On("Do", mock.AnythingOfType("*context.valueCtx"))
 }
 
+// matchTermsAggregation uses reflection to match the size attribute of the TermsAggregation; neither
+// attributes nor getters are exported by TermsAggregation.
 func matchTermsAggregation(termsAgg *elastic.TermsAggregation) bool {
 	val := reflect.ValueOf(termsAgg).Elem()
 	sizeVal := val.FieldByName("size").Elem().Int()
@@ -861,7 +863,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.MatchedBy(func(size int) bool {
-		return size == 0
+		return size == 0 // Aggregations apply size (bucket) limits in their own query objects, and do not apply at the parent query level.
 	})).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
