@@ -296,7 +296,7 @@ func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
 }
 
-// GetMaxDocCount returns the number of results (buckets) to return from a query
+// GetMaxDocCount returns the maximum number of documents that a query should return
 func (c *Configuration) GetMaxDocCount() int {
 	return c.MaxDocCount
 }

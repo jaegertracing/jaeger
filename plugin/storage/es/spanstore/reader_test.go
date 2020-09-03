@@ -40,7 +40,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const defaultMaxDocCount = 10000
+const defaultMaxDocCount = 10_000
 
 var exampleESSpan = []byte(
 	`{
@@ -863,7 +863,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Size", mock.MatchedBy(func(size int) bool {
 		return size == 0
 	})).Return(searchService)
-	searchService.On("Aggregation", servicesAggregation, mock.MatchedBy(matchTermsAggregation)).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)

@@ -55,7 +55,7 @@ const (
 	suffixVersion             = ".version"
 	suffixMaxDocCount         = ".max-doc-count"
 
-	// default number of documents to fetch in a query (elasticsearch allowed limit)
+	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount = 10_000
 	defaultServerURL   = "http://127.0.0.1:9200"
@@ -245,7 +245,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxDocCount,
 		nsConfig.MaxDocCount,
-		"The aggregation size to set in Elasticsearch queries to limit the number of results returned; used primarily for querying for distinct services and operations.")
+		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,

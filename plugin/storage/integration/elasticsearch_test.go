@@ -46,6 +46,7 @@ const (
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
 	maxSpanAge      = time.Hour * 72
+	defaultMaxDocCount = 10_000
 )
 
 type ESStorageIntegration struct {
@@ -130,7 +131,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 	})
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, 0)
+	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, defaultMaxDocCount)
 	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
 	err = dependencyStore.CreateTemplates(depMapping)
 	if err != nil {

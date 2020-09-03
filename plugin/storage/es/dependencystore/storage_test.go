@@ -34,6 +34,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
+const defaultMaxDocCount = 10_000
+
 type depStorageTest struct {
 	client    *mocks.Client
 	logger    *zap.Logger
@@ -67,7 +69,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
-		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix, 0)
+		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix, defaultMaxDocCount)
 		assert.Equal(t, testCase.expected+dependencyIndex, r.indexPrefix)
 	}
 }
@@ -88,7 +90,7 @@ func TestWriteDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage("", 0, func(r *depStorageTest) {
+		withDepStorage("", defaultMaxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 			indexName := indexWithDate("", fixedTime)
 			writeService := &mocks.IndexService{}
@@ -143,7 +145,7 @@ func TestGetDependencies(t *testing.T) {
 				},
 			},
 			indices:     []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
-			maxDocCount: 1000,
+			maxDocCount: 1000, // can be anything, assertion will check this value is used in search query.
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),

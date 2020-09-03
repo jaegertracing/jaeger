@@ -36,7 +36,7 @@ const (
 
 	timestampField = "timestamp"
 
-	// default number of documents to fetch in a query
+	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount = 10_000
 	indexDateFormat    = "2006-01-02" // date format for index e.g. 2020-01-20
