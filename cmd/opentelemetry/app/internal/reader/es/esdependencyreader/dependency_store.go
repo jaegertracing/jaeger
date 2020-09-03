@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -89,6 +90,9 @@ func (r *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	response, err := r.client.Search(ctx, searchBody, defaultDocCount, indices...)
 	if err != nil {
 		return nil, err
+	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("%s", response.Error)
 	}
 
 	var dependencies []dbmodel.DependencyLink

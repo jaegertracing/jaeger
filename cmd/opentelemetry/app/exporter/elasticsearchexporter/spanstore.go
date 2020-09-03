@@ -52,10 +52,11 @@ type esSpanWriter struct {
 	spanIndexName    indexNameProvider
 	serviceIndexName indexNameProvider
 	translator       *esmodeltranslator.Translator
+	isArchive        bool
 }
 
 // newEsSpanWriter creates new instance of esSpanWriter
-func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWriter, error) {
+func newEsSpanWriter(params config.Configuration, logger *zap.Logger, archive bool) (*esSpanWriter, error) {
 	client, err := esclient.NewElasticsearchClient(params, logger)
 	if err != nil {
 		return nil, err
@@ -66,9 +67,10 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWr
 	}
 	return &esSpanWriter{
 		client:           client,
-		spanIndexName:    newIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases),
-		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases),
+		spanIndexName:    newIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
+		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
 		translator:       esmodeltranslator.NewTranslator(params.Tags.AllAsFields, tagsKeysAsFields, params.GetTagDotReplacement()),
+		isArchive:        archive,
 		serviceCache: cache.NewLRUWithOptions(
 			// we do not expect more than 100k unique services
 			100_000,
@@ -77,34 +79,6 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWr
 			},
 		),
 	}, nil
-}
-
-func newIndexNameProvider(index, prefix string, useAliases bool) indexNameProvider {
-	if prefix != "" {
-		prefix = prefix + "-"
-		index = prefix + index
-	}
-	index = index + "-"
-	if useAliases {
-		index = index + "write"
-	}
-	return indexNameProvider{
-		index:    index,
-		useAlias: useAliases,
-	}
-}
-
-type indexNameProvider struct {
-	index    string
-	useAlias bool
-}
-
-func (n indexNameProvider) get(date time.Time) string {
-	if n.useAlias {
-		return n.index
-	}
-	spanDate := date.UTC().Format(indexDateFormat)
-	return n.index + spanDate
 }
 
 // CreateTemplates creates index templates.
@@ -145,13 +119,16 @@ func (w *esSpanWriter) writeSpans(ctx context.Context, spans []*dbmodel.Span) (i
 		indexName := w.spanIndexName.get(model.EpochMicrosecondsAsTime(span.StartTime))
 		bulkOperations = append(bulkOperations, bulkItem{span: span, isService: false})
 		w.client.AddDataToBulkBuffer(buffer, data, indexName, spanTypeName)
-		write, err := w.writeService(span, buffer)
-		if err != nil {
-			errs = append(errs, err)
-			// dropped is not increased since this is only service name, the span could be written well
-			continue
-		} else if write {
-			bulkOperations = append(bulkOperations, bulkItem{span: span, isService: true})
+
+		if !w.isArchive {
+			storeService, err := w.writeService(span, buffer)
+			if err != nil {
+				errs = append(errs, err)
+				// dropped is not increased since this is only service name, the span could be written well
+				continue
+			} else if storeService {
+				bulkOperations = append(bulkOperations, bulkItem{span: span, isService: true})
+			}
 		}
 	}
 	res, err := w.client.Bulk(ctx, bytes.NewReader(buffer.Bytes()))
