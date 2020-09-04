@@ -59,10 +59,8 @@ type Reader struct {
 	serviceIndexName indexNameProvider
 	spanIndexName    indexNameProvider
 	maxSpanAge       time.Duration
-	// maximum number of spans to fetch per query in multi search
-	maxNumberOfSpans int
-	archive          bool
 	maxDocCount      int
+	archive          bool
 }
 
 var _ spanstore.Reader = (*Reader)(nil)
@@ -73,9 +71,8 @@ type Config struct {
 	UseReadWriteAliases bool
 	IndexPrefix         string
 	MaxSpanAge          time.Duration
-	MaxNumSpans         int
-	TagDotReplacement   string
 	MaxDocCount         int
+	TagDotReplacement   string
 }
 
 // NewEsSpanReader creates Elasticseach span reader.
@@ -85,11 +82,10 @@ func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, co
 		logger:           logger,
 		archive:          config.Archive,
 		maxSpanAge:       config.MaxSpanAge,
-		maxNumberOfSpans: config.MaxNumSpans,
+		maxDocCount:      config.MaxDocCount,
 		converter:        dbmodel.NewToDomain(config.TagDotReplacement),
 		spanIndexName:    newIndexNameProvider(spanIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
 		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
-		maxDocCount:      config.MaxDocCount,
 	}
 }
 
@@ -291,7 +287,7 @@ func (r *Reader) multiSearchRequests(indices []string, traceIDs []model.TraceID,
 			Indices:        indices,
 			Query:          traceIDQuery(traceID),
 			Size:           r.maxDocCount,
-			TerminateAfter: r.maxNumberOfSpans,
+			TerminateAfter: r.maxDocCount,
 		}
 		if !r.archive {
 			s.SearchAfter = []interface{}{nextTime}

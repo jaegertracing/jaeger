@@ -120,7 +120,6 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 		IndexPrefix:       indexPrefix,
 		TagDotReplacement: tagKeyDeDotChar,
 		MaxSpanAge:        maxSpanAge,
-		MaxNumSpans:       10_000,
 		MaxDocCount:       defaultMaxDocCount,
 	})
 	s.SpanReader = reader
