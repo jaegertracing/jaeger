@@ -40,7 +40,7 @@ func TestArchiveWriter_WriteSpan(t *testing.T) {
 		Return(&storage_v1.WriteSpanResponse{}, nil)
 	writer := &ArchiveWriter{client: archiveWriter}
 
-	err := writer.WriteSpan(mockSpan)
+	err := writer.WriteSpan(context.Background(), mockSpan)
 	assert.NoError(t, err)
 }
 

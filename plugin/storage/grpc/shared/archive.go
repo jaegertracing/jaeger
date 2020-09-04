@@ -67,8 +67,8 @@ func (r *ArchiveReader) FindTraceIDs(ctx context.Context, query *spanstore.Trace
 }
 
 // WriteSpan saves the span into Archive Storage
-func (w *ArchiveWriter) WriteSpan(span *model.Span) error {
-	_, err := w.client.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
+func (w *ArchiveWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+	_, err := w.client.WriteArchiveSpan(ctx, &storage_v1.WriteSpanRequest{
 		Span: span,
 	})
 	if err != nil {

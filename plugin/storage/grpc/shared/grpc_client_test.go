@@ -326,7 +326,7 @@ func TestGrpcClientWriteArchiveSpan(t *testing.T) {
 			Span: &mockTraceSpans[0],
 		}).Return(&storage_v1.WriteSpanResponse{}, nil)
 
-		err := r.client.ArchiveSpanWriter().WriteSpan(&mockTraceSpans[0])
+		err := r.client.ArchiveSpanWriter().WriteSpan(context.Background(), &mockTraceSpans[0])
 		assert.NoError(t, err)
 	})
 }
@@ -337,7 +337,7 @@ func TestGrpcClientWriteArchiveSpan_Error(t *testing.T) {
 			Span: &mockTraceSpans[0],
 		}).Return(nil, status.Error(codes.Internal, "internal error"))
 
-		err := r.client.ArchiveSpanWriter().WriteSpan(&mockTraceSpans[0])
+		err := r.client.ArchiveSpanWriter().WriteSpan(context.Background(), &mockTraceSpans[0])
 		assert.Error(t, err)
 	})
 }
