@@ -84,11 +84,10 @@ var exampleESSpan = []byte(
 	}`)
 
 type spanReaderTest struct {
-	client      *mocks.Client
-	logger      *zap.Logger
-	logBuffer   *testutils.Buffer
-	reader      *SpanReader
-	maxDocCount int
+	client    *mocks.Client
+	logger    *zap.Logger
+	logBuffer *testutils.Buffer
+	reader    *SpanReader
 }
 
 func withSpanReader(fn func(r *spanReaderTest)) {
