@@ -96,7 +96,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "test,tags", aux.Tags.Include)
 }
 
-func TestMaxNumSpans(t *testing.T) {
+func TestMaxDocCount(t *testing.T) {
 	testCases := []struct {
 		name            string
 		flags           []string
