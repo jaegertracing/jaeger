@@ -95,3 +95,29 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "./file.txt", aux.Tags.File)
 	assert.Equal(t, "test,tags", aux.Tags.Include)
 }
+
+func TestMaxNumSpans(t *testing.T) {
+	testCases := []struct {
+		name            string
+		flags           []string
+		wantMaxDocCount int
+	}{
+		{"neither defined", []string{}, 10_000},
+		{"max-num-spans only", []string{"--es.max-num-spans=1000"}, 1000},
+		{"max-doc-count only", []string{"--es.max-doc-count=1000"}, 1000},
+		{"max-num-spans == max-doc-count", []string{"--es.max-num-spans=1000", "--es.max-doc-count=1000"}, 1000},
+		{"max-num-spans < max-doc-count", []string{"--es.max-num-spans=999", "--es.max-doc-count=1000"}, 999},
+		{"max-num-spans > max-doc-count", []string{"--es.max-num-spans=1000", "--es.max-doc-count=999"}, 999},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := NewOptions("es", "es.aux")
+			v, command := config.Viperize(opts.AddFlags)
+			command.ParseFlags(tc.flags)
+			opts.InitFromViper(v)
+
+			primary := opts.GetPrimary()
+			assert.Equal(t, tc.wantMaxDocCount, primary.MaxDocCount)
+		})
+	}
+}

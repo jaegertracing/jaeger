@@ -36,10 +36,7 @@ const (
 
 	timestampField = "timestamp"
 
-	// default number of documents to return from a query (elasticsearch allowed limit)
-	// see search.max_buckets and index.max_result_window
-	defaultMaxDocCount = 10_000
-	indexDateFormat    = "2006-01-02" // date format for index e.g. 2020-01-20
+	indexDateFormat = "2006-01-02" // date format for index e.g. 2020-01-20
 )
 
 // DependencyStore defines Elasticsearch dependency store.
@@ -47,13 +44,14 @@ type DependencyStore struct {
 	client      esclient.ElasticsearchClient
 	logger      *zap.Logger
 	indexPrefix string
+	maxDocCount int
 }
 
 var _ dependencystore.Reader = (*DependencyStore)(nil)
 var _ dependencystore.Writer = (*DependencyStore)(nil)
 
 // NewDependencyStore creates dependency store.
-func NewDependencyStore(client esclient.ElasticsearchClient, logger *zap.Logger, indexPrefix string) *DependencyStore {
+func NewDependencyStore(client esclient.ElasticsearchClient, logger *zap.Logger, indexPrefix string, maxDocCount int) *DependencyStore {
 	if indexPrefix != "" {
 		indexPrefix += "-"
 	}
@@ -61,6 +59,7 @@ func NewDependencyStore(client esclient.ElasticsearchClient, logger *zap.Logger,
 		client:      client,
 		logger:      logger,
 		indexPrefix: indexPrefix + dependencyIndexBaseName + "-",
+		maxDocCount: maxDocCount,
 	}
 }
 
@@ -84,10 +83,10 @@ func (r *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 
 // GetDependencies implements dependencystore.Reader
 func (r *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	searchBody := getSearchBody(endTs, lookback)
+	searchBody := getSearchBody(endTs, lookback, r.maxDocCount)
 
 	indices := dailyIndices(r.indexPrefix, endTs, lookback)
-	response, err := r.client.Search(ctx, searchBody,defaultMaxDocCount, indices...)
+	response, err := r.client.Search(ctx, searchBody, r.maxDocCount, indices...)
 	if err != nil {
 		return nil, err
 	}
@@ -106,12 +105,12 @@ func (r *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	return dbmodel.ToDomainDependencies(dependencies), nil
 }
 
-func getSearchBody(endTs time.Time, lookback time.Duration) esclient.SearchBody {
+func getSearchBody(endTs time.Time, lookback time.Duration, maxDocCount int) esclient.SearchBody {
 	return esclient.SearchBody{
 		Query: &esclient.Query{
 			RangeQueries: map[string]esclient.RangeQuery{timestampField: {GTE: endTs.Add(-lookback), LTE: endTs}},
 		},
-		Size: defaultMaxDocCount,
+		Size: maxDocCount,
 	}
 }
 

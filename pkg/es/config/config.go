@@ -49,7 +49,7 @@ type Configuration struct {
 	AllowTokenFromContext bool           `mapstructure:"-"`
 	Sniffer               bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled     bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxNumSpans           int            `mapstructure:"-"`                     // deprecated: use MaxDocCount instead. Defines maximum number of spans to fetch from storage per query
+	MaxDocCount           int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
 	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
 	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
 	NumReplicas           int64          `yaml:"replicas" mapstructure:"num_replicas"`
@@ -65,7 +65,6 @@ type Configuration struct {
 	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
 	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
 	Version               uint           `mapstructure:"version"`
-	MaxDocCount           int            `mapstructure:"-"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -88,7 +87,7 @@ type ClientBuilder interface {
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
-	GetMaxNumSpans() int
+	GetMaxDocCount() int
 	GetIndexPrefix() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
@@ -99,7 +98,6 @@ type ClientBuilder interface {
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
 	TagKeysAsFields() ([]string, error)
-	GetMaxDocCount() int
 }
 
 // NewClient creates a new ElasticSearch client
@@ -199,9 +197,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
-	if c.MaxNumSpans == 0 {
-		c.MaxNumSpans = source.MaxNumSpans
-	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
@@ -255,9 +250,9 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
 }
 
-// GetMaxNumSpans returns max spans allowed per query from Configuration
-func (c *Configuration) GetMaxNumSpans() int {
-	return c.MaxNumSpans
+// GetMaxDocCount returns the maximum number of documents that a query should return
+func (c *Configuration) GetMaxDocCount() int {
+	return c.MaxDocCount
 }
 
 // GetIndexPrefix returns index prefix
@@ -294,11 +289,6 @@ func (c *Configuration) GetUseReadWriteAliases() bool {
 // GetTokenFilePath returns file path containing the bearer token
 func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
-}
-
-// GetMaxDocCount returns the maximum number of documents that a query should return
-func (c *Configuration) GetMaxDocCount() int {
-	return c.MaxDocCount
 }
 
 // IsStorageEnabled determines whether storage is enabled

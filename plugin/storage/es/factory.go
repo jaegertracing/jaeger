@@ -142,13 +142,12 @@ func createSpanReader(
 		Client:              client,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
-		MaxNumSpans:         cfg.GetMaxNumSpans(),
+		MaxDocCount:         cfg.GetMaxDocCount(),
 		MaxSpanAge:          cfg.GetMaxSpanAge(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		Archive:             archive,
-		MaxDocCount:         cfg.GetMaxDocCount(),
 	}), nil
 }
 

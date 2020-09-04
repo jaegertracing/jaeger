@@ -17,6 +17,7 @@ package es
 
 import (
 	"flag"
+	"math"
 	"strings"
 	"time"
 
@@ -87,7 +88,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Password:          "",
 				Sniffer:           false,
 				MaxSpanAge:        72 * time.Hour,
-				MaxNumSpans:       10000,
 				NumShards:         5,
 				NumReplicas:       1,
 				BulkSize:          5 * 1000 * 1000,
@@ -178,7 +178,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The maximum lookback for spans in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
-		nsConfig.MaxNumSpans,
+		nsConfig.MaxDocCount,
 		"(deprecated, will be removed in release v1.21.0. Please use es.max-doc-count). The maximum number of spans to fetch at a time per query in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
@@ -271,7 +271,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
-	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
@@ -288,7 +287,18 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
+
+	maxNumSpans := v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
+
+	if maxNumSpans != 0 {
+		if cfg.MaxDocCount != 0 {
+			cfg.MaxDocCount = int(math.Min(float64(maxNumSpans), float64(cfg.MaxDocCount)))
+		} else {
+			cfg.MaxDocCount = maxNumSpans
+		}
+	}
+
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
