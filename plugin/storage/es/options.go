@@ -179,7 +179,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
 		nsConfig.MaxDocCount,
-		"(deprecated, will be removed in release v1.21.0. Please use es.max-doc-count). The maximum number of spans to fetch at a time per query in Elasticsearch")
+		"(deprecated, will be removed in release v1.21.0. Please use es.max-doc-count). "+
+			"The maximum number of spans to fetch at a time per query in Elasticsearch. "+
+			"The lesser of es.max-num-spans and es.max-doc-count will be used if both are set.")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
@@ -288,15 +290,11 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 
-	maxNumSpans := v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
 
-	if maxNumSpans != 0 {
-		if cfg.MaxDocCount != 0 {
-			cfg.MaxDocCount = int(math.Min(float64(maxNumSpans), float64(cfg.MaxDocCount)))
-		} else {
-			cfg.MaxDocCount = maxNumSpans
-		}
+	if v.IsSet(cfg.namespace + suffixMaxNumSpans) {
+		maxNumSpans := v.GetInt(cfg.namespace + suffixMaxNumSpans)
+		cfg.MaxDocCount = int(math.Min(float64(maxNumSpans), float64(cfg.MaxDocCount)))
 	}
 
 	// TODO: Need to figure out a better way for do this.
