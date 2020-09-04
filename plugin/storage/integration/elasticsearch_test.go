@@ -39,13 +39,13 @@ import (
 )
 
 const (
-	host            = "0.0.0.0"
-	queryPort       = "9200"
-	queryHostPort   = host + ":" + queryPort
-	queryURL        = "http://" + queryHostPort
-	indexPrefix     = "integration-test"
-	tagKeyDeDotChar = "@"
-	maxSpanAge      = time.Hour * 72
+	host               = "0.0.0.0"
+	queryPort          = "9200"
+	queryHostPort      = host + ":" + queryPort
+	queryURL           = "http://" + queryHostPort
+	indexPrefix        = "integration-test"
+	tagKeyDeDotChar    = "@"
+	maxSpanAge         = time.Hour * 72
 	defaultMaxDocCount = 10_000
 )
 
@@ -130,6 +130,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
+		MaxDocCount:       defaultMaxDocCount,
 	})
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, defaultMaxDocCount)
 	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())

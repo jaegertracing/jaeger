@@ -108,13 +108,12 @@ type SpanReaderParams struct {
 	Client              es.Client
 	Logger              *zap.Logger
 	MaxSpanAge          time.Duration
-	MaxNumSpans         int
+	MaxDocCount         int
 	MetricsFactory      metrics.Factory
 	IndexPrefix         string
 	TagDotReplacement   string
 	Archive             bool
 	UseReadWriteAliases bool
-	MaxDocCount         int
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -128,7 +127,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
-		sourceFn:                getSourceFn(p.Archive, p.MaxNumSpans, p.MaxDocCount),
+		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
 	}
 }
@@ -157,12 +156,12 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 	return timeRangeIndices
 }
 
-func getSourceFn(archive bool, maxNumSpans int, maxDocCount int) sourceFn {
+func getSourceFn(archive bool, maxDocCount int) sourceFn {
 	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
 		s := elastic.NewSearchSource().
 			Query(query).
 			Size(maxDocCount).
-			TerminateAfter(maxNumSpans)
+			TerminateAfter(maxDocCount)
 		if !archive {
 			s.Sort("startTime", true).
 				SearchAfter(nextTime)
