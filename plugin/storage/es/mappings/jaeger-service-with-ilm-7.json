@@ -2,7 +2,7 @@
   "index_patterns": "*jaeger-service-*",
   "order": 1,
   "aliases": {
-    "jaeger-service-read": {}
+    "${__INDEX_READ_ALIAS__}": {}
   },
   "settings": {
     "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
@@ -11,7 +11,7 @@
     "index.requests.cache.enable": true,
     "lifecycle": {
       "name": "jaeger",
-      "rollover_alias": "jaeger-service-write"
+      "rollover_alias": "${__INDEX_WRITE_ALIAS__}"
     }
   },
   "mappings": {

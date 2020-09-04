@@ -85,7 +85,7 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
             mapping = Path('./mappings/'+template_name+'-7.json').read_text()
         else:
             mapping = Path('./mappings/'+template_name+'.json').read_text()
-        create_index_template(fix_mapping(mapping, shards, replicas), template_name)
+        create_index_template(fix_mapping(mapping, shards, replicas, read_alias, write_alias), template_name)
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
@@ -186,9 +186,11 @@ def str2bool(v):
     return v.lower() in ('true', '1')
 
 
-def fix_mapping(mapping, shards, replicas):
+def fix_mapping(mapping, shards, replicas, read_alias, write_alias):
     mapping = mapping.replace("${__NUMBER_OF_SHARDS__}", str(shards))
     mapping = mapping.replace("${__NUMBER_OF_REPLICAS__}", str(replicas))
+    mapping = mapping.replace("${__INDEX_READ_ALIAS__}", str(read_alias))
+    mapping = mapping.replace("${__INDEX_WRITE_ALIAS__}", str(write_alias))
     return mapping
 
 
