@@ -295,7 +295,7 @@ func TestGRPCServerGetArchiveTrace_StreamError(t *testing.T) {
 
 func TestGRPCServerWriteArchiveSpan(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.archiveWriter.On("WriteSpan", &mockTraceSpans[0]).
+		r.impl.archiveWriter.On("WriteSpan", mock.Anything, &mockTraceSpans[0]).
 			Return(nil)
 
 		s, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
@@ -308,7 +308,7 @@ func TestGRPCServerWriteArchiveSpan(t *testing.T) {
 
 func TestGRPCServerWriteArchiveSpan_Error(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.archiveWriter.On("WriteSpan", &mockTraceSpans[0]).
+		r.impl.archiveWriter.On("WriteSpan", mock.Anything, &mockTraceSpans[0]).
 			Return(fmt.Errorf("some error"))
 
 		_, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{

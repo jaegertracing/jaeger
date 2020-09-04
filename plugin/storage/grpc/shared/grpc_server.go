@@ -199,7 +199,7 @@ func (s *grpcServer) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSp
 	if s.ArchiveImpl == nil {
 		return nil, status.Error(codes.Unimplemented, "not implemented")
 	}
-	err := s.ArchiveImpl.ArchiveSpanWriter().WriteSpan(r.Span)
+	err := s.ArchiveImpl.ArchiveSpanWriter().WriteSpan(ctx, r.Span)
 	if err != nil {
 		return nil, err
 	}
