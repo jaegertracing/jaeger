@@ -186,6 +186,34 @@ func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 	assert.Nil(t, writer)
 }
 
+func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
+	f := NewFactory()
+	v := viper.New()
+	f.InitFromViper(v)
+
+	capabilities := new(mocks.PluginCapabilities)
+	customError := errors.New("made-up error")
+	capabilities.On("Capabilities").
+		Return(nil, customError)
+
+	f.builder = &mockPluginBuilder{
+		plugin: &mockPlugin{
+			capabilities:  capabilities,
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
+		},
+	}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	assert.NotNil(t, f.store)
+	reader, err := f.CreateArchiveSpanReader()
+	assert.EqualError(t, err, customError.Error())
+	assert.Nil(t, reader)
+	writer, err := f.CreateArchiveSpanWriter()
+	assert.EqualError(t, err, customError.Error())
+	assert.Nil(t, writer)
+}
+
 func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
