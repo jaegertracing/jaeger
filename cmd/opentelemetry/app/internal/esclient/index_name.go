@@ -12,18 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package esspanreader
+package esclient
 
 import "time"
 
 const indexDateFormat = "2006-01-02" // date format for index e.g. 2020-01-20
 
-type indexNameProvider struct {
-	index       string
-	noDateIndex bool
+// Alias is used to configure the kind of index alias
+type Alias string
+
+const (
+	// AliasNone configures no aliasing
+	AliasNone Alias = "none"
+	// AliasRead configures read aliases
+	AliasRead = "read"
+	// AliasWrite configures write aliases
+	AliasWrite = "write"
+)
+
+// IndexNameProvider creates standard index names from dates
+type IndexNameProvider struct {
+	index          string
+	useSingleIndex bool
 }
 
-func newIndexNameProvider(index, prefix string, useAliases bool, archive bool) indexNameProvider {
+// NewIndexNameProvider constructs a new IndexNameProvider
+func NewIndexNameProvider(index, prefix string, alias Alias, archive bool) IndexNameProvider {
 	if prefix != "" {
 		index = prefix + "-" + index
 	}
@@ -31,20 +45,21 @@ func newIndexNameProvider(index, prefix string, useAliases bool, archive bool) i
 	if archive {
 		index += "archive"
 	}
-	if useAliases {
+	if alias != AliasNone {
 		if index[len(index)-1] != '-' {
 			index += "-"
 		}
-		index += "read"
+		index += string(alias)
 	}
-	return indexNameProvider{
-		index:       index,
-		noDateIndex: archive || useAliases,
+	return IndexNameProvider{
+		index:          index,
+		useSingleIndex: archive || (alias != AliasNone),
 	}
 }
 
-func (n indexNameProvider) get(start, end time.Time) []string {
-	if n.noDateIndex {
+// IndexNameRange returns a slice of index names.  One for every date in the range.
+func (n IndexNameProvider) IndexNameRange(start, end time.Time) []string {
+	if n.useSingleIndex {
 		return []string{n.index}
 	}
 	var indices []string
@@ -57,4 +72,13 @@ func (n indexNameProvider) get(start, end time.Time) []string {
 	}
 	indices = append(indices, firstIndex)
 	return indices
+}
+
+// IndexName returns a single index name for the provided date.
+func (n IndexNameProvider) IndexName(date time.Time) string {
+	if n.useSingleIndex {
+		return n.index
+	}
+	spanDate := date.UTC().Format(indexDateFormat)
+	return n.index + spanDate
 }

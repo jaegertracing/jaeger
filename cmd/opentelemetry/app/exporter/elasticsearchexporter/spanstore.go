@@ -53,8 +53,8 @@ type esSpanWriter struct {
 	nameTag          tag.Mutator
 	client           esclient.ElasticsearchClient
 	serviceCache     cache.Cache
-	spanIndexName    indexNameProvider
-	serviceIndexName indexNameProvider
+	spanIndexName    esclient.IndexNameProvider
+	serviceIndexName esclient.IndexNameProvider
 	translator       *esmodeltranslator.Translator
 	isArchive        bool
 }
@@ -69,12 +69,16 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger, archive bo
 	if err != nil {
 		return nil, err
 	}
+	alias := esclient.AliasNone
+	if params.UseReadWriteAliases {
+		alias = esclient.AliasWrite
+	}
 	return &esSpanWriter{
 		logger:           logger,
 		nameTag:          tag.Insert(storagemetrics.TagExporterName(), name),
 		client:           client,
-		spanIndexName:    newIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
-		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
+		spanIndexName:    esclient.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, alias, archive),
+		serviceIndexName: esclient.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, alias, archive),
 		translator:       esmodeltranslator.NewTranslator(params.Tags.AllAsFields, tagsKeysAsFields, params.GetTagDotReplacement()),
 		isArchive:        archive,
 		serviceCache: cache.NewLRUWithOptions(
@@ -122,7 +126,7 @@ func (w *esSpanWriter) writeSpans(ctx context.Context, spans []*dbmodel.Span) (i
 			dropped++
 			continue
 		}
-		indexName := w.spanIndexName.get(model.EpochMicrosecondsAsTime(span.StartTime))
+		indexName := w.spanIndexName.IndexName(model.EpochMicrosecondsAsTime(span.StartTime))
 		bulkOperations = append(bulkOperations, bulkItem{span: span, isService: false})
 		w.client.AddDataToBulkBuffer(buffer, data, indexName, spanTypeName)
 
@@ -202,7 +206,7 @@ func (w *esSpanWriter) writeService(span *dbmodel.Span, buffer *bytes.Buffer) (b
 	if err != nil {
 		return false, err
 	}
-	indexName := w.serviceIndexName.get(model.EpochMicrosecondsAsTime(span.StartTime))
+	indexName := w.serviceIndexName.IndexName(model.EpochMicrosecondsAsTime(span.StartTime))
 	w.client.AddDataToBulkBuffer(buffer, data, indexName, serviceTypeName)
 	return true, nil
 }

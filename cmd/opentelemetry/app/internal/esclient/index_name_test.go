@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package esspanreader
+package esclient
 
 import (
 	"testing"
@@ -21,43 +21,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIndexName(t *testing.T) {
+func TestIndexNames(t *testing.T) {
 	tests := []struct {
 		name         string
 		indices      []string
-		nameProvider indexNameProvider
+		nameProvider IndexNameProvider
 		start        time.Time
 		end          time.Time
 	}{
 		{
 			name:         "index prefix",
-			nameProvider: newIndexNameProvider("myindex", "production", false, false),
+			nameProvider: NewIndexNameProvider("myindex", "production", AliasNone, false),
 			indices:      []string{"production-myindex-0001-01-01"},
 		},
 		{
 			name:         "multiple dates",
-			nameProvider: newIndexNameProvider("myindex", "", false, false),
+			nameProvider: NewIndexNameProvider("myindex", "", AliasNone, false),
 			indices:      []string{"myindex-2020-08-30", "myindex-2020-08-29", "myindex-2020-08-28"},
 			start:        time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
 			end:          time.Date(2020, 8, 30, 0, 0, 0, 0, time.UTC),
 		},
 		{
 			name:         "use aliases",
-			nameProvider: newIndexNameProvider("myindex", "", true, false),
+			nameProvider: NewIndexNameProvider("myindex", "", AliasRead, false),
 			indices:      []string{"myindex-read"},
 			start:        time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
 			end:          time.Date(2020, 8, 30, 0, 0, 0, 0, time.UTC),
 		},
 		{
 			name:         "use archive",
-			nameProvider: newIndexNameProvider("myindex", "", false, true),
+			nameProvider: NewIndexNameProvider("myindex", "", AliasNone, true),
 			indices:      []string{"myindex-archive"},
 			start:        time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
 			end:          time.Date(2020, 8, 30, 0, 0, 0, 0, time.UTC),
 		},
 		{
 			name:         "use archive alias",
-			nameProvider: newIndexNameProvider("myindex", "", true, true),
+			nameProvider: NewIndexNameProvider("myindex", "", AliasRead, true),
 			indices:      []string{"myindex-archive-read"},
 			start:        time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
 			end:          time.Date(2020, 8, 30, 0, 0, 0, 0, time.UTC),
@@ -65,8 +65,54 @@ func TestIndexName(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			indices := test.nameProvider.get(test.start, test.end)
+			indices := test.nameProvider.IndexNameRange(test.start, test.end)
 			assert.Equal(t, test.indices, indices)
+		})
+	}
+}
+
+func TestIndexName(t *testing.T) {
+	tests := []struct {
+		name         string
+		index        string
+		nameProvider IndexNameProvider
+		date         time.Time
+		end          time.Time
+	}{
+		{
+			name:         "index prefix",
+			nameProvider: NewIndexNameProvider("myindex", "production", AliasNone, false),
+			index:        "production-myindex-0001-01-01",
+		},
+		{
+			name:         "no prefix",
+			nameProvider: NewIndexNameProvider("myindex", "", AliasNone, false),
+			index:        "myindex-2020-08-28",
+			date:         time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:         "use aliases",
+			nameProvider: NewIndexNameProvider("myindex", "", AliasWrite, false),
+			index:        "myindex-write",
+			date:         time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:         "use archive",
+			nameProvider: NewIndexNameProvider("myindex", "", AliasNone, true),
+			index:        "myindex-archive",
+			date:         time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:         "use archive alias",
+			nameProvider: NewIndexNameProvider("myindex", "", AliasWrite, true),
+			index:        "myindex-archive-write",
+			date:         time.Date(2020, 8, 28, 0, 0, 0, 0, time.UTC),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			indices := test.nameProvider.IndexName(test.date)
+			assert.Equal(t, test.index, indices)
 		})
 	}
 }
