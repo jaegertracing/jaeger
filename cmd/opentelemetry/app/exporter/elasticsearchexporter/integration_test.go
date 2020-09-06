@@ -40,15 +40,16 @@ import (
 )
 
 const (
-	host            = "0.0.0.0"
-	esPort          = "9200"
-	esHostPort      = host + ":" + esPort
-	esURL           = "http://" + esHostPort
-	indexPrefix     = "integration-test"
-	tagKeyDeDotChar = "@"
-	maxSpanAge      = time.Hour * 72
-	numShards       = 5
-	numReplicas     = 0
+	host               = "0.0.0.0"
+	esPort             = "9200"
+	esHostPort         = host + ":" + esPort
+	esURL              = "http://" + esHostPort
+	indexPrefix        = "integration-test"
+	tagKeyDeDotChar    = "@"
+	maxSpanAge         = time.Hour * 72
+	numShards          = 5
+	numReplicas        = 0
+	defaultMaxDocCount = 10_000
 )
 
 type IntegrationTest struct {
@@ -119,12 +120,12 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 		IndexPrefix:       indexPrefix,
 		TagDotReplacement: tagKeyDeDotChar,
 		MaxSpanAge:        maxSpanAge,
-		MaxNumSpans:       10_000,
+		MaxDocCount:       defaultMaxDocCount,
 	})
 	s.SpanReader = reader
 
 	depMapping := es.GetDependenciesMappings(numShards, numReplicas, esVersion)
-	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix)
+	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix, defaultMaxDocCount)
 	if err := depStore.CreateTemplates(depMapping); err != nil {
 		return nil
 	}

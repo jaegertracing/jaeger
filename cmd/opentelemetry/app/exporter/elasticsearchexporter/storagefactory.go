@@ -88,7 +88,7 @@ func (s *StorageFactory) CreateSpanReader() (spanstore.Reader, error) {
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		MaxSpanAge:          cfg.GetMaxSpanAge(),
-		MaxNumSpans:         cfg.GetMaxNumSpans(),
+		MaxDocCount:         cfg.GetMaxDocCount(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 	}), nil
 }
@@ -100,7 +100,7 @@ func (s *StorageFactory) CreateDependencyReader() (dependencystore.Reader, error
 	if err != nil {
 		return nil, err
 	}
-	return esdependencyreader.NewDependencyStore(client, s.logger, cfg.GetIndexPrefix()), nil
+	return esdependencyreader.NewDependencyStore(client, s.logger, cfg.GetIndexPrefix(), cfg.GetMaxDocCount()), nil
 }
 
 // CreateArchiveSpanReader creates archive spanstore.Reader
@@ -115,7 +115,7 @@ func (s *StorageFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		MaxSpanAge:          cfg.GetMaxSpanAge(),
-		MaxNumSpans:         cfg.GetMaxNumSpans(),
+		MaxDocCount:         cfg.GetMaxDocCount(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 	}), nil
 }

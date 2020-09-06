@@ -49,7 +49,7 @@ type Configuration struct {
 	AllowTokenFromContext bool           `mapstructure:"-"`
 	Sniffer               bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled     bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxNumSpans           int            `mapstructure:"-"`                     // defines maximum number of spans to fetch from storage per query
+	MaxDocCount           int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
 	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
 	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
 	NumReplicas           int64          `yaml:"replicas" mapstructure:"num_replicas"`
@@ -87,7 +87,7 @@ type ClientBuilder interface {
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
-	GetMaxNumSpans() int
+	GetMaxDocCount() int
 	GetIndexPrefix() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
@@ -197,9 +197,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
-	if c.MaxNumSpans == 0 {
-		c.MaxNumSpans = source.MaxNumSpans
-	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
@@ -233,6 +230,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Tags.File == "" {
 		c.Tags.File = source.Tags.File
 	}
+	if c.MaxDocCount == 0 {
+		c.MaxDocCount = source.MaxDocCount
+	}
 }
 
 // GetNumShards returns number of shards from Configuration
@@ -250,9 +250,9 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
 }
 
-// GetMaxNumSpans returns max spans allowed per query from Configuration
-func (c *Configuration) GetMaxNumSpans() int {
-	return c.MaxNumSpans
+// GetMaxDocCount returns the maximum number of documents that a query should return
+func (c *Configuration) GetMaxDocCount() int {
+	return c.MaxDocCount
 }
 
 // GetIndexPrefix returns index prefix

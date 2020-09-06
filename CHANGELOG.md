@@ -7,6 +7,20 @@ Changes by Version
 ### Backend Changes
 
 #### Breaking Changes
+* Configurable ES doc count ([#2453](https://github.com/jaegertracing/jaeger/pull/2453), [@albertteoh](https://github.com/albertteoh))
+
+    The `--es.max-num-spans` flag has been deprecated in favour of `--es.max-doc-count`.
+    `--es.max-num-spans` is marked for removal in v1.21.0 as indicated in the flag description.
+
+    If both `--es.max-num-spans` and `--es.max-doc-count` are set, the lesser of the two will be used.
+
+    The use of `--es.max-doc-count` (which defaults to 10,000) will limit the results from all Elasticsearch
+    queries by the configured value, limiting counts for Jaeger UI:
+
+    * Services
+    * Operations
+    * Dependencies (edges in a dependency graph)
+    * Span fetch size for a trace
 
 #### New Features
 
