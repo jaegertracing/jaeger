@@ -72,7 +72,7 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 }
 
 func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
-	require.True(t, len(expected.Spans) == len(actual.Spans))
+	require.Equal(t, len(expected.Spans), len(actual.Spans))
 	for i := range expected.Spans {
 		expectedSpan := expected.Spans[i]
 		actualSpan := actual.Spans[i]

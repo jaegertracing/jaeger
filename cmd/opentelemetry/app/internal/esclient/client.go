@@ -53,22 +53,28 @@ type ElasticsearchClient interface {
 
 // BulkResponse is a response returned by Elasticsearch Bulk API
 type BulkResponse struct {
-	Errors bool `json:"errors"`
-	Items  []struct {
-		Index struct {
-			ID     string `json:"_id"`
-			Result string `json:"result"`
-			Status int    `json:"status"`
-			Error  struct {
-				Type   string `json:"type"`
-				Reason string `json:"reason"`
-				Cause  struct {
-					Type   string `json:"type"`
-					Reason string `json:"reason"`
-				} `json:"caused_by"`
-			} `json:"error"`
-		} `json:"index"`
-	} `json:"items"`
+	Errors bool               `json:"errors"`
+	Items  []BulkResponseItem `json:"items"`
+}
+
+// BulkResponseItem is a single response from BulkResponse
+type BulkResponseItem struct {
+	Index BulkIndexResponse `json:"index"`
+}
+
+// BulkIndexResponse is a bulk response for index action
+type BulkIndexResponse struct {
+	ID     string `json:"_id"`
+	Result string `json:"result"`
+	Status int    `json:"status"`
+	Error  struct {
+		Type   string `json:"type"`
+		Reason string `json:"reason"`
+		Cause  struct {
+			Type   string `json:"type"`
+			Reason string `json:"reason"`
+		} `json:"caused_by"`
+	} `json:"error"`
 }
 
 // SearchBody defines search request.

@@ -61,6 +61,10 @@ func main() {
 		}
 	}
 
+	if err := app.RegisterMetricViews(); err != nil {
+		handleErr(err)
+	}
+
 	ver := version.Get()
 	info := service.ApplicationStartInfo{
 		ExeName:  "jaeger-opentelemetry-all-in-one",
@@ -216,7 +220,7 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 		archiveOpts.InitFromViper(v)
 		primaryConfig := exporter.(*elasticsearchexporter.Config)
 		opts := esStorage.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration)
-		return elasticsearchexporter.NewStorageFactory(opts, logger), nil
+		return elasticsearchexporter.NewStorageFactory(opts, logger, primaryConfig.Name()), nil
 	case "jaeger_cassandra":
 		archiveOpts := cassandraStorage.NewOptions("cassandra-archive")
 		archiveOpts.InitFromViper(v)

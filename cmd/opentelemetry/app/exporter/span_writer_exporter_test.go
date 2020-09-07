@@ -22,10 +22,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/tag"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/storagemetrics"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -74,48 +77,72 @@ func TestStore(t *testing.T) {
 	traceID := []byte("0123456789abcdef")
 	spanID := []byte("01234567")
 	tests := []struct {
-		storage store
-		data    pdata.Traces
-		err     string
-		dropped int
-		caption string
+		storage         store
+		data            pdata.Traces
+		err             string
+		dropped         int
+		caption         string
+		metricStored    float64
+		metricNotStored float64
 	}{
 		{
 			caption: "nothing to store",
-			storage: store{Writer: spanWriter{}},
+			storage: store{Writer: spanWriter{}, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), "memory")},
 			data:    traces(),
 			dropped: 0,
 		},
 		{
 			caption: "wrong data",
-			storage: store{Writer: spanWriter{}},
+			storage: store{Writer: spanWriter{}, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), "memory")},
 			data:    AddSpan(traces(), "", nil, nil),
 			err:     "TraceID is nil",
 			dropped: 1,
 		},
 		{
-			caption: "one error in writer",
-			storage: store{Writer: spanWriter{err: errors.New("could not store")}},
-			data:    AddSpan(AddSpan(traces(), "error", traceID, spanID), "", traceID, spanID),
-			dropped: 1,
-			err:     "could not store",
+			caption:         "one error in writer",
+			storage:         store{Writer: spanWriter{err: errors.New("could not store")}, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), "memory")},
+			data:            AddSpan(AddSpan(traces(), "error", traceID, spanID), "", traceID, spanID),
+			dropped:         1,
+			err:             "could not store",
+			metricNotStored: 1,
+			metricStored:    1,
 		},
 		{
-			caption: "two errors in writer",
-			storage: store{Writer: spanWriter{err: errors.New("could not store")}},
-			data:    AddSpan(AddSpan(traces(), "error", traceID, spanID), "error", traceID, spanID),
-			dropped: 2,
-			err:     "[could not store; could not store]",
+			caption:         "two errors in writer",
+			storage:         store{Writer: spanWriter{err: errors.New("could not store")}, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), "memory")},
+			data:            AddSpan(AddSpan(traces(), "error", traceID, spanID), "error", traceID, spanID),
+			dropped:         2,
+			err:             "[could not store; could not store]",
+			metricNotStored: 2,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.caption, func(t *testing.T) {
+			views := storagemetrics.MetricViews()
+			require.NoError(t, view.Register(views...))
+			defer view.Unregister(views...)
+
 			dropped, err := test.storage.traceDataPusher(context.Background(), test.data)
 			assert.Equal(t, test.dropped, dropped)
 			if test.err != "" {
 				assert.Contains(t, err.Error(), test.err)
 			} else {
 				require.NoError(t, err)
+			}
+
+			if test.metricStored > 0 {
+				viewData, err := view.RetrieveData(storagemetrics.StatSpansStoredCount().Name())
+				require.NoError(t, err)
+				require.Equal(t, 1, len(viewData))
+				distData := viewData[0].Data.(*view.SumData)
+				assert.Equal(t, test.metricStored, distData.Value)
+			}
+			if test.metricNotStored > 0 {
+				viewData, err := view.RetrieveData(storagemetrics.StatSpansNotStoredCount().Name())
+				require.NoError(t, err)
+				require.Equal(t, 1, len(viewData))
+				distData := viewData[0].Data.(*view.SumData)
+				assert.Equal(t, test.metricNotStored, distData.Value)
 			}
 		})
 	}
