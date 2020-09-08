@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esutil"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -56,8 +57,8 @@ type Reader struct {
 	logger           *zap.Logger
 	client           esclient.ElasticsearchClient
 	converter        dbmodel.ToDomain
-	serviceIndexName esclient.IndexNameProvider
-	spanIndexName    esclient.IndexNameProvider
+	serviceIndexName esutil.IndexNameProvider
+	spanIndexName    esutil.IndexNameProvider
 	maxSpanAge       time.Duration
 	maxDocCount      int
 	archive          bool
@@ -77,9 +78,9 @@ type Config struct {
 
 // NewEsSpanReader creates Elasticseach span reader.
 func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, config Config) *Reader {
-	alias := esclient.AliasNone
+	alias := esutil.AliasNone
 	if config.UseReadWriteAliases {
-		alias = esclient.AliasRead
+		alias = esutil.AliasRead
 	}
 	return &Reader{
 		client:           client,
@@ -88,8 +89,8 @@ func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, co
 		maxSpanAge:       config.MaxSpanAge,
 		maxDocCount:      config.MaxDocCount,
 		converter:        dbmodel.NewToDomain(config.TagDotReplacement),
-		spanIndexName:    esclient.NewIndexNameProvider(spanIndexBaseName, config.IndexPrefix, alias, config.Archive),
-		serviceIndexName: esclient.NewIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, alias, config.Archive),
+		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, config.IndexPrefix, alias, config.Archive),
+		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, alias, config.Archive),
 	}
 }
 

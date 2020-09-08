@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esmodeltranslator"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/storagemetrics"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esutil"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
@@ -53,8 +54,8 @@ type esSpanWriter struct {
 	nameTag          tag.Mutator
 	client           esclient.ElasticsearchClient
 	serviceCache     cache.Cache
-	spanIndexName    esclient.IndexNameProvider
-	serviceIndexName esclient.IndexNameProvider
+	spanIndexName    esutil.IndexNameProvider
+	serviceIndexName esutil.IndexNameProvider
 	translator       *esmodeltranslator.Translator
 	isArchive        bool
 }
@@ -69,16 +70,16 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger, archive bo
 	if err != nil {
 		return nil, err
 	}
-	alias := esclient.AliasNone
+	alias := esutil.AliasNone
 	if params.UseReadWriteAliases {
-		alias = esclient.AliasWrite
+		alias = esutil.AliasWrite
 	}
 	return &esSpanWriter{
 		logger:           logger,
 		nameTag:          tag.Insert(storagemetrics.TagExporterName(), name),
 		client:           client,
-		spanIndexName:    esclient.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, alias, archive),
-		serviceIndexName: esclient.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, alias, archive),
+		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, alias, archive),
+		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, alias, archive),
 		translator:       esmodeltranslator.NewTranslator(params.Tags.AllAsFields, tagsKeysAsFields, params.GetTagDotReplacement()),
 		isArchive:        archive,
 		serviceCache: cache.NewLRUWithOptions(
