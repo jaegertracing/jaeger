@@ -16,6 +16,7 @@
 package dependencystore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -106,7 +107,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 }
 
 // GetDependencies returns all interservice dependencies
-func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	startTs := endTs.Add(-1 * lookback)
 	var query cassandra.Query
 	switch s.version {

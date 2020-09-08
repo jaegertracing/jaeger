@@ -23,12 +23,15 @@ import (
 	"strings"
 	"time"
 
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"go.opentelemetry.io/collector/component/componenterror"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esmodeltranslator"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/storagemetrics"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cache"
@@ -47,15 +50,17 @@ const (
 // esSpanWriter holds components required for ES span writer
 type esSpanWriter struct {
 	logger           *zap.Logger
+	nameTag          tag.Mutator
 	client           esclient.ElasticsearchClient
 	serviceCache     cache.Cache
 	spanIndexName    indexNameProvider
 	serviceIndexName indexNameProvider
 	translator       *esmodeltranslator.Translator
+	isArchive        bool
 }
 
 // newEsSpanWriter creates new instance of esSpanWriter
-func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWriter, error) {
+func newEsSpanWriter(params config.Configuration, logger *zap.Logger, archive bool, name string) (*esSpanWriter, error) {
 	client, err := esclient.NewElasticsearchClient(params, logger)
 	if err != nil {
 		return nil, err
@@ -65,10 +70,13 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWr
 		return nil, err
 	}
 	return &esSpanWriter{
+		logger:           logger,
+		nameTag:          tag.Insert(storagemetrics.TagExporterName(), name),
 		client:           client,
-		spanIndexName:    newIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases),
-		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases),
+		spanIndexName:    newIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
+		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
 		translator:       esmodeltranslator.NewTranslator(params.Tags.AllAsFields, tagsKeysAsFields, params.GetTagDotReplacement()),
+		isArchive:        archive,
 		serviceCache: cache.NewLRUWithOptions(
 			// we do not expect more than 100k unique services
 			100_000,
@@ -77,34 +85,6 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWr
 			},
 		),
 	}, nil
-}
-
-func newIndexNameProvider(index, prefix string, useAliases bool) indexNameProvider {
-	if prefix != "" {
-		prefix = prefix + "-"
-		index = prefix + index
-	}
-	index = index + "-"
-	if useAliases {
-		index = index + "write"
-	}
-	return indexNameProvider{
-		index:    index,
-		useAlias: useAliases,
-	}
-}
-
-type indexNameProvider struct {
-	index    string
-	useAlias bool
-}
-
-func (n indexNameProvider) get(date time.Time) string {
-	if n.useAlias {
-		return n.index
-	}
-	spanDate := date.UTC().Format(indexDateFormat)
-	return n.index + spanDate
 }
 
 // CreateTemplates creates index templates.
@@ -132,7 +112,7 @@ func (w *esSpanWriter) WriteTraces(ctx context.Context, traces pdata.Traces) (in
 func (w *esSpanWriter) writeSpans(ctx context.Context, spans []*dbmodel.Span) (int, error) {
 	buffer := &bytes.Buffer{}
 	// mapping for bulk operation to span
-	bulkOperations := make([]bulkItem, len(spans))
+	var bulkOperations []bulkItem
 	var errs []error
 	dropped := 0
 	for _, span := range spans {
@@ -145,13 +125,16 @@ func (w *esSpanWriter) writeSpans(ctx context.Context, spans []*dbmodel.Span) (i
 		indexName := w.spanIndexName.get(model.EpochMicrosecondsAsTime(span.StartTime))
 		bulkOperations = append(bulkOperations, bulkItem{span: span, isService: false})
 		w.client.AddDataToBulkBuffer(buffer, data, indexName, spanTypeName)
-		write, err := w.writeService(span, buffer)
-		if err != nil {
-			errs = append(errs, err)
-			// dropped is not increased since this is only service name, the span could be written well
-			continue
-		} else if write {
-			bulkOperations = append(bulkOperations, bulkItem{span: span, isService: true})
+
+		if !w.isArchive {
+			storeService, err := w.writeService(span, buffer)
+			if err != nil {
+				errs = append(errs, err)
+				// dropped is not increased since this is only service name, the span could be written well
+				continue
+			} else if storeService {
+				bulkOperations = append(bulkOperations, bulkItem{span: span, isService: true})
+			}
 		}
 	}
 	res, err := w.client.Bulk(ctx, bytes.NewReader(buffer.Bytes()))
@@ -159,14 +142,17 @@ func (w *esSpanWriter) writeSpans(ctx context.Context, spans []*dbmodel.Span) (i
 		errs = append(errs, err)
 		return len(spans), componenterror.CombineErrors(errs)
 	}
-	droppedFromResponse := w.handleResponse(res, bulkOperations)
+	droppedFromResponse := w.handleResponse(ctx, res, bulkOperations)
 	dropped += droppedFromResponse
 	return dropped, componenterror.CombineErrors(errs)
 }
 
-func (w *esSpanWriter) handleResponse(blk *esclient.BulkResponse, operationToSpan []bulkItem) int {
+func (w *esSpanWriter) handleResponse(ctx context.Context, blk *esclient.BulkResponse, operationToSpan []bulkItem) int {
 	numErrors := 0
+	storedSpans := map[string]int64{}
+	notStoredSpans := map[string]int64{}
 	for i, d := range blk.Items {
+		bulkOp := operationToSpan[i]
 		if d.Index.Status > 201 {
 			numErrors++
 			w.logger.Error("Part of the bulk request failed",
@@ -177,14 +163,28 @@ func (w *esSpanWriter) handleResponse(blk *esclient.BulkResponse, operationToSpa
 				zap.String("error.cause.reason", d.Index.Error.Cause.Reason))
 			// TODO return an error or a struct that indicates which spans should be retried
 			// https://github.com/open-telemetry/opentelemetry-collector/issues/990
+			if !bulkOp.isService {
+				notStoredSpans[bulkOp.span.Process.ServiceName] = notStoredSpans[bulkOp.span.Process.ServiceName] + 1
+			}
 		} else {
 			// passed
-			bulkOp := operationToSpan[i]
-			if bulkOp.isService {
+			if !bulkOp.isService {
+				storedSpans[bulkOp.span.Process.ServiceName] = storedSpans[bulkOp.span.Process.ServiceName] + 1
+			} else {
 				cacheKey := hashCode(bulkOp.span.Process.ServiceName, bulkOp.span.OperationName)
 				w.serviceCache.Put(cacheKey, cacheKey)
 			}
 		}
+	}
+	for k, v := range notStoredSpans {
+		ctx, _ := tag.New(ctx,
+			tag.Insert(storagemetrics.TagServiceName(), k), w.nameTag)
+		stats.Record(ctx, storagemetrics.StatSpansNotStoredCount().M(v))
+	}
+	for k, v := range storedSpans {
+		ctx, _ := tag.New(ctx,
+			tag.Insert(storagemetrics.TagServiceName(), k), w.nameTag)
+		stats.Record(ctx, storagemetrics.StatSpansStoredCount().M(v))
 	}
 	return numErrors
 }

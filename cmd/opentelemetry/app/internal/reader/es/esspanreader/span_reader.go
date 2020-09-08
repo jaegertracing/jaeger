@@ -32,9 +32,6 @@ import (
 const (
 	// by default UI fetches 20 results
 	defaultNumTraces = 20
-	// default number of documents to fetch in a query
-	// see search.max_buckets and index.max_result_window
-	defaultDocCount = 10_000
 
 	spanIndexBaseName    = "jaeger-span"
 	serviceIndexBaseName = "jaeger-service"
@@ -62,8 +59,7 @@ type Reader struct {
 	serviceIndexName indexNameProvider
 	spanIndexName    indexNameProvider
 	maxSpanAge       time.Duration
-	// maximum number of spans to fetch per query in multi search
-	maxNumberOfSpans int
+	maxDocCount      int
 	archive          bool
 }
 
@@ -75,7 +71,7 @@ type Config struct {
 	UseReadWriteAliases bool
 	IndexPrefix         string
 	MaxSpanAge          time.Duration
-	MaxNumSpans         int
+	MaxDocCount         int
 	TagDotReplacement   string
 }
 
@@ -86,7 +82,7 @@ func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, co
 		logger:           logger,
 		archive:          config.Archive,
 		maxSpanAge:       config.MaxSpanAge,
-		maxNumberOfSpans: config.MaxNumSpans,
+		maxDocCount:      config.MaxDocCount,
 		converter:        dbmodel.NewToDomain(config.TagDotReplacement),
 		spanIndexName:    newIndexNameProvider(spanIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
 		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
@@ -149,6 +145,9 @@ func (r *Reader) findTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 	if err != nil {
 		return nil, err
 	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("%s", response.Error)
+	}
 
 	var traceIDs []string
 	for _, k := range response.Aggs[traceIDField].Buckets {
@@ -159,12 +158,15 @@ func (r *Reader) findTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 
 // GetServices implements spanstore.Reader
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
-	searchBody := getServicesSearchBody()
+	searchBody := getServicesSearchBody(r.maxDocCount)
 	currentTime := time.Now()
 	indices := r.serviceIndexName.get(currentTime.Add(-r.maxSpanAge), currentTime)
 	response, err := r.client.Search(ctx, searchBody, 0, indices...)
 	if err != nil {
 		return nil, err
+	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("%s", response.Error)
 	}
 
 	var serviceNames []string
@@ -176,16 +178,19 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 
 // GetOperations implements spanstore.Reader
 func (r *Reader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-	searchBody := getOperationsSearchBody(query.ServiceName)
+	searchBody := getOperationsSearchBody(query.ServiceName, r.maxDocCount)
 	currentTime := time.Now()
 	indices := r.serviceIndexName.get(currentTime.Add(-r.maxSpanAge), currentTime)
-	searchResponse, err := r.client.Search(ctx, searchBody, 0, indices...)
+	response, err := r.client.Search(ctx, searchBody, 0, indices...)
 	if err != nil {
 		return nil, err
 	}
+	if response.Error != nil {
+		return nil, fmt.Errorf("%s", response.Error)
+	}
 
 	var operations []spanstore.Operation
-	for _, k := range searchResponse.Aggs[operationNameField].Buckets {
+	for _, k := range response.Aggs[operationNameField].Buckets {
 		operations = append(operations, spanstore.Operation{
 			Name: k.Key,
 		})
@@ -221,6 +226,9 @@ func (r *Reader) traceIDsMultiSearch(ctx context.Context, traceIDs []model.Trace
 		}
 
 		for _, resp := range response.Responses {
+			if resp.Error != nil {
+				return nil, fmt.Errorf("%s", resp.Error)
+			}
 			if resp.Hits.Total == 0 {
 				continue
 			}
@@ -278,11 +286,11 @@ func (r *Reader) multiSearchRequests(indices []string, traceIDs []model.TraceID,
 		s := esclient.SearchBody{
 			Indices:        indices,
 			Query:          traceIDQuery(traceID),
-			Size:           defaultDocCount,
-			TerminateAfter: r.maxNumberOfSpans,
-			SearchAfter:    []interface{}{nextTime},
+			Size:           r.maxDocCount,
+			TerminateAfter: r.maxDocCount,
 		}
 		if !r.archive {
+			s.SearchAfter = []interface{}{nextTime}
 			s.Sort = []map[string]esclient.Order{{startTimeField: esclient.AscOrder}}
 		}
 		queries[i] = s

@@ -33,9 +33,11 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore/dbmodel"
 )
 
+const defaultMaxDocCount = 10_000
+
 func TestCreateTemplates(t *testing.T) {
 	client := &mockClient{}
-	store := NewDependencyStore(client, zap.NewNop(), "foo")
+	store := NewDependencyStore(client, zap.NewNop(), "foo", defaultMaxDocCount)
 	template := "template"
 	err := store.CreateTemplates(template)
 	require.NoError(t, err)
@@ -46,7 +48,7 @@ func TestCreateTemplates(t *testing.T) {
 
 func TestWriteDependencies(t *testing.T) {
 	client := &mockClient{}
-	store := NewDependencyStore(client, zap.NewNop(), "foo")
+	store := NewDependencyStore(client, zap.NewNop(), "foo", defaultMaxDocCount)
 	dependencies := []model.DependencyLink{{Parent: "foo", Child: "bar", CallCount: 1}}
 	tsNow := time.Now()
 	err := store.WriteDependencies(tsNow, dependencies)
@@ -85,8 +87,8 @@ func TestGetDependencies(t *testing.T) {
 			},
 		},
 	}
-	store := NewDependencyStore(client, zap.NewNop(), "foo")
-	dependencies, err := store.GetDependencies(tsNow, time.Hour)
+	store := NewDependencyStore(client, zap.NewNop(), "foo", defaultMaxDocCount)
+	dependencies, err := store.GetDependencies(context.Background(), tsNow, time.Hour)
 	require.NoError(t, err)
 	assert.Equal(t, timeDependencies, dbmodel.TimeDependencies{
 		Timestamp:    tsNow,
@@ -107,8 +109,8 @@ func TestGetDependencies_err_unmarshall(t *testing.T) {
 			},
 		},
 	}
-	store := NewDependencyStore(client, zap.NewNop(), "foo")
-	dependencies, err := store.GetDependencies(tsNow, time.Hour)
+	store := NewDependencyStore(client, zap.NewNop(), "foo", defaultMaxDocCount)
+	dependencies, err := store.GetDependencies(context.Background(), tsNow, time.Hour)
 	require.Contains(t, err.Error(), "invalid character")
 	assert.Nil(t, dependencies)
 }
@@ -118,9 +120,9 @@ func TestGetDependencies_err_client(t *testing.T) {
 	client := &mockClient{
 		searchErr: searchErr,
 	}
-	store := NewDependencyStore(client, zap.NewNop(), "foo")
+	store := NewDependencyStore(client, zap.NewNop(), "foo", defaultMaxDocCount)
 	tsNow := time.Now()
-	dependencies, err := store.GetDependencies(tsNow, time.Hour)
+	dependencies, err := store.GetDependencies(context.Background(), tsNow, time.Hour)
 	require.Error(t, err)
 	assert.Nil(t, dependencies)
 	assert.Contains(t, err.Error(), searchErr.Error())
@@ -141,7 +143,7 @@ const query = `{
 
 func TestSearchBody(t *testing.T) {
 	date := time.Date(2020, 8, 30, 15, 0, 0, 0, time.UTC)
-	sb := getSearchBody(date, time.Hour)
+	sb := getSearchBody(date, time.Hour, defaultMaxDocCount)
 	jsonQuery, err := json.MarshalIndent(sb, "", "  ")
 	require.NoError(t, err)
 	assert.Equal(t, query, string(jsonQuery))

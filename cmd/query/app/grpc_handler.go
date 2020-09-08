@@ -165,7 +165,7 @@ func (g *GRPCHandler) GetOperations(
 func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependenciesRequest) (*api_v2.GetDependenciesResponse, error) {
 	startTime := r.StartTime
 	endTime := r.EndTime
-	dependencies, err := g.queryService.GetDependencies(startTime, endTime.Sub(startTime))
+	dependencies, err := g.queryService.GetDependencies(ctx, startTime, endTime.Sub(startTime))
 	if err != nil {
 		g.logger.Error("failed to fetch dependencies", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)

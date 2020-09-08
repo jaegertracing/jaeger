@@ -30,19 +30,27 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+var (
+	_ spanstore.Writer   = (*writer)(nil)
+	_ component.Receiver = (*kafkaReceiver)(nil)
+)
+
+type kafkaReceiver struct {
+	logger   *zap.Logger
+	consumer *ingester.Consumer
+}
+
+type writer struct {
+	receiver     string
+	nextConsumer consumer.TraceConsumer
+}
+
 func new(
 	config *Config,
 	nextConsumer consumer.TraceConsumer,
 	params component.ReceiverCreateParams,
 ) (component.TraceReceiver, error) {
-	ctx := obsreport.ReceiverContext(
-		context.Background(), config.Name(), "kafka", "kafka")
-	ctx = obsreport.StartTraceDataReceiveOp(
-		ctx, TypeStr, "kafka")
-	w := &writer{
-		ctx:          ctx,
-		nextConsumer: nextConsumer,
-	}
+	w := &writer{receiver: config.Name(), nextConsumer: nextConsumer}
 	consumer, err := builder.CreateConsumer(
 		params.Logger,
 		metrics.NullFactory,
@@ -57,13 +65,6 @@ func new(
 	}, nil
 }
 
-type kafkaReceiver struct {
-	logger   *zap.Logger
-	consumer *ingester.Consumer
-}
-
-var _ component.Receiver = (*kafkaReceiver)(nil)
-
 // Start starts the receiver.
 func (r kafkaReceiver) Start(_ context.Context, _ component.Host) error {
 	r.consumer.Start()
@@ -75,19 +76,20 @@ func (r kafkaReceiver) Shutdown(_ context.Context) error {
 	return r.consumer.Close()
 }
 
-type writer struct {
-	nextConsumer consumer.TraceConsumer
-	ctx          context.Context
-}
-
-var _ spanstore.Writer = (*writer)(nil)
-
 // WriteSpan writes a span to the next consumer.
-func (w writer) WriteSpan(span *model.Span) error {
+func (w writer) WriteSpan(ctx context.Context, span *model.Span) error {
 	batch := model.Batch{
 		Spans:   []*model.Span{span},
 		Process: span.Process,
 	}
 	traces := jaegertranslator.ProtoBatchToInternalTraces(batch)
-	return w.nextConsumer.ConsumeTraces(w.ctx, traces)
+	return w.nextConsumer.ConsumeTraces(w.addContextMetrics(ctx), traces)
+}
+
+// addContextMetrics decorates the context with labels used in metrics later.
+func (w writer) addContextMetrics(ctx context.Context) context.Context {
+	// TODO too many mallocs here, should be a cheaper way
+	ctx = obsreport.ReceiverContext(ctx, w.receiver, "kafka", "kafka")
+	ctx = obsreport.StartTraceDataReceiveOp(ctx, TypeStr, "kafka")
+	return ctx
 }

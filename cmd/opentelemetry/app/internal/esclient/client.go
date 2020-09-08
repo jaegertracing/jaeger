@@ -53,22 +53,28 @@ type ElasticsearchClient interface {
 
 // BulkResponse is a response returned by Elasticsearch Bulk API
 type BulkResponse struct {
-	Errors bool `json:"errors"`
-	Items  []struct {
-		Index struct {
-			ID     string `json:"_id"`
-			Result string `json:"result"`
-			Status int    `json:"status"`
-			Error  struct {
-				Type   string `json:"type"`
-				Reason string `json:"reason"`
-				Cause  struct {
-					Type   string `json:"type"`
-					Reason string `json:"reason"`
-				} `json:"caused_by"`
-			} `json:"error"`
-		} `json:"index"`
-	} `json:"items"`
+	Errors bool               `json:"errors"`
+	Items  []BulkResponseItem `json:"items"`
+}
+
+// BulkResponseItem is a single response from BulkResponse
+type BulkResponseItem struct {
+	Index BulkIndexResponse `json:"index"`
+}
+
+// BulkIndexResponse is a bulk response for index action
+type BulkIndexResponse struct {
+	ID     string `json:"_id"`
+	Result string `json:"result"`
+	Status int    `json:"status"`
+	Error  struct {
+		Type   string `json:"type"`
+		Reason string `json:"reason"`
+		Cause  struct {
+			Type   string `json:"type"`
+			Reason string `json:"reason"`
+		} `json:"caused_by"`
+	} `json:"error"`
 }
 
 // SearchBody defines search request.
@@ -149,8 +155,23 @@ type MultiSearchResponse struct {
 
 // SearchResponse defines search response.
 type SearchResponse struct {
-	Hits Hits                           `json:"hits"`
-	Aggs map[string]AggregationResponse `json:"aggregations,omitempty"`
+	Hits  Hits                           `json:"hits"`
+	Aggs  map[string]AggregationResponse `json:"aggregations,omitempty"`
+	Error *SearchResponseError           `json:"error,omitempty"`
+}
+
+// SearchResponseError defines search response error.
+type SearchResponseError struct {
+	json.RawMessage
+}
+
+var _ fmt.Stringer = (*SearchResponseError)(nil)
+
+func (e *SearchResponseError) String() string {
+	if e.RawMessage == nil {
+		return ""
+	}
+	return string(e.RawMessage)
 }
 
 // Hits defines search hits.

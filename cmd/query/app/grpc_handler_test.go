@@ -264,7 +264,7 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
-		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 			Return(nil).Times(2)
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
@@ -295,7 +295,7 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
-		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 			Return(errStorageGRPC).Times(2)
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{

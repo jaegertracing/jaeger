@@ -28,6 +28,7 @@ import (
 )
 
 const (
+	defaultMaxDocCount        = 10_000
 	servicesSearchBodyFixture = `{
   "aggs": {
     "serviceName": {
@@ -231,14 +232,14 @@ const (
 )
 
 func TestGetServicesSearchBody(t *testing.T) {
-	sb := getServicesSearchBody()
+	sb := getServicesSearchBody(defaultMaxDocCount)
 	jsonQuery, err := json.MarshalIndent(sb, "", "  ")
 	require.NoError(t, err)
 	assert.Equal(t, servicesSearchBodyFixture, string(jsonQuery))
 }
 
 func TestGetOperationsSearchBody(t *testing.T) {
-	sb := getOperationsSearchBody("foo")
+	sb := getOperationsSearchBody("foo", defaultMaxDocCount)
 	jsonQuery, err := json.MarshalIndent(sb, "", "  ")
 	require.NoError(t, err)
 	assert.Equal(t, operationsSearchBodyFixture, string(jsonQuery))
