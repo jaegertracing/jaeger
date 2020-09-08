@@ -77,8 +77,8 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	trace := model.Trace{}
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
-			if e, ok := status.FromError(err); !ok {
-				if e.Message() == spanstore.ErrTraceNotFound.Error() {
+			if s, _ := status.FromError(err); s != nil {
+				if s.Message() == spanstore.ErrTraceNotFound.Error() {
 					return nil, spanstore.ErrTraceNotFound
 				}
 			}

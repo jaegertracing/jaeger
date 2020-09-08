@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -200,9 +201,11 @@ func TestGRPCClientGetTrace_NoTrace(t *testing.T) {
 }
 
 func TestGRPCClientGetTrace_StreamErrorTraceNotFound(t *testing.T) {
+	s, _ := status.FromError(spanstore.ErrTraceNotFound)
+
 	withGRPCClient(func(r *grpcClientTest) {
 		traceClient := new(grpcMocks.SpanReaderPlugin_GetTraceClient)
-		traceClient.On("Recv").Return(nil, spanstore.ErrTraceNotFound)
+		traceClient.On("Recv").Return(nil, s.Err())
 		r.spanReader.On("GetTrace", mock.Anything, &storage_v1.GetTraceRequest{
 			TraceID: mockTraceID,
 		}).Return(traceClient, nil)
