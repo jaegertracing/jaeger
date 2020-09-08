@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,10 +74,23 @@ func TestServer(t *testing.T) {
 		opentracing.NoopTracer{})
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
 	go func() {
 		for s := range server.HealthCheckStatus() {
-			flagsSvc.SetHealthCheckStatus(s)
+			flagsSvc.HC().Set(s)
+			if s == healthcheck.Unavailable {
+				once.Do(func() {
+					wg.Done()
+				})
+			}
+
 		}
+		wg.Done()
+
 	}()
 
 	client := newGRPCClient(t, hostPort)
@@ -90,12 +104,7 @@ func TestServer(t *testing.T) {
 	assert.Equal(t, expectedServices, res.Services)
 
 	server.Close()
-	for i := 0; i < 10; i++ {
-		if flagsSvc.HC().Get() == healthcheck.Unavailable {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
+	wg.Wait()
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
@@ -115,9 +124,19 @@ func TestServerWithDedicatedPorts(t *testing.T) {
 		opentracing.NoopTracer{})
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
 	go func() {
 		for s := range server.HealthCheckStatus() {
-			flagsSvc.SetHealthCheckStatus(s)
+			flagsSvc.HC().Set(s)
+			if s == healthcheck.Unavailable {
+				once.Do(func() {
+					wg.Done()
+				})
+			}
 		}
 	}()
 
@@ -132,12 +151,7 @@ func TestServerWithDedicatedPorts(t *testing.T) {
 	assert.Equal(t, expectedServices, res.Services)
 
 	server.Close()
-	for i := 0; i < 10; i++ {
-		if flagsSvc.HC().Get() == healthcheck.Unavailable {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
+	wg.Wait()
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
@@ -157,7 +171,7 @@ func TestServerGracefulExit(t *testing.T) {
 	assert.NoError(t, server.Start())
 	go func() {
 		for s := range server.HealthCheckStatus() {
-			flagsSvc.SetHealthCheckStatus(s)
+			flagsSvc.HC().Set(s)
 		}
 	}()
 
