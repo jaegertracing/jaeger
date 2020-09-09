@@ -1,35 +1,60 @@
 # Example Certificate Authority and Certificate creation for testing
 
-The following commands were used to create the CA, server and client's certificates and keys
+The following commands were used to create the CA, server and client's certificates and keys. These certificates use the Subject Alternative Name extension rather than the Common Name, which will be unsupported in Go 1.15.
 
 ```bash
+# generate config files
+./ssl-conf-gen.sh example.com ssl.conf
+./ssl-conf-gen.sh wrong.com wrong-ssl.conf
 
-# create CA
+# create CA (accept defaults from prompts)
 openssl genrsa -out example-CA-key.pem  2048
-openssl req -new -key example-CA-key.pem -x509 -days 3650 -out example-CA-cert.pem -subj /CN="example-CA"
+openssl req -new -key example-CA-key.pem -x509 -days 3650 -out example-CA-cert.pem -config ssl.conf
 
-# create Wrong CA (a dummy CA which doesn't provide any certificate )
+# create Wrong CA (a dummy CA which doesn't provide any certificate; accept defaults from prompts)
 openssl genrsa -out wrong-CA-key.pem  2048
-openssl req -new -key wrong-CA-key.pem -x509 -days 3650 -out wrong-CA-cert.pem -subj /CN="wrong-CA"
+openssl req -new -key wrong-CA-key.pem -x509 -days 3650 -out wrong-CA-cert.pem -config wrong-ssl.conf
 
-# cerating client and server keys
+# create client and server keys
 openssl genrsa -out example-server-key.pem 2048
 openssl genrsa -out example-client-key.pem 2048
 
-# creating certificate sign request  using the above created keys and configuration given and commandline arguemnts
-openssl req -new -nodes -key example-server-key.pem -out example-server.csr -subj /CN="example.com"  # This server's name is provided as parameter during client's tls configuration  
-openssl req -new -nodes -key example-client-key.pem -out example-client.csr -subj /CN="example-client"
+# create certificate sign request using the above created keys and configuration given and commandline arguments.
+# (accept defaults from prompts)
+openssl req -new -nodes -key example-server-key.pem -out example-server.csr -config ssl.conf
+openssl req -new -nodes -key example-client-key.pem -out example-client.csr -config ssl.conf
 
 # creating the client and server certificate
-openssl x509 -req -in example-server.csr -days 3650 -CA example-CA-cert.pem -CAkey example-CA-key.pem -CAcreateserial -out example-server-cert.pem
-openssl x509 -req -in example-client.csr -days 3650 -CA example-CA-cert.pem -CAkey example-CA-key.pem -CAcreateserial -out example-client-cert.pem
+openssl x509 -req \
+             -sha256 \
+             -days 3650 \
+             -in example-server.csr \
+             -signkey example-server-key.pem \
+             -out example-server-cert.pem \
+             -extensions req_ext \
+             -CA example-CA-cert.pem \
+             -CAkey example-CA-key.pem \
+             -CAcreateserial \
+             -extfile ssl.conf
+openssl x509 -req \
+             -sha256 \
+             -days 3650 \
+             -in example-client.csr \
+             -signkey example-client-key.pem \
+             -out example-client-cert.pem \
+             -extensions req_ext \
+             -CA example-CA-cert.pem \
+             -CAkey example-CA-key.pem \
+             -CAcreateserial \
+             -extfile ssl.conf
 
 # cleanup
+rm example-CA-key.pem
 rm example-CA-cert.srl
 rm example-client.csr
 rm example-server.csr
+rm ssl.conf
+rm wrong-ssl.conf
 ```
 
-The server name (common name in the server certificate ) is `example.com` . (in accordance to [RFC 2006](https://tools.ietf.org/html/rfc2606) )  
-The common name of the client is `example-client` (never actually used).  
-The common name of the Certificate Authority (CA) is `example-CA`  .  
+The server name (under alt_names in the ssl.conf) is `example.com`. (in accordance to [RFC 2006](https://tools.ietf.org/html/rfc2606))
