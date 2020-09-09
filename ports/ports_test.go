@@ -39,3 +39,15 @@ func TestGetAddressFromCLIOptionOnlyPort(t *testing.T) {
 func TestGetAddressFromCLIOptionOnlyPortWithoutColon(t *testing.T) {
 	assert.Equal(t, ":123", GetAddressFromCLIOptions(0, "123"))
 }
+
+func TestHostPortToPortOnlyPort(t *testing.T) {
+	port, err := HostPortToPort(":42")
+	assert.Nil(t, err)
+	assert.Equal(t, 42, port)
+}
+
+func TestHostPortToPortFullHostPort(t *testing.T) {
+	port, err := HostPortToPort("127.0.0.1:123")
+	assert.Nil(t, err)
+	assert.Equal(t, 123, port)
+}

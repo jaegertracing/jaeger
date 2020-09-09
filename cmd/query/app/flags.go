@@ -40,7 +40,7 @@ const (
 	queryHostPort           = "query.host-port"
 	queryPort               = "query.port"
 	queryPortWarning        = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
-	queryHOSTPortWarning    = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
+	queryHOSTPortWarning    = "(deprecated, will be removed after 2020-11-30 or in release v1.20.0, whichever is later)"
 	queryHTTPHostPort       = "query.http-server.host-port"
 	queryGRPCHostPort       = "query.grpc-server.host-port"
 	queryBasePath           = "query.base-path"
