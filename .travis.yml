@@ -9,39 +9,39 @@ matrix:
   include:
   - go: "1.15.x"
     env:
-      - TESTS=true
-      - COVERAGE=true
+    - TESTS=true
+    - COVERAGE=true
   - go: "1.15.x"
     env:
-      - PROTO_GEN_TEST=true
+    - PROTO_GEN_TEST=true
   - go: "1.15.x"
     env:
-      - ALL_IN_ONE=true
+    - ALL_IN_ONE=true
   - go: "1.15.x"
     env:
-      - CROSSDOCK=true
+    - CROSSDOCK=true
   - go: "1.15.x"
     env:
-      - CROSSDOCK_OTEL=true
+    - CROSSDOCK_OTEL=true
   - go: "1.15.x"
     env:
-      - DOCKER=true
-      - DEPLOY=true
+    - DOCKER=true
+    - DEPLOY=true
   - go: "1.15.x"
     env:
-      - ES_INTEGRATION_TEST=true
+    - ES_INTEGRATION_TEST=true
   - go: "1.15.x"
     env:
-      - ES_OTEL_INTEGRATION_TEST=true
+    - ES_OTEL_INTEGRATION_TEST=true
   - go: "1.15.x"
     env:
-      - KAFKA_INTEGRATION_TEST=true
+    - KAFKA_INTEGRATION_TEST=true
   - go: "1.15.x"
     env:
-      - CASSANDRA_INTEGRATION_TEST=true
+    - CASSANDRA_INTEGRATION_TEST=true
   - go: "1.15.x"
     env:
-      - HOTROD=true
+    - HOTROD=true
 
 services:
   - docker
