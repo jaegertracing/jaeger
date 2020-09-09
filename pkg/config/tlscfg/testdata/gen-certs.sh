@@ -1,30 +1,30 @@
-# Example Certificate Authority and Certificate creation for testing
+#!/usr/bin/env bash
 
-The following commands were used to create the CA, server and client's certificates and keys. These certificates use the Subject Alternative Name extension rather than the Common Name, which will be unsupported in Go 1.15.
+# The following commands were used to create the CA, server and client's certificates and keys in this directory used by unit tests.
+# These certificates use the Subject Alternative Name extension rather than the Common Name, which will be unsupported in Go 1.15.
 
-```bash
-# generate config files
-./ssl-conf-gen.sh example.com ssl.conf
-./ssl-conf-gen.sh wrong.com wrong-ssl.conf
+# Generate config files.
+# The server name (under alt_names in the ssl.conf) is `example.com`. (in accordance to [RFC 2006](https://tools.ietf.org/html/rfc2606))
+source gen-ssl-conf.sh example.com ssl.conf
+source gen-ssl-conf.sh wrong.com wrong-ssl.conf
 
-# create CA (accept defaults from prompts)
+# Create CA (accept defaults from prompts).
 openssl genrsa -out example-CA-key.pem  2048
 openssl req -new -key example-CA-key.pem -x509 -days 3650 -out example-CA-cert.pem -config ssl.conf
 
-# create Wrong CA (a dummy CA which doesn't provide any certificate; accept defaults from prompts)
+# Create Wrong CA (a dummy CA which doesn't provide any certificate; accept defaults from prompts).
 openssl genrsa -out wrong-CA-key.pem  2048
 openssl req -new -key wrong-CA-key.pem -x509 -days 3650 -out wrong-CA-cert.pem -config wrong-ssl.conf
 
-# create client and server keys
+# Create client and server keys.
 openssl genrsa -out example-server-key.pem 2048
 openssl genrsa -out example-client-key.pem 2048
 
-# create certificate sign request using the above created keys and configuration given and commandline arguments.
-# (accept defaults from prompts)
+# Create certificate sign request using the above created keys and configuration given and commandline arguments.
 openssl req -new -nodes -key example-server-key.pem -out example-server.csr -config ssl.conf
 openssl req -new -nodes -key example-client-key.pem -out example-client.csr -config ssl.conf
 
-# creating the client and server certificate
+# Creating the client and server certificate.
 openssl x509 -req \
              -sha256 \
              -days 3650 \
@@ -48,13 +48,11 @@ openssl x509 -req \
              -CAcreateserial \
              -extfile ssl.conf
 
-# cleanup
+# Cleanup.
 rm example-CA-key.pem
 rm example-CA-cert.srl
 rm example-client.csr
 rm example-server.csr
 rm ssl.conf
 rm wrong-ssl.conf
-```
 
-The server name (under alt_names in the ssl.conf) is `example.com`. (in accordance to [RFC 2006](https://tools.ietf.org/html/rfc2606))
