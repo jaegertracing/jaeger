@@ -28,7 +28,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -413,7 +412,7 @@ func TestGrpcClientCapabilities(t *testing.T) {
 
 		capabilities, err := r.client.Capabilities()
 		assert.NoError(t, err)
-		assert.Equal(t, &extra.Capabilities{
+		assert.Equal(t, &Capabilities{
 			ArchiveSpanReader: true,
 			ArchiveSpanWriter: true,
 		}, capabilities)
@@ -427,7 +426,7 @@ func TestGrpcClientCapabilities_NotSupported(t *testing.T) {
 
 		capabilities, err := r.client.Capabilities()
 		assert.NoError(t, err)
-		assert.Equal(t, &extra.Capabilities{
+		assert.Equal(t, &Capabilities{
 			ArchiveSpanReader: false,
 			ArchiveSpanWriter: false,
 		}, capabilities)
@@ -441,7 +440,7 @@ func TestGrpcClientCapabilities_MissingMethod(t *testing.T) {
 
 		capabilities, err := r.client.Capabilities()
 		assert.NoError(t, err)
-		assert.Equal(t, &extra.Capabilities{}, capabilities)
+		assert.Equal(t, &Capabilities{}, capabilities)
 	})
 }
 

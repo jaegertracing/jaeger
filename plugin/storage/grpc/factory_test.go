@@ -27,9 +27,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	grpcConfig "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/mocks"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/mocks"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -64,7 +63,7 @@ type mockPlugin struct {
 	dependencyReader dependencystore.Reader
 }
 
-func (mp *mockPlugin) Capabilities() (*extra.Capabilities, error) {
+func (mp *mockPlugin) Capabilities() (*shared.Capabilities, error) {
 	return mp.capabilities.Capabilities()
 }
 
@@ -133,7 +132,7 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 
 	capabilities := new(mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
-		Return(&extra.Capabilities{
+		Return(&shared.Capabilities{
 			ArchiveSpanReader: true,
 			ArchiveSpanWriter: true,
 		}, nil)
@@ -163,7 +162,7 @@ func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 
 	capabilities := new(mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
-		Return(&extra.Capabilities{
+		Return(&shared.Capabilities{
 			ArchiveSpanReader: false,
 			ArchiveSpanWriter: false,
 		}, nil)

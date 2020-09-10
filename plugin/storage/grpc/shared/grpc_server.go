@@ -30,9 +30,8 @@ const spanBatchSize = 1000
 
 // grpcServer implements shared.StoragePlugin and reads/writes spans and dependencies
 type grpcServer struct {
-	Impl             StoragePlugin
-	ArchiveImpl      ArchiveStoragePlugin
-	CapabilitiesImpl PluginCapabilities
+	Impl        StoragePlugin
+	ArchiveImpl ArchiveStoragePlugin
 }
 
 // GetDependencies returns all interservice dependencies
@@ -167,14 +166,9 @@ func (s *grpcServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Span
 }
 
 func (s *grpcServer) Capabilities(ctx context.Context, request *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
-	capabilities, err := s.CapabilitiesImpl.Capabilities()
-	if err != nil {
-		return nil, err
-	}
-
 	return &storage_v1.CapabilitiesResponse{
-		ArchiveSpanReader: capabilities.ArchiveSpanReader,
-		ArchiveSpanWriter: capabilities.ArchiveSpanWriter,
+		ArchiveSpanReader: s.ArchiveImpl != nil,
+		ArchiveSpanWriter: s.ArchiveImpl != nil,
 	}, nil
 }
 
