@@ -2,7 +2,7 @@
 
 The PEM files located in this directory are used by unit tests in this package.
 
-To generate and update the PEM files in this directory:
+To generate and update the PEM files in this directory, run the following from the project root:
 
     make certs
 

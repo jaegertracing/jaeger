@@ -39,10 +39,36 @@ clean_up() {
 }
 trap clean_up EXIT
 
+gen_ssl_conf() {
+  domain_name=$1
+  output_file=$2
+
+  cat << EOF > "$output_file"
+[ req ]
+prompt              = no
+default_bits        = 2048
+distinguished_name  = req_distinguished_name
+req_extensions      = req_ext
+
+[ req_distinguished_name ]
+countryName         = AU
+stateOrProvinceName = Australia
+localityName        = Sydney
+organizationName    = Logz.io
+commonName          = Jaeger
+
+[ req_ext ]
+subjectAltName      = @alt_names
+
+[alt_names]
+DNS.1               = $domain_name
+EOF
+}
+
 # Generate config files.
 # The server name (under alt_names in the ssl.conf) is `example.com`. (in accordance to [RFC 2006](https://tools.ietf.org/html/rfc2606))
-source gen-ssl-conf.sh example.com "$tmp_dir/ssl.conf"
-source gen-ssl-conf.sh wrong.com "$tmp_dir/wrong-ssl.conf"
+gen_ssl_conf example.com "$tmp_dir/ssl.conf"
+gen_ssl_conf wrong.com "$tmp_dir/wrong-ssl.conf"
 
 # Create CA (accept defaults from prompts).
 openssl genrsa -out "$tmp_dir/example-CA-key.pem"  2048

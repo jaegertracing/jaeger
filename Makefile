@@ -512,3 +512,11 @@ proto-hotrod:
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/ \
 		examples/hotrod/services/driver/driver.proto
+
+.PHONY: certs
+certs:
+	cd pkg/config/tlscfg/testdata && ./gen-certs.sh
+
+.PHONY: certs-dryrun
+certs-dryrun:
+	cd pkg/config/tlscfg/testdata && ./gen-certs.sh -d
