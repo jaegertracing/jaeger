@@ -30,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
-	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -54,15 +53,14 @@ type Server struct {
 // NewServer creates and initializes Server
 func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
 
-	httpPort, err := ports.HostPortToPort(options.HTTPHostPort)
+	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
 		return nil, err
 	}
-	grpcPort, err := ports.HostPortToPort(options.GRPCHostPort)
+	_, grpcPort, err := net.SplitHostPort(options.GRPCHostPort)
 	if err != nil {
 		return nil, err
 	}
-	separatePorts := (grpcPort != httpPort)
 
 	grpcServer, err := createGRPCServer(querySvc, options, logger, tracer)
 	if err != nil {
@@ -76,7 +74,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 		tracer:             tracer,
 		grpcServer:         grpcServer,
 		httpServer:         createHTTPServer(querySvc, options, tracer, logger),
-		separatePorts:      separatePorts,
+		separatePorts:      (grpcPort != httpPort),
 		unavailableChannel: make(chan healthcheck.Status),
 	}, nil
 }
@@ -194,8 +192,8 @@ func (s *Server) Start() error {
 		if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
 			tcpPort = port
 		}
-
 	}
+
 	var httpPort int
 	if port, err := netutils.GetPort(s.httpConn.Addr()); err == nil {
 		httpPort = port

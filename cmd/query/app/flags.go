@@ -40,7 +40,7 @@ const (
 	queryHostPort           = "query.host-port"
 	queryPort               = "query.port"
 	queryPortWarning        = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
-	queryHOSTPortWarning    = "(deprecated, will be removed after 2020-11-30 or in release v1.20.0, whichever is later)"
+	queryHOSTPortWarning    = "(deprecated, will be removed after 2020-12-31 or in release v1.21.0, whichever is later)"
 	queryHTTPHostPort       = "query.http-server.host-port"
 	queryGRPCHostPort       = "query.grpc-server.host-port"
 	queryBasePath           = "query.base-path"
@@ -103,12 +103,12 @@ func (qOpts *QueryOptions) InitPortsConfigFromViper(v *viper.Viper, logger *zap.
 
 	qOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 
-	// query.host-port is not defined and atleast one of query.grpc-server.host-port or query.http-server.host-port is defined
-	// user intends to use the separate flags.
+	// query.host-port is not defined and at least one of query.grpc-server.host-port or query.http-server.host-port is defined.
+	// User intends to use separate GRPC and HTTP host:port flags
 	if !(v.IsSet(queryHostPort) || v.IsSet(queryPort)) && (v.IsSet(queryHTTPHostPort) || v.IsSet(queryGRPCHostPort)) {
 		return qOpts
 	}
-	logger.Warn(fmt.Sprintf("Use of %s and %s is deprecated.  use %s and %s instead", queryPort, queryHostPort, queryHTTPHostPort, queryGRPCHostPort))
+	logger.Warn(fmt.Sprintf("Use of %s and %s is deprecated.  Use %s and %s instead", queryPort, queryHostPort, queryHTTPHostPort, queryGRPCHostPort))
 	qOpts.HTTPHostPort = qOpts.HostPort
 	qOpts.GRPCHostPort = qOpts.HostPort
 	return qOpts
