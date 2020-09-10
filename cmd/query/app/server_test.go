@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -56,6 +57,44 @@ func TestCreateTLSServerError(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
 		&QueryOptions{TLS: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
+}
+
+func TestServerBadHostPort(t *testing.T) {
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{HTTPHostPort: "8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
+
+	assert.NotNil(t, err)
+	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{HTTPHostPort: "127.0.0.1:8081", GRPCHostPort: "9123", BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
+
+	assert.NotNil(t, err)
+}
+
+func TestServerInUseHostPort(t *testing.T) {
+
+	for _, hostPort := range [2]string{":8080", ":8081"} {
+		conn, err := net.Listen("tcp", hostPort)
+		assert.NoError(t, err)
+
+		server, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+			&QueryOptions{HTTPHostPort: "127.0.0.1:8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
+			opentracing.NoopTracer{})
+		assert.NoError(t, err)
+
+		err = server.Start()
+		assert.NotNil(t, err)
+		conn.Close()
+		if server.grpcConn != nil {
+			server.grpcConn.Close()
+		}
+		if server.httpConn != nil {
+			server.httpConn.Close()
+		}
+
+	}
+
 }
 
 func TestServer(t *testing.T) {
