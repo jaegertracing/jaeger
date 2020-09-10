@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -50,7 +50,7 @@ func main() {
 		store:        memory.NewStore(),
 		archiveStore: memory.NewStore(),
 	}
-	grpc.Serve(&config.PluginServices{
+	grpc.Serve(&shared.PluginServices{
 		Store:        plugin,
 		ArchiveStore: plugin,
 	})

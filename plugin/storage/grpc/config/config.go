@@ -38,7 +38,7 @@ type PluginBuilder interface {
 }
 
 // Build instantiates a PluginServices
-func (c *Configuration) Build() (*PluginServices, error) {
+func (c *Configuration) Build() (*ClientPluginServices, error) {
 	// #nosec G204
 	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
 
@@ -72,30 +72,25 @@ func (c *Configuration) Build() (*PluginServices, error) {
 	if !ok {
 		return nil, fmt.Errorf("unexpected type for plugin \"%s\"", shared.StoragePluginIdentifier)
 	}
-	archiveStoragePlugin, ok := raw.(shared.ArchiveStoragePlugin)
-	if !ok {
-		return nil, fmt.Errorf("unexpected type for plugin \"%s\"", shared.StoragePluginIdentifier)
-	}
-	capabilities, ok := raw.(shared.PluginCapabilities)
-	if !ok {
-		return nil, fmt.Errorf("unexpected type for plugin \"%s\"", shared.StoragePluginIdentifier)
-	}
+	archiveStoragePlugin := raw.(shared.ArchiveStoragePlugin)
+	capabilities := raw.(shared.PluginCapabilities)
 
-	return &PluginServices{
-		Store:        storagePlugin,
-		ArchiveStore: archiveStoragePlugin,
+	return &ClientPluginServices{
+		PluginServices: shared.PluginServices{
+			Store:        storagePlugin,
+			ArchiveStore: archiveStoragePlugin,
+		},
 		Capabilities: capabilities,
 	}, nil
 }
 
-// PluginServices defines services plugin can expose
-type PluginServices struct {
-	Store        shared.StoragePlugin
-	ArchiveStore shared.ArchiveStoragePlugin
+// ClientPluginServices defines services plugin can expose and its capabilities
+type ClientPluginServices struct {
+	shared.PluginServices
 	Capabilities shared.PluginCapabilities
 }
 
 // PluginBuilder is used to create storage plugins
 type PluginBuilder interface {
-	Build() (*PluginServices, error)
+	Build() (*ClientPluginServices, error)
 }
