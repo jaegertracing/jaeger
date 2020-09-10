@@ -18,18 +18,17 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
 // Serve creates a plugin configuration using the implementation of StoragePlugin and then serves it.
-func Serve(services *config.PluginServices) {
+func Serve(services *shared.PluginServices) {
 	ServeWithGRPCServer(services, plugin.DefaultGRPCServer)
 }
 
 // ServeWithGRPCServer creates a plugin configuration using the implementation of StoragePlugin and
 // function to create grpcServer, and then serves it.
-func ServeWithGRPCServer(services *config.PluginServices, grpcServer func([]grpc.ServerOption) *grpc.Server,
+func ServeWithGRPCServer(services *shared.PluginServices, grpcServer func([]grpc.ServerOption) *grpc.Server,
 ) {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,

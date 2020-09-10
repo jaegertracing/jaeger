@@ -62,6 +62,12 @@ type Capabilities struct {
 	ArchiveSpanWriter bool
 }
 
+// PluginServices defines services plugin can expose
+type PluginServices struct {
+	Store        StoragePlugin
+	ArchiveStore ArchiveStoragePlugin
+}
+
 // StorageGRPCPlugin is the implementation of plugin.GRPCPlugin so we can serve/consume this.
 type StorageGRPCPlugin struct {
 	plugin.Plugin
