@@ -19,7 +19,6 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -54,7 +53,13 @@ type ArchiveStoragePlugin interface {
 
 // PluginCapabilities allow expose plugin its capabilities.
 type PluginCapabilities interface {
-	Capabilities() (*extra.Capabilities, error)
+	Capabilities() (*Capabilities, error)
+}
+
+// Capabilities contains information about plugin capabilities
+type Capabilities struct {
+	ArchiveSpanReader bool
+	ArchiveSpanWriter bool
 }
 
 // StorageGRPCPlugin is the implementation of plugin.GRPCPlugin so we can serve/consume this.
@@ -62,17 +67,15 @@ type StorageGRPCPlugin struct {
 	plugin.Plugin
 	// Concrete implementation, written in Go. This is only used for plugins
 	// that are written in Go.
-	Impl             StoragePlugin
-	ArchiveImpl      ArchiveStoragePlugin
-	CapabilitiesImpl PluginCapabilities
+	Impl        StoragePlugin
+	ArchiveImpl ArchiveStoragePlugin
 }
 
 // GRPCServer is used by go-plugin to create a grpc plugin server
 func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
 	server := &grpcServer{
-		Impl:             p.Impl,
-		ArchiveImpl:      p.ArchiveImpl,
-		CapabilitiesImpl: p.CapabilitiesImpl,
+		Impl:        p.Impl,
+		ArchiveImpl: p.ArchiveImpl,
 	}
 	storage_v1.RegisterSpanReaderPluginServer(s, server)
 	storage_v1.RegisterSpanWriterPluginServer(s, server)

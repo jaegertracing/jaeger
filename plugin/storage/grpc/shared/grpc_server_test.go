@@ -24,8 +24,6 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/mocks"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -39,7 +37,6 @@ type mockStoragePlugin struct {
 	spanWriter    *spanStoreMocks.Writer
 	archiveReader *spanStoreMocks.Reader
 	archiveWriter *spanStoreMocks.Writer
-	capabilities  *mocks.PluginCapabilities
 	depsReader    *dependencyStoreMocks.Reader
 }
 
@@ -63,10 +60,6 @@ func (plugin *mockStoragePlugin) DependencyReader() dependencystore.Reader {
 	return plugin.depsReader
 }
 
-func (plugin *mockStoragePlugin) Capabilities() (*extra.Capabilities, error) {
-	return plugin.capabilities.Capabilities()
-}
-
 type grpcServerTest struct {
 	server *grpcServer
 	impl   *mockStoragePlugin
@@ -77,7 +70,6 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 	spanWriter := new(spanStoreMocks.Writer)
 	archiveReader := new(spanStoreMocks.Reader)
 	archiveWriter := new(spanStoreMocks.Writer)
-	capabilities := new(mocks.PluginCapabilities)
 	depReader := new(dependencyStoreMocks.Reader)
 
 	impl := &mockStoragePlugin{
@@ -86,14 +78,12 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 		archiveReader: archiveReader,
 		archiveWriter: archiveWriter,
 		depsReader:    depReader,
-		capabilities:  capabilities,
 	}
 
 	r := &grpcServerTest{
 		server: &grpcServer{
-			Impl:             impl,
-			ArchiveImpl:      impl,
-			CapabilitiesImpl: impl,
+			Impl:        impl,
+			ArchiveImpl: impl,
 		},
 		impl: impl,
 	}
@@ -320,24 +310,18 @@ func TestGRPCServerWriteArchiveSpan_Error(t *testing.T) {
 
 func TestGRPCServerCapabilities(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.capabilities.On("Capabilities").
-			Return(&extra.Capabilities{
-				ArchiveSpanReader: true,
-				ArchiveSpanWriter: false,
-			}, nil)
-
 		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		assert.NoError(t, err)
-		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: false}, capabilities)
+		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: true}, capabilities)
 	})
 }
 
-func TestGRPCServerCapabilities_Error(t *testing.T) {
+func TestGRPCServerCapabilities_NoArchive(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.capabilities.On("Capabilities").
-			Return(nil, fmt.Errorf("some error"))
+		r.server.ArchiveImpl = nil
 
-		_, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
-		assert.Error(t, err)
+		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
+		assert.NoError(t, err)
+		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: false, ArchiveSpanWriter: false}, capabilities)
 	})
 }

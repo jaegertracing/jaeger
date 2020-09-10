@@ -25,7 +25,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -215,16 +214,16 @@ func (c *grpcClient) GetDependencies(ctx context.Context, endTs time.Time, lookb
 	return resp.Dependencies, nil
 }
 
-func (c *grpcClient) Capabilities() (*extra.Capabilities, error) {
+func (c *grpcClient) Capabilities() (*Capabilities, error) {
 	capabilities, err := c.capabilitiesClient.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 	if status.Code(err) == codes.Unimplemented {
-		return &extra.Capabilities{}, nil
+		return &Capabilities{}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
 
-	return &extra.Capabilities{
+	return &Capabilities{
 		ArchiveSpanReader: capabilities.ArchiveSpanReader,
 		ArchiveSpanWriter: capabilities.ArchiveSpanWriter,
 	}, nil

@@ -23,7 +23,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -53,7 +52,6 @@ func main() {
 	}
 	grpc.Serve(&config.PluginServices{
 		Store:        plugin,
-		Capabilities: plugin,
 		ArchiveStore: plugin,
 	})
 }
@@ -61,13 +59,6 @@ func main() {
 type memoryStore struct {
 	store        *memory.Store
 	archiveStore *memory.Store
-}
-
-func (ns *memoryStore) Capabilities() (*extra.Capabilities, error) {
-	return &extra.Capabilities{
-		ArchiveSpanReader: true,
-		ArchiveSpanWriter: true,
-	}, nil
 }
 
 func (ns *memoryStore) DependencyReader() dependencystore.Reader {
