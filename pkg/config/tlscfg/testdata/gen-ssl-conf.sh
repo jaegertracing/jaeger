@@ -9,7 +9,7 @@ if [[ -z "$domain_name" || -z "$output_file" ]]; then
     printf "A script to generate SSL configuration files for testing purposes.\n\n"
     printf "Usage: ssl-conf-gen.sh DOMAIN_NAME OUTPUT_FILE\n\n"
     printf "Example: ssl-conf-gen.sh example.com ssl.conf\n"
-    return
+    return 1
 fi
 
 cat << EOF > "$output_file"
