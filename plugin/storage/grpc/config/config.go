@@ -70,10 +70,19 @@ func (c *Configuration) Build() (*ClientPluginServices, error) {
 
 	storagePlugin, ok := raw.(shared.StoragePlugin)
 	if !ok {
-		return nil, fmt.Errorf("unexpected type for plugin \"%s\"", shared.StoragePluginIdentifier)
+		return nil, fmt.Errorf("unable to cast %T to shared.StoragePlugin for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
 	}
-	archiveStoragePlugin := raw.(shared.ArchiveStoragePlugin)
-	capabilities := raw.(shared.PluginCapabilities)
+	archiveStoragePlugin, ok := raw.(shared.ArchiveStoragePlugin)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast %T to shared.ArchiveStoragePlugin for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
+	}
+	capabilities, ok := raw.(shared.PluginCapabilities)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast %T to shared.PluginCapabilities for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
+	}
 
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
