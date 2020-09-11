@@ -55,6 +55,19 @@ func TestServerError(t *testing.T) {
 	assert.Error(t, srv.Start())
 }
 
+func TestCreateTLSServerSinglePortError(t *testing.T) {
+	tlsCfg := tlscfg.Options{
+		Enabled:      true,
+		CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+		KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+	}
+
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg}, opentracing.NoopTracer{})
+	assert.NotNil(t, err)
+}
+
 func TestCreateTLSGrpcServerError(t *testing.T) {
 	tlsCfg := tlscfg.Options{
 		Enabled:      true,
@@ -64,7 +77,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	}
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
-		&QueryOptions{GRPCTLSEnabled: true, TLS: tlsCfg}, opentracing.NoopTracer{})
+		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 
@@ -77,7 +90,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 	}
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
-		&QueryOptions{HTTPTLSEnabled: true, TLS: tlsCfg}, opentracing.NoopTracer{})
+		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 
@@ -280,10 +293,33 @@ func TestServerHTTPTLS(t *testing.T) {
 
 	tests[testlen-1].clientTLS = tlscfg.Options{Enabled: false}
 	tests[testlen-1].name = "Should pass with insecure HTTP Client and insecure HTTP server with secure GRPC Server"
+	tests[testlen-1].TLS = tlscfg.Options{
+		Enabled: false,
+	}
+
+	disabledTLSCfg := tlscfg.Options{
+		Enabled: false,
+	}
+	enabledTLSCfg := tlscfg.Options{
+		Enabled:      true,
+		CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+		KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			serverOptions := &QueryOptions{HTTPTLSEnabled: test.HTTPTLSEnabled, GRPCTLSEnabled: test.GRPCTLSEnabled, TLS: test.TLS, HostPort: ports.PortToHostPort(ports.QueryAdminHTTP), BearerTokenPropagation: true}
+			TLSGRPC := disabledTLSCfg
+			if test.GRPCTLSEnabled {
+				TLSGRPC = enabledTLSCfg
+			}
+
+			serverOptions := &QueryOptions{
+				GRPCHostPort:           ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
+				HTTPHostPort:           ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
+				TLSHTTP:                test.TLS,
+				TLSGRPC:                TLSGRPC,
+				BearerTokenPropagation: true}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
@@ -298,9 +334,19 @@ func TestServerHTTPTLS(t *testing.T) {
 				opentracing.NoopTracer{})
 			assert.Nil(t, err)
 			assert.NoError(t, server.Start())
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			once := sync.Once{}
+
 			go func() {
 				for s := range server.HealthCheckStatus() {
-					flagsSvc.SetHealthCheckStatus(s)
+					flagsSvc.HC().Set(s)
+					if s == healthcheck.Unavailable {
+						once.Do(func() {
+							wg.Done()
+						})
+					}
 				}
 			}()
 
@@ -308,14 +354,14 @@ func TestServerHTTPTLS(t *testing.T) {
 			var clientClose func() error
 			var clientTLSCfg *tls.Config
 
-			if serverOptions.HTTPTLSEnabled {
+			if serverOptions.TLSHTTP.Enabled {
 
 				var err0 error
 
-				clientTLSCfg, err0 = test.clientTLS.Config()
+				clientTLSCfg, err0 = test.clientTLS.Config(zap.NewNop())
 				require.NoError(t, err0)
 				dialer := &net.Dialer{Timeout: 2 * time.Second}
-				conn, err1 := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryAdminHTTP), clientTLSCfg)
+				conn, err1 := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
 				clientError = err1
 				clientClose = nil
 				if conn != nil {
@@ -324,7 +370,7 @@ func TestServerHTTPTLS(t *testing.T) {
 
 			} else {
 
-				conn, err1 := net.DialTimeout("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryAdminHTTP), 2*time.Second)
+				conn, err1 := net.DialTimeout("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), 2*time.Second)
 				clientError = err1
 				clientClose = nil
 				if conn != nil {
@@ -341,7 +387,6 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.Nil(t, clientClose())
 			}
 
-			// defer server.Close()
 			if test.HTTPTLSEnabled && test.TLS.ClientCAPath != "" {
 				client := &http.Client{
 					Transport: &http.Transport{
@@ -351,7 +396,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				readMock := spanReader
 				readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return([]*model.Trace{mockTrace}, nil).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-				req, err := http.NewRequest("GET", "https://localhost:"+fmt.Sprintf("%d", ports.QueryAdminHTTP)+queryString, nil)
+				req, err := http.NewRequest("GET", "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
 				assert.Nil(t, err)
 				req.Header.Add("Accept", "application/json")
 
@@ -367,12 +412,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				}
 			}
 			server.Close()
-			for i := 0; i < 10; i++ {
-				if flagsSvc.HC().Get() == healthcheck.Unavailable {
-					break
-				}
-				time.Sleep(1 * time.Millisecond)
-			}
+			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 
 		})
@@ -414,10 +454,32 @@ func TestServerGRPCTLS(t *testing.T) {
 	copy(tests, testCases)
 	tests[testlen-2].clientTLS = tlscfg.Options{Enabled: false}
 	tests[testlen-2].name = "should pass with insecure GRPC Client and insecure GRPC server with secure HTTP Server"
+	tests[testlen-2].TLS = tlscfg.Options{
+		Enabled: false,
+	}
+
+	disabledTLSCfg := tlscfg.Options{
+		Enabled: false,
+	}
+	enabledTLSCfg := tlscfg.Options{
+		Enabled:      true,
+		CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+		KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			serverOptions := &QueryOptions{HTTPTLSEnabled: test.HTTPTLSEnabled, GRPCTLSEnabled: test.GRPCTLSEnabled, TLS: test.TLS, HostPort: ports.PortToHostPort(ports.QueryAdminHTTP), BearerTokenPropagation: true}
+			TLSHTTP := disabledTLSCfg
+			if test.HTTPTLSEnabled {
+				TLSHTTP = enabledTLSCfg
+			}
+			serverOptions := &QueryOptions{
+				GRPCHostPort:           ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
+				HTTPHostPort:           ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
+				TLSHTTP:                TLSHTTP,
+				TLSGRPC:                test.TLS,
+				BearerTokenPropagation: true}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
@@ -432,25 +494,33 @@ func TestServerGRPCTLS(t *testing.T) {
 				opentracing.NoopTracer{})
 			assert.Nil(t, err)
 			assert.NoError(t, server.Start())
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			once := sync.Once{}
+
 			go func() {
 				for s := range server.HealthCheckStatus() {
-					flagsSvc.SetHealthCheckStatus(s)
+					flagsSvc.HC().Set(s)
+					if s == healthcheck.Unavailable {
+						once.Do(func() {
+							wg.Done()
+						})
+					}
 				}
 			}()
 
 			var clientError error
 			var client *grpcClient
 
-			// time.Sleep(10 * time.Millisecond) // wait for server to start serving
-
-			if serverOptions.GRPCTLSEnabled {
-				clientTLSCfg, err0 := test.clientTLS.Config()
+			if serverOptions.TLSGRPC.Enabled {
+				clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
-				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryAdminHTTP), creds)
+				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), creds)
 
 			} else {
-				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryAdminHTTP), nil)
+				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), nil)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -468,12 +538,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				require.Nil(t, client.conn.Close())
 			}
 			server.Close()
-			for i := 0; i < 10; i++ {
-				if flagsSvc.HC().Get() == healthcheck.Unavailable {
-					break
-				}
-				time.Sleep(1 * time.Millisecond)
-			}
+			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}

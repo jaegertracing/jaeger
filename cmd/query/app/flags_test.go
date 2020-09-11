@@ -73,6 +73,18 @@ func TestQueryBuilderFlagsSeparatePorts(t *testing.T) {
 
 func TestQueryBuilderFlagsSeparateNoPorts(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--query.http.tls.enabled=true",
+	})
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+
+	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.HTTPHostPort)
+	assert.Equal(t, ports.PortToHostPort(ports.QueryGRPC), qOpts.GRPCHostPort)
+	assert.NotEqual(t, qOpts.HTTPHostPort, qOpts.GRPCHostPort)
+}
+
+func TestQueryBuilderFlagsSeparateNoPortsWithTLS(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{})
 	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
 

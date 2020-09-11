@@ -64,7 +64,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 	}
 
 	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && (grpcPort == httpPort) {
-		return nil, errors.New("Server with TLS enabled can not share host ports.  Use dedicated HTTP and gRPC host ports instead")
+		return nil, errors.New("Server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
 	grpcServer, err := createGRPCServer(querySvc, options, logger, tracer)
@@ -148,77 +148,12 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 			Handler:   recoveryHandler(handler),
 			TLSConfig: tlsCfg,
 		}, nil
+
 	}
 	return &http.Server{
 		Handler: recoveryHandler(handler),
 	}, nil
 }
-
-// func getTLSListener(listener net.Listener, tlsOptions tlscfg.Options) (net.Listener, error) { // takes otherCA  so that the certPool will have the CA of both GRPC and HTTP clients.
-// 	tlsCfg, err := tlsOptions.Config()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	tlsCfg.Rand = rand.Reader
-// 	tlsListener := tls.NewListener(listener, tlsCfg)
-// 	return tlsListener, err
-
-// }
-
-// func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
-// 	var httpListener net.Listener
-// 	var grpcListener net.Listener
-// 	var cmux1 cmux.CMux
-// 	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
-// 	s.conn = conn
-
-// 	if err != nil {
-// 		return nil, nil, nil, err
-// 	}
-// 	if s.queryOptions.HTTPTLSEnabled != s.queryOptions.GRPCTLSEnabled { // exactly one of HTTP or GRPC has TLS enabled
-// 		cmux1 = cmux.New(conn)
-
-// 		if !s.queryOptions.HTTPTLSEnabled { // HTTPTLS disabled GRPCTLS enabled => match http request
-// 			httpListener = cmux1.Match(cmux.HTTP1Fast())
-// 		} else { // HTTPTLS enabled GRPCTLS disabled
-// 			grpcListener = cmux1.MatchWithWriters( // HTTPTLS disabled GRPCTLS enabled => match GRPC request
-// 				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
-// 				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
-// 			)
-// 		}
-// 		tlsListener := cmux1.Match(cmux.Any()) // unmatched request are routed to TLS Listener
-// 		tlsListener, err = getTLSListener(tlsListener, s.queryOptions.TLS)
-// 		if err != nil {
-// 			return nil, nil, nil, err
-// 		}
-
-// 		if s.queryOptions.HTTPTLSEnabled {
-// 			httpListener = tlsListener
-// 		} else {
-// 			grpcListener = tlsListener
-// 		}
-
-// 	} else {
-// 		var muxListener net.Listener
-// 		if s.queryOptions.HTTPTLSEnabled { // Both HTTPTLS and GRPCTLS are enabled  Using TLS listener.
-// 			muxListener, err = getTLSListener(conn, s.queryOptions.TLS)
-// 			if err != nil {
-// 				return nil, nil, nil, err
-// 			}
-
-// 		} else { // Both HTTPTLS and GRPCTLS are disabled
-// 			muxListener = conn
-// 		}
-// 		cmux1 = cmux.New(muxListener)
-// 		grpcListener = cmux1.MatchWithWriters(
-// 			cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
-// 			cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
-// 		)
-// 		httpListener = cmux1.Match(cmux.Any())
-// 	}
-
-// 	return cmux1, httpListener, grpcListener, err
-// }
 
 // initListener initialises listeners of the server
 func (s *Server) initListener() (cmux.CMux, error) {
@@ -296,8 +231,13 @@ func (s *Server) Start() error {
 
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-
-		switch err := s.httpServer.Serve(s.httpConn); err {
+		var err error
+		if s.queryOptions.TLSHTTP.Enabled {
+			err = s.httpServer.ServeTLS(s.httpConn, "", "")
+		} else {
+			err = s.httpServer.Serve(s.httpConn)
+		}
+		switch err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
 			// normal exit, nothing to do
 		default:
