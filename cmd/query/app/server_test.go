@@ -16,6 +16,8 @@ package app
 
 import (
 	"context"
+	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -57,11 +59,48 @@ func TestCreateTLSServerError(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestServerBadHostPort(t *testing.T) {
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{HTTPHostPort: "8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
+
+	assert.NotNil(t, err)
+	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{HTTPHostPort: "127.0.0.1:8081", GRPCHostPort: "9123", BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
+
+	assert.NotNil(t, err)
+}
+
+func TestServerInUseHostPort(t *testing.T) {
+
+	for _, hostPort := range [2]string{":8080", ":8081"} {
+		conn, err := net.Listen("tcp", hostPort)
+		assert.NoError(t, err)
+
+		server, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+			&QueryOptions{HTTPHostPort: "127.0.0.1:8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
+			opentracing.NoopTracer{})
+		assert.NoError(t, err)
+
+		err = server.Start()
+		assert.NotNil(t, err)
+		conn.Close()
+		if server.grpcConn != nil {
+			server.grpcConn.Close()
+		}
+		if server.httpConn != nil {
+			server.httpConn.Close()
+		}
+
+	}
+
+}
+
 func TestServer(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
 	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
-
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
@@ -70,14 +109,27 @@ func TestServer(t *testing.T) {
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
 	server, err := NewServer(flagsSvc.Logger, querySvc,
-		&QueryOptions{HostPort: hostPort, BearerTokenPropagation: true},
+		&QueryOptions{HostPort: hostPort, GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
 	go func() {
 		for s := range server.HealthCheckStatus() {
-			flagsSvc.SetHealthCheckStatus(s)
+			flagsSvc.HC().Set(s)
+			if s == healthcheck.Unavailable {
+				once.Do(func() {
+					wg.Done()
+				})
+			}
+
 		}
+		wg.Done()
+
 	}()
 
 	client := newGRPCClient(t, hostPort)
@@ -91,12 +143,54 @@ func TestServer(t *testing.T) {
 	assert.Equal(t, expectedServices, res.Services)
 
 	server.Close()
-	for i := 0; i < 10; i++ {
-		if flagsSvc.HC().Get() == healthcheck.Unavailable {
-			break
+	wg.Wait()
+	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
+}
+
+func TestServerWithDedicatedPorts(t *testing.T) {
+	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	flagsSvc.Logger = zap.NewNop()
+
+	spanReader := &spanstoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+	expectedServices := []string{"test"}
+	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
+
+	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
+
+	server, err := NewServer(flagsSvc.Logger, querySvc,
+		&QueryOptions{HTTPHostPort: "127.0.0.1:8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
+	assert.Nil(t, err)
+	assert.NoError(t, server.Start())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			flagsSvc.HC().Set(s)
+			if s == healthcheck.Unavailable {
+				once.Do(func() {
+					wg.Done()
+				})
+			}
 		}
-		time.Sleep(1 * time.Millisecond)
-	}
+	}()
+
+	client := newGRPCClient(t, "127.0.0.1:8081")
+	defer client.conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	assert.NoError(t, err)
+	assert.Equal(t, expectedServices, res.Services)
+
+	server.Close()
+	wg.Wait()
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
@@ -107,15 +201,16 @@ func TestServerGracefulExit(t *testing.T) {
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
 
 	flagsSvc.Logger = zap.New(zapCore)
+	hostPort := ports.PortToHostPort(ports.QueryAdminHTTP)
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: hostPort, GRPCHostPort: hostPort, HTTPHostPort: hostPort}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
 		for s := range server.HealthCheckStatus() {
-			flagsSvc.SetHealthCheckStatus(s)
+			flagsSvc.HC().Set(s)
 		}
 	}()
 
@@ -137,7 +232,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0", GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	server.Close()
