@@ -5,6 +5,7 @@
 
 CQLSH=${CQLSH:-"/opt/cassandra/bin/cqlsh"}
 CQLSH_HOST=${CQLSH_HOST:-"cassandra"}
+CQLSH_PORT=${CQLSH_PORT:-"9042"}
 CQLSH_SSL=${CQLSH_SSL:-""}
 CASSANDRA_WAIT_TIMEOUT=${CASSANDRA_WAIT_TIMEOUT:-"60"}
 DATACENTER=${DATACENTER:-"dc1"}
@@ -18,9 +19,9 @@ total_wait=0
 while true
 do
   if [ -z "$PASSWORD" ]; then
-    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -e "describe keyspaces"
+    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT} -e "describe keyspaces"
   else
-    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -u ${USER} -p ${PASSWORD} -e "describe keyspaces"
+    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT} -u ${USER} -p ${PASSWORD} -e "describe keyspaces"
   fi
   if (( $? == 0 )); then
     break
@@ -29,7 +30,7 @@ do
       echo "Timed out waiting for Cassandra."
       exit 1
     fi
-    echo "Cassandra is still not up at ${CQLSH_HOST}. Waiting 1 second."
+    echo "Cassandra is still not up at ${CQLSH_HOST}:${CQLSH_PORT}. Waiting 1 second."
     sleep 1s
     ((total_wait++))
   fi
@@ -39,7 +40,7 @@ echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACE
 
 
 if [ -z "$PASSWORD" ]; then
-  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST}
+  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT}
 else
-  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -u ${USER} -p ${PASSWORD}
+  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT} -u ${USER} -p ${PASSWORD}
 fi
