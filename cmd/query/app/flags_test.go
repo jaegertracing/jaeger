@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	spanstore_mocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -58,6 +59,26 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"Whatever":                    []string{"thing"},
 	}, qOpts.AdditionalHeaders)
 	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
+}
+
+func TestQueryBuilderFlagsSeparatePorts(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--query.http-server.host-port=127.0.0.1:8080",
+	})
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTPHostPort)
+	assert.Equal(t, ports.PortToHostPort(ports.QueryGRPC), qOpts.GRPCHostPort)
+}
+
+func TestQueryBuilderFlagsSeparateNoPorts(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{})
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+
+	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.HTTPHostPort)
+	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.GRPCHostPort)
+	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.HostPort)
 }
 
 func TestQueryBuilderBadHeadersFlags(t *testing.T) {

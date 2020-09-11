@@ -39,13 +39,14 @@ import (
 )
 
 const (
-	host            = "0.0.0.0"
-	queryPort       = "9200"
-	queryHostPort   = host + ":" + queryPort
-	queryURL        = "http://" + queryHostPort
-	indexPrefix     = "integration-test"
-	tagKeyDeDotChar = "@"
-	maxSpanAge      = time.Hour * 72
+	host               = "0.0.0.0"
+	queryPort          = "9200"
+	queryHostPort      = host + ":" + queryPort
+	queryURL           = "http://" + queryHostPort
+	indexPrefix        = "integration-test"
+	tagKeyDeDotChar    = "@"
+	maxSpanAge         = time.Hour * 72
+	defaultMaxDocCount = 10_000
 )
 
 type ESStorageIntegration struct {
@@ -129,8 +130,9 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
+		MaxDocCount:       defaultMaxDocCount,
 	})
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
+	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, defaultMaxDocCount)
 	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
 	err = dependencyStore.CreateTemplates(depMapping)
 	if err != nil {
@@ -203,7 +205,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
-	require.NoError(t, s.SpanWriter.WriteSpan(expected))
+	require.NoError(t, s.SpanWriter.WriteSpan(context.Background(), expected))
 	s.refresh(t)
 
 	var actual *model.Trace

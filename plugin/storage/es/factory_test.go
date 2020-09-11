@@ -90,6 +90,8 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
+
+	assert.NoError(t, f.Close())
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
@@ -104,33 +106,59 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	assert.Nil(t, r)
 }
 
-func TestLoadTagsFromFile(t *testing.T) {
+func TestTagKeysAsFields(t *testing.T) {
 	tests := []struct {
-		path  string
-		tags  []string
-		error bool
+		path          string
+		include       string
+		expected      []string
+		errorExpected bool
 	}{
 		{
-			path:  "fixtures/do_not_exists.txt",
-			error: true,
+			path:          "fixtures/do_not_exists.txt",
+			errorExpected: true,
 		},
 		{
-			path: "fixtures/tags_01.txt",
-			tags: []string{"foo", "bar", "space"},
+			path:     "fixtures/tags_01.txt",
+			expected: []string{"foo", "bar", "space"},
 		},
 		{
-			path: "fixtures/tags_02.txt",
-			tags: nil,
+			path:     "fixtures/tags_02.txt",
+			expected: nil,
+		},
+		{
+			include:  "televators,eriatarka,thewidow",
+			expected: []string{"televators", "eriatarka", "thewidow"},
+		},
+		{
+			expected: nil,
+		},
+		{
+			path:     "fixtures/tags_01.txt",
+			include:  "televators,eriatarka,thewidow",
+			expected: []string{"foo", "bar", "space", "televators", "eriatarka", "thewidow"},
+		},
+		{
+			path:     "fixtures/tags_02.txt",
+			include:  "televators,eriatarka,thewidow",
+			expected: []string{"televators", "eriatarka", "thewidow"},
 		},
 	}
 
 	for _, test := range tests {
-		tags, err := escfg.LoadTagsFromFile(test.path)
-		if test.error {
+		cfg := escfg.Configuration{
+			Tags: escfg.TagsAsFields{
+				File:    test.path,
+				Include: test.include,
+			},
+		}
+
+		tags, err := cfg.TagKeysAsFields()
+		if test.errorExpected {
 			require.Error(t, err)
 			assert.Nil(t, tags)
 		} else {
-			assert.Equal(t, test.tags, tags)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, tags)
 		}
 	}
 }

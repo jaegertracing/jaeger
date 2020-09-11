@@ -16,6 +16,7 @@ package jaegerreceiver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
@@ -23,7 +24,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
@@ -32,13 +32,14 @@ import (
 	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // Factory wraps jaegerreceiver.Factory and makes the default config configurable via viper.
 // For instance this enables using flags as default values in the config object.
 type Factory struct {
 	// Wrapped is Jaeger receiver.
-	Wrapped *jaegerreceiver.Factory
+	Wrapped component.ReceiverFactory
 	// Viper is used to get configuration values for default configuration
 	Viper *viper.Viper
 }
@@ -68,12 +69,12 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	aOpts := agentApp.Builder{}
 	aOpts.InitFromViper(v)
 	if v.IsSet(thriftBinaryHostPort) {
-		cfg.ThriftBinary = &configprotocol.ProtocolServerSettings{
+		cfg.ThriftBinary = &confignet.TCPAddr{
 			Endpoint: v.GetString(thriftBinaryHostPort),
 		}
 	}
 	if v.IsSet(thriftCompactHostPort) {
-		cfg.ThriftCompact = &configprotocol.ProtocolServerSettings{
+		cfg.ThriftCompact = &confignet.TCPAddr{
 			Endpoint: v.GetString(thriftCompactHostPort),
 		}
 	}
@@ -88,14 +89,21 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 				Endpoint: cOpts.CollectorGRPCHostPort,
 			},
 		}
-		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
-			cfg.GRPC.TLSSetting = &configtls.TLSServerSetting{
-				ClientCAFile: cOpts.TLS.ClientCAPath,
-				TLSSetting: configtls.TLSSetting{
-					KeyFile:  cOpts.TLS.KeyPath,
-					CertFile: cOpts.TLS.CertPath,
+	}
+	if cOpts.TLS.Enabled {
+		if cfg.GRPC == nil {
+			cfg.GRPC = &configgrpc.GRPCServerSettings{
+				NetAddr: confignet.NetAddr{
+					Endpoint: fmt.Sprintf(":%d", ports.CollectorGRPC),
 				},
 			}
+		}
+		cfg.GRPC.TLSSetting = &configtls.TLSServerSetting{
+			ClientCAFile: cOpts.TLS.ClientCAPath,
+			TLSSetting: configtls.TLSSetting{
+				CertFile: cOpts.TLS.CertPath,
+				KeyFile:  cOpts.TLS.KeyPath,
+			},
 		}
 	}
 	if v.IsSet(collectorApp.CollectorHTTPHostPort) {
@@ -148,12 +156,6 @@ func (f *Factory) CreateTraceReceiver(
 	nextConsumer consumer.TraceConsumer,
 ) (component.TraceReceiver, error) {
 	return f.Wrapped.CreateTraceReceiver(ctx, params, cfg, nextConsumer)
-}
-
-// CustomUnmarshaler creates custom unmarshaller for Jaeger receiver config.
-// This function implements component.ReceiverFactoryBase interface.
-func (f *Factory) CustomUnmarshaler() component.CustomUnmarshaler {
-	return f.Wrapped.CustomUnmarshaler()
 }
 
 // CreateMetricsReceiver creates a metrics receiver based on provided config.

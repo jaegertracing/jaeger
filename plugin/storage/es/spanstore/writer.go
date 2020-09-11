@@ -42,7 +42,6 @@ type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx              context.Context
 	client           es.Client
 	logger           *zap.Logger
 	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
@@ -67,12 +66,9 @@ type SpanWriterParams struct {
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
-	ctx := context.Background()
-
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, time.Hour*12)
 	return &SpanWriter{
-		ctx:    ctx,
 		client: p.Client,
 		logger: p.Logger,
 		writerMetrics: spanWriterMetrics{
@@ -132,7 +128,7 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) 
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(span *model.Span) error {
+func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
 	if serviceIndexName != "" {

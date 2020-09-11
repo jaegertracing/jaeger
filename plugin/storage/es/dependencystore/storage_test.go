@@ -16,6 +16,7 @@
 package dependencystore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -33,6 +34,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
+const defaultMaxDocCount = 10_000
+
 type depStorageTest struct {
 	client    *mocks.Client
 	logger    *zap.Logger
@@ -40,14 +43,14 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStorage(indexPrefix string, fn func(r *depStorageTest)) {
+func withDepStorage(indexPrefix string, maxDocCount int, fn func(r *depStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	r := &depStorageTest{
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(client, logger, indexPrefix),
+		storage:   NewDependencyStore(client, logger, indexPrefix, maxDocCount),
 	}
 	fn(r)
 }
@@ -66,7 +69,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
-		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix)
+		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix, defaultMaxDocCount)
 		assert.Equal(t, testCase.expected+dependencyIndex, r.indexPrefix)
 	}
 }
@@ -87,7 +90,7 @@ func TestWriteDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage("", func(r *depStorageTest) {
+		withDepStorage("", defaultMaxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 			indexName := indexWithDate("", fixedTime)
 			writeService := &mocks.IndexService{}
@@ -129,6 +132,7 @@ func TestGetDependencies(t *testing.T) {
 		expectedError  string
 		expectedOutput []model.DependencyLink
 		indexPrefix    string
+		maxDocCount    int
 		indices        []interface{}
 	}{
 		{
@@ -140,7 +144,8 @@ func TestGetDependencies(t *testing.T) {
 					CallCount: 12,
 				},
 			},
-			indices: []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:     []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			maxDocCount: 1000, // can be anything, assertion will check this value is used in search query.
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
@@ -160,18 +165,20 @@ func TestGetDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage(testCase.indexPrefix, func(r *depStorageTest) {
+		withDepStorage(testCase.indexPrefix, testCase.maxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 
 			searchService := &mocks.SearchService{}
 			r.client.On("Search", testCase.indices...).Return(searchService)
 
-			searchService.On("Size", mock.Anything).Return(searchService)
+			searchService.On("Size", mock.MatchedBy(func(size int) bool {
+				return size == testCase.maxDocCount
+			})).Return(searchService)
 			searchService.On("Query", mock.Anything).Return(searchService)
 			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
 
-			actual, err := r.storage.GetDependencies(fixedTime, 24*time.Hour)
+			actual, err := r.storage.GetDependencies(context.Background(), fixedTime, 24*time.Hour)
 			if testCase.expectedError != "" {
 				assert.EqualError(t, err, testCase.expectedError)
 				assert.Nil(t, actual)

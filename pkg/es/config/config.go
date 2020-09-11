@@ -49,7 +49,7 @@ type Configuration struct {
 	AllowTokenFromContext bool           `mapstructure:"-"`
 	Sniffer               bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled     bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxNumSpans           int            `mapstructure:"-"`                     // defines maximum number of spans to fetch from storage per query
+	MaxDocCount           int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
 	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
 	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
 	NumReplicas           int64          `yaml:"replicas" mapstructure:"num_replicas"`
@@ -77,6 +77,8 @@ type TagsAsFields struct {
 	DotReplacement string `mapstructure:"dot_replacement"`
 	// File path to tag keys which should be stored as object fields
 	File string `mapstructure:"config_file"`
+	// Comma delimited list of tags to store as object fields
+	Include string `mapstructure:"include"`
 }
 
 // ClientBuilder creates new es.Client
@@ -85,7 +87,7 @@ type ClientBuilder interface {
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
-	GetMaxNumSpans() int
+	GetMaxDocCount() int
 	GetIndexPrefix() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
@@ -95,6 +97,7 @@ type ClientBuilder interface {
 	IsStorageEnabled() bool
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
+	TagKeysAsFields() ([]string, error)
 }
 
 // NewClient creates a new ElasticSearch client
@@ -194,9 +197,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
-	if c.MaxNumSpans == 0 {
-		c.MaxNumSpans = source.MaxNumSpans
-	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
@@ -218,6 +218,21 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if !c.SnifferTLSEnabled {
 		c.SnifferTLSEnabled = source.SnifferTLSEnabled
 	}
+	if !c.Tags.AllAsFields {
+		c.Tags.AllAsFields = source.Tags.AllAsFields
+	}
+	if c.Tags.DotReplacement == "" {
+		c.Tags.DotReplacement = source.Tags.DotReplacement
+	}
+	if c.Tags.Include == "" {
+		c.Tags.Include = source.Tags.Include
+	}
+	if c.Tags.File == "" {
+		c.Tags.File = source.Tags.File
+	}
+	if c.MaxDocCount == 0 {
+		c.MaxDocCount = source.MaxDocCount
+	}
 }
 
 // GetNumShards returns number of shards from Configuration
@@ -235,9 +250,9 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
 }
 
-// GetMaxNumSpans returns max spans allowed per query from Configuration
-func (c *Configuration) GetMaxNumSpans() int {
-	return c.MaxNumSpans
+// GetMaxDocCount returns the maximum number of documents that a query should return
+func (c *Configuration) GetMaxDocCount() int {
+	return c.MaxDocCount
 }
 
 // GetIndexPrefix returns index prefix
@@ -286,6 +301,37 @@ func (c *Configuration) IsCreateIndexTemplates() bool {
 	return c.CreateIndexTemplates
 }
 
+// TagKeysAsFields returns tags from the file and command line merged
+func (c *Configuration) TagKeysAsFields() ([]string, error) {
+	var tags []string
+
+	// from file
+	if c.Tags.File != "" {
+		file, err := os.Open(filepath.Clean(c.Tags.File))
+		if err != nil {
+			return nil, err
+		}
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if tag := strings.TrimSpace(line); tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+		if err := file.Close(); err != nil {
+			return nil, err
+		}
+	}
+
+	// from params
+	if c.Tags.Include != "" {
+		tags = append(tags, strings.Split(c.Tags.Include, ",")...)
+	}
+
+	return tags, nil
+}
+
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
 
@@ -313,7 +359,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 // GetHTTPRoundTripper returns configured http.RoundTripper
 func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if c.TLS.Enabled {
-		ctlsConfig, err := c.TLS.Config()
+		ctlsConfig, err := c.TLS.Config(logger)
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +374,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
 	}
 	if c.TLS.CAPath != "" {
-		ctlsConfig, err := c.TLS.Config()
+		ctlsConfig, err := c.TLS.Config(logger)
 		if err != nil {
 			return nil, err
 		}
@@ -382,24 +428,4 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
-}
-
-// LoadTagsFromFile loads tags from a file
-func LoadTagsFromFile(filePath string) ([]string, error) {
-	file, err := os.Open(filepath.Clean(filePath))
-	if err != nil {
-		return nil, err
-	}
-	scanner := bufio.NewScanner(file)
-	var tags []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if tag := strings.TrimSpace(line); tag != "" {
-			tags = append(tags, tag)
-		}
-	}
-	if err := file.Close(); err != nil {
-		return nil, err
-	}
-	return tags, nil
 }

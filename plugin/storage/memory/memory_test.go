@@ -130,7 +130,7 @@ var childSpan2_1 = &model.Span{
 
 func withPopulatedMemoryStore(f func(store *Store)) {
 	memStore := NewStore()
-	memStore.WriteSpan(testingSpan)
+	memStore.WriteSpan(context.Background(), testingSpan)
 	f(memStore)
 }
 func withMemoryStore(f func(store *Store)) {
@@ -139,7 +139,7 @@ func withMemoryStore(f func(store *Store)) {
 
 func TestStoreGetEmptyDependencies(t *testing.T) {
 	withMemoryStore(func(store *Store) {
-		links, err := store.GetDependencies(time.Now(), time.Hour)
+		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 	})
@@ -147,15 +147,15 @@ func TestStoreGetEmptyDependencies(t *testing.T) {
 
 func TestStoreGetDependencies(t *testing.T) {
 	withMemoryStore(func(store *Store) {
-		assert.NoError(t, store.WriteSpan(testingSpan))
-		assert.NoError(t, store.WriteSpan(childSpan1))
-		assert.NoError(t, store.WriteSpan(childSpan2))
-		assert.NoError(t, store.WriteSpan(childSpan2_1))
-		links, err := store.GetDependencies(time.Now(), time.Hour)
+		assert.NoError(t, store.WriteSpan(context.Background(), testingSpan))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan1))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
+		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 
-		links, err = store.GetDependencies(time.Unix(0, 0).Add(time.Hour), time.Hour)
+		links, err = store.GetDependencies(context.Background(), time.Unix(0, 0).Add(time.Hour), time.Hour)
 		assert.NoError(t, err)
 		assert.Equal(t, []model.DependencyLink{{
 			Parent:    "serviceName",
@@ -167,7 +167,7 @@ func TestStoreGetDependencies(t *testing.T) {
 
 func TestStoreWriteSpan(t *testing.T) {
 	withMemoryStore(func(store *Store) {
-		err := store.WriteSpan(testingSpan)
+		err := store.WriteSpan(context.Background(), testingSpan)
 		assert.NoError(t, err)
 	})
 }
@@ -178,7 +178,7 @@ func TestStoreWithLimit(t *testing.T) {
 
 	for i := 0; i < maxTraces*2; i++ {
 		id := model.NewTraceID(1, uint64(i))
-		err := store.WriteSpan(&model.Span{
+		err := store.WriteSpan(context.Background(), &model.Span{
 			TraceID: id,
 			Process: &model.Process{
 				ServiceName: "TestStoreWithLimit",
@@ -186,7 +186,7 @@ func TestStoreWithLimit(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		err = store.WriteSpan(&model.Span{
+		err = store.WriteSpan(context.Background(), &model.Span{
 			TraceID: id,
 			SpanID:  model.NewSpanID(uint64(i)),
 			Process: &model.Process{
@@ -229,10 +229,10 @@ func TestStoreGetServices(t *testing.T) {
 
 func TestStoreGetAllOperationsFound(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		assert.NoError(t, store.WriteSpan(testingSpan))
-		assert.NoError(t, store.WriteSpan(childSpan1))
-		assert.NoError(t, store.WriteSpan(childSpan2))
-		assert.NoError(t, store.WriteSpan(childSpan2_1))
+		assert.NoError(t, store.WriteSpan(context.Background(), testingSpan))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan1))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
 		operations, err := store.GetOperations(
 			context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: childSpan1.Process.ServiceName},
@@ -245,10 +245,10 @@ func TestStoreGetAllOperationsFound(t *testing.T) {
 
 func TestStoreGetServerOperationsFound(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		assert.NoError(t, store.WriteSpan(testingSpan))
-		assert.NoError(t, store.WriteSpan(childSpan1))
-		assert.NoError(t, store.WriteSpan(childSpan2))
-		assert.NoError(t, store.WriteSpan(childSpan2_1))
+		assert.NoError(t, store.WriteSpan(context.Background(), testingSpan))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan1))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
 		expected := []spanstore.Operation{
 			{Name: childSpan1.OperationName, SpanKind: "server"},
 		}
@@ -315,7 +315,7 @@ func TestStoreFindTracesLimitGetsMostRecent(t *testing.T) {
 
 	memStore := NewStore()
 	for _, span := range spans {
-		memStore.WriteSpan(span)
+		memStore.WriteSpan(context.Background(), span)
 	}
 
 	gotTraces, err := memStore.FindTraces(context.Background(), &spanstore.TraceQueryParameters{

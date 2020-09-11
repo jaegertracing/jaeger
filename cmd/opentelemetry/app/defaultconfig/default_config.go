@@ -18,14 +18,12 @@ import (
 	"fmt"
 	"strings"
 
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
-	"go.opentelemetry.io/collector/processor/queuedprocessor"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
@@ -36,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/grpcpluginexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/kafkaexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/memoryexporter"
+	jaegerresource "github.com/jaegertracing/jaeger/cmd/opentelemetry/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -62,7 +61,7 @@ type ComponentType int
 // ComponentSettings struct configures generation of the default config
 type ComponentSettings struct {
 	ComponentType  ComponentType
-	Factories      config.Factories
+	Factories      component.Factories
 	StorageType    string
 	ZipkinHostPort string
 }
@@ -95,24 +94,22 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 	}, nil
 }
 
-func createProcessors(factories config.Factories) (configmodels.Processors, []string) {
+func createProcessors(factories component.Factories) (configmodels.Processors, []string) {
 	processors := configmodels.Processors{}
 	var names []string
-	resource := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
-	if len(resource.Labels) > 0 {
+	resFactory := factories.Processors["resource"].(*jaegerresource.Factory)
+	if len(resFactory.GetTags()) > 0 {
+		resource := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
 		processors[resource.Name()] = resource
 		names = append(names, resource.Name())
 	}
 	batch := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
 	processors[batch.Name()] = batch
 	names = append(names, batch.Name())
-	queuedRetry := factories.Processors["queued_retry"].CreateDefaultConfig().(*queuedprocessor.Config)
-	processors[queuedRetry.Name()] = queuedRetry
-	names = append(names, queuedRetry.Name())
 	return processors, names
 }
 
-func createReceivers(component ComponentType, zipkinHostPort string, factories config.Factories) configmodels.Receivers {
+func createReceivers(component ComponentType, zipkinHostPort string, factories component.Factories) configmodels.Receivers {
 	if component == Ingester {
 		kafkaReceiver := factories.Receivers[kafkareceiver.TypeStr].CreateDefaultConfig().(*kafkareceiver.Config)
 		return configmodels.Receivers{
@@ -150,7 +147,7 @@ func createReceivers(component ComponentType, zipkinHostPort string, factories c
 	return recvs
 }
 
-func createExporters(component ComponentType, storageTypes string, factories config.Factories) (configmodels.Exporters, error) {
+func createExporters(component ComponentType, storageTypes string, factories component.Factories) (configmodels.Exporters, error) {
 	if component == Agent {
 		jaegerExporter := factories.Exporters["jaeger"]
 		return configmodels.Exporters{
@@ -187,12 +184,12 @@ func createExporters(component ComponentType, storageTypes string, factories con
 
 func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 	if jaeger.ThriftCompact == nil {
-		jaeger.ThriftCompact = &configprotocol.ProtocolServerSettings{
+		jaeger.ThriftCompact = &confignet.TCPAddr{
 			Endpoint: udpThriftCompactEndpoint,
 		}
 	}
 	if jaeger.ThriftBinary == nil {
-		jaeger.ThriftBinary = &configprotocol.ProtocolServerSettings{
+		jaeger.ThriftBinary = &confignet.TCPAddr{
 			Endpoint: udpThriftBinaryEndpoint,
 		}
 	}

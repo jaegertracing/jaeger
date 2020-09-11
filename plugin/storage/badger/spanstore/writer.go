@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -67,7 +68,7 @@ func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration, storageClose
 }
 
 // WriteSpan writes the encoded span as well as creates indexes with defined TTL
-func (w *SpanWriter) WriteSpan(span *model.Span) error {
+func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	expireTime := uint64(time.Now().Add(w.ttl).Unix())
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
 

@@ -16,6 +16,7 @@
 package spanstore
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -135,7 +136,7 @@ func (s *SpanWriter) Close() error {
 }
 
 // WriteSpan saves the span into Cassandra
-func (s *SpanWriter) WriteSpan(span *model.Span) error {
+func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
 	if s.storageMode&storeFlag == storeFlag {
 		if err := s.writeSpan(span, ds); err != nil {

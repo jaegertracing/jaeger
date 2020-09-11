@@ -40,6 +40,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+const defaultMaxDocCount = 10_000
+
 var exampleESSpan = []byte(
 	`{
 	   "traceID": "1",
@@ -101,6 +103,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
+			MaxDocCount:       defaultMaxDocCount,
 		}),
 	}
 	fn(r)
@@ -804,7 +807,18 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	testGet(traceIDAggregation, t)
+	testCases := []struct {
+		aggregrationID string
+	}{
+		{traceIDAggregation},
+		{servicesAggregation},
+		{operationsAggregation},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.aggregrationID, func(t *testing.T) {
+			testGet(testCase.aggregrationID, t)
+		})
+	}
 }
 
 func TestTraceIDsStringsToModelsConversion(t *testing.T) {
@@ -835,15 +849,23 @@ func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Ca
 	return multiSearchService.On("Do", mock.AnythingOfType("*context.valueCtx"))
 }
 
+// matchTermsAggregation uses reflection to match the size attribute of the TermsAggregation; neither
+// attributes nor getters are exported by TermsAggregation.
+func matchTermsAggregation(termsAgg *elastic.TermsAggregation) bool {
+	val := reflect.ValueOf(termsAgg).Elem()
+	sizeVal := val.FieldByName("size").Elem().Int()
+	return sizeVal == defaultMaxDocCount
+}
+
 func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService := &mocks.SearchService{}
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
-	searchService.On("Size", mock.MatchedBy(func(i int) bool {
-		return i == 0 || i == defaultDocCount
+	searchService.On("Size", mock.MatchedBy(func(size int) bool {
+		return size == 0 // Aggregations apply size (bucket) limits in their own query objects, and do not apply at the parent query level.
 	})).Return(searchService)
-	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.MatchedBy(func(ctx context.Context) bool {

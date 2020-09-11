@@ -20,81 +20,47 @@ package elasticsearchexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
-	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esdependencyreader"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esspanreader"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
-	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
 const (
-	host            = "0.0.0.0"
-	queryPort       = "9200"
-	queryHostPort   = host + ":" + queryPort
-	queryURL        = "http://" + queryHostPort
-	indexPrefix     = "integration-test"
-	tagKeyDeDotChar = "@"
-	maxSpanAge      = time.Hour * 72
+	host               = "0.0.0.0"
+	esPort             = "9200"
+	esHostPort         = host + ":" + esPort
+	esURL              = "http://" + esHostPort
+	indexPrefix        = "integration-test"
+	tagKeyDeDotChar    = "@"
+	maxSpanAge         = time.Hour * 72
+	numShards          = 5
+	numReplicas        = 0
+	defaultMaxDocCount = 10_000
 )
 
 type IntegrationTest struct {
 	integration.StorageIntegration
 
-	client        *elastic.Client
-	bulkProcessor *elastic.BulkProcessor
-	logger        *zap.Logger
-}
-
-type storageWrapper struct {
-	writer *esSpanWriter
-}
-
-func (s storageWrapper) WriteSpan(span *model.Span) error {
-	// This fails because there is no binary tag type in OTEL and also OTEL span's status code is always created
-	//traces := jaegertranslator.ProtoBatchesToInternalTraces([]*model.Batch{{Process: span.Process, Spans: []*model.Span{span}}})
-	//_, err := s.writer.WriteTraces(context.Background(), traces)
-	converter := dbmodel.FromDomain{}
-	dbSpan := converter.FromDomainEmbedProcess(span)
-	_, err := s.writer.writeSpans([]*dbmodel.Span{dbSpan})
-	return err
-}
-
-func (s *IntegrationTest) getVersion() (uint, error) {
-	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
-	if err != nil {
-		return 0, err
-	}
-	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-	if err != nil {
-		return 0, err
-	}
-	return uint(esVersion), nil
+	logger *zap.Logger
 }
 
 func (s *IntegrationTest) initializeES(allTagsAsFields bool) error {
-	rawClient, err := elastic.NewClient(
-		elastic.SetURL(queryURL),
-		elastic.SetSniff(false))
-	if err != nil {
-		return err
-	}
 	s.logger, _ = testutils.NewLogger()
 
-	s.client = rawClient
 	s.initSpanstore(allTagsAsFields)
 	s.CleanUp = func() error {
 		return s.esCleanUp(allTagsAsFields)
@@ -107,71 +73,78 @@ func (s *IntegrationTest) initializeES(allTagsAsFields bool) error {
 }
 
 func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
-	_, err := s.client.DeleteIndex("*").Do(context.Background())
+	request, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/*", esURL), strings.NewReader(""))
 	if err != nil {
 		return err
 	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return err
+	}
+	err = response.Body.Close()
+	if err != nil {
+		return err
+	}
+	// initialize writer, it caches service names
 	return s.initSpanstore(allTagsAsFields)
 }
 
 func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
-	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	s.bulkProcessor = bp
-	esVersion, err := s.getVersion()
-	if err != nil {
-		return err
-	}
-	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, client.GetVersion())
-
-	w, err := newEsSpanWriter(config.Configuration{
-		Servers:     []string{queryURL},
+	cfg := config.Configuration{
+		Servers:     []string{esURL},
 		IndexPrefix: indexPrefix,
 		Tags: config.TagsAsFields{
 			AllAsFields: allTagsAsFields,
 		},
-	}, s.logger)
+	}
+	w, err := newEsSpanWriter(cfg, s.logger, false, "")
 	if err != nil {
 		return err
 	}
-	err = w.CreateTemplates(spanMapping, serviceMapping)
+	esVersion := uint(w.esClientVersion())
+	spanMapping, serviceMapping := es.GetSpanServiceMappings(numShards, numReplicas, esVersion)
+	err = w.CreateTemplates(context.Background(), spanMapping, serviceMapping)
 	if err != nil {
 		return err
 	}
-	s.SpanWriter = storageWrapper{
-		writer: w,
+	s.SpanWriter = singleSpanWriter{
+		writer:    w,
+		converter: dbmodel.NewFromDomain(allTagsAsFields, []string{}, tagKeyDeDotChar),
 	}
-	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-		Client:            client,
-		Logger:            s.logger,
-		MetricsFactory:    metrics.NullFactory,
+
+	elasticsearchClient, err := esclient.NewElasticsearchClient(cfg, s.logger)
+	if err != nil {
+		return err
+	}
+	reader := esspanreader.NewEsSpanReader(elasticsearchClient, s.logger, esspanreader.Config{
 		IndexPrefix:       indexPrefix,
-		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
+		MaxSpanAge:        maxSpanAge,
+		MaxDocCount:       defaultMaxDocCount,
 	})
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
-	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
-	err = dependencyStore.CreateTemplates(depMapping)
-	if err != nil {
-		return err
+	s.SpanReader = reader
+
+	depMapping := es.GetDependenciesMappings(numShards, numReplicas, esVersion)
+	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix, defaultMaxDocCount)
+	if err := depStore.CreateTemplates(depMapping); err != nil {
+		return nil
 	}
-	s.DependencyReader = dependencyStore
-	s.DependencyWriter = dependencyStore
+	s.DependencyReader = depStore
+	s.DependencyWriter = depStore
 	return nil
 }
 
 func (s *IntegrationTest) esRefresh() error {
-	err := s.bulkProcessor.Flush()
+	response, err := http.Post(fmt.Sprintf("%s/_refresh", esURL), "application/json", strings.NewReader(""))
 	if err != nil {
 		return err
 	}
-	_, err = s.client.Refresh().Do(context.Background())
-	return err
+	return response.Body.Close()
 }
 
 func healthCheck() error {
 	for i := 0; i < 200; i++ {
-		if _, err := http.Get(queryURL); err == nil {
+		if _, err := http.Get(esURL); err == nil {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)

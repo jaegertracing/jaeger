@@ -58,7 +58,6 @@ const (
 	tagKeyField            = "key"
 	tagValueField          = "value"
 
-	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
 )
 
@@ -101,6 +100,7 @@ type SpanReader struct {
 	spanConverter           dbmodel.ToDomain
 	timeRangeIndices        timeRangeIndexFn
 	sourceFn                sourceFn
+	maxDocCount             int
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -108,7 +108,7 @@ type SpanReaderParams struct {
 	Client              es.Client
 	Logger              *zap.Logger
 	MaxSpanAge          time.Duration
-	MaxNumSpans         int
+	MaxDocCount         int
 	MetricsFactory      metrics.Factory
 	IndexPrefix         string
 	TagDotReplacement   string
@@ -127,7 +127,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
-		sourceFn:                getSourceFn(p.Archive, p.MaxNumSpans),
+		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
+		maxDocCount:             p.MaxDocCount,
 	}
 }
 
@@ -155,12 +156,12 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 	return timeRangeIndices
 }
 
-func getSourceFn(archive bool, maxNumSpans int) sourceFn {
+func getSourceFn(archive bool, maxDocCount int) sourceFn {
 	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
 		s := elastic.NewSearchSource().
 			Query(query).
-			Size(defaultDocCount).
-			TerminateAfter(maxNumSpans)
+			Size(maxDocCount).
+			TerminateAfter(maxDocCount)
 		if !archive {
 			s.Sort("startTime", true).
 				SearchAfter(nextTime)
@@ -241,7 +242,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
-	return s.serviceOperationStorage.getServices(ctx, jaegerIndices)
+	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
@@ -253,7 +254,7 @@ func (s *SpanReader) GetOperations(
 	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
-	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
 	}

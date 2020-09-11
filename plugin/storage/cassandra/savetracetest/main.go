@@ -40,19 +40,19 @@ func main() {
 		ProtoVersion:       4,
 		Keyspace:           "jaeger_v1_test",
 	}
-	cqlSession, err := cConfig.NewSession()
+	cqlSession, err := cConfig.NewSession(logger)
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
 	spanStore := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
 	spanReader := cSpanStore.NewSpanReader(cqlSession, noScope, logger)
-	if err = spanStore.WriteSpan(getSomeSpan()); err != nil {
+	ctx := context.Background()
+	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))
 	} else {
 		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
 	}
 	s := getSomeSpan()
-	ctx := context.Background()
 	trace, err := spanReader.GetTrace(ctx, s.TraceID)
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))

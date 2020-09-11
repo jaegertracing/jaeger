@@ -58,7 +58,7 @@ func WithConfiguration(configuration config.Configuration) *Store {
 }
 
 // GetDependencies returns dependencies between services
-func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (m *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
 	defer m.Unlock()
@@ -114,7 +114,7 @@ func (m *Store) traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model
 }
 
 // WriteSpan writes the given span
-func (m *Store) WriteSpan(span *model.Span) error {
+func (m *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {

@@ -53,14 +53,14 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
 						Receivers:  []string{"otlp", "jaeger"},
-						Processors: []string{"batch", "queued_retry"},
+						Processors: []string{"batch"},
 						Exporters:  []string{"jaeger"},
 					},
 				},
 			},
 		},
 		{
-			viperConfig: map[string]interface{}{"resource.labels": "foo=bar"},
+			viperConfig: map[string]interface{}{"resource.attributes": "foo=bar"},
 			cfg: ComponentSettings{
 				ComponentType: Collector,
 				StorageType:   "elasticsearch,kafka,memory",
@@ -71,7 +71,7 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
 						Receivers:  []string{"otlp", "jaeger"},
-						Processors: []string{"resource", "batch", "queued_retry"},
+						Processors: []string{"resource", "batch"},
 						Exporters:  []string{elasticsearchexporter.TypeStr, kafkaexporter.TypeStr, memoryexporter.TypeStr},
 					},
 				},
@@ -88,7 +88,7 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
 						Receivers:  []string{kafkareceiver.TypeStr},
-						Processors: []string{"batch", "queued_retry"},
+						Processors: []string{"batch"},
 						Exporters:  []string{elasticsearchexporter.TypeStr},
 					},
 				},
@@ -105,7 +105,7 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
 						Receivers:  []string{kafkareceiver.TypeStr},
-						Processors: []string{"batch", "queued_retry"},
+						Processors: []string{"batch"},
 						Exporters:  []string{cassandraexporter.TypeStr, elasticsearchexporter.TypeStr, grpcpluginexporter.TypeStr},
 					},
 				},
@@ -123,7 +123,7 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
 						Receivers:  []string{"otlp", "jaeger", "zipkin"},
-						Processors: []string{"batch", "queued_retry"},
+						Processors: []string{"batch"},
 						Exporters:  []string{elasticsearchexporter.TypeStr},
 					},
 				},

@@ -57,7 +57,7 @@ processors:
     - model: jaeger
       protocol: compact
       server:
-        hostPort: 3.3.3.3:6831 
+        hostPort: 3.3.3.3:6831
         socketBufferSize: 16384
     - model: jaeger
       protocol: binary

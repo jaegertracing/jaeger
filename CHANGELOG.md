@@ -1,18 +1,87 @@
 Changes by Version
 ==================
 
-1.19.0 (unreleased)
-------------------
+1.20.0 (unreleased)
+-------------------
 
 ### Backend Changes
 
 #### Breaking Changes
+* Configurable ES doc count ([#2453](https://github.com/jaegertracing/jaeger/pull/2453), [@albertteoh](https://github.com/albertteoh))
+
+    The `--es.max-num-spans` flag has been deprecated in favour of `--es.max-doc-count`.
+    `--es.max-num-spans` is marked for removal in v1.21.0 as indicated in the flag description.
+
+    If both `--es.max-num-spans` and `--es.max-doc-count` are set, the lesser of the two will be used.
+
+    The use of `--es.max-doc-count` (which defaults to 10,000) will limit the results from all Elasticsearch
+    queries by the configured value, limiting counts for Jaeger UI:
+
+    * Services
+    * Operations
+    * Dependencies (edges in a dependency graph)
+    * Span fetch size for a trace
 
 #### New Features
 
 #### Bug fixes, Minor Improvements
 
 ### UI Changes
+
+1.19.2 (2020-08-26)
+-------------------
+
+Upgrade to a working UI version before React refactoring.
+
+
+1.19.1 (2020-08-26)
+-------------------
+
+Revert UI back to 1.9 due to a bug https://github.com/jaegertracing/jaeger-ui/issues/628
+
+
+1.19.0 (2020-08-26)
+-------------------
+
+### Known Issues
+
+The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aimed to add TLS support for the gRPC Query server but the flag registration is missing, so that this feature can't be used at the moment. A fix is planned for the next Jaeger version (1.20).
+
+### Backend Changes
+
+#### New Features
+
+* Reload TLS certificates on change ([#2389](https://github.com/jaegertracing/jaeger/pull/2389), [@pavolloffay](https://github.com/pavolloffay))
+* Add --kafka.producer.batch-min-messages collector flag ([#2371](https://github.com/jaegertracing/jaeger/pull/2371), [@prymitive](https://github.com/prymitive))
+* Make UDP socket buffer size configurable ([#2336](https://github.com/jaegertracing/jaeger/pull/2336), [@kbarukhov](https://github.com/kbarukhov))
+* Enable batch and queued retry processors by default ([#2330](https://github.com/jaegertracing/jaeger/pull/2330), [@pavolloffay](https://github.com/pavolloffay))
+* Add trace anonymizer prototype ([#2328](https://github.com/jaegertracing/jaeger/pull/2328), [@yurishkuro](https://github.com/yurishkuro))
+* Add native OTEL ES exporter ([#2295](https://github.com/jaegertracing/jaeger/pull/2295), [@pavolloffay](https://github.com/pavolloffay))
+* Define busy error type in processor ([#2314](https://github.com/jaegertracing/jaeger/pull/2314), [@pavolloffay](https://github.com/pavolloffay))
+* Use gRPC instead of tchannel in hotrod ([#2307](https://github.com/jaegertracing/jaeger/pull/2307), [@pavolloffay](https://github.com/pavolloffay))
+* TLS support for gRPC Query server ([#2297](https://github.com/jaegertracing/jaeger/pull/2297), [@jan25](https://github.com/jan25))
+
+#### Bug fixes, Minor Improvements
+
+* Check missing server URL in ES OTEL client ([#2411](https://github.com/jaegertracing/jaeger/pull/2411), [@pavolloffay](https://github.com/pavolloffay))
+* Fix Elasticsearch version in ES OTEL writer ([#2409](https://github.com/jaegertracing/jaeger/pull/2409), [@pavolloffay](https://github.com/pavolloffay))
+* Fix go vet warnings on Go 1.15 ([#2401](https://github.com/jaegertracing/jaeger/pull/2401), [@prymitive](https://github.com/prymitive))
+* Add new Elasticsearch reader implementation ([#2364](https://github.com/jaegertracing/jaeger/pull/2364), [@pavolloffay](https://github.com/pavolloffay))
+* Only add the collector port if it was not explicitly set ([#2396](https://github.com/jaegertracing/jaeger/pull/2396), [@joe-elliott](https://github.com/joe-elliott))
+* Fix panic in collector when Zipkin server is shutdown  ([#2392](https://github.com/jaegertracing/jaeger/pull/2392), [@Sreevani871](https://github.com/Sreevani871))
+* Update validity of TLS certificates to 3650 days ([#2390](https://github.com/jaegertracing/jaeger/pull/2390), [@rjs211](https://github.com/rjs211))
+* Added span and trace id to hotrod logs ([#2384](https://github.com/jaegertracing/jaeger/pull/2384), [@joe-elliott](https://github.com/joe-elliott))
+* Jaeger agent logs "0" whenever sampling strategies are requested ([#2382](https://github.com/jaegertracing/jaeger/pull/2382), [@jpkrohling](https://github.com/jpkrohling))
+* Fix shutdown order for collector components ([#2381](https://github.com/jaegertracing/jaeger/pull/2381), [@Sreevani871](https://github.com/Sreevani871))
+* Serve jquery-3.1.1.min.js locally ([#2378](https://github.com/jaegertracing/jaeger/pull/2378), [@chaseSpace](https://github.com/chaseSpace))
+* Use a single shared set of CA, client & server keys/certs for testing ([#2343](https://github.com/jaegertracing/jaeger/pull/2343), [@rjs211](https://github.com/rjs211))
+* fix null pointer in jaeger-spark-dependencies ([#2327](https://github.com/jaegertracing/jaeger/pull/2327), [@moolen](https://github.com/moolen))
+* Rename ARCH to TARGETARCH for multi platform build by docker buildx ([#2320](https://github.com/jaegertracing/jaeger/pull/2320), [@morlay](https://github.com/morlay))
+* Mask passwords when written as json ([#2302](https://github.com/jaegertracing/jaeger/pull/2302), [@objectiser](https://github.com/objectiser))
+
+### UI Changes
+
+* UI pinned to version 1.10.0. The changelog is available here [v1.10.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1100-august-25-2020)
 
 1.18.1 (2020-06-19)
 ------------------
@@ -53,8 +122,8 @@ Changes by Version
 #### Breaking Changes
 
 * Remove Tchannel between agent and collector ([#2115](https://github.com/jaegertracing/jaeger/pull/2115), [#2112](https://github.com/jaegertracing/jaeger/pull/2112), [@pavolloffay](https://github.com/pavolloffay))
-    
-    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent. 
+
+    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent.
 
     These flags were removed from agent:
     ```
@@ -187,7 +256,7 @@ Changes by Version
 * Endpoint changes:
     * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
      is absent or empty, operations from all kinds of spans will be returned.
-    * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please 
+    * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please
     update your client code to process the new response. Example response:
         ```
         curl 'http://localhost:6686/api/operations?service=UserService&spanKind=server' | jq
@@ -209,23 +278,23 @@ Changes by Version
     * The legacy http endpoint stay untouched:
         ```
         /services/{%s}/operations
-        ```    
+        ```
 * Storage plugin changes:
     * Memory updated to support spanKind on write & read, no migration is required.
-    * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923) 
-    to be implemented:  
+    * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923)
+    to be implemented:
     For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
-    * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):  
-        If you don't run the migration script, nothing will break, the system will used the old table 
-        `operation_names` and set empty `spanKind` in the response.  
+    * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):
+        If you don't run the migration script, nothing will break, the system will used the old table
+        `operation_names` and set empty `spanKind` in the response.
         Steps to get the updated functionality:
         1.  You will need to run the command below on the host where you can use `cqlsh` to connect to Cassandra:
             ```
-            KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' 
+            KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000'
             bash ./v002tov003.sh
             ```
-            The script will create new table `operation_names_v2` and migrate data from the old table.  
-            `spanKind` column will be empty for those data.  
+            The script will create new table `operation_names_v2` and migrate data from the old table.
+            `spanKind` column will be empty for those data.
             At the end, it will ask you whether you want to drop the old table or not.
         2. Restart ingester & query services so that they begin to use the new table
 

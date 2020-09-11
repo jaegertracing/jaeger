@@ -245,7 +245,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) error {
 	for _, span := range trace.Spans {
-		if err := s.SpanWriter.WriteSpan(span); err != nil {
+		if err := s.SpanWriter.WriteSpan(context.Background(), span); err != nil {
 			return err
 		}
 	}
@@ -364,7 +364,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	}
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
-	actual, err := s.DependencyReader.GetDependencies(time.Now(), 5*time.Minute)
+	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
 	assert.EqualValues(t, expected, actual)
 }

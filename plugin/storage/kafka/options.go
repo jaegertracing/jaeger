@@ -45,6 +45,7 @@ const (
 	suffixProtocolVersion  = ".protocol-version"
 	suffixBatchLinger      = ".batch-linger"
 	suffixBatchSize        = ".batch-size"
+	suffixBatchMinMessages = ".batch-min-messages"
 	suffixBatchMaxMessages = ".batch-max-messages"
 
 	defaultBroker           = "127.0.0.1:9092"
@@ -55,6 +56,7 @@ const (
 	defaultCompressionLevel = 0
 	defaultBatchLinger      = 0
 	defaultBatchSize        = 0
+	defaultBatchMinMessages = 0
 	defaultBatchMaxMessages = 0
 )
 
@@ -158,9 +160,14 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		"(experimental) Number of bytes to batch before sending records to Kafka. Higher value reduce request to Kafka but increase latency and the possibility of data loss in case of process restart. See https://kafka.apache.org/documentation/",
 	)
 	flagSet.Int(
+		configPrefix+suffixBatchMinMessages,
+		defaultBatchMinMessages,
+		"(experimental) The best-effort minimum number of messages needed to send a batch of records to Kafka. Higher value reduce request to Kafka but increase latency and the possibility of data loss in case of process restart. See https://kafka.apache.org/documentation/",
+	)
+	flagSet.Int(
 		configPrefix+suffixBatchMaxMessages,
 		defaultBatchMaxMessages,
-		"(experimental) Number of message to batch before sending records to Kafka. Higher value reduce request to Kafka but increase latency and the possibility of data loss in case of process restart. See https://kafka.apache.org/documentation/",
+		"(experimental) Maximum number of message to batch before sending records to Kafka",
 	)
 	auth.AddFlags(configPrefix, flagSet)
 }
@@ -195,6 +202,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		AuthenticationConfig: authenticationOptions,
 		BatchLinger:          v.GetDuration(configPrefix + suffixBatchLinger),
 		BatchSize:            v.GetInt(configPrefix + suffixBatchSize),
+		BatchMinMessages:     v.GetInt(configPrefix + suffixBatchMinMessages),
 		BatchMaxMessages:     v.GetInt(configPrefix + suffixBatchMaxMessages),
 	}
 	opt.Topic = v.GetString(configPrefix + suffixTopic)

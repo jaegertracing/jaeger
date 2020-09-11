@@ -16,6 +16,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -166,7 +167,7 @@ type fakeSpanWriter struct {
 	err error
 }
 
-func (n *fakeSpanWriter) WriteSpan(span *model.Span) error {
+func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	return n.err
 }
 
@@ -273,7 +274,7 @@ type blockingWriter struct {
 	sync.Mutex
 }
 
-func (w *blockingWriter) WriteSpan(span *model.Span) error {
+func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	w.Lock()
 	defer w.Unlock()
 	return nil

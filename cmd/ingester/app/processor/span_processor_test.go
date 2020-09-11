@@ -15,6 +15,7 @@
 package processor
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestSpanProcessor_Process(t *testing.T) {
 
 	message.On("Value").Return(data)
 	unmarshallerMock.On("Unmarshal", data).Return(span, nil)
-	writer.On("WriteSpan", span).Return(nil)
+	writer.On("WriteSpan", context.Background(), span).Return(nil)
 
 	assert.Nil(t, processor.Process(message))
 

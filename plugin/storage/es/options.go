@@ -17,6 +17,7 @@ package es
 
 import (
 	"flag"
+	"math"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ const (
 	suffixTokenPath           = ".token-file"
 	suffixServerURLs          = ".server-urls"
 	suffixMaxSpanAge          = ".max-span-age"
-	suffixMaxNumSpans         = ".max-num-spans"
+	suffixMaxNumSpans         = ".max-num-spans" // deprecated
 	suffixNumShards           = ".num-shards"
 	suffixNumReplicas         = ".num-replicas"
 	suffixBulkSize            = ".bulk.size"
@@ -46,14 +47,19 @@ const (
 	suffixIndexPrefix         = ".index-prefix"
 	suffixTagsAsFields        = ".tags-as-fields"
 	suffixTagsAsFieldsAll     = suffixTagsAsFields + ".all"
+	suffixTagsAsFieldsInclude = suffixTagsAsFields + ".include"
 	suffixTagsFile            = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar        = suffixTagsAsFields + ".dot-replacement"
 	suffixReadAlias           = ".use-aliases"
 	suffixCreateIndexTemplate = ".create-index-templates"
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
+	suffixMaxDocCount         = ".max-doc-count"
 
-	defaultServerURL = "http://127.0.0.1:9200"
+	// default number of documents to return from a query (elasticsearch allowed limit)
+	// see search.max_buckets and index.max_result_window
+	defaultMaxDocCount = 10_000
+	defaultServerURL   = "http://127.0.0.1:9200"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -82,7 +88,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Password:          "",
 				Sniffer:           false,
 				MaxSpanAge:        72 * time.Hour,
-				MaxNumSpans:       10000,
 				NumShards:         5,
 				NumReplicas:       1,
 				BulkSize:          5 * 1000 * 1000,
@@ -96,6 +101,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				CreateIndexTemplates: true,
 				Version:              0,
 				Servers:              []string{defaultServerURL},
+				MaxDocCount:          defaultMaxDocCount,
 			},
 			namespace: primaryNamespace,
 		},
@@ -172,8 +178,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The maximum lookback for spans in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
-		nsConfig.MaxNumSpans,
-		"The maximum number of spans to fetch at a time per query in Elasticsearch")
+		nsConfig.MaxDocCount,
+		"(deprecated, will be removed in release v1.21.0. Please use es.max-doc-count). "+
+			"The maximum number of spans to fetch at a time per query in Elasticsearch. "+
+			"The lesser of es.max-num-spans and es.max-doc-count will be used if both are set.")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
@@ -205,11 +213,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
-		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" is ignored. Binary tags are always stored as nested objects.")
+		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" and "+suffixTagsAsFieldsInclude+" is ignored. Binary tags are always stored as nested objects.")
+	flagSet.String(
+		nsConfig.namespace+suffixTagsAsFieldsInclude,
+		nsConfig.Tags.Include,
+		"(experimental) Comma delimited list of tag keys which will be stored as object fields. Merged with the contents of "+suffixTagsFile)
 	flagSet.String(
 		nsConfig.namespace+suffixTagsFile,
 		nsConfig.Tags.File,
-		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.")
+		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.  Merged with "+suffixTagsAsFieldsInclude)
 	flagSet.String(
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.Tags.DotReplacement,
@@ -232,6 +244,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSnifferTLSEnabled,
 		nsConfig.SnifferTLSEnabled,
 		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
+	flagSet.Int(
+		nsConfig.namespace+suffixMaxDocCount,
+		nsConfig.MaxDocCount,
+		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -257,7 +273,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
-	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
@@ -267,12 +282,21 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
+	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
 	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.Tags.DotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
+
+	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
+
+	if v.IsSet(cfg.namespace + suffixMaxNumSpans) {
+		maxNumSpans := v.GetInt(cfg.namespace + suffixMaxNumSpans)
+		cfg.MaxDocCount = int(math.Min(float64(maxNumSpans), float64(cfg.MaxDocCount)))
+	}
+
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)

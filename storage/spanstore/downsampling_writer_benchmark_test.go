@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -42,7 +43,7 @@ func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for it := 0; it < b.N; it++ {
-		c.WriteSpan(span)
+		c.WriteSpan(context.Background(), span)
 	}
 }
 

@@ -16,8 +16,9 @@ package exporter
 
 import (
 	"context"
-	"io"
 
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenterror"
 	"go.opentelemetry.io/collector/config/configmodels"
@@ -26,30 +27,27 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	jaegertranslator "go.opentelemetry.io/collector/translator/trace/jaeger"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/storagemetrics"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // NewSpanWriterExporter returns component.TraceExporter
-func NewSpanWriterExporter(config configmodels.Exporter, factory storage.Factory) (component.TraceExporter, error) {
+func NewSpanWriterExporter(config configmodels.Exporter, factory storage.Factory, opts ...exporterhelper.ExporterOption) (component.TraceExporter, error) {
 	spanWriter, err := factory.CreateSpanWriter()
 	if err != nil {
 		return nil, err
 	}
-	storage := store{Writer: spanWriter}
+	storage := store{Writer: spanWriter, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), config.Name())}
 	return exporterhelper.NewTraceExporter(
 		config,
 		storage.traceDataPusher,
-		exporterhelper.WithShutdown(func(context.Context) error {
-			if closer, ok := spanWriter.(io.Closer); ok {
-				return closer.Close()
-			}
-			return nil
-		}))
+		opts...)
 }
 
 type store struct {
-	Writer spanstore.Writer
+	Writer         spanstore.Writer
+	storageNameTag tag.Mutator
 }
 
 // traceDataPusher implements OTEL exporterhelper.traceDataPusher
@@ -60,15 +58,30 @@ func (s *store) traceDataPusher(ctx context.Context, td pdata.Traces) (droppedSp
 	}
 	dropped := 0
 	var errs []error
+	storedSpans := map[string]int64{}
+	notStoredSpans := map[string]int64{}
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			span.Process = batch.Process
-			err := s.Writer.WriteSpan(span)
+			err := s.Writer.WriteSpan(ctx, span)
 			if err != nil {
 				errs = append(errs, err)
 				dropped++
+				notStoredSpans[span.Process.ServiceName] = notStoredSpans[span.Process.ServiceName] + 1
+			} else {
+				storedSpans[span.Process.ServiceName] = storedSpans[span.Process.ServiceName] + 1
 			}
 		}
+	}
+	for k, v := range notStoredSpans {
+		ctx, _ := tag.New(ctx,
+			tag.Insert(storagemetrics.TagServiceName(), k), s.storageNameTag)
+		stats.Record(ctx, storagemetrics.StatSpansNotStoredCount().M(v))
+	}
+	for k, v := range storedSpans {
+		ctx, _ := tag.New(ctx,
+			tag.Insert(storagemetrics.TagServiceName(), k), s.storageNameTag)
+		stats.Record(ctx, storagemetrics.StatSpansStoredCount().M(v))
 	}
 	return dropped, componenterror.CombineErrors(errs)
 }

@@ -37,7 +37,7 @@ import (
 
 var (
 	testTrace = ui.Trace{
-		TraceID: ui.TraceID(0),
+		TraceID: ui.TraceID("0"),
 		Spans:   []ui.Span{{Tags: []ui.KeyValue{{Key: "k", Value: "v", Type: ui.StringType}}}},
 	}
 )
@@ -249,7 +249,7 @@ func TestTraceHandlerGetTraces(t *testing.T) {
 	traces := handler.getTraces("go", "op", nil)
 	assert.Nil(t, traces)
 
-	query.On("GetTraces", "crossdock-go", "op", mock.Anything).Return([]*ui.Trace{{TraceID: ui.TraceID(0)}}, nil)
+	query.On("GetTraces", "crossdock-go", "op", mock.Anything).Return([]*ui.Trace{{TraceID: ui.TraceID("0")}}, nil)
 	traces = handler.getTraces("go", "op", nil)
 	assert.Len(t, traces, 1)
 }

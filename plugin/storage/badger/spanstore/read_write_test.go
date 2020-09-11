@@ -76,7 +76,7 @@ func TestWriteReadBack(t *testing.T) {
 						},
 					},
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -173,7 +173,7 @@ func TestIndexSeeks(t *testing.T) {
 					},
 				}
 
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -331,7 +331,7 @@ func TestWriteDuplicates(t *testing.T) {
 					StartTime: tid.Add(time.Duration(10)),
 					Duration:  time.Duration(i + j),
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -359,7 +359,7 @@ func TestMenuSeeks(t *testing.T) {
 					StartTime: tid.Add(time.Duration(i)),
 					Duration:  time.Duration(i + j),
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -381,6 +381,7 @@ func TestMenuSeeks(t *testing.T) {
 func TestPersist(t *testing.T) {
 	dir, err := ioutil.TempDir("", "badgerTest")
 	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
 		f := badger.NewFactory()
@@ -434,7 +435,7 @@ func TestPersist(t *testing.T) {
 			StartTime: time.Now(),
 			Duration:  time.Duration(1 * time.Hour),
 		}
-		err := sw.WriteSpan(&s)
+		err := sw.WriteSpan(context.Background(), &s)
 		assert.NoError(t, err)
 	})
 
@@ -503,7 +504,7 @@ func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations
 				StartTime: tid.Add(time.Duration(time.Millisecond)),
 				Duration:  time.Duration(time.Millisecond * time.Duration(i+j)),
 			}
-			_ = sw.WriteSpan(&s)
+			_ = sw.WriteSpan(context.Background(), &s)
 		}
 	}
 }
@@ -687,7 +688,7 @@ func TestRandomTraceID(t *testing.T) {
 			StartTime: time.Now(),
 			Duration:  1 * time.Second,
 		}
-		err := sw.WriteSpan(&s1)
+		err := sw.WriteSpan(context.Background(), &s1)
 		assert.NoError(t, err)
 
 		s2 := model.Span{
@@ -710,7 +711,7 @@ func TestRandomTraceID(t *testing.T) {
 			StartTime: time.Now(),
 			Duration:  1 * time.Second,
 		}
-		err = sw.WriteSpan(&s2)
+		err = sw.WriteSpan(context.Background(), &s2)
 		assert.NoError(t, err)
 
 		params := &spanstore.TraceQueryParameters{
