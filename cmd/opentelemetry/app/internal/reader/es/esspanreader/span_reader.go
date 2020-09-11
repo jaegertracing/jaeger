@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esutil"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -56,8 +57,8 @@ type Reader struct {
 	logger           *zap.Logger
 	client           esclient.ElasticsearchClient
 	converter        dbmodel.ToDomain
-	serviceIndexName indexNameProvider
-	spanIndexName    indexNameProvider
+	serviceIndexName esutil.IndexNameProvider
+	spanIndexName    esutil.IndexNameProvider
 	maxSpanAge       time.Duration
 	maxDocCount      int
 	archive          bool
@@ -77,6 +78,10 @@ type Config struct {
 
 // NewEsSpanReader creates Elasticseach span reader.
 func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, config Config) *Reader {
+	alias := esutil.AliasNone
+	if config.UseReadWriteAliases {
+		alias = esutil.AliasRead
+	}
 	return &Reader{
 		client:           client,
 		logger:           logger,
@@ -84,8 +89,8 @@ func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, co
 		maxSpanAge:       config.MaxSpanAge,
 		maxDocCount:      config.MaxDocCount,
 		converter:        dbmodel.NewToDomain(config.TagDotReplacement),
-		spanIndexName:    newIndexNameProvider(spanIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
-		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, config.UseReadWriteAliases, config.Archive),
+		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, config.IndexPrefix, alias, config.Archive),
+		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, alias, config.Archive),
 	}
 }
 
@@ -140,7 +145,7 @@ func convertTraceIDsStringsToModel(traceIDs []string) ([]model.TraceID, error) {
 
 func (r *Reader) findTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]string, error) {
 	searchBody := findTraceIDsSearchBody(r.converter, query)
-	indices := r.spanIndexName.get(query.StartTimeMin, query.StartTimeMax)
+	indices := r.spanIndexName.IndexNameRange(query.StartTimeMin, query.StartTimeMax)
 	response, err := r.client.Search(ctx, searchBody, 0, indices...)
 	if err != nil {
 		return nil, err
@@ -160,7 +165,7 @@ func (r *Reader) findTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	searchBody := getServicesSearchBody(r.maxDocCount)
 	currentTime := time.Now()
-	indices := r.serviceIndexName.get(currentTime.Add(-r.maxSpanAge), currentTime)
+	indices := r.serviceIndexName.IndexNameRange(currentTime.Add(-r.maxSpanAge), currentTime)
 	response, err := r.client.Search(ctx, searchBody, 0, indices...)
 	if err != nil {
 		return nil, err
@@ -180,7 +185,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 func (r *Reader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 	searchBody := getOperationsSearchBody(query.ServiceName, r.maxDocCount)
 	currentTime := time.Now()
-	indices := r.serviceIndexName.get(currentTime.Add(-r.maxSpanAge), currentTime)
+	indices := r.serviceIndexName.IndexNameRange(currentTime.Add(-r.maxSpanAge), currentTime)
 	response, err := r.client.Search(ctx, searchBody, 0, indices...)
 	if err != nil {
 		return nil, err
@@ -204,7 +209,7 @@ func (r *Reader) traceIDsMultiSearch(ctx context.Context, traceIDs []model.Trace
 		return []*model.Trace{}, nil
 	}
 
-	indices := r.spanIndexName.get(startTime.Add(-time.Hour), endTime.Add(time.Hour))
+	indices := r.spanIndexName.IndexNameRange(startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	tracesMap := make(map[model.TraceID]*model.Trace)
 	searchAfterTime := make(map[model.TraceID]uint64)
