@@ -25,11 +25,16 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
-// Configuration describes the options to customize the storage behavior
+// Configuration describes the options to customize the storage behavior.
 type Configuration struct {
 	PluginBinary            string `yaml:"binary" mapstructure:"binary"`
 	PluginConfigurationFile string `yaml:"configuration-file" mapstructure:"configuration_file"`
 	PluginLogLevel          string `yaml:"log-level" mapstructure:"log_level"`
+}
+
+// PluginBuilder is used to create storage plugins. Implemented by Configuration.
+type PluginBuilder interface {
+	Build() (shared.StoragePlugin, error)
 }
 
 // Build instantiates a StoragePlugin
@@ -69,9 +74,4 @@ func (c *Configuration) Build() (shared.StoragePlugin, error) {
 	}
 
 	return storagePlugin, nil
-}
-
-// PluginBuilder is used to create storage plugins
-type PluginBuilder interface {
-	Build() (shared.StoragePlugin, error)
 }

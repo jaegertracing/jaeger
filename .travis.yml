@@ -77,7 +77,7 @@ script:
   - if [ "$ES_OTEL_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
-  - if [ "$MEM_AND_BADGER_INTEGRATION_TEST" == true ]; then make mem-and-badger-storage-integration-test ; ; else echo 'skipping mem and badger integration test'; fi
+  - if [ "$MEM_AND_BADGER_INTEGRATION_TEST" == true ]; then make mem-and-badger-storage-integration-test ; else echo 'skipping mem and badger integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
 
 after_success:
