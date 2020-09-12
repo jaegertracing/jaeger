@@ -18,8 +18,9 @@ import (
 	"context"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"google.golang.org/grpc"
+
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 
 // Ensure plugin.GRPCPlugin API match.
