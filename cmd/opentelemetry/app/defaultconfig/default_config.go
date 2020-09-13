@@ -69,8 +69,29 @@ type ComponentSettings struct {
 	ZipkinHostPort string
 }
 
-// CreateDefaultConfig creates default configuration.
-func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
+// DefaultConfigFactory returns a service.ConfigFactory that merges jaeger and otel configs
+func (c *ComponentSettings) DefaultConfigFactory() service.ConfigFactory {
+	return func(otelViper *viper.Viper, f component.Factories) (*configmodels.Config, error) {
+		cfg, err := c.createDefaultConfig()
+		if err != nil {
+			return nil, err
+		}
+		if len(builder.GetConfigFile()) > 0 {
+			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
+			if err != nil {
+				return nil, err
+			}
+			err = MergeConfigs(cfg, otelCfg)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return cfg, nil
+	}
+}
+
+// createDefaultConfig creates default configuration.
+func (c ComponentSettings) createDefaultConfig() (*configmodels.Config, error) {
 	exporters, err := createExporters(c.ComponentType, c.StorageType, c.Factories)
 	if err != nil {
 		return nil, err
@@ -95,27 +116,6 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 			},
 		},
 	}, nil
-}
-
-// DefaultConfigFactory returns a service.ConfigFactory that merges jaeger and otel configs
-func (c *ComponentSettings) DefaultConfigFactory() service.ConfigFactory {
-	return func(otelViper *viper.Viper, f component.Factories) (*configmodels.Config, error) {
-		cfg, err := c.CreateDefaultConfig()
-		if err != nil {
-			return nil, err
-		}
-		if len(builder.GetConfigFile()) > 0 {
-			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
-			if err != nil {
-				return nil, err
-			}
-			err = MergeConfigs(cfg, otelCfg)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return cfg, nil
-	}
 }
 
 func createProcessors(factories component.Factories) (configmodels.Processors, []string) {
