@@ -28,21 +28,22 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
+const defaultPluginBinaryPath = "../../../examples/memstore-plugin/memstore-plugin"
+
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	logger *zap.Logger
+	logger           *zap.Logger
+	pluginBinaryPath string
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	s.logger, _ = testutils.NewLogger()
-	gopath := os.Getenv("GOPATH")
-	path := gopath + "/src/github.com/jaegertracing/jaeger/examples/memstore-plugin/memstore-plugin"
 
 	f := grpc.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
 		"--grpc-storage-plugin.binary",
-		path,
+		s.pluginBinaryPath,
 	})
 	if err != nil {
 		return err
@@ -78,7 +79,14 @@ func TestGRPCStorage(t *testing.T) {
 	if os.Getenv("STORAGE") != "grpc-plugin" {
 		t.Skip("Integration test against grpc skipped; set STORAGE env var to grpc-plugin to run this")
 	}
-	s := &GRPCStorageIntegrationTestSuite{}
+	path := os.Getenv("PLUGIN_BINARY_PATH")
+	if path == "" {
+		t.Logf("PLUGIN_BINARY_PATH env var not set, using %s", defaultPluginBinaryPath)
+		path = defaultPluginBinaryPath
+	}
+	s := &GRPCStorageIntegrationTestSuite{
+		pluginBinaryPath: path,
+	}
 	require.NoError(t, s.initialize())
 	s.IntegrationTestAll(t)
 }

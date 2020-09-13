@@ -108,6 +108,18 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONY: mem-and-badger-storage-integration-test
+mem-and-badger-storage-integration-test: badger-storage-integration-test grpc-plugin-storage-integration-test
+
+.PHONY: badger-storage-integration-test
+badger-storage-integration-test:
+	STORAGE=badger $(MAKE) storage-integration-test
+
+.PHONY: grpc-plugin-storage-integration-test
+grpc-plugin-storage-integration-test:
+	(cd examples/memstore-plugin/ && go build .)
+	STORAGE=grpc-plugin $(MAKE) storage-integration-test
+
 .PHONY: es-otel-exporter-integration-test
 es-otel-exporter-integration-test: go-gen
 	go clean -testcache

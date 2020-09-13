@@ -15,12 +15,8 @@
 package shared
 
 import (
-	"context"
-
 	"github.com/hashicorp/go-plugin"
-	"google.golang.org/grpc"
 
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -44,30 +40,4 @@ type StoragePlugin interface {
 	SpanReader() spanstore.Reader
 	SpanWriter() spanstore.Writer
 	DependencyReader() dependencystore.Reader
-}
-
-// StorageGRPCPlugin is the implementation of plugin.GRPCPlugin so we can serve/consume this.
-type StorageGRPCPlugin struct {
-	plugin.Plugin
-	// Concrete implementation, written in Go. This is only used for plugins
-	// that are written in Go.
-	Impl StoragePlugin
-}
-
-// GRPCServer is used by go-plugin to create a grpc plugin server
-func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	server := &grpcServer{Impl: p.Impl}
-	storage_v1.RegisterSpanReaderPluginServer(s, server)
-	storage_v1.RegisterSpanWriterPluginServer(s, server)
-	storage_v1.RegisterDependenciesReaderPluginServer(s, server)
-	return nil
-}
-
-// GRPCClient is used by go-plugin to create a grpc plugin client
-func (*StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return &grpcClient{
-		readerClient:     storage_v1.NewSpanReaderPluginClient(c),
-		writerClient:     storage_v1.NewSpanWriterPluginClient(c),
-		depsReaderClient: storage_v1.NewDependenciesReaderPluginClient(c),
-	}, nil
 }
