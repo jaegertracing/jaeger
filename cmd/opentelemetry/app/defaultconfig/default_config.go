@@ -15,6 +15,8 @@
 package defaultconfig
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"strings"
 
@@ -29,6 +31,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 	"go.opentelemetry.io/collector/service"
 	"go.opentelemetry.io/collector/service/builder"
+	"gopkg.in/yaml.v2"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/badgerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/cassandraexporter"
@@ -56,6 +59,8 @@ const (
 	httpThriftBinaryEndpoint = "localhost:14268"
 	udpThriftCompactEndpoint = "localhost:6831"
 	udpThriftBinaryEndpoint  = "localhost:6832"
+
+	configDumpOtel = "config.dump-otel"
 )
 
 // ComponentType defines component Jaeger type.
@@ -69,8 +74,13 @@ type ComponentSettings struct {
 	ZipkinHostPort string
 }
 
+// AddFlags adds flags for ComponentSettings
+func AddFlags(flagSet *flag.FlagSet) {
+	flagSet.Bool(configDumpOtel, false, "Dump complete OpenTelemetry Configuration and exit.")
+}
+
 // DefaultConfigFactory returns a service.ConfigFactory that merges jaeger and otel configs
-func (c *ComponentSettings) DefaultConfigFactory() service.ConfigFactory {
+func (c *ComponentSettings) DefaultConfigFactory(jaegerViper *viper.Viper) service.ConfigFactory {
 	return func(otelViper *viper.Viper, f component.Factories) (*configmodels.Config, error) {
 		cfg, err := c.createDefaultConfig()
 		if err != nil {
@@ -86,6 +96,17 @@ func (c *ComponentSettings) DefaultConfigFactory() service.ConfigFactory {
 				return nil, err
 			}
 		}
+
+		if jaegerViper.GetBool(configDumpOtel) {
+			// marshal to yaml and print
+			buff, err := yaml.Marshal(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal otel cfg to yaml: %w", err)
+			}
+			fmt.Println(string(buff))
+			return nil, errors.New("otel config dump requested.  purposefully bailing out")
+		}
+
 		return cfg, nil
 	}
 }

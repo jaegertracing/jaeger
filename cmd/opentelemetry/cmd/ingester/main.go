@@ -67,7 +67,7 @@ func main() {
 	svc, err := service.New(service.Parameters{
 		ApplicationStartInfo: info,
 		Factories:            cmpts,
-		ConfigFactory:        cfgConfig.DefaultConfigFactory(),
+		ConfigFactory:        cfgConfig.DefaultConfigFactory(v),
 	})
 	handleErr(err)
 
@@ -84,6 +84,7 @@ func main() {
 		kafkareceiver.AddFlags,
 		app.AddComponentFlags,
 		storageFlags,
+		defaultconfig.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
