@@ -27,6 +27,8 @@ import (
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
+	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/service/builder"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/badgerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/cassandraexporter"
@@ -37,6 +39,7 @@ import (
 	jaegerresource "github.com/jaegertracing/jaeger/cmd/opentelemetry/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -92,6 +95,27 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 			},
 		},
 	}, nil
+}
+
+// DefaultConfigFactory returns a service.ConfigFactory that merges jaeger and otel configs
+func (c *ComponentSettings) DefaultConfigFactory() service.ConfigFactory {
+	return func(otelViper *viper.Viper, f component.Factories) (*configmodels.Config, error) {
+		cfg, err := c.CreateDefaultConfig()
+		if err != nil {
+			return nil, err
+		}
+		if len(builder.GetConfigFile()) > 0 {
+			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
+			if err != nil {
+				return nil, err
+			}
+			err = MergeConfigs(cfg, otelCfg)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return cfg, nil
+	}
 }
 
 func createProcessors(factories component.Factories) (configmodels.Processors, []string) {
