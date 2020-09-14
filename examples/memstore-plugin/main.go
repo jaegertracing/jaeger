@@ -46,7 +46,7 @@ func main() {
 	opts := memory.Options{}
 	opts.InitFromViper(v)
 
-	plugin := &memoryStore{
+	plugin := &memoryStorePlugin{
 		store:        memory.NewStore(),
 		archiveStore: memory.NewStore(),
 	}
@@ -56,27 +56,27 @@ func main() {
 	})
 }
 
-type memoryStore struct {
+type memoryStorePlugin struct {
 	store        *memory.Store
 	archiveStore *memory.Store
 }
 
-func (ns *memoryStore) DependencyReader() dependencystore.Reader {
+func (ns *memoryStorePlugin) DependencyReader() dependencystore.Reader {
 	return ns.store
 }
 
-func (ns *memoryStore) SpanReader() spanstore.Reader {
+func (ns *memoryStorePlugin) SpanReader() spanstore.Reader {
 	return ns.store
 }
 
-func (ns *memoryStore) SpanWriter() spanstore.Writer {
+func (ns *memoryStorePlugin) SpanWriter() spanstore.Writer {
 	return ns.store
 }
 
-func (ns *memoryStore) ArchiveSpanReader() spanstore.Reader {
+func (ns *memoryStorePlugin) ArchiveSpanReader() spanstore.Reader {
 	return ns.archiveStore
 }
 
-func (ns *memoryStore) ArchiveSpanWriter() spanstore.Writer {
+func (ns *memoryStorePlugin) ArchiveSpanWriter() spanstore.Writer {
 	return ns.archiveStore
 }
