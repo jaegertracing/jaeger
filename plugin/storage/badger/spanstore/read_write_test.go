@@ -292,7 +292,7 @@ func TestIndexSeeks(t *testing.T) {
 	})
 }
 
-func TestFindNothing(t *testing.T) {
+func TestFindNothingWithTraceNotFoundErr(t *testing.T) {
 	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		startT := time.Now()
 		params := &spanstore.TraceQueryParameters{
@@ -302,11 +302,11 @@ func TestFindNothing(t *testing.T) {
 		}
 
 		trs, err := sr.FindTraces(context.Background(), params)
-		assert.NoError(t, err)
+		assert.EqualError(t, err, "trace not found")
 		assert.Equal(t, 0, len(trs))
 
 		tr, err := sr.GetTrace(context.Background(), model.TraceID{High: 0, Low: 0})
-		assert.NoError(t, err)
+		assert.EqualError(t, err, "trace not found")
 		assert.Nil(t, tr)
 	})
 }

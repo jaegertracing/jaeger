@@ -160,6 +160,9 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 	if err != nil {
 		return nil, err
 	}
+	if len(traces) == 0 {
+		return nil, spanstore.ErrTraceNotFound
+	}
 	if len(traces) == 1 {
 		return traces[0], nil
 	}
