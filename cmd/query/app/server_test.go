@@ -633,53 +633,6 @@ func TestServer(t *testing.T) {
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
-func TestServerWithDedicatedPorts(t *testing.T) {
-	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-	flagsSvc.Logger = zap.NewNop()
-
-	spanReader := &spanstoremocks.Reader{}
-	dependencyReader := &depsmocks.Reader{}
-	expectedServices := []string{"test"}
-	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
-
-	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-
-	server, err := NewServer(flagsSvc.Logger, querySvc,
-		&QueryOptions{HTTPHostPort: "127.0.0.1:8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
-		opentracing.NoopTracer{})
-	assert.Nil(t, err)
-	assert.NoError(t, server.Start())
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	once := sync.Once{}
-
-	go func() {
-		for s := range server.HealthCheckStatus() {
-			flagsSvc.HC().Set(s)
-			if s == healthcheck.Unavailable {
-				once.Do(func() {
-					wg.Done()
-				})
-			}
-		}
-	}()
-
-	client := newGRPCClient(t, "127.0.0.1:8081")
-	defer client.conn.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
-	assert.NoError(t, err)
-	assert.Equal(t, expectedServices, res.Services)
-
-	server.Close()
-	wg.Wait()
-	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
-}
-
 func TestServerGracefulExit(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 
