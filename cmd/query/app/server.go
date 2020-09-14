@@ -51,6 +51,10 @@ type Server struct {
 	unavailableChannel chan healthcheck.Status
 }
 
+var (
+	errSharedTLSPort = errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
+)
+
 // NewServer creates and initializes Server
 func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
 
@@ -64,7 +68,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 	}
 
 	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && (grpcPort == httpPort) {
-		return nil, errors.New("Server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
+		return nil, errSharedTLSPort
 	}
 
 	grpcServer, err := createGRPCServer(querySvc, options, logger, tracer)

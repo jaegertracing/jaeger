@@ -105,6 +105,7 @@ var testCases = []struct {
 	expectServerFail  bool
 }{
 	{
+		// this is a cross test for the "dedicated ports" use case without TLS
 		name:           "Should pass with insecure connection",
 		HTTPTLSEnabled: false,
 		GRPCTLSEnabled: false,
