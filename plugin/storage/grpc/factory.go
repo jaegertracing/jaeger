@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -66,7 +67,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	store, err := f.builder.Build()
 	if err != nil {
-		return err
+		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
 	}
 
 	f.store = store

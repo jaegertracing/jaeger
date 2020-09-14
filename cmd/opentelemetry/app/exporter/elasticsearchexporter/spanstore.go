@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esmodeltranslator"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/storagemetrics"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esutil"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
@@ -53,8 +54,8 @@ type esSpanWriter struct {
 	nameTag          tag.Mutator
 	client           esclient.ElasticsearchClient
 	serviceCache     cache.Cache
-	spanIndexName    indexNameProvider
-	serviceIndexName indexNameProvider
+	spanIndexName    esutil.IndexNameProvider
+	serviceIndexName esutil.IndexNameProvider
 	translator       *esmodeltranslator.Translator
 	isArchive        bool
 }
@@ -69,12 +70,16 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger, archive bo
 	if err != nil {
 		return nil, err
 	}
+	alias := esutil.AliasNone
+	if params.UseReadWriteAliases {
+		alias = esutil.AliasWrite
+	}
 	return &esSpanWriter{
 		logger:           logger,
 		nameTag:          tag.Insert(storagemetrics.TagExporterName(), name),
 		client:           client,
-		spanIndexName:    newIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
-		serviceIndexName: newIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.UseReadWriteAliases, archive),
+		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, alias, archive),
+		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, alias, archive),
 		translator:       esmodeltranslator.NewTranslator(params.Tags.AllAsFields, tagsKeysAsFields, params.GetTagDotReplacement()),
 		isArchive:        archive,
 		serviceCache: cache.NewLRUWithOptions(
@@ -122,7 +127,7 @@ func (w *esSpanWriter) writeSpans(ctx context.Context, spans []*dbmodel.Span) (i
 			dropped++
 			continue
 		}
-		indexName := w.spanIndexName.get(model.EpochMicrosecondsAsTime(span.StartTime))
+		indexName := w.spanIndexName.IndexName(model.EpochMicrosecondsAsTime(span.StartTime))
 		bulkOperations = append(bulkOperations, bulkItem{span: span, isService: false})
 		w.client.AddDataToBulkBuffer(buffer, data, indexName, spanTypeName)
 
@@ -202,7 +207,7 @@ func (w *esSpanWriter) writeService(span *dbmodel.Span, buffer *bytes.Buffer) (b
 	if err != nil {
 		return false, err
 	}
-	indexName := w.serviceIndexName.get(model.EpochMicrosecondsAsTime(span.StartTime))
+	indexName := w.serviceIndexName.IndexName(model.EpochMicrosecondsAsTime(span.StartTime))
 	w.client.AddDataToBulkBuffer(buffer, data, indexName, serviceTypeName)
 	return true, nil
 }

@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -75,7 +76,9 @@ func TestGRPCStorageFactory(t *testing.T) {
 	f.builder = &mockPluginBuilder{
 		err: errors.New("made-up error"),
 	}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "made-up error")
 
 	f.builder = &mockPluginBuilder{
 		plugin: &mockPlugin{
