@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+	"golang.org/x/sys/unix"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -74,7 +76,7 @@ func TestServerBadHostPort(t *testing.T) {
 
 func TestServerInUseHostPort(t *testing.T) {
 
-	for _, hostPort := range [2]string{":8080", ":8081"} {
+	for _, hostPort := range [2]string{"127.0.0.1:8080", "127.0.0.1:8081"} {
 		conn, err := net.Listen("tcp", hostPort)
 		assert.NoError(t, err)
 
@@ -84,7 +86,10 @@ func TestServerInUseHostPort(t *testing.T) {
 		assert.NoError(t, err)
 
 		err = server.Start()
-		assert.NotNil(t, err)
+		syscallErr, ok := err.(*net.OpError).Err.(*os.SyscallError)
+		assert.True(t, ok)
+		assert.Equal(t, syscallErr.Err, unix.EADDRINUSE)
+
 		conn.Close()
 		if server.grpcConn != nil {
 			server.grpcConn.Close()
