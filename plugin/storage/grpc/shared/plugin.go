@@ -31,14 +31,21 @@ type StorageGRPCPlugin struct {
 	plugin.Plugin
 
 	// Concrete implementation, This is only used for plugins that are written in Go.
-	Impl StoragePlugin
+	Impl        StoragePlugin
+	ArchiveImpl ArchiveStoragePlugin
 }
 
 // GRPCServer implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin server.
 func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	server := &grpcServer{Impl: p.Impl}
+	server := &grpcServer{
+		Impl:        p.Impl,
+		ArchiveImpl: p.ArchiveImpl,
+	}
 	storage_v1.RegisterSpanReaderPluginServer(s, server)
 	storage_v1.RegisterSpanWriterPluginServer(s, server)
+	storage_v1.RegisterArchiveSpanReaderPluginServer(s, server)
+	storage_v1.RegisterArchiveSpanWriterPluginServer(s, server)
+	storage_v1.RegisterPluginCapabilitiesServer(s, server)
 	storage_v1.RegisterDependenciesReaderPluginServer(s, server)
 	return nil
 }
@@ -46,8 +53,11 @@ func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server
 // GRPCClient implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin client.
 func (*StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
 	return &grpcClient{
-		readerClient:     storage_v1.NewSpanReaderPluginClient(c),
-		writerClient:     storage_v1.NewSpanWriterPluginClient(c),
-		depsReaderClient: storage_v1.NewDependenciesReaderPluginClient(c),
+		readerClient:        storage_v1.NewSpanReaderPluginClient(c),
+		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
+		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
+		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
+		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
+		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
 	}, nil
 }

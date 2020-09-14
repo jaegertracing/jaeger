@@ -32,9 +32,15 @@ type Configuration struct {
 	PluginLogLevel          string `yaml:"log-level" mapstructure:"log_level"`
 }
 
+// ClientPluginServices defines services plugin can expose and its capabilities
+type ClientPluginServices struct {
+	shared.PluginServices
+	Capabilities shared.PluginCapabilities
+}
+
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
 type PluginBuilder interface {
-	Build() (shared.StoragePlugin, error)
+	Build() (*ClientPluginServices, error)
 }
 
 // Build instantiates a PluginServices
@@ -91,15 +97,4 @@ func (c *Configuration) Build() (*ClientPluginServices, error) {
 		},
 		Capabilities: capabilities,
 	}, nil
-}
-
-// ClientPluginServices defines services plugin can expose and its capabilities
-type ClientPluginServices struct {
-	shared.PluginServices
-	Capabilities shared.PluginCapabilities
-}
-
-// PluginBuilder is used to create storage plugins
-type PluginBuilder interface {
-	Build() (*ClientPluginServices, error)
 }
