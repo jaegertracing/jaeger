@@ -145,7 +145,7 @@ func TestService(t *testing.T) {
 			}
 			factories := defaultcomponents.Components(v)
 			test.cfg.Factories = factories
-			cfg, err := test.cfg.CreateDefaultConfig()
+			cfg, err := test.cfg.createDefaultConfig()
 			if test.err != "" {
 				require.Nil(t, cfg)
 				assert.Contains(t, err.Error(), test.err)
