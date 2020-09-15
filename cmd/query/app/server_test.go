@@ -17,7 +17,6 @@ package app
 import (
 	"context"
 	"net"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +26,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
-	"golang.org/x/sys/unix"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -75,31 +73,44 @@ func TestServerBadHostPort(t *testing.T) {
 }
 
 func TestServerInUseHostPort(t *testing.T) {
+	const availableHostPort = "127.0.0.1:0"
+	conn, err := net.Listen("tcp", availableHostPort)
+	defer func() { conn.Close() }()
+	assert.NoError(t, err)
 
-	for _, hostPort := range [2]string{"127.0.0.1:8080", "127.0.0.1:8081"} {
-		conn, err := net.Listen("tcp", hostPort)
-		assert.NoError(t, err)
-
-		server, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
-			&QueryOptions{HTTPHostPort: "127.0.0.1:8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
-			opentracing.NoopTracer{})
-		assert.NoError(t, err)
-
-		err = server.Start()
-		syscallErr, ok := err.(*net.OpError).Err.(*os.SyscallError)
-		assert.True(t, ok)
-		assert.Equal(t, syscallErr.Err, unix.EADDRINUSE)
-
-		conn.Close()
-		if server.grpcConn != nil {
-			server.grpcConn.Close()
-		}
-		if server.httpConn != nil {
-			server.httpConn.Close()
-		}
-
+	testCases := []struct {
+		name         string
+		httpHostPort string
+		grpcHostPort string
+	}{
+		{"HTTP host port clash on " + conn.Addr().String(), conn.Addr().String(), availableHostPort},
+		{"GRPC host port clash on " + conn.Addr().String(), availableHostPort, conn.Addr().String()},
 	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server, err := NewServer(
+			        zap.NewNop(), 
+			        &querysvc.QueryService{},
+				&QueryOptions{
+				    HTTPHostPort: tc.httpHostPort, 
+				    GRPCHostPort: tc.grpcHostPort, 
+				    BearerTokenPropagation: true,
+				},
+				opentracing.NoopTracer{},
+			)
+			assert.NoError(t, err)
 
+			err = server.Start()
+			assert.Error(t, err)
+
+			if server.grpcConn != nil {
+				server.grpcConn.Close()
+			}
+			if server.httpConn != nil {
+				server.httpConn.Close()
+			}
+		})
+	}
 }
 
 func TestServer(t *testing.T) {
