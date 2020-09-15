@@ -31,7 +31,6 @@ import (
 	"go.opentelemetry.io/collector/service"
 	"go.uber.org/zap"
 
-	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultcomponents"
@@ -79,13 +78,10 @@ func main() {
 	}
 
 	cmpts := defaultcomponents.Components(v)
-	collectorOpts := &collectorApp.CollectorOptions{}
-	collectorOpts.InitFromViper(v)
 	cfgConfig := defaultconfig.ComponentSettings{
-		ComponentType:  defaultconfig.AllInOne,
-		Factories:      cmpts,
-		StorageType:    storageType,
-		ZipkinHostPort: collectorOpts.CollectorZipkinHTTPHostPort,
+		ComponentType: defaultconfig.AllInOne,
+		Factories:     cmpts,
+		StorageType:   storageType,
 	}
 	svc, err := service.New(service.Parameters{
 		ApplicationStartInfo: info,

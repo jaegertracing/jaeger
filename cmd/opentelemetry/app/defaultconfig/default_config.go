@@ -68,10 +68,9 @@ type ComponentType int
 
 // ComponentSettings struct configures generation of the default config
 type ComponentSettings struct {
-	ComponentType  ComponentType
-	Factories      component.Factories
-	StorageType    string
-	ZipkinHostPort string
+	ComponentType ComponentType
+	Factories     component.Factories
+	StorageType   string
 }
 
 // AddFlags adds flags for ComponentSettings
@@ -117,7 +116,7 @@ func (c ComponentSettings) createDefaultConfig() (*configmodels.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	receivers := createReceivers(c.ComponentType, c.ZipkinHostPort, c.Factories)
+	receivers := createReceivers(c.ComponentType, c.Factories)
 	processors, processorNames := createProcessors(c.Factories)
 	hc := c.Factories.Extensions["health_check"].CreateDefaultConfig()
 	return &configmodels.Config{
@@ -154,7 +153,7 @@ func createProcessors(factories component.Factories) (configmodels.Processors, [
 	return processors, names
 }
 
-func createReceivers(component ComponentType, zipkinHostPort string, factories component.Factories) configmodels.Receivers {
+func createReceivers(component ComponentType, factories component.Factories) configmodels.Receivers {
 	if component == Ingester {
 		kafkaReceiver := factories.Receivers[kafkareceiver.TypeStr].CreateDefaultConfig().(*kafkareceiver.Config)
 		return configmodels.Receivers{
@@ -184,11 +183,11 @@ func createReceivers(component ComponentType, zipkinHostPort string, factories c
 		"jaeger": jaeger,
 		"otlp":   factories.Receivers["otlp"].CreateDefaultConfig(),
 	}
-	if zipkinHostPort != "" && zipkinHostPort != ports.PortToHostPort(0) {
-		zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
-		zipkin.Endpoint = zipkinHostPort
+	zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
+	if zipkin.Endpoint != "" && zipkin.Endpoint != ports.PortToHostPort(0) {
 		recvs["zipkin"] = zipkin
 	}
+
 	return recvs
 }
 
