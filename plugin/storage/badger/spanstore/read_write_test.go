@@ -303,7 +303,7 @@ func TestFindNothing(t *testing.T) {
 
 		trs, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(trs))
+		assert.Len(t, trs, 0)
 
 		tr, err := sr.GetTrace(context.Background(), model.TraceID{High: 0, Low: 0})
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
