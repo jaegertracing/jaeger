@@ -35,10 +35,10 @@ func TestArchiveWriter_WriteSpan(t *testing.T) {
 		Process: &model.Process{},
 	}
 
-	archiveWriter := new(mocks.ArchiveSpanWriterPluginClient)
-	archiveWriter.On("WriteArchiveSpan", mock.Anything, &storage_v1.WriteSpanRequest{Span: mockSpan}).
+	archiveSpanWriter := new(mocks.ArchiveSpanWriterPluginClient)
+	archiveSpanWriter.On("WriteArchiveSpan", mock.Anything, &storage_v1.WriteSpanRequest{Span: mockSpan}).
 		Return(&storage_v1.WriteSpanResponse{}, nil)
-	writer := &ArchiveWriter{client: archiveWriter}
+	writer := &archiveWriter{client: archiveSpanWriter}
 
 	err := writer.WriteSpan(context.Background(), mockSpan)
 	assert.NoError(t, err)
@@ -61,11 +61,11 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 	}, nil).Once()
 	traceClient.On("Recv").Return(nil, io.EOF)
 
-	archiveReader := new(mocks.ArchiveSpanReaderPluginClient)
-	archiveReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
+	archiveSpanReader := new(mocks.ArchiveSpanReaderPluginClient)
+	archiveSpanReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
 		TraceID: mockTraceID,
 	}).Return(traceClient, nil)
-	reader := &ArchiveReader{client: archiveReader}
+	reader := &archiveReader{client: archiveSpanReader}
 
 	trace, err := reader.GetTrace(context.Background(), mockTraceID)
 	assert.NoError(t, err)
@@ -73,25 +73,25 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 }
 
 func TestArchiveReader_FindTraceIDs(t *testing.T) {
-	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.FindTraceIDs(context.Background(), nil)
 	assert.Error(t, err)
 }
 
 func TestArchiveReader_FindTraces(t *testing.T) {
-	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.FindTraces(context.Background(), nil)
 	assert.Error(t, err)
 }
 
 func TestArchiveReader_GetOperations(t *testing.T) {
-	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
 	assert.Error(t, err)
 }
 
 func TestArchiveReader_GetServices(t *testing.T) {
-	reader := ArchiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
+	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.GetServices(context.Background())
 	assert.Error(t, err)
 }

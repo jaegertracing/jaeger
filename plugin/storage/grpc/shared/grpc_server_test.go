@@ -158,7 +158,7 @@ func TestGRPCServerFindTraces(t *testing.T) {
 
 		var traces []*model.Trace
 		var traceID model.TraceID
-		trace := &model.Trace{}
+		var trace *model.Trace
 		for i, span := range mockTracesSpans {
 			if span.TraceID != traceID {
 				trace = &model.Trace{}

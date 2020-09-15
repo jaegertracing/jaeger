@@ -24,18 +24,23 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// ArchiveReader wraps storage_v1.ArchiveSpanReaderPluginClient into spanstore.Reader
-type ArchiveReader struct {
+var (
+	_ spanstore.Reader = (*archiveReader)(nil)
+	_ spanstore.Writer = (*archiveWriter)(nil)
+)
+
+// archiveReader wraps storage_v1.ArchiveSpanReaderPluginClient into spanstore.Reader
+type archiveReader struct {
 	client storage_v1.ArchiveSpanReaderPluginClient
 }
 
 // ArchiveWriter wraps storage_v1.ArchiveSpanWriterPluginClient into spanstore.Writer
-type ArchiveWriter struct {
+type archiveWriter struct {
 	client storage_v1.ArchiveSpanWriterPluginClient
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID from Archive Storage
-func (r *ArchiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (r *archiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	stream, err := r.client.GetArchiveTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
@@ -46,28 +51,28 @@ func (r *ArchiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*m
 	return readTrace(stream)
 }
 
-// GetServices not used in ArchiveReader
-func (r *ArchiveReader) GetServices(ctx context.Context) ([]string, error) {
+// GetServices not used in archiveReader
+func (r *archiveReader) GetServices(ctx context.Context) ([]string, error) {
 	return nil, errors.New("GetServices not implemented")
 }
 
-// GetOperations not used in ArchiveReader
-func (r *ArchiveReader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+// GetOperations not used in archiveReader
+func (r *archiveReader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 	return nil, errors.New("GetOperations not implemented")
 }
 
-// FindTraces not used in ArchiveReader
-func (r *ArchiveReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+// FindTraces not used in archiveReader
+func (r *archiveReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	return nil, errors.New("FindTraces not implemented")
 }
 
-// FindTraceIDs not used in ArchiveReader
-func (r *ArchiveReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+// FindTraceIDs not used in archiveReader
+func (r *archiveReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	return nil, errors.New("FindTraceIDs not implemented")
 }
 
 // WriteSpan saves the span into Archive Storage
-func (w *ArchiveWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (w *archiveWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	_, err := w.client.WriteArchiveSpan(ctx, &storage_v1.WriteSpanRequest{
 		Span: span,
 	})

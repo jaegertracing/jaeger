@@ -30,6 +30,12 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+var (
+	_ StoragePlugin        = (*grpcClient)(nil)
+	_ ArchiveStoragePlugin = (*grpcClient)(nil)
+	_ PluginCapabilities   = (*grpcClient)(nil)
+)
+
 // grpcClient implements shared.StoragePlugin and reads/writes spans and dependencies
 type grpcClient struct {
 	readerClient        storage_v1.SpanReaderPluginClient
@@ -70,11 +76,11 @@ func (c *grpcClient) SpanWriter() spanstore.Writer {
 }
 
 func (c *grpcClient) ArchiveSpanReader() spanstore.Reader {
-	return &ArchiveReader{client: c.archiveReaderClient}
+	return &archiveReader{client: c.archiveReaderClient}
 }
 
 func (c *grpcClient) ArchiveSpanWriter() spanstore.Writer {
-	return &ArchiveWriter{client: c.archiveWriterClient}
+	return &archiveWriter{client: c.archiveWriterClient}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID

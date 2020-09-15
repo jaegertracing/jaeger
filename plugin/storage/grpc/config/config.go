@@ -66,14 +66,15 @@ func (c *Configuration) Build() (*ClientPluginServices, error) {
 
 	rpcClient, err := client.Client()
 	if err != nil {
-		return nil, fmt.Errorf("error attempting to connect to plugin rpc client: %s", err)
+		return nil, fmt.Errorf("error attempting to connect to plugin rpc client: %w", err)
 	}
 
 	raw, err := rpcClient.Dispense(shared.StoragePluginIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve storage plugin instance: %s", err)
+		return nil, fmt.Errorf("unable to retrieve storage plugin instance: %w", err)
 	}
 
+	// in practice, the type of `raw` is *shared.grpcClient, and type casts below cannot fail
 	storagePlugin, ok := raw.(shared.StoragePlugin)
 	if !ok {
 		return nil, fmt.Errorf("unable to cast %T to shared.StoragePlugin for plugin \"%s\"",
