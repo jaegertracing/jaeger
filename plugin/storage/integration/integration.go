@@ -188,6 +188,12 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
 	}
+
+	t.Run("NotFound error", func(t *testing.T) {
+		fakeTraceID := model.TraceID{High: 42, Low: 42}
+		_, err := s.SpanReader.GetTrace(context.Background(), fakeTraceID)
+		assert.Equal(t, spanstore.ErrTraceNotFound, err)
+	})
 }
 
 func (s *StorageIntegration) testFindTraces(t *testing.T) {
