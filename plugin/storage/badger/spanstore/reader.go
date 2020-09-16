@@ -54,6 +54,9 @@ var (
 
 	// ErrNotSupported during development, don't support every option - yet
 	ErrNotSupported = errors.New("this query parameter is not supported yet")
+
+	// ErrInternalConsistencyError indicates internal data consistency issue
+	ErrInternalConsistencyError = errors.New("internal data consistency issue")
 )
 
 const (
@@ -160,11 +163,14 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 	if err != nil {
 		return nil, err
 	}
+	if len(traces) == 0 {
+		return nil, spanstore.ErrTraceNotFound
+	}
 	if len(traces) == 1 {
 		return traces[0], nil
 	}
 
-	return nil, spanstore.ErrTraceNotFound
+	return nil, ErrInternalConsistencyError
 }
 
 // scanTimeRange returns all the Traces found between startTs and endTs
