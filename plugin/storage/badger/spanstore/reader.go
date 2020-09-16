@@ -164,7 +164,7 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 		return traces[0], nil
 	}
 
-	return nil, nil
+	return nil, spanstore.ErrTraceNotFound
 }
 
 // scanTimeRange returns all the Traces found between startTs and endTs
