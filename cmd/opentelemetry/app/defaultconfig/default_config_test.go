@@ -15,14 +15,18 @@
 package defaultconfig
 
 import (
+	"flag"
 	"fmt"
+	"os"
 	"sort"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/service/builder"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
@@ -174,6 +178,53 @@ func TestService(t *testing.T) {
 			}
 			sort.Strings(types)
 			assert.Equal(t, test.service.Pipelines["traces"].Receivers, types)
+		})
+	}
+}
+
+func TestDumpOtelErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         string
+		viperConfig map[string]interface{}
+	}{
+		{
+			name:        "don't dump otel",
+			err:         "",
+			viperConfig: nil,
+		},
+		{
+			name:        "dump otel",
+			err:         "otel config dump requested.",
+			viperConfig: map[string]interface{}{"config.dump-otel": "true"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(t.Name(), func(t *testing.T) {
+			c := ComponentSettings{}
+			jaegerViper := viper.New()
+			for key, val := range test.viperConfig {
+				jaegerViper.Set(key, val)
+			}
+
+			builder.Flags(flag.NewFlagSet("", flag.ContinueOnError))
+
+			otelViper := viper.New()
+			c.Factories = defaultcomponents.Components(otelViper)
+			factory := c.DefaultConfigFactory(jaegerViper)
+
+			// stdout shenanigans prevent factory() from actually dumping config during tests
+			orig := os.Stdout
+			os.Stdout = nil
+			_, err := factory(otelViper, c.Factories)
+			os.Stdout = orig
+
+			if test.err == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.Contains(t, err.Error(), test.err)
+			}
 		})
 	}
 }
