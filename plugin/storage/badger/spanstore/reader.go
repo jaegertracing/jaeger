@@ -55,8 +55,8 @@ var (
 	// ErrNotSupported during development, don't support every option - yet
 	ErrNotSupported = errors.New("this query parameter is not supported yet")
 
-	// ErrInternalConsistencyError indicates internal data quality sissue
-	ErrInternalConsistencyError = errors.New("internal data quality sissue")
+	// ErrInternalConsistencyError indicates internal data consistency issue
+	ErrInternalConsistencyError = errors.New("internal data consistency issue")
 )
 
 const (
