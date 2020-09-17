@@ -108,7 +108,9 @@ func (qOpts *QueryOptions) InitPortsConfigFromViper(v *viper.Viper, logger *zap.
 	if !(v.IsSet(queryHostPort) || v.IsSet(queryPort)) && (v.IsSet(queryHTTPHostPort) || v.IsSet(queryGRPCHostPort)) {
 		return qOpts
 	}
-	logger.Warn(fmt.Sprintf("Use of %s and %s is deprecated.  Use %s and %s instead", queryPort, queryHostPort, queryHTTPHostPort, queryGRPCHostPort))
+	if v.IsSet(queryHostPort) || v.IsSet(queryPort) {
+		logger.Warn(fmt.Sprintf("Use of %s and %s is deprecated.  Use %s and %s instead", queryPort, queryHostPort, queryHTTPHostPort, queryGRPCHostPort))
+	}
 	qOpts.HTTPHostPort = qOpts.HostPort
 	qOpts.GRPCHostPort = qOpts.HostPort
 	return qOpts
