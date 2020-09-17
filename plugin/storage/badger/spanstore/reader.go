@@ -25,7 +25,6 @@ import (
 	"sort"
 
 	"github.com/dgraph-io/badger"
-	"github.com/golang/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -101,7 +100,7 @@ func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
 			return nil, err
 		}
 	case protoEncoding:
-		if err := proto.Unmarshal(val, &sp); err != nil {
+		if err := sp.Unmarshal(val); err != nil {
 			return nil, err
 		}
 	default:
