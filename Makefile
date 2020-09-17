@@ -177,7 +177,7 @@ lint-gosec:
 .PHONY: lint-staticcheck
 lint-staticcheck:
 	@cat /dev/null > $(LINT_LOG)
-	time staticcheck ./... \
+	time staticcheck -checks=-SA1019 ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
