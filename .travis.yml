@@ -85,7 +85,7 @@ after_success:
   - if [ "$COVERAGE" == true ]; then bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
 
 after_failure:
-  - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
+  - if [ "$CROSSDOCK" == true || "$CROSSDOCK_OTEL" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
   - if [ "$DEPLOY" == true ]; then bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploying binaries'; fi
