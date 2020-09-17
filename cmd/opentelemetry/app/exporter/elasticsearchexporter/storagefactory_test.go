@@ -140,8 +140,8 @@ type mockWriter struct {
 
 var _ batchSpanWriter = (*mockWriter)(nil)
 
-func (m *mockWriter) writeSpans(ctx context.Context, containers []esmodeltranslator.ConvertedData) (int, error) {
-	for _, c := range containers {
+func (m *mockWriter) writeSpans(ctx context.Context, spansData []esmodeltranslator.ConvertedData) (int, error) {
+	for _, c := range spansData {
 		m.spans = append(m.spans, c.DBSpan)
 	}
 	return 0, nil

@@ -75,18 +75,18 @@ func (c *Translator) ConvertSpans(traces pdata.Traces) ([]ConvertedData, error) 
 	if rss.Len() == 0 {
 		return nil, nil
 	}
-	containers := make([]ConvertedData, 0, traces.SpanCount())
+	spansData := make([]ConvertedData, 0, traces.SpanCount())
 	for i := 0; i < rss.Len(); i++ {
 		// this would correspond to a single batch
-		err := c.resourceSpans(rss.At(i), &containers)
+		err := c.resourceSpans(rss.At(i), &spansData)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return containers, nil
+	return spansData, nil
 }
 
-func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, containers *[]ConvertedData) error {
+func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, spansData *[]ConvertedData) error {
 	ils := rspans.InstrumentationLibrarySpans()
 	process := c.process(rspans.Resource())
 	for i := 0; i < ils.Len(); i++ {
@@ -99,7 +99,7 @@ func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, containers *[]Con
 				return err
 			}
 			dbSpan.Process = *process
-			*containers = append(*containers, ConvertedData{
+			*spansData = append(*spansData, ConvertedData{
 				Span:                   spans.At(j),
 				Resource:               rspans.Resource(),
 				InstrumentationLibrary: ils.At(i).InstrumentationLibrary(),
