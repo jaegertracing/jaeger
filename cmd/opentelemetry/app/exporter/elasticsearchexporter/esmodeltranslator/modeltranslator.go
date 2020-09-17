@@ -90,14 +90,13 @@ func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, containers *[]Con
 	ils := rspans.InstrumentationLibrarySpans()
 	process := c.process(rspans.Resource())
 	for i := 0; i < ils.Len(); i++ {
-		// TODO convert instrumentation library info
-		//ils.At(i).InstrumentationLibrary()
 		spans := ils.At(i).Spans()
 		for j := 0; j < spans.Len(); j++ {
 			dbSpan, err := c.spanWithoutProcess(spans.At(j))
 			if err != nil {
 				return err
 			}
+			c.addInstrumentationLibrary(dbSpan, ils.At(i).InstrumentationLibrary())
 			dbSpan.Process = *process
 			*containers = append(*containers, ConvertedData{
 				Span:                   spans.At(j),
@@ -108,6 +107,23 @@ func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, containers *[]Con
 		}
 	}
 	return nil
+}
+
+func (c *Translator) addInstrumentationLibrary(span *dbmodel.Span, instLib pdata.InstrumentationLibrary) {
+	if instLib.Name() != "" {
+		span.Tags = append(span.Tags, dbmodel.KeyValue{
+			Key:   tracetranslator.TagInstrumentationName,
+			Type:  dbmodel.StringType,
+			Value: instLib.Name(),
+		})
+	}
+	if instLib.Version() != "" {
+		span.Tags = append(span.Tags, dbmodel.KeyValue{
+			Key:   tracetranslator.TagInstrumentationVersion,
+			Type:  dbmodel.StringType,
+			Value: instLib.Version(),
+		})
+	}
 }
 
 func (c *Translator) spanWithoutProcess(span pdata.Span) (*dbmodel.Span, error) {

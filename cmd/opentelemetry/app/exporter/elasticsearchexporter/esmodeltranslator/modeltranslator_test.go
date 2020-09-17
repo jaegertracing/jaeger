@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/translator/conventions"
+	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 )
@@ -107,6 +108,10 @@ func TestConvertSpan(t *testing.T) {
 	traces := traces("myservice")
 	resource := traces.ResourceSpans().At(0).Resource()
 	resource.Attributes().InsertDouble("num", 16.66)
+	instrumentationLibrary := traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary()
+	instrumentationLibrary.InitEmpty()
+	instrumentationLibrary.SetName("io.opentelemetry")
+	instrumentationLibrary.SetVersion("1.0")
 	span := addSpan(traces, "root", traceID, spanID)
 	span.SetKind(pdata.SpanKindCLIENT)
 	span.Status().InitEmpty()
@@ -149,7 +154,10 @@ func TestConvertSpan(t *testing.T) {
 					{Key: "status.code", Type: dbmodel.StringType, Value: "Cancelled"},
 					{Key: "error", Type: dbmodel.BoolType, Value: "true"},
 					{Key: "status.message", Type: dbmodel.StringType, Value: "messagetext"},
-					{Key: "foo", Type: dbmodel.BoolType, Value: "true"}},
+					{Key: "foo", Type: dbmodel.BoolType, Value: "true"},
+					{Key: tracetranslator.TagInstrumentationName, Type: dbmodel.StringType, Value: "io.opentelemetry"},
+					{Key: tracetranslator.TagInstrumentationVersion, Type: dbmodel.StringType, Value: "1.0"},
+				},
 				Tag: map[string]interface{}{"toTagMap": "val"},
 				Logs: []dbmodel.Log{{Fields: []dbmodel.KeyValue{
 					{Key: "event", Value: "eventName", Type: dbmodel.StringType},
@@ -170,6 +178,7 @@ func TestSpanEmptyRef(t *testing.T) {
 	span := addSpan(traces, "root", traceID, spanID)
 	span.SetStartTime(pdata.TimestampUnixNano(1000000))
 	span.SetEndTime(pdata.TimestampUnixNano(2000000))
+	traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary().InitEmpty()
 
 	c := &Translator{}
 	spanDataContainers, err := c.ConvertSpans(traces)
