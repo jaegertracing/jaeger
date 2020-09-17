@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultcomponents"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultconfig"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -101,7 +102,7 @@ func main() {
 	cmd := svc.Command()
 	jconfig.AddFlags(v,
 		cmd,
-		// kafkareceiver.AddFlags, - jpe readd?
+		kafkareceiver.AddFlags,
 		app.AddComponentFlags,
 		storageFlags,
 	)
