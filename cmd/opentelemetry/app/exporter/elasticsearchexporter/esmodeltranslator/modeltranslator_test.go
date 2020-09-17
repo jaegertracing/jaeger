@@ -129,9 +129,9 @@ func TestConvertSpan(t *testing.T) {
 	c := &Translator{
 		tagKeysAsFields: map[string]bool{"toTagMap": true},
 	}
-	spanDataContainers, err := c.ConvertSpans(traces)
+	spansData, err := c.ConvertSpans(traces)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(spanDataContainers))
+	assert.Equal(t, 1, len(spansData))
 	assert.Equal(t,
 		ConvertedData{
 			Span:                   span,
@@ -162,7 +162,7 @@ func TestConvertSpan(t *testing.T) {
 					Tags:        []dbmodel.KeyValue{{Key: "num", Value: "16.66", Type: dbmodel.Float64Type}},
 				},
 			},
-		}, spanDataContainers[0])
+		}, spansData[0])
 }
 
 func TestSpanEmptyRef(t *testing.T) {
@@ -172,9 +172,9 @@ func TestSpanEmptyRef(t *testing.T) {
 	span.SetEndTime(pdata.TimestampUnixNano(2000000))
 
 	c := &Translator{}
-	spanDataContainers, err := c.ConvertSpans(traces)
+	spansData, err := c.ConvertSpans(traces)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(spanDataContainers))
+	assert.Equal(t, 1, len(spansData))
 	assert.Equal(t,
 		ConvertedData{
 			Span:                   span,
@@ -195,7 +195,7 @@ func TestSpanEmptyRef(t *testing.T) {
 					Tags:        nil,
 				},
 			},
-		}, spanDataContainers[0])
+		}, spansData[0])
 }
 
 func TestEmpty(t *testing.T) {
