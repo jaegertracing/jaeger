@@ -56,7 +56,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 	}
 
 	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
-	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, &componenttest.ExampleExporterConsumer{}, cfg)
+	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 
@@ -81,7 +81,7 @@ func TestLegacyJaegerTagsOnly(t *testing.T) {
 	}
 
 	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
-	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, &componenttest.ExampleExporterConsumer{}, cfg)
+	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 
@@ -116,7 +116,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NotNil(t, colConfig)
 
 	cfg := colConfig.Processors[string(f.Type())].(*resourceprocessor.Config)
-	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, &componenttest.ExampleExporterConsumer{}, cfg)
+	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 	assert.Equal(t, []processorhelper.ActionKeyValue{
@@ -136,9 +136,9 @@ func TestCreateMetricsProcessor(t *testing.T) {
 	f := &Factory{
 		Wrapped: resourceprocessor.NewFactory(),
 	}
-	mReceiver, err := f.CreateMetricsProcessor(context.Background(), component.ProcessorCreateParams{}, &componenttest.ExampleExporterConsumer{}, &resourceprocessor.Config{
+	mReceiver, err := f.CreateMetricsProcessor(context.Background(), component.ProcessorCreateParams{}, &resourceprocessor.Config{
 		AttributesActions: []processorhelper.ActionKeyValue{{Key: "foo", Value: "val", Action: processorhelper.UPSERT}},
-	})
+	}, &componenttest.ExampleExporterConsumer{})
 	require.Nil(t, err)
 	assert.NotNil(t, mReceiver)
 }
