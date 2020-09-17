@@ -134,11 +134,7 @@ func TestMaxDocCount(t *testing.T) {
 		wantMaxDocCount int
 	}{
 		{"neither defined", []string{}, 10_000},
-		{"max-num-spans only", []string{"--es.max-num-spans=1000"}, 1000},
 		{"max-doc-count only", []string{"--es.max-doc-count=1000"}, 1000},
-		{"max-num-spans == max-doc-count", []string{"--es.max-num-spans=1000", "--es.max-doc-count=1000"}, 1000},
-		{"max-num-spans < max-doc-count", []string{"--es.max-num-spans=999", "--es.max-doc-count=1000"}, 999},
-		{"max-num-spans > max-doc-count", []string{"--es.max-num-spans=1000", "--es.max-doc-count=999"}, 999},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
