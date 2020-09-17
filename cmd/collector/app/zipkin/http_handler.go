@@ -29,6 +29,7 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/mux"
+	//"google.golang.org/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"

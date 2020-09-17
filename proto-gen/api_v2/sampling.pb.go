@@ -13,8 +13,11 @@ import (
 	golang_proto "github.com/golang/protobuf/proto"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -27,7 +30,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type SamplingStrategyType int32
 
@@ -75,7 +78,7 @@ func (m *ProbabilisticSamplingStrategy) XXX_Marshal(b []byte, deterministic bool
 		return xxx_messageInfo_ProbabilisticSamplingStrategy.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -122,7 +125,7 @@ func (m *RateLimitingSamplingStrategy) XXX_Marshal(b []byte, deterministic bool)
 		return xxx_messageInfo_RateLimitingSamplingStrategy.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +173,7 @@ func (m *OperationSamplingStrategy) XXX_Marshal(b []byte, deterministic bool) ([
 		return xxx_messageInfo_OperationSamplingStrategy.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +230,7 @@ func (m *PerOperationSamplingStrategies) XXX_Marshal(b []byte, deterministic boo
 		return xxx_messageInfo_PerOperationSamplingStrategies.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -298,7 +301,7 @@ func (m *SamplingStrategyResponse) XXX_Marshal(b []byte, deterministic bool) ([]
 		return xxx_messageInfo_SamplingStrategyResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +369,7 @@ func (m *SamplingStrategyParameters) XXX_Marshal(b []byte, deterministic bool) (
 		return xxx_messageInfo_SamplingStrategyParameters.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -493,6 +496,14 @@ type SamplingManagerServer interface {
 	GetSamplingStrategy(context.Context, *SamplingStrategyParameters) (*SamplingStrategyResponse, error)
 }
 
+// UnimplementedSamplingManagerServer can be embedded to have forward compatible implementations.
+type UnimplementedSamplingManagerServer struct {
+}
+
+func (*UnimplementedSamplingManagerServer) GetSamplingStrategy(ctx context.Context, req *SamplingStrategyParameters) (*SamplingStrategyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSamplingStrategy not implemented")
+}
+
 func RegisterSamplingManagerServer(s *grpc.Server, srv SamplingManagerServer) {
 	s.RegisterService(&_SamplingManager_serviceDesc, srv)
 }
@@ -531,7 +542,7 @@ var _SamplingManager_serviceDesc = grpc.ServiceDesc{
 func (m *ProbabilisticSamplingStrategy) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -539,26 +550,32 @@ func (m *ProbabilisticSamplingStrategy) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ProbabilisticSamplingStrategy) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ProbabilisticSamplingStrategy) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.SamplingRate != 0 {
-		dAtA[i] = 0x9
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.SamplingRate))))
-		i += 8
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.SamplingRate != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.SamplingRate))))
+		i--
+		dAtA[i] = 0x9
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *RateLimitingSamplingStrategy) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -566,25 +583,31 @@ func (m *RateLimitingSamplingStrategy) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RateLimitingSamplingStrategy) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RateLimitingSamplingStrategy) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.MaxTracesPerSecond != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(m.MaxTracesPerSecond))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.MaxTracesPerSecond != 0 {
+		i = encodeVarintSampling(dAtA, i, uint64(m.MaxTracesPerSecond))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *OperationSamplingStrategy) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -592,36 +615,45 @@ func (m *OperationSamplingStrategy) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *OperationSamplingStrategy) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OperationSamplingStrategy) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Operation) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(len(m.Operation)))
-		i += copy(dAtA[i:], m.Operation)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.ProbabilisticSampling != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(m.ProbabilisticSampling.Size()))
-		n1, err := m.ProbabilisticSampling.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.ProbabilisticSampling.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSampling(dAtA, i, uint64(size))
 		}
-		i += n1
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Operation) > 0 {
+		i -= len(m.Operation)
+		copy(dAtA[i:], m.Operation)
+		i = encodeVarintSampling(dAtA, i, uint64(len(m.Operation)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *PerOperationSamplingStrategies) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -629,50 +661,58 @@ func (m *PerOperationSamplingStrategies) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PerOperationSamplingStrategies) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PerOperationSamplingStrategies) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.DefaultSamplingProbability != 0 {
-		dAtA[i] = 0x9
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.DefaultSamplingProbability))))
-		i += 8
-	}
-	if m.DefaultLowerBoundTracesPerSecond != 0 {
-		dAtA[i] = 0x11
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.DefaultLowerBoundTracesPerSecond))))
-		i += 8
-	}
-	if len(m.PerOperationStrategies) > 0 {
-		for _, msg := range m.PerOperationStrategies {
-			dAtA[i] = 0x1a
-			i++
-			i = encodeVarintSampling(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.DefaultUpperBoundTracesPerSecond != 0 {
-		dAtA[i] = 0x21
-		i++
+		i -= 8
 		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.DefaultUpperBoundTracesPerSecond))))
-		i += 8
+		i--
+		dAtA[i] = 0x21
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.PerOperationStrategies) > 0 {
+		for iNdEx := len(m.PerOperationStrategies) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.PerOperationStrategies[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSampling(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x1a
+		}
 	}
-	return i, nil
+	if m.DefaultLowerBoundTracesPerSecond != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.DefaultLowerBoundTracesPerSecond))))
+		i--
+		dAtA[i] = 0x11
+	}
+	if m.DefaultSamplingProbability != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.DefaultSamplingProbability))))
+		i--
+		dAtA[i] = 0x9
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *SamplingStrategyResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -680,55 +720,67 @@ func (m *SamplingStrategyResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SamplingStrategyResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SamplingStrategyResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.StrategyType != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(m.StrategyType))
-	}
-	if m.ProbabilisticSampling != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(m.ProbabilisticSampling.Size()))
-		n2, err := m.ProbabilisticSampling.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n2
-	}
-	if m.RateLimitingSampling != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(m.RateLimitingSampling.Size()))
-		n3, err := m.RateLimitingSampling.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n3
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.OperationSampling != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(m.OperationSampling.Size()))
-		n4, err := m.OperationSampling.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.OperationSampling.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSampling(dAtA, i, uint64(size))
 		}
-		i += n4
+		i--
+		dAtA[i] = 0x22
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.RateLimitingSampling != nil {
+		{
+			size, err := m.RateLimitingSampling.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSampling(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
 	}
-	return i, nil
+	if m.ProbabilisticSampling != nil {
+		{
+			size, err := m.ProbabilisticSampling.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSampling(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.StrategyType != 0 {
+		i = encodeVarintSampling(dAtA, i, uint64(m.StrategyType))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *SamplingStrategyParameters) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -736,30 +788,39 @@ func (m *SamplingStrategyParameters) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SamplingStrategyParameters) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SamplingStrategyParameters) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ServiceName) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSampling(dAtA, i, uint64(len(m.ServiceName)))
-		i += copy(dAtA[i:], m.ServiceName)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.ServiceName) > 0 {
+		i -= len(m.ServiceName)
+		copy(dAtA[i:], m.ServiceName)
+		i = encodeVarintSampling(dAtA, i, uint64(len(m.ServiceName)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintSampling(dAtA []byte, offset int, v uint64) int {
+	offset -= sovSampling(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *ProbabilisticSamplingStrategy) Size() (n int) {
 	if m == nil {
@@ -882,14 +943,7 @@ func (m *SamplingStrategyParameters) Size() (n int) {
 }
 
 func sovSampling(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozSampling(x uint64) (n int) {
 	return sovSampling(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1545,6 +1599,7 @@ func (m *SamplingStrategyParameters) Unmarshal(dAtA []byte) error {
 func skipSampling(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -1576,10 +1631,8 @@ func skipSampling(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -1600,55 +1653,30 @@ func skipSampling(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthSampling
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthSampling
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowSampling
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipSampling(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthSampling
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupSampling
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthSampling
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthSampling = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowSampling   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthSampling        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowSampling          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupSampling = fmt.Errorf("proto: unexpected end of group")
 )
