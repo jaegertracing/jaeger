@@ -110,6 +110,9 @@ func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, containers *[]Con
 }
 
 func (c *Translator) addInstrumentationLibrary(span *dbmodel.Span, instLib pdata.InstrumentationLibrary) {
+	if instLib.IsNil() {
+		return
+	}
 	if instLib.Name() != "" {
 		span.Tags = append(span.Tags, dbmodel.KeyValue{
 			Key:   tracetranslator.TagInstrumentationName,
