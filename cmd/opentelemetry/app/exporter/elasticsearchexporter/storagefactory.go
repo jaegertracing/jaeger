@@ -21,6 +21,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esmodeltranslator"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esdependencyreader"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esspanreader"
@@ -143,13 +144,13 @@ type singleSpanWriter struct {
 }
 
 type batchSpanWriter interface {
-	writeSpans(context.Context, []*dbmodel.Span) (int, error)
+	writeSpans(context.Context, []esmodeltranslator.ConvertedData) (int, error)
 }
 
 var _ spanstore.Writer = (*singleSpanWriter)(nil)
 
 func (s singleSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	dbSpan := s.converter.FromDomainEmbedProcess(span)
-	_, err := s.writer.writeSpans(ctx, []*dbmodel.Span{dbSpan})
+	_, err := s.writer.writeSpans(ctx, []esmodeltranslator.ConvertedData{{DBSpan: dbSpan}})
 	return err
 }
