@@ -39,7 +39,6 @@ func TestDefaultConfig(t *testing.T) {
 		Wrapped: otelKafkaReceiver.NewFactory(),
 		Viper:   v,
 	}
-
 	defaultCfg := factory.CreateDefaultConfig().(*otelKafkaReceiver.Config)
 
 	assert.NoError(t, configcheck.ValidateConfig(defaultCfg))
@@ -47,9 +46,9 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, "protobuf", defaultCfg.Encoding)
 	assert.Equal(t, []string{"127.0.0.1:9092"}, defaultCfg.Brokers)
 	assert.Equal(t, "none", defaultCfg.Authentication)
-	assert.Equal(t, "/etc/krb5.conf", defaultCfg.Kerberos.ConfigPath)
-	assert.Equal(t, "kafka", defaultCfg.Kerberos.ServiceName)
-	assert.Equal(t, false, defaultCfg.TLS.Enabled)
+	assert.Equal(t, "/etc/krb5.conf", defaultCfg.Authentication.Kerberos.ConfigPath)
+	assert.Equal(t, "kafka", defaultCfg.Authentication.Kerberos.ServiceName)
+	assert.Equal(t, nil, defaultCfg.Authentication.TLS)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
@@ -63,13 +62,10 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	err = flags.TryLoadConfigFile(v)
 	require.NoError(t, err)
 
-	factory := &Factory{OptionsFactory: func() *app.Options {
-		opts := DefaultOptions()
-		opts.InitFromViper(v)
-		assert.Equal(t, "jaeger-test", opts.Topic)
-		assert.Equal(t, []string{"host1", "host2"}, opts.Brokers)
-		return opts
-	}}
+	factory := &Factory{
+		Wrapped: otelKafkaReceiver.NewFactory(),
+		Viper:   v,
+	}
 
 	factories.Receivers[TypeStr] = factory
 	cfg, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
