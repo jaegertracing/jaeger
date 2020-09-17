@@ -100,7 +100,6 @@ func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
 			return nil, err
 		}
 	case protoEncoding:
-
 		if err := sp.Unmarshal(val); err != nil {
 			return nil, err
 		}
