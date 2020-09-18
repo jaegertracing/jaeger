@@ -47,7 +47,7 @@ func main() {
 	}
 
 	ver := version.Get()
-	info := service.ApplicationStartInfo{
+	info := component.ApplicationStartInfo{
 		ExeName:  "jaeger-opentelemetry-ingester",
 		LongName: "Jaeger OpenTelemetry Ingester",
 		Version:  ver.GitVersion,
@@ -114,6 +114,6 @@ func main() {
 		handleErr(fmt.Errorf("could not load Jaeger configuration file %w", err))
 	}
 
-	err = svc.Start()
+	err = svc.Run()
 	handleErr(err)
 }

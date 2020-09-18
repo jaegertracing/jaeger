@@ -253,7 +253,7 @@ func bulkItemsToTraces(bulkItems []bulkItem) pdata.Traces {
 		if !spanData.InstrumentationLibrary.IsNil() {
 			spanData.InstrumentationLibrary.CopyTo(ispans.InstrumentationLibrary())
 		}
-		ispans.Spans().Append(&spanData.Span)
+		ispans.Spans().Append(spanData.Span)
 	}
 	return traces
 }

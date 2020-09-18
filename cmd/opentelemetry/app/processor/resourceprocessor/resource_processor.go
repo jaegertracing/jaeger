@@ -72,8 +72,8 @@ func (f Factory) GetTags() map[string]string {
 func (f Factory) CreateTraceProcessor(
 	ctx context.Context,
 	params component.ProcessorCreateParams,
-	nextConsumer consumer.TraceConsumer,
 	cfg configmodels.Processor,
+	nextConsumer consumer.TraceConsumer,
 ) (component.TraceProcessor, error) {
 	c := cfg.(*resourceprocessor.Config)
 	attributeKeys := map[string]bool{}
@@ -91,7 +91,7 @@ func (f Factory) CreateTraceProcessor(
 			})
 		}
 	}
-	return f.Wrapped.CreateTraceProcessor(ctx, params, nextConsumer, cfg)
+	return f.Wrapped.CreateTraceProcessor(ctx, params, cfg, nextConsumer)
 }
 
 // CreateMetricsProcessor creates a resource processor.
@@ -99,8 +99,20 @@ func (f Factory) CreateTraceProcessor(
 func (f Factory) CreateMetricsProcessor(
 	ctx context.Context,
 	params component.ProcessorCreateParams,
-	nextConsumer consumer.MetricsConsumer,
 	cfg configmodels.Processor,
+	nextConsumer consumer.MetricsConsumer,
 ) (component.MetricsProcessor, error) {
-	return f.Wrapped.CreateMetricsProcessor(ctx, params, nextConsumer, cfg)
+	return f.Wrapped.CreateMetricsProcessor(ctx, params, cfg, nextConsumer)
+}
+
+// CreateLogsProcessor creates a processor based on the config.
+// If the processor type does not support logs or if the config is not valid
+// error will be returned instead.
+func (f Factory) CreateLogsProcessor(
+	ctx context.Context,
+	params component.ProcessorCreateParams,
+	cfg configmodels.Processor,
+	nextConsumer consumer.LogsConsumer,
+) (component.LogsProcessor, error) {
+	return f.Wrapped.CreateLogsProcessor(ctx, params, cfg, nextConsumer)
 }
