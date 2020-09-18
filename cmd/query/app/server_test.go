@@ -83,18 +83,18 @@ func TestServerInUseHostPort(t *testing.T) {
 		httpHostPort string
 		grpcHostPort string
 	}{
-		{"HTTP host port clash on " + conn.Addr().String(), conn.Addr().String(), availableHostPort},
-		{"GRPC host port clash on " + conn.Addr().String(), availableHostPort, conn.Addr().String()},
+		{"HTTP host port clash", conn.Addr().String(), availableHostPort},
+		{"GRPC host port clash", availableHostPort, conn.Addr().String()},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			server, err := NewServer(
-			        zap.NewNop(), 
-			        &querysvc.QueryService{},
+				zap.NewNop(),
+				&querysvc.QueryService{},
 				&QueryOptions{
-				    HTTPHostPort: tc.httpHostPort, 
-				    GRPCHostPort: tc.grpcHostPort, 
-				    BearerTokenPropagation: true,
+					HTTPHostPort:           tc.httpHostPort,
+					GRPCHostPort:           tc.grpcHostPort,
+					BearerTokenPropagation: true,
 				},
 				opentracing.NoopTracer{},
 			)
