@@ -74,7 +74,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 		tracer:             tracer,
 		grpcServer:         grpcServer,
 		httpServer:         createHTTPServer(querySvc, options, tracer, logger),
-		separatePorts:      (grpcPort != httpPort),
+		separatePorts:      grpcPort != httpPort,
 		unavailableChannel: make(chan healthcheck.Status),
 	}, nil
 }
