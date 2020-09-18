@@ -75,8 +75,8 @@ func TestServerBadHostPort(t *testing.T) {
 func TestServerInUseHostPort(t *testing.T) {
 	const availableHostPort = "127.0.0.1:0"
 	conn, err := net.Listen("tcp", availableHostPort)
-	defer func() { conn.Close() }()
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, conn.Close()) }()
 
 	testCases := []struct {
 		name         string
