@@ -117,6 +117,16 @@ func (f Factory) CreateMetricsExporter(
 	return nil, configerror.ErrDataTypeIsNotSupported
 }
 
+// CreateLogsExporter creates a metrics exporter based on provided config.
+// This function implements component.ExporterFactory.
+func (f Factory) CreateLogsExporter(
+	ctx context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (component.LogsExporter, error) {
+	return nil, configerror.ErrDataTypeIsNotSupported
+}
+
 func (f Factory) createStorageFactory(params component.ExporterCreateParams, cfg *Config) (storage.Factory, error) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
