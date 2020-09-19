@@ -76,5 +76,5 @@ func (f Factory) CreateLogsExporter(
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
 ) (component.LogsExporter, error) {
-	return nil, configerror.ErrDataTypeIsNotSupported
+	return f.Wrapped.CreateLogsExporter(ctx, params, cfg)
 }

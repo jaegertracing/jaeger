@@ -17,7 +17,7 @@ package kafkareceiver
 import (
 	"context"
 
-	ingeserApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
+	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
@@ -52,7 +52,7 @@ func (f *Factory) Type() configmodels.Type {
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*kafkareceiver.Config)
 	// load jaeger config
-	opts := &ingeserApp.Options{}
+	opts := &ingesterApp.Options{}
 	opts.InitFromViper(f.Viper)
 
 	switch opts.Encoding {

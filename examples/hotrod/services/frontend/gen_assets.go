@@ -213,7 +213,7 @@ var _escData = map[string]*_escFile{
 		name:    "index.html",
 		local:   "examples/hotrod/services/frontend/web_assets/index.html",
 		size:    3530,
-		modtime: 1597078961,
+		modtime: 1597936165,
 		compressed: `
 H4sIAAAAAAAC/9RXX1PbSBJ/96fom82d5DOSMIZAjOUtDmcJ2cuSM5Ct3FYeRqO2NEaaUWZGtlmK7341
 +mNkSKru3i5+gJnunu7+9V97kpo8m/YAJjkaCiylSqMJyeX1lXdycvTGG5InrqA5hmTFcV1IZQgwKQwK
@@ -247,7 +247,7 @@ qcf+ae+xLqTO1+RJUP+E+08AAAD//1QoAETKDQAA
 		name:    "jquery-3.1.1.min.js",
 		local:   "examples/hotrod/services/frontend/web_assets/jquery-3.1.1.min.js",
 		size:    86709,
-		modtime: 1597079278,
+		modtime: 1597936165,
 		compressed: `
 H4sIAAAAAAAC/8y9fZebONIo/v/9FG02D4PaMm1nZvbewa1wMslkN7vztpPMzO5iskeAwLgxuAGnO2PY
 z/47KkkgME5mn+fec34nJ21A71KpVFWql5vr2dXub0dWfrh6/7m9sldXzZUVIvXtVXHMI1qnRX7VXO3u
