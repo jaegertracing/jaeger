@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/translator/conventions"
+	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 )
@@ -107,6 +108,10 @@ func TestConvertSpan(t *testing.T) {
 	traces := traces("myservice")
 	resource := traces.ResourceSpans().At(0).Resource()
 	resource.Attributes().InsertDouble("num", 16.66)
+	instrumentationLibrary := traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary()
+	instrumentationLibrary.InitEmpty()
+	instrumentationLibrary.SetName("io.opentelemetry")
+	instrumentationLibrary.SetVersion("1.0")
 	span := addSpan(traces, "root", traceID, spanID)
 	span.SetKind(pdata.SpanKindCLIENT)
 	span.Status().InitEmpty()
@@ -129,34 +134,43 @@ func TestConvertSpan(t *testing.T) {
 	c := &Translator{
 		tagKeysAsFields: map[string]bool{"toTagMap": true},
 	}
-	spans, err := c.ConvertSpans(traces)
+	spansData, err := c.ConvertSpans(traces)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(spans))
-	assert.Equal(t, &dbmodel.Span{
-		TraceID:         "30313233343536373839616263646566",
-		SpanID:          "3031323334353637",
-		StartTime:       1000,
-		Duration:        1000,
-		OperationName:   "root",
-		StartTimeMillis: 1,
-		Tags: []dbmodel.KeyValue{
-			{Key: "span.kind", Type: dbmodel.StringType, Value: "client"},
-			{Key: "status.code", Type: dbmodel.StringType, Value: "Cancelled"},
-			{Key: "error", Type: dbmodel.BoolType, Value: "true"},
-			{Key: "status.message", Type: dbmodel.StringType, Value: "messagetext"},
-			{Key: "foo", Type: dbmodel.BoolType, Value: "true"}},
-		Tag: map[string]interface{}{"toTagMap": "val"},
-		Logs: []dbmodel.Log{{Fields: []dbmodel.KeyValue{
-			{Key: "event", Value: "eventName", Type: dbmodel.StringType},
-			{Key: "foo", Value: "bar", Type: dbmodel.StringType}}, Timestamp: 500}},
-		References: []dbmodel.Reference{
-			{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.ChildOf},
-			{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.FollowsFrom}},
-		Process: dbmodel.Process{
-			ServiceName: "myservice",
-			Tags:        []dbmodel.KeyValue{{Key: "num", Value: "16.66", Type: dbmodel.Float64Type}},
-		},
-	}, spans[0])
+	assert.Equal(t, 1, len(spansData))
+	assert.Equal(t,
+		ConvertedData{
+			Span:                   span,
+			Resource:               resource,
+			InstrumentationLibrary: traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary(),
+			DBSpan: &dbmodel.Span{
+				TraceID:         "30313233343536373839616263646566",
+				SpanID:          "3031323334353637",
+				StartTime:       1000,
+				Duration:        1000,
+				OperationName:   "root",
+				StartTimeMillis: 1,
+				Tags: []dbmodel.KeyValue{
+					{Key: "span.kind", Type: dbmodel.StringType, Value: "client"},
+					{Key: "status.code", Type: dbmodel.StringType, Value: "Cancelled"},
+					{Key: "error", Type: dbmodel.BoolType, Value: "true"},
+					{Key: "status.message", Type: dbmodel.StringType, Value: "messagetext"},
+					{Key: "foo", Type: dbmodel.BoolType, Value: "true"},
+					{Key: tracetranslator.TagInstrumentationName, Type: dbmodel.StringType, Value: "io.opentelemetry"},
+					{Key: tracetranslator.TagInstrumentationVersion, Type: dbmodel.StringType, Value: "1.0"},
+				},
+				Tag: map[string]interface{}{"toTagMap": "val"},
+				Logs: []dbmodel.Log{{Fields: []dbmodel.KeyValue{
+					{Key: "event", Value: "eventName", Type: dbmodel.StringType},
+					{Key: "foo", Value: "bar", Type: dbmodel.StringType}}, Timestamp: 500}},
+				References: []dbmodel.Reference{
+					{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.ChildOf},
+					{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.FollowsFrom}},
+				Process: dbmodel.Process{
+					ServiceName: "myservice",
+					Tags:        []dbmodel.KeyValue{{Key: "num", Value: "16.66", Type: dbmodel.Float64Type}},
+				},
+			},
+		}, spansData[0])
 }
 
 func TestSpanEmptyRef(t *testing.T) {
@@ -164,26 +178,33 @@ func TestSpanEmptyRef(t *testing.T) {
 	span := addSpan(traces, "root", traceID, spanID)
 	span.SetStartTime(pdata.TimestampUnixNano(1000000))
 	span.SetEndTime(pdata.TimestampUnixNano(2000000))
+	traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary().InitEmpty()
 
 	c := &Translator{}
-	spans, err := c.ConvertSpans(traces)
+	spansData, err := c.ConvertSpans(traces)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(spans))
-	assert.Equal(t, &dbmodel.Span{
-		TraceID:         "30313233343536373839616263646566",
-		SpanID:          "3031323334353637",
-		StartTime:       1000,
-		Duration:        1000,
-		OperationName:   "root",
-		StartTimeMillis: 1,
-		Tags:            []dbmodel.KeyValue{},  // should not be nil
-		Logs:            []dbmodel.Log{},       // should not be nil
-		References:      []dbmodel.Reference{}, // should not be nil
-		Process: dbmodel.Process{
-			ServiceName: "myservice",
-			Tags:        nil,
-		},
-	}, spans[0])
+	assert.Equal(t, 1, len(spansData))
+	assert.Equal(t,
+		ConvertedData{
+			Span:                   span,
+			Resource:               traces.ResourceSpans().At(0).Resource(),
+			InstrumentationLibrary: traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary(),
+			DBSpan: &dbmodel.Span{
+				TraceID:         "30313233343536373839616263646566",
+				SpanID:          "3031323334353637",
+				StartTime:       1000,
+				Duration:        1000,
+				OperationName:   "root",
+				StartTimeMillis: 1,
+				Tags:            []dbmodel.KeyValue{},  // should not be nil
+				Logs:            []dbmodel.Log{},       // should not be nil
+				References:      []dbmodel.Reference{}, // should not be nil
+				Process: dbmodel.Process{
+					ServiceName: "myservice",
+					Tags:        nil,
+				},
+			},
+		}, spansData[0])
 }
 
 func TestEmpty(t *testing.T) {

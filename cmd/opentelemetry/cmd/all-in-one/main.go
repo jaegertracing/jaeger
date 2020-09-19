@@ -64,7 +64,7 @@ func main() {
 	}
 
 	ver := version.Get()
-	info := service.ApplicationStartInfo{
+	info := component.ApplicationStartInfo{
 		ExeName:  "jaeger-opentelemetry-all-in-one",
 		LongName: "Jaeger OpenTelemetry all-in-one",
 		Version:  ver.GitVersion,
@@ -113,7 +113,7 @@ func main() {
 	}
 
 	go func() {
-		err = svc.Start()
+		err = svc.Run()
 		handleErr(err)
 	}()
 

@@ -25,7 +25,6 @@ import (
 	"sort"
 
 	"github.com/dgraph-io/badger"
-	"github.com/golang/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -54,6 +53,9 @@ var (
 
 	// ErrNotSupported during development, don't support every option - yet
 	ErrNotSupported = errors.New("this query parameter is not supported yet")
+
+	// ErrInternalConsistencyError indicates internal data consistency issue
+	ErrInternalConsistencyError = errors.New("internal data consistency issue")
 )
 
 const (
@@ -98,7 +100,7 @@ func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
 			return nil, err
 		}
 	case protoEncoding:
-		if err := proto.Unmarshal(val, &sp); err != nil {
+		if err := sp.Unmarshal(val); err != nil {
 			return nil, err
 		}
 	default:
@@ -160,11 +162,14 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 	if err != nil {
 		return nil, err
 	}
+	if len(traces) == 0 {
+		return nil, spanstore.ErrTraceNotFound
+	}
 	if len(traces) == 1 {
 		return traces[0], nil
 	}
 
-	return nil, nil
+	return nil, ErrInternalConsistencyError
 }
 
 // scanTimeRange returns all the Traces found between startTs and endTs

@@ -78,7 +78,7 @@ func (Factory) CreateTraceExporter(
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return new(ctx, esCfg, params)
+	return newExporter(ctx, esCfg, params)
 }
 
 // CreateMetricsExporter is not implemented.
@@ -88,5 +88,15 @@ func (Factory) CreateMetricsExporter(
 	component.ExporterCreateParams,
 	configmodels.Exporter,
 ) (component.MetricsExporter, error) {
+	return nil, configerror.ErrDataTypeIsNotSupported
+}
+
+// CreateLogsExporter creates a metrics exporter based on provided config.
+// This function implements component.ExporterFactory.
+func (f Factory) CreateLogsExporter(
+	ctx context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (component.LogsExporter, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

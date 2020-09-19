@@ -76,3 +76,15 @@ func (f Factory) CreateMetricsReceiver(
 ) (component.MetricsReceiver, error) {
 	return f.Wrapped.CreateMetricsReceiver(ctx, params, cfg, consumer)
 }
+
+// CreateLogsReceiver creates a receiver based on the config.
+// If the receiver type does not support logs or if the config is not valid
+// error will be returned instead.
+func (f Factory) CreateLogsReceiver(
+	ctx context.Context,
+	params component.ReceiverCreateParams,
+	cfg configmodels.Receiver,
+	nextConsumer consumer.LogsConsumer,
+) (component.LogsReceiver, error) {
+	return f.Wrapped.CreateLogsReceiver(ctx, params, cfg, nextConsumer)
+}
