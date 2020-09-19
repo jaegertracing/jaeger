@@ -24,12 +24,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/cassandraexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/grpcpluginexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/kafkaexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/memoryexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/jaegerreceiver"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/zipkinreceiver"
 	cassandraStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es"
+	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es
 )
 
 // AddComponentFlags adds all flags exposed by components
@@ -62,8 +63,7 @@ func AddStorageFlags(storage string, enableArchive bool) (func(*flag.FlagSet), e
 				flagFn = append(flagFn, esStorage.NewOptions("es-archive").AddFlags)
 			}
 		case "kafka":
-			// jpe add flags here?
-			// flagFn = append(flagFn, kafkaexporter.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, kafkaexporter.AddFlags)
 		case "grpc-plugin":
 			flagFn = append(flagFn, grpcpluginexporter.DefaultOptions().AddFlags)
 		default:

@@ -46,7 +46,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Nil(t, defaultCfg.Authentication.Kerberos)
 	assert.Nil(t, defaultCfg.Authentication.TLS)
 	assert.Nil(t, defaultCfg.Authentication.PlainText)
-
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {

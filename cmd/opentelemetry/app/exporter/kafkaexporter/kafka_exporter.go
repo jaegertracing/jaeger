@@ -17,9 +17,12 @@ package kafkaexporter
 import (
 	"context"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
 )
 
@@ -46,6 +49,46 @@ func (f Factory) Type() configmodels.Type {
 // This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	cfg := f.Wrapped.CreateDefaultConfig().(*kafkaexporter.Config)
+
+	opts := &kafka.Options{}
+	opts.InitFromViper(f.Viper)
+
+	cfg.Encoding = kafkareceiver.MustOtelEncodingForJaegerEncoding(opts.Encoding)
+	cfg.Topic = opts.Topic
+	cfg.Brokers = opts.Config.Brokers
+	cfg.ProtocolVersion = opts.Config.ProtocolVersion
+
+	if opts.Config.Authentication == "kerberos" {
+		cfg.Authentication.Kerberos = &kafkaexporter.KerberosConfig{
+			ServiceName: opts.Config.Kerberos.ServiceName,
+			Realm:       opts.Config.Kerberos.Realm,
+			UseKeyTab:   opts.Config.Kerberos.UseKeyTab,
+			Username:    opts.Config.Kerberos.Username,
+			Password:    opts.Config.Kerberos.Password,
+			ConfigPath:  opts.Config.Kerberos.ConfigPath,
+			KeyTabPath:  opts.Config.Kerberos.KeyTabPath,
+		}
+	}
+
+	if opts.Config.Authentication == "plaintext" {
+		cfg.Authentication.PlainText = &kafkaexporter.PlainTextConfig{
+			Username: opts.Config.PlainText.UserName,
+			Password: opts.Config.PlainText.Password,
+		}
+	}
+
+	if opts.Config.Authentication == "tls" && opts.Config.TLS.Enabled {
+		cfg.Authentication.TLS = &configtls.TLSClientSetting{
+			TLSSetting: configtls.TLSSetting{
+				CAFile:   opts.Config.TLS.CAPath,
+				CertFile: opts.Config.TLS.CertPath,
+				KeyFile:  opts.Config.TLS.KeyPath,
+			},
+			ServerName: opts.Config.TLS.ServerName,
+			Insecure:   opts.Config.TLS.SkipHostVerify,
+		}
+	}
+
 	return cfg
 }
 

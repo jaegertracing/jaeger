@@ -28,7 +28,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/kafkareceiver"
 )
 
-// TypeStr defines exporter type.
+// TypeStr defines receiver type.
 const TypeStr = "kafka"
 
 // Factory wraps kafkareceiver.Factory and makes the default config configurable via viper.
@@ -55,18 +55,9 @@ func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	opts := &ingesterApp.Options{}
 	opts.InitFromViper(f.Viper)
 
-	switch opts.Encoding {
-	case kafka.EncodingProto:
-		opts.Encoding = "jaeger_proto"
-	case kafka.EncodingJSON:
-		opts.Encoding = "jaeger_json"
-	case kafka.EncodingZipkinThrift:
-		panic("zipkin thrift encoding not supported in otel collector")
-	}
-
 	cfg.Brokers = opts.Brokers
 	cfg.ClientID = opts.ClientID
-	cfg.Encoding = opts.Encoding
+	cfg.Encoding = MustOtelEncodingForJaegerEncoding(opts.Encoding)
 	cfg.GroupID = opts.GroupID
 	cfg.Topic = opts.Topic
 
@@ -136,4 +127,16 @@ func (f Factory) CreateLogsReceiver(
 	nextConsumer consumer.LogsConsumer,
 ) (component.LogsReceiver, error) {
 	return f.Wrapped.CreateLogsReceiver(ctx, params, cfg, nextConsumer)
+}
+
+// MustOtelEncodingForJaegerEncoding translates a jaeger encoding to a otel encoding
+func MustOtelEncodingForJaegerEncoding(jaegerEncoding string) string {
+	switch jaegerEncoding {
+	case kafka.EncodingProto:
+		return "jaeger_proto"
+	case kafka.EncodingJSON:
+		return "jaeger_json"
+	}
+
+	panic(jaegerEncoding + " is not a supported kafka encoding in the OTEL collector.")
 }

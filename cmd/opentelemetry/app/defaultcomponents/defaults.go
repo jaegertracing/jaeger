@@ -80,7 +80,7 @@ func Components(v *viper.Viper) component.Factories {
 	factories.Exporters[memoryExp.Type()] = memoryExp
 	factories.Exporters[badgerExp.Type()] = badgerExp
 
-	factories.Receivers[kafkaexporter.TypeStr] = &kafkareceiver.Factory{
+	factories.Receivers[kafkareceiver.TypeStr] = &kafkareceiver.Factory{
 		Wrapped: otelKafkaReceiver.NewFactory(),
 		Viper:   v,
 	}
@@ -111,7 +111,7 @@ func Components(v *viper.Viper) component.Factories {
 // addDefaultValuesToViper adds Jaeger storage flags to viper to make the default values available.
 func addDefaultValuesToViper(v *viper.Viper) {
 	flagSet := &flag.FlagSet{}
-	// jpe - register kafka jaeger flags here
+	kafkaexporter.AddFlags(flagSet)
 	elasticsearchexporter.DefaultOptions().AddFlags(flagSet)
 	cassandraexporter.DefaultOptions().AddFlags(flagSet)
 	pflagSet := &pflag.FlagSet{}
