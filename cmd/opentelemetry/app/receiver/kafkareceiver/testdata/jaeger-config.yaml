@@ -1,0 +1,4 @@
+kafka.consumer:
+  authentication: kerberos
+  kerberos:
+    username: from-jaeger-config

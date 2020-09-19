@@ -17,10 +17,14 @@ package kafkareceiver
 import (
 	"context"
 
+	ingeserApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/exporter/kafkaexporter"
 	"go.opentelemetry.io/collector/receiver/kafkareceiver"
 )
 
@@ -47,6 +51,56 @@ func (f *Factory) Type() configmodels.Type {
 // This function implements OTEL component.ReceiverFactoryBase interface.
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*kafkareceiver.Config)
+	// load jaeger config
+	opts := &ingeserApp.Options{}
+	opts.InitFromViper(f.Viper)
+
+	switch opts.Encoding {
+	case kafka.EncodingProto:
+		opts.Encoding = "jaeger_proto"
+	case kafka.EncodingJSON:
+		opts.Encoding = "jaeger_json"
+	case kafka.EncodingZipkinThrift:
+		panic("zipkin thrift encoding not supported in otel collector")
+	}
+
+	cfg.Brokers = opts.Brokers
+	cfg.ClientID = opts.ClientID
+	cfg.Encoding = opts.Encoding
+	cfg.GroupID = opts.GroupID
+	cfg.Topic = opts.Topic
+
+	if opts.Authentication == "kerberos" {
+		cfg.Authentication.Kerberos = &kafkaexporter.KerberosConfig{
+			ServiceName: opts.Kerberos.ServiceName,
+			Realm:       opts.Kerberos.Realm,
+			UseKeyTab:   opts.Kerberos.UseKeyTab,
+			Username:    opts.Kerberos.Username,
+			Password:    opts.Kerberos.Password,
+			ConfigPath:  opts.Kerberos.ConfigPath,
+			KeyTabPath:  opts.Kerberos.KeyTabPath,
+		}
+	}
+
+	if opts.Authentication == "plaintext" {
+		cfg.Authentication.PlainText = &kafkaexporter.PlainTextConfig{
+			Username: opts.PlainText.UserName,
+			Password: opts.PlainText.Password,
+		}
+	}
+
+	if opts.Authentication == "tls" && opts.TLS.Enabled {
+		cfg.Authentication.TLS = &configtls.TLSClientSetting{
+			TLSSetting: configtls.TLSSetting{
+				CAFile:   opts.TLS.CAPath,
+				CertFile: opts.TLS.CertPath,
+				KeyFile:  opts.TLS.KeyPath,
+			},
+			ServerName: opts.TLS.ServerName,
+			Insecure:   opts.TLS.SkipHostVerify,
+		}
+	}
+
 	return cfg
 }
 
@@ -70,4 +124,16 @@ func (f *Factory) CreateMetricsReceiver(
 	nextConsumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
 	return f.Wrapped.CreateMetricsReceiver(ctx, params, cfg, nextConsumer)
+}
+
+// CreateLogsReceiver creates a receiver based on the config.
+// If the receiver type does not support logs or if the config is not valid
+// error will be returned instead.
+func (f Factory) CreateLogsReceiver(
+	ctx context.Context,
+	params component.ReceiverCreateParams,
+	cfg configmodels.Receiver,
+	nextConsumer consumer.LogsConsumer,
+) (component.LogsReceiver, error) {
+	return f.Wrapped.CreateLogsReceiver(ctx, params, cfg, nextConsumer)
 }
