@@ -21,9 +21,7 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/service"
-	"go.opentelemetry.io/collector/service/builder"
 
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
@@ -60,35 +58,17 @@ func main() {
 	if storageType == "" {
 		storageType = "cassandra"
 	}
-
 	cmpts := defaultcomponents.Components(v)
-	cfgFactory := func(otelViper *viper.Viper, f component.Factories) (*configmodels.Config, error) {
-		cfgConfig := defaultconfig.ComponentSettings{
-			ComponentType: defaultconfig.Ingester,
-			Factories:     cmpts,
-			StorageType:   storageType,
-		}
-		cfg, err := cfgConfig.CreateDefaultConfig()
-		if err != nil {
-			return nil, err
-		}
-		if len(builder.GetConfigFile()) > 0 {
-			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
-			if err != nil {
-				return nil, err
-			}
-			err = defaultconfig.MergeConfigs(cfg, otelCfg)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return cfg, nil
+	cfgConfig := defaultconfig.ComponentSettings{
+		ComponentType: defaultconfig.Ingester,
+		Factories:     cmpts,
+		StorageType:   storageType,
 	}
 
 	svc, err := service.New(service.Parameters{
 		ApplicationStartInfo: info,
 		Factories:            cmpts,
-		ConfigFactory:        cfgFactory,
+		ConfigFactory:        cfgConfig.DefaultConfigFactory(v),
 	})
 	handleErr(err)
 
