@@ -64,7 +64,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 
 	assert.Equal(t, TypeStr, defaultCfg.Name())
 	assert.Equal(t, "jaeger-test", defaultCfg.Topic)
-	assert.Equal(t, "emojis", defaultCfg.Encoding)
+	assert.Equal(t, "jaeger_json", defaultCfg.Encoding)
 	assert.Equal(t, []string{"host1", "host2"}, defaultCfg.Brokers)
 	assert.Equal(t, "from-flag", defaultCfg.GroupID)
 	assert.Equal(t, "jaeger", defaultCfg.Authentication.Kerberos.Realm)

@@ -50,6 +50,11 @@ func (f Factory) Type() configmodels.Type {
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	cfg := f.Wrapped.CreateDefaultConfig().(*kafkaexporter.Config)
 
+	// InitFromViper fails if certain fields are not set.  Setting them here
+	//  to prevent the process from exiting.
+	f.Viper.Set("kafka.producer.required-acks", "local")
+	f.Viper.Set("kafka.producer.compression", "none")
+
 	opts := &kafka.Options{}
 	opts.InitFromViper(f.Viper)
 

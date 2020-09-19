@@ -1,6 +1,6 @@
-kafka.consumer:
+kafka.producer:
   authentication: kerberos
-  encoding: json
+  encoding: protobuf
   topic: jaeger-prod
   kerberos:
     username: from-jaeger-config

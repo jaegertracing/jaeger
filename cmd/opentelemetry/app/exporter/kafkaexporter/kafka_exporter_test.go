@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/configcheck"
 	otelKafkaExporter "go.opentelemetry.io/collector/exporter/kafkaexporter"
 
+	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
@@ -44,4 +45,27 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Nil(t, defaultCfg.Authentication.Kerberos)
 	assert.Nil(t, defaultCfg.Authentication.TLS)
 	assert.Nil(t, defaultCfg.Authentication.PlainText)
+}
+
+func TestLoadConfigAndFlags(t *testing.T) {
+	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
+	err := c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.producer.topic=jaeger-test", "--kafka.producer.brokers=host1,host2"})
+	require.NoError(t, err)
+
+	err = flags.TryLoadConfigFile(v)
+	require.NoError(t, err)
+
+	factory := &Factory{
+		Wrapped: otelKafkaExporter.NewFactory(),
+		Viper:   v,
+	}
+	defaultCfg := factory.CreateDefaultConfig().(*otelKafkaExporter.Config)
+
+	assert.Equal(t, TypeStr, defaultCfg.Name())
+	assert.Equal(t, "jaeger-test", defaultCfg.Topic)
+	assert.Equal(t, "jaeger_proto", defaultCfg.Encoding)
+	assert.Equal(t, []string{"host1", "host2"}, defaultCfg.Brokers)
+	assert.Equal(t, "jaeger", defaultCfg.Authentication.Kerberos.Realm)
+	assert.Equal(t, "/etc/krb5.conf", defaultCfg.Authentication.Kerberos.ConfigPath)
+	assert.Equal(t, "from-jaeger-config", defaultCfg.Authentication.Kerberos.Username)
 }
