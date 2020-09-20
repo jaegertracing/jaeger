@@ -17,8 +17,6 @@ package kafkareceiver
 import (
 	"context"
 
-	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
-	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
@@ -26,6 +24,9 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
 	"go.opentelemetry.io/collector/receiver/kafkareceiver"
+
+	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
 // TypeStr defines receiver type.

@@ -17,13 +17,14 @@ package kafkaexporter
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
-	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
+
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
 // TypeStr defines exporter type.
