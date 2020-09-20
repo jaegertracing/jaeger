@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/jaegerreceiver"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/zipkinreceiver"
 	cassandraStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es
+	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
 // AddComponentFlags adds all flags exposed by components
