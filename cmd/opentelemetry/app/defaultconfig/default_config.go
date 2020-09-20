@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -39,7 +40,6 @@ import (
 	jaegerresource "github.com/jaegertracing/jaeger/cmd/opentelemetry/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/spf13/viper"
 )
 
 const (
