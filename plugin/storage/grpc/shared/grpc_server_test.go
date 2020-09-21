@@ -22,6 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -144,6 +146,21 @@ func TestGRPCServerGetTrace(t *testing.T) {
 			TraceID: mockTraceID,
 		}, traceSteam)
 		assert.NoError(t, err)
+	})
+}
+
+func TestGRPCServerGetTrace_NotFound(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam.On("Context").Return(context.Background())
+
+		r.impl.spanReader.On("GetTrace", mock.Anything, mockTraceID).
+			Return(nil, spanstore.ErrTraceNotFound)
+
+		err := r.server.GetTrace(&storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}, traceSteam)
+		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
 }
 

@@ -16,6 +16,8 @@ package shared
 
 import (
 	"context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"testing"
 
@@ -70,6 +72,19 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 	trace, err := reader.GetTrace(context.Background(), mockTraceID)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, trace)
+}
+
+func TestArchiveReaderGetTrace_NoTrace(t *testing.T) {
+	mockTraceID := model.NewTraceID(0, 123456)
+
+	archiveSpanReader := new(mocks.ArchiveSpanReaderPluginClient)
+	archiveSpanReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
+		TraceID: mockTraceID,
+	}).Return(nil, status.Errorf(codes.NotFound, ""))
+	reader := &archiveReader{client: archiveSpanReader}
+
+	_, err := reader.GetTrace(context.Background(), mockTraceID)
+	assert.Equal(t, spanstore.ErrTraceNotFound, err)
 }
 
 func TestArchiveReader_FindTraceIDs(t *testing.T) {
