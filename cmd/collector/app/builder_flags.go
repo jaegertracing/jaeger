@@ -120,7 +120,6 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	return cOpts
 }
 
-
 // ExposeTuningOptions exposes collector's tuning options via expvar.
 func ExposeTuningOptions(opts *CollectorOptions) {
 	expvar.NewInt(collectorNumWorkers).Set(int64(opts.NumWorkers))
