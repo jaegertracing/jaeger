@@ -205,10 +205,10 @@ func TestGRPCClientGetTrace_NoTrace(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
 		r.spanReader.On("GetTrace", mock.Anything, &storage_v1.GetTraceRequest{
 			TraceID: mockTraceID,
-		}).Return(nil, spanstore.ErrTraceNotFound)
+		}).Return(nil, status.Errorf(codes.NotFound, ""))
 
 		s, err := r.client.GetTrace(context.Background(), mockTraceID)
-		assert.Error(t, err)
+		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, s)
 	})
 }

@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -44,6 +46,9 @@ func (r *archiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*m
 	stream, err := r.client.GetArchiveTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
+	if status.Code(err) == codes.NotFound {
+		return nil, spanstore.ErrTraceNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}

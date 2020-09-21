@@ -88,6 +88,9 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	stream, err := c.readerClient.GetTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
+	if status.Code(err) == codes.NotFound {
+		return nil, spanstore.ErrTraceNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}

@@ -57,6 +57,9 @@ func (s *grpcServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanReque
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *grpcServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
 	trace, err := s.Impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
+	if err == spanstore.ErrTraceNotFound {
+		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+	}
 	if err != nil {
 		return err
 	}
