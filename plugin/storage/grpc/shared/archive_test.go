@@ -16,13 +16,13 @@ package shared
 
 import (
 	"context"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
