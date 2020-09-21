@@ -16,6 +16,7 @@
 package app
 
 import (
+	"expvar"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -117,4 +118,11 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
 	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 	return cOpts
+}
+
+
+// ExposeTuningOptions exposes collector's tuning options via expvar.
+func ExposeTuningOptions(opts *CollectorOptions) {
+	expvar.NewInt(collectorNumWorkers).Set(int64(opts.NumWorkers))
+	expvar.NewInt(collectorQueueSize).Set(int64(opts.QueueSize))
 }
