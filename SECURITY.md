@@ -92,3 +92,7 @@ oF+qZY4uEvqFvYo8
 [published-key]: http://pool.sks-keyservers.net/pks/lookup?op=get&search=0xC043A4D2B3F2AC31
 [mailing-list]: https://groups.google.com/forum/#!forum/jaeger-tracing
 [gitter-room]: https://gitter.im/jaegertracing/Lobby
+
+## Securing a Jaeger installation
+
+If you are looking to secure your Jaeger installation, check out our documentation on the topic: [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/).
