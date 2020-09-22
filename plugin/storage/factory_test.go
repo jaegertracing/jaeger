@@ -358,6 +358,10 @@ func TestSetExpvarOptions(t *testing.T) {
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 
+	m := metrics.NullFactory
+	l := zap.NewNop()
+	f.Initialize(m, l)
+
 	gotDownsamplingRatio := expvar.Get(downsamplingRatio)
 
 	assert.Equal(t, f.DownsamplingRatio, gotDownsamplingRatio)

@@ -82,7 +82,6 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 		}
 		f.factories[t] = ff
 	}
-	f.setExpvarOptions()
 	return f, nil
 }
 
@@ -113,6 +112,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			return err
 		}
 	}
+	f.setExpvarOptions()
 	return nil
 }
 
