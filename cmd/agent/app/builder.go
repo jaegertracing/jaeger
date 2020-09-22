@@ -16,6 +16,7 @@
 package app
 
 import (
+	"expvar"
 	"fmt"
 	"io"
 	"net/http"
@@ -112,6 +113,7 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
+	b.setExpvarOptions()
 	return NewAgent(processors, server, logger), nil
 }
 
@@ -125,6 +127,21 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 		rep[i+1] = r
 	}
 	return reporter.NewMultiReporter(rep...)
+}
+
+func (b *Builder) setExpvarOptions() {
+	for _, p := range b.Processors {
+		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
+		if expvar.Get(prefix+suffixServerMaxPacketSize) == nil {
+			expvar.NewInt(prefix + suffixServerMaxPacketSize).Set(int64(p.Server.MaxPacketSize))
+		}
+		if expvar.Get(prefix+suffixServerQueueSize) == nil {
+			expvar.NewInt(prefix + suffixServerQueueSize).Set(int64(p.Server.QueueSize))
+		}
+		if expvar.Get(prefix+suffixWorkers) == nil {
+			expvar.NewInt(prefix + suffixWorkers).Set(int64(p.Workers))
+		}
+	}
 }
 
 func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {

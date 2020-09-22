@@ -16,7 +16,6 @@
 package app
 
 import (
-	"expvar"
 	"flag"
 	"fmt"
 	"strconv"
@@ -85,16 +84,6 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 
 	b.HTTPServer.HostPort = portNumToHostPort(v.GetString(HTTPServerHostPort))
 	return b
-}
-
-// ExposeTuningOptions exposes agent's tuning options via expvar.
-func ExposeTuningOptions(b *Builder) {
-	for _, p := range b.Processors {
-		prefix := fmt.Sprintf("processor.%s-%s.", p.Model, p.Protocol)
-		expvar.NewInt(prefix + suffixServerMaxPacketSize).Set(int64(p.Server.MaxPacketSize))
-		expvar.NewInt(prefix + suffixServerQueueSize).Set(int64(p.Server.QueueSize))
-		expvar.NewInt(prefix + suffixWorkers).Set(int64(p.Workers))
-	}
 }
 
 // portNumToHostPort checks if the value is a raw integer port number,

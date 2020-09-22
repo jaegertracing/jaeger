@@ -117,11 +117,16 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
 	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
+	cOpts.setExpvarOptions()
+
 	return cOpts
 }
 
-// ExposeTuningOptions exposes collector's tuning options via expvar.
-func ExposeTuningOptions(opts *CollectorOptions) {
-	expvar.NewInt(collectorNumWorkers).Set(int64(opts.NumWorkers))
-	expvar.NewInt(collectorQueueSize).Set(int64(opts.QueueSize))
+func (cOpts *CollectorOptions) setExpvarOptions() {
+	if expvar.Get(collectorNumWorkers) == nil {
+		expvar.NewInt(collectorNumWorkers).Set(int64(cOpts.NumWorkers))
+	}
+	if expvar.Get(collectorQueueSize) == nil {
+		expvar.NewInt(collectorQueueSize).Set(int64(cOpts.QueueSize))
+	}
 }

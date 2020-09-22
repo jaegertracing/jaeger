@@ -128,8 +128,6 @@ by default uses only in-memory database.`,
 			})
 			c.Start(cOpts)
 
-			collectorApp.ExposeTuningOptions(cOpts)
-
 			// agent
 			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
 			if len(grpcBuilder.CollectorHostPorts) == 0 {
@@ -148,8 +146,6 @@ by default uses only in-memory database.`,
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
 			agent := startAgent(cp, aOpts, logger, metricsFactory)
-
-			agentApp.ExposeTuningOptions(aOpts)
 
 			// query
 			querySrv := startQuery(

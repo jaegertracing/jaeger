@@ -94,8 +94,6 @@ func main() {
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
 			c.Start(collectorOpts)
 
-			app.ExposeTuningOptions(collectorOpts)
-
 			svc.RunAndThen(func() {
 				if err := c.Close(); err != nil {
 					logger.Error("failed to cleanly close the collector", zap.Error(err))

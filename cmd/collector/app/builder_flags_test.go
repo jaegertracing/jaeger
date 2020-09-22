@@ -54,16 +54,14 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	assert.Equal(t, "0.0.0.0:3456", c.CollectorZipkinHTTPHostPort)
 }
 
-func TestExposeTuningOptions(t *testing.T) {
+func TestCollectorOptionsWithFlags_CheckExpvarOptions(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
 		"--collector.num-workers=42",
-		"--collector.queue-size=42",
+		"--collector.queue-size=24",
 	})
 	c.InitFromViper(v)
-
-	ExposeTuningOptions(c)
 
 	gotNumWorkers, err := strconv.Atoi(expvar.Get("collector.num-workers").String())
 	assert.NoError(t, err)
@@ -72,5 +70,5 @@ func TestExposeTuningOptions(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, 42, gotNumWorkers)
-	assert.Equal(t, 42, gotQueueSize)
+	assert.Equal(t, 24, gotQueueSize)
 }

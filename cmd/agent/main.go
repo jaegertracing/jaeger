@@ -80,8 +80,6 @@ func main() {
 				return fmt.Errorf("failed to run the agent: %w", err)
 			}
 
-			app.ExposeTuningOptions(builder)
-
 			svc.RunAndThen(func() {
 				agent.Stop()
 				cp.Close()
