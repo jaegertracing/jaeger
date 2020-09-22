@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -362,8 +363,9 @@ func TestSetExpvarOptions(t *testing.T) {
 	l := zap.NewNop()
 	f.Initialize(m, l)
 
-	gotDownsamplingRatio := expvar.Get(downsamplingRatio)
 	gotSpanStorageType := expvar.Get(spanStorageType)
+	gotDownsamplingRatio, err := strconv.ParseFloat(expvar.Get(downsamplingRatio).String(), 64)
+	assert.NoError(t, err)
 
 	assert.Equal(t, f.DownsamplingRatio, gotDownsamplingRatio)
 	assert.Equal(t, f.SpanReaderType, gotSpanStorageType)

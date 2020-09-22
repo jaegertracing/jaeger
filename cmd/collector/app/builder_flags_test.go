@@ -56,11 +56,7 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 
 func TestCollectorOptionsWithFlags_CheckExpvarOptions(t *testing.T) {
 	c := &CollectorOptions{}
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--collector.num-workers=42",
-		"--collector.queue-size=24",
-	})
+	v, _ := config.Viperize(AddFlags)
 	c.InitFromViper(v)
 
 	gotNumWorkers, err := strconv.Atoi(expvar.Get("collector.num-workers").String())
@@ -69,6 +65,6 @@ func TestCollectorOptionsWithFlags_CheckExpvarOptions(t *testing.T) {
 	gotQueueSize, err := strconv.Atoi(expvar.Get("collector.queue-size").String())
 	assert.NoError(t, err)
 
-	assert.Equal(t, 42, gotNumWorkers)
-	assert.Equal(t, 24, gotQueueSize)
+	assert.Equal(t, DefaultNumWorkers, gotNumWorkers)
+	assert.Equal(t, DefaultQueueSize, gotQueueSize)
 }
