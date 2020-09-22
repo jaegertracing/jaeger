@@ -111,6 +111,7 @@ func Components(v *viper.Viper) component.Factories {
 // addDefaultValuesToViper adds Jaeger storage flags to viper to make the default values available.
 func addDefaultValuesToViper(v *viper.Viper) {
 	flagSet := &flag.FlagSet{}
+	kafkareceiver.AddFlags(flagSet)
 	kafkaexporter.AddFlags(flagSet)
 	elasticsearchexporter.DefaultOptions().AddFlags(flagSet)
 	cassandraexporter.DefaultOptions().AddFlags(flagSet)
