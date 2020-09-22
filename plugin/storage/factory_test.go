@@ -17,6 +17,7 @@ package storage
 
 import (
 	"errors"
+	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -348,6 +349,18 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	assert.NoError(t, err)
 	f.InitFromViper(v)
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
+}
+
+func TestSetExpvarOptions(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+
+	gotDownsamplingRatio := expvar.Get(downsamplingRatio)
+
+	assert.Equal(t, f.DownsamplingRatio, gotDownsamplingRatio)
 }
 
 type errorCloseFactory struct {

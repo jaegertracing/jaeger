@@ -16,6 +16,7 @@
 package storage
 
 import (
+	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -81,6 +82,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 		}
 		f.factories[t] = ff
 	}
+	f.setExpvarOptions()
 	return f, nil
 }
 
@@ -248,4 +250,10 @@ func (f *Factory) Close() error {
 		}
 	}
 	return multierror.Wrap(errs)
+}
+
+func (f *Factory) setExpvarOptions() {
+	if expvar.Get(downsamplingRatio) == nil {
+		expvar.NewInt(downsamplingRatio).Set(int64(f.FactoryConfig.DownsamplingRatio))
+	}
 }

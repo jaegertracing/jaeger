@@ -15,6 +15,8 @@
 package memory
 
 import (
+	"expvar"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,4 +31,16 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts.InitFromViper(v)
 
 	assert.Equal(t, 100, opts.Configuration.MaxTraces)
+}
+
+func TestOptionsWithFlags_CheckExpvarOptions(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{"--memory.max-traces=100"})
+	opts := Options{}
+	opts.InitFromViper(v)
+
+	gotMaxTraces, err := strconv.Atoi(expvar.Get("memory.max-traces").String())
+	assert.NoError(t, err)
+
+	assert.Equal(t, 100, gotMaxTraces)
 }
