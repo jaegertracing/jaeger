@@ -5,6 +5,7 @@
 .fmt.log
 .import.log
 .lint.log
+coverage.txt
 cover.html
 .envrc
 .idea/

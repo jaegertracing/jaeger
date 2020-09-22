@@ -17,11 +17,20 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
 				   -not -path '*/thrift-0.9.2/*' \
+				   -not -path '*/cmd/opentelemetry/*' \
 				   -type f | \
 				sort)
 
 # ALL_PKGS is used with 'golint'
 ALL_PKGS := $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
+
+# all .go files that are not auto-generated and should be auto-formatted and linted.
+ALL_SRC_OTEL := $(shell cd ${OTEL_COLLECTOR_DIR} && find . -name '*.go' \
+				   -type f | \
+				sort)
+
+# ALL_PKGS is used with 'golint'
+ALL_PKGS_OTEL := $(shell echo $(dir $(ALL_SRC_OTEL)) | tr ' ' '\n' | sort -u)
 
 UNAME := $(shell uname -m)
 #Race flag is not supported on s390x architecture
@@ -36,6 +45,7 @@ GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
+GOACC=go-acc
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 LINT_LOG=.lint.log
@@ -149,25 +159,33 @@ all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 .PHONY: cover
-cover: nocover
+cover:
 	@echo pre-compiling tests
 	@time go test -i $(shell go list ./...)
-	# TODO Switch to single `go test` that already supports multiple packages, but watch out for .nocover dirs.
-	@./scripts/cover.sh $(shell go list ./...)
+	$(GOACC) $(ALL_PKGS)
+	#gocovmerge coverage.txt ${OTEL_COLLECTOR_DIR}/coverage.txt > cover.out
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
+
+.PHONY: cover-otel
+cover-otel:
+	@echo pre-compiling tests
+	@cd ${OTEL_COLLECTOR_DIR} && time go test -i $(shell go list ./...)
+	cd ${OTEL_COLLECTOR_DIR} && $(GOACC) $(ALL_PKGS_OTEL)
 
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
 	@scripts/check-test-files.sh $(ALL_PKGS)
+	@cd ${OTEL_COLLECTOR_DIR} && ../../scripts/check-test-files.sh $(ALL_PKGS_OTEL)
 
 .PHONY: fmt
 fmt:
 	./scripts/import-order-cleanup.sh inplace
 	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
+	@cd ${OTEL_COLLECTOR_DIR} && $(GOFMT) -e -s -l -w $(ALL_SRC_OTEL)
 	./scripts/updateLicenses.sh
 
 .PHONY: lint-gosec
@@ -198,6 +216,10 @@ lint: lint-staticcheck lint-gosec lint-otel
 lint-otel:
 	cd ${OTEL_COLLECTOR_DIR} && $(GOVET) ./...
 	cd ${OTEL_COLLECTOR_DIR} && time gosec -quiet -exclude=G104,G107 ./...
+	@cd ${OTEL_COLLECTOR_DIR} && cat /dev/null > $(LINT_LOG)
+	echo ${ALL_PKGS_OTEL}
+	@cd ${OTEL_COLLECTOR_DIR} && $(GOLINT) $(ALL_PKGS_OTEL) | grep -v _nolint.go >> $(LINT_LOG) || true;
+	@cd ${OTEL_COLLECTOR_DIR} && [ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
 .PHONY: go-lint
 go-lint:
@@ -324,9 +346,9 @@ docker-images-jaeger-backend:
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component --build-arg TARGETARCH=$(GOARCH) ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry/cmd/agent --build-arg TARGETARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry/cmd/ingester --build-arg TARGETARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile ${OTEL_COLLECTOR_DIR}/cmd/collector --build-arg TARGETARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile ${OTEL_COLLECTOR_DIR}/cmd/agent --build-arg TARGETARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile ${OTEL_COLLECTOR_DIR}/cmd/ingester --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
@@ -386,6 +408,7 @@ install-tools:
 	go install github.com/mjibson/esc
 	go install github.com/securego/gosec/cmd/gosec
 	go install honnef.co/go/tools/cmd/staticcheck
+	go install github.com/ory/go-acc
 
 .PHONY: install-ci
 install-ci: install-tools
