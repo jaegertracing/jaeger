@@ -14,14 +14,14 @@ If you find something suspicious and want to report it, we'd really appreciate!
 
 ### Ways to report
 
-* Prefer to always encrypt your message, no matter the channel you choose to report the issue
+* It is preferable to always encrypt your message, no matter the channel you choose to report the issue
 * Contact us on our open chat room on [Gitter][gitter-room]
-* Send a message to [jaeger-tracing@googlegroups.com][mailing-list]
-* Merge request on GitHub: if you can, fork the affected repository and send us a pull request. We really prefer if you'd talk to us before, though, as our repositories are public and we would like to give a heads up to our users before disclosing it publicly
+* If you can't use Gitter, send a message to [jaeger-tracing@googlegroups.com][mailing-list]
+* If you can't use Gitter nor send an email, open a merge request on GitHub: fork the affected repository and send us a pull request. We really prefer if you'd talk to us before, though, as our repositories are public and we would like to give a heads up to our users before disclosing it publicly
 
 ### Our PGP key
 
-No matter what channel you choose to communicate with us, feel free to encrypt your message using our [published key][published-key], available in all major key servers and which should match the one shown below. If you are new to PGP, you can run the following command to encrypt a file called "message.txt":
+No matter what channel you choose to communicate with us, we would prefer you to encrypt your message using our [published key][published-key], available in all major key servers and which should match the one shown below. If you are new to PGP, you can run the following command to encrypt a file called "message.txt":
 
 1. Receive our keys from the key server:
 
