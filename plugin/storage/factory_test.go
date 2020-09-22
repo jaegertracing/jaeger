@@ -353,22 +353,26 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 }
 
 func TestSetExpvarOptions(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
-
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+
+	mock := new(mocks.Factory)
+	f.factories[cassandraStorageType] = mock
 
 	m := metrics.NullFactory
 	l := zap.NewNop()
-	f.Initialize(m, l)
+	mock.On("Initialize", m, l).Return(nil)
+	assert.NoError(t, f.Initialize(m, l))
 
-	gotSpanStorageType := expvar.Get(spanStorageType)
+	gotSpanStorageType := expvar.Get(spanStorageType).String()
 	gotDownsamplingRatio, err := strconv.ParseFloat(expvar.Get(downsamplingRatio).String(), 64)
 	assert.NoError(t, err)
 
 	assert.Equal(t, f.DownsamplingRatio, gotDownsamplingRatio)
-	assert.Equal(t, f.SpanReaderType, gotSpanStorageType)
+	// Normalize storage type because String method returns a JSON value
+	assert.Equal(t, f.SpanReaderType, strings.Replace(gotSpanStorageType, "\"", "", -1))
 }
 
 type errorCloseFactory struct {
