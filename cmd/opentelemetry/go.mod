@@ -5,6 +5,7 @@ go 1.14
 replace github.com/jaegertracing/jaeger => ./../../
 
 require (
+	github.com/Shopify/sarama v1.27.0
 	github.com/elastic/go-elasticsearch/v6 v6.8.10
 	github.com/elastic/go-elasticsearch/v7 v7.0.0
 	github.com/imdario/mergo v0.3.9

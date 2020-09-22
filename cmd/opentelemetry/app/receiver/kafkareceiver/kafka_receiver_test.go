@@ -43,6 +43,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, []string{"127.0.0.1:9092"}, defaultCfg.Brokers)
 	assert.Equal(t, "jaeger-ingester", defaultCfg.ClientID)
 	assert.Equal(t, "jaeger-ingester", defaultCfg.GroupID)
+	assert.Equal(t, "0.10.2.0", defaultCfg.ProtocolVersion)
 	assert.Nil(t, defaultCfg.Authentication.Kerberos)
 	assert.Nil(t, defaultCfg.Authentication.TLS)
 	assert.Nil(t, defaultCfg.Authentication.PlainText)
@@ -50,7 +51,7 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestLoadConfigAndFlags(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
-	err := c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.consumer.topic=jaeger-test", "--kafka.consumer.brokers=host1,host2", "--kafka.consumer.group-id=from-flag"})
+	err := c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.consumer.topic=jaeger-test", "--kafka.consumer.brokers=host1,host2", "--kafka.consumer.group-id=from-flag", "--kafka.consumer.protocol-version=1.1"})
 	require.NoError(t, err)
 
 	err = flags.TryLoadConfigFile(v)
@@ -67,6 +68,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	assert.Equal(t, "jaeger_json", defaultCfg.Encoding)
 	assert.Equal(t, []string{"host1", "host2"}, defaultCfg.Brokers)
 	assert.Equal(t, "from-flag", defaultCfg.GroupID)
+	assert.Equal(t, "1.1", defaultCfg.ProtocolVersion)
 	assert.Equal(t, "jaeger", defaultCfg.Authentication.Kerberos.Realm)
 	assert.Equal(t, "/etc/krb5.conf", defaultCfg.Authentication.Kerberos.ConfigPath)
 	assert.Equal(t, "from-jaeger-config", defaultCfg.Authentication.Kerberos.Username)

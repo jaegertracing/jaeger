@@ -17,6 +17,7 @@ package kafkareceiver
 import (
 	"context"
 
+	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
@@ -61,6 +62,13 @@ func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg.Encoding = MustOtelEncodingForJaegerEncoding(opts.Encoding)
 	cfg.GroupID = opts.GroupID
 	cfg.Topic = opts.Topic
+	cfg.ProtocolVersion = opts.ProtocolVersion
+
+	// kafka consumer groups require a min version of V0_10_2_0.  if no version is specified
+	//  we will assume this
+	if len(cfg.ProtocolVersion) == 0 {
+		cfg.ProtocolVersion = sarama.V0_10_2_0.String()
+	}
 
 	if opts.Authentication == "kerberos" {
 		cfg.Authentication.Kerberos = &kafkaexporter.KerberosConfig{
