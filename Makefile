@@ -159,10 +159,10 @@ all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 .PHONY: cover
-cover:
+cover: nocover cover-otel
 	@echo pre-compiling tests
 	@time go test -i $(shell go list ./...)
-	$(GOACC) $(ALL_PKGS)
+	$(GOACC) $(shell go list ./...)
 	#gocovmerge coverage.txt ${OTEL_COLLECTOR_DIR}/coverage.txt > cover.out
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
@@ -172,7 +172,7 @@ cover:
 cover-otel:
 	@echo pre-compiling tests
 	@cd ${OTEL_COLLECTOR_DIR} && time go test -i $(shell go list ./...)
-	cd ${OTEL_COLLECTOR_DIR} && $(GOACC) $(ALL_PKGS_OTEL)
+	cd ${OTEL_COLLECTOR_DIR} && $(GOACC) $(shell go list ./...)
 
 .PHONY: nocover
 nocover:

@@ -8,7 +8,6 @@ require (
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
 	github.com/apache/thrift v0.13.0
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
-	github.com/cpuguy83/go-md2man v1.0.10 // indirect
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger v1.5.3
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
@@ -46,7 +45,7 @@ require (
 	github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.1.0
-	github.com/ory/go-acc v0.2.6 // indirect
+	github.com/ory/go-acc v0.2.6
 	github.com/pierrec/lz4 v2.4.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.5.1
@@ -54,13 +53,11 @@ require (
 	github.com/prometheus/procfs v0.1.3 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/rs/cors v1.7.0
+	github.com/russross/blackfriday v1.5.2 // indirect
 	github.com/sectioneight/md-to-godoc v0.0.0-20161108233149-55e43be6c335
 	github.com/securego/gosec v0.0.0-20200203094520-d13bb6d2420c
 	github.com/soheilhy/cmux v0.1.4
-	github.com/spf13/afero v1.2.2 // indirect
-	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/cobra v1.0.0
-	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.5.1
