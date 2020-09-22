@@ -47,6 +47,7 @@ const (
 	badgerStorageType        = "badger"
 	downsamplingRatio        = "downsampling.ratio"
 	downsamplingHashSalt     = "downsampling.hashsalt"
+	spanStorageType          = "span-storage.type"
 
 	// defaultDownsamplingRatio is the default downsampling ratio.
 	defaultDownsamplingRatio = 1.0
@@ -255,5 +256,8 @@ func (f *Factory) Close() error {
 func (f *Factory) setExpvarOptions() {
 	if expvar.Get(downsamplingRatio) == nil {
 		expvar.NewInt(downsamplingRatio).Set(int64(f.FactoryConfig.DownsamplingRatio))
+	}
+	if expvar.Get(spanStorageType) == nil {
+		expvar.NewString(spanStorageType).Set(f.SpanReaderType)
 	}
 }

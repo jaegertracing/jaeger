@@ -363,8 +363,10 @@ func TestSetExpvarOptions(t *testing.T) {
 	f.Initialize(m, l)
 
 	gotDownsamplingRatio := expvar.Get(downsamplingRatio)
+	gotSpanStorageType := expvar.Get(spanStorageType)
 
 	assert.Equal(t, f.DownsamplingRatio, gotDownsamplingRatio)
+	assert.Equal(t, f.SpanReaderType, gotSpanStorageType)
 }
 
 type errorCloseFactory struct {
