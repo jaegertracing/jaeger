@@ -163,7 +163,7 @@ cover: nocover cover-otel
 	@echo pre-compiling tests
 	@time go test -i $(shell go list ./...)
 	$(GOACC) $(shell go list ./...)
-	#gocovmerge coverage.txt ${OTEL_COLLECTOR_DIR}/coverage.txt > cover.out
+	gocovmerge coverage.txt ${OTEL_COLLECTOR_DIR}/coverage.txt > cover.out
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -171,8 +171,8 @@ cover: nocover cover-otel
 .PHONY: cover-otel
 cover-otel:
 	@echo pre-compiling tests
-	@cd ${OTEL_COLLECTOR_DIR} && time go test -i $(shell go list ./...)
-	cd ${OTEL_COLLECTOR_DIR} && $(GOACC) $(shell go list ./...)
+	@cd ${OTEL_COLLECTOR_DIR} && time go test -i $(shell cd ${OTEL_COLLECTOR_DIR} && go list ./...)
+	cd ${OTEL_COLLECTOR_DIR} && $(GOACC) $(shell cd ${OTEL_COLLECTOR_DIR} && go list ./...)
 
 .PHONY: nocover
 nocover:
