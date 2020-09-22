@@ -367,8 +367,7 @@ func getTagFromSpanKind(spanKind pdata.SpanKind) (dbmodel.KeyValue, bool) {
 
 func getTagFromStatusCode(statusCode pdata.StatusCode) (dbmodel.KeyValue, bool) {
 	return dbmodel.KeyValue{
-		Key: tracetranslator.TagStatusCode,
-		// TODO is this ok?
+		Key:   tracetranslator.TagStatusCode,
 		Value: statusCode.String(),
 		Type:  dbmodel.StringType,
 	}, true

@@ -151,7 +151,7 @@ func TestConvertSpan(t *testing.T) {
 				StartTimeMillis: 1,
 				Tags: []dbmodel.KeyValue{
 					{Key: "span.kind", Type: dbmodel.StringType, Value: "client"},
-					{Key: "status.code", Type: dbmodel.StringType, Value: "Cancelled"},
+					{Key: "status.code", Type: dbmodel.StringType, Value: "STATUS_CODE_CANCELLED"},
 					{Key: "error", Type: dbmodel.BoolType, Value: "true"},
 					{Key: "status.message", Type: dbmodel.StringType, Value: "messagetext"},
 					{Key: "foo", Type: dbmodel.BoolType, Value: "true"},
