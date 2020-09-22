@@ -180,6 +180,9 @@ func (s *grpcServer) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stora
 		return status.Error(codes.Unimplemented, "not implemented")
 	}
 	trace, err := s.ArchiveImpl.ArchiveSpanReader().GetTrace(stream.Context(), r.TraceID)
+	if err == spanstore.ErrTraceNotFound {
+		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+	}
 	if err != nil {
 		return err
 	}
