@@ -112,10 +112,10 @@ func TestService(t *testing.T) {
 			},
 		},
 		{
+			viperConfig: map[string]interface{}{"collector.zipkin.host-port": "localhost:9411"},
 			cfg: ComponentSettings{
-				ComponentType:  AllInOne,
-				StorageType:    "elasticsearch",
-				ZipkinHostPort: "localhost:9411",
+				ComponentType: AllInOne,
+				StorageType:   "elasticsearch",
 			},
 			service: configmodels.Service{
 				Extensions: []string{"health_check"},
@@ -145,7 +145,7 @@ func TestService(t *testing.T) {
 			}
 			factories := defaultcomponents.Components(v)
 			test.cfg.Factories = factories
-			cfg, err := test.cfg.CreateDefaultConfig()
+			cfg, err := test.cfg.createDefaultConfig()
 			if test.err != "" {
 				require.Nil(t, cfg)
 				assert.Contains(t, err.Error(), test.err)

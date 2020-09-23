@@ -45,9 +45,13 @@ func (f Factory) Type() configmodels.Type {
 // This function implements OTEL component.ReceiverFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*zipkinreceiver.Config)
-	if f.Viper.IsSet(collectorApp.CollectorZipkinHTTPHostPort) {
-		cfg.Endpoint = f.Viper.GetString(collectorApp.CollectorZipkinHTTPHostPort)
-	}
+
+	// using the CollectorOptions to parse the zipkin host port b/c it has special processing
+	//  for combining the port and host:port zipkin flags
+	collectorOpts := &collectorApp.CollectorOptions{}
+	collectorOpts.InitFromViper(f.Viper)
+	cfg.Endpoint = collectorOpts.CollectorZipkinHTTPHostPort
+
 	return cfg
 }
 
