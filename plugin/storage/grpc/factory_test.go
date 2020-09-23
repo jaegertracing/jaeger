@@ -47,13 +47,17 @@ func (b *mockPluginBuilder) Build() (*grpcConfig.ClientPluginServices, error) {
 		return nil, b.err
 	}
 
-	return &grpcConfig.ClientPluginServices{
+	services := &grpcConfig.ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:        b.plugin,
 			ArchiveStore: b.plugin,
 		},
-		Capabilities: b.plugin,
-	}, nil
+	}
+	if b.plugin.capabilities != nil {
+		services.Capabilities = b.plugin
+	}
+
+	return services, nil
 }
 
 type mockPlugin struct {
@@ -212,6 +216,28 @@ func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
 	assert.Nil(t, reader)
 	writer, err := f.CreateArchiveSpanWriter()
 	assert.EqualError(t, err, customError.Error())
+	assert.Nil(t, writer)
+}
+
+func TestGRPCStorageFactory_CapabilitiesNil(t *testing.T) {
+	f := NewFactory()
+	v := viper.New()
+	f.InitFromViper(v)
+
+	f.builder = &mockPluginBuilder{
+		plugin: &mockPlugin{
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
+		},
+	}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	assert.NotNil(t, f.store)
+	reader, err := f.CreateArchiveSpanReader()
+	assert.Equal(t, err, storage.ErrArchiveStorageNotSupported)
+	assert.Nil(t, reader)
+	writer, err := f.CreateArchiveSpanWriter()
+	assert.Equal(t, err, storage.ErrArchiveStorageNotSupported)
 	assert.Nil(t, writer)
 }
 
