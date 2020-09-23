@@ -158,8 +158,8 @@ func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 	}
 
 	var traces []*model.Trace
+	var trace *model.Trace
 	var traceID model.TraceID
-	trace := &model.Trace{}
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
 			return nil, fmt.Errorf("stream error: %w", err)
