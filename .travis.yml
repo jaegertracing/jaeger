@@ -82,8 +82,8 @@ script:
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
-  - if [ "$COVERAGE" == true ]; then bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
-  - if [ "$COVERAGE" == true ]; then bash cd cmd/opentelemetry/ && <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
+  - if [ "$COVERAGE" == true ]; then travis_retry bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
+  - if [ "$COVERAGE" == true ]; then travis_retry bash cd cmd/opentelemetry/ && <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
 
 after_failure:
   - if [ "$CROSSDOCK" == true || "$CROSSDOCK_OTEL" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
