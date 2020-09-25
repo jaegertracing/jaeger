@@ -162,8 +162,7 @@ cover: nocover cover-otel
 cover-otel:
 	@echo pre-compiling OTEL tests
 	@cd ${OTEL_COLLECTOR_DIR} && time go test -i $(shell cd ${OTEL_COLLECTOR_DIR} && go list ./...)
-	@cd ${OTEL_COLLECTOR_DIR} && ROOT_PKG=github.com/jaegertracing/jaeger/cmd/opentelemetry ../../scripts/cover.sh $(shell cd ${OTEL_COLLECTOR_DIR} && go list ./...)
-	@cd ${OTEL_COLLECTOR_DIR} && mv cover.out coverage.txt
+	@cd ${OTEL_COLLECTOR_DIR} && go test -coverprofile=coverage.txt -covermode=atomic -v -race ./...
 
 .PHONY: nocover
 nocover:
