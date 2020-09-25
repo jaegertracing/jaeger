@@ -149,7 +149,7 @@ all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 .PHONY: cover
-cover: nocover
+cover: nocover cover-otel
 	@echo pre-compiling tests
 	@time go test -i $(shell go list ./...)
 	# TODO Switch to single `go test` that already supports multiple packages, but watch out for .nocover dirs.
@@ -157,6 +157,13 @@ cover: nocover
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
+
+.PHONY: cover-otel
+cover-otel:
+	@echo pre-compiling OTEL tests
+	@cd ${OTEL_COLLECTOR_DIR} && time go test -i $(shell cd ${OTEL_COLLECTOR_DIR} && go list ./...)
+	@cd ${OTEL_COLLECTOR_DIR} && ROOT_PKG=github.com/jaegertracing/jaeger/cmd/opentelemetry ../../scripts/cover.sh $(shell cd ${OTEL_COLLECTOR_DIR} && go list ./...)
+	@cd ${OTEL_COLLECTOR_DIR} && mv cover.out coverage.txt
 
 .PHONY: nocover
 nocover:
