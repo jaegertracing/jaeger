@@ -12,7 +12,6 @@ receivers:
         key_file: key.crt	
         insecure: true	
       kerberos:	
-        realm: jaeger	
         config_file: /etc/foo	
 
 

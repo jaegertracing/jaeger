@@ -54,7 +54,7 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestLoadConfigAndFlags(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
-	err := c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.consumer.topic=jaeger-test", "--kafka.consumer.brokers=host1,host2", "--kafka.consumer.group-id=from-flag", "--kafka.consumer.protocol-version=1.1"})
+	err := c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.consumer.topic=jaeger-test", "--kafka.consumer.brokers=host1,host2", "--kafka.consumer.group-id=from-flag", "--kafka.consumer.protocol-version=1.1", "--kafka.consumer.kerberos.realm=from-flag"})
 	require.NoError(t, err)
 
 	err = flags.TryLoadConfigFile(v)
@@ -84,7 +84,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	assert.Equal(t, "ca.crt", kafkaCfg.Authentication.TLS.CAFile)
 	assert.Equal(t, "key.crt", kafkaCfg.Authentication.TLS.KeyFile)
 	assert.Equal(t, true, kafkaCfg.Authentication.TLS.Insecure)
-	assert.Equal(t, "jaeger", kafkaCfg.Authentication.Kerberos.Realm)
+	assert.Equal(t, "from-flag", kafkaCfg.Authentication.Kerberos.Realm)
 	assert.Equal(t, "/etc/foo", kafkaCfg.Authentication.Kerberos.ConfigPath)
 	assert.Equal(t, "from-jaeger-config", kafkaCfg.Authentication.Kerberos.Username)
 }
