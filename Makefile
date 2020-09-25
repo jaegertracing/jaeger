@@ -160,8 +160,6 @@ cover: nocover cover-otel
 
 .PHONY: cover-otel
 cover-otel:
-	@echo pre-compiling OTEL tests
-	@cd ${OTEL_COLLECTOR_DIR} && time go test -i $(shell cd ${OTEL_COLLECTOR_DIR} && go list ./...)
 	@cd ${OTEL_COLLECTOR_DIR} && go test -coverprofile=coverage.txt -covermode=atomic -v -race ./...
 
 .PHONY: nocover
