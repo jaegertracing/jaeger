@@ -15,11 +15,14 @@
 package kafkaexporter
 
 import (
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configcheck"
+	"go.opentelemetry.io/collector/config/configtest"
 	otelKafkaExporter "go.opentelemetry.io/collector/exporter/kafkaexporter"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -59,13 +62,27 @@ func TestLoadConfigAndFlags(t *testing.T) {
 		Wrapped: otelKafkaExporter.NewFactory(),
 		Viper:   v,
 	}
-	defaultCfg := factory.CreateDefaultConfig().(*otelKafkaExporter.Config)
 
-	assert.Equal(t, TypeStr, defaultCfg.Name())
-	assert.Equal(t, "jaeger-test", defaultCfg.Topic)
-	assert.Equal(t, "jaeger_proto", defaultCfg.Encoding)
-	assert.Equal(t, []string{"host1", "host2"}, defaultCfg.Brokers)
-	assert.Equal(t, "jaeger", defaultCfg.Authentication.Kerberos.Realm)
-	assert.Equal(t, "/etc/krb5.conf", defaultCfg.Authentication.Kerberos.ConfigPath)
-	assert.Equal(t, "from-jaeger-config", defaultCfg.Authentication.Kerberos.Username)
+	factories, err := componenttest.ExampleComponents()
+	factories.Exporters[TypeStr] = factory
+	cfg, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	kafkaCfg := cfg.Exporters[TypeStr].(*otelKafkaExporter.Config)
+	require.NotNil(t, kafkaCfg)
+
+	assert.Equal(t, TypeStr, kafkaCfg.Name())
+	assert.Equal(t, "jaeger-prod", kafkaCfg.Topic)
+	assert.Equal(t, "emojis", kafkaCfg.Encoding)
+	assert.Equal(t, []string{"foo", "bar"}, kafkaCfg.Brokers)
+	assert.Equal(t, "user", kafkaCfg.Authentication.PlainText.Username)
+	assert.Equal(t, "123", kafkaCfg.Authentication.PlainText.Password)
+	assert.Equal(t, "ca.crt", kafkaCfg.Authentication.TLS.CAFile)
+	assert.Equal(t, "key.crt", kafkaCfg.Authentication.TLS.KeyFile)
+	assert.Equal(t, "cert.crt", kafkaCfg.Authentication.TLS.CertFile)
+	assert.Equal(t, true, kafkaCfg.Authentication.TLS.Insecure)
+	assert.Equal(t, "jaeger", kafkaCfg.Authentication.Kerberos.Realm)
+	assert.Equal(t, "/etc/foo", kafkaCfg.Authentication.Kerberos.ConfigPath)
+	assert.Equal(t, "from-jaeger-config", kafkaCfg.Authentication.Kerberos.Username)
 }
