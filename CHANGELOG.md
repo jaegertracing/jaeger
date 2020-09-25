@@ -5,7 +5,6 @@ Changes by Version
 -------------------
 
 ### Backend Changes
-* The default value for the flag `query.max-clock-skew-adjustment` has changed to `0s`, meaning that the clock skew adjustment is now disabled by default. See [#1459](https://github.com/jaegertracing/jaeger/issues/1459).
 
 #### Breaking Changes
 * Configurable ES doc count ([#2453](https://github.com/jaegertracing/jaeger/pull/2453), [@albertteoh](https://github.com/albertteoh))
@@ -22,6 +21,8 @@ Changes by Version
     * Operations
     * Dependencies (edges in a dependency graph)
     * Span fetch size for a trace
+
+* The default value for the flag `query.max-clock-skew-adjustment` has changed to `0s`, meaning that the clock skew adjustment is now disabled by default. See [#1459](https://github.com/jaegertracing/jaeger/issues/1459).
 
 #### New Features
 
