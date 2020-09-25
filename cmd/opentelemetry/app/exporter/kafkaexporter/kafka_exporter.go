@@ -33,7 +33,7 @@ const TypeStr = "kafka"
 // Factory wraps kafkaexporter.Factory and makes the default config configurable via viper.
 // For instance this enables using flags as default values in the config object.
 type Factory struct {
-	// Wrapped is kafak exporter
+	// Wrapped is kafka exporter
 	Wrapped component.ExporterFactory
 	// Viper is used to get configuration values for default configuration
 	Viper *viper.Viper
