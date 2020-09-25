@@ -16,6 +16,7 @@ package consumer
 
 import (
 	"io"
+	"time"
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster"
@@ -63,5 +64,10 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	if err := c.AuthenticationConfig.SetConfiguration(&saramaConfig.Config, logger); err != nil {
 		return nil, err
 	}
+	// cluster.NewConfig() uses sarama.NewConfig() to create the config.
+	// However the Jaeger OTEL module pulls in newer samara version (from OTEL collector)
+	// that does not set saramaConfig.Consumer.Offsets.CommitInterval to its default value 1s.
+	// then the samara-cluster fails if the default interval is not 1s.
+	saramaConfig.Consumer.Offsets.CommitInterval = time.Second
 	return cluster.NewConsumer(c.Brokers, c.GroupID, []string{c.Topic}, saramaConfig)
 }
