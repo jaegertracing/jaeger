@@ -245,9 +245,9 @@ func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
+		"--grpc-storage-plugin.log-level=debug",
 		"--grpc-storage-plugin.binary=noop-grpc-plugin",
 		"--grpc-storage-plugin.configuration-file=config.json",
-		"--grpc-storage-plugin.log-level=debug",
 	})
 	assert.NoError(t, err)
 	f.InitFromViper(v)
