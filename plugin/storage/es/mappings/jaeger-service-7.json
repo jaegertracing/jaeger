@@ -1,10 +1,18 @@
 {
-  "index_patterns": "*jaeger-service-*",
+  "index_patterns": "${__PREFIX__}jaeger-service-*",
+  "order": 1,
+  "aliases": {
+    "${__PREFIX__}jaeger-service-read" : {}
+  },
   "settings":{
     "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
     "index.number_of_replicas": ${__NUMBER_OF_REPLICAS__},
     "index.mapping.nested_fields.limit":50,
-    "index.requests.cache.enable":true
+    "index.requests.cache.enable":true,
+    "lifecycle": {
+        "name": "jaeger",
+        "rollover_alias": "${__PREFIX__}jaeger-service-write"
+    }
   },
   "mappings":{
     "dynamic_templates":[
