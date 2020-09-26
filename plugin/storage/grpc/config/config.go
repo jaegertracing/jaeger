@@ -32,13 +32,19 @@ type Configuration struct {
 	PluginLogLevel          string `yaml:"log-level" mapstructure:"log_level"`
 }
 
-// PluginBuilder is used to create storage plugins. Implemented by Configuration.
-type PluginBuilder interface {
-	Build() (shared.StoragePlugin, error)
+// ClientPluginServices defines services plugin can expose and its capabilities
+type ClientPluginServices struct {
+	shared.PluginServices
+	Capabilities shared.PluginCapabilities
 }
 
-// Build instantiates a StoragePlugin
-func (c *Configuration) Build() (shared.StoragePlugin, error) {
+// PluginBuilder is used to create storage plugins. Implemented by Configuration.
+type PluginBuilder interface {
+	Build() (*ClientPluginServices, error)
+}
+
+// Build instantiates a PluginServices
+func (c *Configuration) Build() (*ClientPluginServices, error) {
 	// #nosec G204
 	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
 
@@ -60,18 +66,36 @@ func (c *Configuration) Build() (shared.StoragePlugin, error) {
 
 	rpcClient, err := client.Client()
 	if err != nil {
-		return nil, fmt.Errorf("error attempting to connect to plugin rpc client: %s", err)
+		return nil, fmt.Errorf("error attempting to connect to plugin rpc client: %w", err)
 	}
 
 	raw, err := rpcClient.Dispense(shared.StoragePluginIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve storage plugin instance: %s", err)
+		return nil, fmt.Errorf("unable to retrieve storage plugin instance: %w", err)
 	}
 
+	// in practice, the type of `raw` is *shared.grpcClient, and type casts below cannot fail
 	storagePlugin, ok := raw.(shared.StoragePlugin)
 	if !ok {
-		return nil, fmt.Errorf("unexpected type for plugin \"%s\"", shared.StoragePluginIdentifier)
+		return nil, fmt.Errorf("unable to cast %T to shared.StoragePlugin for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
+	}
+	archiveStoragePlugin, ok := raw.(shared.ArchiveStoragePlugin)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast %T to shared.ArchiveStoragePlugin for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
+	}
+	capabilities, ok := raw.(shared.PluginCapabilities)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast %T to shared.PluginCapabilities for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
 	}
 
-	return storagePlugin, nil
+	return &ClientPluginServices{
+		PluginServices: shared.PluginServices{
+			Store:        storagePlugin,
+			ArchiveStore: archiveStoragePlugin,
+		},
+		Capabilities: capabilities,
+	}, nil
 }

@@ -148,7 +148,31 @@ service SpanReaderPlugin {
     rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
 }
 
+service ArchiveSpanWriterPlugin {
+    // spanstore/Writer
+    rpc WriteArchiveSpan(WriteSpanRequest) returns (WriteSpanResponse);
+}
+
+service ArchiveSpanReaderPlugin {
+    // spanstore/Reader
+    rpc GetArchiveTrace(GetTraceRequest) returns (stream SpansResponseChunk);
+}
+
 service DependenciesReaderPlugin {
     // dependencystore/Reader
     rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+}
+
+// empty; extensible in the future
+message CapabilitiesRequest {
+
+}
+
+message CapabilitiesResponse {
+    bool archiveSpanReader = 1;
+    bool archiveSpanWriter = 2;
+}
+
+service PluginCapabilities {
+    rpc Capabilities(CapabilitiesRequest) returns (CapabilitiesResponse);
 }

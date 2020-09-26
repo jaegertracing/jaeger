@@ -41,3 +41,26 @@ type StoragePlugin interface {
 	SpanWriter() spanstore.Writer
 	DependencyReader() dependencystore.Reader
 }
+
+// ArchiveStoragePlugin is the interface we're exposing as a plugin.
+type ArchiveStoragePlugin interface {
+	ArchiveSpanReader() spanstore.Reader
+	ArchiveSpanWriter() spanstore.Writer
+}
+
+// PluginCapabilities allow expose plugin its capabilities.
+type PluginCapabilities interface {
+	Capabilities() (*Capabilities, error)
+}
+
+// Capabilities contains information about plugin capabilities
+type Capabilities struct {
+	ArchiveSpanReader bool
+	ArchiveSpanWriter bool
+}
+
+// PluginServices defines services plugin can expose
+type PluginServices struct {
+	Store        StoragePlugin
+	ArchiveStore ArchiveStoragePlugin
+}
