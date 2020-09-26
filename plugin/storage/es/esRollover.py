@@ -58,7 +58,7 @@ def main():
     if str2bool(os.getenv('ARCHIVE', 'false')):
         write_alias = prefix + ARCHIVE_INDEX + '-write'
         read_alias = prefix + ARCHIVE_INDEX + '-read'
-        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span-archive', 'jaeger-span')
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span-archive', 'jaeger-span', prefix)
     else:
         write_alias = prefix + 'jaeger-span-write'
         read_alias = prefix + 'jaeger-span-read'
