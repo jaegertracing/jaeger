@@ -21,6 +21,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esmodeltranslator"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esdependencyreader"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esspanreader"
@@ -88,7 +89,7 @@ func (s *StorageFactory) CreateSpanReader() (spanstore.Reader, error) {
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		MaxSpanAge:          cfg.GetMaxSpanAge(),
-		MaxNumSpans:         cfg.GetMaxNumSpans(),
+		MaxDocCount:         cfg.GetMaxDocCount(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 	}), nil
 }
@@ -100,7 +101,7 @@ func (s *StorageFactory) CreateDependencyReader() (dependencystore.Reader, error
 	if err != nil {
 		return nil, err
 	}
-	return esdependencyreader.NewDependencyStore(client, s.logger, cfg.GetIndexPrefix()), nil
+	return esdependencyreader.NewDependencyStore(client, s.logger, cfg.GetIndexPrefix(), cfg.GetMaxDocCount()), nil
 }
 
 // CreateArchiveSpanReader creates archive spanstore.Reader
@@ -115,7 +116,7 @@ func (s *StorageFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		MaxSpanAge:          cfg.GetMaxSpanAge(),
-		MaxNumSpans:         cfg.GetMaxNumSpans(),
+		MaxDocCount:         cfg.GetMaxDocCount(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 	}), nil
 }
@@ -143,13 +144,13 @@ type singleSpanWriter struct {
 }
 
 type batchSpanWriter interface {
-	writeSpans(context.Context, []*dbmodel.Span) (int, error)
+	writeSpans(context.Context, []esmodeltranslator.ConvertedData) (int, error)
 }
 
 var _ spanstore.Writer = (*singleSpanWriter)(nil)
 
 func (s singleSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	dbSpan := s.converter.FromDomainEmbedProcess(span)
-	_, err := s.writer.writeSpans(ctx, []*dbmodel.Span{dbSpan})
+	_, err := s.writer.writeSpans(ctx, []esmodeltranslator.ConvertedData{{DBSpan: dbSpan}})
 	return err
 }
