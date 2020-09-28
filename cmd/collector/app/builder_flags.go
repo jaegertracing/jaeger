@@ -16,7 +16,6 @@
 package app
 
 import (
-	"expvar"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -117,16 +116,6 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
 	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
-	cOpts.setExpvarOptions()
 
 	return cOpts
-}
-
-func (cOpts *CollectorOptions) setExpvarOptions() {
-	if expvar.Get(collectorNumWorkers) == nil {
-		expvar.NewInt(collectorNumWorkers).Set(int64(cOpts.NumWorkers))
-	}
-	if expvar.Get(collectorQueueSize) == nil {
-		expvar.NewInt(collectorQueueSize).Set(int64(cOpts.QueueSize))
-	}
 }

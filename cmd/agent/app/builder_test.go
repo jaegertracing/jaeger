@@ -18,10 +18,8 @@ package app
 import (
 	"context"
 	"errors"
-	"expvar"
 	"flag"
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	yaml "gopkg.in/yaml.v2"
@@ -282,13 +281,12 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 
 func TestSetExpvarOptions(t *testing.T) {
 	v := viper.New()
-	b := &Builder{}
+	cfg := &Builder{}
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
 	AddFlags(flags)
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
-
 	err := command.ParseFlags([]string{
 		"--http-server.host-port=:8080",
 		"--processor.jaeger-binary.server-host-port=:1111",
@@ -297,20 +295,25 @@ func TestSetExpvarOptions(t *testing.T) {
 		"--processor.jaeger-binary.workers=42",
 	})
 	require.NoError(t, err)
+	cfg.InitFromViper(v)
 
-	b.InitFromViper(v)
-	b.setExpvarOptions()
-
-	gotMaxPacketSize, err := strconv.Atoi(expvar.Get("processor.jaeger-binary.server-max-packet-size").String())
+	baseMetrics := metricstest.NewFactory(time.Second)
+	forkFactory := metricstest.NewFactory(time.Second)
+	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	assert.NoError(t, err)
+	assert.NotNil(t, agent)
 
-	gotQueueSize, err := strconv.Atoi(expvar.Get("processor.jaeger-binary.server-queue-size").String())
-	assert.NoError(t, err)
-
-	gotWorkers, err := strconv.Atoi(expvar.Get("processor.jaeger-binary.workers").String())
-	assert.NoError(t, err)
-
-	assert.Equal(t, 4242, gotMaxPacketSize)
-	assert.Equal(t, 24, gotQueueSize)
-	assert.Equal(t, 42, gotWorkers)
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.server-max-packet-size",
+		Value: 4242,
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.server-queue-size",
+		Value: 24,
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.workers",
+		Value: 42,
+	})
 }

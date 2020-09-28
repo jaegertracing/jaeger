@@ -15,7 +15,6 @@
 package memory
 
 import (
-	"expvar"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -38,11 +37,4 @@ func AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes the options struct with values from Viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.MaxTraces = v.GetInt(limit)
-	opt.setExpvarOptions()
-}
-
-func (opt *Options) setExpvarOptions() {
-	if expvar.Get(limit) == nil {
-		expvar.NewInt(limit).Set(int64(opt.Configuration.MaxTraces))
-	}
 }

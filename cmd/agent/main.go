@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
+	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -49,9 +51,10 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			mFactory := svc.MetricsFactory.
-				Namespace(metrics.NSOptions{Name: "jaeger"}).
-				Namespace(metrics.NSOptions{Name: "agent"})
+			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			mFactory := fork.New("internal",
+				jexpvar.NewFactory(10).Namespace(metrics.NSOptions{}), // backend for internal opts
+				baseFactory.Namespace(metrics.NSOptions{Name: "agent"}))
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)

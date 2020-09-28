@@ -122,8 +122,15 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	} else {
 		c.zkServer = zkServer
 	}
+	c.setExpvarOptions(builderOpts)
 
 	return nil
+}
+
+func (c *Collector) setExpvarOptions(cOpts *CollectorOptions) {
+	internalFactory := c.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	internalFactory.Gauge(metrics.Options{Name: collectorNumWorkers}).Update(int64(cOpts.NumWorkers))
+	internalFactory.Gauge(metrics.Options{Name: collectorQueueSize}).Update(int64(cOpts.QueueSize))
 }
 
 // Close the component and all its underlying dependencies

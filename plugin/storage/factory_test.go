@@ -17,19 +17,20 @@ package storage
 
 import (
 	"errors"
-	"expvar"
 	"flag"
 	"fmt"
 	"io"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -355,24 +356,23 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 func TestSetExpvarOptions(t *testing.T) {
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
 
-	mock := new(mocks.Factory)
-	f.factories[cassandraStorageType] = mock
+	baseMetrics := metricstest.NewFactory(time.Second)
+	forkFactory := metricstest.NewFactory(time.Second)
+	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	f.metricsFactory = metricsFactory
 
-	m := metrics.NullFactory
-	l := zap.NewNop()
-	mock.On("Initialize", m, l).Return(nil)
-	assert.NoError(t, f.Initialize(m, l))
+	// This method is called inside factory.Initialize method
+	f.setExpvarOptions()
 
-	gotSpanStorageType := expvar.Get(spanStorageType).String()
-	gotDownsamplingRatio, err := strconv.ParseFloat(expvar.Get(downsamplingRatio).String(), 64)
-	assert.NoError(t, err)
-
-	assert.Equal(t, f.DownsamplingRatio, gotDownsamplingRatio)
-	// Normalize storage type because String method returns a JSON value
-	assert.Equal(t, f.SpanReaderType, strings.Replace(gotSpanStorageType, "\"", "", -1))
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal." + downsamplingRatio,
+		Value: int(f.DownsamplingRatio),
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  strings.Join([]string{"internal", spanStorageType, f.SpanReaderType}, "."),
+		Value: 1,
+	})
 }
 
 type errorCloseFactory struct {

@@ -16,7 +16,6 @@
 package app
 
 import (
-	"expvar"
 	"fmt"
 	"io"
 	"net/http"
@@ -113,7 +112,8 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
-	b.setExpvarOptions()
+	b.setExpvarOptions(mFactory)
+
 	return NewAgent(processors, server, logger), nil
 }
 
@@ -129,18 +129,16 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 	return reporter.NewMultiReporter(rep...)
 }
 
-func (b *Builder) setExpvarOptions() {
+func (b *Builder) setExpvarOptions(mFactory metrics.Factory) {
+	internalFactory := mFactory.Namespace(metrics.NSOptions{Name: "internal"})
 	for _, p := range b.Processors {
 		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
-		if expvar.Get(prefix+suffixServerMaxPacketSize) == nil {
-			expvar.NewInt(prefix + suffixServerMaxPacketSize).Set(int64(p.Server.MaxPacketSize))
-		}
-		if expvar.Get(prefix+suffixServerQueueSize) == nil {
-			expvar.NewInt(prefix + suffixServerQueueSize).Set(int64(p.Server.QueueSize))
-		}
-		if expvar.Get(prefix+suffixWorkers) == nil {
-			expvar.NewInt(prefix + suffixWorkers).Set(int64(p.Workers))
-		}
+		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerMaxPacketSize}).
+			Update(int64(p.Server.MaxPacketSize))
+		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerQueueSize}).
+			Update(int64(p.Server.QueueSize))
+		internalFactory.Gauge(metrics.Options{Name: prefix + suffixWorkers}).
+			Update(int64(p.Workers))
 	}
 }
 

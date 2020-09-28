@@ -16,7 +16,6 @@
 package storage
 
 import (
-	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -114,6 +113,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		}
 	}
 	f.setExpvarOptions()
+
 	return nil
 }
 
@@ -254,10 +254,9 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) setExpvarOptions() {
-	if expvar.Get(downsamplingRatio) == nil {
-		expvar.NewFloat(downsamplingRatio).Set(f.FactoryConfig.DownsamplingRatio)
-	}
-	if expvar.Get(spanStorageType) == nil {
-		expvar.NewString(spanStorageType).Set(f.SpanReaderType)
-	}
+	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	internalFactory.Gauge(metrics.Options{Name: downsamplingRatio}).
+		Update(int64(f.FactoryConfig.DownsamplingRatio))
+	internalFactory.Gauge(metrics.Options{Name: spanStorageType + "." + f.SpanReaderType}).
+		Update(1)
 }

@@ -15,8 +15,6 @@
 package app
 
 import (
-	"expvar"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,19 +50,4 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	assert.Equal(t, ":5678", c.CollectorHTTPHostPort)
 	assert.Equal(t, "127.0.0.1:1234", c.CollectorGRPCHostPort)
 	assert.Equal(t, "0.0.0.0:3456", c.CollectorZipkinHTTPHostPort)
-}
-
-func TestCollectorOptionsWithFlags_CheckExpvarOptions(t *testing.T) {
-	c := &CollectorOptions{}
-	v, _ := config.Viperize(AddFlags)
-	c.InitFromViper(v)
-
-	gotNumWorkers, err := strconv.Atoi(expvar.Get("collector.num-workers").String())
-	assert.NoError(t, err)
-
-	gotQueueSize, err := strconv.Atoi(expvar.Get("collector.queue-size").String())
-	assert.NoError(t, err)
-
-	assert.Equal(t, DefaultNumWorkers, gotNumWorkers)
-	assert.Equal(t, DefaultQueueSize, gotQueueSize)
 }
