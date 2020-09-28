@@ -52,7 +52,16 @@ func TestComponents(t *testing.T) {
 	cassandraFactory := factories.Exporters[cassandraexporter.TypeStr]
 	cc := cassandraFactory.CreateDefaultConfig().(*cassandraexporter.Config)
 	assert.Equal(t, []string{"127.0.0.1"}, cc.Options.GetPrimary().Servers)
+
 	esFactory := factories.Exporters[elasticsearchexporter.TypeStr]
 	ec := esFactory.CreateDefaultConfig().(*elasticsearchexporter.Config)
 	assert.Equal(t, []string{"http://127.0.0.1:9200"}, ec.GetPrimary().Servers)
+
+	grpcFactory := factories.Exporters[grpcpluginexporter.TypeStr]
+	gc := grpcFactory.CreateDefaultConfig().(*grpcpluginexporter.Config)
+	assert.Equal(t, "", gc.Configuration.PluginBinary)
+
+	badgerFactory := factories.Exporters[badgerexporter.TypeStr]
+	bc := badgerFactory.CreateDefaultConfig().(*badgerexporter.Config)
+	assert.Equal(t, "", bc.GetPrimary().ValueDirectory)
 }
