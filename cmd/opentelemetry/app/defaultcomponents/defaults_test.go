@@ -34,7 +34,6 @@ import (
 
 func TestComponents(t *testing.T) {
 	v, _ := jConfig.Viperize(
-		kafkaexporter.DefaultOptions().AddFlags,
 		cassandraexporter.DefaultOptions().AddFlags,
 		elasticsearchexporter.DefaultOptions().AddFlags,
 	)
@@ -50,9 +49,6 @@ func TestComponents(t *testing.T) {
 	assert.IsType(t, &kafkareceiver.Factory{}, factories.Receivers[kafkareceiver.TypeStr])
 	assert.IsType(t, &zipkinreceiver.Factory{}, factories.Receivers["zipkin"])
 
-	kafkaFactory := factories.Exporters[kafkaexporter.TypeStr]
-	kc := kafkaFactory.CreateDefaultConfig().(*kafkaexporter.Config)
-	assert.Equal(t, []string{"127.0.0.1:9092"}, kc.Config.Brokers)
 	cassandraFactory := factories.Exporters[cassandraexporter.TypeStr]
 	cc := cassandraFactory.CreateDefaultConfig().(*cassandraexporter.Config)
 	assert.Equal(t, []string{"127.0.0.1"}, cc.Options.GetPrimary().Servers)

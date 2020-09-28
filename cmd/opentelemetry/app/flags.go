@@ -63,7 +63,7 @@ func AddStorageFlags(storage string, enableArchive bool) (func(*flag.FlagSet), e
 				flagFn = append(flagFn, esStorage.NewOptions("es-archive").AddFlags)
 			}
 		case "kafka":
-			flagFn = append(flagFn, kafkaexporter.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, kafkaexporter.AddFlags)
 		case "grpc-plugin":
 			flagFn = append(flagFn, grpcpluginexporter.DefaultOptions().AddFlags)
 		default:

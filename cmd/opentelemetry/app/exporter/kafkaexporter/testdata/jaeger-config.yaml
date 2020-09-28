@@ -1,3 +1,7 @@
 kafka.producer:
+  authentication: kerberos
+  encoding: protobuf
+  topic: jaeger-prod
   kerberos:
     username: from-jaeger-config
+    realm: jaeger

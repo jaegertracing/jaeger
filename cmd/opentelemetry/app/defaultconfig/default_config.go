@@ -135,7 +135,7 @@ func createProcessors(factories component.Factories) (configmodels.Processors, [
 
 func createReceivers(component ComponentType, factories component.Factories) configmodels.Receivers {
 	if component == Ingester {
-		kafkaReceiver := factories.Receivers[kafkareceiver.TypeStr].CreateDefaultConfig().(*kafkareceiver.Config)
+		kafkaReceiver := factories.Receivers[kafkareceiver.TypeStr].CreateDefaultConfig()
 		return configmodels.Receivers{
 			kafkaReceiver.Name(): kafkaReceiver,
 		}
@@ -194,7 +194,7 @@ func createExporters(component ComponentType, storageTypes string, factories com
 			exporters[elasticsearchexporter.TypeStr] = es
 		case "kafka":
 			kaf := factories.Exporters[kafkaexporter.TypeStr].CreateDefaultConfig()
-			exporters[kafkaexporter.TypeStr] = kaf
+			exporters["kafka"] = kaf
 		case "grpc-plugin":
 			grpcEx := factories.Exporters[grpcpluginexporter.TypeStr].CreateDefaultConfig()
 			exporters[grpcpluginexporter.TypeStr] = grpcEx

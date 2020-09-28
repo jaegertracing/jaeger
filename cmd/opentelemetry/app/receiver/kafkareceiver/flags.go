@@ -22,5 +22,5 @@ import (
 
 // AddFlags adds Ingester flags.
 func AddFlags(flags *flag.FlagSet) {
-	ingesterApp.AddFlags(flags)
+	ingesterApp.AddOTELFlags(flags)
 }
