@@ -15,14 +15,17 @@
 package defaultconfig
 
 import (
+	"flag"
 	"fmt"
 	"sort"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/service/builder"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
@@ -42,6 +45,7 @@ func TestService(t *testing.T) {
 		cfg         ComponentSettings
 		err         string
 		viperConfig map[string]interface{}
+		otelConfig  string
 	}{
 		{
 			cfg: ComponentSettings{
@@ -75,6 +79,24 @@ func TestService(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			cfg: ComponentSettings{
+				ComponentType: Agent,
+			},
+			service: configmodels.Service{
+				Extensions: []string{"health_check"},
+				Pipelines: configmodels.Pipelines{
+					"traces": &configmodels.Pipeline{
+						Name:       "traces",
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{"otlp", "jaeger"},
+						Processors: []string{"batch", "queued_retry"},
+						Exporters:  []string{"jaeger"},
+					},
+				},
+			},
+			otelConfig: "testdata/addqueuedprocessor.yaml",
 		},
 		{
 			viperConfig: map[string]interface{}{"resource.attributes": "foo=bar"},
@@ -153,6 +175,13 @@ func TestService(t *testing.T) {
 			},
 			err: "unknown storage type: floppy",
 		},
+		{
+			cfg: ComponentSettings{
+				ComponentType: Agent,
+			},
+			otelConfig: "testdata/doesntexist.yaml",
+			err:        `error loading config file "testdata/doesntexist.yaml": open testdata/doesntexist.yaml: no such file or directory`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v:%v", test.cfg.ComponentType, test.cfg.StorageType), func(t *testing.T) {
@@ -160,9 +189,18 @@ func TestService(t *testing.T) {
 			for key, val := range test.viperConfig {
 				v.Set(key, val)
 			}
+
+			otelFlags := &flag.FlagSet{}
+			builder.Flags(otelFlags)
+			if test.otelConfig != "" {
+				otelFlags.Parse([]string{"-config=" + test.otelConfig})
+			}
+
 			factories := defaultcomponents.Components(v)
 			test.cfg.Factories = factories
-			cfg, err := test.cfg.createDefaultConfig()
+			createDefaultConfig := test.cfg.DefaultConfigFactory(v)
+
+			cfg, err := createDefaultConfig(viper.New(), factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
 				assert.Contains(t, err.Error(), test.err)
