@@ -60,6 +60,23 @@ func TestService(t *testing.T) {
 			},
 		},
 		{
+			cfg: ComponentSettings{
+				ComponentType: Collector,
+				StorageType:   "badger",
+			},
+			service: configmodels.Service{
+				Extensions: []string{"health_check"},
+				Pipelines: configmodels.Pipelines{
+					"traces": &configmodels.Pipeline{
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{"otlp", "jaeger"},
+						Processors: []string{"batch"},
+						Exporters:  []string{"jaeger_badger"},
+					},
+				},
+			},
+		},
+		{
 			viperConfig: map[string]interface{}{"resource.attributes": "foo=bar"},
 			cfg: ComponentSettings{
 				ComponentType: Collector,
