@@ -193,7 +193,7 @@ func TestService(t *testing.T) {
 			otelFlags := &flag.FlagSet{}
 			builder.Flags(otelFlags)
 			if test.otelConfig != "" {
-				otelFlags.Parse([]string{"-config=" + test.otelConfig})
+				otelFlags.Parse([]string{"--config=" + test.otelConfig})
 			}
 
 			factories := defaultcomponents.Components(v)
