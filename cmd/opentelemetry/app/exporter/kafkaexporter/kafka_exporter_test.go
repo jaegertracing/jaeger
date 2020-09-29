@@ -15,15 +15,20 @@
 package kafkaexporter
 
 import (
-	"path"
+	"context"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configcheck"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/configtest"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	otelKafkaExporter "go.opentelemetry.io/collector/exporter/kafkaexporter"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -60,38 +65,174 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
-	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
-	err := c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.producer.topic=jaeger-test", "--kafka.producer.brokers=host1,host2"})
-	require.NoError(t, err)
-
-	err = flags.TryLoadConfigFile(v)
-	require.NoError(t, err)
-
-	factory := &Factory{
-		Wrapped: otelKafkaExporter.NewFactory(),
-		Viper:   v,
+	metadataSettings := otelKafkaExporter.Metadata{
+		Full: true,
+		Retry: otelKafkaExporter.MetadataRetry{
+			Max:     3,
+			Backoff: 250 * time.Millisecond,
+		},
+	}
+	queueSettings := exporterhelper.CreateDefaultQueueSettings()
+	queueSettings.Enabled = false // disabled by default in upstream
+	exporterSettings := configmodels.ExporterSettings{
+		TypeVal: "kafka",
+		NameVal: "kafka",
 	}
 
-	factories, err := componenttest.ExampleComponents()
-	factories.Exporters[TypeStr] = factory
-	cfg, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
+	tests := []struct {
+		name        string
+		jFlags      []string
+		oConfigFile string
+		expected    *otelKafkaExporter.Config
+	}{
+		{
+			name:        "jaeger-kafka-auth",
+			jFlags:      []string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.producer.topic=jaeger-test", "--kafka.producer.brokers=host1,host2"},
+			oConfigFile: filepath.Join(".", "testdata", "config.yaml"),
+			expected: &otelKafkaExporter.Config{
+				Topic:            "jaeger-prod",
+				Encoding:         "emojis",
+				Brokers:          []string{"foo", "bar"},
+				Metadata:         metadataSettings,
+				ExporterSettings: exporterSettings,
+				TimeoutSettings:  exporterhelper.CreateDefaultTimeoutSettings(),
+				QueueSettings:    queueSettings,
+				RetrySettings:    exporterhelper.CreateDefaultRetrySettings(),
+				Authentication: otelKafkaExporter.Authentication{
+					PlainText: &otelKafkaExporter.PlainTextConfig{
+						Username: "user",
+					},
+					Kerberos: &otelKafkaExporter.KerberosConfig{
+						ServiceName: "kafka",
+						Username:    "from-jaeger-config",
+						Realm:       "jaeger",
+						ConfigPath:  "/etc/foo",
+						KeyTabPath:  "/etc/security/kafka.keytab",
+					},
+					TLS: &configtls.TLSClientSetting{
+						Insecure: true,
+						TLSSetting: configtls.TLSSetting{
+							CAFile:   "ca.crt",
+							KeyFile:  "key.crt",
+							CertFile: "",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "jaeger-tls-auth",
+			jFlags:      []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.cert=from-jaeger-flag"},
+			oConfigFile: filepath.Join(".", "testdata", "config.yaml"),
+			expected: &otelKafkaExporter.Config{
+				Topic:            "jaeger-prod",
+				Encoding:         "emojis",
+				Brokers:          []string{"foo", "bar"},
+				Metadata:         metadataSettings,
+				ExporterSettings: exporterSettings,
+				TimeoutSettings:  exporterhelper.CreateDefaultTimeoutSettings(),
+				QueueSettings:    queueSettings,
+				RetrySettings:    exporterhelper.CreateDefaultRetrySettings(),
+				Authentication: otelKafkaExporter.Authentication{
+					PlainText: &otelKafkaExporter.PlainTextConfig{
+						Username: "user",
+					},
+					Kerberos: &otelKafkaExporter.KerberosConfig{
+						ServiceName: "",
+						Username:    "",
+						Realm:       "jaeger",
+						ConfigPath:  "/etc/foo",
+						KeyTabPath:  "",
+					},
+					TLS: &configtls.TLSClientSetting{
+						Insecure: true,
+						TLSSetting: configtls.TLSSetting{
+							CAFile:   "ca.crt",
+							KeyFile:  "key.crt",
+							CertFile: "from-jaeger-flag",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "jaeger-plaintext-auth",
+			jFlags:      []string{"--kafka.producer.authentication=plaintext", "--kafka.producer.plaintext.password=from-jaeger-flag"},
+			oConfigFile: filepath.Join(".", "testdata", "config.yaml"),
+			expected: &otelKafkaExporter.Config{
+				Topic:            "jaeger-prod",
+				Encoding:         "emojis",
+				Brokers:          []string{"foo", "bar"},
+				Metadata:         metadataSettings,
+				ExporterSettings: exporterSettings,
+				TimeoutSettings:  exporterhelper.CreateDefaultTimeoutSettings(),
+				QueueSettings:    queueSettings,
+				RetrySettings:    exporterhelper.CreateDefaultRetrySettings(),
+				Authentication: otelKafkaExporter.Authentication{
+					PlainText: &otelKafkaExporter.PlainTextConfig{
+						Username: "user",
+						Password: "from-jaeger-flag",
+					},
+					Kerberos: &otelKafkaExporter.KerberosConfig{
+						ServiceName: "",
+						Username:    "",
+						Realm:       "jaeger",
+						ConfigPath:  "/etc/foo",
+						KeyTabPath:  "",
+					},
+					TLS: &configtls.TLSClientSetting{
+						Insecure: true,
+						TLSSetting: configtls.TLSSetting{
+							CAFile:   "ca.crt",
+							KeyFile:  "key.crt",
+							CertFile: "",
+						},
+					},
+				},
+			},
+		},
+	}
 
-	kafkaCfg := cfg.Exporters[TypeStr].(*otelKafkaExporter.Config)
-	require.NotNil(t, kafkaCfg)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
+			err := c.ParseFlags(tt.jFlags)
+			require.NoError(t, err)
 
-	assert.Equal(t, TypeStr, kafkaCfg.Name())
-	assert.Equal(t, "jaeger-prod", kafkaCfg.Topic)
-	assert.Equal(t, "emojis", kafkaCfg.Encoding)
-	assert.Equal(t, []string{"foo", "bar"}, kafkaCfg.Brokers)
-	assert.Equal(t, "user", kafkaCfg.Authentication.PlainText.Username)
-	assert.Equal(t, "123", kafkaCfg.Authentication.PlainText.Password)
-	assert.Equal(t, "ca.crt", kafkaCfg.Authentication.TLS.CAFile)
-	assert.Equal(t, "key.crt", kafkaCfg.Authentication.TLS.KeyFile)
-	assert.Equal(t, "cert.crt", kafkaCfg.Authentication.TLS.CertFile)
-	assert.Equal(t, true, kafkaCfg.Authentication.TLS.Insecure)
-	assert.Equal(t, "jaeger", kafkaCfg.Authentication.Kerberos.Realm)
-	assert.Equal(t, "/etc/foo", kafkaCfg.Authentication.Kerberos.ConfigPath)
-	assert.Equal(t, "from-jaeger-config", kafkaCfg.Authentication.Kerberos.Username)
+			err = flags.TryLoadConfigFile(v)
+			require.NoError(t, err)
+
+			factory := &Factory{
+				Wrapped: otelKafkaExporter.NewFactory(),
+				Viper:   v,
+			}
+
+			factories, err := componenttest.ExampleComponents()
+			factories.Exporters[TypeStr] = factory
+			cfg, err := configtest.LoadConfigFile(t, tt.oConfigFile, factories)
+			require.NoError(t, err)
+			require.NotNil(t, cfg)
+
+			kafkaCfg := cfg.Exporters[TypeStr].(*otelKafkaExporter.Config)
+			require.Equal(t, tt.expected, kafkaCfg)
+		})
+	}
+}
+
+func TestFactoryPassthrough(t *testing.T) {
+	factory := &Factory{
+		Wrapped: &componenttest.ExampleExporterFactory{},
+	}
+
+	actualLogs, _ := factory.CreateLogsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	expectedLogs, _ := factory.Wrapped.CreateLogsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	assert.Equal(t, actualLogs, expectedLogs)
+
+	actualTrace, _ := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	expectedTrace, _ := factory.Wrapped.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	assert.Equal(t, actualTrace, expectedTrace)
+
+	actualMetrics, _ := factory.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	expectedMetrics, _ := factory.Wrapped.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	assert.Equal(t, actualMetrics, expectedMetrics)
 }
