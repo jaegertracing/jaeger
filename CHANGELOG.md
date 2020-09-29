@@ -1,7 +1,10 @@
 Changes by Version
 ==================
 
-1.20.0 (unreleased)
+1.21.0 (unreleased)
+-------------------
+
+1.20.0 (2020-09-29)
 -------------------
 
 ### Backend Changes
@@ -26,9 +29,46 @@ Changes by Version
 
 #### New Features
 
+* Separate Ports for GRPC and HTTP requests in Query Server ([#2387](https://github.com/jaegertracing/jaeger/pull/2387), [@rjs211](https://github.com/rjs211))
+* Configurable ES doc count ([#2453](https://github.com/jaegertracing/jaeger/pull/2453), [@albertteoh](https://github.com/albertteoh))
+* Add storage metrics to OTEL, metrics by span service name ([#2431](https://github.com/jaegertracing/jaeger/pull/2431), [@pavolloffay](https://github.com/pavolloffay))
+
 #### Bug fixes, Minor Improvements
 
+* Increase coverage on otel/app/defaultconfig and otel/app/defaultcomponents ([#2515](https://github.com/jaegertracing/jaeger/pull/2515), [@joe-elliott](https://github.com/joe-elliott))
+* Use OTEL Kafka Exporter/Receiver Instead of Jaeger Core ([#2494](https://github.com/jaegertracing/jaeger/pull/2494), [@joe-elliott](https://github.com/joe-elliott))
+* Grpc plugin archive storage support ([#2317](https://github.com/jaegertracing/jaeger/pull/2317), [@m8rge](https://github.com/m8rge))
+* Fix OTEL kafka receiver/ingester panic ([#2512](https://github.com/jaegertracing/jaeger/pull/2512), [@pavolloffay](https://github.com/pavolloffay))
+* Disable clock-skew-adjustment by default. ([#2513](https://github.com/jaegertracing/jaeger/pull/2513), [@jpkrohling](https://github.com/jpkrohling))
+* Fix ES OTEL status code ([#2501](https://github.com/jaegertracing/jaeger/pull/2501), [@pavolloffay](https://github.com/pavolloffay))
+* OTel: Factored out Config Factory ([#2495](https://github.com/jaegertracing/jaeger/pull/2495), [@joe-elliott](https://github.com/joe-elliott))
+* Fix failing ServerInUseHostPort test on MacOS ([#2477](https://github.com/jaegertracing/jaeger/pull/2477), [@albertteoh](https://github.com/albertteoh))
+* Fix unmarshalling in OTEL badger ([#2488](https://github.com/jaegertracing/jaeger/pull/2488), [@pavolloffay](https://github.com/pavolloffay))
+* Improve UI placeholder message ([#2487](https://github.com/jaegertracing/jaeger/pull/2487), [@yurishkuro](https://github.com/yurishkuro))
+* Translate OTEL instrumentation library to ES DB model ([#2484](https://github.com/jaegertracing/jaeger/pull/2484), [@pavolloffay](https://github.com/pavolloffay))
+* Add partial retry capability to OTEL ES exporter. ([#2456](https://github.com/jaegertracing/jaeger/pull/2456), [@pavolloffay](https://github.com/pavolloffay))
+* Log deprecation warning only when deprecated flags are set ([#2479](https://github.com/jaegertracing/jaeger/pull/2479), [@pavolloffay](https://github.com/pavolloffay))
+* Clean-up Badger's trace-not-found check ([#2481](https://github.com/jaegertracing/jaeger/pull/2481), [@yurishkuro](https://github.com/yurishkuro))
+* Run the jaeger-agent as a non-root user by default ([#2466](https://github.com/jaegertracing/jaeger/pull/2466), [@chgl](https://github.com/chgl))
+* Regenerate certificates to use SANs instead of Common Name ([#2461](https://github.com/jaegertracing/jaeger/pull/2461), [@albertteoh](https://github.com/albertteoh))
+* Support custom port in cassandra schema creation ([#2472](https://github.com/jaegertracing/jaeger/pull/2472), [@MarianZoll](https://github.com/MarianZoll))
+* Consolidated OTel ES IndexNameProviders ([#2458](https://github.com/jaegertracing/jaeger/pull/2458), [@joe-elliott](https://github.com/joe-elliott))
+* Add positive confirmation that Agent made a connection to Collector (… ([#2423](https://github.com/jaegertracing/jaeger/pull/2423), [@BernardTolosajr](https://github.com/BernardTolosajr))
+* Propagate TraceNotFound error from grpc storage plugins ([#2455](https://github.com/jaegertracing/jaeger/pull/2455), [@joe-elliott](https://github.com/joe-elliott))
+* Use new ES reader implementation in OTEL ([#2441](https://github.com/jaegertracing/jaeger/pull/2441), [@pavolloffay](https://github.com/pavolloffay))
+* Updated grpc-go to v1.29.1 ([#2445](https://github.com/jaegertracing/jaeger/pull/2445), [@jpkrohling](https://github.com/jpkrohling))
+* Remove olivere elastic client from OTEL ([#2448](https://github.com/jaegertracing/jaeger/pull/2448), [@pavolloffay](https://github.com/pavolloffay))
+* Use queue retry per exporter ([#2444](https://github.com/jaegertracing/jaeger/pull/2444), [@pavolloffay](https://github.com/pavolloffay))
+* Add context.Context to WriteSpan ([#2436](https://github.com/jaegertracing/jaeger/pull/2436), [@yurishkuro](https://github.com/yurishkuro))
+* Fix mutex unlock in storage exporters ([#2442](https://github.com/jaegertracing/jaeger/pull/2442), [@pavolloffay](https://github.com/pavolloffay))
+* Add Grafana integration example ([#2408](https://github.com/jaegertracing/jaeger/pull/2408), [@fktkrt](https://github.com/fktkrt))
+* Fix TLS flags settings in jaeger OTEL receiver ([#2438](https://github.com/jaegertracing/jaeger/pull/2438), [@pavolloffay](https://github.com/pavolloffay))
+* Add context to dependencies endpoint ([#2434](https://github.com/jaegertracing/jaeger/pull/2434), [@yoave23](https://github.com/yoave23))
+* Fix error equals ([#2429](https://github.com/jaegertracing/jaeger/pull/2429), [@albertteoh](https://github.com/albertteoh))
+
 ### UI Changes
+
+* UI pinned to version 1.11.0. The changelog is available here [v1.11.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1110-september-28-2020)
 
 1.19.2 (2020-08-26)
 -------------------
