@@ -22,12 +22,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configcheck"
+	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/configtest"
 	otelKafkaExporter "go.opentelemetry.io/collector/exporter/kafkaexporter"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
+
+func TestType(t *testing.T) {
+	factory := &Factory{
+		Wrapped: otelKafkaExporter.NewFactory(),
+	}
+
+	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
+}
 
 func TestDefaultConfig(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags)
