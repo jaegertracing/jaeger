@@ -224,15 +224,18 @@ func TestFactoryPassthrough(t *testing.T) {
 		Wrapped: &componenttest.ExampleExporterFactory{},
 	}
 
-	actualLogs, _ := factory.CreateLogsExporter(context.Background(), component.ExporterCreateParams{}, nil)
-	expectedLogs, _ := factory.Wrapped.CreateLogsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	actualLogs, errA := factory.CreateLogsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	expectedLogs, errB := factory.Wrapped.CreateLogsExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	assert.Equal(t, actualLogs, expectedLogs)
+	assert.Equal(t, errA, errB)
 
-	actualTrace, _ := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
-	expectedTrace, _ := factory.Wrapped.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	actualTrace, errA := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	expectedTrace, errB := factory.Wrapped.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	assert.Equal(t, actualTrace, expectedTrace)
+	assert.Equal(t, errA, errB)
 
-	actualMetrics, _ := factory.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
-	expectedMetrics, _ := factory.Wrapped.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	actualMetrics, errA := factory.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	expectedMetrics, errB := factory.Wrapped.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	assert.Equal(t, actualMetrics, expectedMetrics)
+	assert.Equal(t, errA, errB)
 }
