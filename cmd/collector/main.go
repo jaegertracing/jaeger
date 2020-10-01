@@ -66,7 +66,7 @@ func main() {
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := fork.New("internal",
-				jexpvar.NewFactory(10).Namespace(metrics.NSOptions{}), // backend for internal opts
+				jexpvar.NewFactory(10), // backend for internal opts
 				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
 
 			storageFactory.InitFromViper(v)

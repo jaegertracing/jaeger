@@ -112,7 +112,7 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
-	b.setExpvarOptions(mFactory)
+	b.publishOpts(mFactory)
 
 	return NewAgent(processors, server, logger), nil
 }
@@ -129,7 +129,7 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 	return reporter.NewMultiReporter(rep...)
 }
 
-func (b *Builder) setExpvarOptions(mFactory metrics.Factory) {
+func (b *Builder) publishOpts(mFactory metrics.Factory) {
 	internalFactory := mFactory.Namespace(metrics.NSOptions{Name: "internal"})
 	for _, p := range b.Processors {
 		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)

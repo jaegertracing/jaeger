@@ -63,7 +63,7 @@ func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName s
 	return &sampling.SamplingStrategyResponse{}, nil
 }
 
-func TestCollector_SetExpvarOptions(t *testing.T) {
+func TestCollector_PublishOpts(t *testing.T) {
 	// prepare
 	hc := healthcheck.New()
 	logger := zap.NewNop()

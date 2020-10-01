@@ -353,7 +353,7 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
 }
 
-func TestSetExpvarOptions(t *testing.T) {
+func TestPublishOpts(t *testing.T) {
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 
@@ -363,14 +363,14 @@ func TestSetExpvarOptions(t *testing.T) {
 	f.metricsFactory = metricsFactory
 
 	// This method is called inside factory.Initialize method
-	f.setExpvarOptions()
+	f.publishOpts()
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "internal." + downsamplingRatio,
 		Value: int(f.DownsamplingRatio),
 	})
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  strings.Join([]string{"internal", spanStorageType, f.SpanReaderType}, "."),
+		Name:  "internal." + spanStorageType + "-" + f.SpanReaderType,
 		Value: 1,
 	})
 }

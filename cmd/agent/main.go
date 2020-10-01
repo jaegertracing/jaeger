@@ -51,10 +51,12 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			baseFactory := svc.MetricsFactory.
+				Namespace(metrics.NSOptions{Name: "jaeger"}).
+				Namespace(metrics.NSOptions{Name: "agent"})
 			mFactory := fork.New("internal",
-				jexpvar.NewFactory(10).Namespace(metrics.NSOptions{}), // backend for internal opts
-				baseFactory.Namespace(metrics.NSOptions{Name: "agent"}))
+				jexpvar.NewFactory(10), // backend for internal opts
+				baseFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)

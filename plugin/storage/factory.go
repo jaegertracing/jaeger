@@ -46,7 +46,7 @@ const (
 	badgerStorageType        = "badger"
 	downsamplingRatio        = "downsampling.ratio"
 	downsamplingHashSalt     = "downsampling.hashsalt"
-	spanStorageType          = "span-storage.type"
+	spanStorageType          = "span-storage-type"
 
 	// defaultDownsamplingRatio is the default downsampling ratio.
 	defaultDownsamplingRatio = 1.0
@@ -112,7 +112,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			return err
 		}
 	}
-	f.setExpvarOptions()
+	f.publishOpts()
 
 	return nil
 }
@@ -253,10 +253,10 @@ func (f *Factory) Close() error {
 	return multierror.Wrap(errs)
 }
 
-func (f *Factory) setExpvarOptions() {
+func (f *Factory) publishOpts() {
 	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
 	internalFactory.Gauge(metrics.Options{Name: downsamplingRatio}).
 		Update(int64(f.FactoryConfig.DownsamplingRatio))
-	internalFactory.Gauge(metrics.Options{Name: spanStorageType + "." + f.SpanReaderType}).
+	internalFactory.Gauge(metrics.Options{Name: spanStorageType + "-" + f.SpanReaderType}).
 		Update(1)
 }

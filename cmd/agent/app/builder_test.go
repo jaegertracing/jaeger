@@ -279,7 +279,7 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	assert.EqualError(t, err, "unknown reporter type ")
 }
 
-func TestSetExpvarOptions(t *testing.T) {
+func TestPublishOpts(t *testing.T) {
 	v := viper.New()
 	cfg := &Builder{}
 	command := cobra.Command{}

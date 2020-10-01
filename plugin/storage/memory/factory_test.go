@@ -61,7 +61,7 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o, f.options)
 }
 
-func TestSetExpvarOptions(t *testing.T) {
+func TestPublishOpts(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
