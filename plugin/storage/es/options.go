@@ -179,9 +179,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
 		nsConfig.MaxDocCount,
-		"(deprecated, will be removed in release v1.21.0. Please use es.max-doc-count). "+
+		"(deprecated, will be removed in release v1.21.0. Please use "+nsConfig.namespace+".max-doc-count). "+
 			"The maximum number of spans to fetch at a time per query in Elasticsearch. "+
-			"The lesser of es.max-num-spans and es.max-doc-count will be used if both are set.")
+			"The lesser of "+nsConfig.namespace+".max-num-spans and "+nsConfig.namespace+".max-doc-count will be used if both are set.")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
