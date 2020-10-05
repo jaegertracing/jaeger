@@ -36,6 +36,7 @@ type Server struct {
 	bestETA  *bestETA
 	assetFS  http.FileSystem
 	basepath string
+	jaegerUI string
 }
 
 // ConfigOptions used to make sure service clients
@@ -46,6 +47,7 @@ type ConfigOptions struct {
 	CustomerHostPort string
 	RouteHostPort    string
 	Basepath         string
+	JaegerUI         string
 }
 
 // NewServer creates a new frontend.Server
@@ -58,6 +60,7 @@ func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Fact
 		bestETA:  newBestETA(tracer, logger, options),
 		assetFS:  assetFS,
 		basepath: options.Basepath,
+		jaegerUI: options.JaegerUI,
 	}
 }
 
@@ -79,7 +82,7 @@ func (s *Server) createServeMux() http.Handler {
 
 func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 	config := map[string]string{
-		"jaeger": "http://localhost:16686",
+		"jaeger": s.jaegerUI,
 	}
 	s.writeResponse(config, w, r)
 }
