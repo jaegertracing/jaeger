@@ -15,6 +15,7 @@
 package flags
 
 import (
+	"expvar"
 	"flag"
 	"fmt"
 	"os"
@@ -116,6 +117,13 @@ func (s *Service) Start(v *viper.Viper) error {
 		s.Logger.Info("Mounting metrics handler on admin server", zap.String("route", route))
 		s.Admin.Handle(route, h)
 	}
+
+	// Mount expvar routes on different backends
+	if metricsBuilder.Backend != "expvar" {
+		s.Logger.Info("Mounting expvar handler on admin server", zap.String("route", "/debug/vars"))
+		s.Admin.Handle("/debug/vars", expvar.Handler())
+	}
+
 	if err := s.Admin.Serve(); err != nil {
 		return fmt.Errorf("cannot start the admin server: %w", err)
 	}

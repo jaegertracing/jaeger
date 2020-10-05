@@ -59,6 +59,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
 	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.config))
+	f.publishOpts()
+
 	return nil
 }
 
@@ -75,4 +77,10 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.store, nil
+}
+
+func (f *Factory) publishOpts() {
+	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	internalFactory.Gauge(metrics.Options{Name: limit}).
+		Update(int64(f.options.Configuration.MaxTraces))
 }

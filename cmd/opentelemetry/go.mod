@@ -15,7 +15,7 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
-	github.com/uber/jaeger-lib v2.2.0+incompatible
+	github.com/uber/jaeger-lib v2.3.1-0.20200925164221-2cac3b34a519+incompatible
 	go.opencensus.io v0.22.4
 	go.opentelemetry.io/collector v0.10.1-0.20200917170114-639b9a80ed46
 	go.uber.org/zap v1.16.0

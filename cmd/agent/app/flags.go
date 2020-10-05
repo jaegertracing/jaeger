@@ -31,6 +31,9 @@ const (
 	suffixServerMaxPacketSize    = "server-max-packet-size"
 	suffixServerSocketBufferSize = "server-socket-buffer-size"
 	suffixServerHostPort         = "server-host-port"
+
+	processorPrefixFmt = "processor.%s-%s."
+
 	// HTTPServerHostPort is the flag for HTTP endpoint
 	HTTPServerHostPort = "http-server.host-port"
 )
@@ -48,7 +51,7 @@ var defaultProcessors = []struct {
 // AddFlags adds flags for Builder.
 func AddFlags(flags *flag.FlagSet) {
 	for _, p := range defaultProcessors {
-		prefix := fmt.Sprintf("processor.%s-%s.", p.model, p.protocol)
+		prefix := fmt.Sprintf(processorPrefixFmt, p.model, p.protocol)
 		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
 		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
@@ -69,7 +72,7 @@ func AddOTELFlags(flags *flag.FlagSet) {
 // InitFromViper initializes Builder with properties retrieved from Viper.
 func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 	for _, processor := range defaultProcessors {
-		prefix := fmt.Sprintf("processor.%s-%s.", processor.model, processor.protocol)
+		prefix := fmt.Sprintf(processorPrefixFmt, processor.model, processor.protocol)
 		p := &ProcessorConfiguration{Model: processor.model, Protocol: processor.protocol}
 		p.Workers = v.GetInt(prefix + suffixWorkers)
 		p.Server.QueueSize = v.GetInt(prefix + suffixServerQueueSize)
