@@ -36,6 +36,7 @@ type Server struct {
 	bestETA  *bestETA
 	assetFS  http.FileSystem
 	basepath string
+	jaegerUI string
 }
 
 // ConfigOptions used to make sure service clients
@@ -46,6 +47,7 @@ type ConfigOptions struct {
 	CustomerHostPort string
 	RouteHostPort    string
 	Basepath         string
+	JaegerUI         string
 }
 
 // NewServer creates a new frontend.Server
@@ -58,6 +60,7 @@ func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Fact
 		bestETA:  newBestETA(tracer, logger, options),
 		assetFS:  assetFS,
 		basepath: options.Basepath,
+		jaegerUI: options.JaegerUI,
 	}
 }
 
@@ -73,7 +76,15 @@ func (s *Server) createServeMux() http.Handler {
 	p := path.Join("/", s.basepath)
 	mux.Handle(p, http.StripPrefix(p, http.FileServer(s.assetFS)))
 	mux.Handle(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch))
+	mux.Handle(path.Join(p, "/config"), http.HandlerFunc(s.config))
 	return mux
+}
+
+func (s *Server) config(w http.ResponseWriter, r *http.Request) {
+	config := map[string]string{
+		"jaeger": s.jaegerUI,
+	}
+	s.writeResponse(config, w, r)
 }
 
 func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
@@ -97,9 +108,13 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.writeResponse(response, w, r)
+}
+
+func (s *Server) writeResponse(response interface{}, w http.ResponseWriter, r *http.Request) {
 	data, err := json.Marshal(response)
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
-		s.logger.For(ctx).Error("cannot marshal response", zap.Error(err))
+		s.logger.For(r.Context()).Error("cannot marshal response", zap.Error(err))
 		return
 	}
 
