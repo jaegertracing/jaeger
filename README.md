@@ -109,8 +109,7 @@ of routing the traffic from Zipkin libraries to the Jaeger backend.
 
 ### Deployment
 
-  * [Kubernetes templates](https://github.com/jaegertracing/jaeger-kubernetes)
-  * [OpenShift templates](https://github.com/jaegertracing/jaeger-openshift)
+  * [Jaeger Operator for Kubernetes](https://github.com/jaegertracing/jaeger-operator#getting-started)
 
 ### Components
 
