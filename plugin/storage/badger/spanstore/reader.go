@@ -264,23 +264,28 @@ func setQueryDefaults(query *spanstore.TraceQueryParameters) {
 func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) [][]byte {
 	if query.ServiceName != "" {
 		indexSearchKey := make([]byte, 0, 64) // 64 is a magic guess
+		tagQueryUsed := false
+		for k, v := range query.Tags {
+			tagSearch := []byte(query.ServiceName + k + v)
+			tagSearchKey := make([]byte, 0, len(tagSearch)+1)
+			tagSearchKey = append(tagSearchKey, tagIndexKey)
+			tagSearchKey = append(tagSearchKey, tagSearch...)
+			indexSeeks = append(indexSeeks, tagSearchKey)
+			tagQueryUsed = true
+		}
+
 		if query.OperationName != "" {
 			indexSearchKey = append(indexSearchKey, operationNameIndexKey)
 			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName+query.OperationName)...)
 		} else {
-			indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
-			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
+			if !tagQueryUsed { // Tag query already reduces the search set with a serviceName
+				indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
+				indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
+			}
 		}
 
-		indexSeeks = append(indexSeeks, indexSearchKey)
-		if len(query.Tags) > 0 {
-			for k, v := range query.Tags {
-				tagSearch := []byte(query.ServiceName + k + v)
-				tagSearchKey := make([]byte, 0, len(tagSearch)+1)
-				tagSearchKey = append(tagSearchKey, tagIndexKey)
-				tagSearchKey = append(tagSearchKey, tagSearch...)
-				indexSeeks = append(indexSeeks, tagSearchKey)
-			}
+		if len(indexSearchKey) > 0 {
+			indexSeeks = append(indexSeeks, indexSearchKey)
 		}
 	}
 	return indexSeeks
