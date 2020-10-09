@@ -323,10 +323,13 @@ docker-images-elastic:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
-.PHONY: docker-images-jaeger-backend
-docker-images-jaeger-backend:
+docker-images-jaeger-backend: TARGET = release
+docker-images-jaeger-backend-debug: TARGET = debug
+
+.PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
+docker-images-jaeger-backend docker-images-jaeger-backend-debug:
 	for component in agent collector query ingester ; do \
-		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component --build-arg TARGETARCH=$(GOARCH) ; \
+		docker build --target $(TARGET) -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component --build-arg TARGETARCH=$(GOARCH) ; \
 		echo "Finished building $$component ==============" ; \
 	done
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
@@ -339,7 +342,11 @@ docker-images-tracegen:
 	@echo "Finished building jaeger-tracegen =============="
 
 .PHONY: docker-images-only
-docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend docker-images-tracegen
+docker-images-only: docker-images-cassandra \
+	docker-images-elastic \
+	docker-images-jaeger-backend \
+	docker-images-jaeger-backend-debug \
+	docker-images-tracegen
 
 .PHONY: docker-push
 docker-push:
