@@ -126,7 +126,7 @@ func loadAndEnrichIndexHTML(open func(string) (http.File, error), options Static
 	}
 	if options.BasePath != "/" {
 		if !strings.HasPrefix(options.BasePath, "/") || strings.HasSuffix(options.BasePath, "/") {
-			return nil, fmt.Errorf("Invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", options.BasePath)
+			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", options.BasePath)
 		}
 		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, options.BasePath)))
 	}
