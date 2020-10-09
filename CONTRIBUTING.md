@@ -45,7 +45,7 @@ $ go run -tags ui ./cmd/all-in-one/main.go
 Alternatively, the path to the built UI assets can be provided via `--query.static-files` flag:
 
 ```
-$ go run ./cmd/all-in-one/main.go --query.static-files jaeger-ui/build
+$ go run ./cmd/all-in-one/main.go --query.static-files jaeger-ui/packages/jaeger-ui/build
 ```
 
 ## Project Structure
