@@ -28,8 +28,8 @@ var (
 // Info holds build information
 type Info struct {
 	GitCommit  string `json:"gitCommit"`
-	GitVersion string `json:"GitVersion"`
-	BuildDate  string `json:"BuildDate"`
+	GitVersion string `json:"gitVersion"`
+	BuildDate  string `json:"buildDate"`
 }
 
 // Get creates and initialized Info object
