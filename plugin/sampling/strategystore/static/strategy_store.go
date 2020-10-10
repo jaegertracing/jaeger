@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -32,8 +33,9 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-// null represents "null" JSON value.
-const null = "null"
+// null represents "null" JSON value and
+// it un-marshals to nil pointer.
+var nullJSON = []byte("null")
 
 type strategyStore struct {
 	logger *zap.Logger
@@ -60,6 +62,11 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 		cancelFunc: cancelFunc,
 	}
 	h.storedStrategies.Store(defaultStrategies())
+
+	if options.StrategiesFile == "" {
+		h.parseStrategies(nil)
+		return h, nil
+	}
 
 	loadFn := samplingStrategyLoader(options.StrategiesFile)
 	strategies, err := loadStrategies(loadFn)
@@ -97,20 +104,22 @@ func downloadSamplingStrategies(url string) ([]byte, error) {
 	}
 
 	defer resp.Body.Close()
+	buf := new(bytes.Buffer)
+	if _, err = buf.ReadFrom(resp.Body); err != nil {
+		return nil, fmt.Errorf("failed to read sampling strategies HTTP response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		return nullJSON, nil
+	}
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusServiceUnavailable {
-			return []byte("null"), nil
-		}
 		return nil, fmt.Errorf(
-			"receiving %s while downloading strategies file",
+			"receiving %s while downloading strategies file: %s",
 			resp.Status,
+			buf.String(),
 		)
 	}
 
-	buf := new(bytes.Buffer)
-	if _, err = buf.ReadFrom(resp.Body); err != nil {
-		return nil, fmt.Errorf("failed to read sampling strategies from downloaded JSON: %w", err)
-	}
 	return buf.Bytes(), nil
 }
 
@@ -120,13 +129,6 @@ func isURL(str string) bool {
 }
 
 func samplingStrategyLoader(strategiesFile string) strategyLoader {
-	if strategiesFile == "" {
-		return func() ([]byte, error) {
-			// Using null so that it un-marshals to nil pointer.
-			return []byte(null), nil
-		}
-	}
-
 	if isURL(strategiesFile) {
 		return func() ([]byte, error) {
 			return downloadSamplingStrategies(strategiesFile)
@@ -134,16 +136,16 @@ func samplingStrategyLoader(strategiesFile string) strategyLoader {
 	}
 
 	return func() ([]byte, error) {
-		currBytes, err := ioutil.ReadFile(strategiesFile)
+		currBytes, err := ioutil.ReadFile(filepath.Clean(strategiesFile))
 		if err != nil {
-			return nil, fmt.Errorf("failed to open strategies file: %w", err)
+			return nil, fmt.Errorf("failed to read strategies file %s: %w", strategiesFile, err)
 		}
 		return currBytes, nil
 	}
 }
 
 func (h *strategyStore) autoUpdateStrategies(interval time.Duration, loader strategyLoader) {
-	lastValue := null
+	lastValue := string(nullJSON)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {

@@ -66,7 +66,7 @@ func mockStrategyServer() *httptest.Server {
 
 func TestStrategyStore(t *testing.T) {
 	_, err := NewStrategyStore(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
-	assert.EqualError(t, err, "failed to open strategies file: open fileNotFound.json: no such file or directory")
+	assert.EqualError(t, err, "failed to read strategies file fileNotFound.json: open fileNotFound.json: no such file or directory")
 
 	_, err = NewStrategyStore(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	assert.EqualError(t, err,
@@ -450,7 +450,7 @@ func TestSamplingStrategyLoader(t *testing.T) {
 	// invalid file path
 	loader := samplingStrategyLoader("not-exists")
 	_, err := loader()
-	assert.Contains(t, err.Error(), "failed to open strategies file")
+	assert.Contains(t, err.Error(), "failed to read strategies file not-exists")
 
 	// status code other than 200
 	mockServer := mockStrategyServer()
