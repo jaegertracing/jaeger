@@ -387,26 +387,8 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	assert.Equal(t, string(strategiesJSON), value)
 
 	// update original strategies with new probability of 0.9
-	strategiesJSON = []byte(`
-	{
-		"default_strategy": {
-		  "type": "probabilistic",
-		  "param": 0.5
-		},
-		"service_strategies": [
-		  {
-			"service": "foo",
-			"type": "probabilistic",
-			"param": 0.9
-		  },
-		  {
-			"service": "bar",
-			"type": "ratelimiting",
-			"param": 5
-		  }
-		]
-	  }  
-	`)
+	newStrategies := strings.Replace(string(strategiesJSON), "0.8", "0.9", 1)
+	strategiesJSON = []byte(newStrategies)
 
 	// wait for reload timer
 	for i := 0; i < 1000; i++ { // wait up to 1sec
