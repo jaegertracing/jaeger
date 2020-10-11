@@ -21,6 +21,9 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"runtime"
+	"syscall"
+	"unsafe"
 
 	"go.uber.org/zap"
 )
@@ -35,6 +38,45 @@ type Options struct {
 	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
 	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
 	certWatcher    *certWatcher `mapstructure:"-"`
+}
+
+const (
+	// CRYPT_E_NOT_FOUND is an error code specific to windows cert pool.
+	// See https://github.com/golang/go/issues/16736#issuecomment-540373689.
+	CRYPT_E_NOT_FOUND = 0x80092004
+)
+
+// workaround https://github.com/golang/go/issues/16736
+// fix borrowed from Sensu: https://github.com/sensu/sensu-go/pull/4018
+func appendCerts(rootCAs *x509.CertPool) (*x509.CertPool, error) {
+	storeHandle, err := syscall.CertOpenSystemStore(0, syscall.StringToUTF16Ptr("Root"))
+	if err != nil {
+		return nil, err
+	}
+
+	var cert *syscall.CertContext
+	for {
+		cert, err = syscall.CertEnumCertificatesInStore(storeHandle, cert)
+		if err != nil {
+			if errno, ok := err.(syscall.Errno); ok {
+				if errno == CRYPT_E_NOT_FOUND {
+					break
+				}
+			}
+			return nil, err
+		}
+		if cert == nil {
+			break
+		}
+		// Copy the buf, since ParseCertificate does not create its own copy.
+		buf := (*[1 << 20]byte)(unsafe.Pointer(cert.EncodedCert))[:]
+		buf2 := make([]byte, cert.Length)
+		copy(buf2, buf)
+		if c, err := x509.ParseCertificate(buf2); err == nil {
+			rootCAs.AddCert(c)
+		}
+	}
+	return rootCAs, nil
 }
 
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
@@ -88,7 +130,17 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 	if len(p.CAPath) == 0 { // no truststore given, use SystemCertPool
 		certPool, err := systemCertPool()
 		if err != nil {
-			return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
+			if runtime.GOOS == "windows" {
+				if certPool == nil {
+					certPool = x509.NewCertPool()
+				}
+				certPool, err = appendCerts(certPool)
+				if err != nil {
+					return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
+				}
+			} else {
+				return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
+			}
 		}
 		return certPool, nil
 	}
