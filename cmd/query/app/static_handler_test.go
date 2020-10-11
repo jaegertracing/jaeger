@@ -95,6 +95,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 			html := httpGet("") // get home page
 			assert.Contains(t, html, `JAEGER_CONFIG = {"x":"y"};`, "actual: %v", html)
+			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"","buildDate":""};`, "actual: %v", html)
 			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
 
 			asset := httpGet("static/asset.txt")
@@ -110,7 +111,7 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	for _, base := range []string{"x", "x/", "/x/"} {
 		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
 		require.Errorf(t, err, "basePath=%s", base)
-		assert.Contains(t, err.Error(), "Invalid base path")
+		assert.Contains(t, err.Error(), "invalid base path")
 	}
 }
 

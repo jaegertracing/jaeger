@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
 
+	collector_app "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
@@ -44,6 +45,9 @@ func TestCreateTraceExporter(t *testing.T) {
 func TestCreateDefaultConfig(t *testing.T) {
 	factory := Factory{OptionsFactory: DefaultOptions}
 	cfg := factory.CreateDefaultConfig()
+
+	assert.Equal(t, collector_app.DefaultNumWorkers, cfg.(*Config).NumConsumers)
+	assert.Equal(t, collector_app.DefaultQueueSize, cfg.(*Config).QueueSize)
 	assert.NotNil(t, cfg, "failed to create default config")
 	assert.NoError(t, configcheck.ValidateConfig(cfg))
 }

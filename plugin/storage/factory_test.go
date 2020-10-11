@@ -23,11 +23,14 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -348,6 +351,28 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	assert.NoError(t, err)
 	f.InitFromViper(v)
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
+}
+
+func TestPublishOpts(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+
+	baseMetrics := metricstest.NewFactory(time.Second)
+	forkFactory := metricstest.NewFactory(time.Second)
+	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	f.metricsFactory = metricsFactory
+
+	// This method is called inside factory.Initialize method
+	f.publishOpts()
+
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal." + downsamplingRatio,
+		Value: int(f.DownsamplingRatio),
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal." + spanStorageType + "-" + f.SpanReaderType,
+		Value: 1,
+	})
 }
 
 type errorCloseFactory struct {
