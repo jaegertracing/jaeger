@@ -33,6 +33,27 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
+var strategiesJSON = []byte(`
+{
+	"default_strategy": {
+	  "type": "probabilistic",
+	  "param": 0.5
+	},
+	"service_strategies": [
+	  {
+		"service": "foo",
+		"type": "probabilistic",
+		"param": 0.8
+	  },
+	  {
+		"service": "bar",
+		"type": "ratelimiting",
+		"param": 5
+	  }
+	]
+  }  
+`)
+
 // Returns strategies in JSON format. Used for testing
 // URL option for sampling strategies.
 func mockStrategyServer() *httptest.Server {
@@ -51,22 +72,17 @@ func mockStrategyServer() *httptest.Server {
 			return
 
 		default:
-			data, err := ioutil.ReadFile("fixtures/strategies.json")
-			if err != nil {
-				w.WriteHeader(500)
-				return
-			}
 			w.WriteHeader(200)
 			w.Header().Set("Content-Type", "application/json")
-			w.Write(data)
+			w.Write(strategiesJSON)
 		}
 	}
 	return httptest.NewServer(http.HandlerFunc(f))
 }
 
-func TestStrategyStore(t *testing.T) {
+func TestStrategyStoreWithFile(t *testing.T) {
 	_, err := NewStrategyStore(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
-	assert.EqualError(t, err, "failed to read strategies file fileNotFound.json: open fileNotFound.json: no such file or directory")
+	assert.Contains(t, err.Error(), "failed to read strategies file fileNotFound.json: open fileNotFound.json: no such file or directory")
 
 	_, err = NewStrategyStore(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	assert.EqualError(t, err,
@@ -95,12 +111,15 @@ func TestStrategyStore(t *testing.T) {
 	s, err = store.GetSamplingStrategy(context.Background(), "default")
 	require.NoError(t, err)
 	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
+}
 
+func TestStrategyStoreWithURL(t *testing.T) {
 	// Test default strategy when URL is temporarily unavailable.
+	logger, buf := testutils.NewLogger()
 	mockServer := mockStrategyServer()
-	store, err = NewStrategyStore(Options{StrategiesFile: mockServer.URL+"/service-unavailable"}, logger)
+	store, err := NewStrategyStore(Options{StrategiesFile: mockServer.URL + "/service-unavailable"}, logger)
 	assert.Contains(t, buf.String(), "No sampling strategies provided or URL is unavailable, using defaults")
-	s, err = store.GetSamplingStrategy(context.Background(), "foo")
+	s, err := store.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
 	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.001), *s)
 
@@ -302,7 +321,7 @@ func TestDeepCopy(t *testing.T) {
 	assert.EqualValues(t, cp, s)
 }
 
-func TestAutoUpdateStrategy(t *testing.T) {
+func TestAutoUpdateStrategyWithFile(t *testing.T) {
 	tempFile, _ := ioutil.TempFile("", "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
 	defer func() {
@@ -346,38 +365,48 @@ func TestAutoUpdateStrategy(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 	}
 	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.9), *s)
+}
 
-	// Test auto update strategy with URL option.
+func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	mockServer := mockStrategyServer()
-	ss, err = NewStrategyStore(Options{
+	ss, err := NewStrategyStore(Options{
 		StrategiesFile: mockServer.URL,
 		ReloadInterval: 10 * time.Millisecond,
 	}, zap.NewNop())
 	require.NoError(t, err)
-	store = ss.(*strategyStore)
+	store := ss.(*strategyStore)
 	defer store.Close()
 
-	// copy existing fixture content to restore it later.
-	srcBytes, err = ioutil.ReadFile(srcFile)
-	require.NoError(t, err)
-	originalBytes := srcBytes
-
 	// confirm baseline value
-	s, err = store.GetSamplingStrategy(context.Background(), "foo")
+	s, err := store.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
 	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	// verify that reloading in no-op
-	value = store.reloadSamplingStrategy(samplingStrategyLoader(mockServer.URL), string(srcBytes))
-	assert.Equal(t, string(srcBytes), value)
+	value := store.reloadSamplingStrategy(samplingStrategyLoader(mockServer.URL), string(strategiesJSON))
+	assert.Equal(t, string(strategiesJSON), value)
 
-	// update original strategies file with new probability of 0.9
-	newStr = strings.Replace(string(srcBytes), "0.8", "0.9", 1)
-	require.NoError(t, ioutil.WriteFile(srcFile, []byte(newStr), 0644))
-	defer func() {
-		// replace original strategies file with old content.
-		require.NoError(t, ioutil.WriteFile(srcFile, originalBytes, 0644), "failed to restore original file content")
-	}()
+	// update original strategies with new probability of 0.9
+	strategiesJSON = []byte(`
+	{
+		"default_strategy": {
+		  "type": "probabilistic",
+		  "param": 0.5
+		},
+		"service_strategies": [
+		  {
+			"service": "foo",
+			"type": "probabilistic",
+			"param": 0.9
+		  },
+		  {
+			"service": "bar",
+			"type": "ratelimiting",
+			"param": 5
+		  }
+		]
+	  }  
+	`)
 
 	// wait for reload timer
 	for i := 0; i < 1000; i++ { // wait up to 1sec
