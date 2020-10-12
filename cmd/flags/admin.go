@@ -17,6 +17,7 @@ package flags
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -75,7 +76,7 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(healthCheckHTTPPort, 0, healthCheckHTTPPortWarning+" see --"+adminHTTPHostPort)
 	flagSet.Int(adminHTTPPort, 0, adminHTTPPortWarning+" see --"+adminHTTPHostPort)
-	flagSet.String(adminHTTPHostPort, s.adminHostPort, "The host:port (e.g. 127.0.0.1:5555 or :5555) for the admin server, including health check, /metrics, etc.")
+	flagSet.String(adminHTTPHostPort, s.adminHostPort, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.adminHostPort, s.adminHostPort))
 }
 
 // Util function to use deprecated flag value if specified
