@@ -17,6 +17,6 @@ FROM golang:1.15.2-alpine AS debug
 ARG TARGETARCH=amd64
 COPY --from=base /go/bin/dlv /go/bin/dlv
 COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY query-linux-$TARGETARCH /go/bin/query-linux
+COPY query-debug-linux-$TARGETARCH /go/bin/query-linux
 EXPOSE 12345/tcp 16686/tcp
 CMD ["/go/bin/dlv", "exec", "/go/bin/query-linux", "--headless", "--listen=:12345", "--api-version=2", "--log"]

@@ -20,7 +20,7 @@ ARG TARGETARCH=amd64
 ARG USER_UID=10001
 COPY --from=base /go/bin/dlv /go/bin/dlv
 COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY agent-linux-$TARGETARCH /go/bin/agent-linux
+COPY agent-debug-linux-$TARGETARCH /go/bin/agent-linux
 EXPOSE 5775/udp 6831/udp 6832/udp 5778/tcp 12345/tcp
 CMD ["/go/bin/dlv", "exec", "/go/bin/agent-linux", "--headless", "--listen=:12345", "--api-version=2", "--log"]
 USER ${USER_UID}
