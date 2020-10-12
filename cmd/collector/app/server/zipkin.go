@@ -41,7 +41,7 @@ type ZipkinServerParams struct {
 
 // StartZipkinServer based on the given parameters
 func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
-	if params.HostPort == "" {
+	if params.HostPort == "" || params.HostPort == ":" {
 		return nil, nil
 	}
 
