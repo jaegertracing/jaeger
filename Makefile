@@ -2,6 +2,8 @@ JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 OTEL_COLLECTOR_DIR = ./cmd/opentelemetry
 
+include docker/Makefile
+
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
@@ -345,9 +347,14 @@ docker-images-jaeger-backend-debug: TARGET = debug
 docker-images-jaeger-backend-debug: SUFFIX = -debug
 
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
-docker-images-jaeger-backend docker-images-jaeger-backend-debug:
+docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
 	for component in agent collector query ingester ; do \
-		docker build --target $(TARGET) -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG}$(SUFFIX) cmd/$$component --build-arg TARGETARCH=$(GOARCH) ; \
+		docker build --target $(TARGET) \
+			--tag $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG}$(SUFFIX) \
+			--build-arg base_image=$(BASE_IMAGE) \
+			--build-arg debug_image=$(DEBUG_IMAGE) \
+			--build-arg TARGETARCH=$(GOARCH) \
+			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
