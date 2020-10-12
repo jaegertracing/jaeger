@@ -60,6 +60,10 @@ func GetAddressFromCLIOptions(port int, hostPort string) string {
 		return PortToHostPort(port)
 	}
 
+	if hostPort == "" {
+		return ""
+	}
+
 	if strings.Contains(hostPort, ":") {
 		return hostPort
 	}
