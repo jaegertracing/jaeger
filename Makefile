@@ -391,7 +391,9 @@ install-tools:
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples lint cover
+# TODO (ys) added test-otel to at least ensure tests run in CI,
+#      but this needs to be changed in the lint and cover targets instead
+test-ci: build-examples lint cover test-otel
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
