@@ -16,6 +16,7 @@ package static
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
@@ -33,30 +35,38 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-var strategiesJSON = []byte(`
-{
-	"default_strategy": {
-	  "type": "probabilistic",
-	  "param": 0.5
-	},
-	"service_strategies": [
-	  {
-		"service": "foo",
-		"type": "probabilistic",
-		"param": 0.8
-	  },
-	  {
-		"service": "bar",
-		"type": "ratelimiting",
-		"param": 5
-	  }
-	]
-  }  
-`)
+// strategiesJSON returns the strategy with
+// a given probability.
+func strategiesJSON(probability float32) string {
+	strategy := fmt.Sprintf(`
+		{
+			"default_strategy": {
+			"type": "probabilistic",
+			"param": 0.5
+			},
+			"service_strategies": [
+			{
+				"service": "foo",
+				"type": "probabilistic",
+				"param": %.1f
+			},
+			{
+				"service": "bar",
+				"type": "ratelimiting",
+				"param": 5
+			}
+			]
+		}  
+		`,
+		probability,
+	)
+	return strategy
+}
 
 // Returns strategies in JSON format. Used for testing
 // URL option for sampling strategies.
-func mockStrategyServer() *httptest.Server {
+func mockStrategyServer() (*httptest.Server, *atomic.String) {
+	strategy := atomic.NewString(strategiesJSON(0.8))
 	f := func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/bad-content":
@@ -74,15 +84,15 @@ func mockStrategyServer() *httptest.Server {
 		default:
 			w.WriteHeader(200)
 			w.Header().Set("Content-Type", "application/json")
-			w.Write(strategiesJSON)
+			w.Write([]byte(strategy.Load()))
 		}
 	}
-	return httptest.NewServer(http.HandlerFunc(f))
+	return httptest.NewServer(http.HandlerFunc(f)), strategy
 }
 
 func TestStrategyStoreWithFile(t *testing.T) {
 	_, err := NewStrategyStore(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
-	assert.Contains(t, err.Error(), "failed to read strategies file fileNotFound.json: open fileNotFound.json: no such file or directory")
+	assert.Contains(t, err.Error(), "failed to read strategies file fileNotFound.json")
 
 	_, err = NewStrategyStore(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	assert.EqualError(t, err,
@@ -116,7 +126,7 @@ func TestStrategyStoreWithFile(t *testing.T) {
 func TestStrategyStoreWithURL(t *testing.T) {
 	// Test default strategy when URL is temporarily unavailable.
 	logger, buf := testutils.NewLogger()
-	mockServer := mockStrategyServer()
+	mockServer, _ := mockStrategyServer()
 	store, err := NewStrategyStore(Options{StrategiesFile: mockServer.URL + "/service-unavailable"}, logger)
 	assert.Contains(t, buf.String(), "No sampling strategies provided or URL is unavailable, using defaults")
 	s, err := store.GetSamplingStrategy(context.Background(), "foo")
@@ -368,7 +378,7 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyWithURL(t *testing.T) {
-	mockServer := mockStrategyServer()
+	mockServer, mockStrategy := mockStrategyServer()
 	ss, err := NewStrategyStore(Options{
 		StrategiesFile: mockServer.URL,
 		ReloadInterval: 10 * time.Millisecond,
@@ -383,12 +393,11 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	// verify that reloading in no-op
-	value := store.reloadSamplingStrategy(samplingStrategyLoader(mockServer.URL), string(strategiesJSON))
-	assert.Equal(t, string(strategiesJSON), value)
+	value := store.reloadSamplingStrategy(samplingStrategyLoader(mockServer.URL), mockStrategy.Load())
+	assert.Equal(t, mockStrategy.Load(), value)
 
 	// update original strategies with new probability of 0.9
-	newStrategies := strings.Replace(string(strategiesJSON), "0.8", "0.9", 1)
-	strategiesJSON = []byte(newStrategies)
+	mockStrategy.Store(strategiesJSON(0.9))
 
 	// wait for reload timer
 	for i := 0; i < 1000; i++ { // wait up to 1sec
@@ -434,11 +443,12 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to re-load sampling strategies").All(), 2)
 
 	// check status code other than 200
-	assert.Equal(t, "duh", store.reloadSamplingStrategy(samplingStrategyLoader(mockStrategyServer().URL+"/bad-status"), "duh"))
+	mockServer, _ := mockStrategyServer()
+	assert.Equal(t, "duh", store.reloadSamplingStrategy(samplingStrategyLoader(mockServer.URL+"/bad-status"), "duh"))
 	assert.Len(t, logs.FilterMessage("failed to re-load sampling strategies").All(), 3)
 
 	// check bad content from url
-	assert.Equal(t, "duh", store.reloadSamplingStrategy(samplingStrategyLoader(mockStrategyServer().URL+"/bad-content"), "duh"))
+	assert.Equal(t, "duh", store.reloadSamplingStrategy(samplingStrategyLoader(mockServer.URL+"/bad-content"), "duh"))
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
@@ -464,7 +474,7 @@ func TestSamplingStrategyLoader(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read strategies file not-exists")
 
 	// status code other than 200
-	mockServer := mockStrategyServer()
+	mockServer, _ := mockStrategyServer()
 	loader = samplingStrategyLoader(mockServer.URL + "/bad-status")
 	_, err = loader()
 	assert.Contains(t, err.Error(), "receiving 404 Not Found while downloading strategies file")
