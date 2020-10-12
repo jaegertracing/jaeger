@@ -101,7 +101,7 @@ func AddOTELJaegerFlags(flags *flag.FlagSet) {
 
 // AddOTELZipkinFlags adds flag that are exposed by OTEL Zipkin receiver
 func AddOTELZipkinFlags(flags *flag.FlagSet) {
-	flags.String(CollectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server")
+	flags.String(CollectorZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
