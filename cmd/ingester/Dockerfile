@@ -11,4 +11,4 @@ FROM $debug_image AS debug
 ARG TARGETARCH=amd64
 COPY ingester-debug-linux-$TARGETARCH /go/bin/ingester-linux
 EXPOSE 12345/tcp 14270/tcp 14271/tcp
-CMD ["/go/bin/dlv", "exec", "/go/bin/ingester-linux", "--headless", "--listen=:12345", "--api-version=2", "--log"]
+ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/ingester-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--log-output=debugger,debuglineerr,gdbwire,lldbout,rpc", "--"]
