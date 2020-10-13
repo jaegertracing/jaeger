@@ -39,7 +39,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/memoryexporter"
 	jaegerresource "github.com/jaegertracing/jaeger/cmd/opentelemetry/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
@@ -164,7 +163,7 @@ func createReceivers(component ComponentType, factories component.Factories) con
 		"otlp":   factories.Receivers["otlp"].CreateDefaultConfig(),
 	}
 	zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
-	if zipkin.Endpoint != "" && zipkin.Endpoint != ports.PortToHostPort(0) {
+	if zipkin.Endpoint != "" {
 		recvs["zipkin"] = zipkin
 	}
 	return recvs
