@@ -128,6 +128,7 @@ func TestStrategyStoreWithURL(t *testing.T) {
 	logger, buf := testutils.NewLogger()
 	mockServer, _ := mockStrategyServer()
 	store, err := NewStrategyStore(Options{StrategiesFile: mockServer.URL + "/service-unavailable"}, logger)
+	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "No sampling strategies provided or URL is unavailable, using defaults")
 	s, err := store.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
@@ -482,5 +483,6 @@ func TestSamplingStrategyLoader(t *testing.T) {
 	// should download content from URL
 	loader = samplingStrategyLoader(mockServer.URL + "/bad-content")
 	content, err := loader()
+	require.NoError(t, err)
 	assert.Equal(t, "bad-content", string(content))
 }
