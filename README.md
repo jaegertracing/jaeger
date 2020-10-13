@@ -109,8 +109,7 @@ of routing the traffic from Zipkin libraries to the Jaeger backend.
 
 ### Deployment
 
-  * [Kubernetes templates](https://github.com/jaegertracing/jaeger-kubernetes)
-  * [OpenShift templates](https://github.com/jaegertracing/jaeger-openshift)
+  * [Jaeger Operator for Kubernetes](https://github.com/jaegertracing/jaeger-operator#getting-started)
 
 ### Components
 
@@ -131,6 +130,7 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 Below are the official maintainers of the Jaeger project. Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
 
 * [@black-adder](https://github.com/black-adder)
+* [@joe-elliott](https://github.com/joe-elliott)
 * [@jpkrohling](https://github.com/jpkrohling)
 * [@objectiser](https://github.com/objectiser)
 * [@pavolloffay](https://github.com/pavolloffay)

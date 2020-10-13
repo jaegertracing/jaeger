@@ -30,15 +30,17 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 var (
 	favoriteIcon    = "favicon.ico"
 	staticRootFiles = []string{favoriteIcon}
+
+	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	basePathPattern = regexp.MustCompile(`<base href="/"`)
-	basePathReplace = `<base href="%s/"`
-	errBadBasePath  = "Invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'"
+	versionPattern  = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
+	basePathPattern = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
@@ -81,7 +83,7 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		options.Logger = zap.NewNop()
 	}
 
-	indexHTML, err := loadIndexBytes(assetsFS.Open, options)
+	indexHTML, err := loadAndEnrichIndexHTML(assetsFS.Open, options)
 	if err != nil {
 		return nil, err
 	}
@@ -97,11 +99,12 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	return h, nil
 }
 
-func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
+func loadAndEnrichIndexHTML(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
 	indexBytes, err := loadIndexHTML(open)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
+	// replace UI config
 	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
 	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
 		return nil, err
@@ -113,14 +116,19 @@ func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHa
 		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
 	}
 	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
+	// replace Jaeger version
+	versionJSON, _ := json.Marshal(version.Get())
+	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
+	indexBytes = versionPattern.ReplaceAll(indexBytes, []byte(versionString))
+	// replace base path
 	if options.BasePath == "" {
 		options.BasePath = "/"
 	}
 	if options.BasePath != "/" {
 		if !strings.HasPrefix(options.BasePath, "/") || strings.HasSuffix(options.BasePath, "/") {
-			return nil, fmt.Errorf(errBadBasePath, options.BasePath)
+			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", options.BasePath)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(basePathReplace, options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, options.BasePath)))
 	}
 
 	return indexBytes, nil
@@ -144,7 +152,7 @@ func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
 			}
 			// this will catch events for all files inside the same directory, which is OK if we don't have many changes
 			sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
-			content, err := loadIndexBytes(sH.assetsFS.Open, sH.options)
+			content, err := loadAndEnrichIndexHTML(sH.assetsFS.Open, sH.options)
 			if err != nil {
 				sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
 			}
@@ -207,7 +215,7 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 		return nil, nil
 	}
 	ext := filepath.Ext(uiConfig)
-	bytes, err := ioutil.ReadFile(uiConfig) /* nolint #nosec , this comes from an admin, not user */
+	bytes, err := ioutil.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}

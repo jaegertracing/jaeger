@@ -1,0 +1,14 @@
+name: "Add needs-triage to new issues"
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: github/issue-labeler@v2.0
+      with:
+        repo-token: "${{ secrets.GITHUB_TOKEN }}"
+        configuration-path: .github/labeler-needs-triage.yaml
+        enable-versioned-regex: 0

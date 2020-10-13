@@ -29,7 +29,6 @@ import (
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 func TestDefaultValues(t *testing.T) {
@@ -39,7 +38,7 @@ func TestDefaultValues(t *testing.T) {
 
 	factory := &Factory{Viper: v, Wrapped: zipkinreceiver.NewFactory()}
 	cfg := factory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	assert.Equal(t, ports.PortToHostPort(0), cfg.Endpoint)
+	assert.Equal(t, "", cfg.Endpoint)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
