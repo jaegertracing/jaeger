@@ -350,7 +350,7 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
 	for component in agent collector query ingester ; do \
 		docker build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG}$(SUFFIX) \
+			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
