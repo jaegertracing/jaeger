@@ -61,7 +61,7 @@ func traces() pdata.Traces {
 	return traces
 }
 
-func AddSpan(traces pdata.Traces, name string, traceID []byte, spanID []byte) pdata.Traces {
+func AddSpan(traces pdata.Traces, name string, traceID pdata.TraceID, spanID pdata.SpanID) pdata.Traces {
 	rspans := traces.ResourceSpans()
 	instSpans := rspans.At(0).InstrumentationLibrarySpans()
 	spans := instSpans.At(0).Spans()
@@ -74,8 +74,8 @@ func AddSpan(traces pdata.Traces, name string, traceID []byte, spanID []byte) pd
 }
 
 func TestStore(t *testing.T) {
-	traceID := []byte("0123456789abcdef")
-	spanID := []byte("01234567")
+	traceID := pdata.NewTraceID([]byte("0123456789abcdef"))
+	spanID := pdata.NewSpanID([]byte("01234567"))
 	tests := []struct {
 		storage         store
 		data            pdata.Traces
@@ -94,7 +94,7 @@ func TestStore(t *testing.T) {
 		{
 			caption: "wrong data",
 			storage: store{Writer: spanWriter{}, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), "memory")},
-			data:    AddSpan(traces(), "", nil, nil),
+			data:    AddSpan(traces(), "", pdata.NewTraceID(nil), pdata.NewSpanID(nil)),
 			err:     "TraceID is nil",
 			dropped: 1,
 		},
