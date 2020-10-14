@@ -30,8 +30,8 @@ import (
 )
 
 var (
-	traceID = []byte("0123456789abcdef")
-	spanID  = []byte("01234567")
+	traceID = pdata.NewTraceID([]byte("0123456789abcdef"))
+	spanID  = pdata.NewSpanID([]byte("01234567"))
 )
 
 func TestAttributeToKeyValue(t *testing.T) {
@@ -128,8 +128,8 @@ func TestConvertSpan(t *testing.T) {
 	span.SetParentSpanID(spanID)
 	span.Links().Resize(1)
 	span.Links().At(0).InitEmpty()
-	span.Links().At(0).SetSpanID(pdata.NewSpanID(spanID))
-	span.Links().At(0).SetTraceID(pdata.NewTraceID(traceID))
+	span.Links().At(0).SetSpanID(spanID)
+	span.Links().At(0).SetTraceID(traceID)
 
 	c := &Translator{
 		tagKeysAsFields: map[string]bool{"toTagMap": true},
@@ -219,26 +219,26 @@ func TestErrorIDs(t *testing.T) {
 	binary.LittleEndian.PutUint64(zero64Bytes, 0)
 	binary.LittleEndian.PutUint64(zero64Bytes, 0)
 	tests := []struct {
-		spanID  []byte
-		traceID []byte
+		spanID  pdata.SpanID
+		traceID pdata.TraceID
 		err     string
 	}{
 		{
-			traceID: []byte("invalid-%"),
+			traceID: pdata.NewTraceID([]byte("invalid-%")),
 			err:     "TraceID does not have 16 bytes",
 		},
 		{
 			traceID: traceID,
-			spanID:  []byte("invalid-%"),
+			spanID:  pdata.NewSpanID([]byte("invalid-%")),
 			err:     "SpanID does not have 8 bytes",
 		},
 		{
 			traceID: traceID,
-			spanID:  zero64Bytes[:8],
+			spanID:  pdata.NewSpanID(zero64Bytes[:8]),
 			err:     errZeroSpanID.Error(),
 		},
 		{
-			traceID: zero64Bytes,
+			traceID: pdata.NewTraceID(zero64Bytes),
 			spanID:  spanID,
 			err:     errZeroTraceID.Error(),
 		},
@@ -265,7 +265,7 @@ func traces(serviceName string) pdata.Traces {
 	return traces
 }
 
-func addSpan(traces pdata.Traces, name string, traceID []byte, spanID []byte) pdata.Span {
+func addSpan(traces pdata.Traces, name string, traceID pdata.TraceID, spanID pdata.SpanID) pdata.Span {
 	rspans := traces.ResourceSpans()
 	instSpans := rspans.At(0).InstrumentationLibrarySpans()
 	spans := instSpans.At(0).Spans()
