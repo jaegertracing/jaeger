@@ -245,12 +245,12 @@ cmd/query/app/ui/placeholder/gen_assets.go: cmd/query/app/ui/placeholder/public/
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
-.PHONY: build-all-in-one
-build-all-in-one: build-ui elasticsearch-mappings
-	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: SUFFIX = -debug
 
-build-agent-debug build-query-debug build-collector-debug build-ingester-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
-build-agent-debug build-query-debug build-collector-debug build-ingester-debug: SUFFIX = -debug
+.PHONY: build-all-in-one build-all-in-one-debug
+build-all-in-one build-all-in-one-debug: build-ui elasticsearch-mappings
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/all-in-one/all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent build-agent-debug
 build-agent build-agent-debug:

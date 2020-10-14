@@ -11,4 +11,4 @@ FROM $debug_image AS debug
 ARG TARGETARCH=amd64
 COPY collector-debug-linux-$TARGETARCH /go/bin/collector-linux
 EXPOSE 12345/tcp 14250/tcp
-ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/collector-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--log-output=debugger,debuglineerr,gdbwire,lldbout,rpc", "--"]
+ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/collector-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
