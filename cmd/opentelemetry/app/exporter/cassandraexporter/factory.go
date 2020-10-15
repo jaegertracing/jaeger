@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
+	collector_app "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
 
@@ -54,6 +55,10 @@ func (Factory) Type() configmodels.Type {
 // This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
+	queueSettings := exporterhelper.CreateDefaultQueueSettings()
+	queueSettings.NumConsumers = collector_app.DefaultNumWorkers
+	queueSettings.QueueSize = collector_app.DefaultQueueSize
+
 	return &Config{
 		ExporterSettings: configmodels.ExporterSettings{
 			TypeVal: TypeStr,
@@ -61,7 +66,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 		},
 		TimeoutSettings: exporterhelper.CreateDefaultTimeoutSettings(),
 		RetrySettings:   exporterhelper.CreateDefaultRetrySettings(),
-		QueueSettings:   exporterhelper.CreateDefaultQueueSettings(),
+		QueueSettings:   queueSettings,
 		Options:         *opts,
 	}
 }
@@ -84,5 +89,15 @@ func (Factory) CreateMetricsExporter(
 	_ component.ExporterCreateParams,
 	_ configmodels.Exporter,
 ) (component.MetricsExporter, error) {
+	return nil, configerror.ErrDataTypeIsNotSupported
+}
+
+// CreateLogsExporter creates a metrics exporter based on provided config.
+// This function implements component.ExporterFactory.
+func (f Factory) CreateLogsExporter(
+	ctx context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (component.LogsExporter, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

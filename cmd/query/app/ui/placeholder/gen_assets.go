@@ -212,14 +212,16 @@ var _escData = map[string]*_escFile{
 	"/index.html": {
 		name:    "index.html",
 		local:   "cmd/query/app/ui/placeholder/public/index.html",
-		size:    376,
-		modtime: 1547655513,
+		size:    561,
+		modtime: 1602212972,
 		compressed: `
-H4sIAAAAAAAC/zyQQW/CMAyF7/yKR8/Lep20FolBQSA0EGsPOyHTmiZTm6DECPHvpyrQXGK/56fPcjZd
-7hfl76GAlr6bTbLhQ0e2zRO2yWwCAFnPQqg1+cCSJ1W5Uh8v60yBoT1f8iRN0JCQMvaPa1FCvh3Gv+Y/
-xak67pL0GREjHc9KDoIDtZylUYjmVCls58W6OJ4W++/VZp0vi9W82pXP9hNKvdCuecRyeKU2ASaAcO2o
-Zu26hj0uzmNL3LJHtYF2PeNKLb+Psc0FD3cDeUZgNraFaBPeRtHfrB1UwtlY8o8xKJoEdwqwTlC7/mo6
-bnA3oiGaBxqFwBIiKkvjtlka7/wfAAD//3waeT14AQAA
+H4sIAAAAAAAC/2SSQYvbMBCF7/srZtVrFV1LaxuyWSd4WZIlsQs9LWN7ImkrS0EaE/Lvi2s3LVQXad68
+x3wMyh6fD5v6x1sJhgdXPGTTBQ69zgV5UTwAAGQDMUJnMCbiXDT1Vn7502oxEZhI51woAT0ySus/qGPJ
+GPVkf1qfyvfm+CrUEmHLjoqaEsMbasrULMzNRynhZV3uyuP75rDfVrv8udyum9d6Kb+BlP9bv5fHU3XY
+52L0P324evGPrQ39bX5OpzY2gU2AcHHYkQmupwjnEOEFSVOEpgITBoILalrdY9UZbmEEjASJyHoNbGz6
+fBfj6P2kIrTWY7zdg2yQ4YoJfGDownCxjnq4WjbAhqZpmBJx+jvqRAQZLjs1zJf0VSlt2YztqguD+vjN
+yRE76/VSqdaFVg2YmKLaHPb1sXpq6mq/Ww39p4VNutChk+1oXS8nAMmG5GhFwYYSgfWJ49ixDT5lCouZ
+KFPz/jI1f5BfAQAA//9bRT+qMQIAAA==
 `,
 	},
 

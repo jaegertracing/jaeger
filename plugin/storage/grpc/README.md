@@ -30,7 +30,7 @@ There are instructions on implementing a `go-plugin` server for non-Go languages
 [go-plugin non-go guide](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md).
 Take note of the required [health check service](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md#3-add-the-grpc-health-checking-service).
   
-A Go plugin is a standalone application which calls `grpc.Serve(&plugin)` in its `main` function, where the `grpc` package 
+A Go plugin is a standalone application which calls `grpc.Serve(&pluginServices)` in its `main` function, where the `grpc` package 
 is `github.com/jaegertracing/jaeger/plugin/storage/grpc`.
  
 ```go
@@ -48,7 +48,10 @@ is `github.com/jaegertracing/jaeger/plugin/storage/grpc`.
 
         plugin := myStoragePlugin{}
         
-        grpc.Serve(&plugin)
+        grpc.Serve(&shared.PluginServices{
+			Store:        plugin,
+			ArchiveStore: plugin,
+		})
     }
 ```
  
@@ -71,6 +74,23 @@ dependencies, you can also use `go.mod` to achieve the same goal of pinning your
 
 A simple plugin which uses the memstore storage implementation can be found in the `examples` directory of the top level
 of the Jaeger project.
+
+To support archive storage a plugin must implement the ArchiveStoragePlugin interface of:
+
+```go
+type ArchiveStoragePlugin interface {
+	ArchiveSpanReader() spanstore.Reader
+	ArchiveSpanWriter() spanstore.Writer
+}
+```
+
+If you don't plan to implement archive storage simply do not fill `ArchiveStore` property of `shared.PluginServices`:
+
+```go
+grpc.Serve(&shared.PluginServices{
+    Store: plugin,
+})
+```
 
 Running with a plugin
 ---------------------

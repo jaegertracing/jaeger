@@ -17,8 +17,12 @@ package memory
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -29,7 +33,7 @@ var _ storage.Factory = new(Factory)
 
 func TestMemoryStorageFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(nil, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	assert.NoError(t, err)
@@ -55,4 +59,21 @@ func TestInitFromOptions(t *testing.T) {
 	f := Factory{}
 	f.InitFromOptions(o)
 	assert.Equal(t, o, f.options)
+}
+
+func TestPublishOpts(t *testing.T) {
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{"--memory.max-traces=100"})
+	f.InitFromViper(v)
+
+	baseMetrics := metricstest.NewFactory(time.Second)
+	forkFactory := metricstest.NewFactory(time.Second)
+	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	assert.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
+
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal." + limit,
+		Value: f.options.Configuration.MaxTraces,
+	})
 }

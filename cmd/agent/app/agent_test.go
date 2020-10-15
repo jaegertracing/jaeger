@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	"go.uber.org/zap"
 
 	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -100,7 +101,8 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 	}
 	logger, logBuf := testutils.NewLogger()
 	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
-	mFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
 	require.NoError(t, err)
@@ -162,7 +164,8 @@ func TestStartStopRace(t *testing.T) {
 	}
 	logger, logBuf := testutils.NewLogger()
 	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
-	mFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
 	require.NoError(t, err)

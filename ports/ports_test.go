@@ -15,6 +15,7 @@
 package ports
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,17 +26,21 @@ func TestPortToHostPort(t *testing.T) {
 }
 
 func TestGetAddressFromCLIOptionsLegacy(t *testing.T) {
-	assert.Equal(t, ":123", GetAddressFromCLIOptions(123, ""))
-}
-
-func TestGetAddressFromCLIOptionHostPort(t *testing.T) {
-	assert.Equal(t, "127.0.0.1:123", GetAddressFromCLIOptions(0, "127.0.0.1:123"))
-}
-
-func TestGetAddressFromCLIOptionOnlyPort(t *testing.T) {
-	assert.Equal(t, ":123", GetAddressFromCLIOptions(0, ":123"))
-}
-
-func TestGetAddressFromCLIOptionOnlyPortWithoutColon(t *testing.T) {
-	assert.Equal(t, ":123", GetAddressFromCLIOptions(0, "123"))
+	tests := []struct {
+		port     int
+		hostPort string
+		out      string
+	}{
+		{port: 123, hostPort: "", out: ":123"},
+		{port: 0, hostPort: "127.0.0.1:123", out: "127.0.0.1:123"},
+		{port: 0, hostPort: ":123", out: ":123"},
+		{port: 123, hostPort: "567", out: ":123"},
+		{port: 0, hostPort: "123", out: ":123"},
+		{port: 0, hostPort: "", out: ""},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
+			assert.Equal(t, test.out, GetAddressFromCLIOptions(test.port, test.hostPort))
+		})
+	}
 }

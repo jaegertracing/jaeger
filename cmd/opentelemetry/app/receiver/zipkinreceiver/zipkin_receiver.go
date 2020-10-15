@@ -45,9 +45,13 @@ func (f Factory) Type() configmodels.Type {
 // This function implements OTEL component.ReceiverFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*zipkinreceiver.Config)
-	if f.Viper.IsSet(collectorApp.CollectorZipkinHTTPHostPort) {
-		cfg.Endpoint = f.Viper.GetString(collectorApp.CollectorZipkinHTTPHostPort)
-	}
+
+	// using the CollectorOptions to parse the zipkin host port b/c it has special processing
+	//  for combining the port and host:port zipkin flags
+	collectorOpts := &collectorApp.CollectorOptions{}
+	collectorOpts.InitFromViper(f.Viper)
+	cfg.Endpoint = collectorOpts.CollectorZipkinHTTPHostPort
+
 	return cfg
 }
 
@@ -71,4 +75,16 @@ func (f Factory) CreateMetricsReceiver(
 	consumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
 	return f.Wrapped.CreateMetricsReceiver(ctx, params, cfg, consumer)
+}
+
+// CreateLogsReceiver creates a receiver based on the config.
+// If the receiver type does not support logs or if the config is not valid
+// error will be returned instead.
+func (f Factory) CreateLogsReceiver(
+	ctx context.Context,
+	params component.ReceiverCreateParams,
+	cfg configmodels.Receiver,
+	nextConsumer consumer.LogsConsumer,
+) (component.LogsReceiver, error) {
+	return f.Wrapped.CreateLogsReceiver(ctx, params, cfg, nextConsumer)
 }

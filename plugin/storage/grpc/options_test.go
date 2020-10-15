@@ -25,11 +25,12 @@ import (
 func TestOptionsWithFlags(t *testing.T) {
 	opts := &Options{}
 	v, command := config.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{
+	err := command.ParseFlags([]string{
 		"--grpc-storage-plugin.binary=noop-grpc-plugin",
 		"--grpc-storage-plugin.configuration-file=config.json",
 		"--grpc-storage-plugin.log-level=debug",
 	})
+	assert.NoError(t, err)
 	opts.InitFromViper(v)
 
 	assert.Equal(t, opts.Configuration.PluginBinary, "noop-grpc-plugin")

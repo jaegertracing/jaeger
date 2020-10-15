@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/url"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -30,6 +32,10 @@ import (
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
+
+// null represents "null" JSON value and
+// it un-marshals to nil pointer.
+var nullJSON = []byte("null")
 
 type strategyStore struct {
 	logger *zap.Logger
@@ -45,6 +51,8 @@ type storedStrategies struct {
 	serviceStrategies map[string]*sampling.SamplingStrategyResponse
 }
 
+type strategyLoader func() ([]byte, error)
+
 // NewStrategyStore creates a strategy store that holds static sampling strategies.
 func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -55,14 +63,20 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	}
 	h.storedStrategies.Store(defaultStrategies())
 
-	strategies, err := loadStrategies(options.StrategiesFile)
+	if options.StrategiesFile == "" {
+		h.parseStrategies(nil)
+		return h, nil
+	}
+
+	loadFn := samplingStrategyLoader(options.StrategiesFile)
+	strategies, err := loadStrategies(loadFn)
 	if err != nil {
 		return nil, err
 	}
 	h.parseStrategies(strategies)
 
 	if options.ReloadInterval > 0 {
-		go h.autoUpdateStrategies(options.ReloadInterval, options.StrategiesFile)
+		go h.autoUpdateStrategies(options.ReloadInterval, loadFn)
 	}
 	return h, nil
 }
@@ -83,35 +97,81 @@ func (h *strategyStore) Close() {
 	h.cancelFunc()
 }
 
-func (h *strategyStore) autoUpdateStrategies(interval time.Duration, filePath string) {
-	lastValue := ""
+func downloadSamplingStrategies(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download sampling strategies: %w", err)
+	}
+
+	defer resp.Body.Close()
+	buf := new(bytes.Buffer)
+	if _, err = buf.ReadFrom(resp.Body); err != nil {
+		return nil, fmt.Errorf("failed to read sampling strategies HTTP response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		return nullJSON, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(
+			"receiving %s while downloading strategies file: %s",
+			resp.Status,
+			buf.String(),
+		)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func isURL(str string) bool {
+	u, err := url.Parse(str)
+	return err == nil && u.Scheme != "" && u.Host != ""
+}
+
+func samplingStrategyLoader(strategiesFile string) strategyLoader {
+	if isURL(strategiesFile) {
+		return func() ([]byte, error) {
+			return downloadSamplingStrategies(strategiesFile)
+		}
+	}
+
+	return func() ([]byte, error) {
+		currBytes, err := ioutil.ReadFile(filepath.Clean(strategiesFile))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read strategies file %s: %w", strategiesFile, err)
+		}
+		return currBytes, nil
+	}
+}
+
+func (h *strategyStore) autoUpdateStrategies(interval time.Duration, loader strategyLoader) {
+	lastValue := string(nullJSON)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			lastValue = h.reloadSamplingStrategyFile(filePath, lastValue)
+			lastValue = h.reloadSamplingStrategy(loader, lastValue)
 		case <-h.ctx.Done():
 			return
 		}
 	}
 }
 
-func (h *strategyStore) reloadSamplingStrategyFile(filePath string, lastValue string) string {
-	currBytes, err := ioutil.ReadFile(filepath.Clean(filePath))
+func (h *strategyStore) reloadSamplingStrategy(loadFn strategyLoader, lastValue string) string {
+	newValue, err := loadFn()
 	if err != nil {
-		h.logger.Error("failed to load sampling strategies", zap.String("file", filePath), zap.Error(err))
+		h.logger.Error("failed to re-load sampling strategies", zap.Error(err))
 		return lastValue
 	}
-	newValue := string(currBytes)
-	if lastValue == newValue {
+	if lastValue == string(newValue) {
 		return lastValue
 	}
-	if err = h.updateSamplingStrategy(currBytes); err != nil {
-		h.logger.Error("failed to update sampling strategies from file", zap.Error(err))
+	if err := h.updateSamplingStrategy(newValue); err != nil {
+		h.logger.Error("failed to update sampling strategies", zap.Error(err))
 		return lastValue
 	}
-	return newValue
+	return string(newValue)
 }
 
 func (h *strategyStore) updateSamplingStrategy(bytes []byte) error {
@@ -125,24 +185,22 @@ func (h *strategyStore) updateSamplingStrategy(bytes []byte) error {
 }
 
 // TODO good candidate for a global util function
-func loadStrategies(strategiesFile string) (*strategies, error) {
-	if strategiesFile == "" {
-		return nil, nil
-	}
-	data, err := ioutil.ReadFile(strategiesFile) /* nolint #nosec , this comes from an admin, not user */
+func loadStrategies(loadFn strategyLoader) (*strategies, error) {
+	strategyBytes, err := loadFn()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open strategies file: %w", err)
+		return nil, err
 	}
-	var strategies strategies
-	if err := json.Unmarshal(data, &strategies); err != nil {
+
+	var strategies *strategies
+	if err := json.Unmarshal(strategyBytes, &strategies); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal strategies: %w", err)
 	}
-	return &strategies, nil
+	return strategies, nil
 }
 
 func (h *strategyStore) parseStrategies(strategies *strategies) {
 	if strategies == nil {
-		h.logger.Info("No sampling strategies provided, using defaults")
+		h.logger.Info("No sampling strategies provided or URL is unavailable, using defaults")
 		return
 	}
 	newStore := defaultStrategies()

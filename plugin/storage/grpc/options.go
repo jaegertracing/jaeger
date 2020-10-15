@@ -47,5 +47,4 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
 	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
-
 }

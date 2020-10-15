@@ -39,6 +39,7 @@ var frontendCmd = &cobra.Command{
 		options.CustomerHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(customerPort))
 		options.RouteHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(routePort))
 		options.Basepath = basepath
+		options.JaegerUI = jaegerUI
 
 		zapLogger := logger.With(zap.String("service", "frontend"))
 		logger := log.NewFactory(zapLogger)

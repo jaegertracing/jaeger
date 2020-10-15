@@ -38,7 +38,7 @@ func TestDefaultValues(t *testing.T) {
 
 	factory := &Factory{Viper: v, Wrapped: zipkinreceiver.NewFactory()}
 	cfg := factory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	assert.Equal(t, "0.0.0.0:9411", cfg.Endpoint)
+	assert.Equal(t, "", cfg.Endpoint)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {

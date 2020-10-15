@@ -150,10 +150,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	@echo pre-compiling tests
-	@time go test -i $(shell go list ./...)
-	# TODO Switch to single `go test` that already supports multiple packages, but watch out for .nocover dirs.
-	@./scripts/cover.sh $(shell go list ./...)
+	$(GOTEST) -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -391,7 +388,9 @@ install-tools:
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples lint cover
+# TODO (ys) added test-otel to at least ensure tests run in CI,
+#      but this needs to be changed in the lint and cover targets instead
+test-ci: build-examples lint cover test-otel
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image

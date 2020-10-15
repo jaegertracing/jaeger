@@ -93,14 +93,14 @@ type QueryOptions struct {
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Var(&config.StringSlice{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
 	flagSet.String(queryHostPort, ports.PortToHostPort(ports.QueryHTTP), queryHOSTPortWarning+" see --"+queryHTTPHostPort+" and --"+queryGRPCHostPort)
-	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")
-	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's gRPC server")
+	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the query's HTTP server")
+	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server")
 	flagSet.Int(queryPort, 0, queryPortWarning+" see --"+queryHostPort)
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
-	flagSet.Duration(queryMaxClockSkewAdjust, time.Second, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
+	flagSet.Duration(queryMaxClockSkewAdjust, 0, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }
@@ -115,12 +115,18 @@ func (qOpts *QueryOptions) InitPortsConfigFromViper(v *viper.Viper, logger *zap.
 	qOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 
 	// If either GRPC or HTTP servers use TLS, use dedicated ports.
-	// else-if query.host-port is not defined and at least one of query.grpc-server.host-port or query.http-server.host-port is defined.
-	// User intends to use separate GRPC and HTTP host:port flags
-	if (qOpts.TLSGRPC.Enabled || qOpts.TLSHTTP.Enabled) || (!(v.IsSet(queryHostPort) || v.IsSet(queryPort)) && (v.IsSet(queryHTTPHostPort) || v.IsSet(queryGRPCHostPort))) {
+	if qOpts.TLSGRPC.Enabled || qOpts.TLSHTTP.Enabled {
 		return qOpts
 	}
-	logger.Warn(fmt.Sprintf("Use of %s and %s is deprecated.  Use %s and %s instead", queryPort, queryHostPort, queryHTTPHostPort, queryGRPCHostPort))
+
+	// --query.host-port flag is not set and at least one of --query.grpc-server.host-port or --query.http-server.host-port is set by the user with command line flags.
+	// user intends to use separate GRPC and HTTP host:port flags
+	if !(v.IsSet(queryHostPort) || v.IsSet(queryPort)) && (v.IsSet(queryHTTPHostPort) || v.IsSet(queryGRPCHostPort)) {
+		return qOpts
+	}
+	if v.IsSet(queryHostPort) || v.IsSet(queryPort) {
+		logger.Warn(fmt.Sprintf("Use of %s and %s is deprecated.  Use %s and %s instead", queryPort, queryHostPort, queryHTTPHostPort, queryGRPCHostPort))
+	}
 	qOpts.HTTPHostPort = qOpts.HostPort
 	qOpts.GRPCHostPort = qOpts.HostPort
 	return qOpts

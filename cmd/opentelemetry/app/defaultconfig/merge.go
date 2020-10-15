@@ -25,10 +25,5 @@ func MergeConfigs(dst, src *configmodels.Config) error {
 	if src == nil {
 		return nil
 	}
-	err := mergo.Merge(dst, src,
-		mergo.WithOverride)
-	if err != nil {
-		return err
-	}
-	return nil
+	return mergo.Merge(dst, src, mergo.WithOverride)
 }
