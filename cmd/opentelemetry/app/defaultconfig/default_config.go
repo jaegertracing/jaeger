@@ -143,7 +143,7 @@ func createReceivers(component ComponentType, factories component.Factories) con
 	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
 	// The CreateDefaultConfig is enabling protocols from flags
 	// we do not want to override it here
-	if jaeger.GRPC == nil {
+	if jaeger.GRPC == nil && component != Agent {
 		jaeger.GRPC = &configgrpc.GRPCServerSettings{
 			NetAddr: confignet.NetAddr{
 				Endpoint: gRPCEndpoint,
@@ -158,13 +158,18 @@ func createReceivers(component ComponentType, factories component.Factories) con
 	if component == Agent || component == AllInOne {
 		enableAgentUDPEndpoints(jaeger)
 	}
-	recvs := map[string]configmodels.Receiver{
-		"jaeger": jaeger,
-		"otlp":   factories.Receivers["otlp"].CreateDefaultConfig(),
-	}
-	zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
-	if zipkin.Endpoint != "" {
-		recvs["zipkin"] = zipkin
+
+	recvs := map[string]configmodels.Receiver{}
+	if component == Agent {
+		recvs["jaeger"] = jaeger
+	} else {
+		recvs["jaeger"] = jaeger
+		recvs["otlp"] = factories.Receivers["otlp"].CreateDefaultConfig()
+
+		zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
+		if zipkin.Endpoint != "" {
+			recvs["zipkin"] = zipkin
+		}
 	}
 	return recvs
 }

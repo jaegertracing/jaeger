@@ -56,7 +56,7 @@ func TestService(t *testing.T) {
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
-						Receivers:  []string{"otlp", "jaeger"},
+						Receivers:  []string{"jaeger"},
 						Processors: []string{"batch"},
 						Exporters:  []string{"jaeger"},
 					},
@@ -90,7 +90,7 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						Name:       "traces",
 						InputType:  configmodels.TracesDataType,
-						Receivers:  []string{"otlp", "jaeger"},
+						Receivers:  []string{"jaeger"},
 						Processors: []string{"batch", "queued_retry"},
 						Exporters:  []string{"jaeger"},
 					},
