@@ -20,6 +20,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -234,4 +235,46 @@ func TestCreateMetricsExporter(t *testing.T) {
 	mReceiver, err := f.CreateMetricsReceiver(context.Background(), component.ReceiverCreateParams{}, nil, nil)
 	assert.Equal(t, configerror.ErrDataTypeIsNotSupported, err)
 	assert.Nil(t, mReceiver)
+}
+
+func TestNoAuthOptions(t *testing.T) {
+	// prepare
+	out := &jaegerreceiver.Config{
+		Protocols: jaegerreceiver.Protocols{
+			GRPC: &configgrpc.GRPCServerSettings{},
+		},
+	}
+	v := viper.New()
+
+	// test
+	configureCollector(v, out)
+
+	// verify
+	assert.Nil(t, out.GRPC.Auth)
+}
+
+func TestAuthOptions(t *testing.T) {
+	// prepare
+	out := &jaegerreceiver.Config{
+		Protocols: jaegerreceiver.Protocols{
+			GRPC: &configgrpc.GRPCServerSettings{},
+		},
+	}
+	v := viper.New()
+	v.Set("collector.auth.oidc.issuer-url", "https://oidc.example.com/")
+	v.Set("collector.auth.oidc.client-id", "https://jaeger.example.com")
+	v.Set("collector.auth.oidc.issuer-ca-path", "/path/to/ca.pem")
+	v.Set("collector.auth.oidc.username-claim", "username")
+	v.Set("collector.auth.oidc.groups-claim", "memberships")
+
+	// test
+	configureCollector(v, out)
+
+	// verify
+	assert.NotNil(t, out.GRPC.Auth)
+	assert.Equal(t, "https://oidc.example.com/", out.GRPC.Auth.OIDC.IssuerURL)
+	assert.Equal(t, "https://jaeger.example.com", out.GRPC.Auth.OIDC.Audience)
+	assert.Equal(t, "/path/to/ca.pem", out.GRPC.Auth.OIDC.IssuerCAPath)
+	assert.Equal(t, "username", out.GRPC.Auth.OIDC.UsernameClaim)
+	assert.Equal(t, "memberships", out.GRPC.Auth.OIDC.GroupsClaim)
 }

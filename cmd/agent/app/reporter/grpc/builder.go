@@ -40,6 +40,8 @@ type ConnBuilder struct {
 	MaxRetry uint
 	TLS      tlscfg.Options
 
+	BearerToken string
+
 	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
 	Discoverer        discovery.Discoverer

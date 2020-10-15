@@ -29,6 +29,9 @@ const (
 	retry             = gRPCPrefix + ".retry.max"
 	defaultMaxRetry   = 3
 	discoveryMinPeers = gRPCPrefix + ".discovery.min-peers"
+
+	// auth options
+	authBearerToken = "auth.bearer.token"
 )
 
 var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
@@ -47,6 +50,7 @@ func AddFlags(flags *flag.FlagSet) {
 // AddOTELFlags adds flags that are exposed by OTEL collector
 func AddOTELFlags(flags *flag.FlagSet) {
 	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly")
+	flags.String(authBearerToken, "", "which bearer token to use for every call to the collector")
 	tlsFlagsConfig.AddFlags(flags)
 }
 
@@ -59,5 +63,10 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) *ConnBuilder {
 	b.MaxRetry = uint(v.GetInt(retry))
 	b.TLS = tlsFlagsConfig.InitFromViper(v)
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
+
+	if v.IsSet(authBearerToken) {
+		b.BearerToken = v.GetString(authBearerToken)
+	}
+
 	return b
 }

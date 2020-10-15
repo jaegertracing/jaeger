@@ -19,6 +19,7 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/exporter/jaegerexporter"
 
@@ -55,6 +56,13 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	cfg.GRPCClientSettings.TLSSetting.CertFile = repCfg.TLS.CertPath
 	cfg.GRPCClientSettings.TLSSetting.KeyFile = repCfg.TLS.KeyPath
 	cfg.GRPCClientSettings.TLSSetting.ServerName = repCfg.TLS.ServerName
+	if len(repCfg.BearerToken) > 0 {
+		cfg.GRPCClientSettings.PerRPCAuth = &configgrpc.PerRPCAuthConfig{
+			AuthType:    "bearer",
+			BearerToken: repCfg.BearerToken,
+		}
+	}
+
 	return cfg
 }
 

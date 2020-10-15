@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
@@ -109,6 +110,29 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	if v.IsSet(collectorApp.CollectorHTTPHostPort) {
 		cfg.ThriftHTTP = &confighttp.HTTPServerSettings{
 			Endpoint: cOpts.CollectorHTTPHostPort,
+		}
+	}
+
+	// if at least one option is set, we assume they
+	if cfg.GRPC != nil && len(cOpts.AuthOIDCIssuerURL) > 0 {
+		// TODO: how can we log a warning if the user fails to specify a conditionally required flag?
+		// if authOIDCIssuerURL is set, authOIDCClientID has to be set as well (and vice-versa).
+		cfg.GRPC.Auth = &configauth.Authentication{
+			OIDC: &configauth.OIDC{
+				Audience:  cOpts.AuthOIDCClientID,
+				IssuerURL: cOpts.AuthOIDCIssuerURL,
+			},
+		}
+
+		// those are optional
+		if len(cOpts.AuthOIDCIssuerCAPath) > 0 {
+			cfg.GRPC.Auth.OIDC.IssuerCAPath = cOpts.AuthOIDCIssuerCAPath
+		}
+		if len(cOpts.AuthOIDCUsernameClaim) > 0 {
+			cfg.GRPC.Auth.OIDC.UsernameClaim = cOpts.AuthOIDCUsernameClaim
+		}
+		if len(cOpts.AuthOIDCGroupsClaim) > 0 {
+			cfg.GRPC.Auth.OIDC.GroupsClaim = cOpts.AuthOIDCGroupsClaim
 		}
 	}
 }

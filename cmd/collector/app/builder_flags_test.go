@@ -51,3 +51,22 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:1234", c.CollectorGRPCHostPort)
 	assert.Equal(t, "0.0.0.0:3456", c.CollectorZipkinHTTPHostPort)
 }
+
+func TestCollectorAuthOptions(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.auth.oidc.issuer-url=https://example.com/",
+		"--collector.auth.oidc.client-id=http://jaeger.example.com",
+		"--collector.auth.oidc.issuer-ca-path=/path/to/ca.pem",
+		"--collector.auth.oidc.username-claim=username",
+		"--collector.auth.oidc.groups-claim=memberships",
+	})
+	c.InitFromViper(v)
+
+	assert.Equal(t, "https://example.com/", c.AuthOIDCIssuerURL)
+	assert.Equal(t, "http://jaeger.example.com", c.AuthOIDCClientID)
+	assert.Equal(t, "/path/to/ca.pem", c.AuthOIDCIssuerCAPath)
+	assert.Equal(t, "username", c.AuthOIDCUsernameClaim)
+	assert.Equal(t, "memberships", c.AuthOIDCGroupsClaim)
+}

@@ -42,6 +42,13 @@ const (
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 
+	// used in the receiver side (collector)
+	authOIDCIssuerURL     = "collector.auth.oidc.issuer-url"
+	authOIDCClientID      = "collector.auth.oidc.client-id"
+	authOIDCIssuerCAPath  = "collector.auth.oidc.issuer-ca-path"
+	authOIDCUsernameClaim = "collector.auth.oidc.username-claim"
+	authOIDCGroupsClaim   = "collector.auth.oidc.groups-claim"
+
 	collectorHTTPPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 	collectorGRPCPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 	collectorZipkinHTTPPortWarning = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
@@ -75,6 +82,13 @@ type CollectorOptions struct {
 	CollectorZipkinAllowedOrigins string
 	// CollectorZipkinAllowedHeaders is a list of headers that the Zipkin collector service allowes the client to use with cross-domain requests
 	CollectorZipkinAllowedHeaders string
+
+	// auth options
+	AuthOIDCIssuerURL     string
+	AuthOIDCIssuerCAPath  string
+	AuthOIDCClientID      string
+	AuthOIDCUsernameClaim string
+	AuthOIDCGroupsClaim   string
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -96,6 +110,14 @@ func AddFlags(flags *flag.FlagSet) {
 func AddOTELJaegerFlags(flags *flag.FlagSet) {
 	flags.String(CollectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the collector's HTTP server")
 	flags.String(CollectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the collector's GRPC server")
+
+	// auth-related flags
+	flags.String(authOIDCIssuerURL, "", "the OpenID Connect server to validate the incoming auth tokens")
+	flags.String(authOIDCIssuerCAPath, "", "the path to the issuer's CA")
+	flags.String(authOIDCClientID, "", "this Jaeger's client ID")
+	flags.String(authOIDCUsernameClaim, "", "the username claim in the token, in case the 'sub' field shouldn't be used")
+	flags.String(authOIDCGroupsClaim, "", "the claim containing the group membership, where each group is considered a tenant. When absent, multi-tenancy is disabled.")
+
 	tlsFlagsConfig.AddFlags(flags)
 }
 
@@ -116,6 +138,13 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
 	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
+
+	// auth
+	cOpts.AuthOIDCIssuerURL = v.GetString(authOIDCIssuerURL)
+	cOpts.AuthOIDCIssuerCAPath = v.GetString(authOIDCIssuerCAPath)
+	cOpts.AuthOIDCClientID = v.GetString(authOIDCClientID)
+	cOpts.AuthOIDCUsernameClaim = v.GetString(authOIDCUsernameClaim)
+	cOpts.AuthOIDCGroupsClaim = v.GetString(authOIDCGroupsClaim)
 
 	return cOpts
 }
