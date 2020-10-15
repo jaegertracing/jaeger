@@ -24,7 +24,7 @@ jobs:
       - name: Add GOPATH to GITHUB_PATH
         run: echo "$GOPATH/bin" >>"$GITHUB_PATH"
 
-      - name: Run and upload build analysis
+      - name: Run FOSSA scan and upload build data
         uses: fossa-contrib/fossa-action@v1
         with:
           # FOSSA Push-Only API Token
