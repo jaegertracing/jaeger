@@ -30,8 +30,6 @@ Then install dependencies and run the tests:
 git submodule update --init --recursive
 make install-tools
 make test
-# if you wish to build platform binaries locally - the step below is needed.
-make build-ui
 ```
 
 ### Running local build with the UI

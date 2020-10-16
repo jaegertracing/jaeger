@@ -87,7 +87,9 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html lint.log fmt.log
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
+		cmd/query/app/ui/actual/gen_assets.go \
+		cmd/query/app/ui/placeholder/gen_assets.go
 
 .PHONY: test
 test: go-gen test-otel
@@ -222,22 +224,45 @@ docker-hotrod:
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: run-all-in-one
-run-all-in-one:
+run-all-in-one: build-ui
 	go run -tags ui ./cmd/all-in-one --log-level debug
 
+# Be explicit about exactly what assets we want, as asset files could be partially deleted
+# after initial generation; which is the case in Travis CI builds (DOCKER + DEPLOY).
+EXPECT_ASSETS := cmd/query/app/ui/actual/gen_assets.go \
+                 cmd/query/app/ui/placeholder/gen_assets.go
+FOUND_ASSETS := $(wildcard $(EXPECT_ASSETS))
 .PHONY: build-ui
 build-ui:
-	git submodule update --init --recursive
+	# The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+).
+	# The assets must be compiled first with `make build-ui`, which runs Node.js build and then
+	# packages the assets into a Go file that is `.gitignore`-ed.
+	#
+	# The packaged assets can be enabled by providing a build tag `ui`; for example:
+	# $ go run -tags ui ./cmd/all-in-one/main.go
+	#
+	# To reduce `build-ui` execution times, no work will be done if the resulting UI assets exist.
+	# These expected assets are cmd/query/app/ui/(actual|placeholder)/gen_assets.go.
+	#
+	# To force a rebuild of UI assets, run `make clean` which deletes any files matching the
+	# above glob pattern.
+	@echo "Expect UI assets: $(EXPECT_ASSETS)"
+	@echo "Found UI assets: $(FOUND_ASSETS)"
+
+ifeq ($(FOUND_ASSETS), $(EXPECT_ASSETS))
+	@echo "Skipping building UI assets as all expected files were found."
+else
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
 	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
+endif
 
 .PHONY: build-all-in-one-linux
-build-all-in-one-linux: build-ui
+build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
 .PHONY: build-all-in-one
-build-all-in-one: elasticsearch-mappings
+build-all-in-one: build-ui elasticsearch-mappings
 	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent
@@ -265,7 +290,7 @@ build-otel-ingester:
 	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 
 .PHONY: build-otel-all-in-one
-build-otel-all-in-one:
+build-otel-all-in-one: build-ui
 	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -tags ui -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 
 .PHONY: build-ingester
@@ -273,7 +298,7 @@ build-ingester:
 	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 
 .PHONY: docker
-docker: build-ui build-binaries-linux docker-images-only
+docker: build-binaries-linux docker-images-only
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
