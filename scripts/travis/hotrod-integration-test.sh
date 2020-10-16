@@ -3,7 +3,7 @@
 set -e
 
 make docker-hotrod
-export REPO=aebirim/example-hotrod
+export REPO=jaegertracing/example-hotrod
 
 export CID=$(docker run -d -p 8080:8080 $REPO:latest)
 i=0
