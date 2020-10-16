@@ -19,9 +19,10 @@ else
   exit 0
 fi
 
-export DOCKER_NAMESPACE=jaegertracing
+export DOCKER_NAMESPACE=aebirim
 for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester tracegen opentelemetry-collector opentelemetry-agent opentelemetry-ingester
 do
-  export REPO="jaegertracing/jaeger-${component}"
+  export REPO="aebirim/jaeger-${component}"
   bash ./scripts/travis/upload-to-docker.sh
+  bash ./scripts/travis/upload-to-quay.sh
 done

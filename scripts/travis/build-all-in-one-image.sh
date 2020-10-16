@@ -36,10 +36,11 @@ upload_to_docker() {
   fi
   export REPO=$1
   bash ./scripts/travis/upload-to-docker.sh
+  bash ./scripts/travis/upload-to-quay.sh
 }
 
 make build-all-in-one GOOS=linux GOARCH=$GOARCH
-repo=jaegertracing/all-in-one
+repo=aebirim/all-in-one
 docker build -f cmd/all-in-one/Dockerfile -t $repo:latest cmd/all-in-one --build-arg TARGETARCH=$GOARCH
 run_integration_test $repo
 upload_to_docker $repo
