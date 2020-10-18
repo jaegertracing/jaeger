@@ -43,17 +43,17 @@ set -x
 docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
-generate_image $IMAGE $QUAY_USER
+push_to_quay $IMAGE $QUAY_USER $REPO
 
 else
   # push all tags, therefore push to repo
-generate_image $IMAGE $QUAY_USER  
+push_to_quay $IMAGE $QUAY_USER $REPO  
 fi
 
-generate_image (){
+push_to_quay (){
   ID = $(docker run -d $REPO)
-  docker commit $ID quay.io/$2/$1
-  docker push quay.io/$2/$1
+  docker commit $ID quay.io/$QUAY_USER/$IMAGE
+  docker push quay.io/$QUAY_USER/$IMAGE
   }
 
 SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
