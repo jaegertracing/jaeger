@@ -88,8 +88,7 @@ md-to-godoc-gen:
 .PHONY: clean
 clean:
 	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
-		cmd/query/app/ui/actual/gen_assets.go \
-		cmd/query/app/ui/placeholder/gen_assets.go
+		cmd/query/app/ui/actual/gen_assets.go
 
 .PHONY: test
 test: go-gen test-otel
@@ -233,7 +232,7 @@ EXPECT_ASSETS := cmd/query/app/ui/actual/gen_assets.go \
                  cmd/query/app/ui/placeholder/gen_assets.go
 FOUND_ASSETS := $(wildcard $(EXPECT_ASSETS))
 .PHONY: build-ui
-build-ui:
+build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
 	# The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+).
 	# The assets must be compiled first with `make build-ui`, which runs Node.js build and then
 	# packages the assets into a Go file that is `.gitignore`-ed.
@@ -246,16 +245,15 @@ build-ui:
 	#
 	# To force a rebuild of UI assets, run `make clean` which deletes any files matching the
 	# above glob pattern.
-	@echo "Expect UI assets: $(EXPECT_ASSETS)"
-	@echo "Found UI assets: $(FOUND_ASSETS)"
 
-ifeq ($(FOUND_ASSETS), $(EXPECT_ASSETS))
-	@echo "Skipping building UI assets as all expected files were found."
-else
+jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+
+cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
+
+cmd/query/app/ui/placeholder/gen_assets.go: cmd/query/app/ui/placeholder/public/index.html
 	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
-endif
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
