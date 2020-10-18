@@ -6,7 +6,6 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 IMAGE="${REPO:?'missing REPO env var'}:latest"
 QUAY_URL="https://index.quay.io/v1"
 
-
 unset major minor patch
 if [[ "$BRANCH" == "master" ]]; then
   TAG="latest"
@@ -41,7 +40,7 @@ fi
 
 # Do not enable echo before the `docker login` command to avoid revealing the password.
 set -x
-docker login "$QUAY_URL" -u $QUAY_USER --password-stdin $QUAY_PASS 
+docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
 generate_image $IMAGE $QUAY_USER
