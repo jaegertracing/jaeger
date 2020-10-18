@@ -4,6 +4,8 @@ set -e
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 IMAGE="${REPO:?'missing REPO env var'}:latest"
+QUAY_URL="https://index.quay.io/v1"
+
 
 unset major minor patch
 if [[ "$BRANCH" == "master" ]]; then
@@ -39,8 +41,8 @@ fi
 
 # Do not enable echo before the `docker login` command to avoid revealing the password.
 set -x
-docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
-if [[ "${REPO}" == "aebirim/jaeger-opentelemetry-collector" || "${REPO}" == "aebirim/jaeger-opentelemetry-agent" || "${REPO}" == "aebirim/jaeger-opentelemetry-ingester" || "${REPO}" == "aebirim/opentelemetry-all-in-one" ]]; then
+docker login "$QUAY_URL" -u $QUAY_USER --password-stdin $QUAY_PASS 
+if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
 generate_image $IMAGE $QUAY_USER
 
@@ -50,10 +52,9 @@ generate_image $IMAGE $QUAY_USER
 fi
 
 generate_image (){
-  docker run -d $1
-  ID = $(docker ps -qf "name=$1")
-  docker commit "$ID" "quay.io/$2/$1:latest"
-  docker push "quay.io/$2/$1:latest"
+  ID = $(docker run -d $REPO)
+  docker commit $ID quay.io/$2/$1
+  docker push quay.io/$2/$1
   }
 
 SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"

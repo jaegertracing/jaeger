@@ -40,7 +40,7 @@ upload_to_docker() {
 }
 
 make build-all-in-one GOOS=linux GOARCH=$GOARCH
-repo=aebirim/all-in-one
+repo=jaegertracing/all-in-one
 docker build -f cmd/all-in-one/Dockerfile -t $repo:latest cmd/all-in-one --build-arg TARGETARCH=$GOARCH
 run_integration_test $repo
 upload_to_docker $repo

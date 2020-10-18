@@ -17,7 +17,7 @@ fi
 set -x
 
 # docker image has been build when running the crossdock
-export REPO=aebirim/test-driver
+export REPO=jaegertracing/test-driver
 docker tag $REPO:latest $REPO:$COMMIT
 bash ./scripts/travis/upload-to-docker.sh
 bash ./scripts/travis/upload-to-quay.sh
