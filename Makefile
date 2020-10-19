@@ -88,7 +88,7 @@ md-to-godoc-gen:
 .PHONY: clean
 clean:
 	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
-		cmd/query/app/ui/actual/gen_assets.go
+		jaeger-ui/packages/jaeger-ui/build
 
 .PHONY: test
 test: go-gen test-otel
@@ -226,25 +226,16 @@ docker-hotrod:
 run-all-in-one: build-ui
 	go run -tags ui ./cmd/all-in-one --log-level debug
 
-# Be explicit about exactly what assets we want, as asset files could be partially deleted
-# after initial generation; which is the case in Travis CI builds (DOCKER + DEPLOY).
-EXPECT_ASSETS := cmd/query/app/ui/actual/gen_assets.go \
-                 cmd/query/app/ui/placeholder/gen_assets.go
-FOUND_ASSETS := $(wildcard $(EXPECT_ASSETS))
 .PHONY: build-ui
 build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
+	# Do nothing. If you need to force a rebuild of UI assets, run `make clean`.
+	#
 	# The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+).
 	# The assets must be compiled first with `make build-ui`, which runs Node.js build and then
 	# packages the assets into a Go file that is `.gitignore`-ed.
 	#
 	# The packaged assets can be enabled by providing a build tag `ui`; for example:
 	# $ go run -tags ui ./cmd/all-in-one/main.go
-	#
-	# To reduce `build-ui` execution times, no work will be done if the resulting UI assets exist.
-	# These expected assets are cmd/query/app/ui/(actual|placeholder)/gen_assets.go.
-	#
-	# To force a rebuild of UI assets, run `make clean` which deletes any files matching the
-	# above glob pattern.
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
