@@ -42,6 +42,7 @@ set -x
 docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
 echo "Quay login successful"
 
+ #remove org name jaegertracing to get image name
 function strip_image_name {
   SUBSTRING_1=$(echo $1| cut -d'/' -f 2)
   SUBSTRING_2=$(echo $SUBSTRING_1| cut -d':' -f 1)
@@ -49,9 +50,11 @@ function strip_image_name {
 }
 
 function push_to_quay {
-  ID = $(docker run -d $2)
-  docker commit $ID "quay.io/aebirim/$1"
-  docker push "quay.io/aebirim/$1"
+  ID=$(docker run -d $2)
+ #strip container ID to 12 characters
+  STRIPPED_ID=$(echo $ID| cut -b 1-12)
+  docker commit $STRIPPED_ID quay.io/aebirim/$1
+  docker push quay.io/aebirim/$1
 }
 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
