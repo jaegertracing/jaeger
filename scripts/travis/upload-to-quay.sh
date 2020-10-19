@@ -56,7 +56,6 @@ strip_image_name (){
   SUBSTRING_1=$(echo $1| cut -d'/' -f 2)
   SUBSTRING_2=$(echo $SUBSTRING_1| cut -d':' -f 1)
   echo SUBSTRING_2
-  return
   }
 
 push_to_quay (){
