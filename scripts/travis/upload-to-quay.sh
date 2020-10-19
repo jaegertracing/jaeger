@@ -50,8 +50,8 @@ function strip_image_name {
 
 function push_to_quay {
   ID = $(docker run -d $2)
-  docker commit $ID quay.io/aebirim/$1
-  docker push quay.io/aebirim/$1
+  docker commit $ID "quay.io/aebirim/$1"
+  docker push "quay.io/aebirim/$1"
 }
 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
