@@ -43,12 +43,20 @@ set -x
 docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
-push_to_quay $QUAY_USER $IMAGE $REPO
+STRIPPED_IMAGE = strip_image_name $IMAGE  
+push_to_quay $QUAY_USER $STRIPPED_IMAGE $REPO
 
 else
   # push all tags, therefore push to repo
-push_to_quay $QUAY_USER $IMAGE $REPO  
+push_to_quay $QUAY_USER $STRIPPED_IMAGE $REPO  
 fi
+
+strip_image_name (){
+  SUBSTRING_1=$(echo $1| cut -d'/' -f 2)
+  SUBSTRING_2=$(echo $SUBSTRING_1| cut -d':' -f 1)
+  echo SUBSTRING_2
+  return
+  }
 
 push_to_quay (){
   ID = $(docker run -d $3)
