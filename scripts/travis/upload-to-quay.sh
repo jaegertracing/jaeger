@@ -4,7 +4,6 @@ set -e
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 IMAGE="${REPO:?'missing REPO env var'}:latest"
-QUAY_URL="https://index.quay.io/v1"
 
 unset major minor patch
 if [[ "$BRANCH" == "master" ]]; then
@@ -43,12 +42,14 @@ set -x
 docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
+
 STRIPPED_IMAGE = strip_image_name $IMAGE  
 push_to_quay $QUAY_USER $STRIPPED_IMAGE $REPO
 
 else
   # push all tags, therefore push to repo
-push_to_quay $QUAY_USER $STRIPPED_IMAGE $REPO  
+STRIPPED_IMAGE = strip_image_name $IMAGE  
+push_to_quay $STRIPPED_IMAGE $REPO  
 fi
 
 strip_image_name (){
@@ -59,9 +60,9 @@ strip_image_name (){
   }
 
 push_to_quay (){
-  ID = $(docker run -d $3)
-  docker commit $ID quay.io/$1/$2
-  docker push quay.io/$1/$2
+  ID = $(docker run -d $2)
+  docker commit $ID quay.io/aebirim/$1
+  docker push quay.io/aebirim/$1
   }
 
 SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
