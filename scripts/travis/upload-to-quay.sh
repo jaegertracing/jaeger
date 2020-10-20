@@ -40,9 +40,9 @@ fi
 # Do not enable echo before the `docker login` command to avoid revealing the password.
 set -x
 docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
-echo "Quay login successful "
+echo "Quay login successful"
 
- #remove org name jaegertracing to get image name
+# Remove org name jaegertracing to get image name
 function strip_image_name {
   SUBSTRING_1=$(echo $1| cut -d'/' -f 2)
   SUBSTRING_2=$(echo $SUBSTRING_1| cut -d':' -f 1)
@@ -51,22 +51,22 @@ function strip_image_name {
 
 function push_to_quay {
   ID=$(docker run -d $2)
- #strip container ID to 12 characters
+# Strip container ID to 12 characters
   STRIPPED_ID=$(echo $ID| cut -b 1-12)
-  docker commit $STRIPPED_ID quay.io/aebirim/$1
-  docker push quay.io/aebirim/$1
+  docker commit $STRIPPED_ID quay.io/jaegertracing/$1
+  docker push quay.io/jaegertracing/$1
 }
 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
 
-STRIPPED_IMAGE=$(strip_image_name $IMAGE)  
-push_to_quay $STRIPPED_IMAGE $REPO
+STRIPPED_IMAGE_NAME=$(strip_image_name $IMAGE)  
+push_to_quay $STRIPPED_IMAGE_NAME $REPO
 
 else
-  # push all tags, therefore push to repo
-STRIPPED_IMAGE=$(strip_image_name $IMAGE)  
-push_to_quay $STRIPPED_IMAGE $REPO  
+# push all tags, therefore push to repo
+STRIPPED_IMAGE_NAME=$(strip_image_name $IMAGE)  
+push_to_quay $STRIPPED_IMAGE_NAME $REPO  
 fi
 
 SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
