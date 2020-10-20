@@ -27,8 +27,13 @@ cd jaeger
 Then install dependencies and run the tests:
 
 ```
+# Adds the jaeger-ui submodule
 git submodule update --init --recursive
+
+# Installs required tools
 make install-tools
+
+# Runs all unit tests
 make test
 ```
 
@@ -37,6 +42,23 @@ make test
 ```
 $ make run-all-in-one
 ```
+
+#### What does this command do?
+
+The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains
+the source code for the UI assets (requires Node.js 6+).
+
+The assets must be compiled first with `make build-ui`, which runs Node.js build and then
+packages the assets into a Go file that is `.gitignore`-ed.
+
+The packaged assets can be enabled by providing a build tag `ui`, for example:
+
+```
+$ go run -tags ui ./cmd/all-in-one/main.go
+```
+
+`make run-all-in-one` essentially runs Jaeger all-in-one by combining both of the above
+steps into a single `make` command.
 
 ## Project Structure
 

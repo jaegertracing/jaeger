@@ -369,6 +369,8 @@ include crossdock/rules.mk
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
+	mkdir -p jaeger-ui/packages/jaeger-ui/build/
+	cp cmd/query/app/ui/placeholder/public/index.html jaeger-ui/packages/jaeger-ui/build/index.html
 	mkdir -p cmd/query/app/ui/actual
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
