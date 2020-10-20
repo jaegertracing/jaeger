@@ -229,13 +229,6 @@ run-all-in-one: build-ui
 .PHONY: build-ui
 build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
 	# Do nothing. If you need to force a rebuild of UI assets, run `make clean`.
-	#
-	# The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+).
-	# The assets must be compiled first with `make build-ui`, which runs Node.js build and then
-	# packages the assets into a Go file that is `.gitignore`-ed.
-	#
-	# The packaged assets can be enabled by providing a build tag `ui`; for example:
-	# $ go run -tags ui ./cmd/all-in-one/main.go
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
