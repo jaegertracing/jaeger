@@ -12,6 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // Package badgerexporter implements Jaeger Badger storage as OpenTelemetry exporter.
 package badgerexporter
