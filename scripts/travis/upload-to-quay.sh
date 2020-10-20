@@ -40,7 +40,7 @@ fi
 # Do not enable echo before the `docker login` command to avoid revealing the password.
 set -x
 docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
-echo "Quay login successful"
+echo "Quay login successful "
 
  #remove org name jaegertracing to get image name
 function strip_image_name {
