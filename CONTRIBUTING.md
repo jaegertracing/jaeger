@@ -173,3 +173,41 @@ Before merging a PR make sure:
 
 Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
 After the merge make sure referenced issues were closed.
+
+### Developing guidelines
+
+#### Building OCI Images for multiple arch (linux/arm64, linux/amd64)
+
+[OCI Images](https://github.com/opencontainers/image-spec/blob/master/spec.md) could be built and published by [buildx](https://github.com/docker/buildx), 
+it could be executed for local publish `all-in-one` images via:
+
+```shell
+TRAVIS_SECURE_ENV_VARS=true NAMESPACE=$(whoami) BRANCH=master ./scripts/travis/build-all-in-one-image.sh
+```
+
+more arch support only need to change `--platform=linux/amd64,linux/arm64,linux/s390x`
+
+if we want to execute this in local env, need to setup buildx:
+
+1. install docker cli plugin
+
+```shell
+$ export DOCKER_BUILDKIT=1
+$ docker build --platform=local -o . git://github.com/docker/buildx
+$ mkdir -p ~/.docker/cli-plugins
+$ mv buildx ~/.docker/cli-plugins/docker-buildx
+```
+(via https://github.com/docker/buildx#with-buildx-or-docker-1903, if docker issue, could check https://docs.docker.com/engine/install/linux-postinstall/#troubleshooting)
+
+2. install qemu for multi arch
+
+```shell
+$ docker run --privileged --rm tonistiigi/binfmt --install all
+```
+(via https://github.com/docker/buildx#building-multi-platform-images)
+
+3. create a builder
+
+```shell
+$ docker buildx create --use --name builder
+```

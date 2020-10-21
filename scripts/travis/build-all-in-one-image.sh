@@ -7,6 +7,9 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/travis/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
+# local run with `TRAVIS_SECURE_ENV_VARS=true NAMESPACE=$(whoami) BRANCH=master ./scripts/travis/build-all-in-one-image.sh`
+NAMESPACE=${NAMESPACE:-jaegertracing}
+ARCHS="amd64 arm64 s390x"
 
 source ~/.nvm/nvm.sh
 nvm use 10
@@ -26,42 +29,89 @@ run_integration_test() {
   docker kill $CID
 }
 
-upload_to_docker() {
-  # Only push the docker container to Docker Hub for master branch
-  if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
-    echo 'upload to Docker Hub'
-  else
-    echo 'skip docker upload for PR'
-    exit 0
+docker_buildx() {
+  CMD_ROOT=${1}
+  FLAGS=${@:2}
+
+  if [[ "$FLAGS" == *"-push"*  ]]; then
+    if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
+      echo 'upload to Docker Hub'
+    else
+      echo 'skip docker upload for PR'
+      exit 0
+    fi
   fi
-  export REPO=$1
-  bash ./scripts/travis/upload-to-docker.sh
+
+  docker buildx build -f ${CMD_ROOT}/Dockerfile ${FLAGS} ${CMD_ROOT}
 }
 
-make build-all-in-one GOOS=linux GOARCH=$GOARCH
-repo=jaegertracing/all-in-one
-docker build -f cmd/all-in-one/Dockerfile \
-        --target release \
-        --tag $repo:latest cmd/all-in-one \
-        --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
-        --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
-        --build-arg TARGETARCH=$GOARCH
-run_integration_test $repo
-upload_to_docker $repo
+image_tags_for() {
+  REPO=${1}
 
-make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
-repo=jaegertracing/all-in-one-debug
-docker build -f cmd/all-in-one/Dockerfile \
-        --target debug \
-        --tag $repo:latest cmd/all-in-one \
-        --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
-        --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
-        --build-arg TARGETARCH=$GOARCH
-run_integration_test $repo
-upload_to_docker $repo
+  major=""
+  minor=""
+  patch=""
 
-make build-otel-all-in-one GOOS=linux GOARCH=$GOARCH
-repo=jaegertracing/opentelemetry-all-in-one
-docker build -f cmd/opentelemetry/cmd/all-in-one/Dockerfile -t $repo:latest cmd/opentelemetry/cmd/all-in-one --build-arg TARGETARCH=$GOARCH
-run_integration_test $repo
-upload_to_docker $repo
+  if [[ "$BRANCH" == "master" ]]; then
+    TAG="latest"
+  elif [[ $BRANCH =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    patch="${BASH_REMATCH[3]}"
+    TAG=${major}.${minor}.${patch}
+  else
+    TAG="${BRANCH///}"
+  fi
+
+  IMAGE_TAGS="--tag ${REPO}:${TAG}"
+
+  # add major, major.minor and major.minor.patch tags
+  if [[ -n $major ]]; then
+    IMAGE_TAGS="${IMAGE_TAGS} -t ${REPO}:${major}"
+    if [[ -n $minor ]]; then
+       IMAGE_TAGS="${IMAGE_TAGS} -t ${REPO}:${major}.${minor}"
+      if [[ -n $patch ]]; then
+          IMAGE_TAGS="${IMAGE_TAGS} -t ${REPO}:${major}.${minor}.${patch}"
+      fi
+    fi
+  fi
+
+  echo "${IMAGE_TAGS}"
+}
+
+target_platforms() {
+  PLATFORMS=""
+  for arch in ${ARCHS}; do
+    if [ -n "${PLATFORMS}" ]; then
+      PLATFORMS="${PLATFORMS},linux/${arch}"
+    else
+      PLATFORMS="linux/${arch}"
+    fi
+  done
+  echo ${PLATFORMS}
+}
+
+
+for arch in ${ARCHS}; do
+  make build-all-in-one GOOS=linux GOARCH=${arch}
+done
+repo=${NAMESPACE}/all-in-one
+docker_buildx cmd/all-in-one --load --build-arg=TARGET=release --platform=linux/${GOARCH} -t $repo:latest
+run_integration_test ${repo}
+docker_buildx cmd/all-in-one --push --build-arg=TARGET=release --platform=$(target_platforms) $(image_tags_for ${repo})
+
+for arch in ${ARCHS}; do
+  make build-all-in-one-debug GOOS=linux GOARCH=${arch}
+done
+repo=${NAMESPACE}/all-in-one-debug
+docker_buildx cmd/all-in-one --load --build-arg=TARGET=debug --platform=linux/${GOARCH} -t $repo:latest
+run_integration_test ${repo}
+docker_buildx cmd/all-in-one --push --build-arg=TARGET=debug --platform=$(target_platforms) $(image_tags_for ${repo})
+
+for arch in ${ARCHS}; do
+  make build-otel-all-in-one GOOS=linux GOARCH=${arch}
+done
+repo=${NAMESPACE}/opentelemetry-all-in-one
+docker_buildx cmd/opentelemetry/cmd/all-in-one --load --platform=linux/${GOARCH} -t $repo:latest
+run_integration_test ${repo}
+docker_buildx cmd/opentelemetry/cmd/all-in-one --push --platform=$(target_platforms) $(image_tags_for ${repo})
