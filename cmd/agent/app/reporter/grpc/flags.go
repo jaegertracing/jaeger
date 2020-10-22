@@ -31,7 +31,7 @@ const (
 	discoveryMinPeers = gRPCPrefix + ".discovery.min-peers"
 
 	// auth options
-	authBearerToken = "auth.bearer.token"
+	authBearerToken = "auth.bearer.token" // #nosec , we are not really storing a token here ;)
 )
 
 var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
