@@ -1,0 +1,7 @@
+processors:
+  queued_retry:
+
+service:
+  pipelines:
+    traces:
+      processors: [batch, queued_retry]

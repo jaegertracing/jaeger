@@ -78,6 +78,20 @@ type Options struct {
 // AddFlags adds flags for Builder
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
+		ConfigPrefix+SuffixParallelism,
+		strconv.Itoa(DefaultParallelism),
+		"The number of messages to process in parallel")
+	flagSet.Duration(
+		ConfigPrefix+SuffixDeadlockInterval,
+		DefaultDeadlockInterval,
+		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
+	AddOTELFlags(flagSet)
+}
+
+// AddOTELFlags adds only OTEL flags
+func AddOTELFlags(flagSet *flag.FlagSet) {
+	// Authentication flags
+	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixBrokers,
 		DefaultBroker,
 		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
@@ -101,15 +115,6 @@ func AddFlags(flagSet *flag.FlagSet) {
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
-	flagSet.String(
-		ConfigPrefix+SuffixParallelism,
-		strconv.Itoa(DefaultParallelism),
-		"The number of messages to process in parallel")
-	flagSet.Duration(
-		ConfigPrefix+SuffixDeadlockInterval,
-		DefaultDeadlockInterval,
-		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
-	// Authentication flags
 	auth.AddFlags(KafkaConsumerConfigPrefix, flagSet)
 }
 

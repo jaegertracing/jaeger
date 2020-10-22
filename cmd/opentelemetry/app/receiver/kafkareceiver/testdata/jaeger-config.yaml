@@ -1,3 +1,7 @@
 kafka.consumer:
+  authentication: kerberos
+  encoding: json
+  topic: jaeger-prod
   kerberos:
     username: from-jaeger-config
+    realm: jaeger

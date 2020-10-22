@@ -39,7 +39,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/memoryexporter"
 	jaegerresource "github.com/jaegertracing/jaeger/cmd/opentelemetry/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
@@ -135,7 +134,7 @@ func createProcessors(factories component.Factories) (configmodels.Processors, [
 
 func createReceivers(component ComponentType, factories component.Factories) configmodels.Receivers {
 	if component == Ingester {
-		kafkaReceiver := factories.Receivers[kafkareceiver.TypeStr].CreateDefaultConfig().(*kafkareceiver.Config)
+		kafkaReceiver := factories.Receivers[kafkareceiver.TypeStr].CreateDefaultConfig()
 		return configmodels.Receivers{
 			kafkaReceiver.Name(): kafkaReceiver,
 		}
@@ -164,7 +163,7 @@ func createReceivers(component ComponentType, factories component.Factories) con
 		"otlp":   factories.Receivers["otlp"].CreateDefaultConfig(),
 	}
 	zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
-	if zipkin.Endpoint != "" && zipkin.Endpoint != ports.PortToHostPort(0) {
+	if zipkin.Endpoint != "" {
 		recvs["zipkin"] = zipkin
 	}
 	return recvs
@@ -194,7 +193,7 @@ func createExporters(component ComponentType, storageTypes string, factories com
 			exporters[elasticsearchexporter.TypeStr] = es
 		case "kafka":
 			kaf := factories.Exporters[kafkaexporter.TypeStr].CreateDefaultConfig()
-			exporters[kafkaexporter.TypeStr] = kaf
+			exporters["kafka"] = kaf
 		case "grpc-plugin":
 			grpcEx := factories.Exporters[grpcpluginexporter.TypeStr].CreateDefaultConfig()
 			exporters[grpcpluginexporter.TypeStr] = grpcEx

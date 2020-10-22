@@ -14,7 +14,7 @@ We gratefully welcome improvements to documentation as well as to code.
 ## Getting Started
 
 ### Pre-requisites
-* Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH 
+* Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH
 
 This library uses Go modules to manage dependencies.
 
@@ -27,24 +27,38 @@ cd jaeger
 Then install dependencies and run the tests:
 
 ```
+# Adds the jaeger-ui submodule
 git submodule update --init --recursive
+
+# Installs required tools
 make install-tools
+
+# Runs all unit tests
 make test
 ```
 
 ### Running local build with the UI
 
-The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+). The assets must be compiled first with `make build-ui`, which runs Node.js build and then packages the assets into a Go file that is `.gitignore`-ed. The packaged assets can be enabled by providing a build tag `ui`, e.g.:
+```
+$ make run-all-in-one
+```
+
+#### What does this command do?
+
+The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains
+the source code for the UI assets (requires Node.js 6+).
+
+The assets must be compiled first with `make build-ui`, which runs Node.js build and then
+packages the assets into a Go file that is `.gitignore`-ed.
+
+The packaged assets can be enabled by providing a build tag `ui`, for example:
 
 ```
 $ go run -tags ui ./cmd/all-in-one/main.go
 ```
 
-Alternatively, the path to the built UI assets can be provided via `--query.static-files` flag:
-
-```
-$ go run ./cmd/all-in-one/main.go --query.static-files jaeger-ui/build
-```
+`make run-all-in-one` essentially runs Jaeger all-in-one by combining both of the above
+steps into a single `make` command.
 
 ## Project Structure
 
@@ -116,9 +130,19 @@ import (
 
 ## Testing guidelines
 
-We strive to maintain as high code coverage as possible. Since `go test` command does not generate
+We strive to maintain as high code coverage as possible. The current repository limit is set at 95%,
+with some exclusions discussed below.
+
+### Combining code coverage
+
+We use [cover.sh](./scripts/cover.sh) script to run tests and combine code coverage from all packages
+(see also [issue # 797](https://github.com/jaegertracing/jaeger/issues/797)).
+
+### Packages with no tests
+
+Since `go test` command does not generate
 code coverage information for packages that have no test files, we have a build step (`make nocover`)
-that breaks the build when such packages are discovered, with an error like this:
+that breaks the build when such packages are discovered, with the following error:
 
 ```
 error: at least one *_test.go file must be in all directories with go files
@@ -126,8 +150,12 @@ error: at least one *_test.go file must be in all directories with go files
        If no tests are possible for a package (e.g. it only defines types), create empty_test.go
 ```
 
+As the message says, all packages are required to have at least one `*_test.go` file.
+
+### Excluding packages from testing
+
 There are conditions that cannot be tested without external dependencies, such as a function that
-creates a gocql.Session, because it requires an active connection to Cassandra database. It is
+creates a `gocql.Session`, because it requires an active connection to Cassandra database. It is
 recommended to isolate such functions in a separate package with bare minimum of code and add a
 file `.nocover` to exclude the package from coverage calculations. The file should contain
 a comment explaining why it is there, for example:
@@ -145,4 +173,3 @@ Before merging a PR make sure:
 
 Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
 After the merge make sure referenced issues were closed.
-

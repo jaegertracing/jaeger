@@ -27,6 +27,8 @@ import (
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -81,7 +83,10 @@ by default uses only in-memory database.`,
 			}
 			logger := svc.Logger                     // shortcut
 			rootMetricsFactory := svc.MetricsFactory // shortcut
-			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			metricsFactory := fork.New("internal",
+				jexpvar.NewFactory(10), // backend for internal opts
+				rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
+
 			tracerCloser := initTracer(rootMetricsFactory, svc.Logger)
 
 			storageFactory.InitFromViper(v)

@@ -15,13 +15,13 @@
 package kafkaexporter
 
 import (
-	"go.opentelemetry.io/collector/config/configmodels"
+	"flag"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
-// Config hold configuration of Jaeger Kafka exporter/storage.
-type Config struct {
-	configmodels.ExporterSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
-	kafka.Options                 `mapstructure:",squash"`
+// AddFlags adds Ingester flags.
+func AddFlags(flags *flag.FlagSet) {
+	opts := &kafka.Options{}
+	opts.AddOTELFlags(flags)
 }

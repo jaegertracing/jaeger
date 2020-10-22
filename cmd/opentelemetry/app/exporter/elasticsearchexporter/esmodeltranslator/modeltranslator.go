@@ -222,7 +222,7 @@ func references(links pdata.SpanLinkSlice, parentSpanID pdata.SpanID, traceID db
 }
 
 func convertSpanID(spanID pdata.SpanID) (dbmodel.SpanID, error) {
-	spanIDInt, err := tracetranslator.BytesToUInt64SpanID(spanID)
+	spanIDInt, err := tracetranslator.BytesToUInt64SpanID(spanID.Bytes())
 	if err != nil {
 		return "", err
 	}
@@ -233,7 +233,7 @@ func convertSpanID(spanID pdata.SpanID) (dbmodel.SpanID, error) {
 }
 
 func convertTraceID(traceID pdata.TraceID) (dbmodel.TraceID, error) {
-	high, low, err := tracetranslator.BytesToUInt64TraceID(traceID)
+	high, low, err := tracetranslator.BytesToUInt64TraceID(traceID.Bytes())
 	if err != nil {
 		return "", err
 	}

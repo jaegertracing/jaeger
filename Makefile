@@ -2,6 +2,8 @@ JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 OTEL_COLLECTOR_DIR = ./cmd/opentelemetry
 
+include docker/Makefile
+
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
@@ -87,7 +89,8 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html lint.log fmt.log
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
+		jaeger-ui/packages/jaeger-ui/build
 
 .PHONY: test
 test: go-gen test-otel
@@ -150,10 +153,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	@echo pre-compiling tests
-	@time go test -i $(shell go list ./...)
-	# TODO Switch to single `go test` that already supports multiple packages, but watch out for .nocover dirs.
-	@./scripts/cover.sh $(shell go list ./...)
+	$(GOTEST) -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -225,34 +225,44 @@ docker-hotrod:
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: run-all-in-one
-run-all-in-one:
+run-all-in-one: build-ui
 	go run -tags ui ./cmd/all-in-one --log-level debug
 
 .PHONY: build-ui
-build-ui:
+build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
+	# Do nothing. If you need to force a rebuild of UI assets, run `make clean`.
+
+jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+
+cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
+
+cmd/query/app/ui/placeholder/gen_assets.go: cmd/query/app/ui/placeholder/public/index.html
 	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
-build-all-in-one-linux: build-ui
+build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
-.PHONY: build-all-in-one
-build-all-in-one: elasticsearch-mappings
-	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: SUFFIX = -debug
 
-.PHONY: build-agent
-build-agent:
-	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
+.PHONY: build-all-in-one build-all-in-one-debug
+build-all-in-one build-all-in-one-debug: build-ui elasticsearch-mappings
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/all-in-one/all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
-.PHONY: build-query
-build-query:
-	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+.PHONY: build-agent build-agent-debug
+build-agent build-agent-debug:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/agent/agent$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
 
-.PHONY: build-collector
-build-collector: elasticsearch-mappings
-	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
+.PHONY: build-query build-query-debug
+build-query build-query-debug: build-ui
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/query/query$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+
+.PHONY: build-collector build-collector-debug
+build-collector build-collector-debug: elasticsearch-mappings
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/collector/collector$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: build-otel-collector
 build-otel-collector: elasticsearch-mappings
@@ -267,15 +277,15 @@ build-otel-ingester:
 	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 
 .PHONY: build-otel-all-in-one
-build-otel-all-in-one:
+build-otel-all-in-one: build-ui
 	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -tags ui -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 
-.PHONY: build-ingester
-build-ingester:
-	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+.PHONY: build-ingester build-ingester-debug
+build-ingester build-ingester-debug:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 
 .PHONY: docker
-docker: build-ui build-binaries-linux docker-images-only
+docker: build-binaries-linux docker-images-only
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
@@ -302,7 +312,21 @@ build-binaries-ppc64le:
 	GOOS=linux GOARCH=ppc64le $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent build-otel-ingester build-otel-all-in-one
+build-platform-binaries: build-agent \
+	build-agent-debug \
+	build-collector \
+	build-collector-debug \
+	build-query \
+	build-query-debug \
+	build-ingester \
+	build-ingester-debug \
+	build-all-in-one \
+	build-examples \
+	build-tracegen \
+	build-otel-collector \
+	build-otel-agent \
+	build-otel-ingester \
+	build-otel-all-in-one
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
@@ -318,10 +342,19 @@ docker-images-elastic:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
-.PHONY: docker-images-jaeger-backend
-docker-images-jaeger-backend:
+docker-images-jaeger-backend: TARGET = release
+docker-images-jaeger-backend-debug: TARGET = debug
+docker-images-jaeger-backend-debug: SUFFIX = -debug
+
+.PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
+docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
 	for component in agent collector query ingester ; do \
-		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component --build-arg TARGETARCH=$(GOARCH) ; \
+		docker build --target $(TARGET) \
+			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
+			--build-arg base_image=$(BASE_IMAGE) \
+			--build-arg debug_image=$(DEBUG_IMAGE) \
+			--build-arg TARGETARCH=$(GOARCH) \
+			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
@@ -334,7 +367,11 @@ docker-images-tracegen:
 	@echo "Finished building jaeger-tracegen =============="
 
 .PHONY: docker-images-only
-docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend docker-images-tracegen
+docker-images-only: docker-images-cassandra \
+	docker-images-elastic \
+	docker-images-jaeger-backend \
+	docker-images-jaeger-backend-debug \
+	docker-images-tracegen
 
 .PHONY: docker-push
 docker-push:
@@ -357,6 +394,8 @@ include crossdock/rules.mk
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
+	mkdir -p jaeger-ui/packages/jaeger-ui/build/
+	cp cmd/query/app/ui/placeholder/public/index.html jaeger-ui/packages/jaeger-ui/build/index.html
 	mkdir -p cmd/query/app/ui/actual
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
@@ -391,7 +430,9 @@ install-tools:
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples lint cover
+# TODO (ys) added test-otel to at least ensure tests run in CI,
+#      but this needs to be changed in the lint and cover targets instead
+test-ci: build-examples lint cover test-otel
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
