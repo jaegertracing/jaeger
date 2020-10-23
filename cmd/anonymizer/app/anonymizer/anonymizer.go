@@ -17,10 +17,12 @@ package anonymizer
 import (
 	"encoding/json"
 	"fmt"
+	"go.opencensus.io/tag"
 	"hash/fnv"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -58,6 +60,11 @@ type Anonymizer struct {
 
 	lock    sync.Mutex
 	mapping mapping
+
+	hashStandardTags bool
+	hashCustomTags   bool
+	hashLogs         bool
+	hashProcess      bool
 }
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
@@ -136,15 +143,47 @@ func hash(value string) string {
 func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
 	service := span.Process.ServiceName
 	span.OperationName = a.mapOperationName(service, span.OperationName)
-	span.Tags = filterTags(span.Tags)
-	span.Logs = nil
+
+	// when hashStandardTags, the allowedTags are also hashed, when false they are preserved as is
+	// when hashCustomTags, all tags other than allowedTags are hashed, when false they are dropped
+	if a.hashStandardTags {
+		if a.hashCustomTags {
+			span.Tags = hashTags(span.Tags)
+		} else {
+			span.Tags = hashTags(filterStandardTags(span.Tags))
+		}
+	} else {
+		if a.hashCustomTags {
+			span.Tags = append(filterStandardTags(span.Tags), hashTags(filterCustomTags(span.Tags))...)
+		} else {
+			span.Tags = filterStandardTags(span.Tags)
+		}
+	}
+
+	// when true, logs are hashed, when false, they are dropped
+	if a.hashLogs {
+		for _, log := range span.Logs {
+			log.Fields = hashTags(log.Fields)
+		}
+	} else {
+		span.Logs = nil
+	}
+
 	span.Process.ServiceName = a.mapServiceName(service)
-	span.Process.Tags = nil
+
+	// when true, process tags are hashed, when false they are dropped
+	if a.hashProcess {
+		span.Process.Tags = hashTags(span.Process.Tags)
+	} else {
+		span.Process.Tags = nil
+	}
+
 	span.Warnings = nil
 	return uiconv.FromDomainEmbedProcess(span)
 }
 
-func filterTags(tags []model.KeyValue) []model.KeyValue {
+// filterStandardTags returns only allowedTags
+func filterStandardTags(tags []model.KeyValue) []model.KeyValue {
 	out := make([]model.KeyValue, 0, len(tags))
 	for _, tag := range tags {
 		if !allowedTags[tag.Key] {
@@ -165,4 +204,44 @@ func filterTags(tags []model.KeyValue) []model.KeyValue {
 		out = append(out, tag)
 	}
 	return out
+}
+
+// filterCustomTags returns all tags other than allowedTags
+func filterCustomTags(tags []model.KeyValue) []model.KeyValue {
+	out := make([]model.KeyValue, 0, len(tags))
+	for _, tag := range tags {
+		if !allowedTags[tag.Key] {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+// hashTags converts each tag into corresponding string values
+// and then find its hash
+func hashTags(tags []model.KeyValue) []model.KeyValue {
+	var vStr string
+	var kv model.KeyValue
+	hTags := make([]model.KeyValue, 0, len(tags))
+
+	for _, tag := range tags {
+		switch tag.VType {
+		case model.BinaryType:
+			vStr = string(tag.VBinary)
+		case model.BoolType:
+			vStr = strconv.FormatBool(tag.VBool)
+		case model.StringType:
+			vStr = tag.VStr
+		case model.Int64Type:
+			vStr = strconv.FormatInt(tag.VInt64, 10)
+		case model.Float64Type:
+			vStr = strconv.FormatFloat(tag.VFloat64, 'E', -1, 64)
+		}
+
+		kv.VType = model.StringType
+		kv.VStr = hash(vStr)
+
+		hTags = append(hTags, kv)
+	}
+	return hTags
 }
