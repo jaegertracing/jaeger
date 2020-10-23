@@ -53,9 +53,10 @@ function strip_image_name {
 
 function push_to_quay {
   IMAGE_ID=$(docker images $1 -q)
-  docker tag $IMAGE_ID quay.io/aebirim/$2:$3
+  echo "the image id is:" $IMAGE_ID
+  docker tag $IMAGE_ID "quay.io/aebirim/$2:$3"
   docker images
-  docker push quay.io/aebirim/$2:$3
+  docker push "quay.io/aebirim/$2:$3"
   #delete the pulled images
   docker rmi -f $IMAGE_ID
 }
