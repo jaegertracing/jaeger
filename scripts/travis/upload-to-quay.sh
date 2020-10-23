@@ -41,35 +41,38 @@ fi
 set -x
 docker login quay.io -u $QUAY_USER -p $QUAY_PASS 
 echo "Quay login successful"
+QUAY_IMAGE="$REPO:$TAG"
 
-# Remove org name jaegertracing to get image name
 function strip_image_name {
-  SUBSTRING_1=$(echo $1| cut -d'/' -f 2)
-  SUBSTRING_2=$(echo $SUBSTRING_1| cut -d':' -f 1)
-  echo $SUBSTRING_2
+  SUBSTRING=$(echo $1| cut -d'/' -f 2)
+  QUAY_IMAGE_NAME=$(echo $SUBSTRING| cut -d':' -f 1)
+  QUAY_IMAGE_TAG=$(echo $SUBSTRING| cut -d':' -f 2)
+  echo $QUAY_IMAGE_NAME $QUAY_IMAGE_TAG
 }
 
 function push_to_quay {
-  ID=$(docker run -d $2)
-# Strip container ID to 12 characters
-  STRIPPED_ID=$(echo $ID| cut -b 1-12)
-  docker commit $STRIPPED_ID quay.io/jaegertracing/$1
-  docker push quay.io/jaegertracing/$1
+  IMAGE_ID=$(docker images $1 -q)
+  docker tag $IMAGE_ID quay.io/aebirim/$2:$3
+  docker push quay.io/aebirim/$2:$3
+  #delete the pulled images
+  docker rmi -f $IMAGE_ID
 }
 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
-
-STRIPPED_IMAGE_NAME=$(strip_image_name $IMAGE)  
-push_to_quay $STRIPPED_IMAGE_NAME $REPO
+docker pull $QUAY_IMAGE
+QUAY_IMAGE_NAME, QUAY_IMAGE_TAG=$(strip_image_name $QUAY_IMAGE)  
+push_to_quay $QUAY_IMAGE, $QUAY_IMAGE_NAME, "latest" 
 
 else
 # push all tags, therefore push to repo
-STRIPPED_IMAGE_NAME=$(strip_image_name $IMAGE)  
-push_to_quay $STRIPPED_IMAGE_NAME $REPO  
+QUAY_IMAGE_NAME, QUAY_IMAGE_TAG=$(strip_image_name $QUAY_IMAGE)
+push_to_quay $QUAY_IMAGE, $QUAY_IMAGE_NAME, $QUAY_IMAGE_TAG
 fi
 
-SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
-echo "Pushing snapshot image $SNAPSHOT_IMAGE"
+QUAY_SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
+echo "Pushing snapshot image to quay.io:" $QUAY_SNAPSHOT_IMAGE
+$QUAY_SNAPSHOT_IMAGE_NAME, $QUAY_SNAPSHOT_IMAGE_TAG=$(strip_image_name $QUAY_SNAPSHOT_IMAGE)
+push_to_quay $QUAY_SNAPSHOT_IMAGE, $QUAY_SNAPSHOT_IMAGE_NAME, $QUAY_SNAPSHOT_IMAGE_TAG
 docker tag $IMAGE $SNAPSHOT_IMAGE
 docker push $SNAPSHOT_IMAGE
