@@ -50,7 +50,7 @@ func AddFlags(flags *flag.FlagSet) {
 // AddOTELFlags adds flags that are exposed by OTEL collector
 func AddOTELFlags(flags *flag.FlagSet) {
 	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly")
-	flags.String(authBearerToken, "", "which bearer token to use for every call to the collector")
+	flags.String(authBearerToken, "", "Which bearer token to use for every call to the collector")
 	tlsFlagsConfig.AddFlags(flags)
 }
 

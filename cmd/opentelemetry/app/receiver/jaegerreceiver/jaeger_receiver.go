@@ -113,7 +113,8 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 		}
 	}
 
-	// if at least one option is set, we assume they
+	// if at least one option is set, we assume they are all provided and let
+	// the underlying mechanism to handle missing values
 	if cfg.GRPC != nil && len(cOpts.AuthOIDCIssuerURL) > 0 {
 		// TODO: how can we log a warning if the user fails to specify a conditionally required flag?
 		// if authOIDCIssuerURL is set, authOIDCClientID has to be set as well (and vice-versa).

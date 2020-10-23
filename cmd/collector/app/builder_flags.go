@@ -115,7 +115,7 @@ func AddOTELJaegerFlags(flags *flag.FlagSet) {
 	flags.String(authOIDCIssuerURL, "", "the OpenID Connect server to validate the incoming auth tokens")
 	flags.String(authOIDCIssuerCAPath, "", "the path to the issuer's CA")
 	flags.String(authOIDCClientID, "", "this Jaeger's client ID")
-	flags.String(authOIDCUsernameClaim, "", "the username claim in the token, in case the 'sub' field shouldn't be used")
+	flags.String(authOIDCUsernameClaim, "", "the claim in the token that should be used for the username instead of the default 'sub' field")
 	flags.String(authOIDCGroupsClaim, "", "the claim containing the group membership, where each group is considered a tenant. When absent, multi-tenancy is disabled.")
 
 	tlsFlagsConfig.AddFlags(flags)
