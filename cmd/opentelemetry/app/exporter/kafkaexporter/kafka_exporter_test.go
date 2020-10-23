@@ -103,6 +103,10 @@ func TestMustOtelEncodingForJaegerEncoding(t *testing.T) {
 			expected: "jaeger_json",
 		},
 		{
+			in:       encodingOTLPProto,
+			expected: "otlp_proto",
+		},
+		{
 			in:           "not-an-encoding",
 			expectsPanic: true,
 		},

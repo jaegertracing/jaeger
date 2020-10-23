@@ -134,6 +134,8 @@ func mustOtelEncodingForJaegerEncoding(jaegerEncoding string) string {
 		return "jaeger_proto"
 	case kafka.EncodingJSON:
 		return "jaeger_json"
+	case encodingOTLPProto:
+		return "otlp_proto"
 	}
 
 	panic(jaegerEncoding + " is not a supported kafka encoding in the OTEL collector.")
