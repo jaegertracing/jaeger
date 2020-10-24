@@ -17,7 +17,6 @@ package anonymizer
 import (
 	"encoding/json"
 	"fmt"
-	"go.opencensus.io/tag"
 	"hash/fnv"
 	"io/ioutil"
 	"os"
