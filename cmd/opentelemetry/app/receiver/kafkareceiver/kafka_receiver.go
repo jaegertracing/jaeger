@@ -59,7 +59,7 @@ func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 
 	cfg.Brokers = opts.Brokers
 	cfg.ClientID = opts.ClientID
-	cfg.Encoding = MustOtelEncodingForJaegerEncoding(opts.Encoding)
+	cfg.Encoding = mustOtelEncodingForJaegerEncoding(opts.Encoding)
 	cfg.GroupID = opts.GroupID
 	cfg.Topic = opts.Topic
 	cfg.ProtocolVersion = opts.ProtocolVersion
@@ -138,13 +138,21 @@ func (f Factory) CreateLogsReceiver(
 	return f.Wrapped.CreateLogsReceiver(ctx, params, cfg, nextConsumer)
 }
 
-// MustOtelEncodingForJaegerEncoding translates a jaeger encoding to a otel encoding
-func MustOtelEncodingForJaegerEncoding(jaegerEncoding string) string {
+// mustOtelEncodingForJaegerEncoding translates a jaeger encoding to a otel encoding
+func mustOtelEncodingForJaegerEncoding(jaegerEncoding string) string {
 	switch jaegerEncoding {
 	case kafka.EncodingProto:
 		return "jaeger_proto"
 	case kafka.EncodingJSON:
 		return "jaeger_json"
+	case encodingOTLPProto:
+		return "otlp_proto"
+	case encodingZipkinProto:
+		return "zipkin_proto"
+	case encodingZipkinJSON:
+		return "zipkin_json"
+	case kafka.EncodingZipkinThrift:
+		return "zipkin_thrift"
 	}
 
 	panic(jaegerEncoding + " is not a supported kafka encoding in the OTEL collector.")
