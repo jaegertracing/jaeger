@@ -52,6 +52,7 @@ function strip_image_name {
 }
 
 function push_to_quay {
+  docker pull $1
   IMAGE_ID=$(docker images $1 -q)
   echo "the image id is:" $IMAGE_ID
   docker tag $IMAGE_ID "quay.io/aebirim/$2:$3"
@@ -63,14 +64,12 @@ function push_to_quay {
 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
-docker pull $QUAY_IMAGE
 QUAY_IMAGE_NAME_TAG=$(strip_image_name $QUAY_IMAGE)  
 QUAY_IMAGE_NAME=$(echo $QUAY_IMAGE_NAME_TAG| cut -d':' -f 1)
 push_to_quay $QUAY_IMAGE $QUAY_IMAGE_NAME "latest" 
 
 else
 # push all tags, therefore push to repo
-docker pull $QUAY_IMAGE
 QUAY_IMAGE_NAME_TAG=$(strip_image_name $QUAY_IMAGE)
 QUAY_IMAGE_NAME=$(echo $QUAY_IMAGE_NAME_TAG| cut -d':' -f 1)
 QUAY_IMAGE_TAG=$(echo $QUAY_IMAGE_NAME_TAG| cut -d':' -f 2)
