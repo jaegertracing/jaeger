@@ -104,6 +104,7 @@ func (s *TBufferedServer) Serve() {
 			s.metrics.ReadError.Inc(1)
 		}
 	}
+	close(s.dataChan)
 }
 
 func (s *TBufferedServer) updateQueueSize(delta int64) {
@@ -121,7 +122,6 @@ func (s *TBufferedServer) IsServing() bool {
 func (s *TBufferedServer) Stop() {
 	atomic.StoreUint32(&s.serving, 0)
 	_ = s.transport.Close()
-	close(s.dataChan)
 }
 
 // DataChan returns the data chan of the buffered server
