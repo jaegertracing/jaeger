@@ -75,13 +75,17 @@ script:
 - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
 - if [ "$MEM_AND_BADGER_INTEGRATION_TEST" == true ]; then travis_retry make mem-and-badger-storage-integration-test; else echo 'skipping mem and badger integration test'; fi
 - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh; else echo 'skipping hotrod example'; fi
+
 after_success:
 - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
 - if [ "$COVERAGE" == true ]; then bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
+
 after_failure:
 - if [ "$CROSSDOCK" == true || "$CROSSDOCK_OTEL" == true ]; then make crossdock-logs; else echo 'skipping crossdock'; fi
+
 before_deploy:
 - if [ "$DEPLOY" == true ]; then bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploying binaries'; fi
+
 deploy:
   provider: releases
   api_key:
