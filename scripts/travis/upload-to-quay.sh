@@ -67,7 +67,7 @@ QUAY_IMAGE_NAME_TAG=$(strip_image_name $QUAY_IMAGE)
 QUAY_IMAGE_NAME=$(echo $QUAY_IMAGE_NAME_TAG| cut -d':' -f 1)
 push_to_quay $QUAY_IMAGE $QUAY_IMAGE_NAME "latest" 
 
-elif [[ "${REPO}" == "$REPO-snapshot"]]; then
+elif [[ "${REPO}" == "$REPO-snapshot" ]]; then
 QUAY_SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
 echo "pushing snapshot image to quay.io:" QUAY_SNAPSHOT_IMAGE
 QUAY_SNAPSHOT_IMAGE_NAME_TAG=$(strip_image_name $QUAY_SNAPSHOT_IMAGE)
