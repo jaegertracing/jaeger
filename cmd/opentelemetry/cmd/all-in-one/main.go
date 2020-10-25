@@ -21,6 +21,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/pflag"
+
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
@@ -106,7 +108,7 @@ func main() {
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
-	cmd.ParseFlags(os.Args)
+	parseErr := cmd.ParseFlags(os.Args)
 	err = jflags.TryLoadConfigFile(v)
 	if err != nil {
 		handleErr(fmt.Errorf("could not load Jaeger configuration file %w", err))
@@ -115,6 +117,11 @@ func main() {
 	go func() {
 		err = svc.Run()
 		handleErr(err)
+
+		if parseErr == pflag.ErrHelp {
+			os.Exit(0)
+		}
+
 	}()
 
 	for state := range svc.GetStateChannel() {
