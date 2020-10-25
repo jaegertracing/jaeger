@@ -37,3 +37,4 @@ cmd/opentelemetry/cmd/agent/opentelemetry-agent-*
 cmd/opentelemetry/cmd/ingester/opentelemetry-ingester-*
 cmd/opentelemetry/cmd/all-in-one/opentelemetry-all-in-one-*
 __pycache__
+.DS_Store
