@@ -145,12 +145,12 @@ func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
 	if a.hashStandardTags {
 		outputTags = hashTags(outputTags)
 	}
-
 	// when true, all tags other than allowedTags are hashed, when false they are dropped
 	if a.hashCustomTags {
 		customTags := hashTags(filterCustomTags(span.Tags))
 		outputTags = append(outputTags, customTags...)
 	}
+	span.Tags = outputTags
 
 	// when true, logs are hashed, when false, they are dropped
 	if a.hashLogs {
