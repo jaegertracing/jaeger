@@ -227,6 +227,7 @@ func TestReload_err_watch(t *testing.T) {
 func TestAddCertsToWatch_err(t *testing.T) {
 	watcher, err := fsnotify.NewWatcher()
 	require.NoError(t, err)
+	defer watcher.Close()
 
 	tests := []struct {
 		opts Options
@@ -323,6 +324,7 @@ func syncWrite(filename string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 	if _, err = f.Write(data); err != nil {
 		return err
 	}

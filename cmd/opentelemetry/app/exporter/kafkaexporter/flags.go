@@ -16,12 +16,25 @@ package kafkaexporter
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+)
+
+const (
+	// encodingOTLPProto is used for spans encoded as OTLP Protobuf.
+	encodingOTLPProto = "otlp-proto"
 )
 
 // AddFlags adds Ingester flags.
 func AddFlags(flags *flag.FlagSet) {
 	opts := &kafka.Options{}
 	opts.AddOTELFlags(flags)
+	// Modify kafka.producer.encoding flag
+	flags.Lookup("kafka.producer.encoding").Usage = fmt.Sprintf(
+		`Encoding of spans ("%s", "%s" or "%s") sent to kafka.`,
+		kafka.EncodingJSON,
+		kafka.EncodingProto,
+		encodingOTLPProto,
+	)
 }
