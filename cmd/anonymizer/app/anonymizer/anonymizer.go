@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -143,20 +142,16 @@ func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
 	service := span.Process.ServiceName
 	span.OperationName = a.mapOperationName(service, span.OperationName)
 
-	// when hashStandardTags, the allowedTags are also hashed, when false they are preserved as is
-	// when hashCustomTags, all tags other than allowedTags are hashed, when false they are dropped
+	outputTags := filterStandardTags(span.Tags)
+	// when true, the allowedTags are hashed and when false they are preserved as it is
 	if a.hashStandardTags {
-		if a.hashCustomTags {
-			span.Tags = hashTags(span.Tags)
-		} else {
-			span.Tags = hashTags(filterStandardTags(span.Tags))
-		}
-	} else {
-		if a.hashCustomTags {
-			span.Tags = append(filterStandardTags(span.Tags), hashTags(filterCustomTags(span.Tags))...)
-		} else {
-			span.Tags = filterStandardTags(span.Tags)
-		}
+		outputTags = hashTags(outputTags)
+	}
+
+	// when true, all tags other than allowedTags are hashed, when false they are dropped
+	if a.hashCustomTags {
+		customTags := hashTags(filterCustomTags(span.Tags))
+		outputTags = append(outputTags, customTags...)
 	}
 
 	// when true, logs are hashed, when false, they are dropped
@@ -219,28 +214,10 @@ func filterCustomTags(tags []model.KeyValue) []model.KeyValue {
 // hashTags converts each tag into corresponding string values
 // and then find its hash
 func hashTags(tags []model.KeyValue) []model.KeyValue {
-	var vStr string
-	var kv model.KeyValue
-	hTags := make([]model.KeyValue, 0, len(tags))
-
+	out := make([]model.KeyValue, 0, len(tags))
 	for _, tag := range tags {
-		switch tag.VType {
-		case model.BinaryType:
-			vStr = string(tag.VBinary)
-		case model.BoolType:
-			vStr = strconv.FormatBool(tag.VBool)
-		case model.StringType:
-			vStr = tag.VStr
-		case model.Int64Type:
-			vStr = strconv.FormatInt(tag.VInt64, 10)
-		case model.Float64Type:
-			vStr = strconv.FormatFloat(tag.VFloat64, 'E', -1, 64)
-		}
-
-		kv.VType = model.StringType
-		kv.VStr = hash(vStr)
-
-		hTags = append(hTags, kv)
+		kv := model.String(tag.Key, hash(tag.AsString()))
+		out = append(out, kv)
 	}
-	return hTags
+	return out
 }
