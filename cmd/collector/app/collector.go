@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -91,7 +92,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		SamplingStore: c.strategyStore,
 		Logger:        c.logger,
 	}); err != nil {
-		c.logger.Fatal("could not start gRPC collector", zap.Error(err))
+		return fmt.Errorf("could not start gRPC collector %w", err)
 	} else {
 		c.grpcServer = grpcServer
 	}
@@ -104,7 +105,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		SamplingStore:  c.strategyStore,
 		Logger:         c.logger,
 	}); err != nil {
-		c.logger.Fatal("could not start the HTTP server", zap.Error(err))
+		return fmt.Errorf("could not start the HTTP server %w", err)
 	} else {
 		c.hServer = httpServer
 	}
@@ -118,7 +119,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
 		Logger:         c.logger,
 	}); err != nil {
-		c.logger.Fatal("could not start the Zipkin server", zap.Error(err))
+		return fmt.Errorf("could not start the Zipkin server %w", err)
 	} else {
 		c.zkServer = zkServer
 	}
@@ -143,9 +144,8 @@ func (c *Collector) Close() error {
 	// HTTP server
 	if c.hServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := c.hServer.Shutdown(timeout)
-		if err != nil {
-			c.logger.Error("failed to stop the main HTTP server", zap.Error(err))
+		if err := c.hServer.Shutdown(timeout); err != nil {
+			c.logger.Fatal("failed to stop the main HTTP server", zap.Error(err))
 		}
 		defer cancel()
 	}
@@ -153,9 +153,8 @@ func (c *Collector) Close() error {
 	// Zipkin server
 	if c.zkServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := c.zkServer.Shutdown(timeout)
-		if err != nil {
-			c.logger.Error("failed to stop the Zipkin server", zap.Error(err))
+		if err := c.zkServer.Shutdown(timeout); err != nil {
+			c.logger.Fatal("failed to stop the Zipkin server", zap.Error(err))
 		}
 		defer cancel()
 	}
