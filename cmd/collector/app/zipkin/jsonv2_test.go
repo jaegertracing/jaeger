@@ -94,6 +94,7 @@ func TestRemoteEndpToThrift(t *testing.T) {
 		{kind: models.SpanKindSERVER, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.CLIENT_ADDR, AnnotationType: zipkincore.AnnotationType_BOOL}},
 		{kind: models.SpanKindPRODUCER, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.MESSAGE_ADDR, AnnotationType: zipkincore.AnnotationType_BOOL}},
 		{kind: models.SpanKindCONSUMER, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.MESSAGE_ADDR, AnnotationType: zipkincore.AnnotationType_BOOL}},
+		{kind: "", expected: nil},
 	}
 	for _, test := range tests {
 		banns, err := remoteEndpToThrift(nil, test.kind)
