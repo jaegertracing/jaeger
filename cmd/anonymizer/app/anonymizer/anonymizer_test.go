@@ -31,7 +31,28 @@ var tags = []model.KeyValue{
 
 var traceID = model.NewTraceID(1, 2)
 
-var span = &model.Span{
+var span1 = &model.Span{
+	TraceID: traceID,
+	SpanID:  model.NewSpanID(1),
+	Process: &model.Process{
+		ServiceName: "serviceName",
+		Tags:        tags,
+	},
+	OperationName: "operationName",
+	Tags:          tags,
+	Logs: []model.Log{
+		{
+			Timestamp: time.Now(),
+			Fields: []model.KeyValue{
+				model.String("logKey", "logValue"),
+			},
+		},
+	},
+	Duration:  time.Second * 5,
+	StartTime: time.Unix(300, 0),
+}
+
+var span2 = &model.Span{
 	TraceID: traceID,
 	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
@@ -87,10 +108,10 @@ func TestAnonymizer_AnonymizeSpanAllTrue(t *testing.T) {
 		hashProcess:      true,
 		hashLogs:         true,
 	}
-	_ = anonymizer.AnonymizeSpan(span)
-	assert.Equal(t, 3, len(span.Tags))
-	assert.Equal(t, 1, len(span.Logs))
-	assert.Equal(t, 3, len(span.Process.Tags))
+	_ = anonymizer.AnonymizeSpan(span1)
+	assert.Equal(t, 3, len(span1.Tags))
+	assert.Equal(t, 1, len(span1.Logs))
+	assert.Equal(t, 3, len(span1.Process.Tags))
 }
 
 func TestAnonymizer_AnonymizeSpanAllFalse(t *testing.T) {
@@ -104,8 +125,8 @@ func TestAnonymizer_AnonymizeSpanAllFalse(t *testing.T) {
 		hashProcess:      false,
 		hashLogs:         false,
 	}
-	_ = anonymizer.AnonymizeSpan(span)
-	assert.Equal(t, 2, len(span.Tags))
-	assert.Equal(t, 0, len(span.Logs))
-	assert.Equal(t, 0, len(span.Process.Tags))
+	_ = anonymizer.AnonymizeSpan(span2)
+	assert.Equal(t, 2, len(span2.Tags))
+	assert.Equal(t, 0, len(span2.Logs))
+	assert.Equal(t, 0, len(span2.Process.Tags))
 }

@@ -214,7 +214,7 @@ func filterCustomTags(tags []model.KeyValue) []model.KeyValue {
 func hashTags(tags []model.KeyValue) []model.KeyValue {
 	out := make([]model.KeyValue, 0, len(tags))
 	for _, tag := range tags {
-		kv := model.String(tag.Key, hash(tag.AsString()))
+		kv := model.String(hash(tag.Key), hash(tag.AsString()))
 		out = append(out, kv)
 	}
 	return out
