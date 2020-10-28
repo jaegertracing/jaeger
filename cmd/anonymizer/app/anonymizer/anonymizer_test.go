@@ -21,25 +21,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
-	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 )
 
 var tags = []model.KeyValue{
-	{
-		Key:   "error",
-		VType: model.BoolType,
-		VBool: true,
-	},
-	{
-		Key:   "http.method",
-		VType: model.StringType,
-		VStr:  "POST",
-	},
-	{
-		Key:   "foobar",
-		VType: model.BoolType,
-		VBool: true,
-	},
+	model.Bool("error", true),
+	model.String("http.method", "POST"),
+	model.Bool("foobar", true),
 }
 
 var traceID = model.NewTraceID(1, 2)
@@ -49,7 +36,7 @@ var span = &model.Span{
 	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
-		Tags:        model.KeyValues{},
+		Tags:        tags,
 	},
 	OperationName: "operationName",
 	Tags:          tags,
@@ -67,31 +54,17 @@ var span = &model.Span{
 
 func TestAnonymizer_FilterStandardTags(t *testing.T) {
 	expected := []model.KeyValue{
-		{
-			Key:   "error",
-			VType: model.BoolType,
-			VBool: true,
-		},
-		{
-			Key:   "http.method",
-			VType: model.StringType,
-			VStr:  "POST",
-		},
+		model.Bool("error", true),
+		model.String("http.method", "POST"),
 	}
-
 	actual := filterStandardTags(tags)
 	assert.Equal(t, expected, actual)
 }
 
 func TestAnonymizer_FilterCustomTags(t *testing.T) {
 	expected := []model.KeyValue{
-		{
-			Key:   "foobar",
-			VType: model.BoolType,
-			VBool: true,
-		},
+		model.Bool("foobar", true),
 	}
-
 	actual := filterCustomTags(tags)
 	assert.Equal(t, expected, actual)
 }
@@ -103,7 +76,24 @@ func TestAnonymizer_Hash(t *testing.T) {
 	assert.Equal(t, actual, expected)
 }
 
-func TestAnonymizer_AnonymizeSpan(t *testing.T) {
+func TestAnonymizer_AnonymizeSpanAllTrue(t *testing.T) {
+	anonymizer := &Anonymizer{
+		mapping: mapping{
+			Services:   make(map[string]string),
+			Operations: make(map[string]string),
+		},
+		hashStandardTags: true,
+		hashCustomTags:   true,
+		hashProcess:      true,
+		hashLogs:         true,
+	}
+	_ = anonymizer.AnonymizeSpan(span)
+	assert.Equal(t, 3, len(span.Tags))
+	assert.Equal(t, 1, len(span.Logs))
+	assert.Equal(t, 3, len(span.Process.Tags))
+}
+
+func TestAnonymizer_AnonymizeSpanAllFalse(t *testing.T) {
 	anonymizer := &Anonymizer{
 		mapping: mapping{
 			Services:   make(map[string]string),
@@ -114,8 +104,8 @@ func TestAnonymizer_AnonymizeSpan(t *testing.T) {
 		hashProcess:      false,
 		hashLogs:         false,
 	}
-
-	actual := anonymizer.AnonymizeSpan(span)
-	expected := uiconv.FromDomainEmbedProcess(span)
-	assert.Equal(t, actual, expected)
+	_ = anonymizer.AnonymizeSpan(span)
+	assert.Equal(t, 2, len(span.Tags))
+	assert.Equal(t, 0, len(span.Logs))
+	assert.Equal(t, 0, len(span.Process.Tags))
 }
