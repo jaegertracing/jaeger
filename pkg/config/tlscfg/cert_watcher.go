@@ -55,6 +55,7 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		return nil, err
 	}
 	if err := addCertsToWatch(watcher, opts); err != nil {
+		watcher.Close()
 		return nil, err
 	}
 	return &certWatcher{
