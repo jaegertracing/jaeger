@@ -84,7 +84,9 @@ func spanV2ToThrift(s *models.Span) (*zipkincore.Span, error) {
 		if err != nil {
 			return nil, err
 		}
-		tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, rAddrAnno)
+		if rAddrAnno != nil {
+			tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, rAddrAnno)
+		}
 	}
 
 	// add local component to represent service name
@@ -112,6 +114,8 @@ func remoteEndpToThrift(e *models.Endpoint, kind string) (*zipkincore.BinaryAnno
 		key = zipkincore.CLIENT_ADDR
 	case models.SpanKindCONSUMER, models.SpanKindPRODUCER:
 		key = zipkincore.MESSAGE_ADDR
+	default:
+		return nil, nil
 	}
 
 	return &zipkincore.BinaryAnnotation{
