@@ -31,13 +31,13 @@ var traceID = model.NewTraceID(1, 2)
 
 var span = &model.Span{
 	TraceID: traceID,
-	SpanID: model.NewSpanID(1),
+	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
 		Tags:        model.KeyValues{},
 	},
 	OperationName: "operationName",
-	Tags: tags,
+	Tags:          tags,
 	Logs: []model.Log{
 		{
 			Timestamp: time.Now(),
@@ -53,7 +53,7 @@ var span = &model.Span{
 func TestAnonymizer_FilterStandardTags(t *testing.T) {
 	expected := []model.KeyValue{
 		model.KeyValue{
-			Key: "error",
+			Key:   "error",
 			VType: model.BoolType,
 			VBool: true,
 		},
@@ -71,7 +71,7 @@ func TestAnonymizer_FilterStandardTags(t *testing.T) {
 func TestAnonymizer_FilterCustomTags(t *testing.T) {
 	expected := []model.KeyValue{
 		model.KeyValue{
-			Key: "foobar",
+			Key:   "foobar",
 			VType: model.BoolType,
 			VBool: true,
 		},
@@ -95,9 +95,9 @@ func TestAnonymizer_AnonymizeSpan(t *testing.T) {
 			Operations: make(map[string]string),
 		},
 		hashStandardTags: false,
-		hashCustomTags: false,
-		hashProcess: false,
-		hashLogs: false,
+		hashCustomTags:   false,
+		hashProcess:      false,
+		hashLogs:         false,
 	}
 
 	actual := anonymizer.AnonymizeSpan(span)
