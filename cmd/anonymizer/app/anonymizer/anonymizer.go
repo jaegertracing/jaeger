@@ -53,12 +53,10 @@ type mapping struct {
 //
 // The mapping from original to obfuscated strings is stored in a file and can be reused between runs.
 type Anonymizer struct {
-	mappingFile string
-	logger      *zap.Logger
-
-	lock    sync.Mutex
-	mapping mapping
-
+	mappingFile      string
+	logger           *zap.Logger
+	lock             sync.Mutex
+	mapping          mapping
 	hashStandardTags bool
 	hashCustomTags   bool
 	hashLogs         bool

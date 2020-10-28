@@ -15,12 +15,11 @@
 package anonymizer
 
 import (
-	"github.com/bmizerany/assert"
 	"github.com/jaegertracing/jaeger/model"
+	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
-
-	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 )
 
 var tags = []model.KeyValue{
