@@ -68,7 +68,8 @@ func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, int
 		time.Sleep(time.Second) // Allow time to flush metric
 
 		buf := make([]byte, 1<<20)
-		logger.Panic("No messages processed in the last check interval",
+		logger.Panic("No messages processed in the last check interval, possible deadlock, exiting. "+
+			"This behavior can be disabled with --ingester.deadlockInterval=0 flag.",
 			zap.Int32("partition", partition),
 			zap.String("stack", string(buf[:runtime.Stack(buf, true)])))
 	}
