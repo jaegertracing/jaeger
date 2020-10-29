@@ -97,7 +97,7 @@ func TestAnonymizer_Hash(t *testing.T) {
 	assert.Equal(t, actual, expected)
 }
 
-func TestAnonymizer_AnonymizeSpanAllTrue(t *testing.T) {
+func TestAnonymizer_AnonymizeSpan_AllTrue(t *testing.T) {
 	anonymizer := &Anonymizer{
 		mapping: mapping{
 			Services:   make(map[string]string),
@@ -114,7 +114,7 @@ func TestAnonymizer_AnonymizeSpanAllTrue(t *testing.T) {
 	assert.Equal(t, 3, len(span1.Process.Tags))
 }
 
-func TestAnonymizer_AnonymizeSpanAllFalse(t *testing.T) {
+func TestAnonymizer_AnonymizeSpan_AllFalse(t *testing.T) {
 	anonymizer := &Anonymizer{
 		mapping: mapping{
 			Services:   make(map[string]string),
@@ -129,4 +129,40 @@ func TestAnonymizer_AnonymizeSpanAllFalse(t *testing.T) {
 	assert.Equal(t, 2, len(span2.Tags))
 	assert.Equal(t, 0, len(span2.Logs))
 	assert.Equal(t, 0, len(span2.Process.Tags))
+}
+
+func TestAnonymizer_MapString_Present(t *testing.T) {
+	v := "foobar"
+	m := map[string]string{
+		"foobar": "hashed_foobar",
+	}
+	anonymizer := &Anonymizer{
+		mapping: mapping{
+			Services:   make(map[string]string),
+			Operations: make(map[string]string),
+		},
+		hashStandardTags: false,
+		hashCustomTags:   false,
+		hashProcess:      false,
+		hashLogs:         false,
+	}
+	actual := anonymizer.mapString(v, m)
+	assert.Equal(t, "hashed_foobar", actual)
+}
+
+func TestAnonymizer_MapString_Absent(t *testing.T) {
+	v := "foobar"
+	m := map[string]string{}
+	anonymizer := &Anonymizer{
+		mapping: mapping{
+			Services:   make(map[string]string),
+			Operations: make(map[string]string),
+		},
+		hashStandardTags: false,
+		hashCustomTags:   false,
+		hashProcess:      false,
+		hashLogs:         false,
+	}
+	actual := anonymizer.mapString(v, m)
+	assert.Equal(t, "340d8765a4dda9c2", actual)
 }
