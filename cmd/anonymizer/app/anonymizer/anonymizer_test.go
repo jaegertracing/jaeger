@@ -152,7 +152,7 @@ func TestAnonymizer_MapString_Absent(t *testing.T) {
 func TestAnonymizer_MapServiceName(t *testing.T) {
 	anonymizer := &Anonymizer{
 		mapping: mapping{
-			Services:   map[string]string{
+			Services: map[string]string{
 				"api": "hashed_api",
 			},
 		},
@@ -164,7 +164,7 @@ func TestAnonymizer_MapServiceName(t *testing.T) {
 func TestAnonymizer_MapOperationName(t *testing.T) {
 	anonymizer := &Anonymizer{
 		mapping: mapping{
-			Services:   map[string]string{
+			Services: map[string]string{
 				"api": "hashed_api",
 			},
 			Operations: map[string]string{
