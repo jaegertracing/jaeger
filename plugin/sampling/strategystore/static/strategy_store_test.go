@@ -56,7 +56,7 @@ func strategiesJSON(probability float32) string {
 				"param": 5
 			}
 			]
-		}  
+		}
 		`,
 		probability,
 	)
