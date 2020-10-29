@@ -28,3 +28,13 @@ jobs:
         file: cover.out
         fail_ci_if_error: true
         verbose: true
+
+  golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.33
+          only-new-issues: true
