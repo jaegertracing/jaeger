@@ -136,16 +136,7 @@ func TestAnonymizer_MapString_Present(t *testing.T) {
 	m := map[string]string{
 		"foobar": "hashed_foobar",
 	}
-	anonymizer := &Anonymizer{
-		mapping: mapping{
-			Services:   make(map[string]string),
-			Operations: make(map[string]string),
-		},
-		hashStandardTags: false,
-		hashCustomTags:   false,
-		hashProcess:      false,
-		hashLogs:         false,
-	}
+	anonymizer := &Anonymizer{}
 	actual := anonymizer.mapString(v, m)
 	assert.Equal(t, "hashed_foobar", actual)
 }
@@ -153,16 +144,34 @@ func TestAnonymizer_MapString_Present(t *testing.T) {
 func TestAnonymizer_MapString_Absent(t *testing.T) {
 	v := "foobar"
 	m := map[string]string{}
-	anonymizer := &Anonymizer{
-		mapping: mapping{
-			Services:   make(map[string]string),
-			Operations: make(map[string]string),
-		},
-		hashStandardTags: false,
-		hashCustomTags:   false,
-		hashProcess:      false,
-		hashLogs:         false,
-	}
+	anonymizer := &Anonymizer{}
 	actual := anonymizer.mapString(v, m)
 	assert.Equal(t, "340d8765a4dda9c2", actual)
+}
+
+func TestAnonymizer_MapServiceName(t *testing.T) {
+	anonymizer := &Anonymizer{
+		mapping: mapping{
+			Services:   map[string]string{
+				"api": "hashed_api",
+			},
+		},
+	}
+	actual := anonymizer.mapServiceName("api")
+	assert.Equal(t, "hashed_api", actual)
+}
+
+func TestAnonymizer_MapOperationName(t *testing.T) {
+	anonymizer := &Anonymizer{
+		mapping: mapping{
+			Services:   map[string]string{
+				"api": "hashed_api",
+			},
+			Operations: map[string]string{
+				"[api]:delete": "hashed_api_delete",
+			},
+		},
+	}
+	actual := anonymizer.mapOperationName("api", "delete")
+	assert.Equal(t, "hashed_api_delete", actual)
 }
