@@ -156,13 +156,14 @@ func TestStartStopRace(t *testing.T) {
 			{
 				Model:    jaegerModel,
 				Protocol: compactProtocol,
+				Workers:  1,
 				Server: ServerConfiguration{
 					HostPort: "127.0.0.1:0",
 				},
 			},
 		},
 	}
-	logger, logBuf := testutils.NewLogger()
+	logger, logBuf := testutils.NewEchoLogger(t)
 	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
