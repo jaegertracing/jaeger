@@ -186,5 +186,3 @@ If you would like to add your organization to the list, please comment on our
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
 [gitter]: https://gitter.im/jaegertracing/Lobby
 [gitter-img]: https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg
-
-[//]: # (md-to-godoc-ignore)

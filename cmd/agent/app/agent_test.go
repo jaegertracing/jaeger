@@ -156,13 +156,14 @@ func TestStartStopRace(t *testing.T) {
 			{
 				Model:    jaegerModel,
 				Protocol: compactProtocol,
+				Workers:  1,
 				Server: ServerConfiguration{
 					HostPort: "127.0.0.1:0",
 				},
 			},
 		},
 	}
-	logger, logBuf := testutils.NewLogger()
+	logger, logBuf := testutils.NewEchoLogger(t)
 	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
@@ -177,9 +178,14 @@ func TestStartStopRace(t *testing.T) {
 	// run with -race flag.
 
 	if err := agent.Run(); err != nil {
-		t.Errorf("error from agent.Run(): %s", err)
+		t.Fatalf("error from agent.Run(): %s", err)
 	}
 
+	// FIXME https://github.com/jaegertracing/jaeger/issues/2601
+	t.Log("give some time for processors to start")
+	time.Sleep(500 * time.Millisecond)
+
+	t.Log("stopping agent")
 	agent.Stop()
 
 	for i := 0; i < 1000; i++ {
