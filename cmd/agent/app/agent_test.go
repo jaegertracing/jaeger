@@ -178,9 +178,14 @@ func TestStartStopRace(t *testing.T) {
 	// run with -race flag.
 
 	if err := agent.Run(); err != nil {
-		t.Errorf("error from agent.Run(): %s", err)
+		t.Fatalf("error from agent.Run(): %s", err)
 	}
 
+	// FIXME https://github.com/jaegertracing/jaeger/issues/2601
+	t.Log("give some time for processors to start")
+	time.Sleep(500 * time.Millisecond)
+
+	t.Log("stopping agent")
 	agent.Stop()
 
 	for i := 0; i < 1000; i++ {
