@@ -147,7 +147,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -coverprofile cover.out ./...
+	$(GOTEST) -timeout 5m -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html

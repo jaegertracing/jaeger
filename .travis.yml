@@ -65,7 +65,7 @@ install:
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - if [ "$TESTS" == true ]; then travis_wait make test-ci ; else echo 'skipping tests'; fi
+  - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
   - if [ "$PROTO_GEN_TEST" == true ]; then make proto && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
   - if [ "$ALL_IN_ONE" == true ]; then make create-baseimg-debugimg && bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then travis_retry bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
