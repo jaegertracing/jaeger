@@ -16,7 +16,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -131,7 +130,9 @@ by default uses only in-memory database.`,
 				StrategyStore:  strategyStore,
 				HealthCheck:    svc.HC(),
 			})
-			c.Start(cOpts)
+			if err := c.Start(cOpts); err != nil {
+				log.Fatal(err)
+			}
 
 			// agent
 			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
@@ -161,19 +162,18 @@ by default uses only in-memory database.`,
 
 			svc.RunAndThen(func() {
 				agent.Stop()
-				cp.Close()
-				c.Close()
-				querySrv.Close()
+				_ = cp.Close()
+				_ = c.Close()
+				_ = querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {
-					err := closer.Close()
-					if err != nil {
+					if err := closer.Close(); err != nil {
 						logger.Error("Failed to close span writer", zap.Error(err))
 					}
 				}
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
-				tracerCloser.Close()
+				_ = tracerCloser.Close()
 			})
 			return nil
 		},
@@ -197,8 +197,7 @@ by default uses only in-memory database.`,
 	)
 
 	if err := command.Execute(); err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
 
