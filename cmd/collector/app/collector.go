@@ -85,44 +85,45 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor()
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
-	if grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
+	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		HostPort:      builderOpts.CollectorGRPCHostPort,
 		Handler:       c.spanHandlers.GRPCHandler,
 		TLSConfig:     builderOpts.TLS,
 		SamplingStore: c.strategyStore,
 		Logger:        c.logger,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("could not start gRPC collector %w", err)
-	} else {
-		c.grpcServer = grpcServer
 	}
+	c.grpcServer = grpcServer
 
-	if httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
+	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
 		HostPort:       builderOpts.CollectorHTTPHostPort,
 		Handler:        c.spanHandlers.JaegerBatchesHandler,
 		HealthCheck:    c.hCheck,
 		MetricsFactory: c.metricsFactory,
 		SamplingStore:  c.strategyStore,
 		Logger:         c.logger,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("could not start the HTTP server %w", err)
-	} else {
-		c.hServer = httpServer
 	}
+	c.hServer = httpServer
 
 	c.tlsCloser = &builderOpts.TLS
-	if zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
+	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
 		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
 		HealthCheck:    c.hCheck,
 		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
 		Logger:         c.logger,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("could not start the Zipkin server %w", err)
-	} else {
-		c.zkServer = zkServer
 	}
+	c.zkServer = zkServer
+
 	c.publishOpts(builderOpts)
 
 	return nil
