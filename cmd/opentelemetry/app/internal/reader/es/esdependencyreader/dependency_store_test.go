@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
@@ -34,6 +35,10 @@ import (
 )
 
 const defaultMaxDocCount = 10_000
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestCreateTemplates(t *testing.T) {
 	client := &mockClient{}

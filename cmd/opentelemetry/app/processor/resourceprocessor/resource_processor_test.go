@@ -33,7 +33,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
+
+func TestMain(m *testing.M) {
+	testutils.TolerantVerifyLeakMain(m)
+}
 
 func TestDefaultValues(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags)

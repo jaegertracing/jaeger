@@ -35,8 +35,13 @@ import (
 
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
+
+func TestMain(m *testing.M) {
+	testutils.TolerantVerifyLeakMain(m)
+}
 
 func TestDefaultValues(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags)

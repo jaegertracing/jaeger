@@ -37,7 +37,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/memoryexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
+
+func TestMain(m *testing.M) {
+	testutils.TolerantVerifyLeakMain(m)
+}
 
 func TestService(t *testing.T) {
 	tests := []struct {

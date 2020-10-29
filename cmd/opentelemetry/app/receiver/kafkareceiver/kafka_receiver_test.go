@@ -27,8 +27,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
+
+func TestMain(m *testing.M) {
+	testutils.TolerantVerifyLeakMain(m)
+}
 
 func TestDefaultConfig(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags)
