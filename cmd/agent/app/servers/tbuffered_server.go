@@ -98,9 +98,11 @@ func (s *TBufferedServer) Serve() {
 				s.metrics.PacketsProcessed.Inc(1)
 				s.updateQueueSize(1)
 			default:
+				s.readBufPool.Put(readBuf)
 				s.metrics.PacketsDropped.Inc(1)
 			}
 		} else {
+			s.readBufPool.Put(readBuf)
 			s.metrics.ReadError.Inc(1)
 		}
 	}
