@@ -128,15 +128,6 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 
 	testcase(agent.HTTPAddr(), ch)
 
-	// TODO (wjang) We sleep because the processors in the agent might not have had time to
-	// start up yet. If we were to call Stop() before the processors have time to startup,
-	// it'll panic because of a DATA RACE between wg.Add() and wg.Wait() in thrift_processor.
-	// A real fix for this issue would be to add semaphores to tbuffered_server, thrift_processor,
-	// and agent itself. Given all this extra overhead and testing required to get this to work
-	// "elegantly", I opted to just sleep here given how unlikely this situation will occur in
-	// production.
-	time.Sleep(2 * time.Second)
-
 	agent.Stop()
 	assert.NoError(t, <-ch)
 
@@ -180,10 +171,6 @@ func TestStartStopRace(t *testing.T) {
 	if err := agent.Run(); err != nil {
 		t.Fatalf("error from agent.Run(): %s", err)
 	}
-
-	// FIXME https://github.com/jaegertracing/jaeger/issues/2601
-	t.Log("give some time for processors to start")
-	time.Sleep(500 * time.Millisecond)
 
 	t.Log("stopping agent")
 	agent.Stop()
