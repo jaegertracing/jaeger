@@ -302,7 +302,7 @@ func TestAddCertsToWatch_remove_ca(t *testing.T) {
 	require.NoError(t, os.Remove(caFile.Name()))
 	require.NoError(t, os.Remove(clientCaFile.Name()))
 	waitUntil(func() bool {
-		return logObserver.FilterMessage("Certificate has been removed, using the last known version").Len() > 0
+		return logObserver.FilterMessage("Certificate has been removed, using the last known version").Len() >= 2
 	}, 100, time.Millisecond*100)
 	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", caFile.Name())).Len() > 0)
 	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0)
