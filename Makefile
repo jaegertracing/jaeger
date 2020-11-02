@@ -81,12 +81,6 @@ test-and-lint: test fmt lint
 go-gen:
 	@echo skipping go generate ./...
 
-.PHONY: md-to-godoc-gen
-md-to-godoc-gen:
-	find . -name README.md -not -path "./vendor/*" -not -path "./_site/*" -not -path "./idl/*" \
-		| grep -v '^./README.md' \
-		| xargs -I% md-to-godoc -license -licenseFile LICENSE -input=%
-
 .PHONY: clean
 clean:
 	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
@@ -153,7 +147,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -coverprofile cover.out ./...
+	$(GOTEST) -timeout 5m -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -421,7 +415,6 @@ changelog:
 install-tools:
 	go install github.com/wadey/gocovmerge
 	go install golang.org/x/lint/golint
-	go install github.com/sectioneight/md-to-godoc
 	go install github.com/mjibson/esc
 	go install github.com/securego/gosec/cmd/gosec
 	go install honnef.co/go/tools/cmd/staticcheck
