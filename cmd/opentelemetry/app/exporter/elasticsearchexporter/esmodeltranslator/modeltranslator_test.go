@@ -15,7 +15,6 @@
 package esmodeltranslator
 
 import (
-	"encoding/binary"
 	"fmt"
 	"testing"
 	"time"
@@ -30,8 +29,8 @@ import (
 )
 
 var (
-	traceID = pdata.NewTraceID([]byte("0123456789abcdef"))
-	spanID  = pdata.NewSpanID([]byte("01234567"))
+	traceID = pdata.NewTraceID(Byte16ArrayFromString("0123456789abcdef"))
+	spanID  = pdata.NewSpanID(Byte8ArrayFromString("01234567"))
 )
 
 func TestAttributeToKeyValue(t *testing.T) {
@@ -151,7 +150,7 @@ func TestConvertSpan(t *testing.T) {
 				StartTimeMillis: 1,
 				Tags: []dbmodel.KeyValue{
 					{Key: "span.kind", Type: dbmodel.StringType, Value: "client"},
-					{Key: "status.code", Type: dbmodel.StringType, Value: "STATUS_CODE_CANCELLED"},
+					{Key: "status.code", Type: dbmodel.StringType, Value: "STATUS_CODE_OK"},
 					{Key: "error", Type: dbmodel.BoolType, Value: "true"},
 					{Key: "status.message", Type: dbmodel.StringType, Value: "messagetext"},
 					{Key: "foo", Type: dbmodel.BoolType, Value: "true"},
@@ -196,9 +195,15 @@ func TestSpanEmptyRef(t *testing.T) {
 				Duration:        1000,
 				OperationName:   "root",
 				StartTimeMillis: 1,
-				Tags:            []dbmodel.KeyValue{},  // should not be nil
-				Logs:            []dbmodel.Log{},       // should not be nil
-				References:      []dbmodel.Reference{}, // should not be nil
+				Tags:            []dbmodel.KeyValue{}, // should not be nil
+				Logs:            []dbmodel.Log{},      // should not be nil
+				References: []dbmodel.Reference{
+					{
+						RefType: "CHILD_OF",
+						TraceID: "30313233343536373839616263646566",
+						SpanID:  "3031323334353637",
+					},
+				},
 				Process: dbmodel.Process{
 					ServiceName: "myservice",
 					Tags:        nil,
@@ -215,26 +220,16 @@ func TestEmpty(t *testing.T) {
 }
 
 func TestErrorIDs(t *testing.T) {
-	zero64Bytes := make([]byte, 16)
-	binary.LittleEndian.PutUint64(zero64Bytes, 0)
-	binary.LittleEndian.PutUint64(zero64Bytes, 0)
+	var zero64Bytes [16]byte
+	var zero32Bytes [8]byte
 	tests := []struct {
 		spanID  pdata.SpanID
 		traceID pdata.TraceID
 		err     string
 	}{
 		{
-			traceID: pdata.NewTraceID([]byte("invalid-%")),
-			err:     "TraceID does not have 16 bytes",
-		},
-		{
 			traceID: traceID,
-			spanID:  pdata.NewSpanID([]byte("invalid-%")),
-			err:     "SpanID does not have 8 bytes",
-		},
-		{
-			traceID: traceID,
-			spanID:  pdata.NewSpanID(zero64Bytes[:8]),
+			spanID:  pdata.NewSpanID(zero32Bytes),
 			err:     errZeroSpanID.Error(),
 		},
 		{
@@ -274,7 +269,18 @@ func addSpan(traces pdata.Traces, name string, traceID pdata.TraceID, spanID pda
 	span.SetName(name)
 	span.SetTraceID(traceID)
 	span.SetSpanID(spanID)
+	span.SetParentSpanID(spanID)
 	span.SetStartTime(pdata.TimestampUnixNano(time.Now().UnixNano()))
 	span.SetEndTime(pdata.TimestampUnixNano(time.Now().UnixNano()))
 	return span
+}
+
+func Byte16ArrayFromString(s string) (result [16]byte) {
+	copy(result[:], s)
+	return
+}
+
+func Byte8ArrayFromString(s string) (result [8]byte) {
+	copy(result[:], s)
+	return
 }

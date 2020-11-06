@@ -60,12 +60,12 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 
 // CreateTraceExporter creates Jaeger trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
-func (f Factory) CreateTraceExporter(
+func (f Factory) CreateTracesExporter(
 	ctx context.Context,
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
-) (component.TraceExporter, error) {
-	return f.Wrapped.CreateTraceExporter(ctx, params, cfg)
+) (component.TracesExporter, error) {
+	return f.Wrapped.CreateTracesExporter(ctx, params, cfg)
 }
 
 // CreateMetricsExporter creates a metrics exporter based on provided config.

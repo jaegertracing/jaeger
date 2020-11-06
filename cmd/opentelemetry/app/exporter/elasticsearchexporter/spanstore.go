@@ -46,7 +46,6 @@ const (
 	serviceIndexBaseName = "jaeger-service"
 	spanTypeName         = "span"
 	serviceTypeName      = "service"
-	indexDateFormat      = "2006-01-02" // date format for index e.g. 2020-01-20
 )
 
 // esSpanWriter holds components required for ES span writer
@@ -245,7 +244,7 @@ func bulkItemsToTraces(bulkItems []bulkItem) pdata.Traces {
 		rss := traces.ResourceSpans().At(i)
 		if !spanData.Resource.IsNil() {
 			rss.Resource().InitEmpty()
-			rss.Resource().Attributes().InitFromAttributeMap(spanData.Resource.Attributes())
+			spanData.Resource.Attributes().CopyTo(rss.Resource().Attributes())
 		}
 		rss.InstrumentationLibrarySpans().Resize(1)
 		ispans := rss.InstrumentationLibrarySpans().At(0)

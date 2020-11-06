@@ -37,7 +37,7 @@ func TestCreateTraceExporter(t *testing.T) {
 	factory := Factory{OptionsFactory: func() *cassandra.Options {
 		return opts
 	}}
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
+	exporter, err := factory.CreateTracesExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
 	assert.Contains(t, err.Error(), "gocql: unable to create session")
 }
