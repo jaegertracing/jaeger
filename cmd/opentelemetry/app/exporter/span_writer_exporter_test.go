@@ -75,8 +75,9 @@ func AddSpan(traces pdata.Traces, name string, traceID pdata.TraceID, spanID pda
 }
 
 func TestStore(t *testing.T) {
-	traceID := pdata.NewTraceID(Byte16ArrayFromString("0123456789abcdef"))
-	spanID := pdata.NewSpanID(Byte8ArrayFromString("01234567"))
+	traceID := pdata.NewTraceID([16]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F})
+	spanID := pdata.NewSpanID([8]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07})
 	tests := []struct {
 		storage         store
 		data            pdata.Traces
@@ -187,14 +188,4 @@ func (mockStorageFactory) CreateDependencyReader() (dependencystore.Reader, erro
 }
 func (mockStorageFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	return nil
-}
-
-func Byte16ArrayFromString(s string) (result [16]byte) {
-	copy(result[:], s)
-	return
-}
-
-func Byte8ArrayFromString(s string) (result [8]byte) {
-	copy(result[:], s)
-	return
 }
