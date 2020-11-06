@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export IFS=","
 
 function usage {
     >&2 echo "Error: $1"
@@ -7,7 +8,7 @@ function usage {
     >&2 echo ""
     >&2 echo "The following parameters can be set via environment:"
     >&2 echo "  MODE               - prod or test. Test keyspace is usable on a single node cluster (no replication)"
-    >&2 echo "  DATACENTER         - datacenter name for network topology used in prod (optional in MODE=test)"
+    >&2 echo "  DATACENTER         - comma seperated list of datacenter names for network topology used in prod (optional in MODE=test)"
     >&2 echo "  TRACE_TTL          - time to live for trace data, in seconds (default: 172800, 2 days)"
     >&2 echo "  DEPENDENCIES_TTL   - time to live for dependencies data, in seconds (default: 0, no TTL)"
     >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_{datacenter})"
@@ -30,9 +31,19 @@ if [[ "$MODE" == "" ]]; then
     usage "missing MODE parameter"
 elif [[ "$MODE" == "prod" ]]; then
     if [[ "$DATACENTER" == "" ]]; then usage "missing DATACENTER parameter for prod mode"; fi
+    replication_factor=${REPLICATION_FACTOR:-3}
     datacenter=$DATACENTER
-    replication_factor=${REPLICATION_FACTOR:-2}
-    replication="{'class': 'NetworkTopologyStrategy', '$datacenter': '${replication_factor}' }"
+    topology_config=""
+    count=0
+    for dc in $DATACENTER; do
+      if [[ "$count" -eq "0" ]]; then
+        topology_config="'$dc': '${replication_factor}'"
+      else
+        topology_config="$topology_config, '$dc': '${replication_factor}'"
+      fi
+      count=$((count+1))
+    done
+    replication="{'class': 'NetworkTopologyStrategy', ${topology_config}}"
 elif [[ "$MODE" == "test" ]]; then 
     datacenter=${DATACENTER:-'test'}
     replication_factor=${REPLICATION_FACTOR:-1}

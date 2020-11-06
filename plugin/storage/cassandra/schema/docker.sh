@@ -36,7 +36,7 @@ do
   fi
 done
 
-echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
+echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter(s) ${DATACENTER}"
 
 
 if [ -z "$PASSWORD" ]; then
