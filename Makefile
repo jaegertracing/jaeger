@@ -250,6 +250,10 @@ build-all-in-one build-all-in-one-debug: build-ui elasticsearch-mappings
 build-agent build-agent-debug:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/agent/agent$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
 
+.PHONY: build-anonymizer
+build-anonymizer:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/anonymizer/anonymizer$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
+
 .PHONY: build-query build-query-debug
 build-query build-query-debug: build-ui
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/query/query$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go

@@ -18,6 +18,8 @@ examples/memstore-plugin/memstore-plugin
 cmd/all-in-one/all-in-one-*
 cmd/agent/agent
 cmd/agent/agent-*
+cmd/anonymizer/anonymizer
+cmd/anonymizer/anonymizer-*
 cmd/collector/collector
 cmd/collector/collector-*
 cmd/ingester/ingester

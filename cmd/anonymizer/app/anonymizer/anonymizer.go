@@ -65,7 +65,7 @@ type Anonymizer struct {
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
 // obfuscated strings, in case later investigations require looking at the original traces.
-func New(mappingFile string, logger *zap.Logger) *Anonymizer {
+func New(mappingFile string, logger *zap.Logger, hashStandardTags, hashCustomTags, hashLogs, hashProcess bool) *Anonymizer {
 	a := &Anonymizer{
 		mappingFile: mappingFile,
 		logger:      logger,
@@ -73,6 +73,10 @@ func New(mappingFile string, logger *zap.Logger) *Anonymizer {
 			Services:   make(map[string]string),
 			Operations: make(map[string]string),
 		},
+		hashStandardTags: hashStandardTags,
+		hashCustomTags: hashCustomTags,
+		hashLogs: hashLogs,
+		hashProcess: hashProcess,
 	}
 	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
 		dat, err := ioutil.ReadFile(filepath.Clean(mappingFile))

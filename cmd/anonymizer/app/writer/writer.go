@@ -48,7 +48,7 @@ type Writer struct {
 }
 
 // New creates an Writer
-func New(config Config, logger *zap.Logger) (*Writer, error) {
+func New(config Config, logger *zap.Logger, hashStandardTags, hashCustomTags, hashLogs, hashProcess bool) (*Writer, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 		logger:         logger,
 		capturedFile:   cf,
 		anonymizedFile: af,
-		anonymizer:     anonymizer.New(config.MappingFile, logger),
+		anonymizer:     anonymizer.New(config.MappingFile, logger, hashStandardTags, hashCustomTags, hashLogs, hashProcess),
 	}, nil
 }
 
