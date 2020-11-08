@@ -21,16 +21,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+
+	app "github.com/jaegertracing/jaeger/cmd/anonymizer/app"
+	writer "github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/spf13/cobra"
-
-	app "github.com/jaegertracing/jaeger/cmd/anonymizer/app"
-	writer "github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -57,16 +57,16 @@ func newGRPCClient(addr string) *grpcClient {
 
 func main() {
 	var command = &cobra.Command{
-		Use: "jaeger-anonymizer",
+		Use:   "jaeger-anonymizer",
 		Short: "Jaeger anonymizer hashes fields of a trace for easy sharing",
-		Long: `Jaeger anonymizer queries Jaeger query for a trace, anonymizes fields, and store in file`,
+		Long:  `Jaeger anonymizer queries Jaeger query for a trace, anonymizes fields, and store in file`,
 		Run: func(cmd *cobra.Command, args []string) {
 			prefix := app.OutputDir + "/" + app.TraceID
 			conf := writer.Config{
-				MaxSpansCount: app.MaxSpansCount,
-				CapturedFile: prefix + ".orig",
+				MaxSpansCount:  app.MaxSpansCount,
+				CapturedFile:   prefix + ".orig",
 				AnonymizedFile: prefix + ".anon",
-				MappingFile: prefix + ".map",
+				MappingFile:    prefix + ".map",
 			}
 
 			writer, err := writer.New(conf, logger, app.HashStandardTags, app.HashCustomTags, app.HashLogs, app.HashProcess)

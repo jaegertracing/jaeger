@@ -74,9 +74,9 @@ func New(mappingFile string, logger *zap.Logger, hashStandardTags, hashCustomTag
 			Operations: make(map[string]string),
 		},
 		hashStandardTags: hashStandardTags,
-		hashCustomTags: hashCustomTags,
-		hashLogs: hashLogs,
-		hashProcess: hashProcess,
+		hashCustomTags:   hashCustomTags,
+		hashLogs:         hashLogs,
+		hashProcess:      hashProcess,
 	}
 	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
 		dat, err := ioutil.ReadFile(filepath.Clean(mappingFile))
