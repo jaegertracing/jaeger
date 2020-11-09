@@ -15,6 +15,7 @@
 package esmodeltranslator
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -222,26 +223,23 @@ func references(links pdata.SpanLinkSlice, parentSpanID pdata.SpanID, traceID db
 }
 
 func convertSpanID(spanID pdata.SpanID) (dbmodel.SpanID, error) {
-	spanIDInt := tracetranslator.BytesToUInt64SpanID(spanID.Bytes())
-	if spanIDInt == 0 {
+	if !spanID.IsValid() {
 		return "", errZeroSpanID
 	}
-	return dbmodel.SpanID(fmt.Sprintf("%016x", spanIDInt)), nil
+	src := spanID.Bytes()
+	dst := make([]byte, hex.EncodedLen(len(src)))
+	hex.Encode(dst, src[:])
+	return dbmodel.SpanID(dst), nil
 }
 
 func convertTraceID(traceID pdata.TraceID) (dbmodel.TraceID, error) {
-	high, low := tracetranslator.BytesToUInt64TraceID(traceID.Bytes())
-	if low == 0 && high == 0 {
+	if !traceID.IsValid() {
 		return "", errZeroTraceID
 	}
-	return dbmodel.TraceID(traceIDToString(high, low)), nil
-}
-
-func traceIDToString(high, low uint64) string {
-	if high == 0 {
-		return fmt.Sprintf("%016x", low)
-	}
-	return fmt.Sprintf("%016x%016x", high, low)
+	src := traceID.Bytes()
+	dst := make([]byte, hex.EncodedLen(len(src)))
+	hex.Encode(dst, src[:])
+	return dbmodel.TraceID(dst), nil
 }
 
 func (c *Translator) process(resource pdata.Resource) *dbmodel.Process {

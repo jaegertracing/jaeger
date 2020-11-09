@@ -173,6 +173,12 @@ func TestConvertSpan(t *testing.T) {
 		}, spansData[0])
 }
 
+func BenchmarkConvertSpanID(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _ = convertSpanID(spanID)
+	}
+}
+
 func TestSpanEmptyRef(t *testing.T) {
 	traces := traces("myservice")
 	span := addSpan(traces, "root", traceID, spanID)
