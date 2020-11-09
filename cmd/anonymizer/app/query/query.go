@@ -65,14 +65,14 @@ func New(addr string, logger *zap.Logger) (*Query, error) {
 }
 
 // QueryTrace queries for a trace and returns all spans inside it
-func (q *Query) QueryTrace(traceId string) []model.Span {
-	traceID, err := model.TraceIDFromString(traceId)
+func (q *Query) QueryTrace(traceID string) []model.Span {
+	mTraceID, err := model.TraceIDFromString(traceID)
 	if err != nil {
 		q.logger.Fatal("failed to convert the provided trace id", zap.Error(err))
 	}
 
 	response, err := q.grpcClient.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-		TraceID: traceID,
+		TraceID: mTraceID,
 	})
 	if err != nil {
 		q.logger.Fatal("failed to fetch the provided trace id", zap.Error(err))

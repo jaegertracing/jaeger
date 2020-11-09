@@ -80,7 +80,7 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 		return nil, fmt.Errorf("cannot write tp output file: %w", err)
 	}
 
-	options := &anonymizer.AnonymizerOptions{
+	options := &anonymizer.Options{
 		HashStandardTags: config.HashStandardTags,
 		HashCustomTags:   config.HashCustomTags,
 		HashLogs:         config.HashLogs,
