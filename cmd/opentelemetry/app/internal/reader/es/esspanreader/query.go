@@ -97,7 +97,7 @@ func addOperationNameQuery(operationName string, query esclient.Query) {
 }
 
 func addTagQuery(converter dbmodel.ToDomain, tags map[string]string, query esclient.Query) {
-	if tags == nil || len(tags) == 0 {
+	if len(tags) == 0 {
 		return
 	}
 

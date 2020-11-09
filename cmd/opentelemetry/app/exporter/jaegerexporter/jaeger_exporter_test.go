@@ -64,7 +64,6 @@ func TestDefaultValueFromViper(t *testing.T) {
 	cfg := f.CreateDefaultConfig().(*jaegerexporter.Config)
 
 	qs := exporterhelper.CreateDefaultQueueSettings()
-	qs.Enabled = false
 	assert.Equal(t, &jaegerexporter.Config{
 		ExporterSettings: configmodels.ExporterSettings{
 			TypeVal: "jaeger",

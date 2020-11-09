@@ -89,19 +89,19 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	}
 }
 
-// CreateTraceExporter creates Jaeger Cassandra trace exporter.
+// CreateTracesExporter creates Jaeger Cassandra trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
-func (f Factory) CreateTraceExporter(
+func (f Factory) CreateTracesExporter(
 	_ context.Context,
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
-) (component.TraceExporter, error) {
+) (component.TracesExporter, error) {
 	config := cfg.(*Config)
 	factory, err := f.createStorageFactory(params, config)
 	if err != nil {
 		return nil, err
 	}
-	return exporter.NewSpanWriterExporter(cfg, factory,
+	return exporter.NewSpanWriterExporter(cfg, params, factory,
 		exporterhelper.WithTimeout(config.TimeoutSettings),
 		exporterhelper.WithQueue(config.QueueSettings),
 		exporterhelper.WithRetry(config.RetrySettings))

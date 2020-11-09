@@ -78,18 +78,18 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	}
 }
 
-// CreateTraceExporter creates Jaeger Kafka trace exporter.
+// CreateTracesExporter creates Jaeger Kafka trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
-func (f Factory) CreateTraceExporter(
+func (f Factory) CreateTracesExporter(
 	_ context.Context,
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
-) (component.TraceExporter, error) {
+) (component.TracesExporter, error) {
 	factory, err := f.createStorageFactory(params, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return exporter.NewSpanWriterExporter(cfg, factory)
+	return exporter.NewSpanWriterExporter(cfg, params, factory)
 }
 
 // CreateMetricsExporter is not implemented.

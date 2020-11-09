@@ -147,15 +147,15 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 	return samplingConf
 }
 
-// CreateTraceReceiver creates Jaeger receiver trace receiver.
+// CreateTracesReceiver creates Jaeger receiver trace receiver.
 // This function implements OTEL component.ReceiverFactory interface.
-func (f *Factory) CreateTraceReceiver(
+func (f *Factory) CreateTracesReceiver(
 	ctx context.Context,
 	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
-	nextConsumer consumer.TraceConsumer,
-) (component.TraceReceiver, error) {
-	return f.Wrapped.CreateTraceReceiver(ctx, params, cfg, nextConsumer)
+	nextConsumer consumer.TracesConsumer,
+) (component.TracesReceiver, error) {
+	return f.Wrapped.CreateTracesReceiver(ctx, params, cfg, nextConsumer)
 }
 
 // CreateMetricsReceiver creates a metrics receiver based on provided config.

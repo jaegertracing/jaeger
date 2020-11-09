@@ -15,7 +15,6 @@
 package esmodeltranslator
 
 import (
-	"encoding/binary"
 	"fmt"
 	"testing"
 	"time"
@@ -30,8 +29,9 @@ import (
 )
 
 var (
-	traceID = pdata.NewTraceID([]byte("0123456789abcdef"))
-	spanID  = pdata.NewSpanID([]byte("01234567"))
+	traceID = pdata.NewTraceID([16]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F})
+	spanID = pdata.NewSpanID([8]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07})
 )
 
 func TestAttributeToKeyValue(t *testing.T) {
@@ -129,7 +129,9 @@ func TestConvertSpan(t *testing.T) {
 	span.Links().Resize(1)
 	span.Links().At(0).InitEmpty()
 	span.Links().At(0).SetSpanID(spanID)
-	span.Links().At(0).SetTraceID(traceID)
+	traceIDZeroHigh := pdata.NewTraceID([16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07})
+	span.Links().At(0).SetTraceID(traceIDZeroHigh)
 
 	c := &Translator{
 		tagKeysAsFields: map[string]bool{"toTagMap": true},
@@ -143,15 +145,15 @@ func TestConvertSpan(t *testing.T) {
 			Resource:               resource,
 			InstrumentationLibrary: traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary(),
 			DBSpan: &dbmodel.Span{
-				TraceID:         "30313233343536373839616263646566",
-				SpanID:          "3031323334353637",
+				TraceID:         "000102030405060708090a0b0c0d0e0f",
+				SpanID:          "0001020304050607",
 				StartTime:       1000,
 				Duration:        1000,
 				OperationName:   "root",
 				StartTimeMillis: 1,
 				Tags: []dbmodel.KeyValue{
 					{Key: "span.kind", Type: dbmodel.StringType, Value: "client"},
-					{Key: "status.code", Type: dbmodel.StringType, Value: "STATUS_CODE_CANCELLED"},
+					{Key: "status.code", Type: dbmodel.StringType, Value: "STATUS_CODE_OK"},
 					{Key: "error", Type: dbmodel.BoolType, Value: "true"},
 					{Key: "status.message", Type: dbmodel.StringType, Value: "messagetext"},
 					{Key: "foo", Type: dbmodel.BoolType, Value: "true"},
@@ -163,14 +165,20 @@ func TestConvertSpan(t *testing.T) {
 					{Key: "event", Value: "eventName", Type: dbmodel.StringType},
 					{Key: "foo", Value: "bar", Type: dbmodel.StringType}}, Timestamp: 500}},
 				References: []dbmodel.Reference{
-					{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.ChildOf},
-					{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.FollowsFrom}},
+					{SpanID: "0001020304050607", TraceID: "000102030405060708090a0b0c0d0e0f", RefType: dbmodel.ChildOf},
+					{SpanID: "0001020304050607", TraceID: "0001020304050607", RefType: dbmodel.FollowsFrom}},
 				Process: dbmodel.Process{
 					ServiceName: "myservice",
 					Tags:        []dbmodel.KeyValue{{Key: "num", Value: "16.66", Type: dbmodel.Float64Type}},
 				},
 			},
 		}, spansData[0])
+}
+
+func BenchmarkConvertSpanID(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _ = convertSpanID(spanID)
+	}
 }
 
 func TestSpanEmptyRef(t *testing.T) {
@@ -190,8 +198,8 @@ func TestSpanEmptyRef(t *testing.T) {
 			Resource:               traces.ResourceSpans().At(0).Resource(),
 			InstrumentationLibrary: traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary(),
 			DBSpan: &dbmodel.Span{
-				TraceID:         "30313233343536373839616263646566",
-				SpanID:          "3031323334353637",
+				TraceID:         "000102030405060708090a0b0c0d0e0f",
+				SpanID:          "0001020304050607",
 				StartTime:       1000,
 				Duration:        1000,
 				OperationName:   "root",
@@ -215,26 +223,16 @@ func TestEmpty(t *testing.T) {
 }
 
 func TestErrorIDs(t *testing.T) {
-	zero64Bytes := make([]byte, 16)
-	binary.LittleEndian.PutUint64(zero64Bytes, 0)
-	binary.LittleEndian.PutUint64(zero64Bytes, 0)
+	var zero64Bytes [16]byte
+	var zero32Bytes [8]byte
 	tests := []struct {
 		spanID  pdata.SpanID
 		traceID pdata.TraceID
 		err     string
 	}{
 		{
-			traceID: pdata.NewTraceID([]byte("invalid-%")),
-			err:     "TraceID does not have 16 bytes",
-		},
-		{
 			traceID: traceID,
-			spanID:  pdata.NewSpanID([]byte("invalid-%")),
-			err:     "SpanID does not have 8 bytes",
-		},
-		{
-			traceID: traceID,
-			spanID:  pdata.NewSpanID(zero64Bytes[:8]),
+			spanID:  pdata.NewSpanID(zero32Bytes),
 			err:     errZeroSpanID.Error(),
 		},
 		{
