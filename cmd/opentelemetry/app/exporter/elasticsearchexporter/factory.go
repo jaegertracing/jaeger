@@ -72,7 +72,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	}
 }
 
-// CreateTraceExporter creates Jaeger Elasticsearch trace exporter.
+// CreateTracesExporter creates Jaeger Elasticsearch trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
 func (Factory) CreateTracesExporter(
 	ctx context.Context,

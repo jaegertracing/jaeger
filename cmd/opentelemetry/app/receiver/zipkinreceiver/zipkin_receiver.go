@@ -55,7 +55,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Receiver {
 	return cfg
 }
 
-// CreateTraceReceiver creates Zipkin receiver trace receiver.
+// CreateTracesReceiver creates Zipkin receiver trace receiver.
 // This function implements OTEL component.ReceiverFactoryOld interface.
 func (f Factory) CreateTracesReceiver(
 	ctx context.Context,

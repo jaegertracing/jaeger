@@ -67,7 +67,7 @@ func (f Factory) GetTags() map[string]string {
 	return tags
 }
 
-// CreateTraceProcessor creates resource processor.
+// CreateTracesProcessor creates resource processor.
 // This function implements OTEL component.ProcessorFactoryOld interface.
 func (f Factory) CreateTracesProcessor(
 	ctx context.Context,

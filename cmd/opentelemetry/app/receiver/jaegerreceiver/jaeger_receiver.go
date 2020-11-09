@@ -147,7 +147,7 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 	return samplingConf
 }
 
-// CreateTraceReceiver creates Jaeger receiver trace receiver.
+// CreateTracesReceiver creates Jaeger receiver trace receiver.
 // This function implements OTEL component.ReceiverFactory interface.
 func (f *Factory) CreateTracesReceiver(
 	ctx context.Context,

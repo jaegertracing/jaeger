@@ -167,7 +167,7 @@ func toTime(nano pdata.TimestampUnixNano) time.Time {
 }
 
 func references(links pdata.SpanLinkSlice, parentSpanID pdata.SpanID, traceID dbmodel.TraceID) ([]dbmodel.Reference, error) {
-	parentSpanIDSet := len(parentSpanID.Bytes()) != 0
+	parentSpanIDSet := parentSpanID.IsValid()
 	if !parentSpanIDSet && links.Len() == 0 {
 		return emptyReferenceList, nil
 	}

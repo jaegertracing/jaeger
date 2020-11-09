@@ -104,7 +104,7 @@ func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	return cfg
 }
 
-// CreateTraceReceiver creates Jaeger receiver trace receiver.
+// CreateTracesReceiver creates Jaeger receiver trace receiver.
 // This function implements OTEL component.ReceiverFactory interface.
 func (f *Factory) CreateTracesReceiver(
 	ctx context.Context,

@@ -143,8 +143,8 @@ func TestConvertSpan(t *testing.T) {
 			Resource:               resource,
 			InstrumentationLibrary: traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary(),
 			DBSpan: &dbmodel.Span{
-				TraceID:         "30313233343536373839616263646566",
-				SpanID:          "3031323334353637",
+				TraceID:         "000102030405060708090a0b0c0d0e0f",
+				SpanID:          "0001020304050607",
 				StartTime:       1000,
 				Duration:        1000,
 				OperationName:   "root",
@@ -163,8 +163,8 @@ func TestConvertSpan(t *testing.T) {
 					{Key: "event", Value: "eventName", Type: dbmodel.StringType},
 					{Key: "foo", Value: "bar", Type: dbmodel.StringType}}, Timestamp: 500}},
 				References: []dbmodel.Reference{
-					{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.ChildOf},
-					{SpanID: "3031323334353637", TraceID: "30313233343536373839616263646566", RefType: dbmodel.FollowsFrom}},
+					{SpanID: "0001020304050607", TraceID: "000102030405060708090a0b0c0d0e0f", RefType: dbmodel.ChildOf},
+					{SpanID: "0001020304050607", TraceID: "000102030405060708090a0b0c0d0e0f", RefType: dbmodel.FollowsFrom}},
 				Process: dbmodel.Process{
 					ServiceName: "myservice",
 					Tags:        []dbmodel.KeyValue{{Key: "num", Value: "16.66", Type: dbmodel.Float64Type}},
@@ -190,21 +190,15 @@ func TestSpanEmptyRef(t *testing.T) {
 			Resource:               traces.ResourceSpans().At(0).Resource(),
 			InstrumentationLibrary: traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary(),
 			DBSpan: &dbmodel.Span{
-				TraceID:         "30313233343536373839616263646566",
-				SpanID:          "3031323334353637",
+				TraceID:         "000102030405060708090a0b0c0d0e0f",
+				SpanID:          "0001020304050607",
 				StartTime:       1000,
 				Duration:        1000,
 				OperationName:   "root",
 				StartTimeMillis: 1,
-				Tags:            []dbmodel.KeyValue{}, // should not be nil
-				Logs:            []dbmodel.Log{},      // should not be nil
-				References: []dbmodel.Reference{
-					{
-						RefType: "CHILD_OF",
-						TraceID: "30313233343536373839616263646566",
-						SpanID:  "3031323334353637",
-					},
-				},
+				Tags:            []dbmodel.KeyValue{},  // should not be nil
+				Logs:            []dbmodel.Log{},       // should not be nil
+				References:      []dbmodel.Reference{}, // should not be nil
 				Process: dbmodel.Process{
 					ServiceName: "myservice",
 					Tags:        nil,
@@ -270,7 +264,6 @@ func addSpan(traces pdata.Traces, name string, traceID pdata.TraceID, spanID pda
 	span.SetName(name)
 	span.SetTraceID(traceID)
 	span.SetSpanID(spanID)
-	span.SetParentSpanID(spanID)
 	span.SetStartTime(pdata.TimestampUnixNano(time.Now().UnixNano()))
 	span.SetEndTime(pdata.TimestampUnixNano(time.Now().UnixNano()))
 	return span

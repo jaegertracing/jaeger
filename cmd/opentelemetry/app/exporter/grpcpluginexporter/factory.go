@@ -65,7 +65,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	}
 }
 
-// CreateTraceExporter creates Jaeger gRPC trace exporter.
+// CreateTracesExporter creates Jaeger gRPC trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
 func (f Factory) CreateTracesExporter(
 	_ context.Context,
