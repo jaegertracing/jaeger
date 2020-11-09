@@ -236,10 +236,15 @@ func convertTraceID(traceID pdata.TraceID) (dbmodel.TraceID, error) {
 	if !traceID.IsValid() {
 		return "", errZeroTraceID
 	}
-	src := traceID.Bytes()
-	dst := make([]byte, hex.EncodedLen(len(src)))
-	hex.Encode(dst, src[:])
-	return dbmodel.TraceID(dst), nil
+	high, low := tracetranslator.BytesToUInt64TraceID(traceID.Bytes())
+	return dbmodel.TraceID(traceIDToString(high, low)), nil
+}
+
+func traceIDToString(high, low uint64) string {
+	if high == 0 {
+		return fmt.Sprintf("%016x", low)
+	}
+	return fmt.Sprintf("%016x%016x", high, low)
 }
 
 func (c *Translator) process(resource pdata.Resource) *dbmodel.Process {

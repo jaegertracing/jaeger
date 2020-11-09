@@ -129,7 +129,9 @@ func TestConvertSpan(t *testing.T) {
 	span.Links().Resize(1)
 	span.Links().At(0).InitEmpty()
 	span.Links().At(0).SetSpanID(spanID)
-	span.Links().At(0).SetTraceID(traceID)
+	traceIDZeroHigh := pdata.NewTraceID([16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07})
+	span.Links().At(0).SetTraceID(traceIDZeroHigh)
 
 	c := &Translator{
 		tagKeysAsFields: map[string]bool{"toTagMap": true},
@@ -164,7 +166,7 @@ func TestConvertSpan(t *testing.T) {
 					{Key: "foo", Value: "bar", Type: dbmodel.StringType}}, Timestamp: 500}},
 				References: []dbmodel.Reference{
 					{SpanID: "0001020304050607", TraceID: "000102030405060708090a0b0c0d0e0f", RefType: dbmodel.ChildOf},
-					{SpanID: "0001020304050607", TraceID: "000102030405060708090a0b0c0d0e0f", RefType: dbmodel.FollowsFrom}},
+					{SpanID: "0001020304050607", TraceID: "0001020304050607", RefType: dbmodel.FollowsFrom}},
 				Process: dbmodel.Process{
 					ServiceName: "myservice",
 					Tags:        []dbmodel.KeyValue{{Key: "num", Value: "16.66", Type: dbmodel.Float64Type}},
