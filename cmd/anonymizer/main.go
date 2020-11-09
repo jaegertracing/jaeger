@@ -15,101 +15,62 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
 	app "github.com/jaegertracing/jaeger/cmd/anonymizer/app"
+	query "github.com/jaegertracing/jaeger/cmd/anonymizer/app/query"
 	writer "github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var logger, _ = zap.NewDevelopment()
 
-type grpcClient struct {
-	api_v2.QueryServiceClient
-	conn *grpc.ClientConn
-}
-
-func newGRPCClient(addr string) *grpcClient {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithInsecure())
-	if err != nil {
-		logger.Fatal("failed to connect with the jaeger-query service", zap.Error(err))
-	}
-
-	return &grpcClient{
-		QueryServiceClient: api_v2.NewQueryServiceClient(conn),
-		conn:               conn,
-	}
-}
-
 func main() {
+	var options = app.Options{}
+
 	var command = &cobra.Command{
 		Use:   "jaeger-anonymizer",
 		Short: "Jaeger anonymizer hashes fields of a trace for easy sharing",
 		Long:  `Jaeger anonymizer queries Jaeger query for a trace, anonymizes fields, and store in file`,
 		Run: func(cmd *cobra.Command, args []string) {
-			prefix := app.OutputDir + "/" + app.TraceID
+			prefix := options.OutputDir + "/" + options.TraceID
 			conf := writer.Config{
-				MaxSpansCount:  app.MaxSpansCount,
-				CapturedFile:   prefix + ".orig",
-				AnonymizedFile: prefix + ".anon",
-				MappingFile:    prefix + ".map",
+				MaxSpansCount:    options.MaxSpansCount,
+				CapturedFile:     prefix + ".original",
+				AnonymizedFile:   prefix + ".anonymized",
+				MappingFile:      prefix + ".mapping",
+				HashStandardTags: options.HashStandardTags,
+				HashCustomTags:   options.HashCustomTags,
+				HashLogs:         options.HashLogs,
+				HashProcess:      options.HashProcess,
 			}
 
-			writer, err := writer.New(conf, logger, app.HashStandardTags, app.HashCustomTags, app.HashLogs, app.HashProcess)
+			writer, err := writer.New(conf, logger)
 			if err != nil {
 				logger.Error("error while creating writer object", zap.Error(err))
 			}
 
-			queryEndpoint := app.QueryGRPCHost + ":" + strconv.Itoa(app.QueryGRPCPort)
+			queryEndpoint := options.QueryGRPCHost + ":" + strconv.Itoa(options.QueryGRPCPort)
 			logger.Info(queryEndpoint)
 
-			client := newGRPCClient(queryEndpoint)
-			defer client.conn.Close()
-
-			traceID, err := model.TraceIDFromString(app.TraceID)
+			query, err := query.New(queryEndpoint, logger)
 			if err != nil {
-				logger.Fatal("failed to convert the provided trace id", zap.Error(err))
-			}
-			logger.Info(app.TraceID)
-
-			response, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-				TraceID: traceID,
-			})
-			if err != nil {
-				logger.Fatal("failed to fetch the provided trace id", zap.Error(err))
+				logger.Error("error while creating query object", zap.Error(err))
 			}
 
-			spanResponseChunk, err := response.Recv()
-			if err == spanstore.ErrTraceNotFound {
-				logger.Fatal("failed to find the provided trace id", zap.Error(err))
-			}
-			if err != nil {
-				logger.Fatal("failed to fetch spans of provided trace id", zap.Error(err))
-			}
-
-			spans := spanResponseChunk.GetSpans()
-
+			spans := query.QueryTrace(options.TraceID)
 			for _, span := range spans {
 				writer.WriteSpan(&span)
 			}
 		},
 	}
 
-	app.AddFlags(command)
+	options.AddFlags(command)
 
 	command.AddCommand(version.Command())
 

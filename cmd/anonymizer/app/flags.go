@@ -18,66 +18,74 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var QueryGRPCPort, MaxSpansCount int
-var QueryGRPCHost, TraceID, OutputDir string
-var HashStandardTags, HashCustomTags, HashLogs, HashProcess bool
+type Options struct {
+	QueryGRPCPort    int
+	QueryGRPCHost    string
+	MaxSpansCount    int
+	TraceID          string
+	OutputDir        string
+	HashStandardTags bool
+	HashCustomTags   bool
+	HashLogs         bool
+	HashProcess      bool
+}
 
 const (
-	queryGRPCHostFlag    = "query.host"
-	queryGRPCPortFlag    = "query.port"
-	outputDirFlag        = "output.dir"
-	traceIDFlag          = "trace.id"
-	hashStandardTagsFlag = "hash.standardtags"
-	hashCustomTagsFlag   = "hash.customtags"
-	hashLogsFlag         = "hash.logs"
-	hashProcessFlag      = "hash.process"
-	maxSpansCount        = "max.spanscount"
+	queryGRPCHostFlag    = "query-host"
+	queryGRPCPortFlag    = "query-port"
+	outputDirFlag        = "output-dir"
+	traceIDFlag          = "trace-id"
+	hashStandardTagsFlag = "hash-standard-tags"
+	hashCustomTagsFlag   = "hash-custom-tags"
+	hashLogsFlag         = "hash-logs"
+	hashProcessFlag      = "hash-process"
+	maxSpansCount        = "max-spans-count"
 )
 
 // AddFlags adds flags for anonymizer main program
-func AddFlags(command *cobra.Command) {
+func (o *Options) AddFlags(command *cobra.Command) {
 	command.Flags().StringVar(
-		&QueryGRPCHost,
+		&o.QueryGRPCHost,
 		queryGRPCHostFlag,
 		DefaultQueryGRPCHost,
 		"hostname of the jaeger-query endpoint")
 	command.Flags().IntVar(
-		&QueryGRPCPort,
+		&o.QueryGRPCPort,
 		queryGRPCPortFlag,
 		DefaultQueryGRPCPort,
 		"port of the jaeger-query endpoint")
 	command.Flags().StringVar(
-		&OutputDir,
+		&o.OutputDir,
 		outputDirFlag,
 		DefaultOutputDir,
 		"directory to store the anonymized trace")
 	command.Flags().StringVar(
-		&TraceID,
+		&o.TraceID,
 		traceIDFlag,
 		"",
 		"trace-id of trace to anonymize")
 	command.Flags().BoolVar(
-		&HashStandardTags,
+		&o.HashStandardTags,
 		hashStandardTagsFlag,
 		DefaultHashStandardTags,
 		"whether to hash standard tags")
 	command.Flags().BoolVar(
-		&HashCustomTags,
+		&o.HashCustomTags,
 		hashCustomTagsFlag,
 		DefaultHashCustomTags,
 		"whether to hash custom tags")
 	command.Flags().BoolVar(
-		&HashLogs,
+		&o.HashLogs,
 		hashLogsFlag,
 		DefaultHashLogs,
 		"whether to hash logs")
 	command.Flags().BoolVar(
-		&HashProcess,
+		&o.HashProcess,
 		hashProcessFlag,
 		DefaultHashProcess,
 		"whether to hash process")
 	command.Flags().IntVar(
-		&MaxSpansCount,
+		&o.MaxSpansCount,
 		maxSpansCount,
 		DefaultMaxSpansCount,
 		"maximum number of spans to anonymize")

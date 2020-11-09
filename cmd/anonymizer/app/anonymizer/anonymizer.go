@@ -53,19 +53,24 @@ type mapping struct {
 //
 // The mapping from original to obfuscated strings is stored in a file and can be reused between runs.
 type Anonymizer struct {
-	mappingFile      string
-	logger           *zap.Logger
-	lock             sync.Mutex
-	mapping          mapping
-	hashStandardTags bool
-	hashCustomTags   bool
-	hashLogs         bool
-	hashProcess      bool
+	mappingFile       string
+	logger            *zap.Logger
+	lock              sync.Mutex
+	mapping           mapping
+	anonymizerOptions *AnonymizerOptions
+}
+
+// AnonymizerOptions represents the various options with which the anonymizer can be configured.
+type AnonymizerOptions struct {
+	HashStandardTags bool
+	HashCustomTags   bool
+	HashLogs         bool
+	HashProcess      bool
 }
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
 // obfuscated strings, in case later investigations require looking at the original traces.
-func New(mappingFile string, logger *zap.Logger, hashStandardTags, hashCustomTags, hashLogs, hashProcess bool) *Anonymizer {
+func New(mappingFile string, options *AnonymizerOptions, logger *zap.Logger) *Anonymizer {
 	a := &Anonymizer{
 		mappingFile: mappingFile,
 		logger:      logger,
@@ -73,10 +78,7 @@ func New(mappingFile string, logger *zap.Logger, hashStandardTags, hashCustomTag
 			Services:   make(map[string]string),
 			Operations: make(map[string]string),
 		},
-		hashStandardTags: hashStandardTags,
-		hashCustomTags:   hashCustomTags,
-		hashLogs:         hashLogs,
-		hashProcess:      hashProcess,
+		anonymizerOptions: options,
 	}
 	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
 		dat, err := ioutil.ReadFile(filepath.Clean(mappingFile))
@@ -146,18 +148,18 @@ func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
 
 	outputTags := filterStandardTags(span.Tags)
 	// when true, the allowedTags are hashed and when false they are preserved as it is
-	if a.hashStandardTags {
+	if a.anonymizerOptions.HashStandardTags {
 		outputTags = hashTags(outputTags)
 	}
 	// when true, all tags other than allowedTags are hashed, when false they are dropped
-	if a.hashCustomTags {
+	if a.anonymizerOptions.HashCustomTags {
 		customTags := hashTags(filterCustomTags(span.Tags))
 		outputTags = append(outputTags, customTags...)
 	}
 	span.Tags = outputTags
 
 	// when true, logs are hashed, when false, they are dropped
-	if a.hashLogs {
+	if a.anonymizerOptions.HashLogs {
 		for _, log := range span.Logs {
 			log.Fields = hashTags(log.Fields)
 		}
@@ -168,7 +170,7 @@ func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
 	span.Process.ServiceName = a.mapServiceName(service)
 
 	// when true, process tags are hashed, when false they are dropped
-	if a.hashProcess {
+	if a.anonymizerOptions.HashProcess {
 		span.Process.Tags = hashTags(span.Process.Tags)
 	} else {
 		span.Process.Tags = nil

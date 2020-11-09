@@ -30,10 +30,14 @@ import (
 
 // Config contains parameters to NewWriter.
 type Config struct {
-	MaxSpansCount  int    `yaml:"max_spans_count" name:"max_spans_count"`
-	CapturedFile   string `yaml:"captured_file" name:"captured_file"`
-	AnonymizedFile string `yaml:"anonymized_file" name:"anonymized_file"`
-	MappingFile    string `yaml:"mapping_file" name:"mapping_file"`
+	MaxSpansCount    int    `yaml:"max_spans_count" name:"max_spans_count"`
+	CapturedFile     string `yaml:"captured_file" name:"captured_file"`
+	AnonymizedFile   string `yaml:"anonymized_file" name:"anonymized_file"`
+	MappingFile      string `yaml:"mapping_file" name:"mapping_file"`
+	HashStandardTags bool   `yaml:"hash_standard_tags" name:"hash_standard_tags"`
+	HashCustomTags   bool   `yaml:"hash_custom_tags" name:"hash_custom_tags"`
+	HashLogs         bool   `yaml:"hash_logs" name:"hash_logs"`
+	HashProcess      bool   `yaml:"hash_process" name:"hash_process"`
 }
 
 // Writer is a span Writer that obfuscates the span and writes it to a JSON file.
@@ -48,7 +52,7 @@ type Writer struct {
 }
 
 // New creates an Writer
-func New(config Config, logger *zap.Logger, hashStandardTags, hashCustomTags, hashLogs, hashProcess bool) (*Writer, error) {
+func New(config Config, logger *zap.Logger) (*Writer, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -75,12 +79,20 @@ func New(config Config, logger *zap.Logger, hashStandardTags, hashCustomTags, ha
 	if err != nil {
 		return nil, fmt.Errorf("cannot write tp output file: %w", err)
 	}
+
+	options := &anonymizer.AnonymizerOptions{
+		HashStandardTags: config.HashStandardTags,
+		HashCustomTags:   config.HashCustomTags,
+		HashLogs:         config.HashLogs,
+		HashProcess:      config.HashProcess,
+	}
+
 	return &Writer{
 		config:         config,
 		logger:         logger,
 		capturedFile:   cf,
 		anonymizedFile: af,
-		anonymizer:     anonymizer.New(config.MappingFile, logger, hashStandardTags, hashCustomTags, hashLogs, hashProcess),
+		anonymizer:     anonymizer.New(config.MappingFile, options, logger),
 	}, nil
 }
 
