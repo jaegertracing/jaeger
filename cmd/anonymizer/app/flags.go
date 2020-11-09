@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Options represent configurable parameters for jaeger-anonymizer
 type Options struct {
 	QueryGRPCPort    int
 	QueryGRPCHost    string
