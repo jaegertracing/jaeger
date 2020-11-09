@@ -18,19 +18,19 @@ import "github.com/jaegertracing/jaeger/ports"
 
 const (
 	// DefaultQueryGRPCHost is the default host for jaeger-query endpoint
-	DefaultQueryGRPCHost    = "localhost"
+	DefaultQueryGRPCHost = "localhost"
 	// DefaultQueryGRPCPort is the default port for jaeger-query endpoint
-	DefaultQueryGRPCPort    = ports.QueryHTTP
+	DefaultQueryGRPCPort = ports.QueryHTTP
 	// DefaultOutputDir is the default output directory for spans
-	DefaultOutputDir        = "/tmp"
+	DefaultOutputDir = "/tmp"
 	// DefaultHashStandardTags is the default flag for whether to hash standard tags
 	DefaultHashStandardTags = true
 	// DefaultHashCustomTags is the default flag for whether to hash custom tags
-	DefaultHashCustomTags   = false
+	DefaultHashCustomTags = false
 	// DefaultHashLogs is the default flag for whether to hash logs
-	DefaultHashLogs         = false
+	DefaultHashLogs = false
 	// DefaultHashProcess is the default flag for whether to hash process
-	DefaultHashProcess      = false
+	DefaultHashProcess = false
 	// DefaultMaxSpansCount is the default value of maximum number of spans
-	DefaultMaxSpansCount    = -1
+	DefaultMaxSpansCount = -1
 )
