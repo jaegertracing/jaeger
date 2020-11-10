@@ -51,10 +51,6 @@ type Server struct {
 	unavailableChannel chan healthcheck.Status
 }
 
-var (
-	errSharedTLSPort = errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
-)
-
 // NewServer creates and initializes Server
 func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
 
@@ -68,7 +64,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 	}
 
 	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && (grpcPort == httpPort) {
-		return nil, errSharedTLSPort
+		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
 	grpcServer, err := createGRPCServer(querySvc, options, logger, tracer)
@@ -143,20 +139,19 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
+	server := &http.Server{
+		Handler: recoveryHandler(handler),
+	}
+
 	if queryOpts.TLSHTTP.Enabled {
 		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
 		if err != nil {
 			return nil, err
 		}
-		return &http.Server{
-			Handler:   recoveryHandler(handler),
-			TLSConfig: tlsCfg,
-		}, nil
+		server.TLSConfig = tlsCfg
 
 	}
-	return &http.Server{
-		Handler: recoveryHandler(handler),
-	}, nil
+	return server, nil
 }
 
 // initListener initialises listeners of the server

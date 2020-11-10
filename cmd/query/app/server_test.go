@@ -56,6 +56,7 @@ func TestServerError(t *testing.T) {
 }
 
 func TestCreateTLSServerSinglePortError(t *testing.T) {
+	// When TLS is enabled, and the host-port of both servers are the same, this leads to error, as TLS-enabled server is required to run on dedicated port.
 	tlsCfg := tlscfg.Options{
 		Enabled:      true,
 		CertPath:     testCertKeyLocation + "/example-server-cert.pem",
