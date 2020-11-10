@@ -36,7 +36,7 @@ func TestCreateTraceExporter(t *testing.T) {
 	factory := &Factory{OptionsFactory: func() *storageGrpc.Options {
 		return opts
 	}}
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
+	exporter, err := factory.CreateTracesExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
 	assert.Contains(t, err.Error(), "error attempting to connect to plugin rpc client: fork/exec : no such file or directory")
 }

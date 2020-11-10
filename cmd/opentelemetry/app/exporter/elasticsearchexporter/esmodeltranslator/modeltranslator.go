@@ -15,6 +15,7 @@
 package esmodeltranslator
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -167,7 +168,7 @@ func toTime(nano pdata.TimestampUnixNano) time.Time {
 }
 
 func references(links pdata.SpanLinkSlice, parentSpanID pdata.SpanID, traceID dbmodel.TraceID) ([]dbmodel.Reference, error) {
-	parentSpanIDSet := len(parentSpanID.Bytes()) != 0
+	parentSpanIDSet := parentSpanID.IsValid()
 	if !parentSpanIDSet && links.Len() == 0 {
 		return emptyReferenceList, nil
 	}
@@ -222,24 +223,20 @@ func references(links pdata.SpanLinkSlice, parentSpanID pdata.SpanID, traceID db
 }
 
 func convertSpanID(spanID pdata.SpanID) (dbmodel.SpanID, error) {
-	spanIDInt, err := tracetranslator.BytesToUInt64SpanID(spanID.Bytes())
-	if err != nil {
-		return "", err
-	}
-	if spanIDInt == 0 {
+	if !spanID.IsValid() {
 		return "", errZeroSpanID
 	}
-	return dbmodel.SpanID(fmt.Sprintf("%016x", spanIDInt)), nil
+	src := spanID.Bytes()
+	dst := make([]byte, hex.EncodedLen(len(src)))
+	hex.Encode(dst, src[:])
+	return dbmodel.SpanID(dst), nil
 }
 
 func convertTraceID(traceID pdata.TraceID) (dbmodel.TraceID, error) {
-	high, low, err := tracetranslator.BytesToUInt64TraceID(traceID.Bytes())
-	if err != nil {
-		return "", err
-	}
-	if low == 0 && high == 0 {
+	if !traceID.IsValid() {
 		return "", errZeroTraceID
 	}
+	high, low := tracetranslator.BytesToUInt64TraceID(traceID.Bytes())
 	return dbmodel.TraceID(traceIDToString(high, low)), nil
 }
 

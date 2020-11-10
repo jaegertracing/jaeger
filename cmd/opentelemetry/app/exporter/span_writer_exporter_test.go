@@ -24,6 +24,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.uber.org/zap"
@@ -35,21 +36,21 @@ import (
 )
 
 func TestNew_closableWriter(t *testing.T) {
-	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{spanWriter: spanWriter{}})
+	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, component.ExporterCreateParams{Logger: zap.NewNop()}, mockStorageFactory{spanWriter: spanWriter{}})
 	require.NoError(t, err)
 	assert.NotNil(t, exporter)
 	assert.Nil(t, exporter.Shutdown(context.Background()))
 }
 
 func TestNew_noClosableWriter(t *testing.T) {
-	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{spanWriter: noClosableWriter{}})
+	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, component.ExporterCreateParams{Logger: zap.NewNop()}, mockStorageFactory{spanWriter: noClosableWriter{}})
 	require.NoError(t, err)
 	assert.NotNil(t, exporter)
 	assert.Nil(t, exporter.Shutdown(context.Background()))
 }
 
 func TestNew_failedToCreateWriter(t *testing.T) {
-	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{err: errors.New("failed to create writer"), spanWriter: spanWriter{}})
+	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, component.ExporterCreateParams{Logger: zap.NewNop()}, mockStorageFactory{err: errors.New("failed to create writer"), spanWriter: spanWriter{}})
 	require.Nil(t, exporter)
 	assert.Error(t, err, "failed to create writer")
 }
@@ -74,8 +75,9 @@ func AddSpan(traces pdata.Traces, name string, traceID pdata.TraceID, spanID pda
 }
 
 func TestStore(t *testing.T) {
-	traceID := pdata.NewTraceID([]byte("0123456789abcdef"))
-	spanID := pdata.NewSpanID([]byte("01234567"))
+	traceID := pdata.NewTraceID([16]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F})
+	spanID := pdata.NewSpanID([8]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07})
 	tests := []struct {
 		storage         store
 		data            pdata.Traces
@@ -94,8 +96,8 @@ func TestStore(t *testing.T) {
 		{
 			caption: "wrong data",
 			storage: store{Writer: spanWriter{}, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), "memory")},
-			data:    AddSpan(traces(), "", pdata.NewTraceID(nil), pdata.NewSpanID(nil)),
-			err:     "TraceID is nil",
+			data:    AddSpan(traces(), "", pdata.NewTraceID([16]byte{}), pdata.NewSpanID([8]byte{})),
+			err:     "Permanent error: OC span has an all zeros trace ID",
 			dropped: 1,
 		},
 		{

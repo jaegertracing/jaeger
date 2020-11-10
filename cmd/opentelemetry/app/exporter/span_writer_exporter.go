@@ -33,7 +33,7 @@ import (
 )
 
 // NewSpanWriterExporter returns component.TraceExporter
-func NewSpanWriterExporter(config configmodels.Exporter, factory storage.Factory, opts ...exporterhelper.ExporterOption) (component.TraceExporter, error) {
+func NewSpanWriterExporter(config configmodels.Exporter, params component.ExporterCreateParams, factory storage.Factory, opts ...exporterhelper.ExporterOption) (component.TracesExporter, error) {
 	spanWriter, err := factory.CreateSpanWriter()
 	if err != nil {
 		return nil, err
@@ -41,6 +41,7 @@ func NewSpanWriterExporter(config configmodels.Exporter, factory storage.Factory
 	storage := store{Writer: spanWriter, storageNameTag: tag.Insert(storagemetrics.TagExporterName(), config.Name())}
 	return exporterhelper.NewTraceExporter(
 		config,
+		params.Logger,
 		storage.traceDataPusher,
 		opts...)
 }
