@@ -67,14 +67,14 @@ func (f Factory) GetTags() map[string]string {
 	return tags
 }
 
-// CreateTraceProcessor creates resource processor.
+// CreateTracesProcessor creates resource processor.
 // This function implements OTEL component.ProcessorFactoryOld interface.
-func (f Factory) CreateTraceProcessor(
+func (f Factory) CreateTracesProcessor(
 	ctx context.Context,
 	params component.ProcessorCreateParams,
 	cfg configmodels.Processor,
-	nextConsumer consumer.TraceConsumer,
-) (component.TraceProcessor, error) {
+	nextConsumer consumer.TracesConsumer,
+) (component.TracesProcessor, error) {
 	c := cfg.(*resourceprocessor.Config)
 	attributeKeys := map[string]bool{}
 	for _, kv := range c.AttributesActions {
@@ -91,7 +91,7 @@ func (f Factory) CreateTraceProcessor(
 			})
 		}
 	}
-	return f.Wrapped.CreateTraceProcessor(ctx, params, cfg, nextConsumer)
+	return f.Wrapped.CreateTracesProcessor(ctx, params, cfg, nextConsumer)
 }
 
 // CreateMetricsProcessor creates a resource processor.

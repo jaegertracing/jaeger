@@ -174,8 +174,8 @@ If you would like to add your organization to the list, please comment on our
 [doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
-[ci-img]: https://travis-ci.org/jaegertracing/jaeger.svg?branch=master
-[ci]: https://travis-ci.org/jaegertracing/jaeger
+[ci-img]: https://travis-ci.com/jaegertracing/jaeger.svg?branch=master
+[ci]: https://travis-ci.com/jaegertracing/jaeger
 [cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/graph/badge.svg
 [cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/
 [dapper]: https://research.google.com/pubs/pub36356.html
