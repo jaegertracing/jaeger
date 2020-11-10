@@ -57,7 +57,7 @@ type Anonymizer struct {
 	logger      *zap.Logger
 	lock        sync.Mutex
 	mapping     mapping
-	options     *Options
+	options     Options
 }
 
 // Options represents the various options with which the anonymizer can be configured.
@@ -70,7 +70,7 @@ type Options struct {
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
 // obfuscated strings, in case later investigations require looking at the original traces.
-func New(mappingFile string, options *Options, logger *zap.Logger) *Anonymizer {
+func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 	a := &Anonymizer{
 		mappingFile: mappingFile,
 		logger:      logger,

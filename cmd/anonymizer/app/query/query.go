@@ -16,6 +16,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -26,66 +27,52 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// GrpcClient represents a grpc-client to jaeger-query
-type GrpcClient struct {
-	api_v2.QueryServiceClient
-	conn *grpc.ClientConn
-}
-
 // Query represents a jaeger-query's query for trace-id
 type Query struct {
-	grpcClient *GrpcClient
-	logger     *zap.Logger
+	api_v2.QueryServiceClient
+	conn   *grpc.ClientConn
+	logger *zap.Logger
 }
 
-// newGRPCClient returns a new GrpcClient
-func newGRPCClient(addr string, logger *zap.Logger) *GrpcClient {
+// New creates a Query object
+func New(addr string, logger *zap.Logger) (*Query, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	conn, err := grpc.DialContext(ctx, addr, grpc.WithInsecure())
 	if err != nil {
-		logger.Fatal("failed to connect with the jaeger-query service", zap.Error(err))
+		return nil, fmt.Errorf("failed to connect with the jaeger-query service: %w", err)
 	}
-
-	return &GrpcClient{
-		QueryServiceClient: api_v2.NewQueryServiceClient(conn),
-		conn:               conn,
-	}
-}
-
-// New creates a Query object
-func New(addr string, logger *zap.Logger) (*Query, error) {
-	client := newGRPCClient(addr, logger)
 
 	return &Query{
-		grpcClient: client,
-		logger:     logger,
+		QueryServiceClient: api_v2.NewQueryServiceClient(conn),
+		conn:               conn,
+		logger:             logger,
 	}, nil
 }
 
 // QueryTrace queries for a trace and returns all spans inside it
-func (q *Query) QueryTrace(traceID string) []model.Span {
+func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 	mTraceID, err := model.TraceIDFromString(traceID)
 	if err != nil {
-		q.logger.Fatal("failed to convert the provided trace id", zap.Error(err))
+		return nil, fmt.Errorf("failed to convert the provided trace id: %w", err)
 	}
 
-	response, err := q.grpcClient.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+	response, err := q.GetTrace(context.Background(), &api_v2.GetTraceRequest{
 		TraceID: mTraceID,
 	})
 	if err != nil {
-		q.logger.Fatal("failed to fetch the provided trace id", zap.Error(err))
+		return nil, fmt.Errorf("failed to fetch the provided trace id: %w", err)
 	}
 
 	spanResponseChunk, err := response.Recv()
 	if err == spanstore.ErrTraceNotFound {
-		q.logger.Fatal("failed to find the provided trace id", zap.Error(err))
+		return nil, fmt.Errorf("failed to find the provided trace id: %w", err)
 	}
 	if err != nil {
-		q.logger.Fatal("failed to fetch spans of provided trace id", zap.Error(err))
+		return nil, fmt.Errorf("failed to fetch spans of provided trace id: %w", err)
 	}
 
 	spans := spanResponseChunk.GetSpans()
-	return spans
+	return spans, nil
 }

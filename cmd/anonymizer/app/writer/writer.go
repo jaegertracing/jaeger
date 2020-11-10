@@ -30,14 +30,11 @@ import (
 
 // Config contains parameters to NewWriter.
 type Config struct {
-	MaxSpansCount    int    `yaml:"max_spans_count" name:"max_spans_count"`
-	CapturedFile     string `yaml:"captured_file" name:"captured_file"`
-	AnonymizedFile   string `yaml:"anonymized_file" name:"anonymized_file"`
-	MappingFile      string `yaml:"mapping_file" name:"mapping_file"`
-	HashStandardTags bool   `yaml:"hash_standard_tags" name:"hash_standard_tags"`
-	HashCustomTags   bool   `yaml:"hash_custom_tags" name:"hash_custom_tags"`
-	HashLogs         bool   `yaml:"hash_logs" name:"hash_logs"`
-	HashProcess      bool   `yaml:"hash_process" name:"hash_process"`
+	MaxSpansCount  int    `yaml:"max_spans_count" name:"max_spans_count"`
+	CapturedFile   string `yaml:"captured_file" name:"captured_file"`
+	AnonymizedFile string `yaml:"anonymized_file" name:"anonymized_file"`
+	MappingFile    string `yaml:"mapping_file" name:"mapping_file"`
+	AnonymizerOpts anonymizer.Options
 }
 
 // Writer is a span Writer that obfuscates the span and writes it to a JSON file.
@@ -80,11 +77,11 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 		return nil, fmt.Errorf("cannot write tp output file: %w", err)
 	}
 
-	options := &anonymizer.Options{
-		HashStandardTags: config.HashStandardTags,
-		HashCustomTags:   config.HashCustomTags,
-		HashLogs:         config.HashLogs,
-		HashProcess:      config.HashProcess,
+	options := anonymizer.Options{
+		HashStandardTags: config.AnonymizerOpts.HashStandardTags,
+		HashCustomTags:   config.AnonymizerOpts.HashCustomTags,
+		HashLogs:         config.AnonymizerOpts.HashLogs,
+		HashProcess:      config.AnonymizerOpts.HashProcess,
 	}
 
 	return &Writer{

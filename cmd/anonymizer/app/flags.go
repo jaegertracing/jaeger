@@ -20,76 +20,69 @@ import (
 
 // Options represent configurable parameters for jaeger-anonymizer
 type Options struct {
-	QueryGRPCPort    int
-	QueryGRPCHost    string
-	MaxSpansCount    int
-	TraceID          string
-	OutputDir        string
-	HashStandardTags bool
-	HashCustomTags   bool
-	HashLogs         bool
-	HashProcess      bool
+	QueryGRPCHostPort string
+	MaxSpansCount     int
+	TraceID           string
+	OutputDir         string
+	HashStandardTags  bool
+	HashCustomTags    bool
+	HashLogs          bool
+	HashProcess       bool
 }
 
 const (
-	queryGRPCHostFlag    = "query-host"
-	queryGRPCPortFlag    = "query-port"
-	outputDirFlag        = "output-dir"
-	traceIDFlag          = "trace-id"
-	hashStandardTagsFlag = "hash-standard-tags"
-	hashCustomTagsFlag   = "hash-custom-tags"
-	hashLogsFlag         = "hash-logs"
-	hashProcessFlag      = "hash-process"
-	maxSpansCount        = "max-spans-count"
+	queryGRPCHostPortFlag = "query-host-port"
+	outputDirFlag         = "output-dir"
+	traceIDFlag           = "trace-id"
+	hashStandardTagsFlag  = "hash-standard-tags"
+	hashCustomTagsFlag    = "hash-custom-tags"
+	hashLogsFlag          = "hash-logs"
+	hashProcessFlag       = "hash-process"
+	maxSpansCount         = "max-spans-count"
 )
 
 // AddFlags adds flags for anonymizer main program
 func (o *Options) AddFlags(command *cobra.Command) {
 	command.Flags().StringVar(
-		&o.QueryGRPCHost,
-		queryGRPCHostFlag,
-		DefaultQueryGRPCHost,
-		"hostname of the jaeger-query endpoint")
-	command.Flags().IntVar(
-		&o.QueryGRPCPort,
-		queryGRPCPortFlag,
-		DefaultQueryGRPCPort,
-		"port of the jaeger-query endpoint")
+		&o.QueryGRPCHostPort,
+		queryGRPCHostPortFlag,
+		"localhost:16686",
+		"The host:port of the jaeger-query endpoint")
 	command.Flags().StringVar(
 		&o.OutputDir,
 		outputDirFlag,
-		DefaultOutputDir,
-		"directory to store the anonymized trace")
+		"/tmp",
+		"The directory to store the anonymized trace")
 	command.Flags().StringVar(
 		&o.TraceID,
 		traceIDFlag,
 		"",
-		"trace-id of trace to anonymize")
+		"The trace-id of trace to anonymize")
 	command.Flags().BoolVar(
 		&o.HashStandardTags,
 		hashStandardTagsFlag,
-		DefaultHashStandardTags,
-		"whether to hash standard tags")
+		false,
+		"Whether to hash standard tags")
 	command.Flags().BoolVar(
 		&o.HashCustomTags,
 		hashCustomTagsFlag,
-		DefaultHashCustomTags,
-		"whether to hash custom tags")
+		false,
+		"Whether to hash custom tags")
 	command.Flags().BoolVar(
 		&o.HashLogs,
 		hashLogsFlag,
-		DefaultHashLogs,
-		"whether to hash logs")
+		false,
+		"Whether to hash logs")
 	command.Flags().BoolVar(
 		&o.HashProcess,
 		hashProcessFlag,
-		DefaultHashProcess,
-		"whether to hash process")
+		false,
+		"Whether to hash process")
 	command.Flags().IntVar(
 		&o.MaxSpansCount,
 		maxSpansCount,
-		DefaultMaxSpansCount,
-		"maximum number of spans to anonymize")
+		-1,
+		"The maximum number of spans to anonymize")
 
 	// mark traceid flag as mandatory
 	command.MarkFlagRequired(traceIDFlag)

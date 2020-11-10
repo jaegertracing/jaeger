@@ -98,18 +98,17 @@ func TestAnonymizer_Hash(t *testing.T) {
 }
 
 func TestAnonymizer_AnonymizeSpan_AllTrue(t *testing.T) {
-	options := &Options{
-		HashStandardTags: true,
-		HashCustomTags:   true,
-		HashProcess:      true,
-		HashLogs:         true,
-	}
 	anonymizer := &Anonymizer{
 		mapping: mapping{
 			Services:   make(map[string]string),
 			Operations: make(map[string]string),
 		},
-		options: options,
+		options: Options{
+			HashStandardTags: true,
+			HashCustomTags:   true,
+			HashProcess:      true,
+			HashLogs:         true,
+		},
 	}
 	_ = anonymizer.AnonymizeSpan(span1)
 	assert.Equal(t, 3, len(span1.Tags))
@@ -118,18 +117,17 @@ func TestAnonymizer_AnonymizeSpan_AllTrue(t *testing.T) {
 }
 
 func TestAnonymizer_AnonymizeSpan_AllFalse(t *testing.T) {
-	options := &Options{
-		HashStandardTags: false,
-		HashCustomTags:   false,
-		HashProcess:      false,
-		HashLogs:         false,
-	}
 	anonymizer := &Anonymizer{
 		mapping: mapping{
 			Services:   make(map[string]string),
 			Operations: make(map[string]string),
 		},
-		options: options,
+		options: Options{
+			HashStandardTags: false,
+			HashCustomTags:   false,
+			HashProcess:      false,
+			HashLogs:         false,
+		},
 	}
 	_ = anonymizer.AnonymizeSpan(span2)
 	assert.Equal(t, 2, len(span2.Tags))
