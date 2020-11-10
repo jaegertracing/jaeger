@@ -11,7 +11,7 @@ require (
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/cpuguy83/go-md2man v1.0.10 // indirect
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
-	github.com/dgraph-io/badger v1.5.3
+	github.com/dgraph-io/badger v1.6.2
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/fatih/color v1.9.0 // indirect
@@ -56,12 +56,11 @@ require (
 	github.com/prometheus/procfs v0.1.3 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/rs/cors v1.7.0
-	github.com/sectioneight/md-to-godoc v0.0.0-20161108233149-55e43be6c335
 	github.com/securego/gosec v0.0.0-20200203094520-d13bb6d2420c
 	github.com/soheilhy/cmux v0.1.4
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2

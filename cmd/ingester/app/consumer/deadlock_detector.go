@@ -15,7 +15,6 @@
 package consumer
 
 import (
-	"runtime"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -67,10 +66,9 @@ func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, int
 		metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.panic-issued", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
 		time.Sleep(time.Second) // Allow time to flush metric
 
-		buf := make([]byte, 1<<20)
-		logger.Panic("No messages processed in the last check interval",
-			zap.Int32("partition", partition),
-			zap.String("stack", string(buf[:runtime.Stack(buf, true)])))
+		logger.Panic("No messages processed in the last check interval, possible deadlock, exiting. "+
+			"This behavior can be disabled with --ingester.deadlockInterval=0 flag.",
+			zap.Int32("partition", partition))
 	}
 
 	return deadlockDetector{

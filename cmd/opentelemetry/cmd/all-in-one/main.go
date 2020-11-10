@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
@@ -59,9 +60,7 @@ func main() {
 		}
 	}
 
-	if err := app.RegisterMetricViews(); err != nil {
-		handleErr(err)
-	}
+	handleErr(app.RegisterMetricViews())
 
 	ver := version.Get()
 	info := component.ApplicationStartInfo{
@@ -94,9 +93,8 @@ func main() {
 	// Add Jaeger specific flags to service command
 	// this passes flag values to viper.
 	storageFlags, err := app.AddStorageFlags(storageType, true)
-	if err != nil {
-		handleErr(err)
-	}
+	handleErr(err)
+
 	cmd := svc.Command()
 	jConfig.AddFlags(v,
 		cmd,
@@ -106,15 +104,19 @@ func main() {
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
-	cmd.ParseFlags(os.Args)
+	parseErr := cmd.ParseFlags(os.Args)
 	err = jflags.TryLoadConfigFile(v)
 	if err != nil {
 		handleErr(fmt.Errorf("could not load Jaeger configuration file %w", err))
 	}
 
 	go func() {
-		err = svc.Run()
-		handleErr(err)
+		handleErr(svc.Run())
+
+		if parseErr == pflag.ErrHelp {
+			os.Exit(0)
+		}
+
 	}()
 
 	for state := range svc.GetStateChannel() {

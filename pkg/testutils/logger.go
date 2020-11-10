@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"testing"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -28,6 +29,12 @@ import (
 
 // NewLogger creates a new zap.Logger backed by a zaptest.Buffer, which is also returned.
 func NewLogger() (*zap.Logger, *Buffer) {
+	core, buf := newRecordingCore()
+	logger := zap.New(core)
+	return logger, buf
+}
+
+func newRecordingCore() (zapcore.Core, *Buffer) {
 	encoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 		MessageKey:     "msg",
 		LevelKey:       "level",
@@ -36,9 +43,14 @@ func NewLogger() (*zap.Logger, *Buffer) {
 		EncodeDuration: zapcore.StringDurationEncoder,
 	})
 	buf := &Buffer{}
-	logger := zap.New(
-		zapcore.NewCore(encoder, buf, zapcore.DebugLevel),
-	)
+	return zapcore.NewCore(encoder, buf, zapcore.DebugLevel), buf
+}
+
+// NewEchoLogger is similar to NewLogger, but the logs are also echoed to t.Log.
+func NewEchoLogger(t *testing.T) (*zap.Logger, *Buffer) {
+	core, buf := newRecordingCore()
+	echo := zaptest.NewLogger(t).Core()
+	logger := zap.New(zapcore.NewTee(core, echo))
 	return logger, buf
 }
 

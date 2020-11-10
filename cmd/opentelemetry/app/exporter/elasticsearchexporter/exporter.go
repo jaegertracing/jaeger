@@ -24,7 +24,7 @@ import (
 )
 
 // newExporter creates Elasticsearch exporter/storage.
-func newExporter(ctx context.Context, config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
+func newExporter(ctx context.Context, config *Config, params component.ExporterCreateParams) (component.TracesExporter, error) {
 	esCfg := config.GetPrimary()
 	w, err := newEsSpanWriter(*esCfg, params.Logger, false, config.Name())
 	if err != nil {
@@ -38,6 +38,7 @@ func newExporter(ctx context.Context, config *Config, params component.ExporterC
 	}
 	return exporterhelper.NewTraceExporter(
 		config,
+		params.Logger,
 		w.WriteTraces,
 		exporterhelper.WithTimeout(config.TimeoutSettings),
 		exporterhelper.WithQueue(config.QueueSettings),
