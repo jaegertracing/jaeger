@@ -119,8 +119,8 @@ func (qOpts *QueryOptions) InitPortsConfigFromViper(v *viper.Viper, logger *zap.
 		return qOpts
 	}
 
-	// --query.host-port flag is not set and at least one of --query.grpc-server.host-port or --query.http-server.host-port is set by the user with command line flags.
-	// user intends to use separate GRPC and HTTP host:port flags
+	// --query.host-port flag is not set and either or both of --query.grpc-server.host-port or --query.http-server.host-port is set by the user with command line flags.
+	// i.e. user intends to use separate GRPC and HTTP host:port flags
 	if !(v.IsSet(queryHostPort) || v.IsSet(queryPort)) && (v.IsSet(queryHTTPHostPort) || v.IsSet(queryGRPCHostPort)) {
 		return qOpts
 	}
