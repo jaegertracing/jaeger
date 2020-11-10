@@ -53,6 +53,7 @@ func TestOptionsWithFlags(t *testing.T) {
 
 	assert.Equal(t, "192.168.1.10:16686", o.QueryGRPCHostPort)
 	assert.Equal(t, "/data", o.OutputDir)
+	assert.Equal(t, "6ef2debb698f2f7c", o.TraceID)
 	assert.Equal(t, true, o.HashStandardTags)
 	assert.Equal(t, true, o.HashCustomTags)
 	assert.Equal(t, true, o.HashLogs)
