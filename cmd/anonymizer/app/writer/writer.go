@@ -34,7 +34,7 @@ type Config struct {
 	CapturedFile   string             `yaml:"captured_file" name:"captured_file"`
 	AnonymizedFile string             `yaml:"anonymized_file" name:"anonymized_file"`
 	MappingFile    string             `yaml:"mapping_file" name:"mapping_file"`
-	AnonymizerOpts anonymizer.Options `yaml:"anonymizer_opts" name:"anonymizer_opts"`
+	AnonymizerOpts anonymizer.Options `yaml:"anonymizer" name:"anonymizer"`
 }
 
 // Writer is a span Writer that obfuscates the span and writes it to a JSON file.
@@ -129,6 +129,8 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 
 	if w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
+		w.Close()
+		os.Exit(0)
 	}
 
 	return nil
@@ -141,5 +143,4 @@ func (w *Writer) Close() {
 	w.anonymizedFile.WriteString("\n]\n")
 	w.anonymizedFile.Close()
 	w.anonymizer.SaveMapping()
-	os.Exit(0)
 }

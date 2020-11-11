@@ -50,14 +50,14 @@ func New(addr string) (*Query, error) {
 	}, nil
 }
 
-// isNotFoundErr is a helper function called when the trace isn't found
-func isNotFoundErr(err error) ([]model.Span, error) {
+// unwrapNotFoundErr is a conversion function
+func unwrapNotFoundErr(err error) error {
 	if s, _ := status.FromError(err); s != nil {
 		if s.Message() == spanstore.ErrTraceNotFound.Error() {
-			return nil, spanstore.ErrTraceNotFound
+			return spanstore.ErrTraceNotFound
 		}
 	}
-	return nil, fmt.Errorf("failed to fetch the provided trace id: %w", err)
+	return err
 }
 
 // QueryTrace queries for a trace and returns all spans inside it
@@ -71,13 +71,13 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 		TraceID: mTraceID,
 	})
 	if err != nil {
-		isNotFoundErr(err)
+		return nil, unwrapNotFoundErr(err)
 	}
 
 	var spans []model.Span
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
-			isNotFoundErr(err)
+			return nil, unwrapNotFoundErr(err)
 		}
 		for i := range received.Spans {
 			spans = append(spans, received.Spans[i])
