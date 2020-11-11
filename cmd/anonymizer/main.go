@@ -54,22 +54,23 @@ func main() {
 
 			writer, err := writer.New(conf, logger)
 			if err != nil {
-				logger.Error("error while creating writer object", zap.Error(err))
+				logger.Fatal("error while creating writer object", zap.Error(err))
 			}
 
-			query, err := query.New(options.QueryGRPCHostPort, logger)
+			query, err := query.New(options.QueryGRPCHostPort)
 			if err != nil {
-				logger.Error("error while creating query object", zap.Error(err))
+				logger.Fatal("error while creating query object", zap.Error(err))
 			}
 
 			spans, err := query.QueryTrace(options.TraceID)
 			if err != nil {
-				logger.Error("error while querying for trace", zap.Error(err))
+				logger.Fatal("error while querying for trace", zap.Error(err))
 			}
 
 			for _, span := range spans {
 				writer.WriteSpan(&span)
 			}
+			writer.Close()
 		},
 	}
 

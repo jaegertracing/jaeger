@@ -17,10 +17,11 @@ package query
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -29,13 +30,12 @@ import (
 
 // Query represents a jaeger-query's query for trace-id
 type Query struct {
-	api_v2.QueryServiceClient
+	client api_v2.QueryServiceClient
 	conn   *grpc.ClientConn
-	logger *zap.Logger
 }
 
 // New creates a Query object
-func New(addr string, logger *zap.Logger) (*Query, error) {
+func New(addr string) (*Query, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
@@ -45,9 +45,8 @@ func New(addr string, logger *zap.Logger) (*Query, error) {
 	}
 
 	return &Query{
-		QueryServiceClient: api_v2.NewQueryServiceClient(conn),
-		conn:               conn,
-		logger:             logger,
+		client: api_v2.NewQueryServiceClient(conn),
+		conn:   conn,
 	}, nil
 }
 
@@ -58,21 +57,28 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 		return nil, fmt.Errorf("failed to convert the provided trace id: %w", err)
 	}
 
-	response, err := q.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+	stream, err := q.client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
 		TraceID: mTraceID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the provided trace id: %w", err)
 	}
 
-	spanResponseChunk, err := response.Recv()
-	if err == spanstore.ErrTraceNotFound {
-		return nil, fmt.Errorf("failed to find the provided trace id: %w", err)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch spans of provided trace id: %w", err)
+	var spans []model.Span
+	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
+		if err != nil {
+			if s, _ := status.FromError(err); s != nil {
+				if s.Message() == spanstore.ErrTraceNotFound.Error() {
+					return nil, spanstore.ErrTraceNotFound
+				}
+			}
+			return nil, fmt.Errorf("grpc stream error: %w", err)
+		}
+
+		for i := range received.Spans {
+			spans = append(spans, received.Spans[i])
+		}
 	}
 
-	spans := spanResponseChunk.GetSpans()
 	return spans, nil
 }

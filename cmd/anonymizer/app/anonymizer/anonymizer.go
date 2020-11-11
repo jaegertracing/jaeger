@@ -62,10 +62,10 @@ type Anonymizer struct {
 
 // Options represents the various options with which the anonymizer can be configured.
 type Options struct {
-	HashStandardTags bool
-	HashCustomTags   bool
-	HashLogs         bool
-	HashProcess      bool
+	HashStandardTags bool `yaml:"hash_standard_tags" name:"hash_standard_tags"`
+	HashCustomTags   bool `yaml:"hash_custom_tags" name:"hash_custom_tags"`
+	HashLogs         bool `yaml:"hash_logs" name:"hash_logs"`
+	HashProcess      bool `yaml:"hash_process" name:"hash_process"`
 }
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
