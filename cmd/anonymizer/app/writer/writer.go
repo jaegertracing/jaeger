@@ -129,12 +129,6 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 
 	if w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
-		w.capturedFile.WriteString("\n]\n")
-		w.capturedFile.Close()
-		w.anonymizedFile.WriteString("\n]\n")
-		w.anonymizedFile.Close()
-		w.anonymizer.SaveMapping()
-		os.Exit(0)
 	}
 
 	return nil
@@ -142,6 +136,10 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 
 // Close closes the captured and anonymized files.
 func (w *Writer) Close() {
+	w.capturedFile.WriteString("\n]\n")
 	w.capturedFile.Close()
+	w.anonymizedFile.WriteString("\n]\n")
 	w.anonymizedFile.Close()
+	w.anonymizer.SaveMapping()
+	os.Exit(0)
 }

@@ -50,6 +50,16 @@ func New(addr string) (*Query, error) {
 	}, nil
 }
 
+// isNotFoundErr is a helper function called when the trace isn't found
+func isNotFoundErr(err error) ([]model.Span, error) {
+	if s, _ := status.FromError(err); s != nil {
+		if s.Message() == spanstore.ErrTraceNotFound.Error() {
+			return nil, spanstore.ErrTraceNotFound
+		}
+	}
+	return nil, fmt.Errorf("failed to fetch the provided trace id: %w", err)
+}
+
 // QueryTrace queries for a trace and returns all spans inside it
 func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 	mTraceID, err := model.TraceIDFromString(traceID)
@@ -61,20 +71,14 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 		TraceID: mTraceID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the provided trace id: %w", err)
+		isNotFoundErr(err)
 	}
 
 	var spans []model.Span
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
-			if s, _ := status.FromError(err); s != nil {
-				if s.Message() == spanstore.ErrTraceNotFound.Error() {
-					return nil, spanstore.ErrTraceNotFound
-				}
-			}
-			return nil, fmt.Errorf("grpc stream error: %w", err)
+			isNotFoundErr(err)
 		}
-
 		for i := range received.Spans {
 			spans = append(spans, received.Spans[i])
 		}
