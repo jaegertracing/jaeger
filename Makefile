@@ -2,8 +2,6 @@ JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 OTEL_COLLECTOR_DIR = ./cmd/opentelemetry
 
-include docker/Makefile
-
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
@@ -68,6 +66,18 @@ COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
+
+# list for multi-arch image publishing
+TARGET_ARCHS ?= amd64 arm64
+
+BUILDX_PUSH ?= false
+DOCKER_BUILD ?= docker build --build-arg=TARGETARCH=$(GOARCH)
+ifeq ($(BUILDX_PUSH),true)
+	DOCKER_BUILD = DOCKER_CLI_EXPERIMENTAL="enabled" docker buildx build --builder=jaeger-builder --push $(foreach arch,${TARGET_ARCHS},--platform=linux/${arch})
+endif
+
+# make sure sub makefiles could use the make variables defined in root makefile.
+include docker/Makefile
 
 MOCKERY=mockery
 
@@ -220,7 +230,7 @@ build-anonymizer:
 .PHONY: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
-	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg TARGETARCH=$(GOARCH)
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: run-all-in-one
 run-all-in-one: build-ui
@@ -289,6 +299,12 @@ docker: build-binaries-linux docker-images-only
 build-binaries-linux:
 	GOOS=linux GOARCH=amd64 $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-linux-archs
+build-binaries-linux-archs:
+	for arch in $(TARGET_ARCHS) ; do \
+		GOOS=linux GOARCH=$${arch} $(MAKE) build-platform-binaries; \
+	done
+
 .PHONY: build-binaries-windows
 build-binaries-windows:
 	GOOS=windows GOARCH=amd64 $(MAKE) build-platform-binaries
@@ -332,13 +348,13 @@ build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
 
 .PHONY: docker-images-elastic
 docker-images-elastic:
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
 docker-images-jaeger-backend: TARGET = release
@@ -348,21 +364,20 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
 	for component in agent collector query ingester ; do \
-		docker build --target $(TARGET) \
+		$(DOCKER_BUILD) --target $(TARGET) \
 			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
-			--build-arg TARGETARCH=$(GOARCH) \
 			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry/cmd/agent --build-arg TARGETARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry/cmd/ingester --build-arg TARGETARCH=$(GOARCH)
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry/cmd/agent
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry/cmd/ingester
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/
 	@echo "Finished building jaeger-tracegen =============="
 
 .PHONY: docker-images-anonymizer
@@ -390,6 +405,10 @@ docker-push:
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
+.PHONY: dockerx-push
+dockerx-push: setup-buildx-builder
+	$(MAKE) docker-images-only BUILDX_PUSH=true
+
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
 	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
@@ -406,7 +425,7 @@ build-crossdock-ui-placeholder:
 
 .PHONY: build-crossdock
 build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
+	$(DOCKER_BUILD) -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
 .PHONY: build-and-run-crossdock

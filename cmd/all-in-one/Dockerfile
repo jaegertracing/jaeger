@@ -2,7 +2,7 @@ ARG base_image
 ARG debug_image
 
 FROM $base_image AS release
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 # Agent zipkin.thrift compact
 EXPOSE 5775/udp
@@ -33,7 +33,7 @@ ENTRYPOINT ["/go/bin/all-in-one-linux"]
 CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]
 
 FROM $debug_image AS debug
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 # Agent zipkin.thrift compact
 EXPOSE 5775/udp
