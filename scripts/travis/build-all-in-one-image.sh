@@ -29,13 +29,12 @@ run_integration_test() {
 upload_to_docker() {
   # Only push the docker container to Docker Hub for master branch
   if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
-    echo 'upload to Docker Hub'
+    echo "upload $1 to Docker Hub"
+    export REPO=$1
+    bash ./scripts/travis/upload-to-docker.sh
   else
     echo 'skip docker upload for PR'
-    exit 0
   fi
-  export REPO=$1
-  bash ./scripts/travis/upload-to-docker.sh
 }
 
 make build-all-in-one GOOS=linux GOARCH=$GOARCH
