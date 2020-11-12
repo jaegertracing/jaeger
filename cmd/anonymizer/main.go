@@ -15,13 +15,71 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
+	app "github.com/jaegertracing/jaeger/cmd/anonymizer/app"
+	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/anonymizer"
+	query "github.com/jaegertracing/jaeger/cmd/anonymizer/app/query"
+	writer "github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
+var logger, _ = zap.NewDevelopment()
+
 func main() {
-	// TODO
-	_, _ = writer.New(writer.Config{}, zap.NewNop())
-	println("not implemented")
+	var options = app.Options{}
+
+	var command = &cobra.Command{
+		Use:   "jaeger-anonymizer",
+		Short: "Jaeger anonymizer hashes fields of a trace for easy sharing",
+		Long:  `Jaeger anonymizer queries Jaeger query for a trace, anonymizes fields, and store in file`,
+		Run: func(cmd *cobra.Command, args []string) {
+			prefix := options.OutputDir + "/" + options.TraceID
+			conf := writer.Config{
+				MaxSpansCount:  options.MaxSpansCount,
+				CapturedFile:   prefix + ".original",
+				AnonymizedFile: prefix + ".anonymized",
+				MappingFile:    prefix + ".mapping",
+				AnonymizerOpts: anonymizer.Options{
+					HashStandardTags: options.HashStandardTags,
+					HashCustomTags:   options.HashCustomTags,
+					HashLogs:         options.HashLogs,
+					HashProcess:      options.HashProcess,
+				},
+			}
+
+			writer, err := writer.New(conf, logger)
+			if err != nil {
+				logger.Fatal("error while creating writer object", zap.Error(err))
+			}
+
+			query, err := query.New(options.QueryGRPCHostPort)
+			if err != nil {
+				logger.Fatal("error while creating query object", zap.Error(err))
+			}
+
+			spans, err := query.QueryTrace(options.TraceID)
+			if err != nil {
+				logger.Fatal("error while querying for trace", zap.Error(err))
+			}
+
+			for _, span := range spans {
+				writer.WriteSpan(&span)
+			}
+			writer.Close()
+		},
+	}
+
+	options.AddFlags(command)
+
+	command.AddCommand(version.Command())
+
+	if error := command.Execute(); error != nil {
+		fmt.Println(error.Error())
+		os.Exit(1)
+	}
 }
