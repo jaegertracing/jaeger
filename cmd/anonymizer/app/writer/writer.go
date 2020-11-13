@@ -127,7 +127,7 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 		w.logger.Info("progress", zap.Int("numSpans", w.spanCount))
 	}
 
-	if w.spanCount >= w.config.MaxSpansCount {
+	if w.config.MaxSpansCount > 0 && w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
 		w.Close()
 		os.Exit(0)
