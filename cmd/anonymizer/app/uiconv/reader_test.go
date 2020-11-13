@@ -25,8 +25,8 @@ import (
 	"go.uber.org/zap"
 )
 
-const spanData = `[{"traceId":"AAAAAAAAAABbgcpUtfnZBA==","spanId":"W4HKVLX52QQ=","operationName":"Meta::health","flags":1,"startTime":"2020-04-23T22:42:03.427158Z","duration":"0.000077s","process":{"serviceName":"acme"}},
-{"traceId":"AAAAAAAAAABkQX7HRbUymw==","spanId":"E+85jzZSdoY=","operationName":"foobar","references":[{"traceId":"AAAAAAAAAABkQX7HRbUymw==","spanId":"Pgd+mTq/Zh4="}],"flags":1,"startTime":"2020-04-23T22:42:01.289306Z","duration":"0.024253s","process":{"serviceName":"xyz"}}
+const spanData = `[{"traceID":"2be38093ead7a083","spanID":"7606ddfe69932d34","flags":1,"operationName":"a071653098f9250d","references":[{"refType":"CHILD_OF","traceID":"2be38093ead7a083","spanID":"492770a15935810f"}],"startTime":1605223981761425,"duration":267037,"tags":[{"key":"span.kind","type":"string","value":"server"}],"logs":[],"process":{"serviceName":"16af988c443cff37","tags":[]},"warnings":null},
+{"traceID":"2be38093ead7a083","spanID":"7bd66f09ba90ea3d","flags":1,"operationName":"471418097747d04a","references":[{"refType":"CHILD_OF","traceID":"2be38093ead7a083","spanID":"7606ddfe69932d34"}],"startTime":1605223981965074,"duration":32782,"tags":[{"key":"span.kind","type":"string","value":"client"},{"key":"error","type":"bool","value":"true"}],"logs":[],"process":{"serviceName":"3c220036602f839e","tags":[]},"warnings":null}
 ]`
 
 func TestReader(t *testing.T) {
@@ -45,11 +45,11 @@ func TestReader(t *testing.T) {
 
 	s1, err := r.NextSpan()
 	require.NoError(t, err)
-	assert.Equal(t, "Meta::health", s1.OperationName)
+	assert.Equal(t, "a071653098f9250d", s1.OperationName)
 
 	s2, err := r.NextSpan()
 	require.NoError(t, err)
-	assert.Equal(t, "foobar", s2.OperationName)
+	assert.Equal(t, "471418097747d04a", s2.OperationName)
 
 	_, err = r.NextSpan()
 	require.Equal(t, io.EOF, err)

@@ -70,6 +70,8 @@ func (e *Extractor) Run() error {
 		Spans:     spans,
 		Processes: make(map[uimodel.ProcessID]uimodel.Process),
 	}
+	// (ys) The following is not exactly correct because it does not dedupe the processes,
+	// but I don't think it affects the UI.
 	for i := range spans {
 		span := &spans[i]
 		pid := uimodel.ProcessID(fmt.Sprintf("p%d", i))
