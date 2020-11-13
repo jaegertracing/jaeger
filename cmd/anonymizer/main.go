@@ -71,7 +71,6 @@ func main() {
 			for _, span := range spans {
 				writer.WriteSpan(&span)
 			}
-			logger.Info("finished writing spans")
 			writer.Close()
 
 			uiCfg := uiconv.Config{
