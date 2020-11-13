@@ -1,8 +1,53 @@
 Changes by Version
 ==================
 
-1.21.0 (unreleased)
+1.22.0 (unreleased)
 -------------------
+
+1.21.0 (2020-11-13)
+-------------------
+
+### Backend Changes
+
+#### Breaking Changes
+
+* Remove deprecated es.max-num-spans ([#2482](https://github.com/jaegertracing/jaeger/pull/2482), [@BernardTolosajr](https://github.com/BernardTolosajr))
+
+#### New Features
+
+* Implement anonymizer's main program ([#2621](https://github.com/jaegertracing/jaeger/pull/2621), [@Ashmita152](https://github.com/Ashmita152))
+* Extend anonymizer with additional parameters ([#2585](https://github.com/jaegertracing/jaeger/pull/2585), [@Ashmita152](https://github.com/Ashmita152))
+* Add URL option for sampling strategies file ([#2519](https://github.com/jaegertracing/jaeger/pull/2519), [@goku321](https://github.com/goku321))
+* Update static UI assets path in contrib doc ([#2548](https://github.com/jaegertracing/jaeger/pull/2548), [@albertteoh](https://github.com/albertteoh))
+* Expose tunning options via expvar ([#2496](https://github.com/jaegertracing/jaeger/pull/2496), [@dstdfx](https://github.com/dstdfx))
+
+#### Bug fixes, Minor Improvements
+
+* Update x/text to v0.3.4 ([#2625](https://github.com/jaegertracing/jaeger/pull/2625), [@objectiser](https://github.com/objectiser))
+* Update CodeQL to latest best practices ([#2615](https://github.com/jaegertracing/jaeger/pull/2615), [@jhutchings1](https://github.com/jhutchings1))
+* Bump opentelemetry-collector to v0.14.0 ([#2617](https://github.com/jaegertracing/jaeger/pull/2617), [@Vemmy124](https://github.com/Vemmy124))
+* Bump Badger to v1.6.2 ([#2613](https://github.com/jaegertracing/jaeger/pull/2613), [@Ackar](https://github.com/Ackar))
+* Fix sarama consumer deadlock ([#2587](https://github.com/jaegertracing/jaeger/pull/2587), [@albertteoh](https://github.com/albertteoh))
+* Avoid deadlock if Stop is called before Serve ([#2608](https://github.com/jaegertracing/jaeger/pull/2608), [@chlunde](https://github.com/chlunde))
+* Return buffers to pool on network errors or queue overflow ([#2609](https://github.com/jaegertracing/jaeger/pull/2609), [@chlunde](https://github.com/chlunde))
+* Clarify deadlock panic message ([#2605](https://github.com/jaegertracing/jaeger/pull/2605), [@yurishkuro](https://github.com/yurishkuro))
+* fix: don't create tags w/ empty name for internal zipkin spans ([#2596](https://github.com/jaegertracing/jaeger/pull/2596), [@mzahor](https://github.com/mzahor))
+* TBufferedServer: Avoid channel close/send race on Stop ([#2583](https://github.com/jaegertracing/jaeger/pull/2583), [@chlunde](https://github.com/chlunde))
+* Support more encodings for Kafka in OTel Ingester ([#2580](https://github.com/jaegertracing/jaeger/pull/2580), [@XSAM](https://github.com/XSAM))
+* Create debug docker images for jaeger backends ([#2545](https://github.com/jaegertracing/jaeger/pull/2545), [@Ashmita152](https://github.com/Ashmita152))
+* Bumped OpenTelemetry Collector to v0.12.0 ([#2562](https://github.com/jaegertracing/jaeger/pull/2562), [@jpkrohling](https://github.com/jpkrohling))
+* Disable Zipkin server if port/address is not configured ([#2554](https://github.com/jaegertracing/jaeger/pull/2554), [@yurishkuro](https://github.com/yurishkuro))
+* Inject version info into index.html ([#2547](https://github.com/jaegertracing/jaeger/pull/2547), [@yurishkuro](https://github.com/yurishkuro))
+* [hotrod] Add links to traces ([#2536](https://github.com/jaegertracing/jaeger/pull/2536), [@yurishkuro](https://github.com/yurishkuro))
+* OTel Cassandra/Elasticsearch Exporter queue defaults ([#2533](https://github.com/jaegertracing/jaeger/pull/2533), [@joe-elliott](https://github.com/joe-elliott))
+* [otel] Update jaeger-lib to v2.4.0 ([#2538](https://github.com/jaegertracing/jaeger/pull/2538), [@dstdfx](https://github.com/dstdfx))
+* Remove unnecessary ServiceName index seek if tags query is available ([#2535](https://github.com/jaegertracing/jaeger/pull/2535), [@burmanm](https://github.com/burmanm))
+
+### UI Changes
+
+* Bump to latest UI for snapshop builds ([#2626](https://github.com/jaegertracing/jaeger/pull/2626), [@yurishkuro](https://github.com/yurishkuro))
+  * Pinned UI to [this commit](https://github.com/jaegertracing/jaeger-ui/commit/df17e8d80e6f630ed3ed744a80dbf27c0418718c)
+
 
 1.20.0 (2020-09-29)
 -------------------
