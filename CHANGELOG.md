@@ -45,20 +45,7 @@ Changes by Version
 
 ### UI Changes
 
-* Pinned UI to [this commit](https://github.com/jaegertracing/jaeger-ui/commit/df17e8d80e6f630ed3ed744a80dbf27c0418718c)
-
-#### New Features
-
-* Identify uninstrumented services ([#659](https://github.com/jaegertracing/jaeger-ui/pull/659), [@rubenvp8510](https://github.com/rubenvp8510))
-* Added jaeger ui version to about menu ([#606](https://github.com/jaegertracing/jaeger-ui/pull/606), [@alanisaac](https://github.com/alanisaac))
-
-#### Bug fixes, Minor Improvements
-
-* Pass a function that doesn't return anything to FileUpload component ([#658](https://github.com/jaegertracing/jaeger-ui/pull/658), [@rubenvp8510](https://github.com/rubenvp8510))
-* Prevent DAG crashes because of empty service name string ([#656](https://github.com/jaegertracing/jaeger-ui/pull/656), [@rubenvp8510](https://github.com/rubenvp8510))
-* Explain "self time" in graph view ([#655](https://github.com/jaegertracing/jaeger-ui/pull/655), [@yurishkuro](https://github.com/yurishkuro))
-* Improve duration formatting ([#647](https://github.com/jaegertracing/jaeger-ui/pull/647), [@jamesfer](https://github.com/jamesfer))
-* Upgrade build to Node 10 ([#649](https://github.com/jaegertracing/jaeger-ui/pull/649), [@yurishkuro](https://github.com/yurishkuro))
+* UI pinned to version 1.12.0. The changelog is available here [v1.12.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1120-november-14-2020)
 
 
 1.20.0 (2020-09-29)
