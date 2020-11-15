@@ -16,8 +16,6 @@ package uiconv
 
 import (
 	"io"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,20 +23,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const spanData = `[{"traceID":"2be38093ead7a083","spanID":"7606ddfe69932d34","flags":1,"operationName":"a071653098f9250d","references":[{"refType":"CHILD_OF","traceID":"2be38093ead7a083","spanID":"492770a15935810f"}],"startTime":1605223981761425,"duration":267037,"tags":[{"key":"span.kind","type":"string","value":"server"}],"logs":[],"process":{"serviceName":"16af988c443cff37","tags":[]},"warnings":null},
-{"traceID":"2be38093ead7a083","spanID":"7bd66f09ba90ea3d","flags":1,"operationName":"471418097747d04a","references":[{"refType":"CHILD_OF","traceID":"2be38093ead7a083","spanID":"7606ddfe69932d34"}],"startTime":1605223981965074,"duration":32782,"tags":[{"key":"span.kind","type":"string","value":"client"},{"key":"error","type":"bool","value":"true"}],"logs":[],"process":{"serviceName":"3c220036602f839e","tags":[]},"warnings":null}
-]`
-
-func TestReader(t *testing.T) {
-	f, err := ioutil.TempFile("", "captured-spans.json")
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-
-	_, err = f.Write([]byte(spanData))
-	require.NoError(t, err)
-
+func TestReader_Trace_Success(t *testing.T) {
+	inputFile := "fixtures/trace_success.json"
 	r, err := NewReader(
-		f.Name(),
+		inputFile,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
@@ -46,11 +34,74 @@ func TestReader(t *testing.T) {
 	s1, err := r.NextSpan()
 	require.NoError(t, err)
 	assert.Equal(t, "a071653098f9250d", s1.OperationName)
+	assert.Equal(t, 1, r.spansRead)
+	assert.Equal(t, false, r.eofReached)
 
 	s2, err := r.NextSpan()
 	require.NoError(t, err)
 	assert.Equal(t, "471418097747d04a", s2.OperationName)
+	assert.Equal(t, 2, r.spansRead)
+	assert.Equal(t, true, r.eofReached)
 
 	_, err = r.NextSpan()
 	require.Equal(t, io.EOF, err)
+	assert.Equal(t, 2, r.spansRead)
+	assert.Equal(t, true, r.eofReached)
+}
+
+func TestReader_Trace_NonExistent(t *testing.T) {
+	inputFile := "fixtures/trace_non_existent.json"
+	_, err := NewReader(
+		inputFile,
+		zap.NewNop(),
+	)
+	require.Equal(t, "cannot open captured file: open fixtures/trace_non_existent.json: no such file or directory", err.Error())
+}
+
+func TestReader_Trace_Empty(t *testing.T) {
+	inputFile := "fixtures/trace_empty.json"
+	r, err := NewReader(
+		inputFile,
+		zap.NewNop(),
+	)
+	require.NoError(t, err)
+
+	_, err = r.NextSpan()
+	require.Equal(t, "cannot read file: EOF", err.Error())
+	assert.Equal(t, 0, r.spansRead)
+	assert.Equal(t, true, r.eofReached)
+}
+
+func TestReader_Trace_Wrong_Format(t *testing.T) {
+	inputFile := "fixtures/trace_wrong_format.json"
+	r, err := NewReader(
+		inputFile,
+		zap.NewNop(),
+	)
+	require.NoError(t, err)
+
+	_, err = r.NextSpan()
+	require.Equal(t, "file must begin with '['", err.Error())
+	assert.Equal(t, 0, r.spansRead)
+	assert.Equal(t, true, r.eofReached)
+}
+
+func TestReader_Trace_Invalid_Json(t *testing.T) {
+	inputFile := "fixtures/trace_invalid_json.json"
+	r, err := NewReader(
+		inputFile,
+		zap.NewNop(),
+	)
+	require.NoError(t, err)
+
+	s1, err := r.NextSpan()
+	require.NoError(t, err)
+	assert.Equal(t, "a071653098f9250d", s1.OperationName)
+	assert.Equal(t, 1, r.spansRead)
+	assert.Equal(t, false, r.eofReached)
+
+	_, err = r.NextSpan()
+	require.Equal(t, "cannot unmarshal span: json: cannot unmarshal string into Go struct field Span.duration of type uint64;   {\"traceID\":\"2be38093ead7a083\",\"spanID\":\"7bd66f09ba90ea3d\",\"flags\":1,\"operationName\":\"471418097747d04a\",\"startTime\":1605223981965074,\"duration\": \"invalid\",\"tags\":[{\"key\":\"span.kind\",\"type\":\"string\",\"value\":\"client\"}]}\n", err.Error())
+	assert.Equal(t, 1, r.spansRead)
+	assert.Equal(t, true, r.eofReached)
 }
