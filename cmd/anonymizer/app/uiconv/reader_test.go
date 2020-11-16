@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestReader_Trace_Success(t *testing.T) {
+func TestReader_TraceSuccess(t *testing.T) {
 	inputFile := "fixtures/trace_success.json"
 	r, err := NewReader(
 		inputFile,
@@ -49,7 +49,7 @@ func TestReader_Trace_Success(t *testing.T) {
 	assert.Equal(t, true, r.eofReached)
 }
 
-func TestReader_Trace_NonExistent(t *testing.T) {
+func TestReader_TraceNonExistent(t *testing.T) {
 	inputFile := "fixtures/trace_non_existent.json"
 	_, err := NewReader(
 		inputFile,
@@ -58,7 +58,7 @@ func TestReader_Trace_NonExistent(t *testing.T) {
 	require.Equal(t, "cannot open captured file: open fixtures/trace_non_existent.json: no such file or directory", err.Error())
 }
 
-func TestReader_Trace_Empty(t *testing.T) {
+func TestReader_TraceEmpty(t *testing.T) {
 	inputFile := "fixtures/trace_empty.json"
 	r, err := NewReader(
 		inputFile,
@@ -72,7 +72,7 @@ func TestReader_Trace_Empty(t *testing.T) {
 	assert.Equal(t, true, r.eofReached)
 }
 
-func TestReader_Trace_Wrong_Format(t *testing.T) {
+func TestReader_TraceWrongFormat(t *testing.T) {
 	inputFile := "fixtures/trace_wrong_format.json"
 	r, err := NewReader(
 		inputFile,
@@ -86,7 +86,7 @@ func TestReader_Trace_Wrong_Format(t *testing.T) {
 	assert.Equal(t, true, r.eofReached)
 }
 
-func TestReader_Trace_Invalid_Json(t *testing.T) {
+func TestReader_TraceInvalidJson(t *testing.T) {
 	inputFile := "fixtures/trace_invalid_json.json"
 	r, err := NewReader(
 		inputFile,
