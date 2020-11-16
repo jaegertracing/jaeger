@@ -15,11 +15,12 @@
 package uiconv
 
 import (
+	"os"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"os"
-	"testing"
 )
 
 func TestModule_TraceSuccess(t *testing.T) {
@@ -57,4 +58,23 @@ func TestModule_TraceNonExistent(t *testing.T) {
 	}
 	err := Extract(config, zap.NewNop())
 	require.Equal(t, "cannot open captured file: open fixtures/trace_non_existent.json: no such file or directory", err.Error())
+}
+
+func TestModule_TraceOutputFileError(t *testing.T) {
+	inputFile := "fixtures/trace_success.json"
+	outputFile := "fixtures/trace_success_ui_anonymized.json"
+	defer os.Remove(outputFile)
+
+	config := Config{
+		CapturedFile: inputFile,
+		UIFile:       outputFile,
+		TraceID:      "2be38093ead7a083",
+	}
+
+	err := os.Chmod("fixtures", 0550)
+	require.NoError(t, err)
+	defer os.Chmod("fixtures", 0755)
+
+	err = Extract(config, zap.NewNop())
+	require.Equal(t, "cannot create output file: open fixtures/trace_success_ui_anonymized.json: permission denied", err.Error())
 }
