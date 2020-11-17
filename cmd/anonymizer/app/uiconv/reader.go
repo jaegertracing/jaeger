@@ -37,12 +37,6 @@ type Reader struct {
 
 // NewReader creates a Reader.
 func NewReader(capturedFile string, logger *zap.Logger) (*Reader, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get working directory: %w", err)
-	}
-	logger.Sugar().Infof("Current working dir is %s", wd)
-
 	cf, err := os.OpenFile(capturedFile, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open captured file: %w", err)
