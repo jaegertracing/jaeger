@@ -52,6 +52,7 @@ func NewExtractor(uiFile string, traceID string, reader *Reader, logger *zap.Log
 // Run executes the extraction.
 func (e *Extractor) Run() error {
 	e.logger.Info("Parsing captured file for trace", zap.String("trace_id", e.traceID))
+
 	var (
 		spans []uimodel.Span
 		span  *uimodel.Span
@@ -63,7 +64,7 @@ func (e *Extractor) Run() error {
 		}
 	}
 	if err != io.EOF {
-		e.logger.Fatal("Failed when scanning the file", zap.Error(err))
+		return fmt.Errorf("failed when scanning the file: %w", err)
 	}
 	trace := uimodel.Trace{
 		TraceID:   uimodel.TraceID(e.traceID),
@@ -86,7 +87,8 @@ func (e *Extractor) Run() error {
 	e.uiFile.Write([]byte(`{"data": [`))
 	e.uiFile.Write(jsonBytes)
 	e.uiFile.Write([]byte(`]}`))
+	e.uiFile.Sync()
+	e.uiFile.Close()
 	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFile.Name())
-	os.Exit(0)
 	return nil
 }
