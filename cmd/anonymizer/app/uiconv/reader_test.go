@@ -37,15 +37,17 @@ func TestReader_TraceSuccess(t *testing.T) {
 	assert.Equal(t, 1, r.spansRead)
 	assert.Equal(t, false, r.eofReached)
 
+	r.spansRead = 999
+
 	s2, err := r.NextSpan()
 	require.NoError(t, err)
 	assert.Equal(t, "471418097747d04a", s2.OperationName)
-	assert.Equal(t, 2, r.spansRead)
+	assert.Equal(t, 1000, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
 
 	_, err = r.NextSpan()
 	require.Equal(t, io.EOF, err)
-	assert.Equal(t, 2, r.spansRead)
+	assert.Equal(t, 1000, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
 }
 
