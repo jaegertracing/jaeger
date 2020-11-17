@@ -56,7 +56,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 	}
 
 	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
-	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
+	p, err := f.CreateTracesProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 
@@ -81,7 +81,7 @@ func TestLegacyJaegerTagsOnly(t *testing.T) {
 	}
 
 	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
-	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
+	p, err := f.CreateTracesProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 
@@ -116,7 +116,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NotNil(t, colConfig)
 
 	cfg := colConfig.Processors[string(f.Type())].(*resourceprocessor.Config)
-	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
+	p, err := f.CreateTracesProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 	assert.Equal(t, []processorhelper.ActionKeyValue{

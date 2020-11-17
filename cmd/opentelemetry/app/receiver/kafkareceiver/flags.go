@@ -16,11 +16,30 @@ package kafkareceiver
 
 import (
 	"flag"
+	"fmt"
+	"strings"
 
 	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+)
+
+const (
+	// encodingZipkinProto is used for spans encoded as Zipkin Protobuf.
+	encodingZipkinProto = "zipkin-proto"
+	// encodingZipkinJSON is used for spans encoded as Zipkin JSON.
+	encodingZipkinJSON = "zipkin-json"
+	// encodingOTLPProto is used for spans encoded as OTLP Protobuf.
+	encodingOTLPProto = "otlp-proto"
 )
 
 // AddFlags adds Ingester flags.
 func AddFlags(flags *flag.FlagSet) {
 	ingesterApp.AddOTELFlags(flags)
+	// Modify kafka.consumer.encoding flag
+	flags.Lookup(ingesterApp.KafkaConsumerConfigPrefix + ingesterApp.SuffixEncoding).Usage = fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(
+		append(kafka.AllEncodings,
+			encodingZipkinJSON,
+			encodingZipkinProto,
+			encodingOTLPProto,
+		), "\", \""))
 }

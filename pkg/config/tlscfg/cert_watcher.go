@@ -55,6 +55,7 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		return nil, err
 	}
 	if err := addCertsToWatch(watcher, opts); err != nil {
+		watcher.Close()
 		return nil, err
 	}
 	return &certWatcher{
@@ -111,7 +112,12 @@ func (w *certWatcher) watchChangesLoop(rootCAs, clientCAs *x509.CertPool) {
 				w.mu.Unlock()
 				err = e
 			}
-			if err != nil {
+			if err == nil {
+				w.logger.Info("Loaded modified certificate",
+					zap.String("certificate", event.Name),
+					zap.String("event", event.Op.String()))
+
+			} else {
 				w.logger.Error("Failed to load certificate",
 					zap.String("certificate", event.Name),
 					zap.String("event", event.Op.String()),

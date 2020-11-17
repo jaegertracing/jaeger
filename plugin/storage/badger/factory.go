@@ -94,7 +94,7 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
 
-	opts := badger.DefaultOptions
+	opts := badger.DefaultOptions("")
 	opts.TableLoadingMode = options.MemoryMap
 
 	if f.Options.Primary.Ephemeral {
