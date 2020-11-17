@@ -1,2 +1,2 @@
-[{"traceID":"2be38093ead7a083","spanID":"7606ddfe69932d34","flags":1,"operationName":"a071653098f9250d","startTime":1605223981761425,"duration":267037,"tags":[{"key":"span.kind","type":"string","value":"server"}],"logs":[],"process":{"serviceName":"16af988c443cff37","tags":[]},"warnings":null},
+[{"traceID":"2be38093ead7a083","spanID":"7606ddfe69932d34","duration":267037},
 ]
