@@ -57,7 +57,8 @@ func TestModule_TraceNonExistent(t *testing.T) {
 		TraceID:      "2be38093ead7a083",
 	}
 	err := Extract(config, zap.NewNop())
-	require.Equal(t, "cannot open captured file: open fixtures/trace_non_existent.json: no such file or directory", err.Error())
+	require.Contains(t, err.Error(), "cannot open captured file")
+	require.Contains(t, err.Error(), "no such file or directory")
 }
 
 func TestModule_TraceOutputFileError(t *testing.T) {
@@ -76,5 +77,6 @@ func TestModule_TraceOutputFileError(t *testing.T) {
 	defer os.Chmod("fixtures", 0755)
 
 	err = Extract(config, zap.NewNop())
-	require.Equal(t, "cannot create output file: open fixtures/trace_success_ui_anonymized.json: permission denied", err.Error())
+	require.Contains(t, err.Error(), "cannot create output file")
+	require.Contains(t, err.Error(), "permission denied")
 }

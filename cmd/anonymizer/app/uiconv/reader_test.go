@@ -55,7 +55,8 @@ func TestReader_TraceNonExistent(t *testing.T) {
 		inputFile,
 		zap.NewNop(),
 	)
-	require.Equal(t, "cannot open captured file: open fixtures/trace_non_existent.json: no such file or directory", err.Error())
+	require.Contains(t, err.Error(), "cannot open captured file")
+	require.Contains(t, err.Error(), "no such file or directory")
 }
 
 func TestReader_TraceEmpty(t *testing.T) {
@@ -95,7 +96,7 @@ func TestReader_TraceInvalidJson(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = r.NextSpan()
-	require.Equal(t, "cannot unmarshal span: json: cannot unmarshal string into Go struct field Span.duration of type uint64; {\"traceID\":\"2be38093ead7a083\",\"spanID\":\"7bd66f09ba90ea3d\",\"duration\": \"invalid\"}\n", err.Error())
+	require.Contains(t, err.Error(), "cannot unmarshal span: json: cannot unmarshal string into Go struct field Span.duration of type uint64")
 	assert.Equal(t, 0, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
 }

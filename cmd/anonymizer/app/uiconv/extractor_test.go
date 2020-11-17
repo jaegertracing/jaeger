@@ -84,7 +84,7 @@ func TestExtractor_TraceOutputFileError(t *testing.T) {
 		reader,
 		zap.NewNop(),
 	)
-	require.Equal(t, "cannot create output file: open fixtures/trace_success_ui_anonymized.json: permission denied", err.Error())
+	require.Contains(t, err.Error(), "cannot create output file")
 }
 
 func TestExtractor_TraceScanError(t *testing.T) {
