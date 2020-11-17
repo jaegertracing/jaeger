@@ -67,7 +67,7 @@ func TestReader_TraceEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = r.NextSpan()
-	require.Equal(t, "cannot read file: EOF", err.Error())
+	require.Contains(t, err.Error(), "cannot read file")
 	assert.Equal(t, 0, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
 }

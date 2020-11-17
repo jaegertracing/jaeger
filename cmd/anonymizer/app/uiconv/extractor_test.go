@@ -107,7 +107,7 @@ func TestExtractor_TraceScanError(t *testing.T) {
 	require.NoError(t, err)
 
 	err = extractor.Run()
-	require.Equal(t, "failed when scanning the file: cannot read file: EOF", err.Error())
+	require.Contains(t, err.Error(), "failed when scanning the file")
 }
 
 func loadJSON(t *testing.T, fileName string, i interface{}) {
