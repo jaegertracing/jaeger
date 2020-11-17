@@ -94,14 +94,8 @@ func TestReader_TraceInvalidJson(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	s1, err := r.NextSpan()
-	require.NoError(t, err)
-	assert.Equal(t, "a071653098f9250d", s1.OperationName)
-	assert.Equal(t, 1, r.spansRead)
-	assert.Equal(t, false, r.eofReached)
-
 	_, err = r.NextSpan()
-	require.Equal(t, "cannot unmarshal span: json: cannot unmarshal string into Go struct field Span.duration of type uint64;   {\"traceID\":\"2be38093ead7a083\",\"spanID\":\"7bd66f09ba90ea3d\",\"flags\":1,\"operationName\":\"471418097747d04a\",\"startTime\":1605223981965074,\"duration\": \"invalid\",\"tags\":[{\"key\":\"span.kind\",\"type\":\"string\",\"value\":\"client\"}]}\n", err.Error())
-	assert.Equal(t, 1, r.spansRead)
+	require.Equal(t, "cannot unmarshal span: json: cannot unmarshal string into Go struct field Span.duration of type uint64; {\"traceID\":\"2be38093ead7a083\",\"spanID\":\"7bd66f09ba90ea3d\",\"duration\": \"invalid\"}\n", err.Error())
+	assert.Equal(t, 0, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
 }
