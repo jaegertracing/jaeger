@@ -39,7 +39,7 @@ type Reader struct {
 func NewReader(capturedFile string, logger *zap.Logger) (*Reader, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot get working directory: %w", err)
 	}
 	logger.Sugar().Infof("Current working dir is %s", wd)
 

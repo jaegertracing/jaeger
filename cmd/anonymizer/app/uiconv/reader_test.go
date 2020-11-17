@@ -16,6 +16,7 @@ package uiconv
 
 import (
 	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,15 +38,17 @@ func TestReader_TraceSuccess(t *testing.T) {
 	assert.Equal(t, 1, r.spansRead)
 	assert.Equal(t, false, r.eofReached)
 
+	r.spansRead = 999
+
 	s2, err := r.NextSpan()
 	require.NoError(t, err)
 	assert.Equal(t, "471418097747d04a", s2.OperationName)
-	assert.Equal(t, 2, r.spansRead)
+	assert.Equal(t, 1000, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
 
 	_, err = r.NextSpan()
 	require.Equal(t, io.EOF, err)
-	assert.Equal(t, 2, r.spansRead)
+	assert.Equal(t, 1000, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
 }
 
@@ -98,4 +101,20 @@ func TestReader_TraceInvalidJson(t *testing.T) {
 	require.Contains(t, err.Error(), "cannot unmarshal span")
 	assert.Equal(t, 0, r.spansRead)
 	assert.Equal(t, true, r.eofReached)
+}
+
+func TestReader_GetWDError(t *testing.T) {
+	inputFile := "fixtures/trace_non_existent.json"
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	err = os.Chmod(wd, 0000)
+	require.NoError(t, err)
+	defer os.Chmod(wd, 0755)
+
+	_, err = NewReader(
+		inputFile,
+		zap.NewNop(),
+	)
+	require.Contains(t, err.Error(), "cannot get working directory")
 }
