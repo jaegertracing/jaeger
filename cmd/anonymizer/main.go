@@ -21,10 +21,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	app "github.com/jaegertracing/jaeger/cmd/anonymizer/app"
+	"github.com/jaegertracing/jaeger/cmd/anonymizer/app"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/anonymizer"
-	query "github.com/jaegertracing/jaeger/cmd/anonymizer/app/query"
-	writer "github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
+	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/query"
+	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/uiconv"
+	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
@@ -41,9 +42,9 @@ func main() {
 			prefix := options.OutputDir + "/" + options.TraceID
 			conf := writer.Config{
 				MaxSpansCount:  options.MaxSpansCount,
-				CapturedFile:   prefix + ".original",
-				AnonymizedFile: prefix + ".anonymized",
-				MappingFile:    prefix + ".mapping",
+				CapturedFile:   prefix + ".original.json",
+				AnonymizedFile: prefix + ".anonymized.json",
+				MappingFile:    prefix + ".mapping.json",
 				AnonymizerOpts: anonymizer.Options{
 					HashStandardTags: options.HashStandardTags,
 					HashCustomTags:   options.HashCustomTags,
@@ -71,6 +72,16 @@ func main() {
 				writer.WriteSpan(&span)
 			}
 			writer.Close()
+
+			uiCfg := uiconv.Config{
+				CapturedFile: conf.AnonymizedFile,
+				UIFile:       prefix + ".anonymized-ui-trace.json",
+				TraceID:      options.TraceID,
+			}
+			if err := uiconv.Extract(uiCfg, logger); err != nil {
+				logger.Fatal("error while extracing UI trace", zap.Error(err))
+			}
+			logger.Sugar().Infof("Wrote UI-compatible anonymized file to %s", uiCfg.UIFile)
 		},
 	}
 
