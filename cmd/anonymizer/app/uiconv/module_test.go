@@ -58,7 +58,6 @@ func TestModule_TraceNonExistent(t *testing.T) {
 	}
 	err := Extract(config, zap.NewNop())
 	require.Contains(t, err.Error(), "cannot open captured file")
-	require.Contains(t, err.Error(), "no such file or directory")
 }
 
 func TestModule_TraceOutputFileError(t *testing.T) {
@@ -78,5 +77,4 @@ func TestModule_TraceOutputFileError(t *testing.T) {
 
 	err = Extract(config, zap.NewNop())
 	require.Contains(t, err.Error(), "cannot create output file")
-	require.Contains(t, err.Error(), "permission denied")
 }
