@@ -34,6 +34,7 @@ jaeger_components=(
 	ingester
 	ingester-debug
 	tracegen
+	anonymizer
 	opentelemetry-collector
 	opentelemetry-agent
 	opentelemetry-ingester

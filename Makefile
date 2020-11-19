@@ -213,6 +213,10 @@ build-examples:
 build-tracegen:
 	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
 
+.PHONY: build-anonymizer
+build-anonymizer:
+	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/main.go
+
 .PHONY: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
@@ -249,10 +253,6 @@ build-all-in-one build-all-in-one-debug: build-ui elasticsearch-mappings
 .PHONY: build-agent build-agent-debug
 build-agent build-agent-debug:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/agent/agent$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
-
-.PHONY: build-anonymizer
-build-anonymizer:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/anonymizer/anonymizer$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
 
 .PHONY: build-query build-query-debug
 build-query build-query-debug: build-ui
@@ -321,6 +321,7 @@ build-platform-binaries: build-agent \
 	build-all-in-one \
 	build-examples \
 	build-tracegen \
+	build-anonymizer \
 	build-otel-collector \
 	build-otel-agent \
 	build-otel-ingester \
@@ -364,12 +365,18 @@ docker-images-tracegen:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-tracegen =============="
 
+.PHONY: docker-images-anonymizer
+docker-images-anonymizer:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
+	@echo "Finished building jaeger-anonymizer =============="
+
 .PHONY: docker-images-only
 docker-images-only: docker-images-cassandra \
 	docker-images-elastic \
 	docker-images-jaeger-backend \
 	docker-images-jaeger-backend-debug \
-	docker-images-tracegen
+	docker-images-tracegen \
+	docker-images-anonymizer
 
 .PHONY: docker-push
 docker-push:
@@ -379,7 +386,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen; do \
+	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen anonymizer; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
