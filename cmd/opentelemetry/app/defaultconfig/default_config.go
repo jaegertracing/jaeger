@@ -206,12 +206,12 @@ func createExporters(component ComponentType, storageTypes string, factories com
 
 func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 	if jaeger.ThriftCompact == nil {
-		jaeger.ThriftCompact = &confignet.TCPAddr{
+		jaeger.ThriftCompact = &jaegerreceiver.ProtocolUDP{
 			Endpoint: udpThriftCompactEndpoint,
 		}
 	}
 	if jaeger.ThriftBinary == nil {
-		jaeger.ThriftBinary = &confignet.TCPAddr{
+		jaeger.ThriftBinary = &jaegerreceiver.ProtocolUDP{
 			Endpoint: udpThriftBinaryEndpoint,
 		}
 	}

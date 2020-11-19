@@ -61,8 +61,14 @@ func TestMergeConfigs(t *testing.T) {
 							Endpoint: "def",
 						},
 					},
-					ThriftCompact: &confignet.TCPAddr{
+					ThriftCompact: &jaegerreceiver.ProtocolUDP{
 						Endpoint: "def",
+						ServerConfigUDP: jaegerreceiver.ServerConfigUDP{
+							QueueSize:        100,
+							MaxPacketSize:    65_536,
+							Workers:          10,
+							SocketBufferSize: 65_536,
+						},
 					},
 				},
 			},
@@ -128,8 +134,14 @@ func TestMergeConfigs(t *testing.T) {
 							Endpoint: "master_jaeger_url",
 						},
 					},
-					ThriftCompact: &confignet.TCPAddr{
+					ThriftCompact: &jaegerreceiver.ProtocolUDP{
 						Endpoint: "def",
+						ServerConfigUDP: jaegerreceiver.ServerConfigUDP{
+							QueueSize:        100,
+							MaxPacketSize:    65_536,
+							Workers:          10,
+							SocketBufferSize: 65_536,
+						},
 					},
 				},
 			},

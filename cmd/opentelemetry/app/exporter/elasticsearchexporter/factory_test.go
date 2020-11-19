@@ -42,6 +42,7 @@ func TestCreateTraceExporter(t *testing.T) {
 	config.Primary.Servers = []string{"http://foobardoesnotexists.test"}
 	exporter, err := factory.CreateTracesExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, config)
 	require.Nil(t, exporter)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no such host")
 }
 
@@ -49,6 +50,7 @@ func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
 	exporter, err := factory.CreateTracesExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_elasticsearch")
 }
 
