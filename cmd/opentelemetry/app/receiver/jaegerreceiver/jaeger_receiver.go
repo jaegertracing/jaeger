@@ -71,11 +71,13 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	if v.IsSet(thriftBinaryHostPort) {
 		cfg.ThriftBinary = &jaegerreceiver.ProtocolUDP{
 			Endpoint: v.GetString(thriftBinaryHostPort),
+			ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 		}
 	}
 	if v.IsSet(thriftCompactHostPort) {
 		cfg.ThriftCompact = &jaegerreceiver.ProtocolUDP{
 			Endpoint: v.GetString(thriftCompactHostPort),
+			ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 		}
 	}
 }

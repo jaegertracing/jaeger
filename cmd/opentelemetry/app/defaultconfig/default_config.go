@@ -208,11 +208,13 @@ func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 	if jaeger.ThriftCompact == nil {
 		jaeger.ThriftCompact = &jaegerreceiver.ProtocolUDP{
 			Endpoint: udpThriftCompactEndpoint,
+			ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 		}
 	}
 	if jaeger.ThriftBinary == nil {
 		jaeger.ThriftBinary = &jaegerreceiver.ProtocolUDP{
 			Endpoint: udpThriftBinaryEndpoint,
+			ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 		}
 	}
 }
