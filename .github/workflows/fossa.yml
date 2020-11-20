@@ -8,20 +8,25 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Use Go ^1.14.x
+        uses: actions/setup-go@v2
         with:
-          go-version: "^1.14.x"
-      - run: go version
-      # Runs a set of commands to initialize and analyze with FOSSA
-      - name: run FOSSA analysis
-        env:
+          go-version: ^1.14.x
+
+      - name: Add GOPATH to GITHUB_ENV
+        run: echo "GOPATH=$(go env GOPATH)" >>"$GITHUB_ENV"
+
+      - name: Add GOPATH to GITHUB_PATH
+        run: echo "$GOPATH/bin" >>"$GITHUB_PATH"
+
+      - name: Run FOSSA scan and upload build data
+        uses: fossa-contrib/fossa-action@v1
+        with:
           # FOSSA Push-Only API Token
-          FOSSA_API_KEY: '304657e2357ba57b416b94e6b119131b'
-        run: |
-          export GOPATH=$HOME/go
-          export PATH=$PATH:$(go env GOPATH)/bin
-          curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install.sh | bash
-          fossa init
-          fossa analyze
+          fossa-api-key: 304657e2357ba57b416b94e6b119131b
+          github-token: ${{ github.token }}
