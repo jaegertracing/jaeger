@@ -73,7 +73,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 			expected: &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
 					ThriftCompact: &jaegerreceiver.ProtocolUDP{
-						Endpoint: "localhost:9999",
+						Endpoint:        "localhost:9999",
 						ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 					},
 				},
@@ -85,7 +85,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 			expected: &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
 					ThriftBinary: &jaegerreceiver.ProtocolUDP{
-						Endpoint: "localhost:8888",
+						Endpoint:        "localhost:8888",
 						ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 					},
 				},
@@ -124,7 +124,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 						Endpoint: "localhost:8089",
 					},
 					ThriftBinary: &jaegerreceiver.ProtocolUDP{
-						Endpoint: "localhost:2222",
+						Endpoint:        "localhost:2222",
 						ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 					},
 				},
