@@ -96,7 +96,7 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 			},
 		},
 		HTTPServer: HTTPServerConfiguration{
-			HostPort: ":0",
+			HostPort: "127.0.0.1:0",
 		},
 	}
 	logger, logBuf := testutils.NewLogger()
