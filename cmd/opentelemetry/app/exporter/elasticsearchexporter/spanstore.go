@@ -78,8 +78,8 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger, archive bo
 		logger:           logger,
 		nameTag:          tag.Insert(storagemetrics.TagExporterName(), name),
 		client:           client,
-		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, alias, archive),
-		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, alias, archive),
+		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.IndexDateLayout, alias, archive),
+		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.IndexDateLayout, alias, archive),
 		translator:       esmodeltranslator.NewTranslator(params.Tags.AllAsFields, tagsKeysAsFields, params.GetTagDotReplacement()),
 		isArchive:        archive,
 		serviceCache: cache.NewLRUWithOptions(

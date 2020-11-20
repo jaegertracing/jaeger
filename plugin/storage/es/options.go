@@ -17,6 +17,7 @@ package es
 
 import (
 	"flag"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -45,6 +46,7 @@ const (
 	suffixBulkFlushInterval   = ".bulk.flush-interval"
 	suffixTimeout             = ".timeout"
 	suffixIndexPrefix         = ".index-prefix"
+	suffixIndexDateSeparator  = ".index-date-separator"
 	suffixTagsAsFields        = ".tags-as-fields"
 	suffixTagsAsFieldsAll     = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude = suffixTagsAsFields + ".include"
@@ -58,8 +60,9 @@ const (
 
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
-	defaultMaxDocCount = 10_000
-	defaultServerURL   = "http://127.0.0.1:9200"
+	defaultMaxDocCount     = 10_000
+	defaultServerURL       = "http://127.0.0.1:9200"
+	defaultIndexDateLayout = "2006-01-02" // date format for index e.g. 2020-01-20
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -210,6 +213,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexDateSeparator,
+		"",
+		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20 \".")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
@@ -281,6 +288,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.IndexDateLayout = initDateLayout(v.GetString(cfg.namespace + suffixIndexDateSeparator))
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
 	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
@@ -324,4 +332,19 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 // stripWhiteSpace removes all whitespace characters from a string
 func stripWhiteSpace(str string) string {
 	return strings.Replace(str, " ", "", -1)
+}
+
+func initDateLayout(separator string) string {
+	var dateLayout string
+	if separator != "" {
+		switch separator {
+		case "none":
+			dateLayout = "20060102"
+		default:
+			dateLayout = fmt.Sprintf("2006%s01%s02", separator, separator)
+		}
+	} else {
+		dateLayout = defaultIndexDateLayout
+	}
+	return dateLayout
 }

@@ -43,14 +43,14 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStorage(indexPrefix string, maxDocCount int, fn func(r *depStorageTest)) {
+func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn func(r *depStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	r := &depStorageTest{
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(client, logger, indexPrefix, maxDocCount),
+		storage:   NewDependencyStore(client, logger, indexPrefix, indexDateLayout, maxDocCount),
 	}
 	fn(r)
 }
@@ -69,7 +69,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
-		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix, defaultMaxDocCount)
+		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix, "2006-01-02", defaultMaxDocCount)
 		assert.Equal(t, testCase.expected+dependencyIndex, r.indexPrefix)
 	}
 }
@@ -90,9 +90,9 @@ func TestWriteDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage("", defaultMaxDocCount, func(r *depStorageTest) {
+		withDepStorage("", "2006-01-02", defaultMaxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := indexWithDate("", fixedTime)
+			indexName := indexWithDate("", "2006-01-02", fixedTime)
 			writeService := &mocks.IndexService{}
 
 			r.client.On("Index").Return(writeService)
@@ -165,7 +165,7 @@ func TestGetDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage(testCase.indexPrefix, testCase.maxDocCount, func(r *depStorageTest) {
+		withDepStorage(testCase.indexPrefix, "2006-01-02", testCase.maxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 
 			searchService := &mocks.SearchService{}
@@ -208,28 +208,28 @@ func TestGetIndices(t *testing.T) {
 		prefix   string
 	}{
 		{
-			expected: []string{indexWithDate("", fixedTime), indexWithDate("", fixedTime.Add(-24*time.Hour))},
+			expected: []string{indexWithDate("", "2006-01-02", fixedTime), indexWithDate("", "2006-01-02", fixedTime.Add(-24*time.Hour))},
 			lookback: 23 * time.Hour,
 			prefix:   "",
 		},
 		{
-			expected: []string{indexWithDate("", fixedTime), indexWithDate("", fixedTime.Add(-24*time.Hour))},
+			expected: []string{indexWithDate("", "2006-01-02", fixedTime), indexWithDate("", "2006-01-02", fixedTime.Add(-24*time.Hour))},
 			lookback: 13 * time.Hour,
 			prefix:   "",
 		},
 		{
-			expected: []string{indexWithDate("foo:", fixedTime)},
+			expected: []string{indexWithDate("foo:", "2006-01-02", fixedTime)},
 			lookback: 1 * time.Hour,
 			prefix:   "foo:",
 		},
 		{
-			expected: []string{indexWithDate("foo-", fixedTime)},
+			expected: []string{indexWithDate("foo-", "2006-01-02", fixedTime)},
 			lookback: 0,
 			prefix:   "foo-",
 		},
 	}
 	for _, testCase := range testCases {
-		assert.EqualValues(t, testCase.expected, getIndices(testCase.prefix, fixedTime, testCase.lookback))
+		assert.EqualValues(t, testCase.expected, getIndices(testCase.prefix, "2006-01-02", fixedTime, testCase.lookback))
 	}
 }
 

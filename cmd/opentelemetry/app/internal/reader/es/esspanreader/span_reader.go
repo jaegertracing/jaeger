@@ -71,6 +71,7 @@ type Config struct {
 	Archive             bool
 	UseReadWriteAliases bool
 	IndexPrefix         string
+	IndexDateLayout     string
 	MaxSpanAge          time.Duration
 	MaxDocCount         int
 	TagDotReplacement   string
@@ -89,8 +90,8 @@ func NewEsSpanReader(client esclient.ElasticsearchClient, logger *zap.Logger, co
 		maxSpanAge:       config.MaxSpanAge,
 		maxDocCount:      config.MaxDocCount,
 		converter:        dbmodel.NewToDomain(config.TagDotReplacement),
-		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, config.IndexPrefix, alias, config.Archive),
-		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, alias, config.Archive),
+		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, config.IndexPrefix, config.IndexDateLayout, alias, config.Archive),
+		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, config.IndexPrefix, config.IndexDateLayout, alias, config.Archive),
 	}
 }
 
