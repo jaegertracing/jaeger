@@ -90,6 +90,7 @@ func TestPing(t *testing.T) {
 			esPing := elasticsearchPing{}
 			version, err := esPing.getVersion(ts.URL)
 			if test.err != "" {
+				assert.Error(t, err)
 				assert.Contains(t, err.Error(), test.err)
 				assert.Equal(t, 0, version)
 			} else {

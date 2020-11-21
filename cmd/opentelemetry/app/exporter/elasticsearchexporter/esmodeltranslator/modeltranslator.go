@@ -248,7 +248,7 @@ func traceIDToString(high, low uint64) string {
 }
 
 func (c *Translator) process(resource pdata.Resource) *dbmodel.Process {
-	if resource.IsNil() || resource.Attributes().Len() == 0 {
+	if resource.Attributes().Len() == 0 {
 		return nil
 	}
 	p := &dbmodel.Process{}
