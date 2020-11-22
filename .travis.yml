@@ -9,42 +9,40 @@ matrix:
   include:
   - go: "1.15.x"
     env:
-    - TESTS=true
-    - COVERAGE=true
+    - TASKS=TESTS,COVERAGE
   - go: "1.15.x"
     env:
-    - PROTO_GEN_TEST=true
+    - TASKS=PROTO_GEN_TEST
   - go: "1.15.x"
     env:
-    - ALL_IN_ONE=true
+    - TASKS=ALL_IN_ONE
   - go: "1.15.x"
     env:
-    - CROSSDOCK=true
+    - TASKS=CROSSDOCK
   - go: "1.15.x"
     env:
-    - CROSSDOCK_OTEL=true
+    - TASKS=CROSSDOCK_OTEL
   - go: "1.15.x"
     env:
-    - DOCKER=true
-    - DEPLOY=true
+    - TASKS=DOCKER,DEPLOY
   - go: "1.15.x"
     env:
-    - ES_INTEGRATION_TEST=true
+    - TASKS=ES_INTEGRATION_TEST
   - go: "1.15.x"
     env:
-    - ES_OTEL_INTEGRATION_TEST=true
+    - TASKS=ES_OTEL_INTEGRATION_TEST
   - go: "1.15.x"
     env:
-    - KAFKA_INTEGRATION_TEST=true
+    - TASKS=KAFKA_INTEGRATION_TEST
   - go: "1.15.x"
     env:
-    - CASSANDRA_INTEGRATION_TEST=true
+    - TASKS=CASSANDRA_INTEGRATION_TEST
   - go: "1.15.x"
     env:
-    - MEM_AND_BADGER_INTEGRATION_TEST=true
+    - TASKS=MEM_AND_BADGER_INTEGRATION_TEST
   - go: "1.15.x"
     env:
-    - HOTROD=true
+    - TASKS=HOTROD
 
 services:
   - docker
@@ -59,36 +57,89 @@ env:
 install:
   - docker rmi $(docker images -q) || true
   - travis_retry make install-ci
-  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
-  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
-  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
+  - |-
+      case $TASKS in
+        ALL_IN_ONE)
+          bash ./scripts/travis/install-ui-deps.sh
+          ;;
+        DOCKER,DEPLOY)
+          bash ./scripts/travis/install-ui-deps.sh
+          ;;
+        CROSSDOCK)
+          bash ./scripts/travis/install-crossdock-deps.sh
+          ;;
+      esac
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
-  - if [ "$PROTO_GEN_TEST" == true ]; then make proto && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
-  - if [ "$ALL_IN_ONE" == true ]; then make create-baseimg-debugimg && bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
-  - if [ "$CROSSDOCK" == true ]; then travis_retry bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
-  - if [ "$CROSSDOCK_OTEL" == true ]; then travis_retry make build-crossdock crossdock-otel ; else echo 'skipping OpenTelemetry crossdock'; fi
-  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping build-docker-images'; fi
-  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/upload-all-docker-images.sh ; else echo 'skipping docker upload'; fi
-  - if [ "$DEPLOY" == true ]; then make build-all-platforms ; else echo 'skipping build-all-platforms'; fi
-  - if [ "$ES_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
-  - if [ "$ES_OTEL_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
-  - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
-  - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
-  - if [ "$MEM_AND_BADGER_INTEGRATION_TEST" == true ]; then travis_retry make mem-and-badger-storage-integration-test ; else echo 'skipping mem and badger integration test'; fi
-  - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - |-
+      case $TASKS in
+        TESTS,COVERAGE)
+          make test-ci
+          ;;
+        PROTO_GEN_TEST)
+          make proto
+          git diff --name-status --exit-code
+          ;;
+        ALL_IN_ONE)
+          make create-baseimg-debugimg
+          bash ./scripts/travis/build-all-in-one-image.sh
+          ;;
+        CROSSDOCK)
+          travis_retry bash ./scripts/travis/build-crossdock.sh
+          ;;
+        CROSSDOCK_OTEL)
+          travis_retry make build-crossdock crossdock-otel
+          ;;
+        DOCKER,DEPLOY)
+          bash ./scripts/travis/build-docker-images.sh
+          bash ./scripts/travis/upload-all-docker-images.sh
+          make build-all-platforms
+          ;;
+        ES_INTEGRATION_TEST)
+          travis_retry bash ./scripts/travis/es-integration-test.sh
+          ;;
+        ES_OTEL_INTEGRATION_TEST)
+          travis_retry bash ./scripts/travis/es-integration-test.sh
+          ;;
+        KAFKA_INTEGRATION_TEST)
+          travis_retry bash ./scripts/travis/kafka-integration-test.sh
+          ;;
+        CASSANDRA_INTEGRATION_TEST)
+          travis_retry bash ./scripts/travis/cassandra-integration-test.sh
+          ;;
+        MEM_AND_BADGER_INTEGRATION_TEST)
+          travis_retry make mem-and-badger-storage-integration-test
+          ;;
+        HOTROD)
+          bash ./scripts/travis/hotrod-integration-test.sh
+          ;;
+      esac
 
 after_success:
-  - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
-  - if [ "$COVERAGE" == true ]; then bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
+  - |-
+      case $TASKS in
+        TESTS,COVERAGE)
+          mv cover.out coverage.txt
+          bash <(curl -s https://codecov.io/bash)
+          ;;
+      esac
 
 after_failure:
-  - if [ "$CROSSDOCK" == true || "$CROSSDOCK_OTEL" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
+  - |-
+      case $TASKS in
+        CROSSDOCK|CROSSDOCK_OTEL)
+          make crossdock-logs
+          ;;
+      esac
 
 before_deploy:
-  - if [ "$DEPLOY" == true ]; then bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploying binaries'; fi
+  - |-
+      case $TASKS in
+        DOCKER,DEPLOY)
+          bash ./scripts/travis/package-deploy.sh
+          ;;
+      esac
 
 deploy:
   provider: releases
