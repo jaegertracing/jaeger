@@ -59,7 +59,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 		} else {
 			tb.FailNow()
 		}
-
+		assert.NoError(tb, f.Close())
 	}()
 	test(tb, sw, dr)
 }

@@ -19,7 +19,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/dgraph-io/badger"
@@ -52,17 +51,15 @@ type SpanWriter struct {
 	store        *badger.DB
 	ttl          time.Duration
 	cache        *CacheStore
-	closer       io.Closer
 	encodingType byte
 }
 
 // NewSpanWriter returns a SpawnWriter with cache
-func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration, storageCloser io.Closer) *SpanWriter {
+func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter {
 	return &SpanWriter{
 		store:        db,
 		ttl:          ttl,
 		cache:        c,
-		closer:       storageCloser,
 		encodingType: defaultEncoding, // TODO Make configurable
 	}
 }
@@ -193,7 +190,7 @@ func createTraceKV(span *model.Span, encodingType byte, startTime uint64) ([]byt
 	return key, bb, err
 }
 
-// Close Implements io.Closer and closes the underlying storage
+// Close Implements io.Closer but does nothing.
 func (w *SpanWriter) Close() error {
-	return w.closer.Close()
+	return nil
 }

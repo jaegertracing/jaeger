@@ -33,7 +33,7 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		rw := NewTraceReader(store, cache)
 
 		sw.encodingType = jsonEncoding
@@ -50,7 +50,7 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		// rw := NewTraceReader(store, cache)
 
 		sw.encodingType = 0x04
@@ -63,7 +63,7 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		rw := NewTraceReader(store, cache)
 
 		err := sw.WriteSpan(context.Background(), &testSpan)
@@ -102,7 +102,7 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		rw := NewTraceReader(store, cache)
 		origStartTime := testSpan.StartTime
 

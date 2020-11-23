@@ -415,7 +415,7 @@ func TestPersist(t *testing.T) {
 			} else {
 				t.FailNow()
 			}
-
+			assert.NoError(t, f.Close())
 		}()
 
 		test(t, sw, sr)
