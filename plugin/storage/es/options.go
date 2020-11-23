@@ -60,9 +60,10 @@ const (
 
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
-	defaultMaxDocCount     = 10_000
-	defaultServerURL       = "http://127.0.0.1:9200"
-	defaultIndexDateLayout = "2006-01-02" // date format for index e.g. 2020-01-20
+	defaultMaxDocCount = 10_000
+	defaultServerURL   = "http://127.0.0.1:9200"
+	// default separator for Elasticsearch index date layout.
+	defaultIndexDateSeparator = "-"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -215,8 +216,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexDateSeparator,
-		"",
-		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20 \".")
+		defaultIndexDateSeparator,
+		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20 \". This config is "+defaultIndexDateSeparator+" by default")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
@@ -335,16 +336,5 @@ func stripWhiteSpace(str string) string {
 }
 
 func initDateLayout(separator string) string {
-	var dateLayout string
-	if separator != "" {
-		switch separator {
-		case "none":
-			dateLayout = "20060102"
-		default:
-			dateLayout = fmt.Sprintf("2006%s01%s02", separator, separator)
-		}
-	} else {
-		dateLayout = defaultIndexDateLayout
-	}
-	return dateLayout
+	return fmt.Sprintf("2006%s01%s02", separator, separator)
 }

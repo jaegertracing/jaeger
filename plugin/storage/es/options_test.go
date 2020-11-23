@@ -55,7 +55,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.max-span-age=48h",
 		"--es.num-shards=20",
 		"--es.num-replicas=10",
-		"--es.index-date-separator=none",
+		"--es.index-date-separator=-",
 		// a couple overrides
 		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
 		"--es.aux.max-span-age=24h",
@@ -83,7 +83,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "!", primary.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", primary.Tags.File)
 	assert.Equal(t, "test,tags", primary.Tags.Include)
-	assert.Equal(t, "20060102", primary.IndexDateLayout)
+	assert.Equal(t, "2006-01-02", primary.IndexDateLayout)
 
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
@@ -153,21 +153,26 @@ func TestMaxDocCount(t *testing.T) {
 	}
 }
 
-func TestDateLayout(t *testing.T) {
+func TestIndexDateSeparator(t *testing.T) {
 	testCases := []struct {
-		name       string
-		separator  string
-		wantLayout string
+		name           string
+		flags          []string
+		wantDateLayout string
 	}{
-		{"default", "", "2006-01-02"},
-		{"crossbar", "-", "2006-01-02"},
-		{"normal separator", ".", "2006.01.02"},
-		{"none separator", "none", "20060102"},
+		{"not defined", []string{}, "2006-01-02"},
+		{"empty string", []string{"--es.index-date-separator="}, "20060102"},
+		{"normal separator", []string{"--es.index-date-separator=."}, "2006.01.02"},
+		{"crossbar", []string{"--es.index-date-separator=-"}, "2006-01-02"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dateLayout := initDateLayout(tc.separator)
-			assert.Equal(t, dateLayout, tc.wantLayout)
+			opts := NewOptions("es")
+			v, command := config.Viperize(opts.AddFlags)
+			command.ParseFlags(tc.flags)
+			opts.InitFromViper(v)
+
+			primary := opts.GetPrimary()
+			assert.Equal(t, tc.wantDateLayout, primary.IndexDateLayout)
 		})
 	}
 }

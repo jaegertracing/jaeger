@@ -34,7 +34,7 @@ def main():
     prefix = os.getenv("INDEX_PREFIX", '')
     if prefix != '':
         prefix += '-'
-    separator = os.getenv("INDEX_DATE_SEPARATOR", '')
+    separator = os.getenv("INDEX_DATE_SEPARATOR", '-')
 
     if str2bool(os.getenv("ARCHIVE", 'false')):
         filter_archive_indices_rollover(ilo, prefix)
@@ -54,15 +54,8 @@ def main():
 
 
 def filter_main_indices(ilo, prefix, separator):
-    date_regex = "\d{4}-\d{2}-\d{2}"
-    time_string = "%Y-%m-%d"
-    if separator != "":
-        if separator == "none":
-            date_regex = "\d{4}\d{2}\d{2}"
-            time_string = "%Y%m%d"
-        else:
-            date_regex = "\d{4}" + separator + "\d{2}" + separator + "\d{2}"
-            time_string = "%Y" + separator + "%m" + separator + "%d"
+    date_regex = "\d{4}" + separator + "\d{2}" + separator + "\d{2}"
+    time_string = "%Y" + separator + "%m" + separator + "%d"
 
     ilo.filter_by_regex(kind='regex', value=prefix + "jaeger-(span|service|dependencies)-" + date_regex)
     empty_list(ilo, "No indices to delete")
