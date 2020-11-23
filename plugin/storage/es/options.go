@@ -217,7 +217,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixIndexDateSeparator,
 		defaultIndexDateSeparator,
-		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20 \". This config is "+defaultIndexDateSeparator+" by default")
+		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20 \". Default: '"+defaultIndexDateSeparator+"'")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
