@@ -163,8 +163,8 @@ func TestIndexDateSeparator(t *testing.T) {
 		{"empty separator", []string{"--es.index-date-separator="}, "20060102"},
 		{"dot separator", []string{"--es.index-date-separator=."}, "2006.01.02"},
 		{"crossbar separator", []string{"--es.index-date-separator=-"}, "2006-01-02"},
-		{"backslash separator", []string{"--es.index-date-separator=/"}, "2006/01/02"},
-		{"multiple characters separator", []string{"--es.index-date-separator=' '"}, "2006' '01' '02"},
+		{"slash separator", []string{"--es.index-date-separator=/"}, "2006/01/02"},
+		{"empty string with single quotes", []string{"--es.index-date-separator=''"}, "2006''01''02"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
