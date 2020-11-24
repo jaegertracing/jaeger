@@ -95,7 +95,8 @@ func TestReload(t *testing.T) {
 	waitUntil(func() bool {
 		// Logged when both matching public and private keys are modified in the cert.
 		// If mismatched keys are present in the cert, the "Failed to load certificate" error will be logged instead.
-		return logObserver.FilterMessage("Loaded modified certificate").Len() > 0
+		return logObserver.FilterMessage("Loaded modified certificate").
+			FilterField(zap.String("certificate", keyFile.Name())).Len() > 0
 	}, 100, time.Millisecond*200)
 
 	// Logged when the cert is modified with the client's public key due to
