@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -35,7 +36,7 @@ import (
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader)) {
 	f := badger.NewFactory()
 	defer func() {
-		assert.NoError(tb, f.Close())
+		require.NoError(tb, f.Close())
 	}()
 
 	opts := badger.NewOptions("badger")
