@@ -8,7 +8,8 @@
 * [Matrix](https://matrix.org/)
 * [Northwestern Mutual](https://www.northwesternmutual.com/)
 * [Nets](https://www.nets.eu/)
-* [PalFish](https://ipalfish.com/klian/web/dist/teacher/home.html)
+* PalFish
+  * Official site: [en](https://ipalfish.com/klian/web/dist/teacher/home.html), [cn](https://www.ipalfish.com/)
 * [Red Hat](https://www.redhat.com/)
   * https://github.com/jaegertracing/jaeger-openshift
   * https://www.hawkular.org/blog/2017/04/19/hawkular-apm-jaeger.html
