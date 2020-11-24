@@ -189,8 +189,3 @@ func createTraceKV(span *model.Span, encodingType byte, startTime uint64) ([]byt
 
 	return key, bb, err
 }
-
-// Close Implements io.Closer but does nothing.
-func (w *SpanWriter) Close() error {
-	return nil
-}
