@@ -96,7 +96,9 @@ func main() {
 				HealthCheck:    svc.HC(),
 			})
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
-			c.Start(collectorOpts)
+			if err := c.Start(collectorOpts); err != nil {
+				logger.Fatal("Failed to start collector", zap.Error(err))
+			}
 
 			svc.RunAndThen(func() {
 				if err := c.Close(); err != nil {
