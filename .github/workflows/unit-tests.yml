@@ -1,0 +1,32 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Setup go env
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Run unit tests
+      run: make test-ci
+
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: cover.out
+        fail_ci_if_error: true
+        verbose: true
