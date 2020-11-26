@@ -99,15 +99,7 @@ func TestReload(t *testing.T) {
 			FilterField(zap.String("certificate", keyFile.Name())).Len() > 0
 	}, 100, time.Millisecond*200)
 
-	// Logged when the cert is modified with the client's public key due to
-	// a mismatch with the existing server private key.
-	assert.True(t, logObserver.
-		FilterMessage("Failed to load certificate").
-		FilterField(zap.String("certificate", certFile.Name())).Len() > 0,
-		"Failed to find wanted logs. All logs: "+fmt.Sprint(logObserver.All()))
-
-	// Logged when the cert is modified with the client's private key,
-	// resulting in both public and private keys matching (from the client).
+	// Logged when the cert is modified with the client's private key.
 	assert.True(t, logObserver.
 		FilterMessage("Loaded modified certificate").
 		FilterField(zap.String("certificate", keyFile.Name())).Len() > 0,
