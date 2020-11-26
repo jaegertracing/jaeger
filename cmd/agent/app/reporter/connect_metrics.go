@@ -23,10 +23,12 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 )
 
+// Structure built for future code expansion or add new metrics.
 type connectMetrics struct {
 
 }
 
+// ConnectMetricsReporterParams is used as input to WrapWithConnectMetrics.
 type ConnectMetricsReporterParams struct {
 	Logger          *zap.Logger     // required
 	MetricsFactory  metrics.Factory // required
@@ -34,7 +36,8 @@ type ConnectMetricsReporterParams struct {
 	ExpireTTL       time.Duration
 }
 
-
+// ConnectMetricsReporter is a decorator also it not actual use currently.
+// Structure built for future code expansion
 type ConnectMetricsReporter struct {
 	params        ConnectMetricsReporterParams
 	connectMetrics *connectMetrics
@@ -42,7 +45,7 @@ type ConnectMetricsReporter struct {
 	closed        *atomic.Bool
 
 }
-
+// WrapWithConnectMetrics creates ConnectMetricsReporter.
 func WrapWithConnectMetrics(params ConnectMetricsReporterParams) *ConnectMetricsReporter {
 	if params.ExpireFrequency == 0 {
 		params.ExpireFrequency = defaultExpireFrequency
@@ -62,7 +65,7 @@ func WrapWithConnectMetrics(params ConnectMetricsReporterParams) *ConnectMetrics
 	return r
 }
 
-
+// CollectorConnected used for change metric as agent connected.
 func (r *ConnectMetricsReporter) CollectorConnected(target string, ) {
 	metric := r.params.MetricsFactory.Gauge(metrics.Options{
 		Name: "connected_collector_status",
@@ -73,6 +76,7 @@ func (r *ConnectMetricsReporter) CollectorConnected(target string, ) {
 
 }
 
+// CollectorAborted used for change metric as agent disconnected.
 func (r *ConnectMetricsReporter)CollectorAborted(target string)  {
 	metric := r.params.MetricsFactory.Gauge(metrics.Options{
 		Name: "connected_collector_status",
