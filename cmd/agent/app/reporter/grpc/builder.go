@@ -22,14 +22,19 @@ import (
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"go.uber.org/zap"
+	"github.com/uber/jaeger-lib/metrics"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
+	"google.golang.org/grpc/connectivity"
+
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // ConnBuilder Struct to hold configurations
@@ -51,7 +56,7 @@ func NewConnBuilder() *ConnBuilder {
 }
 
 // CreateConnection creates the gRPC connection
-func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, error) {
+func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Factory) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption
 	var dialTarget string
 	if b.TLS.Enabled { // user requested a secure connection
@@ -97,14 +102,29 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		return nil, err
 	}
 
-	go func(cc *grpc.ClientConn) {
+	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
+
+	cm := reporter.WrapWithConnectMetrics(reporter.ConnectMetricsReporterParams{
+		Logger:         logger,
+		MetricsFactory: grpcMetrics,
+	})
+
+
+	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetricsReporter) {
 		logger.Info("Checking connection to collector")
 		for {
 			s := cc.GetState()
+			if(s != connectivity.Ready){
+				cm.CollectorAborted(cc.Target())
+			}else{
+				cm.CollectorConnected(cc.Target())
+			}
+
 			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
 			cc.WaitForStateChange(context.Background(), s)
 		}
-	}(conn)
+	}(conn, cm)
+
 
 	return conn, nil
 }
