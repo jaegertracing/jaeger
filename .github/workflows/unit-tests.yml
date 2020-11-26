@@ -20,7 +20,9 @@ jobs:
       run: make install-ci
 
     - name: Run unit tests
-      run: make test-ci
+      run: |
+        TMPDIR=$(mktemp -d)
+        TMPDIR="$TMPDIR" make test-ci && ! (ls "$TMPDIR" | grep -E '[0-9]{9}$') && rm -rf "$TMPDIR"
 
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v1
