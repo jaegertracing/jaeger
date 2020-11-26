@@ -57,7 +57,9 @@ func NewSpanWriter(
 	}()
 	go func() {
 		for e := range producer.Errors() {
-			logger.Error(e.Err.Error())
+			if e != nil && e.Err != nil {
+				logger.Error(e.Err.Error())
+			}
 			writeMetrics.SpansWrittenFailure.Inc(1)
 		}
 	}()
