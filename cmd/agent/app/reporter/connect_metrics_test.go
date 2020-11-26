@@ -15,22 +15,19 @@
 package reporter
 
 import (
-	"time"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 )
 
 type connectMetricsTest struct {
-	mb   *metricstest.Factory
-
+	mb *metricstest.Factory
 }
 
-
 func testConnectMetrics(fn func(tr *connectMetricsTest, r *ConnectMetricsReporter)) {
-	testConnectMetricsWithParams(ConnectMetricsReporterParams{
-	}, fn)
+	testConnectMetricsWithParams(ConnectMetricsReporterParams{}, fn)
 }
 
 func testConnectMetricsWithParams(params ConnectMetricsReporterParams, fn func(tr *connectMetricsTest, r *ConnectMetricsReporter)) {
@@ -39,33 +36,32 @@ func testConnectMetricsWithParams(params ConnectMetricsReporterParams, fn func(t
 	r := WrapWithConnectMetrics(params)
 
 	tr := &connectMetricsTest{
-		mb:   mb,
+		mb: mb,
 	}
 
 	fn(tr, r)
 }
 
-func testCollectorConnected(r *ConnectMetricsReporter)  {
+func testCollectorConnected(r *ConnectMetricsReporter) {
 	r.CollectorConnected("127.0.0.1:14250")
 }
 
-func testCollectorAborted(r *ConnectMetricsReporter)  {
+func testCollectorAborted(r *ConnectMetricsReporter) {
 	r.CollectorAborted("127.0.0.1:14250")
 }
-
 
 func TestConnectMetrics(t *testing.T) {
 
 	testConnectMetrics(func(tr *connectMetricsTest, r *ConnectMetricsReporter) {
-		getGauge := func() int64{
+		getGauge := func() int64 {
 			_, gauges := tr.mb.Snapshot()
 			return gauges["connection_status.connected_collector_status|target=127.0.0.1:14250"]
 		}
 
 		testCollectorAborted(r)
-		assert.EqualValues(t,0, getGauge())
+		assert.EqualValues(t, 0, getGauge())
 
 		testCollectorConnected(r)
-		assert.EqualValues(t,1, getGauge())
+		assert.EqualValues(t, 1, getGauge())
 	})
 }

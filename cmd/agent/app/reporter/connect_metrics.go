@@ -17,15 +17,13 @@ package reporter
 import (
 	"time"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
 )
 
 // Structure built for future code expansion or add new metrics.
 type connectMetrics struct {
-
 }
 
 // ConnectMetricsReporterParams is used as input to WrapWithConnectMetrics.
@@ -39,12 +37,12 @@ type ConnectMetricsReporterParams struct {
 // ConnectMetricsReporter is a decorator also it not actual use currently.
 // Structure built for future code expansion
 type ConnectMetricsReporter struct {
-	params        ConnectMetricsReporterParams
+	params         ConnectMetricsReporterParams
 	connectMetrics *connectMetrics
-	shutdown      chan struct{}
-	closed        *atomic.Bool
-
+	shutdown       chan struct{}
+	closed         *atomic.Bool
 }
+
 // WrapWithConnectMetrics creates ConnectMetricsReporter.
 func WrapWithConnectMetrics(params ConnectMetricsReporterParams) *ConnectMetricsReporter {
 	if params.ExpireFrequency == 0 {
@@ -57,16 +55,16 @@ func WrapWithConnectMetrics(params ConnectMetricsReporterParams) *ConnectMetrics
 	params.MetricsFactory = params.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
 	metrics.MustInit(cm, params.MetricsFactory, nil)
 	r := &ConnectMetricsReporter{
-		params:        params,
+		params:         params,
 		connectMetrics: cm,
-		shutdown:      make(chan struct{}),
-		closed:        atomic.NewBool(false),
+		shutdown:       make(chan struct{}),
+		closed:         atomic.NewBool(false),
 	}
 	return r
 }
 
 // CollectorConnected used for change metric as agent connected.
-func (r *ConnectMetricsReporter) CollectorConnected(target string, ) {
+func (r *ConnectMetricsReporter) CollectorConnected(target string) {
 	metric := r.params.MetricsFactory.Gauge(metrics.Options{
 		Name: "connected_collector_status",
 		Help: "Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected",
@@ -77,7 +75,7 @@ func (r *ConnectMetricsReporter) CollectorConnected(target string, ) {
 }
 
 // CollectorAborted used for change metric as agent disconnected.
-func (r *ConnectMetricsReporter)CollectorAborted(target string)  {
+func (r *ConnectMetricsReporter) CollectorAborted(target string) {
 	metric := r.params.MetricsFactory.Gauge(metrics.Options{
 		Name: "connected_collector_status",
 		Help: "Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected",

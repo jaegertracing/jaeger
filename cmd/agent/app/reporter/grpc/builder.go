@@ -21,20 +21,18 @@ import (
 	"strings"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"go.uber.org/zap"
 	"github.com/uber/jaeger-lib/metrics"
-
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
-	"google.golang.org/grpc/connectivity"
 
-
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // ConnBuilder Struct to hold configurations
@@ -109,14 +107,13 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		MetricsFactory: grpcMetrics,
 	})
 
-
 	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetricsReporter) {
 		logger.Info("Checking connection to collector")
 		for {
 			s := cc.GetState()
-			if(s != connectivity.Ready){
+			if s != connectivity.Ready {
 				cm.CollectorAborted(cc.Target())
-			}else{
+			} else {
 				cm.CollectorConnected(cc.Target())
 			}
 
@@ -124,7 +121,6 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			cc.WaitForStateChange(context.Background(), s)
 		}
 	}(conn, cm)
-
 
 	return conn, nil
 }
