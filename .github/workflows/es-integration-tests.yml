@@ -1,0 +1,22 @@
+name: Elasticsearch Integration Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  elasticsearch:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Setup go env
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+
+    - name: Run elasticsearch integration tests
+      run: bash scripts/travis/es-integration-test.sh
