@@ -67,6 +67,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	}
 
 	factories, err := componenttest.ExampleComponents()
+	require.NoError(t, err)
 	factories.Receivers[TypeStr] = factory
 	cfg, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
 	require.NoError(t, err)
@@ -105,6 +106,22 @@ func TestMustOtelEncodingForJaegerEncoding(t *testing.T) {
 			expected: "jaeger_json",
 		},
 		{
+			in:       encodingOTLPProto,
+			expected: "otlp_proto",
+		},
+		{
+			in:       encodingZipkinProto,
+			expected: "zipkin_proto",
+		},
+		{
+			in:       encodingZipkinJSON,
+			expected: "zipkin_json",
+		},
+		{
+			in:       kafka.EncodingZipkinThrift,
+			expected: "zipkin_thrift",
+		},
+		{
 			in:           "not-an-encoding",
 			expectsPanic: true,
 		},
@@ -112,19 +129,10 @@ func TestMustOtelEncodingForJaegerEncoding(t *testing.T) {
 
 	for _, tt := range tests {
 		if tt.expectsPanic {
-			assertPanic(t, func() { MustOtelEncodingForJaegerEncoding(tt.in) })
+			assert.Panics(t, func() { mustOtelEncodingForJaegerEncoding(tt.in) })
 			continue
 		}
 
-		assert.Equal(t, tt.expected, MustOtelEncodingForJaegerEncoding(tt.in))
+		assert.Equal(t, tt.expected, mustOtelEncodingForJaegerEncoding(tt.in))
 	}
-}
-
-func assertPanic(t *testing.T, f func()) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("The code did not panic")
-		}
-	}()
-	f()
 }

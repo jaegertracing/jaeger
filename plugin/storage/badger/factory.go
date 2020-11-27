@@ -94,7 +94,7 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
 
-	opts := badger.DefaultOptions
+	opts := badger.DefaultOptions("")
 	opts.TableLoadingMode = options.MemoryMap
 
 	if f.Options.Primary.Ephemeral {
@@ -158,7 +158,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL, f), nil
+	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL), nil
 }
 
 // CreateDependencyReader implements storage.Factory

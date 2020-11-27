@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -64,6 +65,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	}
 
 	factories, err := componenttest.ExampleComponents()
+	require.NoError(t, err)
 	factories.Exporters[TypeStr] = factory
 	cfg, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
 	require.NoError(t, err)
@@ -85,4 +87,38 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	assert.Equal(t, "jaeger", kafkaCfg.Authentication.Kerberos.Realm)
 	assert.Equal(t, "/etc/foo", kafkaCfg.Authentication.Kerberos.ConfigPath)
 	assert.Equal(t, "from-jaeger-config", kafkaCfg.Authentication.Kerberos.Username)
+}
+
+func TestMustOtelEncodingForJaegerEncoding(t *testing.T) {
+	tests := []struct {
+		in           string
+		expected     string
+		expectsPanic bool
+	}{
+		{
+			in:       kafka.EncodingProto,
+			expected: "jaeger_proto",
+		},
+		{
+			in:       kafka.EncodingJSON,
+			expected: "jaeger_json",
+		},
+		{
+			in:       encodingOTLPProto,
+			expected: "otlp_proto",
+		},
+		{
+			in:           "not-an-encoding",
+			expectsPanic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		if tt.expectsPanic {
+			assert.Panics(t, func() { mustOtelEncodingForJaegerEncoding(tt.in) })
+			continue
+		}
+
+		assert.Equal(t, tt.expected, mustOtelEncodingForJaegerEncoding(tt.in))
+	}
 }

@@ -111,6 +111,7 @@ func TestGetDependencies_err_unmarshall(t *testing.T) {
 	}
 	store := NewDependencyStore(client, zap.NewNop(), "foo", defaultMaxDocCount)
 	dependencies, err := store.GetDependencies(context.Background(), tsNow, time.Hour)
+	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid character")
 	assert.Nil(t, dependencies)
 }

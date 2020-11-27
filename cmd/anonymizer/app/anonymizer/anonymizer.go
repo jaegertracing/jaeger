@@ -55,14 +55,22 @@ type mapping struct {
 type Anonymizer struct {
 	mappingFile string
 	logger      *zap.Logger
+	lock        sync.Mutex
+	mapping     mapping
+	options     Options
+}
 
-	lock    sync.Mutex
-	mapping mapping
+// Options represents the various options with which the anonymizer can be configured.
+type Options struct {
+	HashStandardTags bool `yaml:"hash_standard_tags" name:"hash_standard_tags"`
+	HashCustomTags   bool `yaml:"hash_custom_tags" name:"hash_custom_tags"`
+	HashLogs         bool `yaml:"hash_logs" name:"hash_logs"`
+	HashProcess      bool `yaml:"hash_process" name:"hash_process"`
 }
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
 // obfuscated strings, in case later investigations require looking at the original traces.
-func New(mappingFile string, logger *zap.Logger) *Anonymizer {
+func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 	a := &Anonymizer{
 		mappingFile: mappingFile,
 		logger:      logger,
@@ -70,6 +78,7 @@ func New(mappingFile string, logger *zap.Logger) *Anonymizer {
 			Services:   make(map[string]string),
 			Operations: make(map[string]string),
 		},
+		options: options,
 	}
 	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
 		dat, err := ioutil.ReadFile(filepath.Clean(mappingFile))
@@ -136,15 +145,43 @@ func hash(value string) string {
 func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
 	service := span.Process.ServiceName
 	span.OperationName = a.mapOperationName(service, span.OperationName)
-	span.Tags = filterTags(span.Tags)
-	span.Logs = nil
+
+	outputTags := filterStandardTags(span.Tags)
+	// when true, the allowedTags are hashed and when false they are preserved as it is
+	if a.options.HashStandardTags {
+		outputTags = hashTags(outputTags)
+	}
+	// when true, all tags other than allowedTags are hashed, when false they are dropped
+	if a.options.HashCustomTags {
+		customTags := hashTags(filterCustomTags(span.Tags))
+		outputTags = append(outputTags, customTags...)
+	}
+	span.Tags = outputTags
+
+	// when true, logs are hashed, when false, they are dropped
+	if a.options.HashLogs {
+		for _, log := range span.Logs {
+			log.Fields = hashTags(log.Fields)
+		}
+	} else {
+		span.Logs = nil
+	}
+
 	span.Process.ServiceName = a.mapServiceName(service)
-	span.Process.Tags = nil
+
+	// when true, process tags are hashed, when false they are dropped
+	if a.options.HashProcess {
+		span.Process.Tags = hashTags(span.Process.Tags)
+	} else {
+		span.Process.Tags = nil
+	}
+
 	span.Warnings = nil
 	return uiconv.FromDomainEmbedProcess(span)
 }
 
-func filterTags(tags []model.KeyValue) []model.KeyValue {
+// filterStandardTags returns only allowedTags
+func filterStandardTags(tags []model.KeyValue) []model.KeyValue {
 	out := make([]model.KeyValue, 0, len(tags))
 	for _, tag := range tags {
 		if !allowedTags[tag.Key] {
@@ -163,6 +200,28 @@ func filterTags(tags []model.KeyValue) []model.KeyValue {
 			}
 		}
 		out = append(out, tag)
+	}
+	return out
+}
+
+// filterCustomTags returns all tags other than allowedTags
+func filterCustomTags(tags []model.KeyValue) []model.KeyValue {
+	out := make([]model.KeyValue, 0, len(tags))
+	for _, tag := range tags {
+		if !allowedTags[tag.Key] {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+// hashTags converts each tag into corresponding string values
+// and then find its hash
+func hashTags(tags []model.KeyValue) []model.KeyValue {
+	out := make([]model.KeyValue, 0, len(tags))
+	for _, tag := range tags {
+		kv := model.String(hash(tag.Key), hash(tag.AsString()))
+		out = append(out, kv)
 	}
 	return out
 }

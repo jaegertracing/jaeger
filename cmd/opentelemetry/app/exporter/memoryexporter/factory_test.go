@@ -39,7 +39,7 @@ func TestCreateTraceExporter(t *testing.T) {
 
 	v, _ := jConfig.Viperize(AddFlags)
 	factory := NewFactory(v)
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig())
+	exporter, err := factory.CreateTracesExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig())
 	require.NoError(t, err)
 	require.NotNil(t, exporter)
 }
@@ -48,8 +48,9 @@ func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	defer cleanup()
 
 	factory := &Factory{}
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
+	exporter, err := factory.CreateTracesExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_memory")
 }
 
@@ -84,11 +85,11 @@ func TestSingleton(t *testing.T) {
 	f := NewFactory(viper.New())
 	logger := zap.NewNop()
 	assert.Nil(t, instance)
-	exp, err := f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: logger}, &Config{})
+	exp, err := f.CreateTracesExporter(context.Background(), component.ExporterCreateParams{Logger: logger}, &Config{})
 	require.NoError(t, err)
 	require.NotNil(t, exp)
 	previousInstance := instance
-	exp, err = f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: logger}, &Config{})
+	exp, err = f.CreateTracesExporter(context.Background(), component.ExporterCreateParams{Logger: logger}, &Config{})
 	require.NoError(t, err)
 	require.NotNil(t, exp)
 	assert.Equal(t, previousInstance, instance)

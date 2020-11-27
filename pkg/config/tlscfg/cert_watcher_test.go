@@ -17,6 +17,7 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -92,9 +93,25 @@ func TestReload(t *testing.T) {
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
-		return logObserver.FilterField(zap.String("certificate", certFile.Name())).Len() > 0
+		// Logged when both matching public and private keys are modified in the cert.
+		// If mismatched keys are present in the cert, the "Failed to load certificate" error will be logged instead.
+		return logObserver.FilterMessage("Loaded modified certificate").
+			FilterField(zap.String("certificate", keyFile.Name())).Len() > 0
 	}, 100, time.Millisecond*200)
-	assert.True(t, logObserver.FilterField(zap.String("certificate", certFile.Name())).Len() > 0)
+
+	// Logged when the cert is modified with the client's public key due to
+	// a mismatch with the existing server private key.
+	assert.True(t, logObserver.
+		FilterMessage("Failed to load certificate").
+		FilterField(zap.String("certificate", certFile.Name())).Len() > 0,
+		"Failed to find wanted logs. All logs: "+fmt.Sprint(logObserver.All()))
+
+	// Logged when the cert is modified with the client's private key,
+	// resulting in both public and private keys matching (from the client).
+	assert.True(t, logObserver.
+		FilterMessage("Loaded modified certificate").
+		FilterField(zap.String("certificate", keyFile.Name())).Len() > 0,
+		"Failed to find wanted logs. All logs: "+fmt.Sprint(logObserver.All()))
 
 	cert, err = tls.LoadX509KeyPair(filepath.Clean(clientCert), clientKey)
 	require.NoError(t, err)
@@ -227,6 +244,7 @@ func TestReload_err_watch(t *testing.T) {
 func TestAddCertsToWatch_err(t *testing.T) {
 	watcher, err := fsnotify.NewWatcher()
 	require.NoError(t, err)
+	defer watcher.Close()
 
 	tests := []struct {
 		opts Options
@@ -301,7 +319,7 @@ func TestAddCertsToWatch_remove_ca(t *testing.T) {
 	require.NoError(t, os.Remove(caFile.Name()))
 	require.NoError(t, os.Remove(clientCaFile.Name()))
 	waitUntil(func() bool {
-		return logObserver.FilterMessage("Certificate has been removed, using the last known version").Len() > 0
+		return logObserver.FilterMessage("Certificate has been removed, using the last known version").Len() >= 2
 	}, 100, time.Millisecond*100)
 	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", caFile.Name())).Len() > 0)
 	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0)
@@ -323,6 +341,7 @@ func syncWrite(filename string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 	if _, err = f.Write(data); err != nil {
 		return err
 	}

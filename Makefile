@@ -81,12 +81,6 @@ test-and-lint: test fmt lint
 go-gen:
 	@echo skipping go generate ./...
 
-.PHONY: md-to-godoc-gen
-md-to-godoc-gen:
-	find . -name README.md -not -path "./vendor/*" -not -path "./_site/*" -not -path "./idl/*" \
-		| grep -v '^./README.md' \
-		| xargs -I% md-to-godoc -license -licenseFile LICENSE -input=%
-
 .PHONY: clean
 clean:
 	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
@@ -153,7 +147,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -coverprofile cover.out ./...
+	$(GOTEST) -timeout 5m -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -218,6 +212,10 @@ build-examples:
 .PHONY: build-tracegen
 build-tracegen:
 	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
+
+.PHONY: build-anonymizer
+build-anonymizer:
+	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/main.go
 
 .PHONY: docker-hotrod
 docker-hotrod:
@@ -323,6 +321,7 @@ build-platform-binaries: build-agent \
 	build-all-in-one \
 	build-examples \
 	build-tracegen \
+	build-anonymizer \
 	build-otel-collector \
 	build-otel-agent \
 	build-otel-ingester \
@@ -366,12 +365,18 @@ docker-images-tracegen:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-tracegen =============="
 
+.PHONY: docker-images-anonymizer
+docker-images-anonymizer:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
+	@echo "Finished building jaeger-anonymizer =============="
+
 .PHONY: docker-images-only
 docker-images-only: docker-images-cassandra \
 	docker-images-elastic \
 	docker-images-jaeger-backend \
 	docker-images-jaeger-backend-debug \
-	docker-images-tracegen
+	docker-images-tracegen \
+	docker-images-anonymizer
 
 .PHONY: docker-push
 docker-push:
@@ -381,7 +386,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen; do \
+	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen anonymizer; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
@@ -421,7 +426,6 @@ changelog:
 install-tools:
 	go install github.com/wadey/gocovmerge
 	go install golang.org/x/lint/golint
-	go install github.com/sectioneight/md-to-godoc
 	go install github.com/mjibson/esc
 	go install github.com/securego/gosec/cmd/gosec
 	go install honnef.co/go/tools/cmd/staticcheck

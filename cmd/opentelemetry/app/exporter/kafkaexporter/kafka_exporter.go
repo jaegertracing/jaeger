@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/kafkareceiver"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
@@ -59,7 +58,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := &kafka.Options{}
 	opts.InitFromViper(f.Viper)
 
-	cfg.Encoding = kafkareceiver.MustOtelEncodingForJaegerEncoding(opts.Encoding)
+	cfg.Encoding = mustOtelEncodingForJaegerEncoding(opts.Encoding)
 	cfg.Topic = opts.Topic
 	cfg.Brokers = opts.Config.Brokers
 	cfg.ProtocolVersion = opts.Config.ProtocolVersion
@@ -98,14 +97,14 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	return cfg
 }
 
-// CreateTraceExporter creates Jaeger trace exporter.
+// CreateTracesExporter creates Jaeger trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
-func (f Factory) CreateTraceExporter(
+func (f Factory) CreateTracesExporter(
 	ctx context.Context,
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
-) (component.TraceExporter, error) {
-	return f.Wrapped.CreateTraceExporter(ctx, params, cfg)
+) (component.TracesExporter, error) {
+	return f.Wrapped.CreateTracesExporter(ctx, params, cfg)
 }
 
 // CreateMetricsExporter creates a metrics exporter based on provided config.
@@ -126,4 +125,18 @@ func (f Factory) CreateLogsExporter(
 	cfg configmodels.Exporter,
 ) (component.LogsExporter, error) {
 	return f.Wrapped.CreateLogsExporter(ctx, params, cfg)
+}
+
+// mustOtelEncodingForJaegerEncoding translates a jaeger encoding to a otel encoding
+func mustOtelEncodingForJaegerEncoding(jaegerEncoding string) string {
+	switch jaegerEncoding {
+	case kafka.EncodingProto:
+		return "jaeger_proto"
+	case kafka.EncodingJSON:
+		return "jaeger_json"
+	case encodingOTLPProto:
+		return "otlp_proto"
+	}
+
+	panic(jaegerEncoding + " is not a supported kafka encoding in the OTEL collector.")
 }

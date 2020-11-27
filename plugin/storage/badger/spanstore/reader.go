@@ -569,7 +569,7 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) (
 
 // scanFunction compares the index name as well as the time range in the index key
 func scanFunction(it *badger.Iterator, indexPrefix []byte, timeBytesEnd []byte) bool {
-	if it.Item() != nil {
+	if it.Valid() {
 		// We can't use the indexPrefix length, because we might have the same prefixValue for non-matching cases also
 		timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
 		timestamp := it.Item().Key()[timestampStartIndex : timestampStartIndex+8]
@@ -620,7 +620,7 @@ func (r *TraceReader) scanRangeIndex(plan *executionPlan, indexStartValue []byte
 
 // scanRangeFunction seeks until the index end has been reached
 func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
-	if it.Item() != nil {
+	if it.Valid() {
 		compareSlice := it.Item().Key()[:len(indexEndValue)]
 		return bytes.Compare(indexEndValue, compareSlice) >= 0
 	}

@@ -36,6 +36,11 @@ func TestNewLogger(t *testing.T) {
 	}, log.JSONLine(0))
 }
 
+func TestNewEchoLogger(t *testing.T) {
+	logger, _ := NewEchoLogger(t)
+	logger.Warn("hello", zap.String("x", "y"))
+}
+
 func TestJSONLineError(t *testing.T) {
 	log := &Buffer{}
 	log.WriteString("bad-json\n")

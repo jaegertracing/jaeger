@@ -36,6 +36,7 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 	mFactory := metricstest.NewFactory(0)
 	err := f.Initialize(mFactory, zap.NewNop())
 	assert.NoError(t, err)
+	defer f.Close()
 
 	err = f.diskStatisticsUpdate()
 	assert.NoError(t, err)
