@@ -15,8 +15,6 @@
 package integration
 
 import (
-	"fmt"
-	"io"
 	"os"
 	"testing"
 
@@ -30,22 +28,23 @@ import (
 
 type BadgerIntegrationStorage struct {
 	StorageIntegration
-	logger *zap.Logger
+	logger  *zap.Logger
+	factory *badger.Factory
 }
 
 func (s *BadgerIntegrationStorage) initialize() error {
-	f := badger.NewFactory()
+	s.factory = badger.NewFactory()
 
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
 	if err != nil {
 		return err
 	}
 
-	sw, err := f.CreateSpanWriter()
+	sw, err := s.factory.CreateSpanWriter()
 	if err != nil {
 		return err
 	}
-	sr, err := f.CreateSpanReader()
+	sr, err := s.factory.CreateSpanReader()
 	if err != nil {
 		return err
 	}
@@ -65,14 +64,7 @@ func (s *BadgerIntegrationStorage) initialize() error {
 }
 
 func (s *BadgerIntegrationStorage) clear() error {
-	if closer, ok := s.SpanWriter.(io.Closer); ok {
-		err := closer.Close()
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	return fmt.Errorf("BadgerIntegrationStorage did not implement io.Closer, unable to close and cleanup the storage correctly")
+	return s.factory.Close()
 }
 
 func (s *BadgerIntegrationStorage) cleanUp() error {
