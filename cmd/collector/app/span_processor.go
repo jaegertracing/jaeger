@@ -178,9 +178,17 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 }
 
 func (sp *spanProcessor) addCollectorTags(span *model.Span) {
-	// TODO add support for deduping tags, https://github.com/jaegertracing/jaeger/issues/1778
+	dedupKey := make(map[string]struct{})
+	for _, tag := range span.Process.Tags {
+		if value, ok := sp.collectorTags[tag.Key]; ok && value == tag.AsString() {
+			dedupKey[tag.Key] = struct{}{}
+		}
+	}
+	// ignore collector tags if has the same key-value in spans
 	for k, v := range sp.collectorTags {
-		span.Process.Tags = append(span.Process.Tags, model.String(k, v))
+		if _, ok := dedupKey[k]; !ok {
+			span.Process.Tags = append(span.Process.Tags, model.String(k, v))
+		}
 	}
 }
 
