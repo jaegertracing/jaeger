@@ -96,6 +96,10 @@ type fakeTransport struct {
 	wg     sync.WaitGroup
 }
 
+// Read simulates three packets received, then blocks until semaphore is released at the end of the test.
+// First packet is returned as normal.
+// Second packet is simulated as error.
+// Third packet is returned as normal, but will be dropped as overflow by the server whose queue size = 1.
 func (t *fakeTransport) Read(p []byte) (n int, err error) {
 	packet := t.packet.Inc()
 	if packet == 2 {
@@ -103,7 +107,7 @@ func (t *fakeTransport) Read(p []byte) (n int, err error) {
 		return 0, io.ErrNoProgress
 	}
 	if packet > 3 {
-		// don't return error at this moment to avoid flaky test
+		// block after 3 packets until the server is shutdown and semaphore released
 		t.wg.Wait()
 		return 0, io.EOF
 	}
@@ -132,7 +136,7 @@ func TestTBufferedServer_Metrics(t *testing.T) {
 
 	// The fakeTransport will allow the server to read exactly two packets and one error in between.
 	// Since we use the server with queue size == 1, the first packet will be
-	// sent to channel, the error will be processed and the second valid packet dropped.
+	// sent to channel, the error will increment the metric, and the second valid packet dropped.
 
 	packetDropped := false
 	for i := 0; i < 5000; i++ {
