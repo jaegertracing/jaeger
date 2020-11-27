@@ -10,11 +10,9 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-    - name: Check out code
-      uses: actions/checkout@v2
+    - uses: actions/checkout@v2
 
-    - name: Setup go env
-      uses: actions/setup-go@v2
+    - uses: actions/setup-go@v2
       with:
         go-version: ^1.15
 
