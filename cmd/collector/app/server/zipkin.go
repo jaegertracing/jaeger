@@ -21,6 +21,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -28,7 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/instrumentedhandler"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
-	"github.com/uber/jaeger-lib/metrics"
 )
 
 // ZipkinServerParams to construct a new Jaeger Collector Zipkin Server

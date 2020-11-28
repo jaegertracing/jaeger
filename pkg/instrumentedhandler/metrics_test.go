@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 )
 
