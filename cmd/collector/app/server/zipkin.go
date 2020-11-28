@@ -26,7 +26,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/instrumentedhandler"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/uber/jaeger-lib/metrics"
 )
 
 // ZipkinServerParams to construct a new Jaeger Collector Zipkin Server
@@ -37,6 +39,7 @@ type ZipkinServerParams struct {
 	AllowedHeaders string
 	HealthCheck    *healthcheck.HealthCheck
 	Logger         *zap.Logger
+	MetricsFactory metrics.Factory
 }
 
 // StartZipkinServer based on the given parameters
@@ -74,7 +77,8 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	})
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
-	server.Handler = cors.Handler(recoveryHandler(r))
+	instrumentedHandler := instrumentedhandler.NewMetricsHandler(params.MetricsFactory)
+	server.Handler = cors.Handler(instrumentedHandler(recoveryHandler(r)))
 	go func(listener net.Listener, server *http.Server) {
 		if err := server.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {
