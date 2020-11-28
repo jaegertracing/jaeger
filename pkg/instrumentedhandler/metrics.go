@@ -56,7 +56,7 @@ func NewMetricsHandler(metricsFactory metrics.Factory) mux.MiddlewareFunc {
 					"method": r.Method,
 				},
 			})
-			requestDuration.Record(time.Now().Sub(start))
+			requestDuration.Record(time.Since(start))
 		})
 	}
 }
