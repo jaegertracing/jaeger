@@ -29,6 +29,7 @@ func TestNewMetricsHandler(t *testing.T) {
 	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(time.Millisecond)
 		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(http.StatusTeapot) // any subsequent statuses should be ignored
 	})
 
 	mb := metricstest.NewFactory(time.Hour)
