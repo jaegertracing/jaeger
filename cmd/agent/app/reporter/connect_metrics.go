@@ -66,7 +66,7 @@ func WrapWithConnectMetrics(params ConnectMetricsParams, target string) *Connect
 	return r
 }
 
-// When connection is changed, pass the status parameter
+// OnConnectionStatusChange used for pass the status parameter when connection is changed
 // 0 is disconnected, 1 is connected
 // For quick view status via use `sum(jaeger_agent_connection_status_connected_collector_status{}) by (instance) > bool 0`
 func (r *ConnectMetrics) OnConnectionStatusChange(status int64) {
