@@ -46,6 +46,8 @@ type ConnBuilder struct {
 	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
 	Discoverer        discovery.Discoverer
+
+	ConnectMetrics *reporter.ConnectMetrics
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -100,27 +102,31 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		return nil, err
 	}
 
-	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
+	if b.ConnectMetrics == nil {
+		grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 
-	cm := reporter.WrapWithConnectMetrics(reporter.ConnectMetricsReporterParams{
-		Logger:         logger,
-		MetricsFactory: grpcMetrics,
-	})
+		// for unit test and provide ConnectMetrics and outside call
+		cm := reporter.WrapWithConnectMetrics(reporter.ConnectMetricsParams{
+			Logger:         logger,
+			MetricsFactory: grpcMetrics,
+		}, dialTarget)
+		b.ConnectMetrics = cm
+	}
 
-	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetricsReporter) {
+	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetrics) {
 		logger.Info("Checking connection to collector")
 		for {
 			s := cc.GetState()
-			if s != connectivity.Ready {
-				cm.CollectorAborted(cc.Target())
+			if s == connectivity.Ready {
+				cm.OnConnectionStatusChange(1)
 			} else {
-				cm.CollectorConnected(cc.Target())
+				cm.OnConnectionStatusChange(0)
 			}
 
 			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
 			cc.WaitForStateChange(context.Background(), s)
 		}
-	}(conn, cm)
+	}(conn, b.ConnectMetrics)
 
 	return conn, nil
 }

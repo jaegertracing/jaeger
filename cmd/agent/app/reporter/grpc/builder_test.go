@@ -15,6 +15,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -28,8 +29,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -45,6 +47,10 @@ collectorHostPorts:
 var testCertKeyLocation = "../../../../../pkg/config/tlscfg/testdata/"
 
 type noopNotifier struct{}
+
+type connectMetricsTest struct {
+	mb *metricstest.Factory
+}
 
 func (noopNotifier) Register(chan<- []string) {}
 
@@ -149,6 +155,16 @@ func TestBuilderWithCollectors(t *testing.T) {
 			cfg.Notifier = test.notifier
 			cfg.Discoverer = test.discoverer
 
+			mb := metricstest.NewFactory(time.Hour)
+			params := reporter.ConnectMetricsParams{
+				MetricsFactory: mb,
+			}
+			cm := reporter.WrapWithConnectMetrics(params, test.target)
+			tr := &connectMetricsTest{
+				mb: mb,
+			}
+			cfg.ConnectMetrics = cm
+
 			conn, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
 			if test.expectedError == "" {
 				require.NoError(t, err)
@@ -161,10 +177,20 @@ func TestBuilderWithCollectors(t *testing.T) {
 				} else {
 					assert.True(t, conn.Target() == test.target)
 				}
+				if test.expectedState == "READY" {
+					counts, gauges := tr.mb.Snapshot()
+					assert.EqualValues(t, 1, gauges[fmt.Sprintf("connection_status.connected_collector_status|target=%s", test.target)])
+					assert.EqualValues(t, 1, counts["connection_status.connected_collector_reconnect"])
+				}
+				if test.expectedState == "TRANSIENT_FAILURE" {
+					_, gauges := tr.mb.Snapshot()
+					assert.EqualValues(t, 0, gauges[fmt.Sprintf("connection_status.connected_collector_status|target=%s", test.target)])
+				}
 			} else {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.expectedError)
 			}
+
 		})
 	}
 }

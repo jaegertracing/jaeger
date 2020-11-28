@@ -18,68 +18,65 @@ import (
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
-// Structure built for future code expansion or add new metrics.
+// connectMetrics is real metric, but not support to directly change, need via ConnectMetrics for changed
 type connectMetrics struct {
+	// used for reflect current connection stability
+	ConnectedCollectorReconnect metrics.Counter `metric:"connected_collector_reconnect" help:"Default is 1, the metric can reflect current connection stability, as reconnect action increase the metric increase."`
 }
 
-// ConnectMetricsReporterParams is used as input to WrapWithConnectMetrics.
-type ConnectMetricsReporterParams struct {
+// ConnectMetricsParams include connectMetrics necessary params
+// Although some are not used, it use in the future
+type ConnectMetricsParams struct {
 	Logger          *zap.Logger     // required
 	MetricsFactory  metrics.Factory // required
 	ExpireFrequency time.Duration
 	ExpireTTL       time.Duration
+
+	// connection target
+	Target string
 }
 
-// ConnectMetricsReporter is a decorator also it not actual use currently.
-// Structure built for future code expansion
-type ConnectMetricsReporter struct {
-	params         ConnectMetricsReporterParams
+// ConnectMetrics include ConnectMetricsParams and connectMetrics, likes connectMetrics API
+// If want to modify metrics of connectMetrics, must via ConnectMetrics API
+type ConnectMetrics struct {
+	params         ConnectMetricsParams
 	connectMetrics *connectMetrics
-	shutdown       chan struct{}
-	closed         *atomic.Bool
 }
 
-// WrapWithConnectMetrics creates ConnectMetricsReporter.
-func WrapWithConnectMetrics(params ConnectMetricsReporterParams) *ConnectMetricsReporter {
+// WrapWithConnectMetrics creates ConnectMetrics.
+func WrapWithConnectMetrics(params ConnectMetricsParams, target string) *ConnectMetrics {
 	if params.ExpireFrequency == 0 {
 		params.ExpireFrequency = defaultExpireFrequency
 	}
 	if params.ExpireTTL == 0 {
 		params.ExpireTTL = defaultExpireTTL
 	}
+	params.Target = target
 	cm := new(connectMetrics)
+
 	params.MetricsFactory = params.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
 	metrics.MustInit(cm, params.MetricsFactory, nil)
-	r := &ConnectMetricsReporter{
+	r := &ConnectMetrics{
 		params:         params,
 		connectMetrics: cm,
-		shutdown:       make(chan struct{}),
-		closed:         atomic.NewBool(false),
 	}
 	return r
 }
 
-// CollectorConnected used for change metric as agent connected.
-func (r *ConnectMetricsReporter) CollectorConnected(target string) {
+// When connection is changed, pass the status parameter
+// 0 is disconnected, 1 is connected
+// For quick view status via use `sum(jaeger_agent_connection_status_connected_collector_status{}) by (instance) > bool 0`
+func (r *ConnectMetrics) OnConnectionStatusChange(status int64) {
 	metric := r.params.MetricsFactory.Gauge(metrics.Options{
 		Name: "connected_collector_status",
 		Help: "Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected",
-		Tags: map[string]string{"target": target},
+		Tags: map[string]string{"target": r.params.Target},
 	})
-	metric.Update(1)
-
-}
-
-// CollectorAborted used for change metric as agent disconnected.
-func (r *ConnectMetricsReporter) CollectorAborted(target string) {
-	metric := r.params.MetricsFactory.Gauge(metrics.Options{
-		Name: "connected_collector_status",
-		Help: "Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected",
-		Tags: map[string]string{"target": target},
-	})
-	metric.Update(0)
+	metric.Update(status)
+	if status == 1 {
+		r.connectMetrics.ConnectedCollectorReconnect.Inc(1)
+	}
 }

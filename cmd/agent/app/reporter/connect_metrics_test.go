@@ -26,14 +26,14 @@ type connectMetricsTest struct {
 	mb *metricstest.Factory
 }
 
-func testConnectMetrics(fn func(tr *connectMetricsTest, r *ConnectMetricsReporter)) {
-	testConnectMetricsWithParams(ConnectMetricsReporterParams{}, fn)
+func testConnectMetrics(fn func(tr *connectMetricsTest, r *ConnectMetrics)) {
+	testConnectMetricsWithParams(ConnectMetricsParams{}, fn)
 }
 
-func testConnectMetricsWithParams(params ConnectMetricsReporterParams, fn func(tr *connectMetricsTest, r *ConnectMetricsReporter)) {
+func testConnectMetricsWithParams(params ConnectMetricsParams, fn func(tr *connectMetricsTest, r *ConnectMetrics)) {
 	mb := metricstest.NewFactory(time.Hour)
 	params.MetricsFactory = mb
-	r := WrapWithConnectMetrics(params)
+	r := WrapWithConnectMetrics(params, "127.0.0.1:14250")
 
 	tr := &connectMetricsTest{
 		mb: mb,
@@ -42,26 +42,40 @@ func testConnectMetricsWithParams(params ConnectMetricsReporterParams, fn func(t
 	fn(tr, r)
 }
 
-func testCollectorConnected(r *ConnectMetricsReporter) {
-	r.CollectorConnected("127.0.0.1:14250")
+func testCollectorConnected(r *ConnectMetrics) {
+	r.OnConnectionStatusChange(1)
 }
 
-func testCollectorAborted(r *ConnectMetricsReporter) {
-	r.CollectorAborted("127.0.0.1:14250")
+func testCollectorAborted(r *ConnectMetrics) {
+	r.OnConnectionStatusChange(0)
 }
 
 func TestConnectMetrics(t *testing.T) {
 
-	testConnectMetrics(func(tr *connectMetricsTest, r *ConnectMetricsReporter) {
-		getGauge := func() int64 {
+	testConnectMetrics(func(tr *connectMetricsTest, r *ConnectMetrics) {
+		getGauge := func() map[string]int64 {
 			_, gauges := tr.mb.Snapshot()
-			return gauges["connection_status.connected_collector_status|target=127.0.0.1:14250"]
+			return gauges
 		}
 
-		testCollectorAborted(r)
-		assert.EqualValues(t, 0, getGauge())
+		getCount := func() map[string]int64 {
+			counts, _ := tr.mb.Snapshot()
+			return counts
+		}
 
+		// testing connect aborted
+		testCollectorAborted(r)
+		assert.EqualValues(t, 0, getGauge()["connection_status.connected_collector_status|target=127.0.0.1:14250"])
+
+		// testing connect connected
 		testCollectorConnected(r)
-		assert.EqualValues(t, 1, getGauge())
+		assert.EqualValues(t, 1, getGauge()["connection_status.connected_collector_status|target=127.0.0.1:14250"])
+		assert.EqualValues(t, 1, getCount()["connection_status.connected_collector_reconnect"])
+
+		// testing reconnect counts
+		testCollectorAborted(r)
+		testCollectorConnected(r)
+		assert.EqualValues(t, 2, getCount()["connection_status.connected_collector_reconnect"])
+
 	})
 }
