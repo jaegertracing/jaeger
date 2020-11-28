@@ -20,8 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	"github.com/uber/jaeger-lib/metrics"
 )
 
@@ -40,7 +38,10 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
-func NewMetricsHandler(metricsFactory metrics.Factory) mux.MiddlewareFunc {
+// NewMetricsHandler returns a handler wrapper that emits metrics based on the HTTP request and responses.
+// It will record the HTTP response status, HTTP method, duration and path of the call.
+// The duration will be reported in metrics.Timer and the rest will be labels on that timer.
+func NewMetricsHandler(metricsFactory metrics.Factory) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
