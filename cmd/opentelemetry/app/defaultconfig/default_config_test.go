@@ -203,9 +203,11 @@ func TestService(t *testing.T) {
 			cfg, err := createDefaultConfig(viper.New(), factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
+				assert.Error(t, err)
 				assert.Contains(t, err.Error(), test.err)
 				return
 			}
+			require.NoError(t, err)
 			sort.Strings(test.service.Pipelines["traces"].Exporters)
 			sort.Strings(cfg.Service.Pipelines["traces"].Exporters)
 			sort.Strings(test.service.Pipelines["traces"].Receivers)

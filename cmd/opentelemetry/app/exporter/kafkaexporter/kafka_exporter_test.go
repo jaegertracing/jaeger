@@ -65,6 +65,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	}
 
 	factories, err := componenttest.ExampleComponents()
+	require.NoError(t, err)
 	factories.Exporters[TypeStr] = factory
 	cfg, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
 	require.NoError(t, err)

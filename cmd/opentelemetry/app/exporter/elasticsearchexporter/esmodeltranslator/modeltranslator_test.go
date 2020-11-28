@@ -258,7 +258,6 @@ func traces(serviceName string) pdata.Traces {
 	traces := pdata.NewTraces()
 	traces.ResourceSpans().Resize(1)
 	traces.ResourceSpans().At(0).InstrumentationLibrarySpans().Resize(1)
-	traces.ResourceSpans().At(0).Resource().InitEmpty()
 	traces.ResourceSpans().At(0).Resource().Attributes().InitFromMap(map[string]pdata.AttributeValue{conventions.AttributeServiceName: pdata.NewAttributeValueString(serviceName)})
 	return traces
 }

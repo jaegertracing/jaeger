@@ -17,11 +17,11 @@ package dependencystore_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -35,6 +35,10 @@ import (
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader)) {
 	f := badger.NewFactory()
+	defer func() {
+		require.NoError(tb, f.Close())
+	}()
+
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
@@ -52,15 +56,6 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	dr, err := f.CreateDependencyReader()
 	assert.NoError(tb, err)
 
-	defer func() {
-		if closer, ok := sw.(io.Closer); ok {
-			err := closer.Close()
-			assert.NoError(tb, err)
-		} else {
-			tb.FailNow()
-		}
-
-	}()
 	test(tb, sw, dr)
 }
 
