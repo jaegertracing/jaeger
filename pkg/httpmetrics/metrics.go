@@ -17,10 +17,14 @@ package httpmetrics
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
 )
+
+const concatenation = "$_$"
 
 type statusRecorder struct {
 	http.ResponseWriter
@@ -41,20 +45,80 @@ func (r *statusRecorder) WriteHeader(status int) {
 // It will record the HTTP response status, HTTP method, duration and path of the call.
 // The duration will be reported in metrics.Timer and the rest will be labels on that timer.
 func Wrap(h http.Handler, metricsFactory metrics.Factory) http.Handler {
+	timers := newRequestDurations(metricsFactory)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		recorder := &statusRecorder{ResponseWriter: w}
+
 		h.ServeHTTP(recorder, r)
 
-		requestDuration := metricsFactory.Timer(metrics.TimerOptions{
-			Name: "http.request.duration",
-			Help: "Duration of HTTP requests",
-			Tags: map[string]string{
-				"status": strconv.Itoa(recorder.status),
-				"path":   r.URL.Path,
-				"method": r.Method,
+		req := recordedRequest{
+			status:   strconv.Itoa(recorder.status),
+			path:     r.URL.Path,
+			method:   r.Method,
+			duration: time.Since(start),
+		}
+		timers.record(req)
+	})
+}
+
+type recordedRequest struct {
+	method   string
+	path     string
+	status   string
+	duration time.Duration
+}
+
+type requestDurations struct {
+	metrics           metrics.Factory
+	timers            map[string]metrics.Timer
+	stringBuilderPool *sync.Pool
+}
+
+func newRequestDurations(metricsFactory metrics.Factory) *requestDurations {
+	return &requestDurations{
+		stringBuilderPool: &sync.Pool{
+			New: func() interface{} {
+				return new(strings.Builder)
 			},
-		})
-		requestDuration.Record(time.Since(start))
+		},
+		timers:  map[string]metrics.Timer{},
+		metrics: metricsFactory,
+	}
+}
+
+func (r *requestDurations) record(request recordedRequest) {
+	cacheKey := r.cacheKey(request)
+	timer, ok := r.timers[cacheKey]
+	if !ok {
+		timer = buildTimer(r.metrics, request)
+		r.timers[cacheKey] = timer
+	}
+	timer.Record(request.duration)
+}
+
+func (r *requestDurations) cacheKey(request recordedRequest) string {
+	keyBuilder := r.stringBuilderPool.Get().(*strings.Builder)
+	defer r.stringBuilderPool.Put(keyBuilder)
+
+	keyBuilder.Reset()
+	keyBuilder.WriteString(request.method)
+	keyBuilder.WriteString(concatenation)
+	keyBuilder.WriteString(request.path)
+	keyBuilder.WriteString(concatenation)
+	keyBuilder.WriteString(request.status)
+
+	return keyBuilder.String()
+}
+
+func buildTimer(metricsFactory metrics.Factory, request recordedRequest) metrics.Timer {
+	return metricsFactory.Timer(metrics.TimerOptions{
+		Name: "http.request.duration",
+		Help: "Duration of HTTP requests",
+		Tags: map[string]string{
+			"status": request.status,
+			"path":   request.path,
+			"method": request.method,
+		},
 	})
 }

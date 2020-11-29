@@ -40,7 +40,7 @@ func TestNewMetricsHandler(t *testing.T) {
 
 	for i := 0; i < 15; i++ {
 		_, gauges := mb.Snapshot()
-		if duration := gauges["http.request.duration|method=GET|path=/subdir/qwerty|status=202.P999"]; duration > 0 {
+		if _, ok := gauges["http.request.duration|method=GET|path=/subdir/qwerty|status=202.P999"]; ok {
 			return
 		}
 		time.Sleep(time.Millisecond)
