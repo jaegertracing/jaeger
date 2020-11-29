@@ -35,7 +35,7 @@ jobs:
     - name: Export DOCKERHUB_LOGIN variable
       run: |
         echo "DOCKERHUB_LOGIN=true" >> $GITHUB_ENV
-      if: env.DOCKERHUB_TOKEN != null
+      if: success()
 
     - name: Export BRANCH variable if undefined
       run: |
