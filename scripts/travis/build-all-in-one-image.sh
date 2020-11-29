@@ -12,9 +12,9 @@ expected_version="v10"
 version=$(node --version)
 major_version=${version%.*.*}
 if [ "$major_version" = "$expected_version" ] ; then
-  echo "node version is as expected"
+  echo "Node version is as expected: $version"
 else
-  echo "installed version $major_version doesn't match $expected_version"
+  echo "ERROR: installed Node version $version doesn't match expected version $expected_version"
   exit 1
 fi
 

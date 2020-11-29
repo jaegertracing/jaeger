@@ -1,4 +1,4 @@
-name: Docker
+name: Build all-in-one
 
 on:
   push:
