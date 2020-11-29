@@ -25,7 +25,6 @@ jobs:
         node-version: '10'
 
     - uses: docker/login-action@v1
-      id: dockerhub-login
       with:
         username: jaegertracingbot
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -36,7 +35,7 @@ jobs:
     - name: Set DOCKERHUB_LOGIN
       run: |
         echo "DOCKERHUB_LOGIN=true" >> $GITHUB_ENV
-      if: steps.dockerhub-login.outcome == "success"
+      if: env.DOCKERHUB_TOKEN != null
 
     - name: Export BRANCH variable if undefined
       run: |
