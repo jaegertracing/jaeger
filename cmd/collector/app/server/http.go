@@ -26,7 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/instrumentedhandler"
+	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 )
 
@@ -72,8 +72,7 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	cfgHandler.RegisterRoutes(r)
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
-	instrumentedHandler := instrumentedhandler.NewMetricsHandler(params.MetricsFactory)
-	server.Handler = instrumentedHandler(recoveryHandler(r))
+	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory)
 	go func() {
 		if err := server.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {

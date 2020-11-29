@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package instrumentedhandler
+package httpmetrics
 
 import (
 	"net/http"
@@ -38,26 +37,24 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
-// NewMetricsHandler returns a handler wrapper that emits metrics based on the HTTP request and responses.
+// Wrap returns a handler that wraps the provided one and emits metrics based on the HTTP requests and responses.
 // It will record the HTTP response status, HTTP method, duration and path of the call.
 // The duration will be reported in metrics.Timer and the rest will be labels on that timer.
-func NewMetricsHandler(metricsFactory metrics.Factory) func(http.Handler) http.Handler {
-	return func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
-			recorder := &statusRecorder{ResponseWriter: w}
-			h.ServeHTTP(recorder, r)
+func Wrap(h http.Handler, metricsFactory metrics.Factory) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		recorder := &statusRecorder{ResponseWriter: w}
+		h.ServeHTTP(recorder, r)
 
-			requestDuration := metricsFactory.Timer(metrics.TimerOptions{
-				Name: "http.request.duration",
-				Help: "Duration of HTTP requests",
-				Tags: map[string]string{
-					"status": strconv.Itoa(recorder.status),
-					"path":   r.URL.Path,
-					"method": r.Method,
-				},
-			})
-			requestDuration.Record(time.Since(start))
+		requestDuration := metricsFactory.Timer(metrics.TimerOptions{
+			Name: "http.request.duration",
+			Help: "Duration of HTTP requests",
+			Tags: map[string]string{
+				"status": strconv.Itoa(recorder.status),
+				"path":   r.URL.Path,
+				"method": r.Method,
+			},
 		})
-	}
+		requestDuration.Record(time.Since(start))
+	})
 }

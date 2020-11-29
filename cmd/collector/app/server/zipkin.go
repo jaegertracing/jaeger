@@ -27,7 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/instrumentedhandler"
+	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 )
 
@@ -77,8 +77,7 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	})
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
-	instrumentedHandler := instrumentedhandler.NewMetricsHandler(params.MetricsFactory)
-	server.Handler = cors.Handler(instrumentedHandler(recoveryHandler(r)))
+	server.Handler = cors.Handler(httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory))
 	go func(listener net.Listener, server *http.Server) {
 		if err := server.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {

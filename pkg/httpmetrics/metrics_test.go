@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package instrumentedhandler
+package httpmetrics
 
 import (
 	"net/http"
@@ -33,7 +32,7 @@ func TestNewMetricsHandler(t *testing.T) {
 	})
 
 	mb := metricstest.NewFactory(time.Hour)
-	handler := NewMetricsHandler(mb)(dummyHandlerFunc)
+	handler := Wrap(dummyHandlerFunc, mb)
 
 	req, err := http.NewRequest(http.MethodGet, "/subdir/qwerty", nil)
 	assert.NoError(t, err)
