@@ -70,9 +70,10 @@ type recordedRequest struct {
 }
 
 type requestDurations struct {
+	lock              *sync.RWMutex
+	stringBuilderPool *sync.Pool
 	metrics           metrics.Factory
 	timers            map[string]metrics.Timer
-	stringBuilderPool *sync.Pool
 }
 
 func newRequestDurations(metricsFactory metrics.Factory) *requestDurations {
@@ -84,16 +85,26 @@ func newRequestDurations(metricsFactory metrics.Factory) *requestDurations {
 		},
 		timers:  map[string]metrics.Timer{},
 		metrics: metricsFactory,
+		lock:    &sync.RWMutex{},
 	}
 }
 
 func (r *requestDurations) record(request recordedRequest) {
 	cacheKey := r.cacheKey(request)
+
+	r.lock.RLock()
 	timer, ok := r.timers[cacheKey]
+	r.lock.RUnlock()
 	if !ok {
-		timer = buildTimer(r.metrics, request)
-		r.timers[cacheKey] = timer
+		r.lock.Lock()
+		timer, ok = r.timers[cacheKey]
+		if !ok {
+			timer = buildTimer(r.metrics, request)
+			r.timers[cacheKey] = timer
+		}
+		r.lock.Unlock()
 	}
+
 	timer.Record(request.duration)
 }
 
