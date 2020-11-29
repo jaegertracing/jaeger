@@ -26,7 +26,7 @@ if [ "$ES_OTEL_INTEGRATION_TEST" == true ]; then
   exit 0
 fi
 
-echo "Executing token propatagion test"
+echo "Executing token propagation test"
 
 # Mock UI, needed only for build query service.
 make build-crossdock-ui-placeholder
