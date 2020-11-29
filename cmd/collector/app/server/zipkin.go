@@ -81,7 +81,7 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	go func(listener net.Listener, server *http.Server) {
 		if err := server.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {
-				params.Logger.Fatal("Could not launch Zipkin server", zap.Error(err))
+				params.Logger.Error("Could not launch Zipkin server", zap.Error(err))
 			}
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)

@@ -76,7 +76,7 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	go func() {
 		if err := server.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {
-				params.Logger.Fatal("Could not start HTTP collector", zap.Error(err))
+				params.Logger.Error("Could not start HTTP collector", zap.Error(err))
 			}
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)
