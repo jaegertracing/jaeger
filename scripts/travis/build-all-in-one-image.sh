@@ -8,8 +8,16 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # `GOARCH=<target arch> ./scripts/travis/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
 
-source ~/.nvm/nvm.sh
-nvm use 10
+expected_version="v10"
+version=$(node --version)
+major_version=${version%.*.*}
+if [ "$major_version" = "$expected_version" ] ; then
+  echo "Node version is as expected: $version"
+else
+  echo "ERROR: installed Node version $version doesn't match expected version $expected_version"
+  exit 1
+fi
+
 make build-ui
 
 set +e
@@ -28,7 +36,7 @@ run_integration_test() {
 
 upload_to_docker() {
   # Only push the docker container to Docker Hub for master branch
-  if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
+  if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "DOCKERHUB_LOGIN" == "true" ]]; then
     echo "upload $1 to Docker Hub"
     export REPO=$1
     bash ./scripts/travis/upload-to-docker.sh
@@ -38,6 +46,7 @@ upload_to_docker() {
 }
 
 make build-all-in-one GOOS=linux GOARCH=$GOARCH
+make create-baseimg-debugimg
 repo=jaegertracing/all-in-one
 docker build -f cmd/all-in-one/Dockerfile \
         --target release \
