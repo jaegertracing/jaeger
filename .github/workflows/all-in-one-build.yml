@@ -32,7 +32,7 @@ jobs:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       if: env.DOCKERHUB_TOKEN != null
 
-    - name: Set DOCKERHUB_LOGIN
+    - name: Export DOCKERHUB_LOGIN variable
       run: |
         echo "DOCKERHUB_LOGIN=true" >> $GITHUB_ENV
       if: env.DOCKERHUB_TOKEN != null
