@@ -17,7 +17,7 @@ elif [[ $BRANCH =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
 else
   TAG="${BRANCH}"
 fi
-echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, BRANCH=$BRANCH, TAG=$TAG, IMAGE=$IMAGE"
+echo "REPO=$REPO, BRANCH=$BRANCH, TAG=$TAG, IMAGE=$IMAGE"
 
 # add major, major.minor and major.minor.patch tags
 if [[ -n $major ]]; then
@@ -38,7 +38,7 @@ else
   docker push $REPO
 fi
 
-SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
+SNAPSHOT_IMAGE="$REPO-snapshot:$GITHUB_SHA"
 echo "Pushing snapshot image $SNAPSHOT_IMAGE"
 docker tag $IMAGE $SNAPSHOT_IMAGE
 docker push $SNAPSHOT_IMAGE
