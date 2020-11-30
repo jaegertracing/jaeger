@@ -25,58 +25,48 @@ import (
 type connectMetrics struct {
 	// used for reflect current connection stability
 	ConnectedCollectorReconnect metrics.Counter `metric:"connected_collector_reconnect" help:"Default is 1, the metric can reflect current connection stability, as reconnect action increase the metric increase."`
+
+	// Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected
+	ConnectedCollectorStatus metrics.Gauge `metric:"connected_collector_status" help:"Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected"`
 }
 
-// ConnectMetricsParams include connectMetrics necessary params
-// Although some are not used, it use in the future
+// ConnectMetricsParams include connectMetrics necessary params and connectMetrics, likes connectMetrics API
+// If want to modify metrics of connectMetrics, must via ConnectMetrics API
 type ConnectMetricsParams struct {
 	Logger          *zap.Logger     // required
 	MetricsFactory  metrics.Factory // required
 	ExpireFrequency time.Duration
 	ExpireTTL       time.Duration
-
-	// connection target
-	Target string
-}
-
-// ConnectMetrics include ConnectMetricsParams and connectMetrics, likes connectMetrics API
-// If want to modify metrics of connectMetrics, must via ConnectMetrics API
-type ConnectMetrics struct {
-	params         ConnectMetricsParams
 	connectMetrics *connectMetrics
+
 }
 
-// WrapWithConnectMetrics creates ConnectMetrics.
-func WrapWithConnectMetrics(params ConnectMetricsParams, target string) *ConnectMetrics {
-	if params.ExpireFrequency == 0 {
-		params.ExpireFrequency = defaultExpireFrequency
-	}
-	if params.ExpireTTL == 0 {
-		params.ExpireTTL = defaultExpireTTL
-	}
-	params.Target = target
-	cm := new(connectMetrics)
 
-	params.MetricsFactory = params.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
-	metrics.MustInit(cm, params.MetricsFactory, nil)
-	r := &ConnectMetrics{
-		params:         params,
-		connectMetrics: cm,
+// NewConnectMetrics creates ConnectMetricsParams.
+func NewConnectMetrics(cmp ConnectMetricsParams) *ConnectMetricsParams {
+	if cmp.ExpireFrequency == 0 {
+		cmp.ExpireFrequency = defaultExpireFrequency
 	}
-	return r
+	if cmp.ExpireTTL == 0 {
+		cmp.ExpireTTL = defaultExpireTTL
+	}
+
+	cm := new(connectMetrics)
+	cmp.MetricsFactory = cmp.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
+	metrics.MustInit(cm, cmp.MetricsFactory, nil)
+	cmp.connectMetrics = cm
+
+	return &cmp
 }
 
 // OnConnectionStatusChange used for pass the status parameter when connection is changed
 // 0 is disconnected, 1 is connected
 // For quick view status via use `sum(jaeger_agent_connection_status_connected_collector_status{}) by (instance) > bool 0`
-func (r *ConnectMetrics) OnConnectionStatusChange(status int64) {
-	metric := r.params.MetricsFactory.Gauge(metrics.Options{
-		Name: "connected_collector_status",
-		Help: "Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected",
-		Tags: map[string]string{"target": r.params.Target},
-	})
-	metric.Update(status)
-	if status == 1 {
+func (r *ConnectMetricsParams) OnConnectionStatusChange(connected bool) {
+	if connected {
+		r.connectMetrics.ConnectedCollectorStatus.Update(1)
 		r.connectMetrics.ConnectedCollectorReconnect.Inc(1)
+	}else {
+		r.connectMetrics.ConnectedCollectorStatus.Update(0)
 	}
 }

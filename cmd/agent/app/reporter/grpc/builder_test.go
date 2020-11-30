@@ -15,7 +15,7 @@ package grpc
 
 import (
 	"context"
-	"fmt"
+	"expvar"
 	"net"
 	"strings"
 	"testing"
@@ -49,7 +49,7 @@ var testCertKeyLocation = "../../../../../pkg/config/tlscfg/testdata/"
 type noopNotifier struct{}
 
 type connectMetricsTest struct {
-	mb *metricstest.Factory
+	mf *metricstest.Factory
 }
 
 func (noopNotifier) Register(chan<- []string) {}
@@ -155,15 +155,15 @@ func TestBuilderWithCollectors(t *testing.T) {
 			cfg.Notifier = test.notifier
 			cfg.Discoverer = test.discoverer
 
-			mb := metricstest.NewFactory(time.Hour)
+			mf := metricstest.NewFactory(time.Hour)
 			params := reporter.ConnectMetricsParams{
-				MetricsFactory: mb,
+				MetricsFactory: mf,
 			}
-			cm := reporter.WrapWithConnectMetrics(params, test.target)
+			cm := reporter.NewConnectMetrics(params)
 			tr := &connectMetricsTest{
-				mb: mb,
+				mf: mf,
 			}
-			cfg.ConnectMetrics = cm
+			cfg.ConnectMetricsParams = cm
 
 			conn, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
 			if test.expectedError == "" {
@@ -178,13 +178,14 @@ func TestBuilderWithCollectors(t *testing.T) {
 					assert.True(t, conn.Target() == test.target)
 				}
 				if test.expectedState == "READY" {
-					counts, gauges := tr.mb.Snapshot()
-					assert.EqualValues(t, 1, gauges[fmt.Sprintf("connection_status.connected_collector_status|target=%s", test.target)])
+					counts, gauges := tr.mf.Snapshot()
+					assert.EqualValues(t, 1, gauges["connection_status.connected_collector_status"])
 					assert.EqualValues(t, 1, counts["connection_status.connected_collector_reconnect"])
+					assert.Equal(t, test.target, expvar.Get("gRPCTarget").(*expvar.String).Value())
 				}
 				if test.expectedState == "TRANSIENT_FAILURE" {
-					_, gauges := tr.mb.Snapshot()
-					assert.EqualValues(t, 0, gauges[fmt.Sprintf("connection_status.connected_collector_status|target=%s", test.target)])
+					_, gauges := tr.mf.Snapshot()
+					assert.EqualValues(t, 0, gauges["connection_status.connected_collector_status"])
 				}
 			} else {
 				require.Error(t, err)

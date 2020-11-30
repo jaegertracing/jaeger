@@ -17,10 +17,9 @@ package grpc
 import (
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
-	"strings"
-
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -28,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
+	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -47,7 +47,7 @@ type ConnBuilder struct {
 	Notifier          discovery.Notifier
 	Discoverer        discovery.Discoverer
 
-	ConnectMetrics *reporter.ConnectMetrics
+	ConnectMetricsParams *reporter.ConnectMetricsParams
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -102,31 +102,41 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		return nil, err
 	}
 
-	if b.ConnectMetrics == nil {
+	if b.ConnectMetricsParams == nil {
 		grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 
 		// for unit test and provide ConnectMetrics and outside call
-		cm := reporter.WrapWithConnectMetrics(reporter.ConnectMetricsParams{
+		cmp := reporter.NewConnectMetrics(reporter.ConnectMetricsParams{
 			Logger:         logger,
 			MetricsFactory: grpcMetrics,
-		}, dialTarget)
-		b.ConnectMetrics = cm
+		})
+		b.ConnectMetricsParams = cmp
 	}
 
-	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetrics) {
+	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetricsParams) {
 		logger.Info("Checking connection to collector")
+
+		var egt *expvar.String
+		r := expvar.Get("gRPCTarget")
+		if r == nil{
+			egt = expvar.NewString("gRPCTarget")
+		}else {
+			egt = r.(*expvar.String)
+		}
+
 		for {
 			s := cc.GetState()
 			if s == connectivity.Ready {
-				cm.OnConnectionStatusChange(1)
+				cm.OnConnectionStatusChange(true)
+				egt.Set(cc.Target())
 			} else {
-				cm.OnConnectionStatusChange(0)
+				cm.OnConnectionStatusChange(false)
 			}
 
 			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
 			cc.WaitForStateChange(context.Background(), s)
 		}
-	}(conn, b.ConnectMetrics)
+	}(conn, b.ConnectMetricsParams)
 
 	return conn, nil
 }
