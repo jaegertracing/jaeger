@@ -29,8 +29,7 @@ type connectMetrics struct {
 	Status metrics.Gauge `metric:"collector_connected" help:"Status of connection between the agent and the collector; 1 is connected, 0 is disconnected"`
 }
 
-// ConnectMetricsParams include connectMetrics necessary params
-// If want to modify metrics of connectMetrics, must via ConnectMetrics API
+// ConnectMetrics include connectMetrics necessary params if want to modify metrics of connectMetrics, must via ConnectMetrics API
 type ConnectMetrics struct {
 	Logger          *zap.Logger     // required
 	MetricsFactory  metrics.Factory // required
