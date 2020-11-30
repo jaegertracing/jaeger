@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euxf -o pipefail
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 IMAGE="${REPO:?'missing REPO env var'}:latest"
@@ -15,8 +15,7 @@ elif [[ $BRANCH =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   TAG=${major}.${minor}.${patch}
   echo "BRANCH is a release tag: major=$major, minor=$minor, patch=$patch"
 else
-  # TODO why do we do /// ?
-  TAG="${BRANCH///}"
+  TAG="${BRANCH}"
 fi
 echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, BRANCH=$BRANCH, TAG=$TAG, IMAGE=$IMAGE"
 
