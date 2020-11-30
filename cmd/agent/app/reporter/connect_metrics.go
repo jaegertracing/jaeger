@@ -39,7 +39,7 @@ type ConnectMetrics struct {
 	connectMetrics  *connectMetrics
 }
 
-// NewConnectMetrics will be initlizal ConnectMetrics
+// NewConnectMetrics will be initialize ConnectMetrics
 func (r *ConnectMetrics) NewConnectMetrics() {
 	if r.ExpireFrequency == 0 {
 		r.ExpireFrequency = defaultExpireFrequency
