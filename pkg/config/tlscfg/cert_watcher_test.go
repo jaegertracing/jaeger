@@ -97,7 +97,7 @@ func TestReload(t *testing.T) {
 	assert.True(t, logObserver.
 		FilterMessage("Failed to load certificate").
 		FilterField(zap.String("certificate", certFile.Name())).Len() > 0,
-		"Unable to locate 'Failed to load certificate' error in log. All logs: "+fmt.Sprint(logObserver.All()))
+		"Unable to locate 'Failed to load certificate' in log. All logs: "+fmt.Sprint(logObserver.All()))
 
 	// Write the client's private key.
 	keyData, err = ioutil.ReadFile(clientKey)
@@ -115,7 +115,7 @@ func TestReload(t *testing.T) {
 	assert.True(t, logObserver.
 		FilterMessage("Loaded modified certificate").
 		FilterField(zap.String("certificate", keyFile.Name())).Len() > 0,
-		"Unable to locate 'Loaded modified certificate' error in log. All logs: "+fmt.Sprint(logObserver.All()))
+		"Unable to locate 'Loaded modified certificate' in log. All logs: "+fmt.Sprint(logObserver.All()))
 
 	cert, err = tls.LoadX509KeyPair(filepath.Clean(clientCert), clientKey)
 	require.NoError(t, err)
