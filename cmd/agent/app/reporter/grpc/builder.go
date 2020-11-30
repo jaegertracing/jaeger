@@ -105,7 +105,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 	if b.ConnectMetricsParams == nil {
 		grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 
-		// for unit test and provide ConnectMetrics and outside call
+		// for unit test and provide ConnectMetricsParams and outside call
 		cmp := reporter.NewConnectMetrics(reporter.ConnectMetricsParams{
 			Logger:         logger,
 			MetricsFactory: grpcMetrics,
