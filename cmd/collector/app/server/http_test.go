@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -61,13 +60,8 @@ func TestSpanCollectorHttp(t *testing.T) {
 
 	serveHTTP(server, listener, params)
 
-	listenerPort := extractPort(listener.Addr().String())
-	url := fmt.Sprintf("http://%s", listenerPort)
+	url := fmt.Sprintf("http://%s", listener.Addr().String())
 	response, err := http.Post(url, "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
-}
-
-func extractPort(addr string) string {
-	return addr[strings.LastIndexAny(addr, ":"):]
 }

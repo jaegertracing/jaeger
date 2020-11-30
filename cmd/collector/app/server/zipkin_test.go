@@ -59,8 +59,7 @@ func TestSpanCollectorZipkin(t *testing.T) {
 
 	serveZipkin(server, listener, params)
 
-	listenerPort := extractPort(listener.Addr().String())
-	url := fmt.Sprintf("http://%s", listenerPort)
+	url := fmt.Sprintf("http://%s", listener.Addr().String())
 	response, err := http.Post(url, "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, response)

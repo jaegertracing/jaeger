@@ -76,16 +76,16 @@ type recordedRequest struct {
 }
 
 type requestDurations struct {
-	lock    *sync.RWMutex
+	lock    sync.RWMutex
 	metrics metrics.Factory
 	timers  map[recordedRequestKey]metrics.Timer
 }
 
 func newRequestDurations(metricsFactory metrics.Factory) *requestDurations {
 	return &requestDurations{
-		timers:  map[recordedRequestKey]metrics.Timer{},
+		timers:  make(map[recordedRequestKey]metrics.Timer),
 		metrics: metricsFactory,
-		lock:    &sync.RWMutex{},
+		lock:    sync.RWMutex{},
 	}
 }
 
