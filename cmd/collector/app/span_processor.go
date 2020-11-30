@@ -181,6 +181,7 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	dedupKey := make(map[string]struct{})
 	for _, tag := range span.Process.Tags {
 		if value, ok := sp.collectorTags[tag.Key]; ok && value == tag.AsString() {
+			sp.logger.Debug("ignore collector process tags", zap.String("key", tag.Key), zap.String("value", value))
 			dedupKey[tag.Key] = struct{}{}
 		}
 	}
@@ -190,6 +191,8 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 			span.Process.Tags = append(span.Process.Tags, model.String(k, v))
 		}
 	}
+	typedTags := model.KeyValues(span.Process.Tags)
+	typedTags.Sort()
 }
 
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport) bool {
