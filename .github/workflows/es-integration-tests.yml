@@ -16,5 +16,8 @@ jobs:
       with:
         go-version: ^1.15
 
+    - name: Install tools
+      run: make install-ci
+
     - name: Run elasticsearch integration tests
       run: bash scripts/travis/es-integration-test.sh
