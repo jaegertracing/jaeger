@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euxf -o pipefail
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 IMAGE="${REPO:?'missing REPO env var'}:latest"
@@ -15,8 +15,7 @@ elif [[ $BRANCH =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   TAG=${major}.${minor}.${patch}
   echo "BRANCH is a release tag: major=$major, minor=$minor, patch=$patch"
 else
-  # TODO why do we do /// ?
-  TAG="${BRANCH///}"
+  TAG="${BRANCH}"
 fi
 echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, BRANCH=$BRANCH, TAG=$TAG, IMAGE=$IMAGE"
 
@@ -31,15 +30,6 @@ if [[ -n $major ]]; then
   fi
 fi
 
-if [[ -f $HOME/.docker/config.json ]]; then
-  rm -f $HOME/.docker/config.json
-else
-  echo "$HOME/.docker/config.json doesn't exist"
-fi
-
-# Do not enable echo before the `docker login` command to avoid revealing the password.
-set -x
-docker login docker.io -u $DOCKER_USER -p $DOCKER_PASS
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
   docker push $REPO:latest
