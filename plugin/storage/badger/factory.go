@@ -17,6 +17,7 @@ package badger
 import (
 	"expvar"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -104,6 +105,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		f.tmpDir = dir
 		opts.Dir = f.tmpDir
 		opts.ValueDir = f.tmpDir
+		fmt.Printf("lizhijian: New tempdir %s", dir)
 
 		f.Options.Primary.KeyDirectory = f.tmpDir
 		f.Options.Primary.ValueDirectory = f.tmpDir
@@ -181,6 +183,7 @@ func (f *Factory) Close() error {
 		if err == nil {
 			err = errSecondary
 		}
+		fmt.Printf("lizhijian: Remove tempdir %s", f.tmpDir)
 	}
 
 	return err

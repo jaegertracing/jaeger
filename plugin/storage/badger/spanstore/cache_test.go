@@ -14,6 +14,7 @@
 package spanstore
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -113,10 +114,12 @@ func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
 	dir, _ := ioutil.TempDir("", "badger")
 	opts.Dir = dir
 	opts.ValueDir = dir
+	fmt.Printf("zhijianli88: New %s", dir)
 
 	store, err := badger.Open(opts)
 	defer func() {
 		store.Close()
+		fmt.Printf("zhijianli88: Remove %s", dir)
 		os.RemoveAll(dir)
 	}()
 
