@@ -17,14 +17,11 @@ package httpmetrics
 import (
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
 )
-
-const concatenation = "$_$"
 
 type statusRecorder struct {
 	http.ResponseWriter
@@ -44,6 +41,9 @@ func (r *statusRecorder) WriteHeader(status int) {
 // Wrap returns a handler that wraps the provided one and emits metrics based on the HTTP requests and responses.
 // It will record the HTTP response status, HTTP method, duration and path of the call.
 // The duration will be reported in metrics.Timer and the rest will be labels on that timer.
+//
+// Do not use with HTTP endpoints that take parameters from URL path, such as `/user/{user_id}`,
+// because they will result in high cardinality metrics.
 func Wrap(h http.Handler, metricsFactory metrics.Factory) http.Handler {
 	timers := newRequestDurations(metricsFactory)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,44 +53,44 @@ func Wrap(h http.Handler, metricsFactory metrics.Factory) http.Handler {
 		h.ServeHTTP(recorder, r)
 
 		req := recordedRequest{
-			status:   strconv.Itoa(recorder.status),
-			path:     r.URL.Path,
-			method:   r.Method,
+			key: recordedRequestKey{
+				status: strconv.Itoa(recorder.status),
+				path:   r.URL.Path,
+				method: r.Method,
+			},
 			duration: time.Since(start),
 		}
 		timers.record(req)
 	})
 }
 
+type recordedRequestKey struct {
+	method string
+	path   string
+	status string
+}
+
 type recordedRequest struct {
-	method   string
-	path     string
-	status   string
+	key      recordedRequestKey
 	duration time.Duration
 }
 
 type requestDurations struct {
-	lock              *sync.RWMutex
-	stringBuilderPool *sync.Pool
-	metrics           metrics.Factory
-	timers            map[string]metrics.Timer
+	lock    *sync.RWMutex
+	metrics metrics.Factory
+	timers  map[recordedRequestKey]metrics.Timer
 }
 
 func newRequestDurations(metricsFactory metrics.Factory) *requestDurations {
 	return &requestDurations{
-		stringBuilderPool: &sync.Pool{
-			New: func() interface{} {
-				return new(strings.Builder)
-			},
-		},
-		timers:  map[string]metrics.Timer{},
+		timers:  map[recordedRequestKey]metrics.Timer{},
 		metrics: metricsFactory,
 		lock:    &sync.RWMutex{},
 	}
 }
 
 func (r *requestDurations) record(request recordedRequest) {
-	cacheKey := r.cacheKey(request)
+	cacheKey := request.key
 
 	r.lock.RLock()
 	timer, ok := r.timers[cacheKey]
@@ -99,7 +99,7 @@ func (r *requestDurations) record(request recordedRequest) {
 		r.lock.Lock()
 		timer, ok = r.timers[cacheKey]
 		if !ok {
-			timer = buildTimer(r.metrics, request)
+			timer = buildTimer(r.metrics, cacheKey)
 			r.timers[cacheKey] = timer
 		}
 		r.lock.Unlock()
@@ -108,28 +108,14 @@ func (r *requestDurations) record(request recordedRequest) {
 	timer.Record(request.duration)
 }
 
-func (r *requestDurations) cacheKey(request recordedRequest) string {
-	keyBuilder := r.stringBuilderPool.Get().(*strings.Builder)
-	defer r.stringBuilderPool.Put(keyBuilder)
-
-	keyBuilder.Reset()
-	keyBuilder.WriteString(request.method)
-	keyBuilder.WriteString(concatenation)
-	keyBuilder.WriteString(request.path)
-	keyBuilder.WriteString(concatenation)
-	keyBuilder.WriteString(request.status)
-
-	return keyBuilder.String()
-}
-
-func buildTimer(metricsFactory metrics.Factory, request recordedRequest) metrics.Timer {
+func buildTimer(metricsFactory metrics.Factory, key recordedRequestKey) metrics.Timer {
 	return metricsFactory.Timer(metrics.TimerOptions{
 		Name: "http.request.duration",
 		Help: "Duration of HTTP requests",
 		Tags: map[string]string{
-			"status": request.status,
-			"path":   request.path,
-			"method": request.method,
+			"status": key.status,
+			"path":   key.path,
+			"method": key.method,
 		},
 	})
 }
