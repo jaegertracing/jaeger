@@ -36,7 +36,7 @@ run_integration_test() {
 
 upload_to_docker() {
   # Only push the docker container to Docker Hub for master branch
-  if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "DOCKERHUB_LOGIN" == "true" ]]; then
+  if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$DOCKERHUB_LOGIN" == "true" ]]; then
     echo "upload $1 to Docker Hub"
     export REPO=$1
     bash ./scripts/travis/upload-to-docker.sh

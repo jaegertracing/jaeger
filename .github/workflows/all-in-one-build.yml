@@ -42,7 +42,9 @@ jobs:
 
     - name: Export BRANCH variable for pull_request event
       run: |
-        echo "BRANCH=${GITHUB_HEAD_REF}" >> $GITHUB_ENV
+        export BRANCH=${GITHUB_HEAD_REF}
+        echo "we are on branch=$BRANCH"
+        echo "BRANCH=${BRANCH}" >> $GITHUB_ENV
       if: github.event_name == 'pull_request'
 
     - name: Export BRANCH variable for push event
