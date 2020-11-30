@@ -50,16 +50,17 @@ func TestSpanCollectorZipkin(t *testing.T) {
 		Logger:         logger,
 	}
 
-	server := &http.Server{Addr: ":12345"}
+	server := &http.Server{Addr: ":0"}
 	defer server.Close()
 
-	listener, err := net.Listen("tcp", ":12345")
+	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	defer listener.Close()
 
 	serveZipkin(server, listener, params)
 
-	url := fmt.Sprintf("http://%s", server.Addr)
+	listenerPort := extractPort(listener.Addr().String())
+	url := fmt.Sprintf("http://%s", listenerPort)
 	response, err := http.Post(url, "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
