@@ -15,14 +15,12 @@
 package server
 
 import (
-	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
@@ -50,17 +48,12 @@ func TestSpanCollectorZipkin(t *testing.T) {
 		Logger:         logger,
 	}
 
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer listener.Close()
-
-	server := &http.Server{Addr: listener.Addr().String()}
+	server := httptest.NewServer(nil)
 	defer server.Close()
 
-	serveZipkin(server, listener, params)
+	serveZipkin(server.Config, server.Listener, params)
 
-	url := fmt.Sprintf("http://%s", listener.Addr())
-	response, err := http.Post(url, "", nil)
+	response, err := http.Post(server.URL, "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
 }

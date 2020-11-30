@@ -15,14 +15,12 @@
 package server
 
 import (
-	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
@@ -31,7 +29,7 @@ import (
 )
 
 // test wrong port number
-func TestFailToListenHttp(t *testing.T) {
+func TestFailToListenHTTP(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartHTTPServer(&HTTPServerParams{
 		HostPort: ":-1",
@@ -41,7 +39,7 @@ func TestFailToListenHttp(t *testing.T) {
 	assert.EqualError(t, err, "listen tcp: address -1: invalid port")
 }
 
-func TestSpanCollectorHttp(t *testing.T) {
+func TestSpanCollectorHTTP(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &HTTPServerParams{
 		Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
@@ -51,17 +49,12 @@ func TestSpanCollectorHttp(t *testing.T) {
 		Logger:         logger,
 	}
 
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer listener.Close()
-
-	server := &http.Server{Addr: listener.Addr().String()}
+	server := httptest.NewServer(nil)
 	defer server.Close()
 
-	serveHTTP(server, listener, params)
+	serveHTTP(server.Config, server.Listener, params)
 
-	url := fmt.Sprintf("http://%s", listener.Addr())
-	response, err := http.Post(url, "", nil)
+	response, err := http.Post(server.URL, "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
 }
