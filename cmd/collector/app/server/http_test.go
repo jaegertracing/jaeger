@@ -51,12 +51,12 @@ func TestSpanCollectorHttp(t *testing.T) {
 		Logger:         logger,
 	}
 
-	server := &http.Server{Addr: ":0"}
-	defer server.Close()
-
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	defer listener.Close()
+
+	server := &http.Server{Addr: listener.Addr().String()}
+	defer server.Close()
 
 	serveHTTP(server, listener, params)
 
