@@ -38,12 +38,12 @@ func TestNewMetricsHandler(t *testing.T) {
 	assert.NoError(t, err)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
-	for i := 0; i < 15; i++ {
+	for i := 0; i < 1000; i++ {
 		_, gauges := mb.Snapshot()
 		if _, ok := gauges["http.request.duration|method=GET|path=/subdir/qwerty|status=202.P999"]; ok {
 			return
 		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(15 * time.Millisecond)
 	}
 
 	assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
