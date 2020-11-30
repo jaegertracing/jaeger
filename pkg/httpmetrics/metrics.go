@@ -85,7 +85,6 @@ func newRequestDurations(metricsFactory metrics.Factory) *requestDurations {
 	return &requestDurations{
 		timers:  make(map[recordedRequestKey]metrics.Timer),
 		metrics: metricsFactory,
-		lock:    sync.RWMutex{},
 	}
 }
 
