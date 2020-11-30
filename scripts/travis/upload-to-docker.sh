@@ -20,11 +20,11 @@ fi
 echo "REPO=$REPO, BRANCH=$BRANCH, TAG=$TAG, IMAGE=$IMAGE"
 
 # add major, major.minor and major.minor.patch tags
-if [[ -n $major ]]; then
+if [[ -n ${major:-} ]]; then
   docker tag $IMAGE $REPO:${major}
-  if [[ -n $minor ]]; then
+  if [[ -n ${minor:-} ]]; then
     docker tag $IMAGE $REPO:${major}.${minor}
-    if [[ -n $patch ]]; then
+    if [[ -n ${patch:-} ]]; then
         docker tag $IMAGE $REPO:${major}.${minor}.${patch}
     fi
   fi
