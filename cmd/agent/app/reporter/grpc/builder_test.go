@@ -156,14 +156,14 @@ func TestBuilderWithCollectors(t *testing.T) {
 			cfg.Discoverer = test.discoverer
 
 			mf := metricstest.NewFactory(time.Hour)
-			params := reporter.ConnectMetricsParams{
+			cm := reporter.ConnectMetrics{
 				MetricsFactory: mf,
 			}
-			cm := reporter.NewConnectMetrics(params)
+			cm.NewConnectMetrics()
 			tr := &connectMetricsTest{
 				mf: mf,
 			}
-			cfg.ConnectMetricsParams = cm
+			cfg.ConnectMetrics = &cm
 
 			conn, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
 			if test.expectedError == "" {
@@ -179,13 +179,13 @@ func TestBuilderWithCollectors(t *testing.T) {
 				}
 				if test.expectedState == "READY" {
 					counts, gauges := tr.mf.Snapshot()
-					assert.EqualValues(t, 1, gauges["connection_status.connected_collector_status"])
-					assert.EqualValues(t, 1, counts["connection_status.connected_collector_reconnect"])
+					assert.EqualValues(t, 1, gauges["connection_status.collector_connected"])
+					assert.EqualValues(t, 1, counts["connection_status.collector_reconnects"])
 					assert.Equal(t, test.target, expvar.Get("gRPCTarget").(*expvar.String).Value())
 				}
 				if test.expectedState == "TRANSIENT_FAILURE" {
 					_, gauges := tr.mf.Snapshot()
-					assert.EqualValues(t, 0, gauges["connection_status.connected_collector_status"])
+					assert.EqualValues(t, 0, gauges["connection_status.collector_connected"])
 				}
 			} else {
 				require.Error(t, err)

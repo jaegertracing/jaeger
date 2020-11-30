@@ -21,7 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// connectMetrics is real metric, but not support to directly change, need via ConnectMetrics for changed
 type connectMetrics struct {
 	// used for reflect current connection stability
 	Reconnects metrics.Counter `metric:"collector_reconnects" help:"Number of successful connections (including reconnects) to the collector."`
@@ -32,7 +31,7 @@ type connectMetrics struct {
 
 // ConnectMetricsParams include connectMetrics necessary params and connectMetrics, likes connectMetrics API
 // If want to modify metrics of connectMetrics, must via ConnectMetrics API
-type ConnectMetricsParams struct {
+type ConnectMetrics struct {
 	Logger          *zap.Logger     // required
 	MetricsFactory  metrics.Factory // required
 	ExpireFrequency time.Duration
@@ -40,31 +39,28 @@ type ConnectMetricsParams struct {
 	connectMetrics  *connectMetrics
 }
 
-// NewConnectMetrics creates ConnectMetricsParams.
-func NewConnectMetrics(cmp ConnectMetricsParams) *ConnectMetricsParams {
-	if cmp.ExpireFrequency == 0 {
-		cmp.ExpireFrequency = defaultExpireFrequency
+// NewConnectMetrics will be initlizal ConnectMetrics
+func (r *ConnectMetrics) NewConnectMetrics() {
+	if r.ExpireFrequency == 0 {
+		r.ExpireFrequency = defaultExpireFrequency
 	}
-	if cmp.ExpireTTL == 0 {
-		cmp.ExpireTTL = defaultExpireTTL
+	if r.ExpireTTL == 0 {
+		r.ExpireTTL = defaultExpireTTL
 	}
 
-	cm := new(connectMetrics)
-	cmp.MetricsFactory = cmp.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
-	metrics.MustInit(cm, cmp.MetricsFactory, nil)
-	cmp.connectMetrics = cm
-
-	return &cmp
+	r.connectMetrics = new(connectMetrics)
+	r.MetricsFactory = r.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
+	metrics.MustInit(r.connectMetrics, r.MetricsFactory, nil)
 }
 
 // OnConnectionStatusChange used for pass the status parameter when connection is changed
 // 0 is disconnected, 1 is connected
-// For quick view status via use `sum(jaeger_agent_connection_status_connected_collector_status{}) by (instance) > bool 0`
-func (r *ConnectMetricsParams) OnConnectionStatusChange(connected bool) {
+// For quick view status via use `sum(jaeger_agent_connection_status_collector_connected{}) by (instance) > bool 0`
+func (r *ConnectMetrics) OnConnectionStatusChange(connected bool) {
 	if connected {
-		r.connectMetrics.ConnectedCollectorStatus.Update(1)
-		r.connectMetrics.ConnectedCollectorReconnect.Inc(1)
+		r.connectMetrics.Status.Update(1)
+		r.connectMetrics.Reconnects.Inc(1)
 	} else {
-		r.connectMetrics.ConnectedCollectorStatus.Update(0)
+		r.connectMetrics.Status.Update(0)
 	}
 }

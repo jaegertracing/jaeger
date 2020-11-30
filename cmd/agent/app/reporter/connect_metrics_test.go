@@ -26,33 +26,33 @@ type connectMetricsTest struct {
 	mf *metricstest.Factory
 }
 
-func testConnectMetrics(fn func(tr *connectMetricsTest, r *ConnectMetricsParams)) {
-	testConnectMetricsWithParams(ConnectMetricsParams{}, fn)
+func testConnectMetrics(fn func(tr *connectMetricsTest, r *ConnectMetrics)) {
+	testConnectMetricsWithParams(&ConnectMetrics{}, fn)
 }
 
-func testConnectMetricsWithParams(params ConnectMetricsParams, fn func(tr *connectMetricsTest, r *ConnectMetricsParams)) {
+func testConnectMetricsWithParams(cm *ConnectMetrics, fn func(tr *connectMetricsTest, r *ConnectMetrics)) {
 	mf := metricstest.NewFactory(time.Hour)
-	params.MetricsFactory = mf
-	r := NewConnectMetrics(params)
+	cm.MetricsFactory = mf
+	cm.NewConnectMetrics()
 
 	tr := &connectMetricsTest{
 		mf: mf,
 	}
 
-	fn(tr, r)
+	fn(tr, cm)
 }
 
-func testCollectorConnected(r *ConnectMetricsParams) {
+func testCollectorConnected(r *ConnectMetrics) {
 	r.OnConnectionStatusChange(true)
 }
 
-func testCollectorAborted(r *ConnectMetricsParams) {
+func testCollectorAborted(r *ConnectMetrics) {
 	r.OnConnectionStatusChange(false)
 }
 
 func TestConnectMetrics(t *testing.T) {
 
-	testConnectMetrics(func(tr *connectMetricsTest, r *ConnectMetricsParams) {
+	testConnectMetrics(func(tr *connectMetricsTest, r *ConnectMetrics) {
 		getGauge := func() map[string]int64 {
 			_, gauges := tr.mf.Snapshot()
 			return gauges
@@ -65,17 +65,17 @@ func TestConnectMetrics(t *testing.T) {
 
 		// testing connect aborted
 		testCollectorAborted(r)
-		assert.EqualValues(t, 0, getGauge()["connection_status.connected_collector_status"])
+		assert.EqualValues(t, 0, getGauge()["connection_status.collector_connected"])
 
 		// testing connect connected
 		testCollectorConnected(r)
-		assert.EqualValues(t, 1, getGauge()["connection_status.connected_collector_status"])
-		assert.EqualValues(t, 1, getCount()["connection_status.connected_collector_reconnect"])
+		assert.EqualValues(t, 1, getGauge()["connection_status.collector_connected"])
+		assert.EqualValues(t, 1, getCount()["connection_status.collector_reconnects"])
 
 		// testing reconnect counts
 		testCollectorAborted(r)
 		testCollectorConnected(r)
-		assert.EqualValues(t, 2, getCount()["connection_status.connected_collector_reconnect"])
+		assert.EqualValues(t, 2, getCount()["connection_status.collector_reconnects"])
 
 	})
 }
