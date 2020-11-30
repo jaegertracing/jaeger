@@ -19,6 +19,8 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"strings"
+
 	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -27,7 +29,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
-	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -118,9 +119,9 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 
 		var egt *expvar.String
 		r := expvar.Get("gRPCTarget")
-		if r == nil{
+		if r == nil {
 			egt = expvar.NewString("gRPCTarget")
-		}else {
+		} else {
 			egt = r.(*expvar.String)
 		}
 

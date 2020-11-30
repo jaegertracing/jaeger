@@ -37,10 +37,8 @@ type ConnectMetricsParams struct {
 	MetricsFactory  metrics.Factory // required
 	ExpireFrequency time.Duration
 	ExpireTTL       time.Duration
-	connectMetrics *connectMetrics
-
+	connectMetrics  *connectMetrics
 }
-
 
 // NewConnectMetrics creates ConnectMetricsParams.
 func NewConnectMetrics(cmp ConnectMetricsParams) *ConnectMetricsParams {
@@ -66,7 +64,7 @@ func (r *ConnectMetricsParams) OnConnectionStatusChange(connected bool) {
 	if connected {
 		r.connectMetrics.ConnectedCollectorStatus.Update(1)
 		r.connectMetrics.ConnectedCollectorReconnect.Inc(1)
-	}else {
+	} else {
 		r.connectMetrics.ConnectedCollectorStatus.Update(0)
 	}
 }
