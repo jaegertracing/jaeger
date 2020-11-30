@@ -27,7 +27,7 @@ type connectMetrics struct {
 	Reconnects metrics.Counter `metric:"collector_reconnects" help:"Number of successful connections (including reconnects) to the collector."`
 
 	// Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected
-	ConnectedCollectorStatus metrics.Gauge `metric:"connected_collector_status" help:"Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected"`
+	Status metrics.Gauge `metric:"collector_connected" help:"Status of connection between the agent and the collector; 1 is connected, 0 is disconnected"`
 }
 
 // ConnectMetricsParams include connectMetrics necessary params and connectMetrics, likes connectMetrics API
