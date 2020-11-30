@@ -82,24 +82,36 @@ func TestReload(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &cert, watcher.certificate())
 
-	// update the content with client certs
+	// Write the client's public key.
 	certData, err = ioutil.ReadFile(clientCert)
 	require.NoError(t, err)
 	err = syncWrite(certFile.Name(), certData, 0644)
 	require.NoError(t, err)
+
+	waitUntil(func() bool {
+		// Logged when the cert is reloaded with mismatching client public key and existing server private key.
+		return logObserver.FilterMessage("Failed to load certificate").
+			FilterField(zap.String("certificate", certFile.Name())).Len() > 0
+	}, 100, time.Millisecond*200)
+
+	assert.True(t, logObserver.
+		FilterMessage("Failed to load certificate").
+		FilterField(zap.String("certificate", certFile.Name())).Len() > 0,
+		"Failed to find wanted logs. All logs: "+fmt.Sprint(logObserver.All()))
+
+	// Write the client's private key.
 	keyData, err = ioutil.ReadFile(clientKey)
 	require.NoError(t, err)
 	err = syncWrite(keyFile.Name(), keyData, 0644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
-		// Logged when both matching public and private keys are modified in the cert.
-		// If mismatched keys are present in the cert, the "Failed to load certificate" error will be logged instead.
+		// Logged when the client private key is modified in the cert which enables successful reloading of
+		// the cert as both private and public keys now match.
 		return logObserver.FilterMessage("Loaded modified certificate").
 			FilterField(zap.String("certificate", keyFile.Name())).Len() > 0
 	}, 100, time.Millisecond*200)
 
-	// Logged when the cert is modified with the client's private key.
 	assert.True(t, logObserver.
 		FilterMessage("Loaded modified certificate").
 		FilterField(zap.String("certificate", keyFile.Name())).Len() > 0,
