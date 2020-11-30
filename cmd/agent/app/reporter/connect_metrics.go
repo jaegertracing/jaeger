@@ -24,7 +24,7 @@ import (
 // connectMetrics is real metric, but not support to directly change, need via ConnectMetrics for changed
 type connectMetrics struct {
 	// used for reflect current connection stability
-	ConnectedCollectorReconnect metrics.Counter `metric:"connected_collector_reconnect" help:"Default is 1, the metric can reflect current connection stability, as reconnect action increase the metric increase."`
+	Reconnects metrics.Counter `metric:"collector_reconnects" help:"Number of successful connections (including reconnects) to the collector."`
 
 	// Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected
 	ConnectedCollectorStatus metrics.Gauge `metric:"connected_collector_status" help:"Connection status that jaeger-agent to jaeger-collector, 1 is connected, 0 is disconnected"`
