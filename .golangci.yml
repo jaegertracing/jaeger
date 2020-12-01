@@ -9,8 +9,6 @@ linters:
   disable-all: true
   enable:
     - typecheck
-    - dupl
-    - goprintffuncname
     - govet
     - gosec
 #    - nolintlint
@@ -61,9 +59,5 @@ issues:
       text: "ST1000:"
     - linters:
         - gosec
-      text: "G104,G107"
+      text: "G104:G107:"
 
-linters-settings:
-  funlen:
-    lines: 80
-    statements: 40
