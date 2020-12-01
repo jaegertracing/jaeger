@@ -1,4 +1,4 @@
-name: Integration Tests
+name: CIT Elasticsearch
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  kafka:
+  elasticsearch:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -16,5 +16,8 @@ jobs:
       with:
         go-version: ^1.15
 
-    - name: Run kafka integration tests
-      run: bash scripts/travis/kafka-integration-test.sh
+    - name: Install tools
+      run: make install-ci
+
+    - name: Run elasticsearch integration tests
+      run: bash scripts/travis/es-integration-test.sh
