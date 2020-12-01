@@ -3,13 +3,13 @@
 set -euxf -o pipefail
 
 usage() {
-  echo $"Usage: $0 (default|otel) <es_version>"
+  echo $"Usage: $0 <es_version>"
   exit 1
 }
 
 check_arg() {
-  if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments"
+  if [ ! $# -eq 1 ]; then
+    echo "ERROR: need exactly one argument"
     usage
   fi
 }
@@ -38,7 +38,7 @@ setup_query() {
     --es.server-urls=http://127.0.0.1:9200
     --query.bearer-token-propagation=true
   )
-  SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux-$arch ${params[@]}
+  SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux-${arch} ${params[@]}
 }
 
 teardown_es() {
@@ -57,22 +57,12 @@ build_query() {
 }
 
 run_integration_test() {
-  local test_type=$1
-  local es_version=$2
-  local cid=$(setup_es $es_version)
-  case "$test_type" in
-    default)
-      STORAGE=elasticsearch make storage-integration-test
-      make index-cleaner-integration-test
-      ;;
-    otel)
-      make es-otel-exporter-integration-test
-      ;;
-    *)
-      echo "ERROR: invalid argument"
-      usage
-  esac
-  teardown_es $cid
+  local es_version=$1
+  local cid=$(setup_es ${es_version})
+  STORAGE=elasticsearch make storage-integration-test
+  make index-cleaner-integration-test
+  make es-otel-exporter-integration-test
+  teardown_es ${cid}
 }
 
 run_token_propagation_test() {
@@ -81,19 +71,14 @@ run_token_propagation_test() {
   setup_query &
   local pid=$!
   make token-propagation-integration-test
-  teardown_query $pid
+  teardown_query ${pid}
 }
 
 main() {
   check_arg "$@"
 
-  run_integration_test "$1" "$2"
-
-  if [ "$1" == "otel" ]; then
-    echo "OpenTelemetry ES exporter test finished, skipping token propagation tests"
-    exit 0
-  fi
-
+  echo "Executing integration test for elasticsearch $1"
+  run_integration_test "$1"
   echo "Executing token propagation test"
   run_token_propagation_test
 }

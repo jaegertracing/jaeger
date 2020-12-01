@@ -7,8 +7,11 @@ on:
     branches: [ master ]
 
 jobs:
-  elasticsearch-5:
+  elasticsearch:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [5.6.16, 6.8.2, 7.3.0]
     steps:
     - uses: actions/checkout@v2
 
@@ -20,34 +23,4 @@ jobs:
       run: make install-ci
 
     - name: Run elasticsearch integration tests
-      run: bash scripts/travis/es-integration-test.sh default 5.6.16
-
-  elasticsearch-6:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - uses: actions/setup-go@v2
-      with:
-        go-version: ^1.15
-
-    - name: Install tools
-      run: make install-ci
-
-    - name: Run elasticsearch integration tests
-      run: bash scripts/travis/es-integration-test.sh default 6.8.2
-
-  elasticsearch-7:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - uses: actions/setup-go@v2
-      with:
-        go-version: ^1.15
-
-    - name: Install tools
-      run: make install-ci
-
-    - name: Run elasticsearch integration tests
-      run: bash scripts/travis/es-integration-test.sh default 7.3.0
+      run: bash scripts/travis/es-integration-test.sh ${{ matrix.version }}
