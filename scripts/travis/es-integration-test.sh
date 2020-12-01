@@ -3,13 +3,13 @@
 set -euxf -o pipefail
 
 usage() {
-  echo $"Usage: $0 (default|otel)"
+  echo $"Usage: $0 (default|otel) <es_version>"
   exit 1
 }
 
 check_arg() {
-  if [ $# -eq 0 ]; then
-    echo "ERROR: no argument"
+  if [ ! $# -eq 2 ]; then
+    echo "ERROR: need exactly two arguments"
     usage
   fi
 }
@@ -87,9 +87,7 @@ run_token_propagation_test() {
 main() {
   check_arg "$@"
 
-  run_integration_test "$1" "5.6.16"
-  run_integration_test "$1" "6.8.2"
-  run_integration_test "$1" "7.3.0"
+  run_integration_test "$1" "$2"
 
   if [ "$1" == "otel" ]; then
     echo "OpenTelemetry ES exporter test finished, skipping token propagation tests"
