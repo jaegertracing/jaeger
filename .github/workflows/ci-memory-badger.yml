@@ -1,4 +1,4 @@
-name: Integration Tests
+name: CIT Memory And Badger
 
 on:
   push:

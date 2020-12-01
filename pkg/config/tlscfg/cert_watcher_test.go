@@ -17,7 +17,6 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -92,12 +91,12 @@ func TestReload(t *testing.T) {
 		// Logged when the cert is reloaded with mismatching client public key and existing server private key.
 		return logObserver.FilterMessage("Failed to load certificate").
 			FilterField(zap.String("certificate", certFile.Name())).Len() > 0
-	}, 100, time.Millisecond*200)
+	}, 2000, time.Millisecond*10)
 
 	assert.True(t, logObserver.
 		FilterMessage("Failed to load certificate").
 		FilterField(zap.String("certificate", certFile.Name())).Len() > 0,
-		"Unable to locate 'Failed to load certificate' in log. All logs: "+fmt.Sprint(logObserver.All()))
+		"Unable to locate 'Failed to load certificate' in log. All logs: %v", logObserver.All())
 
 	// Write the client's private key.
 	keyData, err = ioutil.ReadFile(clientKey)
@@ -110,12 +109,12 @@ func TestReload(t *testing.T) {
 		// the cert as both private and public keys now match.
 		return logObserver.FilterMessage("Loaded modified certificate").
 			FilterField(zap.String("certificate", keyFile.Name())).Len() > 0
-	}, 100, time.Millisecond*200)
+	}, 2000, time.Millisecond*10)
 
 	assert.True(t, logObserver.
 		FilterMessage("Loaded modified certificate").
 		FilterField(zap.String("certificate", keyFile.Name())).Len() > 0,
-		"Unable to locate 'Loaded modified certificate' in log. All logs: "+fmt.Sprint(logObserver.All()))
+		"Unable to locate 'Loaded modified certificate' in log. All logs: %v", logObserver.All())
 
 	cert, err = tls.LoadX509KeyPair(filepath.Clean(clientCert), clientKey)
 	require.NoError(t, err)
