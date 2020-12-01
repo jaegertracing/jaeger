@@ -11,9 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        major_version: [5.x, 6.x, 7.x]
         version: [5.6.16, 6.8.2, 7.3.0]
+    name: elasticsearch ${{ matrix.major_version }}
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
 
     - uses: actions/setup-go@v2
       with:
