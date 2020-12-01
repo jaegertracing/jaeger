@@ -1,4 +1,4 @@
-name: Integration Tests
+name: CIT Cassandra
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  elasticsearch:
+  cassandra:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -16,8 +16,5 @@ jobs:
       with:
         go-version: ^1.15
 
-    - name: Install tools
-      run: make install-ci
-
-    - name: Run elasticsearch integration tests
-      run: bash scripts/travis/es-integration-test.sh
+    - name: Run cassandra integration tests
+      run: bash scripts/travis/cassandra-integration-test.sh
