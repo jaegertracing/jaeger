@@ -1,4 +1,4 @@
-name: Integration Tests
+name: CIT OTEL Elasticsearch
 
 on:
   push:
