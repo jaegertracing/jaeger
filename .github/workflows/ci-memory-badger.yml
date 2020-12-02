@@ -1,4 +1,4 @@
-name: Integration Tests
+name: CIT Memory And Badger
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  kafka:
+  memory-badger:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -16,5 +16,5 @@ jobs:
       with:
         go-version: ^1.15
 
-    - name: Run kafka integration tests
-      run: bash scripts/travis/kafka-integration-test.sh
+    - name: Run in-memory and badger integration tests
+      run: make mem-and-badger-storage-integration-test

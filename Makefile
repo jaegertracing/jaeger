@@ -228,7 +228,7 @@ run-all-in-one: build-ui
 
 .PHONY: build-ui
 build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
-	# Do nothing. If you need to force a rebuild of UI assets, run `make clean`.
+	# UI packaged assets are up-to-date. To force a rebuild, run `make clean`.
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build

@@ -1,39 +1,86 @@
 #!/bin/bash
 
-set -e
+set -euxf -o pipefail
 
-GOARCH=$(go env GOARCH)
-
-run_integration_test() {
-  ES_VERSION=$1
-  docker pull docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION}
-  CID=$(docker run --rm -d -p 9200:9200 -e "http.host=0.0.0.0" -e "transport.host=127.0.0.1" -e "xpack.security.enabled=false" -e "xpack.monitoring.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION})
-  if [ "$ES_OTEL_INTEGRATION_TEST" == true ]; then
-    make es-otel-exporter-integration-test
-  else
-    STORAGE=elasticsearch make storage-integration-test
-    make index-cleaner-integration-test
-  fi
-  docker kill $CID
+usage() {
+  echo $"Usage: $0 <es_version>"
+  exit 1
 }
 
-run_integration_test "5.6.16"
-run_integration_test "6.8.2"
-run_integration_test "7.3.0"
+check_arg() {
+  if [ ! $# -eq 1 ]; then
+    echo "ERROR: need exactly one argument"
+    usage
+  fi
+}
 
-if [ "$ES_OTEL_INTEGRATION_TEST" == true ]; then
-  echo "OpenTelemetry ES exporter test finished, skipping ES script tests and token propagation"
-  exit 0
-fi
+setup_es() {
+  local tag=$1
+  local image=docker.elastic.co/elasticsearch/elasticsearch
+  local params=(
+    --rm
+    --detach
+    --publish 9200:9200
+    --env "http.host=0.0.0.0"
+    --env "transport.host=127.0.0.1"
+    --env "xpack.security.enabled=false"
+    --env "xpack.monitoring.enabled=false"
+  )
+  local cid=$(docker run ${params[@]} ${image}:${tag})
+  echo ${cid}
+}
 
-echo "Executing token propatagion test"
+setup_query() {
+  local arch=$(go env GOARCH)
+  local params=(
+    --es.tls=false
+    --es.version=7
+    --es.server-urls=http://127.0.0.1:9200
+    --query.bearer-token-propagation=true
+  )
+  SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux-${arch} ${params[@]}
+}
 
-# Mock UI, needed only for build query service.
-make build-crossdock-ui-placeholder
-GOOS=linux make build-query
+teardown_es() {
+  local cid=$1
+  docker kill ${cid}
+}
 
-make test-compile-es-scripts
-SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux-$GOARCH --es.server-urls=http://127.0.0.1:9200 --es.tls=false --es.version=7 --query.bearer-token-propagation=true &
-PID=$(echo $!)
-make token-propagation-integration-test
-kill -9 ${PID}
+teardown_query() {
+  local pid=$1
+  kill -9 ${pid}
+}
+
+build_query() {
+  make build-crossdock-ui-placeholder
+  GOOS=linux make build-query
+}
+
+run_integration_test() {
+  local es_version=$1
+  local cid=$(setup_es ${es_version})
+  STORAGE=elasticsearch make storage-integration-test
+  make index-cleaner-integration-test
+  make es-otel-exporter-integration-test
+  teardown_es ${cid}
+}
+
+run_token_propagation_test() {
+  build_query
+  make test-compile-es-scripts
+  setup_query &
+  local pid=$!
+  make token-propagation-integration-test
+  teardown_query ${pid}
+}
+
+main() {
+  check_arg "$@"
+
+  echo "Executing integration test for elasticsearch $1"
+  run_integration_test "$1"
+  echo "Executing token propagation test"
+  run_token_propagation_test
+}
+
+main "$@"

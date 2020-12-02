@@ -7,7 +7,7 @@
 
 [![Gitter chat][gitter-img]][gitter] [![Project+Community stats][community-badge]][community-stats]
 
-[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield)
+[![Unit Tests][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][ci]
 
 # Jaeger - a Distributed Tracing System
 
@@ -174,10 +174,11 @@ If you would like to add your organization to the list, please comment on our
 [doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
-[ci-img]: https://travis-ci.com/jaegertracing/jaeger.svg?branch=master
-[ci]: https://travis-ci.com/jaegertracing/jaeger
+[ci-img]: https://github.com/jaegertracing/jaeger/workflows/Unit%20Tests/badge.svg?branch=master
+[ci]: https://github.com/jaegertracing/jaeger/actions?query=branch%3Amaster
 [cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/graph/badge.svg
 [cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/
+[fossa-img]: https://github.com/jaegertracing/jaeger/workflows/FOSSA/badge.svg?branch=master
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: https://uber.github.io
 [ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg

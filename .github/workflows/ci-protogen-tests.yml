@@ -1,4 +1,4 @@
-name: Integration Tests
+name: Protogen Validation
 
 on:
   push:
@@ -7,14 +7,16 @@ on:
     branches: [ master ]
 
 jobs:
-  memory-badger:
+  protogen:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
 
     - uses: actions/setup-go@v2
       with:
         go-version: ^1.15
 
-    - name: Run in-memory and badger integration tests
-      run: make mem-and-badger-storage-integration-test
+    - name: Run protogen validation
+      run: make proto && git diff --name-status --exit-code
