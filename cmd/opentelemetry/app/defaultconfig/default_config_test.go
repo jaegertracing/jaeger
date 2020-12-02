@@ -202,7 +202,7 @@ func TestService(t *testing.T) {
 
 			// command set flag is parsed into otelViper
 			otelViper := viper.New()
-			command.Flags().StringArray("set", []string{}, "set overrides settings in otelcol")
+			command.Flags().StringArray("set", []string{}, "set overrides settings in OpenTelemetry Collector")
 			cfg, err := createDefaultConfig(otelViper, command, factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
