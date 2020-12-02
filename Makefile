@@ -124,8 +124,8 @@ es-otel-exporter-integration-test: go-gen
 
 .PHONY: test-compile-es-scripts
 test-compile-es-scripts:
-	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
-	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
