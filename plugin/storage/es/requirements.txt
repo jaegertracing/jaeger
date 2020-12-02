@@ -1,0 +1,3 @@
+elasticsearch==7.10.0
+elasticsearch-curator==5.8.3
+urllib3==1.24.3 # Temporary fix for https://github.com/jaegertracing/jaeger/issues/1494
