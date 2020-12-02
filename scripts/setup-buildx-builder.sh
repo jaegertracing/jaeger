@@ -57,7 +57,7 @@ fi
 # Ensure a local builder for multi-arch build. For more details, see: https://github.com/docker/buildx/blob/master/README.md#building-multi-platform-images
 if ! docker buildx inspect ${BUILDER_NAME} > /dev/null 2>&1; then
   echo "The buildx builder instance named '${BUILDER_NAME}' does not exist. Creating one now.";
-  if ! docker buildx create --name=${BUILDER_NAME} --driver-opt=image=moby/buildkit:v0.8.0-rc3; then
+  if ! docker buildx create --name=${BUILDER_NAME} --driver-opt=image=moby/buildkit:v0.8.0; then
     echo "Failed to create the buildx builder '${BUILDER_NAME}'";
     exit 1;
   fi

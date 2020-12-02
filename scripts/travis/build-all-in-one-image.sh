@@ -52,8 +52,8 @@ repo=jaegertracing/all-in-one
 docker build -f cmd/all-in-one/Dockerfile \
         --target release \
         --tag $repo:latest cmd/all-in-one \
-        --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
-        --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
+        --build-arg base_image=jaegertracing/baseimg:1.0.0-alpine-3.12 \
+        --build-arg debug_image=jaegertracing/debugimg:1.0.0-golang-1.15-alpine \
         --build-arg TARGETARCH=$GOARCH
 run_integration_test $repo
 upload_to_docker $repo
@@ -63,8 +63,8 @@ repo=jaegertracing/all-in-one-debug
 docker build -f cmd/all-in-one/Dockerfile \
         --target debug \
         --tag $repo:latest cmd/all-in-one \
-        --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
-        --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
+        --build-arg base_image=jaegertracing/baseimg:1.0.0-alpine-3.12 \
+        --build-arg debug_image=jaegertracing/debugimg:1.0.0-golang-1.15-alpine \
         --build-arg TARGETARCH=$GOARCH
 run_integration_test $repo
 upload_to_docker $repo
