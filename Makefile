@@ -178,6 +178,11 @@ lint-staticcheck:
 		>> $(LINT_LOG) || true
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
 
+.PHONY: golangci-lint
+golangci-lint:
+	@echo Running golangci-lint
+	golangci-lint -v run
+
 .PHONY: lint
 lint: lint-staticcheck lint-gosec lint-otel
 	$(GOVET) ./...
