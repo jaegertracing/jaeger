@@ -20,7 +20,7 @@ linters:
 #    - bodyclose
 #    - unconvert
 #    - ineffassign
-#    - staticcheck
+    - staticcheck
 #    - interfacer
 #    - scopelint
     - structcheck
@@ -41,23 +41,21 @@ linters:
 #    - whitespace
 
 issues:
-  include:
-    - EXC0002 # disable excluding of issues about comments from golint
-  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-use-default: true
   exclude-rules:
     - path: _test\.go
       linters:
         - gomnd
         - dupl
         - interfacer
-    - path: cmd/opentelemetry
-      linters:
-        - gosec
 
     - linters:
         - stylecheck
       text: "ST1000:"
     - linters:
         - gosec
-      text: "G104:G107:"
+      text: "G104:|G107:"
+    - path: cmd/opentelemetry
+      linters:
+        - gosec
 
