@@ -7,6 +7,7 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/travis/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
+DOCKERHUB_LOGIN=${DOCKERHUB_LOGIN:-false}
 
 expected_version="v10"
 version=$(node --version)
@@ -35,7 +36,7 @@ run_integration_test() {
 }
 
 upload_to_docker() {
-  # Only push the docker container to Docker Hub for master branch
+  # Only push the docker container to Docker Hub for master/release branch and when dockerhub login is done
   if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$DOCKERHUB_LOGIN" == "true" ]]; then
     echo "upload $1 to Docker Hub"
     export REPO=$1
