@@ -63,14 +63,14 @@ func TestDefaultValueFromViper(t *testing.T) {
 
 	cfg := f.CreateDefaultConfig().(*jaegerexporter.Config)
 
-	qs := exporterhelper.CreateDefaultQueueSettings()
+	qs := exporterhelper.DefaultQueueSettings()
 	assert.Equal(t, &jaegerexporter.Config{
 		ExporterSettings: configmodels.ExporterSettings{
 			TypeVal: "jaeger",
 			NameVal: "jaeger",
 		},
-		TimeoutSettings: exporterhelper.CreateDefaultTimeoutSettings(),
-		RetrySettings:   exporterhelper.CreateDefaultRetrySettings(),
+		TimeoutSettings: exporterhelper.DefaultTimeoutSettings(),
+		RetrySettings:   exporterhelper.DefaultRetrySettings(),
 		QueueSettings:   qs,
 		GRPCClientSettings: configgrpc.GRPCClientSettings{
 			WriteBufferSize: 512 * 1024,

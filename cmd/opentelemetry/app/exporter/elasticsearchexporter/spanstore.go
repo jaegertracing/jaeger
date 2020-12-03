@@ -245,10 +245,7 @@ func bulkItemsToTraces(bulkItems []bulkItem) pdata.Traces {
 		spanData.Resource.Attributes().CopyTo(rss.Resource().Attributes())
 		rss.InstrumentationLibrarySpans().Resize(1)
 		ispans := rss.InstrumentationLibrarySpans().At(0)
-		ispans.InitEmpty()
-		if !spanData.InstrumentationLibrary.IsNil() {
-			spanData.InstrumentationLibrary.CopyTo(ispans.InstrumentationLibrary())
-		}
+		spanData.InstrumentationLibrary.CopyTo(ispans.InstrumentationLibrary())
 		ispans.Spans().Append(spanData.Span)
 	}
 	return traces
