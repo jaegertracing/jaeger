@@ -15,6 +15,7 @@ def main():
         print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
         print('TIMEOUT ...  number of seconds to wait for master node response.'.format(TIMEOUT))
         print('INDEX_PREFIX ... specifies index prefix.')
+        print('INDEX_DATE_SEPARATOR ... specifies index date separator.')
         print('ARCHIVE ... specifies whether to remove archive indices (only works for rollover) (default false).')
         print('ROLLOVER ... specifies whether to remove indices created by rollover (default false).')
         print('ES_USERNAME ... The username required by Elasticsearch.')
@@ -33,6 +34,7 @@ def main():
     prefix = os.getenv("INDEX_PREFIX", '')
     if prefix != '':
         prefix += '-'
+    separator = os.getenv("INDEX_DATE_SEPARATOR", '-')
 
     if str2bool(os.getenv("ARCHIVE", 'false')):
         filter_archive_indices_rollover(ilo, prefix)
@@ -40,7 +42,7 @@ def main():
         if str2bool(os.getenv("ROLLOVER", 'false')):
             filter_main_indices_rollover(ilo, prefix)
         else:
-            filter_main_indices(ilo, prefix)
+            filter_main_indices(ilo, prefix, separator)
 
     empty_list(ilo, 'No indices to delete')
 
@@ -51,12 +53,15 @@ def main():
     delete_indices.do_action()
 
 
-def filter_main_indices(ilo, prefix):
-    ilo.filter_by_regex(kind='regex', value=prefix + "jaeger-(span|service|dependencies)-\d{4}-\d{2}-\d{2}")
+def filter_main_indices(ilo, prefix, separator):
+    date_regex = "\d{4}" + separator + "\d{2}" + separator + "\d{2}"
+    time_string = "%Y" + separator + "%m" + separator + "%d"
+
+    ilo.filter_by_regex(kind='regex', value=prefix + "jaeger-(span|service|dependencies)-" + date_regex)
     empty_list(ilo, "No indices to delete")
     # This excludes archive index as we use source='name'
     # source `creation_date` would include archive index
-    ilo.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit='days', unit_count=int(sys.argv[1]))
+    ilo.filter_by_age(source='name', direction='older', timestring=time_string, unit='days', unit_count=int(sys.argv[1]))
 
 
 def filter_main_indices_rollover(ilo, prefix):

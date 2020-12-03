@@ -35,31 +35,31 @@ const (
 	dependencyIndexBaseName = "jaeger-dependencies"
 
 	timestampField = "timestamp"
-
-	indexDateFormat = "2006-01-02" // date format for index e.g. 2020-01-20
 )
 
 // DependencyStore defines Elasticsearch dependency store.
 type DependencyStore struct {
-	client      esclient.ElasticsearchClient
-	logger      *zap.Logger
-	indexPrefix string
-	maxDocCount int
+	client          esclient.ElasticsearchClient
+	logger          *zap.Logger
+	indexPrefix     string
+	indexDateLayout string
+	maxDocCount     int
 }
 
 var _ dependencystore.Reader = (*DependencyStore)(nil)
 var _ dependencystore.Writer = (*DependencyStore)(nil)
 
 // NewDependencyStore creates dependency store.
-func NewDependencyStore(client esclient.ElasticsearchClient, logger *zap.Logger, indexPrefix string, maxDocCount int) *DependencyStore {
+func NewDependencyStore(client esclient.ElasticsearchClient, logger *zap.Logger, indexPrefix, indexDateLayout string, maxDocCount int) *DependencyStore {
 	if indexPrefix != "" {
 		indexPrefix += "-"
 	}
 	return &DependencyStore{
-		client:      client,
-		logger:      logger,
-		indexPrefix: indexPrefix + dependencyIndexBaseName + "-",
-		maxDocCount: maxDocCount,
+		client:          client,
+		logger:          logger,
+		indexPrefix:     indexPrefix + dependencyIndexBaseName + "-",
+		indexDateLayout: indexDateLayout,
+		maxDocCount:     maxDocCount,
 	}
 }
 
@@ -78,14 +78,14 @@ func (r *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	if err != nil {
 		return err
 	}
-	return r.client.Index(context.Background(), bytes.NewReader(data), indexWithDate(r.indexPrefix, ts), dependencyType)
+	return r.client.Index(context.Background(), bytes.NewReader(data), indexWithDate(r.indexPrefix, r.indexDateLayout, ts), dependencyType)
 }
 
 // GetDependencies implements dependencystore.Reader
 func (r *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	searchBody := getSearchBody(endTs, lookback, r.maxDocCount)
 
-	indices := dailyIndices(r.indexPrefix, endTs, lookback)
+	indices := dailyIndices(r.indexPrefix, r.indexDateLayout, endTs, lookback)
 	response, err := r.client.Search(ctx, searchBody, r.maxDocCount, indices...)
 	if err != nil {
 		return nil, err
@@ -114,18 +114,18 @@ func getSearchBody(endTs time.Time, lookback time.Duration, maxDocCount int) esc
 	}
 }
 
-func indexWithDate(indexNamePrefix string, date time.Time) string {
-	return indexNamePrefix + date.UTC().Format(indexDateFormat)
+func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
+	return indexNamePrefix + date.UTC().Format(indexDateLayout)
 }
 
-func dailyIndices(prefix string, ts time.Time, lookback time.Duration) []string {
+func dailyIndices(prefix, format string, ts time.Time, lookback time.Duration) []string {
 	var indices []string
-	firstIndex := indexWithDate(prefix, ts.Add(-lookback))
-	currentIndex := indexWithDate(prefix, ts)
+	firstIndex := indexWithDate(prefix, format, ts.Add(-lookback))
+	currentIndex := indexWithDate(prefix, format, ts)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		ts = ts.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(prefix, ts)
+		currentIndex = indexWithDate(prefix, format, ts)
 	}
 	return append(indices, firstIndex)
 }

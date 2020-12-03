@@ -19,8 +19,8 @@ import (
 )
 
 // returns index name with date
-func indexWithDate(indexPrefix string, date time.Time) string {
-	spanDate := date.UTC().Format("2006-01-02")
+func indexWithDate(indexPrefix, indexDateLayout string, date time.Time) string {
+	spanDate := date.UTC().Format(indexDateLayout)
 	return indexPrefix + spanDate
 }
 

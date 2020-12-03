@@ -97,6 +97,7 @@ type SpanReader struct {
 	serviceOperationStorage *ServiceOperationStorage
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
+	indexDateLayout         string
 	spanConverter           dbmodel.ToDomain
 	timeRangeIndices        timeRangeIndexFn
 	sourceFn                sourceFn
@@ -111,6 +112,7 @@ type SpanReaderParams struct {
 	MaxDocCount         int
 	MetricsFactory      metrics.Factory
 	IndexPrefix         string
+	IndexDateLayout     string
 	TagDotReplacement   string
 	Archive             bool
 	UseReadWriteAliases bool
@@ -125,6 +127,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
+		indexDateLayout:         p.IndexDateLayout,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
 		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
@@ -132,7 +135,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 }
 
-type timeRangeIndexFn func(indexName string, startTime time.Time, endTime time.Time) []string
+type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time) []string
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
@@ -144,12 +147,12 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 		} else {
 			archivePrefix = archiveIndexSuffix
 		}
-		return func(indexName string, startTime time.Time, endTime time.Time) []string {
+		return func(indexName, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
 			return []string{archiveIndex(indexName, archivePrefix)}
 		}
 	}
 	if useReadWriteAliases {
-		return func(indices string, startTime time.Time, endTime time.Time) []string {
+		return func(indices string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
 			return []string{indices + "read"}
 		}
 	}
@@ -171,14 +174,14 @@ func getSourceFn(archive bool, maxDocCount int) sourceFn {
 }
 
 // timeRangeIndices returns the array of indices that we need to query, based on query params
-func timeRangeIndices(indexName string, startTime time.Time, endTime time.Time) []string {
+func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	firstIndex := indexWithDate(indexName, startTime)
-	currentIndex := indexWithDate(indexName, endTime)
+	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
+	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(indexName, endTime)
+		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)
 	return indices
@@ -241,7 +244,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetServices")
 	defer span.Finish()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.indexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
@@ -253,7 +256,7 @@ func (s *SpanReader) GetOperations(
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.indexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
@@ -326,7 +329,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
-	indices := s.timeRangeIndices(s.spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
+	indices := s.timeRangeIndices(s.spanIndexPrefix, s.indexDateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 
 	searchAfterTime := make(map[model.TraceID]uint64)
@@ -512,7 +515,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.indexDateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client.Search(jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.
