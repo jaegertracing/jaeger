@@ -55,7 +55,7 @@ var _ component.ExporterFactory = (*Factory)(nil)
 // CreateDefaultConfig returns default configuration of Factory.
 // This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
-	queueSettings := exporterhelper.CreateDefaultQueueSettings()
+	queueSettings := exporterhelper.DefaultQueueSettings()
 	queueSettings.NumConsumers = collector_app.DefaultNumWorkers
 	queueSettings.QueueSize = collector_app.DefaultQueueSize
 
@@ -65,8 +65,8 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 			TypeVal: TypeStr,
 			NameVal: TypeStr,
 		},
-		TimeoutSettings: exporterhelper.CreateDefaultTimeoutSettings(),
-		RetrySettings:   exporterhelper.CreateDefaultRetrySettings(),
+		TimeoutSettings: exporterhelper.DefaultTimeoutSettings(),
+		RetrySettings:   exporterhelper.DefaultRetrySettings(),
 		QueueSettings:   queueSettings,
 		Options:         *opts,
 	}

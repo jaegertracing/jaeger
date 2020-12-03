@@ -102,12 +102,10 @@ func TestBulkItemsToTraces(t *testing.T) {
 	})
 	t.Run("one_span", func(t *testing.T) {
 		span := pdata.NewSpan()
-		span.InitEmpty()
 		span.SetName("name")
 		resource := pdata.NewResource()
 		resource.Attributes().Insert("key", pdata.NewAttributeValueString("val"))
 		inst := pdata.NewInstrumentationLibrary()
-		inst.InitEmpty()
 		inst.SetName("name")
 		traces := bulkItemsToTraces([]bulkItem{
 			{
@@ -172,12 +170,10 @@ func TestWriteSpans(t *testing.T) {
 	})
 	t.Run("one_span_failed", func(t *testing.T) {
 		span := pdata.NewSpan()
-		span.InitEmpty()
 		span.SetName("name")
 		resource := pdata.NewResource()
 		resource.Attributes().Insert("key", pdata.NewAttributeValueString("val"))
 		inst := pdata.NewInstrumentationLibrary()
-		inst.InitEmpty()
 		inst.SetName("name")
 		traces := bulkItemsToTraces([]bulkItem{{
 			spanData: esmodeltranslator.ConvertedData{
