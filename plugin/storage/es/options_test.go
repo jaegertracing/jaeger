@@ -65,6 +65,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.tags-as-fields.include=test,tags",
 		"--es.tags-as-fields.config-file=./file.txt",
 		"--es.tags-as-fields.dot-replacement=!",
+		"--es.use-ilm=true",
 	})
 	opts.InitFromViper(v)
 
@@ -81,6 +82,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "!", primary.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", primary.Tags.File)
 	assert.Equal(t, "test,tags", primary.Tags.Include)
+	assert.True(t, primary.UseILM)
 
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)

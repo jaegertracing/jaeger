@@ -18,10 +18,9 @@ package es
 import (
 	"context"
 	"errors"
+	"github.com/flosch/pongo2/v4"
 	"io/ioutil"
 	"os"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -164,9 +163,9 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5)
-	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6)
-	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7)
+	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5,"",false)
+	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6,"",false)
+	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7,"test",true)
 	dependenciesMapping6 := GetDependenciesMappings(10, 0, 6)
 	dependenciesMapping7 := GetDependenciesMappings(10, 0, 7)
 	tests := []struct {
@@ -189,11 +188,17 @@ func TestFactory_LoadMapping(t *testing.T) {
 		b, err := ioutil.ReadAll(f)
 		require.NoError(t, err)
 		assert.Equal(t, string(b), mapping)
-
-		expectedMapping := string(b)
-		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
-		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
-		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
+		tempMapping, err1 := pongo2.FromString(mapping)
+		assert.NoError(t,err1)
+		if test.name != "/jaeger-service-7.json" && test.name != "/jaeger-span-7.json" {
+			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "", "UseILM": false})
+			assert.NoError(t,err)
+			assert.Equal(t,expectedMapping,fixMapping(mapping, 10, 0, "", false))
+		}else {
+			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "test-", "UseILM": true})
+			assert.NoError(t,err)
+			assert.Equal(t,expectedMapping,fixMapping(mapping, 10, 0, "test", true))
+		}
 	}
 }
 

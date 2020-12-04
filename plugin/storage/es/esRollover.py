@@ -11,6 +11,7 @@ import sys
 import re
 from pathlib2 import Path
 from requests.auth import HTTPBasicAuth
+from jinja2 import Template
 
 
 ARCHIVE_INDEX = 'jaeger-span-archive'
@@ -36,6 +37,7 @@ def main():
         print('ES_TLS_CA ... Path to TLS CA file.')
         print('ES_TLS_CERT ... Path to TLS certificate file.')
         print('ES_TLS_KEY ... Path to TLS key file.')
+        print('ES_USE_ILM .. Use ILM to manage jaeger indices.')
         print('ES_TLS_SKIP_HOST_VERIFY ... (insecure) Skip server\'s certificate chain and host name verification.')
         print('ES_VERSION ... The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.')
         print('init configuration:')
@@ -73,11 +75,13 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         shards = os.getenv('SHARDS', SHARDS)
         replicas = os.getenv('REPLICAS', REPLICAS)
         esVersion = get_version(client)
+        use_ilm = str2bool(os.getenv("ES_USE_ILM", 'false'))
         if esVersion == 7:
             mapping = Path('./mappings/'+template_name+'-7.json').read_text()
         else:
             mapping = Path('./mappings/'+template_name+'.json').read_text()
-        create_index_template(fix_mapping(mapping, shards, replicas, prefix), prefix+template_name+"-with-ilm")
+            use_ilm = False
+        create_index_template(fix_mapping(mapping, shards, replicas, prefix, use_ilm), prefix+template_name+"-override-template")
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
@@ -178,10 +182,9 @@ def str2bool(v):
     return v.lower() in ('true', '1')
 
 
-def fix_mapping(mapping, shards, replicas, prefix):
-    mapping = mapping.replace("${__NUMBER_OF_SHARDS__}", str(shards))
-    mapping = mapping.replace("${__NUMBER_OF_REPLICAS__}", str(replicas))
-    mapping = mapping.replace("${__PREFIX__}", str(prefix))
+def fix_mapping(mapping, shards, replicas, esprefix, use_ilm):
+    template = Template(mapping)
+    mapping = template.render(NumberOfShards=shards, NumberOfReplicas=replicas, ESPrefix=esprefix, UseILM=use_ilm, Order=2)
     return mapping
 
 

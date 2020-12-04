@@ -1,18 +1,22 @@
 {
-  "index_patterns": "${__PREFIX__}jaeger-service-*",
-  "order": 1,
+  "index_patterns": "{{ ESPrefix }}jaeger-service-*",
+  "order": {{ Order | default_if_none:  1 }},
+  {% if UseILM %}
   "aliases": {
-    "${__PREFIX__}jaeger-service-read" : {}
+    "{{ ESPrefix }}jaeger-service-read" : {}
   },
+  {% endif %}
   "settings":{
-    "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
-    "index.number_of_replicas": ${__NUMBER_OF_REPLICAS__},
+    "index.number_of_shards": {{ NumberOfShards }},
+    "index.number_of_replicas": {{  NumberOfReplicas }},
     "index.mapping.nested_fields.limit":50,
-    "index.requests.cache.enable":true,
-    "lifecycle": {
-        "name": "jaeger",
-        "rollover_alias": "${__PREFIX__}jaeger-service-write"
+    "index.requests.cache.enable":true
+  {% if UseILM %}
+    ,"lifecycle": {
+        "name": "jaeger-ilm-policy",
+        "rollover_alias": "{{ ESPrefix }}jaeger-service-write"
     }
+    {% endif %}
   },
   "mappings":{
     "dynamic_templates":[
