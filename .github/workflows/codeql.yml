@@ -1,4 +1,4 @@
-name: "Code Scanning - Action"
+name: "CodeQL"
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
     - cron: '31 6 * * 1'
 
 jobs:
-  analyze:
-    name: Analyze
+  codeql-analyze:
+    name: CodeQL Analyze
     runs-on: ubuntu-latest
 
     strategy:

@@ -44,6 +44,7 @@ const (
 	queryHostPort      = host + ":" + queryPort
 	queryURL           = "http://" + queryHostPort
 	indexPrefix        = "integration-test"
+	indexDateLayout    = "2006-01-02"
 	tagKeyDeDotChar    = "@"
 	maxSpanAge         = time.Hour * 72
 	defaultMaxDocCount = 10_000
@@ -132,7 +133,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
 	})
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, defaultMaxDocCount)
+	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
 	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
 	err = dependencyStore.CreateTemplates(depMapping)
 	if err != nil {

@@ -102,12 +102,10 @@ func TestBulkItemsToTraces(t *testing.T) {
 	})
 	t.Run("one_span", func(t *testing.T) {
 		span := pdata.NewSpan()
-		span.InitEmpty()
 		span.SetName("name")
 		resource := pdata.NewResource()
 		resource.Attributes().Insert("key", pdata.NewAttributeValueString("val"))
 		inst := pdata.NewInstrumentationLibrary()
-		inst.InitEmpty()
 		inst.SetName("name")
 		traces := bulkItemsToTraces([]bulkItem{
 			{
@@ -146,8 +144,8 @@ func TestWriteSpans(t *testing.T) {
 	w := esSpanWriter{
 		logger:           zap.NewNop(),
 		client:           esClient,
-		spanIndexName:    esutil.NewIndexNameProvider("span", "", esutil.AliasNone, false),
-		serviceIndexName: esutil.NewIndexNameProvider("service", "", esutil.AliasNone, false),
+		spanIndexName:    esutil.NewIndexNameProvider("span", "", "2006-01-02", esutil.AliasNone, false),
+		serviceIndexName: esutil.NewIndexNameProvider("service", "", "2006-01-02", esutil.AliasNone, false),
 		serviceCache:     cache.NewLRU(1),
 		nameTag:          tag.Insert(storagemetrics.TagExporterName(), "name"),
 	}
@@ -172,12 +170,10 @@ func TestWriteSpans(t *testing.T) {
 	})
 	t.Run("one_span_failed", func(t *testing.T) {
 		span := pdata.NewSpan()
-		span.InitEmpty()
 		span.SetName("name")
 		resource := pdata.NewResource()
 		resource.Attributes().Insert("key", pdata.NewAttributeValueString("val"))
 		inst := pdata.NewInstrumentationLibrary()
-		inst.InitEmpty()
 		inst.SetName("name")
 		traces := bulkItemsToTraces([]bulkItem{{
 			spanData: esmodeltranslator.ConvertedData{

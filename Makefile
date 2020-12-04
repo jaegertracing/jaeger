@@ -124,8 +124,8 @@ es-otel-exporter-integration-test: go-gen
 
 .PHONY: test-compile-es-scripts
 test-compile-es-scripts:
-	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
-	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
@@ -228,7 +228,7 @@ run-all-in-one: build-ui
 
 .PHONY: build-ui
 build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
-	# Do nothing. If you need to force a rebuild of UI assets, run `make clean`.
+	# UI packaged assets are up-to-date. To force a rebuild, run `make clean`.
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build

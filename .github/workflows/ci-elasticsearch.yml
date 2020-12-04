@@ -1,0 +1,39 @@
+name: CIT Elasticsearch
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  elasticsearch:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version:
+        - major: 5.x
+          image: 5.6.16
+        - major: 6.x
+          image: 6.8.2
+        - major: 7.x
+          image: 7.3.0
+    name: elasticsearch ${{ matrix.version.major }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Run elasticsearch integration tests
+      run: bash scripts/travis/es-integration-test.sh ${{ matrix.version.image }}

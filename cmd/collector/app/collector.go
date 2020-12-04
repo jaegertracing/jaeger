@@ -118,6 +118,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
 		Logger:         c.logger,
+		MetricsFactory: c.metricsFactory,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start the Zipkin server %w", err)

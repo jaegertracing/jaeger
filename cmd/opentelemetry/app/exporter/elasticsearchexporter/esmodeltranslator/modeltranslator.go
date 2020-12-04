@@ -111,9 +111,6 @@ func (c *Translator) resourceSpans(rspans pdata.ResourceSpans, spansData *[]Conv
 }
 
 func (c *Translator) addInstrumentationLibrary(span *dbmodel.Span, instLib pdata.InstrumentationLibrary) {
-	if instLib.IsNil() {
-		return
-	}
 	if instLib.Name() != "" {
 		span.Tags = append(span.Tags, dbmodel.KeyValue{
 			Key:   tracetranslator.TagInstrumentationName,
@@ -131,9 +128,6 @@ func (c *Translator) addInstrumentationLibrary(span *dbmodel.Span, instLib pdata
 }
 
 func (c *Translator) spanWithoutProcess(span pdata.Span) (*dbmodel.Span, error) {
-	if span.IsNil() {
-		return nil, nil
-	}
 	traceID, err := convertTraceID(span.TraceID())
 	if err != nil {
 		return nil, err
@@ -196,9 +190,6 @@ func references(links pdata.SpanLinkSlice, parentSpanID pdata.SpanID, traceID db
 
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
-		if link.IsNil() {
-			continue
-		}
 
 		traceID, err := convertTraceID(link.TraceID())
 		if err != nil {
@@ -399,9 +390,6 @@ func logs(events pdata.SpanEventSlice) []dbmodel.Log {
 	logs := make([]dbmodel.Log, 0, events.Len())
 	for i := 0; i < events.Len(); i++ {
 		event := events.At(i)
-		if event.IsNil() {
-			continue
-		}
 		var fields []dbmodel.KeyValue
 		if event.Attributes().Len() > 0 {
 			fields = make([]dbmodel.KeyValue, 0, event.Attributes().Len()+1)

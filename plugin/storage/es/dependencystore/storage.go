@@ -37,29 +37,31 @@ const (
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	client      es.Client
-	logger      *zap.Logger
-	indexPrefix string
-	maxDocCount int
+	client          es.Client
+	logger          *zap.Logger
+	indexPrefix     string
+	indexDateLayout string
+	maxDocCount     int
 }
 
 // NewDependencyStore returns a DependencyStore
-func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string, maxDocCount int) *DependencyStore {
+func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix, indexDateLayout string, maxDocCount int) *DependencyStore {
 	var prefix string
 	if indexPrefix != "" {
 		prefix = indexPrefix + "-"
 	}
 	return &DependencyStore{
-		client:      client,
-		logger:      logger,
-		indexPrefix: prefix + dependencyIndex,
-		maxDocCount: maxDocCount,
+		client:          client,
+		logger:          logger,
+		indexPrefix:     prefix + dependencyIndex,
+		indexDateLayout: indexDateLayout,
+		maxDocCount:     maxDocCount,
 	}
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
-	indexName := indexWithDate(s.indexPrefix, ts)
+	indexName := indexWithDate(s.indexPrefix, s.indexDateLayout, ts)
 	s.writeDependencies(indexName, ts, dependencies)
 	return nil
 }
@@ -82,7 +84,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	indices := getIndices(s.indexPrefix, endTs, lookback)
+	indices := getIndices(s.indexPrefix, s.indexDateLayout, endTs, lookback)
 	searchResult, err := s.client.Search(indices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(endTs, lookback)).
@@ -109,18 +111,18 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 	return elastic.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
 }
 
-func getIndices(prefix string, ts time.Time, lookback time.Duration) []string {
+func getIndices(prefix, dateLayout string, ts time.Time, lookback time.Duration) []string {
 	var indices []string
-	firstIndex := indexWithDate(prefix, ts.Add(-lookback))
-	currentIndex := indexWithDate(prefix, ts)
+	firstIndex := indexWithDate(prefix, dateLayout, ts.Add(-lookback))
+	currentIndex := indexWithDate(prefix, dateLayout, ts)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		ts = ts.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(prefix, ts)
+		currentIndex = indexWithDate(prefix, dateLayout, ts)
 	}
 	return append(indices, firstIndex)
 }
 
-func indexWithDate(indexNamePrefix string, date time.Time) string {
-	return indexNamePrefix + date.UTC().Format("2006-01-02")
+func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
+	return indexNamePrefix + date.UTC().Format(indexDateLayout)
 }

@@ -1,0 +1,20 @@
+name: CIT Cassandra
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  cassandra:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+
+    - name: Run cassandra integration tests
+      run: bash scripts/travis/cassandra-integration-test.sh

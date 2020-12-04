@@ -109,7 +109,6 @@ func TestConvertSpan(t *testing.T) {
 	resource := traces.ResourceSpans().At(0).Resource()
 	resource.Attributes().InsertDouble("num", 16.66)
 	instrumentationLibrary := traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary()
-	instrumentationLibrary.InitEmpty()
 	instrumentationLibrary.SetName("io.opentelemetry")
 	instrumentationLibrary.SetVersion("1.0")
 	span := addSpan(traces, "root", traceID, spanID)
@@ -127,7 +126,6 @@ func TestConvertSpan(t *testing.T) {
 	span.Events().At(0).Attributes().InsertString("foo", "bar")
 	span.SetParentSpanID(spanID)
 	span.Links().Resize(1)
-	span.Links().At(0).InitEmpty()
 	span.Links().At(0).SetSpanID(spanID)
 	traceIDZeroHigh := pdata.NewTraceID([16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07})
@@ -186,7 +184,6 @@ func TestSpanEmptyRef(t *testing.T) {
 	span := addSpan(traces, "root", traceID, spanID)
 	span.SetStartTime(pdata.TimestampUnixNano(1000000))
 	span.SetEndTime(pdata.TimestampUnixNano(2000000))
-	traces.ResourceSpans().At(0).InstrumentationLibrarySpans().At(0).InstrumentationLibrary().InitEmpty()
 
 	c := &Translator{}
 	spansData, err := c.ConvertSpans(traces)
