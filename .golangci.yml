@@ -11,34 +11,17 @@ linters:
     - typecheck
     - govet
     - gosec
-#    - nolintlint
-#    - rowserrcheck
     - gofmt
     - golint
     - goimports
-#    - misspell
-#    - bodyclose
-#    - unconvert
-#    - ineffassign
     - staticcheck
-#    - interfacer
-#    - scopelint
     - structcheck
     - deadcode
-#    - depguard
-#    - dogsled
-#    - errcheck
-#    - funlen
-#    - goconst
-#    - gocritic
-#    - gocyclo
-#    - gosimple
-#    - stylecheck
+    - errcheck
+    - gosimple
     - unused
-#    - varcheck
-#    - unparam
-#    - unconvert
-#    - whitespace
+    - bodyclose
+    - misspell
 
 issues:
   exclude-use-default: true
