@@ -18,11 +18,11 @@ package es
 import (
 	"context"
 	"errors"
-	"github.com/flosch/pongo2/v4"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/flosch/pongo2/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -163,9 +163,9 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5,"",false)
-	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6,"",false)
-	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7,"test",true)
+	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5, "", false)
+	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6, "", false)
+	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7, "test", true)
 	dependenciesMapping6 := GetDependenciesMappings(10, 0, 6)
 	dependenciesMapping7 := GetDependenciesMappings(10, 0, 7)
 	tests := []struct {
@@ -189,15 +189,15 @@ func TestFactory_LoadMapping(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, string(b), mapping)
 		tempMapping, err1 := pongo2.FromString(mapping)
-		assert.NoError(t,err1)
+		assert.NoError(t, err1)
 		if test.name != "/jaeger-service-7.json" && test.name != "/jaeger-span-7.json" {
 			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "", "UseILM": false})
-			assert.NoError(t,err)
-			assert.Equal(t,expectedMapping,fixMapping(mapping, 10, 0, "", false))
-		}else {
+			assert.NoError(t, err)
+			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, "", false))
+		} else {
 			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "test-", "UseILM": true})
-			assert.NoError(t,err)
-			assert.Equal(t,expectedMapping,fixMapping(mapping, 10, 0, "test", true))
+			assert.NoError(t, err)
+			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, "test", true))
 		}
 	}
 }

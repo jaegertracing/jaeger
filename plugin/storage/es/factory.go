@@ -212,7 +212,7 @@ func loadMapping(name string) string {
 }
 
 func fixMapping(mapping string, shards, replicas int64, esPrefix string, useILM bool) string {
-	t, _:= pongo2.FromString(mapping)
+	t, _ := pongo2.FromString(mapping)
 	if esPrefix != "" {
 		esPrefix += "-"
 	}

@@ -57,7 +57,7 @@ const (
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
 	suffixMaxDocCount         = ".max-doc-count"
-	suffixUseILM		  = ".use-ilm"
+	suffixUseILM              = ".use-ilm"
 
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
@@ -260,7 +260,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixUseILM,
 		nsConfig.UseILM,
-		"Option to enable ILM for jaeger span & service indices. Use this option with use-aliases" +
+		"Option to enable ILM for jaeger span & service indices. Use this option with use-aliases"+
 			"It requires an external component to create aliases before startup and then performing its management."+
 			"ILM policy jaeger-ilm-policy must be manually created in ES before startup")
 	if nsConfig.namespace == archiveNamespace {
