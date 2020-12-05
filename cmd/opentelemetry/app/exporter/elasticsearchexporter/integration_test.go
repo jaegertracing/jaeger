@@ -104,7 +104,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 		return err
 	}
 	esVersion := uint(w.esClientVersion())
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(numShards, numReplicas, esVersion)
+	spanMapping, serviceMapping := es.GetSpanServiceMappings(numShards, numReplicas, esVersion, "")
 	err = w.CreateTemplates(context.Background(), spanMapping, serviceMapping)
 	if err != nil {
 		return err
