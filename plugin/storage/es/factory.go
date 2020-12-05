@@ -166,7 +166,7 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
+	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix())
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -189,21 +189,21 @@ func createSpanWriter(
 }
 
 // GetSpanServiceMappings returns span and service mappings
-func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string) {
+func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix string) (string, string) {
 	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM),
-			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
+		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix),
+			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix)
 	}
-	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas, "", false),
-		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas, "", false)
+	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas, ""),
+		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas, "")
 }
 
 // GetDependenciesMappings returns dependencies mappings
 func GetDependenciesMappings(shards, replicas int64, esVersion uint) string {
 	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
+		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas, "")
 	}
-	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
+	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas, "")
 }
 
 func loadMapping(name string) string {
@@ -211,12 +211,12 @@ func loadMapping(name string) string {
 	return s
 }
 
-func fixMapping(mapping string, shards, replicas int64, esPrefix string, useILM bool) string {
+func fixMapping(mapping string, shards, replicas int64, esPrefix string) string {
 	t, _ := pongo2.FromString(mapping)
 	if esPrefix != "" {
 		esPrefix += "-"
 	}
-	fixedMapping, _ := t.Execute(pongo2.Context{"NumberOfShards": shards, "NumberOfReplicas": replicas, "ESPrefix": esPrefix, "UseILM": useILM})
+	fixedMapping, _ := t.Execute(pongo2.Context{"NumberOfShards": shards, "NumberOfReplicas": replicas, "ESPrefix": esPrefix, "UseILM": false, "Order": 1})
 
 	return fixedMapping
 }

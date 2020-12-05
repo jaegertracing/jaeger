@@ -163,9 +163,9 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5, "", false)
-	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6, "", false)
-	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7, "test", true)
+	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5, "")
+	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6, "")
+	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7, "test")
 	dependenciesMapping6 := GetDependenciesMappings(10, 0, 6)
 	dependenciesMapping7 := GetDependenciesMappings(10, 0, 7)
 	tests := []struct {
@@ -191,13 +191,13 @@ func TestFactory_LoadMapping(t *testing.T) {
 		tempMapping, err1 := pongo2.FromString(mapping)
 		assert.NoError(t, err1)
 		if test.name != "/jaeger-service-7.json" && test.name != "/jaeger-span-7.json" {
-			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "", "UseILM": false})
+			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": ""})
 			assert.NoError(t, err)
-			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, "", false))
+			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, ""))
 		} else {
-			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "test-", "UseILM": true})
+			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "test-", "UseILM": false, "Order": 1})
 			assert.NoError(t, err)
-			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, "test", true))
+			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, "test"))
 		}
 	}
 }

@@ -57,8 +57,6 @@ const (
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
 	suffixMaxDocCount         = ".max-doc-count"
-	suffixUseILM              = ".use-ilm"
-
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount = 10_000
@@ -257,12 +255,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixMaxDocCount,
 		nsConfig.MaxDocCount,
 		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.")
-	flagSet.Bool(
-		nsConfig.namespace+suffixUseILM,
-		nsConfig.UseILM,
-		"Option to enable ILM for jaeger span & service indices. Use this option with use-aliases"+
-			"It requires an external component to create aliases before startup and then performing its management."+
-			"ILM policy jaeger-ilm-policy must be manually created in ES before startup")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -307,7 +299,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
-	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	if v.IsSet(cfg.namespace + suffixMaxNumSpans) {
 		maxNumSpans := v.GetInt(cfg.namespace + suffixMaxNumSpans)

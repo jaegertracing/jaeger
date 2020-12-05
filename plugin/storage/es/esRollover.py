@@ -81,14 +81,15 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         else:
             mapping = Path('./mappings/'+template_name+'.json').read_text()
             use_ilm = False
-        create_index_template(fix_mapping(mapping, shards, replicas, prefix, use_ilm), prefix+template_name+"-override-template")
+        create_index_template(fix_mapping(mapping, shards, replicas, prefix, use_ilm),
+                              prefix+template_name+"-override-template")
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
         if is_alias_empty(client, read_alias):
-            create_aliases(client, read_alias, index)
+            create_aliases(client, read_alias, index, esVersion)
         if is_alias_empty(client, write_alias):
-            create_aliases(client, write_alias, index)
+            create_aliases(client, write_alias, index, esVersion)
     elif action == 'rollover':
         cond = ast.literal_eval(os.getenv('CONDITIONS', ROLLBACK_CONDITIONS))
         rollover(client, write_alias, read_alias, cond)
@@ -117,7 +118,7 @@ def create_index(client, name):
     create.do_action()
 
 
-def create_aliases(client, alias_name, archive_index_name):
+def create_aliases(client, alias_name, archive_index_name, es_version):
     """"
     Create read write aliases
     """
@@ -125,7 +126,7 @@ def create_aliases(client, alias_name, archive_index_name):
     ilo.filter_by_regex(kind='regex', value='^'+archive_index_name+'$')
     for index in ilo.working_list():
         print("Adding index {} to alias {}".format(index, alias_name))
-    if re.search(r'write', alias_name):
+    if re.search(r'write', alias_name) and es_version == 7:
         alias = curator.Alias(client=client, name=alias_name, extra_settings={'is_write_index': True})
     else:
         alias = curator.Alias(client=client, name=alias_name)
@@ -184,7 +185,8 @@ def str2bool(v):
 
 def fix_mapping(mapping, shards, replicas, esprefix, use_ilm):
     template = Template(mapping)
-    mapping = template.render(NumberOfShards=shards, NumberOfReplicas=replicas, ESPrefix=esprefix, UseILM=use_ilm, Order=2)
+    mapping = template.render(NumberOfShards=shards, NumberOfReplicas=replicas,
+                              ESPrefix=esprefix, UseILM=use_ilm, Order=2)
     return mapping
 
 

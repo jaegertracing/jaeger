@@ -65,7 +65,6 @@ type Configuration struct {
 	TLS                   tlscfg.Options `mapstructure:"tls"`
 	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
 	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
-	UseILM                bool           `mapstructure:"-"`
 	Version               uint           `mapstructure:"version"`
 }
 
@@ -101,7 +100,6 @@ type ClientBuilder interface {
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
 	TagKeysAsFields() ([]string, error)
-	GetUseILM() bool
 }
 
 // NewClient creates a new ElasticSearch client
@@ -293,11 +291,6 @@ func (c *Configuration) GetTagDotReplacement() string {
 // GetUseReadWriteAliases indicates whether read alias should be used
 func (c *Configuration) GetUseReadWriteAliases() bool {
 	return c.UseReadWriteAliases
-}
-
-// GetUseILM indicates whether ILM should be used
-func (c *Configuration) GetUseILM() bool {
-	return c.UseILM
 }
 
 // GetTokenFilePath returns file path containing the bearer token
