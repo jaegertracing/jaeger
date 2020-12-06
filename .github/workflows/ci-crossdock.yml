@@ -45,7 +45,7 @@ jobs:
       if: steps.dockerhub-login.outcome == 'success'
 
     - name: Export BRANCH variable
-      uses: .github/actions/setup-branch
+      uses: ./.github/actions/setup-branch
 
     - name: Install tools
       run: make install-ci
