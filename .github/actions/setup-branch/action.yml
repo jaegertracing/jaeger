@@ -4,6 +4,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup BRANCH
+      shell: bash
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request)
