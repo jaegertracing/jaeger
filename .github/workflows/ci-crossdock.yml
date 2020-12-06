@@ -44,17 +44,8 @@ jobs:
         echo "DOCKERHUB_LOGIN=true" >> $GITHUB_ENV
       if: steps.dockerhub-login.outcome == 'success'
 
-    - name: Export BRANCH variable for pull_request event
-      run: |
-        export BRANCH=${GITHUB_HEAD_REF}
-        echo "we are on branch=$BRANCH"
-        echo "BRANCH=${BRANCH}" >> $GITHUB_ENV
-      if: github.event_name == 'pull_request'
-
-    - name: Export BRANCH variable for push event
-      run: |
-        echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
-      if: github.event_name == 'push'
+    - name: Export BRANCH variable
+      uses: .github/actions/setup-branch
 
     - name: Install tools
       run: make install-ci
