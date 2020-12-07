@@ -178,6 +178,9 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 }
 
 func (sp *spanProcessor) addCollectorTags(span *model.Span) {
+	if len(sp.collectorTags) == 0 {
+		return
+	}
 	dedupKey := make(map[string]struct{})
 	for _, tag := range span.Process.Tags {
 		if value, ok := sp.collectorTags[tag.Key]; ok && value == tag.AsString() {
