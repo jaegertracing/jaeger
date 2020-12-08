@@ -69,6 +69,7 @@ func main() {
 			}
 
 			for _, span := range spans {
+				span := span
 				writer.WriteSpan(&span)
 			}
 			writer.Close()
