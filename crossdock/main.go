@@ -111,6 +111,7 @@ func httpHealthCheck(logger *zap.Logger, service, healthURL string) {
 	for i := 0; i < 240; i++ {
 		res, err := http.Get(healthURL)
 		if err == nil && is2xxStatusCode(res.StatusCode) {
+			res.Body.Close()
 			logger.Info("Health check successful", zap.String("service", service))
 			return
 		}
