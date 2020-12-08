@@ -17,7 +17,7 @@
 package ui
 
 import (
-	"github.com/jaegertracing/jaeger/cmd/query/app/ui/placeholder"
+	assets "github.com/jaegertracing/jaeger/cmd/query/app/ui/placeholder"
 )
 
 // StaticFiles provides http filesystem with static files for UI
