@@ -139,14 +139,14 @@ func TestIndexSeeks(t *testing.T) {
 		traceOrder := make([]uint64, traces)
 
 		for i := 0; i < traces; i++ {
-			lowId := rand.Uint64()
-			traceOrder[i] = lowId
+			lowID := rand.Uint64()
+			traceOrder[i] = lowID
 			tid = tid.Add(time.Duration(time.Millisecond * time.Duration(i)))
 
 			for j := 0; j < spans; j++ {
 				s := model.Span{
 					TraceID: model.TraceID{
-						Low:  lowId,
+						Low:  lowID,
 						High: 1,
 					},
 					SpanID:        model.SpanID(rand.Uint64()),
