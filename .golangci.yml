@@ -14,10 +14,8 @@ linters:
     - gofmt
     - golint
     - goimports
-    - staticcheck
     - structcheck
     - deadcode
-    - errcheck
     - gosimple
     - unused
     - bodyclose
@@ -31,13 +29,22 @@ issues:
         - gomnd
         - dupl
         - interfacer
+        - gosec
+        - bodyclose
+    - path: _nolint\.go
+      linters:
+        - golint
+    - path: /mocks/
+      linters:
+        - goimports
+
 
     - linters:
         - stylecheck
       text: "ST1000:"
     - linters:
         - gosec
-      text: "G104:|G107:"
+      text: "G104:|G107:|G404:"
     - path: cmd/opentelemetry
       linters:
         - gosec
