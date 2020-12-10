@@ -42,10 +42,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 				return err
 			}
 			defer resp.Body.Close()
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
+			body, _ := ioutil.ReadAll(resp.Body)
 			fmt.Println(string(body))
 			if resp.StatusCode != http.StatusOK {
 				return fmt.Errorf("abnormal value of http status code: %v", resp.StatusCode)

@@ -63,3 +63,10 @@ func TestUnready(t *testing.T) {
 	err := cmd.Execute()
 	assert.Error(t, err)
 }
+
+func TestNoService(t *testing.T) {
+	v := viper.New()
+	cmd := Command(v, 12345)
+	err := cmd.Execute()
+	assert.Error(t, err)
+}
