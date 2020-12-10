@@ -20,7 +20,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -32,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"

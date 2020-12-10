@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -33,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/ports"

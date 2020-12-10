@@ -21,9 +21,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/jaegertracing/jaeger/ports"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 const statusHTTPHostPort = "status.http.host-port"
