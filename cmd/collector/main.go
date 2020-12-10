@@ -21,6 +21,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -122,6 +123,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))
 
 	config.AddFlags(
 		v,

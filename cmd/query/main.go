@@ -20,6 +20,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -134,6 +135,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.QueryAdminHTTP))
 
 	config.AddFlags(
 		v,
