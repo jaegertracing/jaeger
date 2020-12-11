@@ -102,9 +102,8 @@ func (d domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag
 
 func (d domainToJaegerTransformer) convertKeyValuesToTags(kvs model.KeyValues) []*jaeger.Tag {
 	jaegerTags := make([]*jaeger.Tag, len(kvs))
-	for idx, kv := range kvs {
-		kv := kv
-		jaegerTags[idx] = d.keyValueToTag(&kv)
+	for i := range kvs {
+		jaegerTags[i] = d.keyValueToTag(&kvs[i])
 	}
 	return jaegerTags
 }
