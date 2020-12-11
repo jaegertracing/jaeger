@@ -37,7 +37,7 @@ $ git clone https://github.com/jaegertracing/jaeger.git c:\source\repos\jaeger
 ```
 $ git submodule update --init --recursive
 ```
-3. Then execute the following Docker command which mounts the local directory `c:\source\repos\jaeger` to the directory `/jaeger` in the Docker container and then executes the `jaegertracing/protobuf:0.2.0` command with the inputs: `-I/jaeger -Iidl/proto/api_v2 -I/usr/include/github.com/gogo/protobuf -Iplugin/storage/grpc/proto --csharp_out=/jaeger/code plugin/storage/grpc/proto/storage.proto`. This will create a file called `Storage.cs` in your local Windows folder `c:\source\repos\jaeger\code` containing the gRPC Storage Plugin bindings.
+3. Then execute the following Docker command which mounts the local directory `c:\source\repos\jaeger` to the directory `/jaeger` in the Docker container and then executes the `jaegertracing/protobuf:0.2.0` command. This will create a file called `Storage.cs` in your local Windows folder `c:\source\repos\jaeger\code` containing the gRPC Storage Plugin bindings.
 ```
 $ docker run --rm -u 1000 -v/c/source/repos/jaeger:/jaeger -w/jaeger jaegertracing/protobuf:0.2.0 "-I/jaeger -Iidl/proto/api_v2 -I/usr/include/github.com/gogo/protobuf -Iplugin/storage/grpc/proto --csharp_out=/jaeger/code plugin/storage/grpc/proto/storage.proto"
 ```
