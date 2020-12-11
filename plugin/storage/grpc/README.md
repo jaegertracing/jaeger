@@ -26,7 +26,7 @@ To generate the bindings for your language you would use `protoc` with the appro
 in the [protobuf documentation](https://developers.google.com/protocol-buffers/docs/tutorials) and you can see an example of
 how it is done for Go in the top level Jaeger `Makefile`. 
 
-The easiest way to generate the gRPC storage plugin bindings is to use [Docker Protobuf](https://github.com/jaegertracing/docker-protobuf/) which is a lightweight `protoc` Docker image containing the dependencies needed to generate code for multiple languages. For example, one can generate bindings for C# on Windiws with Docker for Windows using the following steps:
+The easiest way to generate the gRPC storage plugin bindings is to use [Docker Protobuf](https://github.com/jaegertracing/docker-protobuf/) which is a lightweight `protoc` Docker image containing the dependencies needed to generate code for multiple languages. For example, one can generate bindings for C# on Windows with Docker for Windows using the following steps:
 1. First clone the Jaeger github repo to a folder (e.g. `c:\source\repos\jaeger`):
 ```
 $ mkdir c:\source\repos\jaeger
