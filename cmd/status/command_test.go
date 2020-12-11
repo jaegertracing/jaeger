@@ -49,7 +49,7 @@ func TestOnlyPortConfig(t *testing.T) {
 	defer ts.Close()
 	v := viper.New()
 	cmd := Command(v, 80)
-	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://127.0.0.1")})
+	cmd.ParseFlags([]string{"--status.http.host-port=:" + strings.Split(ts.URL, ":")[len(strings.Split(ts.URL, ":"))-1]})
 	err := cmd.Execute()
 	assert.NoError(t, err)
 }
