@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/ports"
@@ -95,6 +96,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.AgentAdminHTTP))
 
 	config.AddFlags(
 		v,
