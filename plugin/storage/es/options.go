@@ -53,6 +53,7 @@ const (
 	suffixTagsFile            = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar        = suffixTagsAsFields + ".dot-replacement"
 	suffixReadAlias           = ".use-aliases"
+	suffixUseILM              = ".use-ilm"
 	suffixCreateIndexTemplate = ".create-index-templates"
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
@@ -240,6 +241,12 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
 			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
 	flagSet.Bool(
+		nsConfig.namespace+suffixUseILM,
+		nsConfig.UseILM,
+		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with use-aliases"+
+			"It requires an external component to create aliases before startup and then performing its management."+
+			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+")
+	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
 		"Create index templates at application startup. Set to false when templates are installed manually.")
@@ -299,6 +306,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
+	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	if v.IsSet(cfg.namespace + suffixMaxNumSpans) {
 		maxNumSpans := v.GetInt(cfg.namespace + suffixMaxNumSpans)

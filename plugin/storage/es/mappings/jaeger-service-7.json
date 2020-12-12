@@ -1,6 +1,5 @@
 {
-  "index_patterns": "{{ ESPrefix }}jaeger-service-*",
-  "order": {{ Order }},
+  "index_patterns": "*{{ ESPrefix }}jaeger-service-*",
   {% if UseILM %}
   "aliases": {
     "{{ ESPrefix }}jaeger-service-read" : {}

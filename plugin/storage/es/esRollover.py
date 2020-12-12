@@ -13,7 +13,6 @@ from pathlib2 import Path
 from requests.auth import HTTPBasicAuth
 from jinja2 import Template
 
-
 ARCHIVE_INDEX = 'jaeger-span-archive'
 ROLLBACK_CONDITIONS = '{"max_age": "2d"}'
 UNIT = 'days'
@@ -21,9 +20,12 @@ UNIT_COUNT = 2
 SHARDS = 5
 REPLICAS = 1
 
+
 def main():
     if len(sys.argv) != 3:
-        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] ... {} ACTION http://HOSTNAME[:PORT]'.format(sys.argv[0]))
+        print(
+            'USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] ... {} ACTION http://HOSTNAME[:PORT]'.format(
+                sys.argv[0]))
         print('ACTION ... one of:')
         print('\tinit - creates indices and aliases')
         print('\trollover - rollover to new write index')
@@ -39,18 +41,24 @@ def main():
         print('ES_TLS_KEY ... Path to TLS key file.')
         print('ES_USE_ILM .. Use ILM to manage jaeger indices.')
         print('ES_TLS_SKIP_HOST_VERIFY ... (insecure) Skip server\'s certificate chain and host name verification.')
-        print('ES_VERSION ... The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.')
+        print(
+            'ES_VERSION ... The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.')
         print('init configuration:')
         print('\tSHARDS ...  the number of shards per index in Elasticsearch (default {}).'.format(SHARDS))
         print('\tREPLICAS ... the number of replicas per index in Elasticsearch (default {}).'.format(REPLICAS))
         print('rollover configuration:')
-        print('\tCONDITIONS ... conditions used to rollover to a new write index (default \'{}\'.'.format(ROLLBACK_CONDITIONS))
+        print('\tCONDITIONS ... conditions used to rollover to a new write index (default \'{}\'.'.format(
+            ROLLBACK_CONDITIONS))
         print('lookback configuration:')
-        print('\tUNIT ... used with lookback to remove indices from read alias e.g. ..., days, weeks, months, years (default {}).'.format(UNIT))
+        print(
+            '\tUNIT ... used with lookback to remove indices from read alias e.g. ..., days, weeks, months, years (default {}).'.format(
+                UNIT))
         print('\tUNIT_COUNT ... count of UNITs (default {}).'.format(UNIT_COUNT))
         sys.exit(1)
 
-    client = create_client(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"), str2bool(os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false')))
+    client = create_client(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')),
+                           os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"),
+                           str2bool(os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false')))
     prefix = os.getenv('INDEX_PREFIX', '')
     if prefix != '':
         prefix += '-'
@@ -60,14 +68,14 @@ def main():
     if str2bool(os.getenv('ARCHIVE', 'false')):
         write_alias = prefix + ARCHIVE_INDEX + '-write'
         read_alias = prefix + ARCHIVE_INDEX + '-read'
-        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span-archive', 'jaeger-span', prefix)
+        perform_action(action, client, write_alias, read_alias, prefix + 'jaeger-span-archive', 'jaeger-span', prefix)
     else:
         write_alias = prefix + 'jaeger-span-write'
         read_alias = prefix + 'jaeger-span-read'
-        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span', 'jaeger-span', prefix)
+        perform_action(action, client, write_alias, read_alias, prefix + 'jaeger-span', 'jaeger-span', prefix)
         write_alias = prefix + 'jaeger-service-write'
         read_alias = prefix + 'jaeger-service-read'
-        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-service', 'jaeger-service', prefix)
+        perform_action(action, client, write_alias, read_alias, prefix + 'jaeger-service', 'jaeger-service', prefix)
 
 
 def perform_action(action, client, write_alias, read_alias, index_to_rollover, template_name, prefix):
@@ -77,12 +85,15 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         esVersion = get_version(client)
         use_ilm = str2bool(os.getenv("ES_USE_ILM", 'false'))
         if esVersion == 7:
-            mapping = Path('./mappings/'+template_name+'-7.json').read_text()
+            mapping = Path('./mappings/' + template_name + '-7.json').read_text()
+            if use_ilm:
+                check_if_ilm_policy_exists("jaeger-ilm-policy")
         else:
-            mapping = Path('./mappings/'+template_name+'.json').read_text()
-            use_ilm = False
+            mapping = Path('./mappings/' + template_name + '.json').read_text()
+            if use_ilm:
+                sys.exit("ILM is supported only for ES version 7+")
         create_index_template(fix_mapping(mapping, shards, replicas, prefix, use_ilm),
-                              prefix+template_name+"-override-template")
+                              prefix + template_name)
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
@@ -94,7 +105,8 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         cond = ast.literal_eval(os.getenv('CONDITIONS', ROLLBACK_CONDITIONS))
         rollover(client, write_alias, read_alias, cond)
     elif action == 'lookback':
-        read_alias_lookback(client, write_alias, read_alias, os.getenv('UNIT', UNIT), int(os.getenv('UNIT_COUNT', UNIT_COUNT)))
+        read_alias_lookback(client, write_alias, read_alias, os.getenv('UNIT', UNIT),
+                            int(os.getenv('UNIT_COUNT', UNIT_COUNT)))
     else:
         print('Unrecognized action {}'.format(action))
         sys.exit(1)
@@ -103,7 +115,9 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 def create_index_template(template, template_name):
     print('Creating index template {}'.format(template_name))
     headers = {'Content-Type': 'application/json'}
-    s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"), os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false'))
+    s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')),
+                            os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"),
+                            os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false'))
     r = s.put(sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
     print(r.text)
     r.raise_for_status()
@@ -123,7 +137,7 @@ def create_aliases(client, alias_name, archive_index_name, es_version):
     Create read write aliases
     """
     ilo = curator.IndexList(client)
-    ilo.filter_by_regex(kind='regex', value='^'+archive_index_name+'$')
+    ilo.filter_by_regex(kind='regex', value='^' + archive_index_name + '$')
     for index in ilo.working_list():
         print("Adding index {} to alias {}".format(index, alias_name))
     if re.search(r'write', alias_name) and es_version == 7:
@@ -186,7 +200,7 @@ def str2bool(v):
 def fix_mapping(mapping, shards, replicas, esprefix, use_ilm):
     template = Template(mapping)
     mapping = template.render(NumberOfShards=shards, NumberOfReplicas=replicas,
-                              ESPrefix=esprefix, UseILM=use_ilm, Order=2)
+                              ESPrefix=esprefix, UseILM=use_ilm)
     return mapping
 
 
@@ -236,6 +250,17 @@ def create_client(username, password, tls, ca, cert, key, skipHostVerify):
     else:
         return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
 
+
+def check_if_ilm_policy_exists(ilm_policy):
+    """"
+    Checks whether ilm is created in Elasticsearch
+    """
+    s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')),
+                            os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"),
+                            os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false'))
+    r = s.get(sys.argv[2] + '/_ilm/policy/' + ilm_policy)
+    if r.status_code != 200:
+        sys.exit("ILM policy '{}' doesn't exist in Elasticsearch. Please create it and rerun init".format(ilm_policy))
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)

@@ -166,7 +166,10 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix())
+	spanMapping, serviceMapping, err1 := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
+	if err1 != nil {
+		logger.Error("Failed to get rendered index template mappings", zap.Error(err1))
+	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -180,7 +183,7 @@ func createSpanWriter(
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 	})
 	if cfg.IsCreateIndexTemplates() {
-		err := writer.CreateTemplates(spanMapping, serviceMapping)
+		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
 		if err != nil {
 			return nil, err
 		}
@@ -189,21 +192,35 @@ func createSpanWriter(
 }
 
 // GetSpanServiceMappings returns span and service mappings
-func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix string) (string, string) {
+func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string, error) {
 	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix),
-			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix)
+		spanMapping, er := fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
+		if er != nil {
+			return "", "", er
+		}
+		serviceMapping, err := fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
+		if err != nil {
+			return "", "", err
+		}
+		return spanMapping, serviceMapping, nil
 	}
-	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas, ""),
-		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas, "")
+	spanMapping, er := fixMapping(loadMapping("/jaeger-span.json"), shards, replicas, "", false)
+	if er != nil {
+		return "", "", er
+	}
+	serviceMapping, err := fixMapping(loadMapping("/jaeger-service.json"), shards, replicas, "", false)
+	if err != nil {
+		return "", "", err
+	}
+	return spanMapping, serviceMapping, nil
 }
 
 // GetDependenciesMappings returns dependencies mappings
-func GetDependenciesMappings(shards, replicas int64, esVersion uint) string {
+func GetDependenciesMappings(shards, replicas int64, esVersion uint) (string, error) {
 	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas, "")
+		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
 	}
-	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas, "")
+	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
 }
 
 func loadMapping(name string) string {
@@ -211,14 +228,20 @@ func loadMapping(name string) string {
 	return s
 }
 
-func fixMapping(mapping string, shards, replicas int64, esPrefix string) string {
-	t, _ := pongo2.FromString(mapping)
+func fixMapping(mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
+	t, err := pongo2.FromString(mapping)
+	if err != nil {
+		return "", err
+	}
 	if esPrefix != "" {
 		esPrefix += "-"
 	}
-	fixedMapping, _ := t.Execute(pongo2.Context{"NumberOfShards": shards, "NumberOfReplicas": replicas, "ESPrefix": esPrefix, "UseILM": false, "Order": 1})
+	fixedMapping, err1 := t.Execute(pongo2.Context{"NumberOfShards": shards, "NumberOfReplicas": replicas, "ESPrefix": esPrefix, "UseILM": useILM})
+	if err1 != nil {
+		return "", err1
+	}
 
-	return fixedMapping
+	return fixedMapping, nil
 }
 
 var _ io.Closer = (*Factory)(nil)

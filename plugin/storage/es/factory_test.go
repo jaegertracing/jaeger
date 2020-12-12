@@ -163,11 +163,16 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5, "")
-	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6, "")
-	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7, "test")
-	dependenciesMapping6 := GetDependenciesMappings(10, 0, 6)
-	dependenciesMapping7 := GetDependenciesMappings(10, 0, 7)
+	spanMapping5, serviceMapping5, e5 := GetSpanServiceMappings(10, 0, 5, "", false)
+	spanMapping6, serviceMapping6, e6 := GetSpanServiceMappings(10, 0, 6, "", false)
+	spanMapping7, serviceMapping7, e7 := GetSpanServiceMappings(10, 0, 7, "test", true)
+	dependenciesMapping6, ed6 := GetDependenciesMappings(10, 0, 6)
+	dependenciesMapping7, ed7 := GetDependenciesMappings(10, 0, 7)
+	assert.NoError(t, e5)
+	assert.NoError(t, e6)
+	assert.NoError(t, e7)
+	assert.NoError(t, ed6)
+	assert.NoError(t, ed7)
 	tests := []struct {
 		name   string
 		toTest string
@@ -193,11 +198,15 @@ func TestFactory_LoadMapping(t *testing.T) {
 		if test.name != "/jaeger-service-7.json" && test.name != "/jaeger-span-7.json" {
 			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": ""})
 			assert.NoError(t, err)
-			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, ""))
+			actualMapping, er := fixMapping(mapping, 10, 0, "", false)
+			assert.NoError(t, er)
+			assert.Equal(t, expectedMapping, actualMapping)
 		} else {
-			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "test-", "UseILM": false, "Order": 1})
+			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "test-", "UseILM": true})
 			assert.NoError(t, err)
-			assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0, "test"))
+			actualMapping, er := fixMapping(mapping, 10, 0, "test", true)
+			assert.NoError(t, er)
+			assert.Equal(t, expectedMapping, actualMapping)
 		}
 	}
 }

@@ -241,7 +241,7 @@ func TestCreateTemplates(t *testing.T) {
 		withSpanWriter(func(w *spanWriterTest) {
 			w.client.On("CreateTemplate", "jaeger-span").Return(test.spanTemplateService())
 			w.client.On("CreateTemplate", "jaeger-service").Return(test.serviceTemplateService())
-			err := w.writer.CreateTemplates(mock.Anything, mock.Anything)
+			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, "")
 			if test.err != "" {
 				assert.Error(t, err, test.err)
 			}

@@ -224,7 +224,7 @@ IKK1KwAAAA==
 		name:    "jaeger-dependencies-7.json",
 		local:   "plugin/storage/es/mappings/jaeger-dependencies-7.json",
 		size:    277,
-		modtime: 1607143525,
+		modtime: 1607528808,
 		compressed: `
 H4sIAAAAAAAC/2yPQWrDMBBF9z6FmGVIRDfd+BAttAcwivTtTJGnqmYMBaO7F5l00dDt478Hfx+cI5aE
 76kEM1RRGh2dPgIW1EtCgSRIZOjlROe+VpixLEpjl391L9t6RZ0+50lvoaae2Xf3ctDX+f1grrXz/05F
@@ -237,7 +237,7 @@ yRzDg/V2p4/eGkphWbxADWmaGTmpz7yy0fj89Gdb8bVBTX0M8QYPCdcMGq1uGJw7unTv9UttaMNPAAAA
 		name:    "jaeger-dependencies.json",
 		local:   "plugin/storage/es/mappings/jaeger-dependencies.json",
 		size:    271,
-		modtime: 1607143525,
+		modtime: 1607528808,
 		compressed: `
 H4sIAAAAAAAC/2yPQWrDMBBF9z7FMMuQiG660SFaaA9gFOvbmSJPVc0YCsZ3LzbZNGT7+O/BXzsidsy1
 JAdH4tNXwoR2yajQDB0Edjnxed8Z3EUn47hrRCya8Rt0ma9o/ffY2y21bBxpXentoO/j58Fo287PnYZa
@@ -249,17 +249,17 @@ ZEgP1sedPnpzqlV0Cgpz5H4UlGyhyCzO8fXl37bhZ4G5hSENNwRouhZw9LagIzq6fO/tl7Zu6/4CAAD/
 	"/jaeger-service-7.json": {
 		name:    "jaeger-service-7.json",
 		local:   "plugin/storage/es/mappings/jaeger-service-7.json",
-		size:    1167,
-		modtime: 1607146654,
+		size:    1144,
+		modtime: 1607530809,
 		compressed: `
-H4sIAAAAAAAC/8ySQWvcMBCF7/srxEAuIWtKIT343kOhTUpDT6WIWXnsnVaW1JF2E2P834u8yq43ZMml
-h55sRvOevnmacaUUsGvoSQdMicRFqBWMo/r48FWo5Sc1Tb+QOpJ1JNmzofU13GSVl4YEajWO6j7/qmnK
-9fFKcau+R/r0+Yu6mnInWsZI2Thfp96wF8IGVK3GrH22JNdwW+wipcSui1AXu5m/crt+Q6J9q+MWpYkH
-tLu5et8+zLXC+IpGKFg2WFRH2bdSfinsMQR2XeUoJmp0y2SbWFnuOUF9++6sV+jPjmKKlUGzpYocbixB
-nWRHr+al1A1YbskMJveV0GZDh32uQImMbb8O3rIZ4ObUJN5avyfRc+5vPuejcCKY5Yfbz+Oe54Yy7ynz
-ZnDYs9GJ+mAx5df9URAWvDGg0wm7qHsMz9pyVizPq0pBGgJBDb9pePTSLAY7RNo5L6Rx4/cE9fvbD4vj
-adkLAdNW95jMFmpI2FXXcDyeVi8UC+Yg3lCM/wV2Yaku4c/fn2XbgvhAkpjiCQ7KK9/Ni7OY8iLuRdQj
-JuRrMLF3/8L1uHjTalr9DQAA//97A1f5jwQAAA==
+H4sIAAAAAAAC/8ySQYvbMBCF7/kVw8BeQmJKYXvwvYdCuy1deipFTOSxM60sqZKSXWP834u1auIsmz31
+0JNhNO/NN88zrgBQbMOPylNKHGzEGnA9jvD+/kvgVh5hmn4Sdxy2kcNRNG/XuFkBjDcgLXyL/OHjJ7iZ
+ZiMyQpFnh9kXAF+1CUwNQg3jrJ2KJdtG2mIXOSWxXcS62GXQyh76HQflWhX3FJo8boS7XP3c3ucaTNnw
+BU1gb0RTUZ1kX0v5ubAn78V2leWYuFGtsGliZaSXhPXtm4vewL8PHFOsNOk9V2xpZxjrFA78Yl4AGzTS
+sh703FdCy4aW+rmCJTIx/dY7I3rAzbkpOGPckYPKuc/tr+b9ECQxZvnT9Mu4895Y9j1n3gyWetEqce8N
+pfnvfi8IC97oyapEXVQ9+b/a8lYsL6sAmAbPWOMvHh5caBaLPUXaWRdY0c4dGeu3t+8Wz9OyFz2lveop
+6T3WmKir1nh6nlbPFAtmH5zmGP8L7MJSXcPP3x/l2nxwnkMSjmc4LH/5Lh/OYsuruFdRT5g4j6Ekzv4L
+19PhTatp9ScAAP//qjXetXgEAAA=
 `,
 	},
 
@@ -267,7 +267,7 @@ JuRrMLF3/8L1uHjTalr9DQAA//97A1f5jwQAAA==
 		name:    "jaeger-service.json",
 		local:   "plugin/storage/es/mappings/jaeger-service.json",
 		size:    1054,
-		modtime: 1607143525,
+		modtime: 1607528808,
 		compressed: `
 H4sIAAAAAAAC/8xTy47bIBTd+yvQXUYJqiqlCz4ildplVaEbc23TAqaA00aR/73CQ8aPibKaxXjhx+E8
 OBhuFWOQyHqDiUAw2P1CaikcIoWLrumwg32mREpJuzaCyArGQDtF/7gb7JmC7BsZOwwqgmC3GztN6Nfm
@@ -282,21 +282,21 @@ AP//AN3DJR4EAAA=
 	"/jaeger-span-7.json": {
 		name:    "jaeger-span-7.json",
 		local:   "plugin/storage/es/mappings/jaeger-span-7.json",
-		size:    3698,
-		modtime: 1607146620,
+		size:    3675,
+		modtime: 1607530809,
 		compressed: `
-H4sIAAAAAAAC/+xXwW7bOBC9+yuIAXIJHGGxQPag8+4hwCYpmvRUFMJYGslMKJIlx04MQ/9eUKYT2ZKc
-AlWKoujJFjnv8c1w3ljezoQAqQt6ziwyk9MeUgHbrfjv7oOjUj6LpnlAqshdeIv64hzmAWJcQQ5Ssd2K
-2/BVNE1Y354JWYpPnq7+vxZnTYhEJdFTYA1niVPcjrAIcQG3pyNdyDJSeWKWuvKQRqpWeKJX9YJcZsrM
-L9EVfifrpl29Le/atahvAOPIKpnjEepjXD3G1Wit1FWiyTMVWSlJFT5RspYM6eVfB7GOvq7Is09yzJeU
-kMaFIkjZragN6xdLiDkoWVK+yUNkrJgQoLEOzxCrJVV9YY2S+Qbm+xBnlDJrcllb8NOX+OQkE7TIZi+l
-U+g2ZYipvla72GisZZ4x1VYhhzv9HE/fCw2XZFFnjJXParR7bNyLlIerQgBvLEEKj7R5Mq54ySnuykob
-RxkuzJog/fvyn852040Fi7zMauR8CSkwVsk5vGw3syNER7N1JifvfwnZUUsyJr/9/BIbzTpjybEk/yoO
-2GFOV/925Y5LHZX5IhEsOtJ8Z1FPSOqnpQtlQJZG37ROmUoko+N7OcyojK5gHHItlZJ+CFggU1dHaVyN
-DCmQNfkyq3fAHnOx2mX4/VpKhdWgAqk5DIM+QplhwG7cdUXHYQBpicrT/MBLvZbcUcmaPGNtx3zUTaJv
-kt2oHcP2BJ4UeVJou/lIm/7qW5Z/0/a9rFrEGtWKftppjNV9S/s+583GnprxSbyfeQedN9pHntxa5nRs
-9EknMuPotDeLB8oZTkH/dOlv2aWOSnKkc3q3EemoHMp6urbuvxlMyt//Uf9R+hPXceTRYX8ehL/bvQ34
-cLKaDvpuykE3dceNvLK2fyxmzexbAAAA//9VmfZdcg4AAA==
+H4sIAAAAAAAC/+xXwW7bOBC9+yuIAXIJHGGxQPag8/YQoEmLJj0VhTCWRjITimTJsRPD0L8XoulEtiSn
+QJWiKHoyRM57fDOcN5a2MyFA6oKeMovM5LSHVMD5dive3X50VMon0TT3SBW5C29RX5zDfCbE9kzIUnz2
+dPX+Wpw1LQsqiZ5aeEsqBIxzOMKijWtxTaQjXcgyUnlilrrykEaqoDDRq3pBLjNl5pfoinDUVtyE1Q/l
+bVgTTSAcwDiySuZ4hPoUV49xNVordZVo8kxFVkpShU+UrCVDevnPQayjbyvy7JMc8yUlpHGhCFJ2Kwph
+/WIJMQclS8o3eRsZKyYEaKzbZ4jVkqq+sEbJfAPzfYgzSpk1uSwUvA0eL/Sjk0wQkM1eSqfQIWWIqb5U
+u9horGWeMdVWIbd3+iWevhfaXpJFnTFWPqvR7rFxL1IergoBvLEEKTzQ5tG44jmnuCsrbRxluDBrgvTf
+y/862003FizyMquR8yWkwFgl5/C83cyOEB3N1pmcvP8tZEctyZj88Ps1Npp1xpJjSf5FHLDDnK7+78od
+lzoq81kiWHSk+dainpDUT0vXlgFZGn0TnDKVSEbHd3KYURldwTjkWiol/RCwQKaujtK4GhlSIGvyZVbv
+gD3mYrXL8Me1lAqrQQVSczsM+ghlhgG7cdcVHYcBpCUqT/MDL/Vackcla/KMtR3zUTeJvkl2o3YM2xN4
+UuRJoWHzgTb91dcs/6rte1kFxBrVin7ZaYzVXaB9m/NmY0/N+CTez7yDzhvtI09uLXM6NvqkE5lxdNqb
+xT3lDKegf7v0j+xSRyU50jm92Yh0VA5lPV1b998MJuXv/6n/LP2J6zjy6LA/D8Lf7N4GfDhZTQd9N+Wg
+m7rjRl5Zw4fFrJl9DwAA//+0gIaiWw4AAA==
 `,
 	},
 
@@ -304,7 +304,7 @@ cLKaDvpuykE3dceNvLK2fyxmzexbAAAA//9VmfZdcg4AAA==
 		name:    "jaeger-span.json",
 		local:   "plugin/storage/es/mappings/jaeger-span.json",
 		size:    3824,
-		modtime: 1607143525,
+		modtime: 1607528808,
 		compressed: `
 H4sIAAAAAAAC/+xWTW/bPAy++1cIPBap8eIFuoPPu+ywDlh7GwaDsWlHrb4mMd2Cwv998EeX2JWdDYiH
 AVsOSUzpIfmI5GM9J0IAk3YKmSATcPWAVJO/Dg7N9RVs2vVAzNLUAbJ2uxAgTUnfUrPXW/K5rfKwQ18G

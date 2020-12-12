@@ -1,6 +1,5 @@
 {
-  "index_patterns": "{{ ESPrefix }}jaeger-span-*",
-  "order": {{ Order }},
+  "index_patterns": "*{{ ESPrefix }}jaeger-span-*",
   {% if UseILM %}
   "aliases": {
     "{{ ESPrefix }}jaeger-span-read": {}

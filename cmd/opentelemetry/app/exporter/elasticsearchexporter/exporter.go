@@ -31,7 +31,10 @@ func newExporter(ctx context.Context, config *Config, params component.ExporterC
 		return nil, err
 	}
 	if config.Primary.IsCreateIndexTemplates() {
-		spanMapping, serviceMapping := es.GetSpanServiceMappings(esCfg.GetNumShards(), esCfg.GetNumReplicas(), uint(w.esClientVersion()), esCfg.GetIndexPrefix())
+		spanMapping, serviceMapping, e := es.GetSpanServiceMappings(esCfg.GetNumShards(), esCfg.GetNumReplicas(), uint(w.esClientVersion()), esCfg.GetIndexPrefix(), esCfg.GetUseILM())
+		if e != nil {
+			return nil, err
+		}
 		if err = w.CreateTemplates(ctx, spanMapping, serviceMapping); err != nil {
 			return nil, err
 		}

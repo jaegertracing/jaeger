@@ -107,7 +107,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		return err
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, client.GetVersion(), "")
+	spanMapping, serviceMapping, e := es.GetSpanServiceMappings(5, 1, client.GetVersion(), "", false)
+	if e != nil {
+		return e
+	}
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,
@@ -118,7 +121,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 			TagDotReplacement: tagKeyDeDotChar,
 			Archive:           archive,
 		})
-	err = w.CreateTemplates(spanMapping, serviceMapping)
+	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
 	if err != nil {
 		return err
 	}
@@ -134,7 +137,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxDocCount:       defaultMaxDocCount,
 	})
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
-	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
+	depMapping, ed := es.GetDependenciesMappings(5, 1, client.GetVersion())
+	if ed != nil {
+		return ed
+	}
 	err = dependencyStore.CreateTemplates(depMapping)
 	if err != nil {
 		return err
