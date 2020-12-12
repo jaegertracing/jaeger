@@ -92,11 +92,11 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 	if indexPrefix != "" {
 		indexPrefix += "-"
 	}
-	_, err := s.client.CreateTemplate(indexPrefix+"jaeger-span").Body(spanTemplate).Do(context.Background())
+	_, err := s.client.CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
-	_, err = s.client.CreateTemplate(indexPrefix+"jaeger-service").Body(serviceTemplate).Do(context.Background())
+	_, err = s.client.CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
