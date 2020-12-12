@@ -25,7 +25,7 @@ import (
 func TestCommand(t *testing.T) {
 	cmd := Command()
 	buf := new(bytes.Buffer)
-	cmd.SetOutput(buf)
+	cmd.SetOut(buf)
 	cmd.Run(cmd, nil)
 	assert.True(t, strings.Contains(buf.String(), "METRICS_BACKEND"))
 	assert.True(t, strings.Contains(buf.String(), "SPAN_STORAGE"))
