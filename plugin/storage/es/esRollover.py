@@ -98,9 +98,9 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         index = index_to_rollover + '-000001'
         create_index(client, index)
         if is_alias_empty(client, read_alias):
-            create_aliases(client, read_alias, index, esVersion)
+            create_aliases(client, read_alias, index, use_ilm)
         if is_alias_empty(client, write_alias):
-            create_aliases(client, write_alias, index, esVersion)
+            create_aliases(client, write_alias, index, use_ilm)
     elif action == 'rollover':
         cond = ast.literal_eval(os.getenv('CONDITIONS', ROLLBACK_CONDITIONS))
         rollover(client, write_alias, read_alias, cond)
@@ -132,7 +132,7 @@ def create_index(client, name):
     create.do_action()
 
 
-def create_aliases(client, alias_name, archive_index_name, es_version):
+def create_aliases(client, alias_name, archive_index_name, use_ilm):
     """"
     Create read write aliases
     """
@@ -140,7 +140,7 @@ def create_aliases(client, alias_name, archive_index_name, es_version):
     ilo.filter_by_regex(kind='regex', value='^' + archive_index_name + '$')
     for index in ilo.working_list():
         print("Adding index {} to alias {}".format(index, alias_name))
-    if re.search(r'write', alias_name) and es_version == 7:
+    if re.search(r'write', alias_name) and use_ilm:
         alias = curator.Alias(client=client, name=alias_name, extra_settings={'is_write_index': True})
     else:
         alias = curator.Alias(client=client, name=alias_name)
