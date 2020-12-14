@@ -194,21 +194,21 @@ func createSpanWriter(
 // GetSpanServiceMappings returns span and service mappings
 func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string, error) {
 	if esVersion == 7 {
-		spanMapping, er := fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
+		spanMapping, er := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
 		if er != nil {
 			return "", "", er
 		}
-		serviceMapping, err := fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
+		serviceMapping, err := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
 		if err != nil {
 			return "", "", err
 		}
 		return spanMapping, serviceMapping, nil
 	}
-	spanMapping, er := fixMapping(loadMapping("/jaeger-span.json"), shards, replicas, "", false)
+	spanMapping, er := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-span.json"), shards, replicas, "", false)
 	if er != nil {
 		return "", "", er
 	}
-	serviceMapping, err := fixMapping(loadMapping("/jaeger-service.json"), shards, replicas, "", false)
+	serviceMapping, err := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-service.json"), shards, replicas, "", false)
 	if err != nil {
 		return "", "", err
 	}
@@ -218,9 +218,9 @@ func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix str
 // GetDependenciesMappings returns dependencies mappings
 func GetDependenciesMappings(shards, replicas int64, esVersion uint) (string, error) {
 	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
+		return fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
 	}
-	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
+	return fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
 }
 
 func loadMapping(name string) string {
@@ -228,8 +228,8 @@ func loadMapping(name string) string {
 	return s
 }
 
-func fixMapping(mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
-	t, err := pongo2.FromString(mapping)
+func fixMapping(tb es.TemplateBuilder, mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
+	t, err := tb.FromString(mapping)
 	if err != nil {
 		return "", err
 	}

@@ -192,7 +192,7 @@ func TestFactory_LoadMapping(t *testing.T) {
 		}
 		expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": esPrefixTemplateVal, "UseILM": test.useILM})
 		assert.NoError(t, err)
-		actualMapping, err := fixMapping(mapping, 10, 0, test.esPrefix, test.useILM)
+		actualMapping, err := fixMapping(es.PongoTemplateBuilder{}, mapping, 10, 0, test.esPrefix, test.useILM)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedMapping, actualMapping)
 	}
@@ -252,4 +252,56 @@ func TestNewOptions(t *testing.T) {
 	assert.Equal(t, 1, len(o.others))
 	assert.Equal(t, archiveCfg, o.others[archiveNamespace].Configuration)
 	assert.Equal(t, archiveNamespace, o.others[archiveNamespace].namespace)
+}
+
+func TestFixMapping(t *testing.T) {
+	tests := []struct {
+		name                    string
+		templateBuilderMockFunc func() *mocks.TemplateBuilder
+		expectedResult          string
+		err                     string
+	}{
+		{name: "templateRenderSuccess",
+			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything).Return("test success", nil)
+				tb.On("FromString", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			expectedResult: "test success",
+			err:            "",
+		},
+		{name: "templateRenderFailure",
+			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything).Return("", errors.New("template exec error"))
+				tb.On("FromString", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			expectedResult: "",
+			err:            "template exec error",
+		},
+		{name: "templateLoadError",
+			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				tb.On("FromString", mock.Anything).Return(nil, errors.New("template load error"))
+				return &tb
+			},
+			expectedResult: "",
+			err:            "template load error",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := fixMapping(test.templateBuilderMockFunc(), "test", 3, 5, "test", true)
+			assert.Equal(t, test.expectedResult, result)
+			if test.err != "" {
+				assert.EqualError(t, err, test.err)
+			}
+
+		})
+	}
 }
