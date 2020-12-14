@@ -243,9 +243,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixUseILM,
 		nsConfig.UseILM,
-		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with use-aliases"+
-			"It requires an external component to create aliases before startup and then performing its management."+
-			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+")
+		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with  "+nsConfig.namespace+suffixReadAlias+". "+
+			"It requires an external component to create aliases before startup and then performing its management. "+
+			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
