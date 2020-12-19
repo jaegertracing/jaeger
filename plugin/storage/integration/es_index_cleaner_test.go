@@ -322,6 +322,9 @@ func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 	_, err := client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
 	_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
+	if err != nil && !elastic.IsNotFound(err) {
+		assert.Fail(t, "Not able to clean up ILM Policy")
+	}
 	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
 	require.NoError(t, err)
 }
