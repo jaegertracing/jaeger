@@ -60,6 +60,7 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 	require.NoError(t, err)
 
 	if esVersion != 7 {
+		cleanES(t, client, "")
 		er := runEsRollover("init", []string{"ES_USE_ILM=true"})
 		assert.Equal(t, "exit status 1", er.Error())
 		indices, err1 := client.IndexNames()
@@ -158,9 +159,13 @@ func createILMPolicy(client *elastic.Client, policyName string) error {
 func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 	_, err := client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
-	_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
-	if err != nil && !elastic.IsNotFound(err) {
-		assert.Fail(t, "Not able to clean up ILM Policy")
+	esVersion, err := getVersion(client)
+	require.NoError(t, err)
+	if esVersion == 7 {
+		_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
+		if err != nil && !elastic.IsNotFound(err) {
+			assert.Fail(t, "Not able to clean up ILM Policy")
+		}
 	}
 	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
 	require.NoError(t, err)
