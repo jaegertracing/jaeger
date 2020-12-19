@@ -36,6 +36,11 @@ const (
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	client, err := createESClient()
 	require.NoError(t, err)
+	esVersion, err := getVersion(client)
+	require.NoError(t, err)
+	if esVersion != 7 {
+		t.Skip("Integration test - " + t.Name() + " against ElasticSearch skipped for ES version " + fmt.Sprint(esVersion))
+	}
 	// make sure ES is clean
 	cleanES(t, client, "jaeger-ilm-policy")
 	envVars := []string{"ES_USE_ILM=true"}
@@ -51,8 +56,8 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 	client, err := createESClient()
 	require.NoError(t, err)
 
-	esVersion, ev := getVersion(client)
-	require.NoError(t, ev)
+	esVersion, err := getVersion(client)
+	require.NoError(t, err)
 
 	if esVersion != 7 {
 		er := runEsRollover("init", []string{"ES_USE_ILM=true"})
