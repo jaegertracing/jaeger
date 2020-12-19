@@ -169,9 +169,9 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	writeAliases := []string{"jaeger-service-write", "jaeger-span-write"}
 
 	// make sure ES is clean
-	cleanES(t, client, "jaeger-ilm-policy")
-	erILM := createILMPolicy(client, "jaeger-ilm-policy")
-	require.NoError(t, erILM)
+	defer cleanES(t, client, "jaeger-ilm-policy")
+	err := createILMPolicy(client, "jaeger-ilm-policy")
+	require.NoError(t, err)
 
 	if prefix != "" {
 		prefix = prefix + "-"
@@ -184,25 +184,24 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 		expectedWriteAliases = append(expectedWriteAliases, prefix+alias)
 	}
 
-	//run rollover with given EnvVars
-	e1 := runEsRollover("init", envVars)
-	require.NoError(t, e1)
+	//Run rollover with given EnvVars
+	err := runEsRollover("init", envVars)
+	require.NoError(t, err)
 
-	indices, e2 := client.IndexNames()
-	require.NoError(t, e2)
+	indices, err := client.IndexNames()
+	require.NoError(t, err)
 
 	//Get ILM Policy Attached
-	settings, e3 := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
-	require.NoError(t, e3)
-
-	//check indices created
-	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
-
-	//check ILM Policy is attached
+	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
+	require.NoError(t, err)
+	//Check ILM Policy is attached and Get rollover alias attached
 	for _, v := range settings {
 		assert.Equal(t, indexILMName, v.Settings["index.lifecycle.name"])
 		actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
 	}
+	//Check indices created
+	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
+	//Check rollover alias is write alias
 	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases, fmt.Sprintf("aliases found: %v, expected: %v", actualWriteAliases, expectedWriteAliases))
 }
 

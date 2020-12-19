@@ -166,9 +166,9 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	spanMapping, serviceMapping, err1 := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
-	if err1 != nil {
-		logger.Error("Failed to get rendered index template mappings", zap.Error(err1))
+	spanMapping, serviceMapping, err := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
+	if err != nil {
+		logger.Error("Failed to get rendered index template mappings", zap.Error(err))
 	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
@@ -236,9 +236,9 @@ func fixMapping(mapping string, shards, replicas int64, esPrefix string, useILM 
 	if esPrefix != "" {
 		esPrefix += "-"
 	}
-	fixedMapping, err1 := t.Execute(pongo2.Context{"NumberOfShards": shards, "NumberOfReplicas": replicas, "ESPrefix": esPrefix, "UseILM": useILM})
-	if err1 != nil {
-		return "", err1
+	fixedMapping, err := t.Execute(pongo2.Context{"NumberOfShards": shards, "NumberOfReplicas": replicas, "ESPrefix": esPrefix, "UseILM": useILM})
+	if err != nil {
+		return "", err
 	}
 
 	return fixedMapping, nil

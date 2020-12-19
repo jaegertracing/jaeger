@@ -107,9 +107,9 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		return err
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping, e := es.GetSpanServiceMappings(5, 1, client.GetVersion(), "", false)
-	if e != nil {
-		return e
+	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(5, 1, client.GetVersion(), indexPrefix, false)
+	if err != nil {
+		return err
 	}
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{

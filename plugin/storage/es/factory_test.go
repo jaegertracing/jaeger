@@ -163,28 +163,19 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping5, serviceMapping5, e5 := GetSpanServiceMappings(10, 0, 5, "", false)
-	spanMapping6, serviceMapping6, e6 := GetSpanServiceMappings(10, 0, 6, "", false)
-	spanMapping7, serviceMapping7, e7 := GetSpanServiceMappings(10, 0, 7, "test", true)
-	dependenciesMapping6, ed6 := GetDependenciesMappings(10, 0, 6)
-	dependenciesMapping7, ed7 := GetDependenciesMappings(10, 0, 7)
-	assert.NoError(t, e5)
-	assert.NoError(t, e6)
-	assert.NoError(t, e7)
-	assert.NoError(t, ed6)
-	assert.NoError(t, ed7)
 	tests := []struct {
 		name   string
-		toTest string
+		esPrefix string
+		useILM bool
 	}{
-		{name: "/jaeger-span.json", toTest: spanMapping5},
-		{name: "/jaeger-service.json", toTest: serviceMapping5},
-		{name: "/jaeger-span.json", toTest: spanMapping6},
-		{name: "/jaeger-service.json", toTest: serviceMapping6},
-		{name: "/jaeger-span-7.json", toTest: spanMapping7},
-		{name: "/jaeger-service-7.json", toTest: serviceMapping7},
-		{name: "/jaeger-dependencies.json", toTest: dependenciesMapping6},
-		{name: "/jaeger-dependencies-7.json", toTest: dependenciesMapping7},
+		{name: "/jaeger-span.json"},
+		{name: "/jaeger-service.json"},
+		{name: "/jaeger-span.json"},
+		{name: "/jaeger-service.json"},
+		{name: "/jaeger-span-7.json", esPrefix: "test", useILM: true},
+		{name: "/jaeger-service-7.json", esPrefix: "test", useILM: true},
+		{name: "/jaeger-dependencies.json"},
+		{name: "/jaeger-dependencies-7.json"},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
@@ -193,21 +184,17 @@ func TestFactory_LoadMapping(t *testing.T) {
 		b, err := ioutil.ReadAll(f)
 		require.NoError(t, err)
 		assert.Equal(t, string(b), mapping)
-		tempMapping, err1 := pongo2.FromString(mapping)
-		assert.NoError(t, err1)
-		if test.name != "/jaeger-service-7.json" && test.name != "/jaeger-span-7.json" {
-			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": ""})
-			assert.NoError(t, err)
-			actualMapping, er := fixMapping(mapping, 10, 0, "", false)
-			assert.NoError(t, er)
-			assert.Equal(t, expectedMapping, actualMapping)
-		} else {
-			expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": "test-", "UseILM": true})
-			assert.NoError(t, err)
-			actualMapping, er := fixMapping(mapping, 10, 0, "test", true)
-			assert.NoError(t, er)
-			assert.Equal(t, expectedMapping, actualMapping)
+		tempMapping, err := pongo2.FromString(mapping)
+		assert.NoError(t, err)
+		esPrefixTemplateVal := test.esPrefix
+		if esPrefixTemplateVal != "" {
+			esPrefixTemplateVal += "-"
 		}
+		expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": esPrefixTemplateVal, "UseILM": test.useILM})
+		assert.NoError(t, err)
+		actualMapping, err := fixMapping(mapping, 10, 0, test.esPrefix, test.useILM)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedMapping, actualMapping)
 	}
 }
 

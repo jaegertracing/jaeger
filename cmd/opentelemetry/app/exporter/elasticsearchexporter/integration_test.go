@@ -104,9 +104,9 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 		return err
 	}
 	esVersion := uint(w.esClientVersion())
-	spanMapping, serviceMapping, err1 := es.GetSpanServiceMappings(numShards, numReplicas, esVersion, "", false)
-	if err1 != nil {
-		return err1
+	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(numShards, numReplicas, esVersion, "", false)
+	if err != nil {
+		return err
 	}
 	err = w.CreateTemplates(context.Background(), spanMapping, serviceMapping)
 	if err != nil {
@@ -130,9 +130,9 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	})
 	s.SpanReader = reader
 
-	depMapping, err2 := es.GetDependenciesMappings(numShards, numReplicas, esVersion)
-	if err2 != nil {
-		return err2
+	depMapping, err := es.GetDependenciesMappings(numShards, numReplicas, esVersion)
+	if err != nil {
+		return err
 	}
 	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
 	if err := depStore.CreateTemplates(depMapping); err != nil {
