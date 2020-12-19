@@ -164,9 +164,9 @@ func TestTagKeysAsFields(t *testing.T) {
 
 func TestFactory_LoadMapping(t *testing.T) {
 	tests := []struct {
-		name   string
+		name     string
 		esPrefix string
-		useILM bool
+		useILM   bool
 	}{
 		{name: "/jaeger-span.json"},
 		{name: "/jaeger-service.json"},
