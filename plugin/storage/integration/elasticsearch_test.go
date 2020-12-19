@@ -200,6 +200,21 @@ func TestElasticsearchStorage_Archive(t *testing.T) {
 	testElasticsearchStorage(t, false, true)
 }
 
+func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
+	if os.Getenv("STORAGE") != "elasticsearch" {
+		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
+	}
+	if err := healthCheck(); err != nil {
+		t.Fatal(err)
+	}
+	s := &ESStorageIntegration{}
+	require.NoError(t, s.initializeES(true, false))
+	serviceTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
+	spanTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
+	assert.True(t, serviceTemplateExists)
+	assert.True(t, spanTemplateExists)
+}
+
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
