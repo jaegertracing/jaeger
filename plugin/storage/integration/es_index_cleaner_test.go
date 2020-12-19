@@ -36,7 +36,7 @@ const (
 	serviceIndexName      = "jaeger-service-2019-01-01"
 	indexCleanerImage     = "jaegertracing/jaeger-es-index-cleaner:latest"
 	rolloverImage         = "jaegertracing/jaeger-es-rollover:latest"
-	rolloverNowEnvVar     = "CONDITIONS='{\"max_age\":\"0s\"}'"
+	rolloverNowEnvVar     = `CONDITIONS='{"max_age":"0s"}'`
 )
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
@@ -168,7 +168,9 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string) {
 	writeAliases := []string{"jaeger-service-write", "jaeger-span-write"}
 
-	// make sure ES is clean
+	// make sure ES is cleaned before test
+	cleanES(t, client, "jaeger-ilm-policy")
+	// make sure ES is cleaned after test
 	defer cleanES(t, client, "jaeger-ilm-policy")
 	err := createILMPolicy(client, "jaeger-ilm-policy")
 	require.NoError(t, err)
@@ -185,7 +187,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	}
 
 	//Run rollover with given EnvVars
-	err := runEsRollover("init", envVars)
+	err = runEsRollover("init", envVars)
 	require.NoError(t, err)
 
 	indices, err := client.IndexNames()
@@ -312,7 +314,7 @@ func getVersion(client *elastic.Client) (uint, error) {
 }
 
 func createILMPolicy(client *elastic.Client, policyName string) error {
-	_, err := client.XPackIlmPutLifecycle().Policy(policyName).BodyString("{\"policy\": {\"phases\": {\"hot\": {\"min_age\": \"0ms\",\"actions\": {\"rollover\": {\"max_age\": \"1d\"},\"set_priority\": {\"priority\": 100}}}}}}").Do(context.Background())
+	_, err := client.XPackIlmPutLifecycle().Policy(policyName).BodyString(`{"policy": {"phases": {"hot": {"min_age": "0ms","actions": {"rollover": {"max_age": "1d"},"set_priority": {"priority": 100}}}}}}`).Do(context.Background())
 	return err
 }
 
