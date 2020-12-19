@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"strconv"
 	"testing"
 
 	"github.com/olivere/elastic"
@@ -30,7 +29,6 @@ import (
 
 const (
 	archiveIndexName      = "jaeger-span-archive"
-	indexILMName          = "jaeger-ilm-policy"
 	dependenciesIndexName = "jaeger-dependencies-2019-01-01"
 	spanIndexName         = "jaeger-span-2019-01-01"
 	serviceIndexName      = "jaeger-service-2019-01-01"
@@ -125,88 +123,6 @@ func TestIndexCleaner(t *testing.T) {
 	}
 }
 
-func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
-	client, err := createESClient()
-	require.NoError(t, err)
-	// make sure ES is clean
-	cleanES(t, client, "jaeger-ilm-policy")
-	envVars := []string{"ES_USE_ILM=true"}
-	errorMsg := "exit status 1"
-	er := runEsRollover("init", envVars)
-	assert.Equal(t, errorMsg, er.Error())
-	indices, err1 := client.IndexNames()
-	require.NoError(t, err1)
-	assert.Empty(t, indices)
-}
-
-func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
-	client, err := createESClient()
-	require.NoError(t, err)
-
-	esVersion, ev := getVersion(client)
-	require.NoError(t, ev)
-
-	if esVersion != 7 {
-		er := runEsRollover("init", []string{"ES_USE_ILM=true"})
-		assert.Equal(t, "exit status 1", er.Error())
-		indices, err1 := client.IndexNames()
-		require.NoError(t, err1)
-		assert.Empty(t, indices)
-
-	} else {
-		envVars := []string{"ES_USE_ILM=true"}
-		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001"}
-		t.Run(fmt.Sprintf("%s_no_prefix", "CreateIndicesWithILM"), func(t *testing.T) {
-			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars)
-		})
-		t.Run(fmt.Sprintf("%s_prefix", "CreateIndicesWithILM"), func(t *testing.T) {
-			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix))
-		})
-	}
-}
-
-func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string) {
-	writeAliases := []string{"jaeger-service-write", "jaeger-span-write"}
-
-	// make sure ES is cleaned before test
-	cleanES(t, client, "jaeger-ilm-policy")
-	// make sure ES is cleaned after test
-	defer cleanES(t, client, "jaeger-ilm-policy")
-	err := createILMPolicy(client, "jaeger-ilm-policy")
-	require.NoError(t, err)
-
-	if prefix != "" {
-		prefix = prefix + "-"
-	}
-	var expected, expectedWriteAliases, actualWriteAliases []string
-	for _, index := range expectedIndices {
-		expected = append(expected, prefix+index)
-	}
-	for _, alias := range writeAliases {
-		expectedWriteAliases = append(expectedWriteAliases, prefix+alias)
-	}
-
-	//Run rollover with given EnvVars
-	err = runEsRollover("init", envVars)
-	require.NoError(t, err)
-
-	indices, err := client.IndexNames()
-	require.NoError(t, err)
-
-	//Get ILM Policy Attached
-	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
-	require.NoError(t, err)
-	//Check ILM Policy is attached and Get rollover alias attached
-	for _, v := range settings {
-		assert.Equal(t, indexILMName, v.Settings["index.lifecycle.name"])
-		actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
-	}
-	//Check indices created
-	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
-	//Check rollover alias is write alias
-	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases, fmt.Sprintf("aliases found: %v, expected: %v", actualWriteAliases, expectedWriteAliases))
-}
-
 func runIndexCleanerTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string) {
 	// make sure ES is clean
 	_, err := client.DeleteIndex("*").Do(context.Background())
@@ -299,32 +215,4 @@ func createESClient() (*elastic.Client, error) {
 	return elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
-}
-
-func getVersion(client *elastic.Client) (uint, error) {
-	pingResult, _, err := client.Ping(queryURL).Do(context.Background())
-	if err != nil {
-		return 0, err
-	}
-	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-	if err != nil {
-		return 0, err
-	}
-	return uint(esVersion), nil
-}
-
-func createILMPolicy(client *elastic.Client, policyName string) error {
-	_, err := client.XPackIlmPutLifecycle().Policy(policyName).BodyString(`{"policy": {"phases": {"hot": {"min_age": "0ms","actions": {"rollover": {"max_age": "1d"},"set_priority": {"priority": 100}}}}}}`).Do(context.Background())
-	return err
-}
-
-func cleanES(t *testing.T, client *elastic.Client, policyName string) {
-	_, err := client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
-	_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
-	if err != nil && !elastic.IsNotFound(err) {
-		assert.Fail(t, "Not able to clean up ILM Policy")
-	}
-	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
-	require.NoError(t, err)
 }

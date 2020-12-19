@@ -61,6 +61,7 @@ run_integration_test() {
   local cid=$(setup_es ${es_version})
   STORAGE=elasticsearch make storage-integration-test
   make index-cleaner-integration-test
+  make index-rollover-integration-test
   make es-otel-exporter-integration-test
   teardown_es ${cid}
 }

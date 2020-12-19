@@ -134,6 +134,14 @@ index-cleaner-integration-test: docker-images-elastic
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONY: index-rollover-integration-test
+index-rollover-integration-test: docker-images-elastic
+	# Expire tests results for storage integration tests since the environment might change
+	# even though the code remains the same.
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover $(STORAGE_PKGS) | $(COLORIZE)"
+
+
 .PHONY: token-propagation-integration-test
 token-propagation-integration-test:
 	go clean -testcache
