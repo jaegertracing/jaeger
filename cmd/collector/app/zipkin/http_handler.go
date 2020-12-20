@@ -101,8 +101,6 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		// CodeQL seems to produce false-positive vulnerability warning.
-		// https://github.com/github/codeql/issues/4853
 		safeErr := html.EscapeString(err.Error())
 		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, safeErr), http.StatusBadRequest)
 		return
