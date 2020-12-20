@@ -17,6 +17,7 @@ package handler
 
 import (
 	"fmt"
+	"html"
 	"io/ioutil"
 	"mime"
 	"net/http"
@@ -76,7 +77,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, ok := acceptedThriftFormats[contentType]; !ok {
-		http.Error(w, fmt.Sprintf("Unsupported content type: %v", contentType), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Unsupported content type: %v", html.EscapeString(contentType)), http.StatusBadRequest)
 		return
 	}
 
