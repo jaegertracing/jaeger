@@ -156,12 +156,12 @@ func TestJsonFormat(t *testing.T) {
 		},
 		{
 			payload:    createSpan("bar", "", "1", "1", 156, 15145, false, annoJSON, binAnnoJSON),
-			expected:   "Unable to process request body: strconv.ParseUint: parsing \"\": invalid syntax\n",
+			expected:   "Unable to process request body: strconv.ParseUint: parsing &#34;&#34;: invalid syntax\n",
 			statusCode: http.StatusBadRequest,
 		},
 		{
 			payload:    createSpan("bar", "ZTA", "1", "1", 156, 15145, false, "", ""),
-			expected:   "Unable to process request body: strconv.ParseUint: parsing \"ZTA\": invalid syntax\n",
+			expected:   "Unable to process request body: strconv.ParseUint: parsing &#34;ZTA&#34;: invalid syntax\n",
 			statusCode: http.StatusBadRequest,
 		},
 		{
