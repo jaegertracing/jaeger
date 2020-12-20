@@ -18,6 +18,7 @@ package zipkin
 import (
 	"compress/gzip"
 	"fmt"
+	"html"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -100,7 +101,8 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		safeErr := html.EscapeString(err.Error())
+		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, safeErr), http.StatusBadRequest)
 		return
 	}
 
