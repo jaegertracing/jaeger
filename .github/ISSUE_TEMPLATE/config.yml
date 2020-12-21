@@ -6,6 +6,3 @@ contact_links:
   - name: Question via GitHub Discussions (similar to Stack Overflow)
     url: https://github.com/jaegertracing/jaeger/discussions
     about: Please ask and answer questions here for async response.
-  - name: Report Security Issues
-    url: https://www.jaegertracing.io/report-security-issue/
-    about: Please report security vulnerabilities here.
