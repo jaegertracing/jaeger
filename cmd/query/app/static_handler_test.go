@@ -16,6 +16,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -117,54 +118,61 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 
 // This test is potentially intermittent
 func TestHotReloadUIConfigTempFile(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "ui-config-hotreload.*.json")
-	assert.NoError(t, err)
+	run := func(description string, extension string) {
+		t.Run(description, func(t *testing.T) {
+			tmpfile, err := ioutil.TempFile("", "ui-config-hotreload.*."+extension)
+			assert.NoError(t, err)
 
-	tmpFileName := tmpfile.Name()
-	defer os.Remove(tmpFileName)
+			tmpFileName := tmpfile.Name()
+			defer os.Remove(tmpFileName)
 
-	content, err := ioutil.ReadFile("fixture/ui-config-hotreload.json")
-	assert.NoError(t, err)
+			content, err := ioutil.ReadFile("fixture/ui-config-hotreload." + extension)
+			assert.NoError(t, err)
 
-	err = ioutil.WriteFile(tmpFileName, content, 0644)
-	assert.NoError(t, err)
+			err = ioutil.WriteFile(tmpFileName, content, 0644)
+			assert.NoError(t, err)
 
-	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfigPath: tmpFileName,
-	})
-	assert.NoError(t, err)
+			h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+				UIConfigPath: tmpFileName,
+			})
+			assert.NoError(t, err)
 
-	c := string(h.indexHTML.Load().([]byte))
-	assert.Contains(t, c, "About Jaeger")
+			c := string(h.indexHTML.Load().([]byte))
+			assert.Contains(t, c, "About Jaeger")
 
-	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-	err = ioutil.WriteFile(tmpFileName, []byte(newContent), 0644)
-	assert.NoError(t, err)
+			newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
+			err = ioutil.WriteFile(tmpFileName, []byte(newContent), 0644)
+			assert.NoError(t, err)
 
-	done := make(chan bool)
-	go func() {
-		for {
-			i := string(h.indexHTML.Load().([]byte))
+			done := make(chan bool)
+			go func() {
+				for {
+					i := string(h.indexHTML.Load().([]byte))
 
-			if strings.Contains(i, "About a new Jaeger") {
-				done <- true
+					if strings.Contains(i, "About a new Jaeger") {
+						done <- true
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}()
+
+			select {
+			case <-done:
+				assert.Contains(t, string(h.indexHTML.Load().([]byte)), "About a new Jaeger")
+			case <-time.After(time.Second):
+				assert.Fail(t, "timed out waiting for the hot reload to kick in")
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-
-	select {
-	case <-done:
-		assert.Contains(t, string(h.indexHTML.Load().([]byte)), "About a new Jaeger")
-	case <-time.After(time.Second):
-		assert.Fail(t, "timed out waiting for the hot reload to kick in")
+		})
 	}
+
+	run("json hot reload", "json")
+	run("json hot reload", "js")
 }
 
 func TestLoadUIConfig(t *testing.T) {
 	type testCase struct {
 		configFile    string
-		expected      map[string]interface{}
+		expected      []byte
 		expectedError string
 	}
 
@@ -181,7 +189,7 @@ func TestLoadUIConfig(t *testing.T) {
 	}
 
 	run("no config", testCase{})
-	run("invalid config", testCase{
+	run("invalid json config", testCase{
 		configFile:    "invalid",
 		expectedError: "cannot read UI config file invalid: open invalid: no such file or directory",
 	})
@@ -195,18 +203,44 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("json", testCase{
 		configFile: "fixture/ui-config.json",
-		expected:   map[string]interface{}{"x": "y"},
+		expected:   []byte(`{"x":"y"}`),
+	})
+	c, _ := json.Marshal(map[string]interface{}{
+		"menu": []interface{}{
+			map[string]interface{}{
+				"label": "GitHub",
+				"url":   "https://github.com/jaegertracing/jaeger",
+			},
+		},
 	})
 	run("json-menu", testCase{
 		configFile: "fixture/ui-config-menu.json",
-		expected: map[string]interface{}{
-			"menu": []interface{}{
-				map[string]interface{}{
-					"label": "GitHub",
-					"url":   "https://github.com/jaegertracing/jaeger",
-				},
-			},
-		},
+		expected:   c,
+	})
+	run("malformed js config", testCase{
+		configFile:    "fixture/ui-config-malformed.js",
+		expectedError: "wrong JS function format in UI config file format fixture/ui-config-malformed.js",
+	})
+	run("js", testCase{
+		configFile: "fixture/ui-config.js",
+		expected: []byte(`function UIConfig() {
+  return {
+    x: "y"
+  }
+}`),
+	})
+	run("js-menu", testCase{
+		configFile: "fixture/ui-config-menu.js",
+		expected: []byte(`function UIConfig() {
+  return {
+    menu: [
+      {
+        label: "GitHub",
+        url: "https://github.com/jaegertracing/jaeger"
+      }
+    ]
+  }
+}`),
 	})
 }
 

@@ -16,6 +16,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -106,14 +107,10 @@ func loadAndEnrichIndexHTML(open func(string) (http.File, error), options Static
 	}
 	// replace UI config
 	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
-	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
+	if configBytes, err := loadUIConfig(options.UIConfigPath); err != nil {
 		return nil, err
-	} else if config != nil {
-		// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
-		// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
-		// interface{}, and json.Marshal() is unable to serialize it.
-		bytes, _ := json.Marshal(config)
-		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
+	} else if configBytes != nil {
+		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(configBytes))
 	}
 	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
 	// replace Jaeger version
@@ -210,30 +207,45 @@ func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	return indexBytes, nil
 }
 
-func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
+func loadUIConfig(uiConfig string) ([]byte, error) {
 	if uiConfig == "" {
 		return nil, nil
 	}
 	ext := filepath.Ext(uiConfig)
-	bytes, err := ioutil.ReadFile(filepath.Clean(uiConfig))
+	bytesConfig, err := ioutil.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}
 
 	var c map[string]interface{}
+	var r []byte
 	var unmarshal func([]byte, interface{}) error
 
 	switch strings.ToLower(ext) {
 	case ".json":
 		unmarshal = json.Unmarshal
+	case ".js":
+		r = bytes.TrimSpace(bytesConfig)
+		if !bytes.HasPrefix(r, []byte("function")) {
+			return nil, fmt.Errorf("wrong JS function format in UI config file format %v", uiConfig)
+		}
 	default:
 		return nil, fmt.Errorf("unrecognized UI config file format %v", uiConfig)
 	}
 
-	if err := unmarshal(bytes, &c); err != nil {
-		return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+	if unmarshal != nil {
+		if err := unmarshal(bytesConfig, &c); err != nil {
+			return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+		}
+		// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
+		// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
+		// interface{}, and json.Marshal() is unable to serialize it.
+		if r, err = json.Marshal(c); err != nil {
+			return nil, fmt.Errorf("cannot encode UI config file %v: %w", uiConfig, err)
+		}
 	}
-	return c, nil
+
+	return r, nil
 }
 
 // RegisterRoutes registers routes for this handler on the given router
