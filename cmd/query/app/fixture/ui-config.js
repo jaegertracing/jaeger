@@ -1,4 +1,4 @@
-function UIConfig() {
+function UIConfig(){
   return {
     x: "y"
   }

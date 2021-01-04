@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -166,15 +167,18 @@ func TestHotReloadUIConfigTempFile(t *testing.T) {
 	}
 
 	run("json hot reload", "json")
-	run("json hot reload", "js")
+	run("js hot reload", "js")
 }
 
 func TestLoadUIConfig(t *testing.T) {
 	type testCase struct {
 		configFile    string
-		expected      []byte
+		expected      *UIConfigOptions
 		expectedError string
 	}
+
+	jsonRegExpPattern := regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
+	jsRegExpPattern := regexp.MustCompile(`(?im)(^\s+)\/\/.*JAEGER_CONFIG_JS.*\n.*`)
 
 	run := func(description string, testCase testCase) {
 		t.Run(description, func(t *testing.T) {
@@ -203,7 +207,10 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("json", testCase{
 		configFile: "fixture/ui-config.json",
-		expected:   []byte(`{"x":"y"}`),
+		expected: &UIConfigOptions{
+			config: []byte(`JAEGER_CONFIG = {"x":"y"};`),
+			regexp: jsonRegExpPattern,
+		},
 	})
 	c, _ := json.Marshal(map[string]interface{}{
 		"menu": []interface{}{
@@ -215,7 +222,10 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("json-menu", testCase{
 		configFile: "fixture/ui-config-menu.json",
-		expected:   c,
+		expected: &UIConfigOptions{
+			config: append([]byte("JAEGER_CONFIG = "), append(c, byte(';'))...),
+			regexp: jsonRegExpPattern,
+		},
 	})
 	run("malformed js config", testCase{
 		configFile:    "fixture/ui-config-malformed.js",
@@ -223,15 +233,19 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("js", testCase{
 		configFile: "fixture/ui-config.js",
-		expected: []byte(`function UIConfig() {
+		expected: &UIConfigOptions{
+			regexp: jsRegExpPattern,
+			config: []byte(`function UIConfig(){
   return {
     x: "y"
   }
-}`),
+}`)},
 	})
 	run("js-menu", testCase{
 		configFile: "fixture/ui-config-menu.js",
-		expected: []byte(`function UIConfig() {
+		expected: &UIConfigOptions{
+			regexp: jsRegExpPattern,
+			config: []byte(`function UIConfig(){
   return {
     menu: [
       {
@@ -240,7 +254,7 @@ func TestLoadUIConfig(t *testing.T) {
       }
     ]
   }
-}`),
+}`)},
 	})
 }
 
