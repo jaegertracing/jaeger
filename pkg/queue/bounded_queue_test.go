@@ -112,6 +112,80 @@ func TestBoundedQueue(t *testing.T) {
 	assert.False(t, q.Produce("x"), "cannot push to closed queue")
 }
 
+func TestBoundedQueueWithFactory(t *testing.T) {
+	mFact := metricstest.NewFactory(0)
+	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
+	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
+
+	q := NewBoundedQueue(1, func(item interface{}) {
+		counter.Inc(1)
+	})
+	assert.Equal(t, 1, q.Capacity())
+
+	var startLock sync.Mutex
+
+	startLock.Lock() // block consumers
+	consumerState := newConsumerState(t)
+
+	q.StartConsumersWithFactory(1, func() Consumer {
+		return newStatefulConsumer(&startLock, consumerState)
+	})
+
+	assert.True(t, q.Produce("a"))
+
+	// at this point "a" may or may not have been received by the consumer go-routine
+	// so let's make sure it has been
+	consumerState.waitToConsumeOnce()
+
+	// at this point the item must have been read off the queue, but the consumer is blocked
+	assert.Equal(t, 0, q.Size())
+	consumerState.assertConsumed(map[string]bool{
+		"a": true,
+	})
+
+	// produce two more items. The first one should be accepted, but not consumed.
+	assert.True(t, q.Produce("b"))
+	assert.Equal(t, 1, q.Size())
+	// the second should be rejected since the queue is full
+	assert.False(t, q.Produce("c"))
+	assert.Equal(t, 1, q.Size())
+
+	q.StartLengthReporting(time.Millisecond, gauge)
+	for i := 0; i < 1000; i++ {
+		_, g := mFact.Snapshot()
+		if g["size"] == 0 {
+			time.Sleep(time.Millisecond)
+		} else {
+			break
+		}
+	}
+
+	c, g := mFact.Snapshot()
+	assert.EqualValues(t, 1, c["dropped"])
+	assert.EqualValues(t, 1, g["size"])
+
+	startLock.Unlock() // unblock consumer
+
+	consumerState.assertConsumed(map[string]bool{
+		"a": true,
+		"b": true,
+	})
+
+	// now that consumers are unblocked, we can add more items
+	expected := map[string]bool{
+		"a": true,
+		"b": true,
+	}
+	for _, item := range []string{"d", "e", "f"} {
+		assert.True(t, q.Produce(item))
+		expected[item] = true
+		consumerState.assertConsumed(expected)
+	}
+
+	q.Stop()
+	assert.False(t, q.Produce("x"), "cannot push to closed queue")
+}
+
 type consumerState struct {
 	sync.Mutex
 	t            *testing.T
@@ -159,6 +233,24 @@ func (s *consumerState) assertConsumed(expected map[string]bool) {
 		}
 	}
 	assert.Equal(s.t, expected, s.snapshot())
+}
+
+type statefulConsumer struct {
+	*sync.Mutex
+	*consumerState
+}
+
+func (s *statefulConsumer) Consume(item interface{}) {
+	s.record(item.(string))
+
+	// block further processing until the lock is released
+	s.Lock()
+	//lint:ignore SA2001 empty section is ok
+	s.Unlock()
+}
+
+func newStatefulConsumer(startLock *sync.Mutex, cs *consumerState) Consumer {
+	return &statefulConsumer{startLock, cs}
 }
 
 func TestResizeUp(t *testing.T) {
@@ -326,6 +418,24 @@ func BenchmarkBoundedQueue(b *testing.B) {
 	})
 
 	q.StartConsumers(10, func(item interface{}) {
+	})
+
+	for n := 0; n < b.N; n++ {
+		q.Produce(n)
+	}
+}
+
+// nopConsumer is a no-op consumer
+type nopConsumer struct{}
+
+func (*nopConsumer) Consume(item interface{}) {}
+
+func BenchmarkBoundedQueueWithFactory(b *testing.B) {
+	q := NewBoundedQueue(1000, func(item interface{}) {
+	})
+
+	q.StartConsumersWithFactory(10, func() Consumer {
+		return &nopConsumer{}
 	})
 
 	for n := 0; n < b.N; n++ {

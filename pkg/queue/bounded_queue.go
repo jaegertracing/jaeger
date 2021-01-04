@@ -25,6 +25,11 @@ import (
 	uatomic "go.uber.org/atomic"
 )
 
+// Consumer consumes data from a bounded queue
+type Consumer interface {
+	Consume(item interface{})
+}
+
 // BoundedQueue implements a producer-consumer exchange similar to a ring buffer queue,
 // where the queue is bounded and if it fills up due to slow consumers, the new items written by
 // the producer force the earliest items to be dropped. The implementation is actually based on
@@ -38,7 +43,7 @@ type BoundedQueue struct {
 	stopped       *uatomic.Uint32
 	items         *chan interface{}
 	onDroppedItem func(item interface{})
-	consumer      func(item interface{})
+	factory       func() Consumer
 	stopCh        chan struct{}
 }
 
@@ -56,11 +61,11 @@ func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *Bounde
 	}
 }
 
-// StartConsumers starts a given number of goroutines consuming items from the queue
-// and passing them into the consumer callback.
-func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) {
+// StartConsumersWithFactory creates a given number of consumers consuming items
+// from the queue in separate goroutines.
+func (q *BoundedQueue) StartConsumersWithFactory(num int, factory func() Consumer) {
 	q.workers = num
-	q.consumer = consumer
+	q.factory = factory
 	var startWG sync.WaitGroup
 	for i := 0; i < q.workers; i++ {
 		q.stopWG.Add(1)
@@ -68,13 +73,14 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 		go func() {
 			startWG.Done()
 			defer q.stopWG.Done()
+			consumer := q.factory()
 			queue := *q.items
 			for {
 				select {
 				case item, ok := <-queue:
 					if ok {
 						q.size.Sub(1)
-						q.consumer(item)
+						consumer.Consume(item)
 					} else {
 						// channel closed, finish worker
 						return
@@ -87,6 +93,25 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 		}()
 	}
 	startWG.Wait()
+}
+
+// statelessConsumer wraps a consume function callback
+type statelessConsumer struct {
+	consumefn func(item interface{})
+}
+
+// Consumer consumes an item from a bounded queue
+func (c *statelessConsumer) Consume(item interface{}) {
+	c.consumefn(item)
+}
+
+// StartConsumers starts a given number of goroutines consuming items from the queue
+// and passing them into the consumer callback.
+func (q *BoundedQueue) StartConsumers(num int, callback func(item interface{})) {
+	consumer := &statelessConsumer{callback}
+	q.StartConsumersWithFactory(num, func() Consumer {
+		return consumer
+	})
 }
 
 // Produce is used by the producer to submit new item to the queue. Returns false in case of queue overflow.
@@ -171,7 +196,7 @@ func (q *BoundedQueue) Resize(capacity int) bool {
 	swapped := atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&q.items)), unsafe.Pointer(q.items), unsafe.Pointer(&queue))
 	if swapped {
 		// start a new set of consumers, based on the information given previously
-		q.StartConsumers(q.workers, q.consumer)
+		q.StartConsumersWithFactory(q.workers, q.factory)
 
 		// gracefully drain the existing queue
 		close(previous)
