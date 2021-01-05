@@ -25,15 +25,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
+
+//go:generate mockery -all -dir ./watcher
 
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
@@ -115,6 +120,68 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
 		require.Errorf(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "invalid base path")
+	}
+}
+
+func TestNewWatcherError(t *testing.T) {
+	const totalWatcherAddCalls = 2
+
+	for _, tc := range []struct {
+		name                string
+		errorOnNthAdd       int
+		wantFactoryErr      error
+		wantWatcherAddErr   error
+		wantWatcherAddCalls int
+	}{
+		{
+			name:           "Factory.NewWatcher error",
+			wantFactoryErr: fmt.Errorf("new watcher error"),
+		},
+		{
+			name:                "Watcher.Add first call error",
+			errorOnNthAdd:       0,
+			wantWatcherAddErr:   fmt.Errorf("add first error"),
+			wantWatcherAddCalls: 1,
+		},
+		{
+			name:                "Watcher.Add second call error",
+			errorOnNthAdd:       1,
+			wantWatcherAddErr:   fmt.Errorf("add second error"),
+			wantWatcherAddCalls: 2,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Prepare
+			watcher := &mocks.Watcher{}
+			for i := 0; i < totalWatcherAddCalls; i++ {
+				var err error
+				if i == tc.errorOnNthAdd {
+					err = tc.wantWatcherAddErr
+				}
+				watcher.On("Add", mock.Anything).Return(err).Once()
+			}
+			watcher.On("Events").Return(make(chan fsnotify.Event))
+			watcher.On("Errors").Return(make(chan error))
+
+			watcherFactory := &mocks.Factory{}
+			watcherFactory.On("NewWatcher").Return(watcher, tc.wantFactoryErr)
+
+			// Test
+			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+				UIConfigPath:   "fixture/ui-config-hotreload.json",
+				WatcherFactory: watcherFactory,
+			})
+
+			// Validate
+			if tc.wantFactoryErr != nil {
+				assert.EqualError(t, err, tc.wantFactoryErr.Error())
+			} else if tc.wantWatcherAddErr != nil {
+				assert.EqualError(t, err, tc.wantWatcherAddErr.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+			watcher.AssertNumberOfCalls(t, "Add", tc.wantWatcherAddCalls)
+		})
 	}
 }
 
