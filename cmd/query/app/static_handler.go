@@ -94,9 +94,7 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	}
 
 	h.indexHTML.Store(indexHTML)
-	h.watch()
-
-	return h, nil
+	return h, h.watch()
 }
 
 func loadAndEnrichIndexHTML(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
@@ -157,6 +155,7 @@ func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
 				sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
 			}
 			sH.indexHTML.Store(content)
+			sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.UIConfigPath))
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return
@@ -166,15 +165,16 @@ func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
 	}
 }
 
-func (sH *StaticAssetsHandler) watch() {
+func (sH *StaticAssetsHandler) watch() error {
 	if sH.options.UIConfigPath == "" {
-		return
+		sH.options.Logger.Info("UI config path not provided, config file will not be watched")
+		return nil
 	}
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		sH.options.Logger.Error("failed to create a new watcher for the UI config", zap.Error(err))
-		return
+		return err
 	}
 
 	go func() {
@@ -184,17 +184,17 @@ func (sH *StaticAssetsHandler) watch() {
 	err = watcher.Add(sH.options.UIConfigPath)
 	if err != nil {
 		sH.options.Logger.Error("error adding watcher to file", zap.String("file", sH.options.UIConfigPath), zap.Error(err))
-	} else {
-		sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
+		return err
 	}
+	sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
 
 	dir := filepath.Dir(sH.options.UIConfigPath)
-	err = watcher.Add(dir)
-	if err != nil {
+	if err := watcher.Add(dir); err != nil {
 		sH.options.Logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
-	} else {
-		sH.options.Logger.Info("watching", zap.String("dir", dir))
+		return err
 	}
+	sH.options.Logger.Info("watching", zap.String("dir", dir))
+	return nil
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {

@@ -28,6 +28,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -115,50 +118,43 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	}
 }
 
-// This test is potentially intermittent
 func TestHotReloadUIConfigTempFile(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "ui-config-hotreload.*.json")
-	assert.NoError(t, err)
+	dir, err := ioutil.TempDir("", "ui-config-hotreload-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
 
+	tmpfile, err := ioutil.TempFile(dir, "*.json")
+	require.NoError(t, err)
 	tmpFileName := tmpfile.Name()
-	defer os.Remove(tmpFileName)
 
 	content, err := ioutil.ReadFile("fixture/ui-config-hotreload.json")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	err = ioutil.WriteFile(tmpFileName, content, 0644)
-	assert.NoError(t, err)
+	err = syncWrite(tmpFileName, content, 0644)
+	require.NoError(t, err)
 
+	zcore, logObserver := observer.New(zapcore.InfoLevel)
+	logger := zap.New(zcore)
 	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
 		UIConfigPath: tmpFileName,
+		Logger:       logger,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	c := string(h.indexHTML.Load().([]byte))
 	assert.Contains(t, c, "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-	err = ioutil.WriteFile(tmpFileName, []byte(newContent), 0644)
-	assert.NoError(t, err)
+	err = syncWrite(tmpFileName, []byte(newContent), 0644)
+	require.NoError(t, err)
 
-	done := make(chan bool)
-	go func() {
-		for {
-			i := string(h.indexHTML.Load().([]byte))
+	waitUntil(t, func() bool {
+		return logObserver.FilterMessage("reloaded UI config").
+			FilterField(zap.String("filename", tmpFileName)).Len() > 0
+	}, 2000, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
 
-			if strings.Contains(i, "About a new Jaeger") {
-				done <- true
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-
-	select {
-	case <-done:
-		assert.Contains(t, string(h.indexHTML.Load().([]byte)), "About a new Jaeger")
-	case <-time.After(time.Second):
-		assert.Fail(t, "timed out waiting for the hot reload to kick in")
-	}
+	i := string(h.indexHTML.Load().([]byte))
+	assert.Contains(t, i, "About a new Jaeger", logObserver.All())
 }
 
 func TestLoadUIConfig(t *testing.T) {
@@ -224,4 +220,28 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 	}
 	_, err := loadIndexHTML(open)
 	require.Error(t, err)
+}
+
+func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.Duration, timeoutErrMsg string) {
+	for i := 0; i < iterations; i++ {
+		if f() {
+			return
+		}
+		time.Sleep(sleepInterval)
+	}
+	require.Fail(t, timeoutErrMsg)
+}
+
+// syncWrite ensures data is written to the given filename and flushed to disk.
+// This ensures that any watchers looking for file system changes can be reliably alerted.
+func syncWrite(filename string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, perm)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err = f.Write(data); err != nil {
+		return err
+	}
+	return f.Sync()
 }
