@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -56,10 +55,31 @@ func TestRegisterStaticHandler(t *testing.T) {
 		subroute         bool   // should we create a subroute?
 		baseURL          string // expected URL prefix
 		expectedBaseHTML string // substring to match in the home page
+		UIConfigPath     string // path to UI config
+		expectedUIConfig string // expected UI config
 	}{
-		{basePath: "", baseURL: "/", expectedBaseHTML: `<base href="/"`},
-		{basePath: "/", baseURL: "/", expectedBaseHTML: `<base href="/"`},
-		{basePath: "/jaeger", baseURL: "/jaeger/", expectedBaseHTML: `<base href="/jaeger/"`, subroute: true},
+		{
+			basePath:         "",
+			baseURL:          "/",
+			expectedBaseHTML: `<base href="/"`,
+			UIConfigPath:     "",
+			expectedUIConfig: "JAEGER_CONFIG=DEFAULT_CONFIG;",
+		},
+		{
+			basePath:         "/",
+			baseURL:          "/",
+			expectedBaseHTML: `<base href="/"`,
+			UIConfigPath:     "fixture/ui-config.json",
+			expectedUIConfig: `JAEGER_CONFIG = {"x":"y"};`,
+		},
+		{
+			basePath:         "/jaeger",
+			baseURL:          "/jaeger/",
+			expectedBaseHTML: `<base href="/jaeger/"`,
+			subroute:         true,
+			UIConfigPath:     "fixture/ui-config.js",
+			expectedUIConfig: "function UIConfig(){",
+		},
 	}
 	httpClient = &http.Client{
 		Timeout: 2 * time.Second,
@@ -74,7 +94,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			RegisterStaticHandler(r, logger, &QueryOptions{
 				StaticAssets: "fixture",
 				BasePath:     testCase.basePath,
-				UIConfig:     "fixture/ui-config.json",
+				UIConfig:     testCase.UIConfigPath,
 			})
 
 			server := httptest.NewServer(r)
@@ -96,7 +116,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			assert.Contains(t, respString, "Test Favicon") // this text is present in fixtures/favicon.ico
 
 			html := httpGet("") // get home page
-			assert.Contains(t, html, `JAEGER_CONFIG = {"x":"y"};`, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"","buildDate":""};`, "actual: %v", html)
 			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
 
@@ -119,66 +139,56 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 
 // This test is potentially intermittent
 func TestHotReloadUIConfigTempFile(t *testing.T) {
-	run := func(description string, extension string) {
-		t.Run(description, func(t *testing.T) {
-			tmpfile, err := ioutil.TempFile("", "ui-config-hotreload.*."+extension)
-			assert.NoError(t, err)
+	tmpfile, err := ioutil.TempFile("", "ui-config-hotreload.*.json")
+	assert.NoError(t, err)
 
-			tmpFileName := tmpfile.Name()
-			defer os.Remove(tmpFileName)
+	tmpFileName := tmpfile.Name()
+	defer os.Remove(tmpFileName)
 
-			content, err := ioutil.ReadFile("fixture/ui-config-hotreload." + extension)
-			assert.NoError(t, err)
+	content, err := ioutil.ReadFile("fixture/ui-config-hotreload.json")
+	assert.NoError(t, err)
 
-			err = ioutil.WriteFile(tmpFileName, content, 0644)
-			assert.NoError(t, err)
+	err = ioutil.WriteFile(tmpFileName, content, 0644)
+	assert.NoError(t, err)
 
-			h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-				UIConfigPath: tmpFileName,
-			})
-			assert.NoError(t, err)
+	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+		UIConfigPath: tmpFileName,
+	})
+	assert.NoError(t, err)
 
-			c := string(h.indexHTML.Load().([]byte))
-			assert.Contains(t, c, "About Jaeger")
+	c := string(h.indexHTML.Load().([]byte))
+	assert.Contains(t, c, "About Jaeger")
 
-			newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-			err = ioutil.WriteFile(tmpFileName, []byte(newContent), 0644)
-			assert.NoError(t, err)
+	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
+	err = ioutil.WriteFile(tmpFileName, []byte(newContent), 0644)
+	assert.NoError(t, err)
 
-			done := make(chan bool)
-			go func() {
-				for {
-					i := string(h.indexHTML.Load().([]byte))
+	done := make(chan bool)
+	go func() {
+		for {
+			i := string(h.indexHTML.Load().([]byte))
 
-					if strings.Contains(i, "About a new Jaeger") {
-						done <- true
-					}
-					time.Sleep(10 * time.Millisecond)
-				}
-			}()
-
-			select {
-			case <-done:
-				assert.Contains(t, string(h.indexHTML.Load().([]byte)), "About a new Jaeger")
-			case <-time.After(time.Second):
-				assert.Fail(t, "timed out waiting for the hot reload to kick in")
+			if strings.Contains(i, "About a new Jaeger") {
+				done <- true
 			}
-		})
-	}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
 
-	run("json hot reload", "json")
-	run("js hot reload", "js")
+	select {
+	case <-done:
+		assert.Contains(t, string(h.indexHTML.Load().([]byte)), "About a new Jaeger")
+	case <-time.After(time.Second):
+		assert.Fail(t, "timed out waiting for the hot reload to kick in")
+	}
 }
 
 func TestLoadUIConfig(t *testing.T) {
 	type testCase struct {
 		configFile    string
-		expected      *UIConfigOptions
+		expected      *loadedConfig
 		expectedError string
 	}
-
-	jsonRegExpPattern := regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	jsRegExpPattern := regexp.MustCompile(`(?im)(^\s+)\/\/.*JAEGER_CONFIG_JS.*\n.*`)
 
 	run := func(description string, testCase testCase) {
 		t.Run(description, func(t *testing.T) {
@@ -207,9 +217,9 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("json", testCase{
 		configFile: "fixture/ui-config.json",
-		expected: &UIConfigOptions{
+		expected: &loadedConfig{
 			config: []byte(`JAEGER_CONFIG = {"x":"y"};`),
-			regexp: jsonRegExpPattern,
+			regexp: configPattern,
 		},
 	})
 	c, _ := json.Marshal(map[string]interface{}{
@@ -222,9 +232,9 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("json-menu", testCase{
 		configFile: "fixture/ui-config-menu.json",
-		expected: &UIConfigOptions{
+		expected: &loadedConfig{
 			config: append([]byte("JAEGER_CONFIG = "), append(c, byte(';'))...),
-			regexp: jsonRegExpPattern,
+			regexp: configPattern,
 		},
 	})
 	run("malformed js config", testCase{
@@ -233,8 +243,8 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("js", testCase{
 		configFile: "fixture/ui-config.js",
-		expected: &UIConfigOptions{
-			regexp: jsRegExpPattern,
+		expected: &loadedConfig{
+			regexp: configJsPattern,
 			config: []byte(`function UIConfig(){
   return {
     x: "y"
@@ -243,8 +253,8 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("js-menu", testCase{
 		configFile: "fixture/ui-config-menu.js",
-		expected: &UIConfigOptions{
-			regexp: jsRegExpPattern,
+		expected: &loadedConfig{
+			regexp: configJsPattern,
 			config: []byte(`function UIConfig(){
   return {
     menu: [
