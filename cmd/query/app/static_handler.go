@@ -183,6 +183,7 @@ func (sH *StaticAssetsHandler) watch() {
 
 	watcher, err := sH.newWatcher()
 	if err != nil {
+		sH.options.Logger.Error("failed to create a new watcher for the UI config", zap.Error(err))
 		return
 	}
 

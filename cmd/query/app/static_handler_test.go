@@ -153,6 +153,16 @@ func TestWatcherError(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Prepare
+			zcore, logObserver := observer.New(zapcore.InfoLevel)
+			logger := zap.New(zcore)
+			defer func() {
+				if r := recover(); r != nil {
+					// Select loop exits without logging error, only containing previous error log.
+					assert.Equal(t, logObserver.FilterMessage("event").Len(), 1)
+					assert.Equal(t, "send on closed channel", fmt.Sprint(r))
+				}
+			}()
+
 			watcher := &mocks.Watcher{}
 			for i := 0; i < totalWatcherAddCalls; i++ {
 				var err error
@@ -162,7 +172,8 @@ func TestWatcherError(t *testing.T) {
 				watcher.On("Add", mock.Anything).Return(err).Once()
 			}
 			watcher.On("Events").Return(make(chan fsnotify.Event))
-			watcher.On("Errors").Return(make(chan error))
+			errChan := make(chan error)
+			watcher.On("Errors").Return(errChan)
 
 			// Test
 			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
@@ -170,11 +181,39 @@ func TestWatcherError(t *testing.T) {
 				NewWatcher: func() (fswatcher.Watcher, error) {
 					return watcher, tc.newWatcherErr
 				},
+				Logger: logger,
 			})
 
 			// Validate
-			assert.NoError(t, err) // Error logged but not returned
+
+			// Error logged but not returned
+			assert.NoError(t, err)
+			if tc.newWatcherErr != nil {
+				assert.Equal(t, logObserver.FilterField(zap.Error(tc.newWatcherErr)).Len(), 1)
+			} else {
+				assert.Zero(t, logObserver.FilterField(zap.Error(tc.newWatcherErr)).Len())
+			}
+
+			if tc.watcherAddErr != nil {
+				assert.Equal(t, logObserver.FilterField(zap.Error(tc.watcherAddErr)).Len(), 1)
+			} else {
+				assert.Zero(t, logObserver.FilterField(zap.Error(tc.watcherAddErr)).Len())
+			}
+
 			watcher.AssertNumberOfCalls(t, "Add", tc.wantWatcherAddCalls)
+
+			// Validate Events and Errors channels
+			if tc.newWatcherErr == nil {
+				errChan <- fmt.Errorf("first error")
+
+				waitUntil(t, func() bool {
+					return logObserver.FilterMessage("event").Len() > 0
+				}, 100, 10*time.Millisecond, "timed out waiting for error")
+				assert.Equal(t, logObserver.FilterMessage("event").Len(), 1)
+
+				close(errChan)
+				errChan <- fmt.Errorf("second error on closed chan")
+			}
 		})
 	}
 }
@@ -212,7 +251,7 @@ func TestHotReloadUIConfigTempFile(t *testing.T) {
 	waitUntil(t, func() bool {
 		return logObserver.FilterMessage("reloaded UI config").
 			FilterField(zap.String("filename", tmpFileName)).Len() > 0
-	}, 2000, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
+	}, 100, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
 
 	i := string(h.indexHTML.Load().([]byte))
 	assert.Contains(t, i, "About a new Jaeger", logObserver.All())
