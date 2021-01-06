@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package watcher
+package fswatcher
 
 import "github.com/fsnotify/fsnotify"
 
@@ -44,17 +44,8 @@ func (f *fsnotifyWatcherWrapper) Errors() chan error {
 	return f.fsnotifyWatcher.Errors
 }
 
-// Factory creates new Watchers.
-// Primarily used for mocking the fsnotify lib.
-type Factory interface {
-	NewWatcher() (Watcher, error)
-}
-
-// FsNotifyWatcherFactory implements Factory.
-type FsNotifyWatcherFactory struct{}
-
 // NewWatcher creates a new fsnotifyWatcherWrapper, wrapping the fsnotify.Watcher.
-func (f *FsNotifyWatcherFactory) NewWatcher() (Watcher, error) {
+func NewWatcher() (Watcher, error) {
 	w, err := fsnotify.NewWatcher()
 	return &fsnotifyWatcherWrapper{fsnotifyWatcher: w}, err
 }

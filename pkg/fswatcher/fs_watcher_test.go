@@ -12,4 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package watcher
+package fswatcher
+
+import (
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"testing"
+)
+
+func TestFsWatcher(t *testing.T) {
+	w, err := NewWatcher()
+	require.NoError(t, err)
+	assert.IsType(t, &fsnotifyWatcherWrapper{}, w)
+
+	err = w.Add("foo")
+	assert.Error(t, err)
+
+	err = w.Add("../../cmd/query/app/fixture/ui-config.json")
+	assert.NoError(t, err)
+
+	events := w.Events()
+	assert.NotZero(t, events)
+
+	errs := w.Errors()
+	assert.NotZero(t, errs)
+}

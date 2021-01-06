@@ -35,10 +35,11 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/mocks"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-//go:generate mockery -all -dir ./watcher
+//go:generate mockery -all -dir ../../../pkg/fswatcher
 
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
@@ -123,19 +124,19 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	}
 }
 
-func TestNewWatcherError(t *testing.T) {
+func TestWatcherError(t *testing.T) {
 	const totalWatcherAddCalls = 2
 
 	for _, tc := range []struct {
 		name                string
 		errorOnNthAdd       int
-		wantFactoryErr      error
+		wantNewWatcherErr   error
 		wantWatcherAddErr   error
 		wantWatcherAddCalls int
 	}{
 		{
-			name:           "Factory.NewWatcher error",
-			wantFactoryErr: fmt.Errorf("new watcher error"),
+			name:              "NewWatcher error",
+			wantNewWatcherErr: fmt.Errorf("new watcher error"),
 		},
 		{
 			name:                "Watcher.Add first call error",
@@ -163,20 +164,19 @@ func TestNewWatcherError(t *testing.T) {
 			watcher.On("Events").Return(make(chan fsnotify.Event))
 			watcher.On("Errors").Return(make(chan error))
 
-			watcherFactory := &mocks.Factory{}
-			watcherFactory.On("NewWatcher").Return(watcher, tc.wantFactoryErr)
-
 			// Test
 			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-				UIConfigPath:   "fixture/ui-config-hotreload.json",
-				WatcherFactory: watcherFactory,
+				UIConfigPath: "fixture/ui-config-hotreload.json",
+				NewWatcher: func() (fswatcher.Watcher, error) {
+					return watcher, tc.wantNewWatcherErr
+				},
 			})
 
 			// Validate
-			if tc.wantFactoryErr != nil {
-				assert.EqualError(t, err, tc.wantFactoryErr.Error())
+			if tc.wantNewWatcherErr != nil {
+				assert.Contains(t, err.Error(), tc.wantNewWatcherErr.Error())
 			} else if tc.wantWatcherAddErr != nil {
-				assert.EqualError(t, err, tc.wantWatcherAddErr.Error())
+				assert.Contains(t, err.Error(), tc.wantWatcherAddErr.Error())
 			} else {
 				assert.NoError(t, err)
 			}

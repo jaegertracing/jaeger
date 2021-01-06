@@ -30,7 +30,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
-	"github.com/jaegertracing/jaeger/cmd/query/app/watcher"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
@@ -61,18 +61,18 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
-	options        StaticAssetsHandlerOptions
-	indexHTML      atomic.Value // stores []byte
-	assetsFS       http.FileSystem
-	watcherFactory watcher.Factory
+	options    StaticAssetsHandlerOptions
+	indexHTML  atomic.Value // stores []byte
+	assetsFS   http.FileSystem
+	newWatcher func() (fswatcher.Watcher, error)
 }
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
 type StaticAssetsHandlerOptions struct {
-	BasePath       string
-	UIConfigPath   string
-	Logger         *zap.Logger
-	WatcherFactory watcher.Factory
+	BasePath     string
+	UIConfigPath string
+	Logger       *zap.Logger
+	NewWatcher   func() (fswatcher.Watcher, error)
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
@@ -86,8 +86,8 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		options.Logger = zap.NewNop()
 	}
 
-	if options.WatcherFactory == nil {
-		options.WatcherFactory = &watcher.FsNotifyWatcherFactory{}
+	if options.NewWatcher == nil {
+		options.NewWatcher = fswatcher.NewWatcher
 	}
 
 	indexHTML, err := loadAndEnrichIndexHTML(assetsFS.Open, options)
@@ -96,9 +96,9 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	}
 
 	h := &StaticAssetsHandler{
-		options:        options,
-		assetsFS:       assetsFS,
-		watcherFactory: options.WatcherFactory,
+		options:    options,
+		assetsFS:   assetsFS,
+		newWatcher: options.NewWatcher,
 	}
 
 	h.indexHTML.Store(indexHTML)
@@ -140,7 +140,7 @@ func loadAndEnrichIndexHTML(open func(string) (http.File, error), options Static
 	return indexBytes, nil
 }
 
-func (sH *StaticAssetsHandler) configListener(watcher watcher.Watcher) {
+func (sH *StaticAssetsHandler) configListener(watcher fswatcher.Watcher) {
 	for {
 		select {
 		case event := <-watcher.Events():
@@ -179,10 +179,9 @@ func (sH *StaticAssetsHandler) watch() error {
 		return nil
 	}
 
-	watcher, err := sH.watcherFactory.NewWatcher()
+	watcher, err := sH.newWatcher()
 	if err != nil {
-		sH.options.Logger.Error("failed to create a new Watcher for the UI config", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to create a new Watcher for the UI config: %w", err)
 	}
 
 	go func() {
@@ -190,15 +189,13 @@ func (sH *StaticAssetsHandler) watch() error {
 	}()
 
 	if err := watcher.Add(sH.options.UIConfigPath); err != nil {
-		sH.options.Logger.Error("error adding Watcher to file", zap.String("file", sH.options.UIConfigPath), zap.Error(err))
-		return err
+		return fmt.Errorf("error adding Watcher to file '%s': %w", sH.options.UIConfigPath, err)
 	}
 	sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
 
 	dir := filepath.Dir(sH.options.UIConfigPath)
 	if err := watcher.Add(dir); err != nil {
-		sH.options.Logger.Error("error adding Watcher to dir", zap.String("dir", dir), zap.Error(err))
-		return err
+		return fmt.Errorf("error adding Watcher to dir '%s': %w", dir, err)
 	}
 	sH.options.Logger.Info("watching", zap.String("dir", dir))
 	return nil
