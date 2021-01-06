@@ -102,7 +102,9 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	}
 
 	h.indexHTML.Store(indexHTML)
-	return h, h.watch()
+	h.watch()
+
+	return h, nil
 }
 
 func loadAndEnrichIndexHTML(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
@@ -173,15 +175,15 @@ func (sH *StaticAssetsHandler) configListener(watcher fswatcher.Watcher) {
 	}
 }
 
-func (sH *StaticAssetsHandler) watch() error {
+func (sH *StaticAssetsHandler) watch() {
 	if sH.options.UIConfigPath == "" {
 		sH.options.Logger.Info("UI config path not provided, config file will not be watched")
-		return nil
+		return
 	}
 
 	watcher, err := sH.newWatcher()
 	if err != nil {
-		return fmt.Errorf("failed to create a new Watcher for the UI config: %w", err)
+		return
 	}
 
 	go func() {
@@ -189,16 +191,17 @@ func (sH *StaticAssetsHandler) watch() error {
 	}()
 
 	if err := watcher.Add(sH.options.UIConfigPath); err != nil {
-		return fmt.Errorf("error adding Watcher to file '%s': %w", sH.options.UIConfigPath, err)
+		sH.options.Logger.Error("error adding watcher to file", zap.String("file", sH.options.UIConfigPath), zap.Error(err))
+	} else {
+		sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
 	}
-	sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
 
 	dir := filepath.Dir(sH.options.UIConfigPath)
 	if err := watcher.Add(dir); err != nil {
-		return fmt.Errorf("error adding Watcher to dir '%s': %w", dir, err)
+		sH.options.Logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
+	} else {
+		sH.options.Logger.Info("watching", zap.String("dir", dir))
 	}
-	sH.options.Logger.Info("watching", zap.String("dir", dir))
-	return nil
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {

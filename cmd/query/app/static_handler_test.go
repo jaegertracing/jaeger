@@ -130,24 +130,24 @@ func TestWatcherError(t *testing.T) {
 	for _, tc := range []struct {
 		name                string
 		errorOnNthAdd       int
-		wantNewWatcherErr   error
-		wantWatcherAddErr   error
+		newWatcherErr       error
+		watcherAddErr       error
 		wantWatcherAddCalls int
 	}{
 		{
-			name:              "NewWatcher error",
-			wantNewWatcherErr: fmt.Errorf("new watcher error"),
+			name:          "NewWatcher error",
+			newWatcherErr: fmt.Errorf("new watcher error"),
 		},
 		{
 			name:                "Watcher.Add first call error",
 			errorOnNthAdd:       0,
-			wantWatcherAddErr:   fmt.Errorf("add first error"),
-			wantWatcherAddCalls: 1,
+			watcherAddErr:       fmt.Errorf("add first error"),
+			wantWatcherAddCalls: 2,
 		},
 		{
 			name:                "Watcher.Add second call error",
 			errorOnNthAdd:       1,
-			wantWatcherAddErr:   fmt.Errorf("add second error"),
+			watcherAddErr:       fmt.Errorf("add second error"),
 			wantWatcherAddCalls: 2,
 		},
 	} {
@@ -157,7 +157,7 @@ func TestWatcherError(t *testing.T) {
 			for i := 0; i < totalWatcherAddCalls; i++ {
 				var err error
 				if i == tc.errorOnNthAdd {
-					err = tc.wantWatcherAddErr
+					err = tc.watcherAddErr
 				}
 				watcher.On("Add", mock.Anything).Return(err).Once()
 			}
@@ -168,18 +168,12 @@ func TestWatcherError(t *testing.T) {
 			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
 				UIConfigPath: "fixture/ui-config-hotreload.json",
 				NewWatcher: func() (fswatcher.Watcher, error) {
-					return watcher, tc.wantNewWatcherErr
+					return watcher, tc.newWatcherErr
 				},
 			})
 
 			// Validate
-			if tc.wantNewWatcherErr != nil {
-				assert.Contains(t, err.Error(), tc.wantNewWatcherErr.Error())
-			} else if tc.wantWatcherAddErr != nil {
-				assert.Contains(t, err.Error(), tc.wantWatcherAddErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.NoError(t, err) // Error logged but not returned
 			watcher.AssertNumberOfCalls(t, "Add", tc.wantWatcherAddCalls)
 		})
 	}
