@@ -25,12 +25,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/mocks"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
+
+//go:generate mockery -all -dir ../../../pkg/fswatcher
 
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
@@ -115,50 +124,137 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	}
 }
 
-// This test is potentially intermittent
-func TestHotReloadUIConfigTempFile(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "ui-config-hotreload.*.json")
-	assert.NoError(t, err)
+func TestWatcherError(t *testing.T) {
+	const totalWatcherAddCalls = 2
 
+	for _, tc := range []struct {
+		name                string
+		errorOnNthAdd       int
+		newWatcherErr       error
+		watcherAddErr       error
+		wantWatcherAddCalls int
+	}{
+		{
+			name:          "NewWatcher error",
+			newWatcherErr: fmt.Errorf("new watcher error"),
+		},
+		{
+			name:                "Watcher.Add first call error",
+			errorOnNthAdd:       0,
+			watcherAddErr:       fmt.Errorf("add first error"),
+			wantWatcherAddCalls: 2,
+		},
+		{
+			name:                "Watcher.Add second call error",
+			errorOnNthAdd:       1,
+			watcherAddErr:       fmt.Errorf("add second error"),
+			wantWatcherAddCalls: 2,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Prepare
+			zcore, logObserver := observer.New(zapcore.InfoLevel)
+			logger := zap.New(zcore)
+			defer func() {
+				if r := recover(); r != nil {
+					// Select loop exits without logging error, only containing previous error log.
+					assert.Equal(t, logObserver.FilterMessage("event").Len(), 1)
+					assert.Equal(t, "send on closed channel", fmt.Sprint(r))
+				}
+			}()
+
+			watcher := &mocks.Watcher{}
+			for i := 0; i < totalWatcherAddCalls; i++ {
+				var err error
+				if i == tc.errorOnNthAdd {
+					err = tc.watcherAddErr
+				}
+				watcher.On("Add", mock.Anything).Return(err).Once()
+			}
+			watcher.On("Events").Return(make(chan fsnotify.Event))
+			errChan := make(chan error)
+			watcher.On("Errors").Return(errChan)
+
+			// Test
+			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+				UIConfigPath: "fixture/ui-config-hotreload.json",
+				NewWatcher: func() (fswatcher.Watcher, error) {
+					return watcher, tc.newWatcherErr
+				},
+				Logger: logger,
+			})
+
+			// Validate
+
+			// Error logged but not returned
+			assert.NoError(t, err)
+			if tc.newWatcherErr != nil {
+				assert.Equal(t, logObserver.FilterField(zap.Error(tc.newWatcherErr)).Len(), 1)
+			} else {
+				assert.Zero(t, logObserver.FilterField(zap.Error(tc.newWatcherErr)).Len())
+			}
+
+			if tc.watcherAddErr != nil {
+				assert.Equal(t, logObserver.FilterField(zap.Error(tc.watcherAddErr)).Len(), 1)
+			} else {
+				assert.Zero(t, logObserver.FilterField(zap.Error(tc.watcherAddErr)).Len())
+			}
+
+			watcher.AssertNumberOfCalls(t, "Add", tc.wantWatcherAddCalls)
+
+			// Validate Events and Errors channels
+			if tc.newWatcherErr == nil {
+				errChan <- fmt.Errorf("first error")
+
+				waitUntil(t, func() bool {
+					return logObserver.FilterMessage("event").Len() > 0
+				}, 100, 10*time.Millisecond, "timed out waiting for error")
+				assert.Equal(t, logObserver.FilterMessage("event").Len(), 1)
+
+				close(errChan)
+				errChan <- fmt.Errorf("second error on closed chan")
+			}
+		})
+	}
+}
+
+func TestHotReloadUIConfigTempFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "ui-config-hotreload-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	tmpfile, err := ioutil.TempFile(dir, "*.json")
+	require.NoError(t, err)
 	tmpFileName := tmpfile.Name()
-	defer os.Remove(tmpFileName)
 
 	content, err := ioutil.ReadFile("fixture/ui-config-hotreload.json")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	err = ioutil.WriteFile(tmpFileName, content, 0644)
-	assert.NoError(t, err)
+	err = syncWrite(tmpFileName, content, 0644)
+	require.NoError(t, err)
 
+	zcore, logObserver := observer.New(zapcore.InfoLevel)
+	logger := zap.New(zcore)
 	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
 		UIConfigPath: tmpFileName,
+		Logger:       logger,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	c := string(h.indexHTML.Load().([]byte))
 	assert.Contains(t, c, "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-	err = ioutil.WriteFile(tmpFileName, []byte(newContent), 0644)
-	assert.NoError(t, err)
+	err = syncWrite(tmpFileName, []byte(newContent), 0644)
+	require.NoError(t, err)
 
-	done := make(chan bool)
-	go func() {
-		for {
-			i := string(h.indexHTML.Load().([]byte))
+	waitUntil(t, func() bool {
+		return logObserver.FilterMessage("reloaded UI config").
+			FilterField(zap.String("filename", tmpFileName)).Len() > 0
+	}, 100, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
 
-			if strings.Contains(i, "About a new Jaeger") {
-				done <- true
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-
-	select {
-	case <-done:
-		assert.Contains(t, string(h.indexHTML.Load().([]byte)), "About a new Jaeger")
-	case <-time.After(time.Second):
-		assert.Fail(t, "timed out waiting for the hot reload to kick in")
-	}
+	i := string(h.indexHTML.Load().([]byte))
+	assert.Contains(t, i, "About a new Jaeger", logObserver.All())
 }
 
 func TestLoadUIConfig(t *testing.T) {
@@ -224,4 +320,28 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 	}
 	_, err := loadIndexHTML(open)
 	require.Error(t, err)
+}
+
+func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.Duration, timeoutErrMsg string) {
+	for i := 0; i < iterations; i++ {
+		if f() {
+			return
+		}
+		time.Sleep(sleepInterval)
+	}
+	require.Fail(t, timeoutErrMsg)
+}
+
+// syncWrite ensures data is written to the given filename and flushed to disk.
+// This ensures that any watchers looking for file system changes can be reliably alerted.
+func syncWrite(filename string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, perm)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err = f.Write(data); err != nil {
+		return err
+	}
+	return f.Sync()
 }
