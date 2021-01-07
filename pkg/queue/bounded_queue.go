@@ -95,22 +95,20 @@ func (q *BoundedQueue) StartConsumersWithFactory(num int, factory func() Consume
 	startWG.Wait()
 }
 
-// statelessConsumer wraps a consume function callback
-type statelessConsumer struct {
-	consumefn func(item interface{})
-}
+// ConsumerFunc is an adapter to allow the use of
+// a consume function callback as a Consumer.
+type ConsumerFunc func(item interface{})
 
-// Consumer consumes an item from a bounded queue
-func (c *statelessConsumer) Consume(item interface{}) {
-	c.consumefn(item)
+// Consume calls c(item)
+func (c ConsumerFunc) Consume(item interface{}) {
+	c(item)
 }
 
 // StartConsumers starts a given number of goroutines consuming items from the queue
 // and passing them into the consumer callback.
 func (q *BoundedQueue) StartConsumers(num int, callback func(item interface{})) {
-	consumer := &statelessConsumer{callback}
 	q.StartConsumersWithFactory(num, func() Consumer {
-		return consumer
+		return ConsumerFunc(callback)
 	})
 }
 
