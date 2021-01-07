@@ -30,14 +30,33 @@ import (
 	uatomic "go.uber.org/atomic"
 )
 
-func checkQueue(
-	t *testing.T,
-	q *BoundedQueue,
-	startLock *sync.Mutex,
-	consumerState *consumerState,
-	mFact *metricstest.Factory,
-) {
+// In this test we run a queue with capacity 1 and a single consumer.
+// We want to test the overflow behavior, so we block the consumer
+// by holding a startLock before submitting items to the queue.
+func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(item interface{}))) {
+	mFact := metricstest.NewFactory(0)
+	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
 	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
+
+	q := NewBoundedQueue(1, func(item interface{}) {
+		counter.Inc(1)
+	})
+	assert.Equal(t, 1, q.Capacity())
+
+	var startLock sync.Mutex
+
+	startLock.Lock() // block consumers
+	consumerState := newConsumerState(t)
+
+	startConsumers(q, func(item interface{}) {
+		consumerState.record(item.(string))
+
+		// block further processing until startLock is released
+		startLock.Lock()
+		//lint:ignore SA2001 empty section is ok
+		startLock.Unlock()
+	})
+
 	assert.True(t, q.Produce("a"))
 
 	// at this point "a" may or may not have been received by the consumer go-routine
@@ -93,56 +112,16 @@ func checkQueue(
 	assert.False(t, q.Produce("x"), "cannot push to closed queue")
 }
 
-// In this test we run a queue with capacity 1 and a single consumer.
-// We want to test the overflow behavior, so we block the consumer
-// by holding a startLock before submitting items to the queue.
 func TestBoundedQueue(t *testing.T) {
-	mFact := metricstest.NewFactory(0)
-	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
-
-	q := NewBoundedQueue(1, func(item interface{}) {
-		counter.Inc(1)
+	helper(t, func(q *BoundedQueue, consumerFn func(item interface{})) {
+		q.StartConsumers(1, consumerFn)
 	})
-	assert.Equal(t, 1, q.Capacity())
-
-	var startLock sync.Mutex
-
-	startLock.Lock() // block consumers
-	consumerState := newConsumerState(t)
-
-	q.StartConsumers(1, func(item interface{}) {
-		consumerState.record(item.(string))
-
-		// block further processing until startLock is released
-		startLock.Lock()
-		//lint:ignore SA2001 empty section is ok
-		startLock.Unlock()
-	})
-
-	checkQueue(t, q, &startLock, consumerState, mFact)
 }
 
-// This test is identical to the previous one but we start the
-// queue using a consumer factory instead of a callback.
 func TestBoundedQueueWithFactory(t *testing.T) {
-	mFact := metricstest.NewFactory(0)
-	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
-
-	q := NewBoundedQueue(1, func(item interface{}) {
-		counter.Inc(1)
+	helper(t, func(q *BoundedQueue, consumerFn func(item interface{})) {
+		q.StartConsumersWithFactory(1, func() Consumer { return ConsumerFunc(consumerFn) })
 	})
-	assert.Equal(t, 1, q.Capacity())
-
-	var startLock sync.Mutex
-
-	startLock.Lock() // block consumers
-	consumerState := newConsumerState(t)
-
-	q.StartConsumersWithFactory(1, func() Consumer {
-		return newStatefulConsumer(&startLock, consumerState)
-	})
-
-	checkQueue(t, q, &startLock, consumerState, mFact)
 }
 
 type consumerState struct {
@@ -192,24 +171,6 @@ func (s *consumerState) assertConsumed(expected map[string]bool) {
 		}
 	}
 	assert.Equal(s.t, expected, s.snapshot())
-}
-
-type statefulConsumer struct {
-	*sync.Mutex
-	*consumerState
-}
-
-func (s *statefulConsumer) Consume(item interface{}) {
-	s.record(item.(string))
-
-	// block further processing until the lock is released
-	s.Lock()
-	//lint:ignore SA2001 empty section is ok
-	s.Unlock()
-}
-
-func newStatefulConsumer(startLock *sync.Mutex, cs *consumerState) Consumer {
-	return &statefulConsumer{startLock, cs}
 }
 
 func TestResizeUp(t *testing.T) {
@@ -384,17 +345,12 @@ func BenchmarkBoundedQueue(b *testing.B) {
 	}
 }
 
-// nopConsumer is a no-op consumer
-type nopConsumer struct{}
-
-func (*nopConsumer) Consume(item interface{}) {}
-
 func BenchmarkBoundedQueueWithFactory(b *testing.B) {
 	q := NewBoundedQueue(1000, func(item interface{}) {
 	})
 
 	q.StartConsumersWithFactory(10, func() Consumer {
-		return &nopConsumer{}
+		return ConsumerFunc(func(item interface{}) {})
 	})
 
 	for n := 0; n < b.N; n++ {
