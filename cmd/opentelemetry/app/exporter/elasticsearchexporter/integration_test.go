@@ -45,6 +45,7 @@ const (
 	esHostPort         = host + ":" + esPort
 	esURL              = "http://" + esHostPort
 	indexPrefix        = "integration-test"
+	indexDateLayout    = "2006-01-02"
 	tagKeyDeDotChar    = "@"
 	maxSpanAge         = time.Hour * 72
 	numShards          = 5
@@ -91,8 +92,9 @@ func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
 
 func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	cfg := config.Configuration{
-		Servers:     []string{esURL},
-		IndexPrefix: indexPrefix,
+		Servers:         []string{esURL},
+		IndexPrefix:     indexPrefix,
+		IndexDateLayout: indexDateLayout,
 		Tags: config.TagsAsFields{
 			AllAsFields: allTagsAsFields,
 		},
@@ -118,6 +120,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	}
 	reader := esspanreader.NewEsSpanReader(elasticsearchClient, s.logger, esspanreader.Config{
 		IndexPrefix:       indexPrefix,
+		IndexDateLayout:   indexDateLayout,
 		TagDotReplacement: tagKeyDeDotChar,
 		MaxSpanAge:        maxSpanAge,
 		MaxDocCount:       defaultMaxDocCount,
@@ -125,7 +128,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	s.SpanReader = reader
 
 	depMapping := es.GetDependenciesMappings(numShards, numReplicas, esVersion)
-	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix, defaultMaxDocCount)
+	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
 	if err := depStore.CreateTemplates(depMapping); err != nil {
 		return nil
 	}

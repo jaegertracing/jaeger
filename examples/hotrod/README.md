@@ -2,7 +2,7 @@
 
 This is a demo application that consists of several microservices and illustrates
 the use of the OpenTracing API. It can be run standalone, but requires Jaeger backend
-to view the traces. A tutorial / walkthough is available:
+to view the traces. A tutorial / walkthrough is available:
   * as a blog post [Take OpenTracing for a HotROD ride][hotrod-tutorial],
   * as a video [OpenShift Commons Briefing: Distributed Tracing with Jaeger & Prometheus on Kubernetes][hotrod-openshift].
 

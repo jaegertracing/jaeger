@@ -78,8 +78,8 @@ func newEsSpanWriter(params config.Configuration, logger *zap.Logger, archive bo
 		logger:           logger,
 		nameTag:          tag.Insert(storagemetrics.TagExporterName(), name),
 		client:           client,
-		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, alias, archive),
-		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, alias, archive),
+		spanIndexName:    esutil.NewIndexNameProvider(spanIndexBaseName, params.IndexPrefix, params.IndexDateLayout, alias, archive),
+		serviceIndexName: esutil.NewIndexNameProvider(serviceIndexBaseName, params.IndexPrefix, params.IndexDateLayout, alias, archive),
 		translator:       esmodeltranslator.NewTranslator(params.Tags.AllAsFields, tagsKeysAsFields, params.GetTagDotReplacement()),
 		isArchive:        archive,
 		serviceCache: cache.NewLRUWithOptions(
@@ -242,16 +242,10 @@ func bulkItemsToTraces(bulkItems []bulkItem) pdata.Traces {
 	for i, op := range bulkItems {
 		spanData := op.spanData
 		rss := traces.ResourceSpans().At(i)
-		if !spanData.Resource.IsNil() {
-			rss.Resource().InitEmpty()
-			spanData.Resource.Attributes().CopyTo(rss.Resource().Attributes())
-		}
+		spanData.Resource.Attributes().CopyTo(rss.Resource().Attributes())
 		rss.InstrumentationLibrarySpans().Resize(1)
 		ispans := rss.InstrumentationLibrarySpans().At(0)
-		ispans.InitEmpty()
-		if !spanData.InstrumentationLibrary.IsNil() {
-			spanData.InstrumentationLibrary.CopyTo(ispans.InstrumentationLibrary())
-		}
+		spanData.InstrumentationLibrary.CopyTo(ispans.InstrumentationLibrary())
 		ispans.Spans().Append(spanData.Span)
 	}
 	return traces

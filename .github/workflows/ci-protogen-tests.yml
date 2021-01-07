@@ -1,0 +1,22 @@
+name: Protogen Validation
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  protogen:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+
+    - name: Run protogen validation
+      run: make proto && git diff --name-status --exit-code

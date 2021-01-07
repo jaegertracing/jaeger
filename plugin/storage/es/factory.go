@@ -111,7 +111,8 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix(), f.primaryConfig.GetMaxDocCount())
+	reader := esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix(),
+		f.primaryConfig.GetIndexDateLayout(), f.primaryConfig.GetMaxDocCount())
 	return reader, nil
 }
 
@@ -145,6 +146,7 @@ func createSpanReader(
 		MaxDocCount:         cfg.GetMaxDocCount(),
 		MaxSpanAge:          cfg.GetMaxSpanAge(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
+		IndexDateLayout:     cfg.GetIndexDateLayout(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		Archive:             archive,
@@ -171,6 +173,7 @@ func createSpanWriter(
 		Logger:              logger,
 		MetricsFactory:      mFactory,
 		IndexPrefix:         cfg.GetIndexPrefix(),
+		IndexDateLayout:     cfg.GetIndexDateLayout(),
 		AllTagsAsFields:     cfg.GetAllTagsAsFields(),
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.GetTagDotReplacement(),

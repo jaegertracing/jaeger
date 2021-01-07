@@ -72,8 +72,9 @@ func TestDefaultValueFromViper(t *testing.T) {
 			flags: []string{fmt.Sprintf("--%s=%s", thriftCompactHostPort, "localhost:9999")},
 			expected: &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
-					ThriftCompact: &confignet.TCPAddr{
-						Endpoint: "localhost:9999",
+					ThriftCompact: &jaegerreceiver.ProtocolUDP{
+						Endpoint:        "localhost:9999",
+						ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 					},
 				},
 			},
@@ -83,8 +84,9 @@ func TestDefaultValueFromViper(t *testing.T) {
 			flags: []string{fmt.Sprintf("--%s=%s", thriftBinaryHostPort, "localhost:8888")},
 			expected: &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
-					ThriftBinary: &confignet.TCPAddr{
-						Endpoint: "localhost:8888",
+					ThriftBinary: &jaegerreceiver.ProtocolUDP{
+						Endpoint:        "localhost:8888",
+						ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 					},
 				},
 			},
@@ -121,8 +123,9 @@ func TestDefaultValueFromViper(t *testing.T) {
 					ThriftHTTP: &confighttp.HTTPServerSettings{
 						Endpoint: "localhost:8089",
 					},
-					ThriftBinary: &confignet.TCPAddr{
-						Endpoint: "localhost:2222",
+					ThriftBinary: &jaegerreceiver.ProtocolUDP{
+						Endpoint:        "localhost:2222",
+						ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 					},
 				},
 			},

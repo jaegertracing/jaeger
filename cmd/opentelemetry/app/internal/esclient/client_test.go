@@ -163,6 +163,7 @@ func testBulk(t *testing.T, clientFactory func(tripper http.RoundTripper) (Elast
 
 			bulkResp, err := client.Bulk(context.Background(), strings.NewReader("data"))
 			if test.err != "" {
+				assert.Error(t, err)
 				assert.Contains(t, err.Error(), test.err)
 				return
 			}

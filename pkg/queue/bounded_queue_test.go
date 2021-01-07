@@ -33,7 +33,7 @@ import (
 // In this test we run a queue with capacity 1 and a single consumer.
 // We want to test the overflow behavior, so we block the consumer
 // by holding a startLock before submitting items to the queue.
-func TestBoundedQueue(t *testing.T) {
+func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(item interface{}))) {
 	mFact := metricstest.NewFactory(0)
 	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
 	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
@@ -48,7 +48,7 @@ func TestBoundedQueue(t *testing.T) {
 	startLock.Lock() // block consumers
 	consumerState := newConsumerState(t)
 
-	q.StartConsumers(1, func(item interface{}) {
+	startConsumers(q, func(item interface{}) {
 		consumerState.record(item.(string))
 
 		// block further processing until startLock is released
@@ -110,6 +110,18 @@ func TestBoundedQueue(t *testing.T) {
 
 	q.Stop()
 	assert.False(t, q.Produce("x"), "cannot push to closed queue")
+}
+
+func TestBoundedQueue(t *testing.T) {
+	helper(t, func(q *BoundedQueue, consumerFn func(item interface{})) {
+		q.StartConsumers(1, consumerFn)
+	})
+}
+
+func TestBoundedQueueWithFactory(t *testing.T) {
+	helper(t, func(q *BoundedQueue, consumerFn func(item interface{})) {
+		q.StartConsumersWithFactory(1, func() Consumer { return ConsumerFunc(consumerFn) })
+	})
 }
 
 type consumerState struct {
@@ -326,6 +338,19 @@ func BenchmarkBoundedQueue(b *testing.B) {
 	})
 
 	q.StartConsumers(10, func(item interface{}) {
+	})
+
+	for n := 0; n < b.N; n++ {
+		q.Produce(n)
+	}
+}
+
+func BenchmarkBoundedQueueWithFactory(b *testing.B) {
+	q := NewBoundedQueue(1000, func(item interface{}) {
+	})
+
+	q.StartConsumersWithFactory(10, func() Consumer {
+		return ConsumerFunc(func(item interface{}) {})
 	})
 
 	for n := 0; n < b.N; n++ {

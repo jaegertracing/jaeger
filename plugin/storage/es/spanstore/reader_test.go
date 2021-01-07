@@ -176,7 +176,7 @@ func TestSpanReaderIndices(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
-		actual := r.timeRangeIndices(r.spanIndexPrefix, date, date)
+		actual := r.timeRangeIndices(r.spanIndexPrefix, "2006-01-02", date, date)
 		assert.Equal(t, []string{testCase.index}, actual)
 	}
 }
@@ -435,6 +435,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	yesterday := today.AddDate(0, 0, -1)
 	twoDaysAgo := today.AddDate(0, 0, -2)
+	dateLayout := "2006-01-02"
 
 	testCases := []struct {
 		startTime time.Time
@@ -445,30 +446,30 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
+				indexWithDate(spanIndex, dateLayout, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
+				indexWithDate(spanIndex, dateLayout, today),
+				indexWithDate(spanIndex, dateLayout, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
-				indexWithDate(spanIndex, twoDaysAgo),
+				indexWithDate(spanIndex, dateLayout, today),
+				indexWithDate(spanIndex, dateLayout, yesterday),
+				indexWithDate(spanIndex, dateLayout, twoDaysAgo),
 			},
 		},
 	}
 	withSpanReader(func(r *spanReaderTest) {
 		for _, testCase := range testCases {
-			actual := r.reader.timeRangeIndices(spanIndex, testCase.startTime, testCase.endTime)
+			actual := r.reader.timeRangeIndices(spanIndex, dateLayout, testCase.startTime, testCase.endTime)
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})
@@ -476,7 +477,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := indexWithDate(spanIndex, time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indexWithDate(spanIndex, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }

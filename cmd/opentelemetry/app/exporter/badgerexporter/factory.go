@@ -82,9 +82,9 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 			TypeVal: TypeStr,
 			NameVal: TypeStr,
 		},
-		TimeoutSettings: exporterhelper.CreateDefaultTimeoutSettings(),
-		RetrySettings:   exporterhelper.CreateDefaultRetrySettings(),
-		QueueSettings:   exporterhelper.CreateDefaultQueueSettings(),
+		TimeoutSettings: exporterhelper.DefaultTimeoutSettings(),
+		RetrySettings:   exporterhelper.DefaultRetrySettings(),
+		QueueSettings:   exporterhelper.DefaultQueueSettings(),
 		Options:         *opts,
 	}
 }

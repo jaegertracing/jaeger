@@ -16,8 +16,6 @@ package esutil
 
 import "time"
 
-const indexDateFormat = "2006-01-02" // date format for index e.g. 2020-01-20
-
 // Alias is used to configure the kind of index alias
 type Alias string
 
@@ -33,11 +31,12 @@ const (
 // IndexNameProvider creates standard index names from dates
 type IndexNameProvider struct {
 	index          string
+	dateLayout     string
 	useSingleIndex bool
 }
 
 // NewIndexNameProvider constructs a new IndexNameProvider
-func NewIndexNameProvider(index, prefix string, alias Alias, archive bool) IndexNameProvider {
+func NewIndexNameProvider(index, prefix, layout string, alias Alias, archive bool) IndexNameProvider {
 	if prefix != "" {
 		index = prefix + "-" + index
 	}
@@ -53,6 +52,7 @@ func NewIndexNameProvider(index, prefix string, alias Alias, archive bool) Index
 	}
 	return IndexNameProvider{
 		index:          index,
+		dateLayout:     layout,
 		useSingleIndex: archive || (alias != AliasNone),
 	}
 }
@@ -63,12 +63,12 @@ func (n IndexNameProvider) IndexNameRange(start, end time.Time) []string {
 		return []string{n.index}
 	}
 	var indices []string
-	firstIndex := n.index + start.UTC().Format(indexDateFormat)
-	currentIndex := n.index + end.UTC().Format(indexDateFormat)
+	firstIndex := n.index + start.UTC().Format(n.dateLayout)
+	currentIndex := n.index + end.UTC().Format(n.dateLayout)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		end = end.Add(-24 * time.Hour)
-		currentIndex = n.index + end.UTC().Format(indexDateFormat)
+		currentIndex = n.index + end.UTC().Format(n.dateLayout)
 	}
 	indices = append(indices, firstIndex)
 	return indices
@@ -79,6 +79,6 @@ func (n IndexNameProvider) IndexName(date time.Time) string {
 	if n.useSingleIndex {
 		return n.index
 	}
-	spanDate := date.UTC().Format(indexDateFormat)
+	spanDate := date.UTC().Format(n.dateLayout)
 	return n.index + spanDate
 }

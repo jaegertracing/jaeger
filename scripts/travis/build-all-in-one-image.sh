@@ -7,9 +7,18 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/travis/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
+DOCKERHUB_LOGIN=${DOCKERHUB_LOGIN:-false}
 
-source ~/.nvm/nvm.sh
-nvm use 10
+expected_version="v10"
+version=$(node --version)
+major_version=${version%.*.*}
+if [ "$major_version" = "$expected_version" ] ; then
+  echo "Node version is as expected: $version"
+else
+  echo "ERROR: installed Node version $version doesn't match expected version $expected_version"
+  exit 1
+fi
+
 make build-ui
 
 set +e
@@ -27,18 +36,18 @@ run_integration_test() {
 }
 
 upload_to_docker() {
-  # Only push the docker container to Docker Hub for master branch
-  if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
-    echo 'upload to Docker Hub'
+  # Only push the docker container to Docker Hub for master/release branch and when dockerhub login is done
+  if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$DOCKERHUB_LOGIN" == "true" ]]; then
+    echo "upload $1 to Docker Hub"
+    export REPO=$1
+    bash ./scripts/travis/upload-to-docker.sh
   else
     echo 'skip docker upload for PR'
-    exit 0
   fi
-  export REPO=$1
-  bash ./scripts/travis/upload-to-docker.sh
 }
 
 make build-all-in-one GOOS=linux GOARCH=$GOARCH
+make create-baseimg-debugimg
 repo=jaegertracing/all-in-one
 docker build -f cmd/all-in-one/Dockerfile \
         --target release \

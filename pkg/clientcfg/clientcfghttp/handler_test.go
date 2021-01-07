@@ -175,7 +175,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			},
 		},
 		{
-			description: "baggage tcollector error",
+			description: "baggage collector error",
 			url:         "/baggageRestrictions?service=Y",
 			statusCode:  http.StatusInternalServerError,
 			body:        "collector error: no mock response provided\n",

@@ -26,6 +26,23 @@ To generate the bindings for your language you would use `protoc` with the appro
 in the [protobuf documentation](https://developers.google.com/protocol-buffers/docs/tutorials) and you can see an example of
 how it is done for Go in the top level Jaeger `Makefile`. 
 
+The easiest way to generate the gRPC storage plugin bindings is to use [Docker Protobuf](https://github.com/jaegertracing/docker-protobuf/) which is a lightweight `protoc` Docker image containing the dependencies needed to generate code for multiple languages. For example, one can generate bindings for C# on Windows with Docker for Windows using the following steps:
+1. First clone the Jaeger github repo to a folder (e.g. `c:\source\repos\jaeger`):
+```
+$ mkdir c:\source\repos\jaeger
+$ cd c:\source\repos\jaeger
+$ git clone https://github.com/jaegertracing/jaeger.git c:\source\repos\jaeger
+```
+2. Initialize the Jaeger repo submodules (this pulls in code from other Jaeger repositories that are needed):
+```
+$ git submodule update --init --recursive
+```
+3. Then execute the following Docker command which mounts the local directory `c:\source\repos\jaeger` to the directory `/jaeger` in the Docker container and then executes the `jaegertracing/protobuf:0.2.0` command. This will create a file called `Storage.cs` in your local Windows folder `c:\source\repos\jaeger\code` containing the gRPC Storage Plugin bindings.
+```
+$ docker run --rm -u 1000 -v/c/source/repos/jaeger:/jaeger -w/jaeger \
+    jaegertracing/protobuf:0.2.0 "-I/jaeger -Iidl/proto/api_v2 -I/usr/include/github.com/gogo/protobuf -Iplugin/storage/grpc/proto --csharp_out=/jaeger/code plugin/storage/grpc/proto/storage.proto"
+```
+
 There are instructions on implementing a `go-plugin` server for non-Go languages in the 
 [go-plugin non-go guide](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md).
 Take note of the required [health check service](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md#3-add-the-grpc-health-checking-service).

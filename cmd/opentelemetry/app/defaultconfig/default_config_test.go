@@ -185,7 +185,7 @@ func TestService(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v:%v", test.cfg.ComponentType, test.cfg.StorageType), func(t *testing.T) {
-			v, _ := jConfig.Viperize(app.AddComponentFlags)
+			v, command := jConfig.Viperize(app.AddComponentFlags)
 			for key, val := range test.viperConfig {
 				v.Set(key, val)
 			}
@@ -200,12 +200,17 @@ func TestService(t *testing.T) {
 			test.cfg.Factories = factories
 			createDefaultConfig := test.cfg.DefaultConfigFactory(v)
 
-			cfg, err := createDefaultConfig(viper.New(), factories)
+			// command set flag is parsed into otelViper
+			otelViper := viper.New()
+			command.Flags().StringArray("set", []string{}, "set overrides settings in OpenTelemetry Collector")
+			cfg, err := createDefaultConfig(otelViper, command, factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
+				assert.Error(t, err)
 				assert.Contains(t, err.Error(), test.err)
 				return
 			}
+			require.NoError(t, err)
 			sort.Strings(test.service.Pipelines["traces"].Exporters)
 			sort.Strings(cfg.Service.Pipelines["traces"].Exporters)
 			sort.Strings(test.service.Pipelines["traces"].Receivers)

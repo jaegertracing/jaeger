@@ -133,6 +133,7 @@ func TestMaintenanceCodecov(t *testing.T) {
 	f.InitFromViper(v)
 	mFactory := metricstest.NewFactory(0)
 	f.Initialize(mFactory, zap.NewNop())
+	defer f.Close()
 
 	waiter := func() {
 		for sleeps := 0; sleeps < 8; sleeps++ {

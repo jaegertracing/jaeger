@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -69,13 +70,13 @@ type ComponentSettings struct {
 
 // DefaultConfigFactory returns a service.ConfigFactory that merges jaeger and otel configs
 func (c *ComponentSettings) DefaultConfigFactory(jaegerViper *viper.Viper) service.ConfigFactory {
-	return func(otelViper *viper.Viper, f component.Factories) (*configmodels.Config, error) {
+	return func(otelViper *viper.Viper, cmd *cobra.Command, f component.Factories) (*configmodels.Config, error) {
 		cfg, err := c.createDefaultConfig()
 		if err != nil {
 			return nil, err
 		}
 		if len(builder.GetConfigFile()) > 0 {
-			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
+			otelCfg, err := service.FileLoaderConfigFactory(otelViper, cmd, f)
 			if err != nil {
 				return nil, err
 			}
@@ -206,13 +207,15 @@ func createExporters(component ComponentType, storageTypes string, factories com
 
 func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 	if jaeger.ThriftCompact == nil {
-		jaeger.ThriftCompact = &confignet.TCPAddr{
-			Endpoint: udpThriftCompactEndpoint,
+		jaeger.ThriftCompact = &jaegerreceiver.ProtocolUDP{
+			Endpoint:        udpThriftCompactEndpoint,
+			ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 		}
 	}
 	if jaeger.ThriftBinary == nil {
-		jaeger.ThriftBinary = &confignet.TCPAddr{
-			Endpoint: udpThriftBinaryEndpoint,
+		jaeger.ThriftBinary = &jaegerreceiver.ProtocolUDP{
+			Endpoint:        udpThriftBinaryEndpoint,
+			ServerConfigUDP: jaegerreceiver.DefaultServerConfigUDP(),
 		}
 	}
 }

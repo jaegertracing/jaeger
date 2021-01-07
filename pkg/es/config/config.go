@@ -59,6 +59,7 @@ type Configuration struct {
 	BulkActions           int            `mapstructure:"-"`
 	BulkFlushInterval     time.Duration  `mapstructure:"-"`
 	IndexPrefix           string         `mapstructure:"index_prefix"`
+	IndexDateLayout       string         `mapstructure:"index_date_layout"`
 	Tags                  TagsAsFields   `mapstructure:"tags_as_fields"`
 	Enabled               bool           `mapstructure:"-"`
 	TLS                   tlscfg.Options `mapstructure:"tls"`
@@ -89,6 +90,7 @@ type ClientBuilder interface {
 	GetMaxSpanAge() time.Duration
 	GetMaxDocCount() int
 	GetIndexPrefix() string
+	GetIndexDateLayout() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
 	GetTagDotReplacement() string
@@ -258,6 +260,11 @@ func (c *Configuration) GetMaxDocCount() int {
 // GetIndexPrefix returns index prefix
 func (c *Configuration) GetIndexPrefix() string {
 	return c.IndexPrefix
+}
+
+// GetIndexDateLayout returns index date layout
+func (c *Configuration) GetIndexDateLayout() string {
+	return c.IndexDateLayout
 }
 
 // GetTagsFilePath returns a path to file containing tag keys

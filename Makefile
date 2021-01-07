@@ -124,8 +124,8 @@ es-otel-exporter-integration-test: go-gen
 
 .PHONY: test-compile-es-scripts
 test-compile-es-scripts:
-	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
-	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
@@ -213,6 +213,10 @@ build-examples:
 build-tracegen:
 	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
 
+.PHONY: build-anonymizer
+build-anonymizer:
+	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/main.go
+
 .PHONY: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
@@ -224,7 +228,7 @@ run-all-in-one: build-ui
 
 .PHONY: build-ui
 build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
-	# Do nothing. If you need to force a rebuild of UI assets, run `make clean`.
+	# UI packaged assets are up-to-date. To force a rebuild, run `make clean`.
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
@@ -317,6 +321,7 @@ build-platform-binaries: build-agent \
 	build-all-in-one \
 	build-examples \
 	build-tracegen \
+	build-anonymizer \
 	build-otel-collector \
 	build-otel-agent \
 	build-otel-ingester \
@@ -360,12 +365,18 @@ docker-images-tracegen:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-tracegen =============="
 
+.PHONY: docker-images-anonymizer
+docker-images-anonymizer:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
+	@echo "Finished building jaeger-anonymizer =============="
+
 .PHONY: docker-images-only
 docker-images-only: docker-images-cassandra \
 	docker-images-elastic \
 	docker-images-jaeger-backend \
 	docker-images-jaeger-backend-debug \
-	docker-images-tracegen
+	docker-images-tracegen \
+	docker-images-anonymizer
 
 .PHONY: docker-push
 docker-push:
@@ -375,7 +386,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen; do \
+	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen anonymizer; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
