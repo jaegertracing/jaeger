@@ -34,7 +34,7 @@ var testingSpan = &model.Span{
 	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
-		Tags:        model.KeyValues{},
+		Tags:        []model.KeyValue(nil),
 	},
 	OperationName: "operationName",
 	Tags: model.KeyValues{
@@ -43,14 +43,14 @@ var testingSpan = &model.Span{
 	},
 	Logs: []model.Log{
 		{
-			Timestamp: time.Now(),
+			Timestamp: time.Now().UTC(),
 			Fields: []model.KeyValue{
 				model.String("logKey", "logValue"),
 			},
 		},
 	},
 	Duration:  time.Second * 5,
-	StartTime: time.Unix(300, 0),
+	StartTime: time.Unix(300, 0).UTC(),
 }
 
 var childSpan1 = &model.Span{
@@ -207,6 +207,24 @@ func TestStoreGetTraceSuccess(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, trace.Spans, 1)
 		assert.Equal(t, testingSpan, trace.Spans[0])
+	})
+}
+
+func TestStoreGetAndMutateTrace(t *testing.T) {
+	withPopulatedMemoryStore(func(store *Store) {
+		trace, err := store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace.Spans, 1)
+		assert.Equal(t, testingSpan, trace.Spans[0])
+		assert.Len(t, trace.Spans[0].Warnings, 0)
+
+		trace.Spans[0].Warnings = append(trace.Spans[0].Warnings, "the end is near")
+
+		trace, err = store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace.Spans, 1)
+		assert.Equal(t, testingSpan, trace.Spans[0])
+		assert.Len(t, trace.Spans[0].Warnings, 0)
 	})
 }
 
