@@ -128,6 +128,14 @@ var childSpan2_1 = &model.Span{
 	StartTime: time.Unix(300, 0),
 }
 
+// This kind of trace cannot be serialized
+var nonSerializableSpan = &model.Span{
+	Process: &model.Process{
+		ServiceName: "naughtyService",
+	},
+	StartTime: time.Date(0, 0, 0, 0, 0, 0, 0, time.UTC),
+}
+
 func withPopulatedMemoryStore(f func(store *Store)) {
 	memStore := NewStore()
 	memStore.WriteSpan(context.Background(), testingSpan)
@@ -228,6 +236,16 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 	})
 }
 
+func TestStoreGetTraceError(t *testing.T) {
+	withPopulatedMemoryStore(func(store *Store) {
+		store.traces[testingSpan.TraceID] = &model.Trace{
+			Spans: []*model.Span{nonSerializableSpan},
+		}
+		_, err := store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.Error(t, err)
+	})
+}
+
 func TestStoreGetTraceFailure(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
 		trace, err := store.GetTrace(context.Background(), model.TraceID{})
@@ -297,6 +315,15 @@ func TestStoreGetEmptyTraceSet(t *testing.T) {
 		traces, err := store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		assert.NoError(t, err)
 		assert.Len(t, traces, 0)
+	})
+}
+
+func TestStoreFindTracesError(t *testing.T) {
+	withPopulatedMemoryStore(func(store *Store) {
+		err := store.WriteSpan(context.Background(), nonSerializableSpan)
+		assert.NoError(t, err)
+		_, err = store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{ServiceName: "naughtyService"})
+		assert.Error(t, err)
 	})
 }
 
