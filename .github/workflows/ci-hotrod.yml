@@ -1,0 +1,46 @@
+name: CIT Hotrod
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  hotrod:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+
+    - uses: docker/login-action@v1
+      id: dockerhub-login
+      with:
+        username: jaegertracingbot
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      if: env.DOCKERHUB_TOKEN != null
+
+    - name: Export DOCKERHUB_LOGIN variable
+      run: |
+        echo "DOCKERHUB_LOGIN=true" >> $GITHUB_ENV
+      if: steps.dockerhub-login.outcome == 'success'
+
+    - name: Export BRANCH variable
+      uses: ./.github/actions/setup-branch
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Build, test, and publish hotrod image
+      run: bash scripts/travis/hotrod-integration-test.sh

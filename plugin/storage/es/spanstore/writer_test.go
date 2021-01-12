@@ -50,7 +50,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory}),
+		writer:    NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory, IndexDateLayout: "2006-01-02"}),
 	}
 	fn(w)
 }
@@ -62,31 +62,32 @@ func TestSpanWriterIndices(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	date := time.Now()
-	dateFormat := date.UTC().Format("2006-01-02")
+	layout := "2006-01-02"
+	dateFormat := date.UTC().Format(layout)
 	testCases := []struct {
 		indices []string
 		params  SpanWriterParams
 	}{
 		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: "", Archive: false},
+			IndexPrefix: "", IndexDateLayout: layout, Archive: false},
 			indices: []string{spanIndex + dateFormat, serviceIndex + dateFormat}},
 		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: "", UseReadWriteAliases: true},
+			IndexPrefix: "", IndexDateLayout: layout, UseReadWriteAliases: true},
 			indices: []string{spanIndex + "write", serviceIndex + "write"}},
 		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: "foo:", Archive: false},
+			IndexPrefix: "foo:", IndexDateLayout: layout, Archive: false},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + dateFormat, "foo:" + indexPrefixSeparator + serviceIndex + dateFormat}},
 		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: "foo:", UseReadWriteAliases: true},
+			IndexPrefix: "foo:", IndexDateLayout: layout, UseReadWriteAliases: true},
 			indices: []string{"foo:-" + spanIndex + "write", "foo:-" + serviceIndex + "write"}},
 		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: "", Archive: true},
+			IndexPrefix: "", IndexDateLayout: layout, Archive: true},
 			indices: []string{spanIndex + archiveIndexSuffix, ""}},
 		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: "foo:", Archive: true},
+			IndexPrefix: "foo:", IndexDateLayout: layout, Archive: true},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix, ""}},
 		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
+			IndexPrefix: "foo:", IndexDateLayout: layout, Archive: true, UseReadWriteAliases: true},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveWriteIndexSuffix, ""}},
 	}
 	for _, testCase := range testCases {
@@ -163,7 +164,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				w.client.On("Index").Return(indexService)
 
-				err = w.writer.WriteSpan(span)
+				err = w.writer.WriteSpan(context.Background(), span)
 
 				if testCase.expectedError == "" {
 					require.NoError(t, err)
@@ -254,8 +255,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName := indexWithDate(spanIndex, span.StartTime)
-	serviceIndexName := indexWithDate(serviceIndex, span.StartTime)
+	spanIndexName := indexWithDate(spanIndex, "2006-01-02", span.StartTime)
+	serviceIndexName := indexWithDate(serviceIndex, "2006-01-02", span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }

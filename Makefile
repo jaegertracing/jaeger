@@ -1,6 +1,8 @@
 JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
-OTEL_COLLECTOR_DIR = ./cmd/opentelemetry-collector
+OTEL_COLLECTOR_DIR = ./cmd/opentelemetry
+
+include docker/Makefile
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name '*.go' \
@@ -30,6 +32,8 @@ ifeq ($(UNAME), s390x)
 else
 	RACE=-race
 endif
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOLINT=golint
@@ -46,11 +50,10 @@ BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
 SED=sed
-THRIFT_VER=0.9.3
-THRIFT_IMG=thrift:$(THRIFT_VER)
+THRIFT_VER=0.13
+THRIFT_IMG=jaegertracing/thrift:$(THRIFT_VER)
 THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
 THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
-THRIFT_GEN=$(shell which thrift-gen)
 THRIFT_GEN_DIR=thrift-gen
 
 SWAGGER_VER=0.12.0
@@ -58,7 +61,7 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
-JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.1.0
+JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.2.0
 
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
 COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
@@ -78,15 +81,10 @@ test-and-lint: test fmt lint
 go-gen:
 	@echo skipping go generate ./...
 
-.PHONY: md-to-godoc-gen
-md-to-godoc-gen:
-	find . -name README.md -not -path "./vendor/*" -not -path "./_site/*" -not -path "./idl/*" \
-		| grep -v '^./README.md' \
-		| xargs -I% md-to-godoc -license -licenseFile LICENSE -input=%
-
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html lint.log fmt.log
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
+		jaeger-ui/packages/jaeger-ui/build
 
 .PHONY: test
 test: go-gen test-otel
@@ -107,10 +105,27 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
-.PHONE: test-compile-es-scripts
+.PHONY: mem-and-badger-storage-integration-test
+mem-and-badger-storage-integration-test: badger-storage-integration-test grpc-plugin-storage-integration-test
+
+.PHONY: badger-storage-integration-test
+badger-storage-integration-test:
+	STORAGE=badger $(MAKE) storage-integration-test
+
+.PHONY: grpc-plugin-storage-integration-test
+grpc-plugin-storage-integration-test:
+	(cd examples/memstore-plugin/ && go build .)
+	STORAGE=grpc-plugin $(MAKE) storage-integration-test
+
+.PHONY: es-otel-exporter-integration-test
+es-otel-exporter-integration-test: go-gen
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; cd ${OTEL_COLLECTOR_DIR} && go clean -testcache && $(GOTEST) -tags=integration ./app/exporter/elasticsearchexporter | $(COLORIZE)"
+
+.PHONY: test-compile-es-scripts
 test-compile-es-scripts:
-	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
-	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
+	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
@@ -132,10 +147,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	@echo pre-compiling tests
-	@time go test -i $(shell go list ./...)
-	# TODO Switch to single `go test` that already supports multiple packages, but watch out for .nocover dirs.
-	@./scripts/cover.sh $(shell go list ./...)
+	$(GOTEST) -timeout 5m -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -154,7 +166,7 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	time gosec -quiet -exclude=G104,G107 -exclude-dir=cmd/opentelemetry-collector ./...
+	time gosec -quiet -exclude=G104,G107 -exclude-dir=cmd/opentelemetry ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
@@ -188,130 +200,135 @@ go-lint:
 	@$(GOLINT) $(ALL_PKGS) | grep -v _nolint.go >> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
-.PHONE: elasticsearch-mappings
+.PHONY: elasticsearch-mappings
 elasticsearch-mappings:
 	esc -pkg mappings -o plugin/storage/es/mappings/gen_assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
 
 .PHONY: build-examples
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
-ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
-else
-	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
-endif
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
+	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
 
-.PHONE: docker-hotrod
+.PHONY: build-anonymizer
+build-anonymizer:
+	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/main.go
+
+.PHONY: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
-	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
+	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: run-all-in-one
-run-all-in-one:
+run-all-in-one: build-ui
 	go run -tags ui ./cmd/all-in-one --log-level debug
 
 .PHONY: build-ui
-build-ui:
+build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
+	# UI packaged assets are up-to-date. To force a rebuild, run `make clean`.
+
+jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+
+cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
+
+cmd/query/app/ui/placeholder/gen_assets.go: cmd/query/app/ui/placeholder/public/index.html
 	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
-build-all-in-one-linux: build-ui
+build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
-.PHONY: build-all-in-one
-build-all-in-one: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
-	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
-else
-	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
-endif
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: SUFFIX = -debug
 
-.PHONY: build-agent
-build-agent:
-ifeq ($(GOARCH), s390x)
-	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
-else
-	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
-endif
+.PHONY: build-all-in-one build-all-in-one-debug
+build-all-in-one build-all-in-one-debug: build-ui elasticsearch-mappings
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/all-in-one/all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
-.PHONY: build-query
-build-query:
-ifeq ($(GOARCH), s390x)
-	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
-else
-	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
-endif
+.PHONY: build-agent build-agent-debug
+build-agent build-agent-debug:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/agent/agent$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
 
-.PHONY: build-collector
-build-collector: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
-	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
-else
-	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
-endif
+.PHONY: build-query build-query-debug
+build-query build-query-debug: build-ui
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/query/query$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+
+.PHONY: build-collector build-collector-debug
+build-collector build-collector-debug: elasticsearch-mappings
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/collector/collector$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: build-otel-collector
 build-otel-collector: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
 	cd ${OTEL_COLLECTOR_DIR}/cmd/collector && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-else
-	cd ${OTEL_COLLECTOR_DIR}/cmd/collector && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS) $(BUILD_INFO) main.go
-endif
 
 .PHONY: build-otel-agent
 build-otel-agent:
-ifeq ($(GOARCH), s390x)
 	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-else
-	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS) $(BUILD_INFO) main.go
-endif
 
 .PHONY: build-otel-ingester
 build-otel-ingester:
-ifeq ($(GOARCH), s390x)
 	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-else
-	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS) $(BUILD_INFO) main.go
-endif
 
-.PHONY: build-ingester
-build-ingester:
-ifeq ($(GOARCH), s390x)
-	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
-else
-	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
-endif
+.PHONY: build-otel-all-in-one
+build-otel-all-in-one: build-ui
+	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -tags ui -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
+
+.PHONY: build-ingester build-ingester-debug
+build-ingester build-ingester-debug:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 
 .PHONY: docker
-docker: build-ui build-binaries-linux docker-images-only
+docker: build-binaries-linux docker-images-only
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=amd64 $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	GOOS=windows $(MAKE) build-platform-binaries
+	GOOS=windows GOARCH=amd64 $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin $(MAKE) build-platform-binaries
+	GOOS=darwin GOARCH=amd64 $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-s390x
 build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-arm64
+build-binaries-arm64:
+	GOOS=linux GOARCH=arm64 $(MAKE) build-platform-binaries
+
+.PHONY: build-binaries-ppc64le
+build-binaries-ppc64le:
+	GOOS=linux GOARCH=ppc64le $(MAKE) build-platform-binaries
+
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent build-otel-ingester
+build-platform-binaries: build-agent \
+	build-agent-debug \
+	build-collector \
+	build-collector-debug \
+	build-query \
+	build-query-debug \
+	build-ingester \
+	build-ingester-debug \
+	build-all-in-one \
+	build-examples \
+	build-tracegen \
+	build-anonymizer \
+	build-otel-collector \
+	build-otel-agent \
+	build-otel-ingester \
+	build-otel-all-in-one
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -324,23 +341,42 @@ docker-images-elastic:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
-.PHONY: docker-images-jaeger-backend
-docker-images-jaeger-backend:
+docker-images-jaeger-backend: TARGET = release
+docker-images-jaeger-backend-debug: TARGET = debug
+docker-images-jaeger-backend-debug: SUFFIX = -debug
+
+.PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
+docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
 	for component in agent collector query ingester ; do \
-		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
+		docker build --target $(TARGET) \
+			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
+			--build-arg base_image=$(BASE_IMAGE) \
+			--build-arg debug_image=$(DEBUG_IMAGE) \
+			--build-arg TARGETARCH=$(GOARCH) \
+			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry-collector/cmd/collector
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry-collector/cmd/agent
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry-collector/cmd/ingester
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry/cmd/agent --build-arg TARGETARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry/cmd/ingester --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-tracegen =============="
 
+.PHONY: docker-images-anonymizer
+docker-images-anonymizer:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
+	@echo "Finished building jaeger-anonymizer =============="
+
 .PHONY: docker-images-only
-docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend docker-images-tracegen
+docker-images-only: docker-images-cassandra \
+	docker-images-elastic \
+	docker-images-jaeger-backend \
+	docker-images-jaeger-backend-debug \
+	docker-images-tracegen \
+	docker-images-anonymizer
 
 .PHONY: docker-push
 docker-push:
@@ -350,7 +386,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen; do \
+	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen anonymizer; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
@@ -363,6 +399,8 @@ include crossdock/rules.mk
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
+	mkdir -p jaeger-ui/packages/jaeger-ui/build/
+	cp cmd/query/app/ui/placeholder/public/index.html jaeger-ui/packages/jaeger-ui/build/index.html
 	mkdir -p cmd/query/app/ui/actual
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
@@ -388,7 +426,6 @@ changelog:
 install-tools:
 	go install github.com/wadey/gocovmerge
 	go install golang.org/x/lint/golint
-	go install github.com/sectioneight/md-to-godoc
 	go install github.com/mjibson/esc
 	go install github.com/securego/gosec/cmd/gosec
 	go install honnef.co/go/tools/cmd/staticcheck
@@ -397,9 +434,10 @@ install-tools:
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples lint cover
+# TODO (ys) added test-otel to at least ensure tests run in CI,
+#      but this needs to be changed in the lint and cover targets instead
+test-ci: build-examples lint cover test-otel
 
-# TODO at the moment we're not generating tchan_*.go files
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
 	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
@@ -411,11 +449,6 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/baggage.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/zipkincore.thrift
-	@echo Generate TChannel-Thrift bindings
-	$(THRIFT_GEN) --inputFile idl/thrift/jaeger.thrift --outputDir $(THRIFT_GEN_DIR)
-	$(THRIFT_GEN) --inputFile idl/thrift/sampling.thrift --outputDir $(THRIFT_GEN_DIR)
-	$(THRIFT_GEN) --inputFile idl/thrift/baggage.thrift --outputDir $(THRIFT_GEN_DIR)
-	$(THRIFT_GEN) --inputFile idl/thrift/zipkincore.thrift --outputDir $(THRIFT_GEN_DIR)
 	rm -rf thrift-gen/*/*-remote thrift-gen/*/*.bak
 
 idl/thrift/jaeger.thrift:
@@ -442,6 +475,7 @@ install-mockery:
 .PHONY: generate-mocks
 generate-mocks: install-mockery
 	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
+	$(MOCKERY) -all -dir ./storage/spanstore/ -output ./storage/spanstore/mocks
 
 .PHONY: echo-version
 echo-version:
@@ -528,3 +562,18 @@ proto:
 		-Iidl/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto
+
+.PHONY: proto-hotrod
+proto-hotrod:
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/ \
+		examples/hotrod/services/driver/driver.proto
+
+.PHONY: certs
+certs:
+	cd pkg/config/tlscfg/testdata && ./gen-certs.sh
+
+.PHONY: certs-dryrun
+certs-dryrun:
+	cd pkg/config/tlscfg/testdata && ./gen-certs.sh -d

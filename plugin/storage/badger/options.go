@@ -25,22 +25,23 @@ import (
 
 // Options store storage plugin related configs
 type Options struct {
-	primary *NamespaceConfig
+	Primary NamespaceConfig `mapstructure:",squash"`
 	// This storage plugin does not support additional namespaces
 }
 
 // NamespaceConfig is badger's internal configuration data
 type NamespaceConfig struct {
-	namespace             string
-	SpanStoreTTL          time.Duration
-	ValueDirectory        string
-	KeyDirectory          string
-	Ephemeral             bool // Setting this to true will ignore ValueDirectory and KeyDirectory
-	SyncWrites            bool
-	MaintenanceInterval   time.Duration
-	MetricsUpdateInterval time.Duration
-	Truncate              bool
-	ReadOnly              bool
+	namespace      string
+	SpanStoreTTL   time.Duration `mapstructure:"span_store_ttl"`
+	ValueDirectory string        `mapstructure:"directory_value"`
+	KeyDirectory   string        `mapstructure:"directory_key"`
+	// Setting this to true will ignore ValueDirectory and KeyDirectory
+	Ephemeral             bool          `mapstructure:"ephemeral"`
+	SyncWrites            bool          `mapstructure:"consistency"`
+	MaintenanceInterval   time.Duration `mapstructure:"maintenance_interval"`
+	MetricsUpdateInterval time.Duration `mapstructure:"metrics_update_interval"`
+	Truncate              bool          `mapstructure:"truncate"`
+	ReadOnly              bool          `mapstructure:"read_only"`
 }
 
 const (
@@ -70,7 +71,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	defaultBadgerDataDir := getCurrentExecutableDir()
 
 	options := &Options{
-		primary: &NamespaceConfig{
+		Primary: NamespaceConfig{
 			namespace:             primaryNamespace,
 			SpanStoreTTL:          defaultTTL,
 			SyncWrites:            false, // Performance over durability
@@ -93,10 +94,10 @@ func getCurrentExecutableDir() string {
 
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	addFlags(flagSet, opt.primary)
+	addFlags(flagSet, opt.Primary)
 }
 
-func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
+func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixEphemeral,
 		nsConfig.Ephemeral,
@@ -146,7 +147,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	initFromViper(opt.primary, v)
+	initFromViper(&opt.Primary, v)
 }
 
 func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
@@ -162,6 +163,6 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
 }
 
 // GetPrimary returns the primary namespace configuration
-func (opt *Options) GetPrimary() *NamespaceConfig {
-	return opt.primary
+func (opt *Options) GetPrimary() NamespaceConfig {
+	return opt.Primary
 }

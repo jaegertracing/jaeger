@@ -90,6 +90,8 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
+
+	assert.NoError(t, f.Close())
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
@@ -104,41 +106,69 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	assert.Nil(t, r)
 }
 
-func TestLoadTagsFromFile(t *testing.T) {
+func TestTagKeysAsFields(t *testing.T) {
 	tests := []struct {
-		path  string
-		tags  []string
-		error bool
+		path          string
+		include       string
+		expected      []string
+		errorExpected bool
 	}{
 		{
-			path:  "fixtures/do_not_exists.txt",
-			error: true,
+			path:          "fixtures/do_not_exists.txt",
+			errorExpected: true,
 		},
 		{
-			path: "fixtures/tags_01.txt",
-			tags: []string{"foo", "bar", "space"},
+			path:     "fixtures/tags_01.txt",
+			expected: []string{"foo", "bar", "space"},
 		},
 		{
-			path: "fixtures/tags_02.txt",
-			tags: nil,
+			path:     "fixtures/tags_02.txt",
+			expected: nil,
+		},
+		{
+			include:  "televators,eriatarka,thewidow",
+			expected: []string{"televators", "eriatarka", "thewidow"},
+		},
+		{
+			expected: nil,
+		},
+		{
+			path:     "fixtures/tags_01.txt",
+			include:  "televators,eriatarka,thewidow",
+			expected: []string{"foo", "bar", "space", "televators", "eriatarka", "thewidow"},
+		},
+		{
+			path:     "fixtures/tags_02.txt",
+			include:  "televators,eriatarka,thewidow",
+			expected: []string{"televators", "eriatarka", "thewidow"},
 		},
 	}
 
 	for _, test := range tests {
-		tags, err := loadTagsFromFile(test.path)
-		if test.error {
+		cfg := escfg.Configuration{
+			Tags: escfg.TagsAsFields{
+				File:    test.path,
+				Include: test.include,
+			},
+		}
+
+		tags, err := cfg.TagKeysAsFields()
+		if test.errorExpected {
 			require.Error(t, err)
 			assert.Nil(t, tags)
 		} else {
-			assert.Equal(t, test.tags, tags)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, tags)
 		}
 	}
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping5, serviceMapping5 := GetMappings(10, 0, 5)
-	spanMapping6, serviceMapping6 := GetMappings(10, 0, 6)
-	spanMapping7, serviceMapping7 := GetMappings(10, 0, 7)
+	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5)
+	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6)
+	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7)
+	dependenciesMapping6 := GetDependenciesMappings(10, 0, 6)
+	dependenciesMapping7 := GetDependenciesMappings(10, 0, 7)
 	tests := []struct {
 		name   string
 		toTest string
@@ -149,6 +179,8 @@ func TestFactory_LoadMapping(t *testing.T) {
 		{name: "/jaeger-service.json", toTest: serviceMapping6},
 		{name: "/jaeger-span-7.json", toTest: spanMapping7},
 		{name: "/jaeger-service-7.json", toTest: serviceMapping7},
+		{name: "/jaeger-dependencies.json", toTest: dependenciesMapping6},
+		{name: "/jaeger-dependencies-7.json", toTest: dependenciesMapping7},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
@@ -208,4 +240,15 @@ func TestInitFromOptions(t *testing.T) {
 	f.InitFromOptions(o)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
+}
+
+func TestNewOptions(t *testing.T) {
+	primaryCfg := escfg.Configuration{IndexPrefix: "primary"}
+	archiveCfg := escfg.Configuration{IndexPrefix: "archive"}
+	o := NewOptionsFromConfig(primaryCfg, archiveCfg)
+	assert.Equal(t, primaryCfg, o.Primary.Configuration)
+	assert.Equal(t, primaryNamespace, o.Primary.namespace)
+	assert.Equal(t, 1, len(o.others))
+	assert.Equal(t, archiveCfg, o.others[archiveNamespace].Configuration)
+	assert.Equal(t, archiveNamespace, o.others[archiveNamespace].namespace)
 }

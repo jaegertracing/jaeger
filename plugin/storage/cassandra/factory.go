@@ -18,6 +18,7 @@ package cassandra
 import (
 	"errors"
 	"flag"
+	"io"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -88,14 +89,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
 	f.logger = logger
 
-	primarySession, err := f.primaryConfig.NewSession()
+	primarySession, err := f.primaryConfig.NewSession(logger)
 	if err != nil {
 		return err
 	}
 	f.primarySession = primarySession
 
 	if f.archiveConfig != nil {
-		if archiveSession, err := f.archiveConfig.NewSession(); err == nil {
+		if archiveSession, err := f.archiveConfig.NewSession(logger); err == nil {
 			f.archiveSession = archiveSession
 		} else {
 			return err
@@ -173,4 +174,15 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 	}
 
 	return []cSpanStore.Option{cSpanStore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...))}, nil
+}
+
+var _ io.Closer = (*Factory)(nil)
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	f.Options.Get(archiveStorageConfig)
+	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
+		cfg.TLS.Close()
+	}
+	return f.Options.GetPrimary().TLS.Close()
 }

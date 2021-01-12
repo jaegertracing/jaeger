@@ -16,6 +16,7 @@
 package reporter
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -30,10 +31,10 @@ import (
 func TestMultiReporter(t *testing.T) {
 	r1, r2 := testutils.NewInMemoryReporter(), testutils.NewInMemoryReporter()
 	r := NewMultiReporter(r1, r2)
-	e1 := r.EmitZipkinBatch([]*zipkincore.Span{
+	e1 := r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{
 		{},
 	})
-	e2 := r.EmitBatch(&jaeger.Batch{
+	e2 := r.EmitBatch(context.Background(), &jaeger.Batch{
 		Spans: []*jaeger.Span{
 			{},
 		},
@@ -51,10 +52,10 @@ func TestMultiReporterErrors(t *testing.T) {
 	err := errors.New(errMsg)
 	r1, r2 := mockReporter{err: err}, mockReporter{err: err}
 	r := NewMultiReporter(r1, r2)
-	e1 := r.EmitZipkinBatch([]*zipkincore.Span{
+	e1 := r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{
 		{},
 	})
-	e2 := r.EmitBatch(&jaeger.Batch{
+	e2 := r.EmitBatch(context.Background(), &jaeger.Batch{
 		Spans: []*jaeger.Span{
 			{},
 		},
@@ -67,10 +68,10 @@ type mockReporter struct {
 	err error
 }
 
-func (r mockReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
+func (r mockReporter) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
 	return r.err
 }
 
-func (r mockReporter) EmitBatch(batch *jaeger.Batch) error {
+func (r mockReporter) EmitBatch(_ context.Context, _ *jaeger.Batch) error {
 	return r.err
 }

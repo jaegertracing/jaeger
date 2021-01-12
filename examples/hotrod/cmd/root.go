@@ -45,6 +45,7 @@ var (
 	routePort    int
 
 	basepath string
+	jaegerUI string
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -77,9 +78,13 @@ func init() {
 
 	// Flag for serving frontend at custom basepath url
 	RootCmd.PersistentFlags().StringVarP(&basepath, "basepath", "b", "", `Basepath for frontend service(default "/")`)
+	RootCmd.PersistentFlags().StringVarP(&jaegerUI, "jaeger-ui", "j", "http://localhost:16686", "Address of Jaeger UI to create [find trace] links")
 
 	rand.Seed(int64(time.Now().Nanosecond()))
-	logger, _ = zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
+	logger, _ = zap.NewDevelopment(
+		zap.AddStacktrace(zapcore.FatalLevel),
+		zap.AddCallerSkip(1),
+	)
 	cobra.OnInitialize(onInitialize)
 }
 

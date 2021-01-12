@@ -21,11 +21,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 )
 
@@ -37,11 +39,13 @@ type ZipkinServerParams struct {
 	AllowedHeaders string
 	HealthCheck    *healthcheck.HealthCheck
 	Logger         *zap.Logger
+	MetricsFactory metrics.Factory
 }
 
 // StartZipkinServer based on the given parameters
 func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 	if params.HostPort == "" {
+		params.Logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
 		return nil, nil
 	}
 
@@ -73,10 +77,12 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	})
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
-	server.Handler = cors.Handler(recoveryHandler(r))
+	server.Handler = cors.Handler(httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory))
 	go func(listener net.Listener, server *http.Server) {
 		if err := server.Serve(listener); err != nil {
-			params.Logger.Fatal("Could not launch Zipkin server", zap.Error(err))
+			if err != http.ErrServerClosed {
+				params.Logger.Error("Could not launch Zipkin server", zap.Error(err))
+			}
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)
 	}(listener, server)

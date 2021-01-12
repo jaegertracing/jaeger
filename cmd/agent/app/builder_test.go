@@ -16,6 +16,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	yaml "gopkg.in/yaml.v2"
@@ -35,8 +37,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
-	"github.com/jaegertracing/jaeger/tchannel/collector/app"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
@@ -56,6 +56,11 @@ processors:
       server:
         hostPort: 2.2.2.2:6831
     - model: jaeger
+      protocol: compact
+      server:
+        hostPort: 3.3.3.3:6831
+        socketBufferSize: 16384
+    - model: jaeger
       protocol: binary
       workers: 20
       server:
@@ -71,7 +76,7 @@ func TestBuilderFromConfig(t *testing.T) {
 	cfg := Builder{}
 	err := yaml.Unmarshal([]byte(yamlConfig), &cfg)
 	require.NoError(t, err)
-	assert.Len(t, cfg.Processors, 3)
+	assert.Len(t, cfg.Processors, 4)
 	for i := range cfg.Processors {
 		cfg.Processors[i].applyDefaults()
 		cfg.Processors[i].Server.applyDefaults()
@@ -98,6 +103,17 @@ func TestBuilderFromConfig(t *testing.T) {
 	}, cfg.Processors[1])
 	assert.Equal(t, ProcessorConfiguration{
 		Model:    jaegerModel,
+		Protocol: compactProtocol,
+		Workers:  10,
+		Server: ServerConfiguration{
+			QueueSize:        1000,
+			MaxPacketSize:    65000,
+			HostPort:         "3.3.3.3:6831",
+			SocketBufferSize: 16384,
+		},
+	}, cfg.Processors[2])
+	assert.Equal(t, ProcessorConfiguration{
+		Model:    jaegerModel,
 		Protocol: binaryProtocol,
 		Workers:  20,
 		Server: ServerConfiguration{
@@ -105,7 +121,7 @@ func TestBuilderFromConfig(t *testing.T) {
 			MaxPacketSize: 65001,
 			HostPort:      "3.3.3.3:6832",
 		},
-	}, cfg.Processors[2])
+	}, cfg.Processors[3])
 	assert.Equal(t, "4.4.4.4:5778", cfg.HTTPServer.HostPort)
 }
 
@@ -126,7 +142,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}{
 		{protocol: Protocol("bad"), err: "cannot find protocol factory for protocol bad"},
 		{protocol: compactProtocol, model: Model("bad"), err: "cannot find agent processor for data model bad"},
-		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 HostPort:}"},
+		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 SocketBufferSize:0 HostPort:}"},
 		{protocol: compactProtocol, model: zipkinModel, hostPort: "bad-host-port", errContains: "bad-host-port"},
 	}
 	for _, tc := range testCases {
@@ -175,20 +191,20 @@ func (f fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 	return fakeCollectorProxy{}
 }
 
-func (fakeCollectorProxy) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+func (fakeCollectorProxy) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) (err error) {
 	return nil
 }
-func (fakeCollectorProxy) EmitBatch(batch *jaeger.Batch) (err error) {
+func (fakeCollectorProxy) EmitBatch(_ context.Context, _ *jaeger.Batch) (err error) {
 	return nil
 }
 func (fakeCollectorProxy) Close() error {
 	return nil
 }
 
-func (f fakeCollectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (f fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*sampling.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")
 }
-func (fakeCollectorProxy) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (fakeCollectorProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
 	return nil, nil
 }
 
@@ -202,15 +218,11 @@ func TestCreateCollectorProxy(t *testing.T) {
 			err: "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags: []string{"--collector.host-port=foo"},
+			flags: []string{"--reporter.type=grpc"},
 			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags: []string{"--reporter.type=grpc", "--collector.host-port=foo"},
-			err:   "at least one collector hostPort address is required when resolver is not available",
-		},
-		{
-			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo", "--collector.host-port=foo"},
+			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
 			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
 		},
 		{
@@ -221,10 +233,8 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 	for _, test := range tests {
 		flags := &flag.FlagSet{}
-		tchannel.AddFlags(flags)
 		grpc.AddFlags(flags)
 		reporter.AddFlags(flags)
-		app.AddFlags(flags)
 
 		command := cobra.Command{}
 		command.PersistentFlags().AddGoFlagSet(flags)
@@ -252,7 +262,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 			assert.Nil(t, proxy)
 		} else {
 			require.NoError(t, err)
-			proxy.GetReporter().EmitBatch(jaeger.NewBatch())
+			proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
 			metricsFactory.AssertCounterMetrics(t, test.metric)
 		}
 	}
@@ -267,4 +277,43 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	assert.EqualError(t, err, "unknown reporter type ")
+}
+
+func TestPublishOpts(t *testing.T) {
+	v := viper.New()
+	cfg := &Builder{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+	err := command.ParseFlags([]string{
+		"--http-server.host-port=:8080",
+		"--processor.jaeger-binary.server-host-port=:1111",
+		"--processor.jaeger-binary.server-max-packet-size=4242",
+		"--processor.jaeger-binary.server-queue-size=24",
+		"--processor.jaeger-binary.workers=42",
+	})
+	require.NoError(t, err)
+	cfg.InitFromViper(v)
+
+	baseMetrics := metricstest.NewFactory(time.Second)
+	forkFactory := metricstest.NewFactory(time.Second)
+	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.server-max-packet-size",
+		Value: 4242,
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.server-queue-size",
+		Value: 24,
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.workers",
+		Value: 42,
+	})
 }

@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
+	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -30,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/ports"
@@ -49,9 +52,12 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			mFactory := svc.MetricsFactory.
+			baseFactory := svc.MetricsFactory.
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
+			mFactory := fork.New("internal",
+				jexpvar.NewFactory(10), // backend for internal opts
+				baseFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
@@ -79,6 +85,7 @@ func main() {
 			if err := agent.Run(); err != nil {
 				return fmt.Errorf("failed to run the agent: %w", err)
 			}
+
 			svc.RunAndThen(func() {
 				agent.Stop()
 				cp.Close()
@@ -89,6 +96,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.AgentAdminHTTP))
 
 	config.AddFlags(
 		v,

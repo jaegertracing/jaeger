@@ -14,6 +14,8 @@ services:
     command: ["all"]
     environment:
       - JAEGER_AGENT_HOST=jaeger
+      # Note: if your application is using Node.js Jaeger Client, you need port 6832,
+      #       unless issue https://github.com/jaegertracing/jaeger/issues/1596 is resolved.
       - JAEGER_AGENT_PORT=6831
     networks:
       - jaeger-example

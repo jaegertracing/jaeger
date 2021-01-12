@@ -18,6 +18,9 @@ import (
 	"context"
 	"fmt"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -27,12 +30,13 @@ const spanBatchSize = 1000
 
 // grpcServer implements shared.StoragePlugin and reads/writes spans and dependencies
 type grpcServer struct {
-	Impl StoragePlugin
+	Impl        StoragePlugin
+	ArchiveImpl ArchiveStoragePlugin
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *grpcServer) GetDependencies(ctx context.Context, r *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
-	deps, err := s.Impl.DependencyReader().GetDependencies(r.EndTime, r.EndTime.Sub(r.StartTime))
+	deps, err := s.Impl.DependencyReader().GetDependencies(ctx, r.EndTime, r.EndTime.Sub(r.StartTime))
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +47,7 @@ func (s *grpcServer) GetDependencies(ctx context.Context, r *storage_v1.GetDepen
 
 // WriteSpan saves the span
 func (s *grpcServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	err := s.Impl.SpanWriter().WriteSpan(r.Span)
+	err := s.Impl.SpanWriter().WriteSpan(ctx, r.Span)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +57,9 @@ func (s *grpcServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanReque
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *grpcServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
 	trace, err := s.Impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
+	if err == spanstore.ErrTraceNotFound {
+		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+	}
 	if err != nil {
 		return err
 	}
@@ -159,4 +166,42 @@ func (s *grpcServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Span
 	}
 
 	return nil
+}
+
+func (s *grpcServer) Capabilities(ctx context.Context, request *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
+	return &storage_v1.CapabilitiesResponse{
+		ArchiveSpanReader: s.ArchiveImpl != nil,
+		ArchiveSpanWriter: s.ArchiveImpl != nil,
+	}, nil
+}
+
+func (s *grpcServer) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer) error {
+	if s.ArchiveImpl == nil {
+		return status.Error(codes.Unimplemented, "not implemented")
+	}
+	trace, err := s.ArchiveImpl.ArchiveSpanReader().GetTrace(stream.Context(), r.TraceID)
+	if err == spanstore.ErrTraceNotFound {
+		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+	}
+	if err != nil {
+		return err
+	}
+
+	err = s.sendSpans(trace.Spans, stream.Send)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *grpcServer) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
+	if s.ArchiveImpl == nil {
+		return nil, status.Error(codes.Unimplemented, "not implemented")
+	}
+	err := s.ArchiveImpl.ArchiveSpanWriter().WriteSpan(ctx, r.Span)
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.WriteSpanResponse{}, nil
 }

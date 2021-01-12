@@ -3,7 +3,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
   <head>
     <title>HotROD - Rides On Demand</title>
-    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script src="./jquery-3.1.1.min.js"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 
@@ -61,7 +61,7 @@ function formatDuration(duration) {
 var clientUUID = Math.round(Math.random() * 10000);
 var lastRequestID = 0;
 
-$(".uuid").html("Your web client's id: <strong>" + clientUUID + "</strong>");
+$(".uuid").html(`Your web client's id: <strong>${clientUUID}</strong>`);
 
 $(".hotrod-button").click(function(evt) {
   lastRequestID++;
@@ -78,6 +78,16 @@ $(".hotrod-button").click(function(evt) {
   var pathPrefix = window.location.pathname;
   pathPrefix = pathPrefix != "/" ? pathPrefix : '';
 
+  var config = {};
+  $.ajax(pathPrefix + '/config?nonse=' + Math.random(), {
+    method: 'GET',
+    success: function(data, textStatus) {
+      var after = Date.now();
+      console.log(data);
+      config = data;
+    },
+  });
+
   $.ajax(pathPrefix + '/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
     headers: headers,
     method: 'GET',
@@ -85,7 +95,13 @@ $(".hotrod-button").click(function(evt) {
       var after = Date.now();
       console.log(data);
       var duration = formatDuration(data.ETA);
-      freshCar.html('HotROD <b>' + data.Driver + '</b> arriving in ' + duration + ' [req: ' + requestID + ', latency: ' + (after-before) + 'ms]');
+      var traceLink = '';
+      if (config && config['jaeger']) {
+        var jaeger = config['jaeger'];
+        var trace = `${jaeger}/search?limit=20&lookback=1h&service=frontend&tags=%7B%22driver%22%3A%22${data.Driver}%22%7D`;
+        traceLink = ` [<a href="${trace}" target="_blank">find trace</a>]`;
+      }
+      freshCar.html(`HotROD <b>${data.Driver}</b> arriving in ${duration} [req: ${requestID}, latency: ${after-before}ms] ${traceLink}`);
     },
   });
 });

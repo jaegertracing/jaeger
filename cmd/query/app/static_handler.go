@@ -30,15 +30,18 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 var (
 	favoriteIcon    = "favicon.ico"
 	staticRootFiles = []string{favoriteIcon}
+
+	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	basePathPattern = regexp.MustCompile(`<base href="/"`)
-	basePathReplace = `<base href="%s/"`
-	errBadBasePath  = "Invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'"
+	versionPattern  = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
+	basePathPattern = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
@@ -58,9 +61,10 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
-	options   StaticAssetsHandlerOptions
-	indexHTML atomic.Value // stores []byte
-	assetsFS  http.FileSystem
+	options    StaticAssetsHandlerOptions
+	indexHTML  atomic.Value // stores []byte
+	assetsFS   http.FileSystem
+	newWatcher func() (fswatcher.Watcher, error)
 }
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
@@ -68,6 +72,7 @@ type StaticAssetsHandlerOptions struct {
 	BasePath     string
 	UIConfigPath string
 	Logger       *zap.Logger
+	NewWatcher   func() (fswatcher.Watcher, error)
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
@@ -81,14 +86,19 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		options.Logger = zap.NewNop()
 	}
 
-	indexHTML, err := loadIndexBytes(assetsFS.Open, options)
+	if options.NewWatcher == nil {
+		options.NewWatcher = fswatcher.NewWatcher
+	}
+
+	indexHTML, err := loadAndEnrichIndexHTML(assetsFS.Open, options)
 	if err != nil {
 		return nil, err
 	}
 
 	h := &StaticAssetsHandler{
-		options:  options,
-		assetsFS: assetsFS,
+		options:    options,
+		assetsFS:   assetsFS,
+		newWatcher: options.NewWatcher,
 	}
 
 	h.indexHTML.Store(indexHTML)
@@ -97,11 +107,12 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	return h, nil
 }
 
-func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
+func loadAndEnrichIndexHTML(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
 	indexBytes, err := loadIndexHTML(open)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
+	// replace UI config
 	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
 	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
 		return nil, err
@@ -113,71 +124,81 @@ func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHa
 		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
 	}
 	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
+	// replace Jaeger version
+	versionJSON, _ := json.Marshal(version.Get())
+	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
+	indexBytes = versionPattern.ReplaceAll(indexBytes, []byte(versionString))
+	// replace base path
 	if options.BasePath == "" {
 		options.BasePath = "/"
 	}
 	if options.BasePath != "/" {
 		if !strings.HasPrefix(options.BasePath, "/") || strings.HasSuffix(options.BasePath, "/") {
-			return nil, fmt.Errorf(errBadBasePath, options.BasePath)
+			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", options.BasePath)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(basePathReplace, options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, options.BasePath)))
 	}
 
 	return indexBytes, nil
 }
 
+func (sH *StaticAssetsHandler) configListener(watcher fswatcher.Watcher) {
+	for {
+		select {
+		case event := <-watcher.Events():
+			// ignore if the event filename is not the UI configuration
+			if filepath.Base(event.Name) != filepath.Base(sH.options.UIConfigPath) {
+				continue
+			}
+			// ignore if the event is a chmod event (permission or owner changes)
+			if event.Op&fsnotify.Chmod == fsnotify.Chmod {
+				continue
+			}
+			if event.Op&fsnotify.Remove == fsnotify.Remove {
+				sH.options.Logger.Warn("the UI config file has been removed, using the last known version")
+				continue
+			}
+			// this will catch events for all files inside the same directory, which is OK if we don't have many changes
+			sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
+			content, err := loadAndEnrichIndexHTML(sH.assetsFS.Open, sH.options)
+			if err != nil {
+				sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
+			}
+			sH.indexHTML.Store(content)
+			sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.UIConfigPath))
+		case err, ok := <-watcher.Errors():
+			if !ok {
+				return
+			}
+			sH.options.Logger.Error("event", zap.Error(err))
+		}
+	}
+}
+
 func (sH *StaticAssetsHandler) watch() {
 	if sH.options.UIConfigPath == "" {
+		sH.options.Logger.Info("UI config path not provided, config file will not be watched")
 		return
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := sH.newWatcher()
 	if err != nil {
 		sH.options.Logger.Error("failed to create a new watcher for the UI config", zap.Error(err))
 		return
 	}
 
 	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					// this might be related to a file inside the dir, so, just log a warn if this is about the file we care about
-					// otherwise, just ignore the event
-					if event.Name == sH.options.UIConfigPath {
-						sH.options.Logger.Warn("the UI config file has been removed, using the last known version")
-					}
-					continue
-				}
-
-				// this will catch events for all files inside the same directory, which is OK if we don't have many changes
-				sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
-
-				content, err := loadIndexBytes(sH.assetsFS.Open, sH.options)
-				if err != nil {
-					sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
-				}
-
-				sH.indexHTML.Store(content)
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				sH.options.Logger.Error("event", zap.Error(err))
-			}
-		}
+		sH.configListener(watcher)
 	}()
 
-	err = watcher.Add(sH.options.UIConfigPath)
-	if err != nil {
+	if err := watcher.Add(sH.options.UIConfigPath); err != nil {
 		sH.options.Logger.Error("error adding watcher to file", zap.String("file", sH.options.UIConfigPath), zap.Error(err))
 	} else {
 		sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
 	}
 
 	dir := filepath.Dir(sH.options.UIConfigPath)
-	err = watcher.Add(dir)
-	if err != nil {
+	if err := watcher.Add(dir); err != nil {
 		sH.options.Logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
 	} else {
 		sH.options.Logger.Info("watching", zap.String("dir", dir))
@@ -202,7 +223,7 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 		return nil, nil
 	}
 	ext := filepath.Ext(uiConfig)
-	bytes, err := ioutil.ReadFile(uiConfig) /* nolint #nosec , this comes from an admin, not user */
+	bytes, err := ioutil.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}

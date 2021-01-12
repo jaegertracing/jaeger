@@ -1,0 +1,60 @@
+pull_request_rules:
+  - name: remove outdated reviews
+    conditions:
+      - base=master
+    actions:
+      dismiss_reviews: {}
+  - name: Container image changes
+    conditions:
+    - files~=Dockerfile
+    actions:
+      assign:
+        users:
+          - jpkrohling
+      request_reviews:
+        users:
+          - jpkrohling
+
+  - name: CI-related changes
+    conditions:
+    - files~=(\.github/|\.travis.yaml|scripts/travis/)
+    actions:
+      assign:
+        users:
+          - jpkrohling
+      request_reviews:
+        users:
+          - jpkrohling
+
+  - name: Jaeger v1 commands
+    conditions:
+    - files~=(cmd/agent/|cmd/all-in-one/|cmd/collector/|cmd/query/)
+    actions:
+      assign:
+        users:
+          - jpkrohling
+      request_reviews:
+        users:
+          - jpkrohling
+
+  - name: tracegen
+    conditions:
+    - files~=(cmd/tracegen/|internal/tracegen/)
+    actions:
+      assign:
+        users:
+          - jpkrohling
+      request_reviews:
+        users:
+          - jpkrohling
+
+  - name: jpkroehling's interests
+    conditions:
+    - files~=(monitoring/|pkg/queue/)
+    actions:
+      assign:
+        users:
+          - jpkrohling
+      request_reviews:
+        users:
+          - jpkrohling

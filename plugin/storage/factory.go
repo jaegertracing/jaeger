@@ -18,11 +18,13 @@ package storage
 import (
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -44,6 +46,7 @@ const (
 	badgerStorageType        = "badger"
 	downsamplingRatio        = "downsampling.ratio"
 	downsamplingHashSalt     = "downsampling.hashsalt"
+	spanStorageType          = "span-storage-type"
 
 	// defaultDownsamplingRatio is the default downsampling ratio.
 	defaultDownsamplingRatio = 1.0
@@ -109,6 +112,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			return err
 		}
 	}
+	f.publishOpts()
+
 	return nil
 }
 
@@ -228,4 +233,30 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
 	return archive.CreateArchiveSpanWriter()
+}
+
+var _ io.Closer = (*Factory)(nil)
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	var errs []error
+	for _, storageType := range f.SpanWriterTypes {
+		if factory, ok := f.factories[storageType]; ok {
+			if closer, ok := factory.(io.Closer); ok {
+				err := closer.Close()
+				if err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
+	return multierror.Wrap(errs)
+}
+
+func (f *Factory) publishOpts() {
+	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	internalFactory.Gauge(metrics.Options{Name: downsamplingRatio}).
+		Update(int64(f.FactoryConfig.DownsamplingRatio))
+	internalFactory.Gauge(metrics.Options{Name: spanStorageType + "-" + f.SpanReaderType}).
+		Update(1)
 }

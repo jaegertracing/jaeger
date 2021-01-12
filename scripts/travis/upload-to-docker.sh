@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euxf -o pipefail
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 IMAGE="${REPO:?'missing REPO env var'}:latest"
@@ -15,26 +15,22 @@ elif [[ $BRANCH =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   TAG=${major}.${minor}.${patch}
   echo "BRANCH is a release tag: major=$major, minor=$minor, patch=$patch"
 else
-  # TODO why do we do /// ?
-  TAG="${BRANCH///}"
+  TAG="${BRANCH}"
 fi
-echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, BRANCH=$BRANCH, TAG=$TAG, IMAGE=$IMAGE"
+echo "REPO=$REPO, BRANCH=$BRANCH, TAG=$TAG, IMAGE=$IMAGE"
 
 # add major, major.minor and major.minor.patch tags
-if [[ -n $major ]]; then
+if [[ -n ${major:-} ]]; then
   docker tag $IMAGE $REPO:${major}
-  if [[ -n $minor ]]; then
+  if [[ -n ${minor:-} ]]; then
     docker tag $IMAGE $REPO:${major}.${minor}
-    if [[ -n $patch ]]; then
+    if [[ -n ${patch:-} ]]; then
         docker tag $IMAGE $REPO:${major}.${minor}.${patch}
     fi
   fi
 fi
 
-# Do not enable echo before the `docker login` command to avoid revealing the password.
-set -x
-docker login -u $DOCKER_USER -p $DOCKER_PASS
-if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" ]]; then
+if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
   docker push $REPO:latest
 else
@@ -42,7 +38,7 @@ else
   docker push $REPO
 fi
 
-SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
+SNAPSHOT_IMAGE="$REPO-snapshot:$GITHUB_SHA"
 echo "Pushing snapshot image $SNAPSHOT_IMAGE"
 docker tag $IMAGE $SNAPSHOT_IMAGE
 docker push $SNAPSHOT_IMAGE

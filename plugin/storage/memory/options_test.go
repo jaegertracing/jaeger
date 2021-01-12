@@ -23,9 +23,9 @@ import (
 )
 
 func TestOptionsWithFlags(t *testing.T) {
-	opts := &Options{}
-	v, command := config.Viperize(opts.AddFlags)
+	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
+	opts := Options{}
 	opts.InitFromViper(v)
 
 	assert.Equal(t, 100, opts.Configuration.MaxTraces)

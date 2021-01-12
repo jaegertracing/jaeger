@@ -41,7 +41,7 @@ func NewFactory() *Factory {
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.options.AddFlags(flagSet)
+	AddFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
@@ -49,11 +49,18 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.options.InitFromViper(v)
 }
 
+// InitFromOptions initializes factory from the supplied options
+func (f *Factory) InitFromOptions(opts Options) {
+	f.options = opts
+}
+
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
 	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.config))
+	f.publishOpts()
+
 	return nil
 }
 
@@ -70,4 +77,10 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.store, nil
+}
+
+func (f *Factory) publishOpts() {
+	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	internalFactory.Gauge(metrics.Options{Name: limit}).
+		Update(int64(f.options.Configuration.MaxTraces))
 }

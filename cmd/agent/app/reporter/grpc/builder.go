@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -55,7 +56,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	var dialTarget string
 	if b.TLS.Enabled { // user requested a secure connection
 		logger.Info("Agent requested secure grpc connection to collector(s)")
-		tlsConf, err := b.TLS.Config()
+		tlsConf, err := b.TLS.Config(logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS config: %w", err)
 		}
@@ -90,5 +91,20 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
-	return grpc.Dial(dialTarget, dialOptions...)
+	conn, err := grpc.Dial(dialTarget, dialOptions...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	go func(cc *grpc.ClientConn) {
+		logger.Info("Checking connection to collector")
+		for {
+			s := cc.GetState()
+			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
+			cc.WaitForStateChange(context.Background(), s)
+		}
+	}(conn)
+
+	return conn, nil
 }

@@ -24,6 +24,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
+	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -63,7 +66,9 @@ func main() {
 			}
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
+			metricsFactory := fork.New("internal",
+				jexpvar.NewFactory(10), // backend for internal opts
+				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
@@ -92,19 +97,24 @@ func main() {
 				HealthCheck:    svc.HC(),
 			})
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
-			c.Start(collectorOpts)
+			if err := c.Start(collectorOpts); err != nil {
+				logger.Fatal("Failed to start collector", zap.Error(err))
+			}
 
 			svc.RunAndThen(func() {
+				if err := c.Close(); err != nil {
+					logger.Error("failed to cleanly close the collector", zap.Error(err))
+				}
 				if closer, ok := spanWriter.(io.Closer); ok {
 					err := closer.Close()
 					if err != nil {
 						logger.Error("failed to close span writer", zap.Error(err))
 					}
 				}
-
-				if err := c.Close(); err != nil {
-					logger.Error("failed to cleanly close the collector", zap.Error(err))
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
+
 			})
 			return nil
 		},
@@ -113,6 +123,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))
 
 	config.AddFlags(
 		v,

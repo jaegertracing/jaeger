@@ -16,10 +16,10 @@
 package app
 
 import (
+	"context"
 	"sync"
 	"time"
 
-	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
@@ -141,7 +141,8 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	}
 
 	startTime := time.Now()
-	if err := sp.spanWriter.WriteSpan(span); err != nil {
+	// TODO context should be propagated from upstream components
+	if err := sp.spanWriter.WriteSpan(context.TODO(), span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
 	} else {
@@ -164,7 +165,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 	for i, mSpan := range mSpans {
 		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
 		if !ok && sp.reportBusy {
-			return nil, tchannel.ErrServerBusy
+			return nil, processor.ErrBusy
 		}
 		retMe[i] = ok
 	}
@@ -177,10 +178,24 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 }
 
 func (sp *spanProcessor) addCollectorTags(span *model.Span) {
-	// TODO add support for deduping tags, https://github.com/jaegertracing/jaeger/issues/1778
-	for k, v := range sp.collectorTags {
-		span.Process.Tags = append(span.Process.Tags, model.String(k, v))
+	if len(sp.collectorTags) == 0 {
+		return
 	}
+	dedupKey := make(map[string]struct{})
+	for _, tag := range span.Process.Tags {
+		if value, ok := sp.collectorTags[tag.Key]; ok && value == tag.AsString() {
+			sp.logger.Debug("ignore collector process tags", zap.String("key", tag.Key), zap.String("value", value))
+			dedupKey[tag.Key] = struct{}{}
+		}
+	}
+	// ignore collector tags if has the same key-value in spans
+	for k, v := range sp.collectorTags {
+		if _, ok := dedupKey[k]; !ok {
+			span.Process.Tags = append(span.Process.Tags, model.String(k, v))
+		}
+	}
+	typedTags := model.KeyValues(span.Process.Tags)
+	typedTags.Sort()
 }
 
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport) bool {

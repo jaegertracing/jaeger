@@ -14,6 +14,7 @@
 package grpc
 
 import (
+	"context"
 	"net"
 	"strings"
 	"testing"
@@ -25,6 +26,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	yaml "gopkg.in/yaml.v2"
 
@@ -39,6 +41,8 @@ collectorHostPorts:
     - 127.0.0.1:14268
     - 127.0.0.1:14269
 `
+
+var testCertKeyLocation = "../../../../../pkg/config/tlscfg/testdata/"
 
 type noopNotifier struct{}
 
@@ -61,47 +65,79 @@ func TestBuilderFromConfig(t *testing.T) {
 }
 
 func TestBuilderWithCollectors(t *testing.T) {
+	spanHandler1 := &mockSpanHandler{}
+	s1, addr1 := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, spanHandler1)
+	})
+	defer s1.Stop()
+
 	tests := []struct {
-		target          string
-		name            string
-		hostPorts       []string
-		checkSuffixOnly bool
-		notifier        discovery.Notifier
-		discoverer      discovery.Discoverer
-		expectedError   string
+		target               string
+		name                 string
+		hostPorts            []string
+		checkSuffixOnly      bool
+		notifier             discovery.Notifier
+		discoverer           discovery.Discoverer
+		expectedError        string
+		checkConnectionState bool
+		expectedState        string
 	}{
 		{
-			target:          "///round_robin",
-			name:            "with roundrobin schema",
-			hostPorts:       []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
-			checkSuffixOnly: true,
-			notifier:        nil,
-			discoverer:      nil,
+			target:               "///round_robin",
+			name:                 "with roundrobin schema",
+			hostPorts:            []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
+			checkSuffixOnly:      true,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: false,
 		},
 		{
-			target:          "127.0.0.1:9876",
-			name:            "with single host",
-			hostPorts:       []string{"127.0.0.1:9876"},
-			checkSuffixOnly: false,
-			notifier:        nil,
-			discoverer:      nil,
+			target:               "127.0.0.1:9876",
+			name:                 "with single host",
+			hostPorts:            []string{"127.0.0.1:9876"},
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: false,
 		},
 		{
-			target:          "///round_robin",
-			name:            "with custom resolver and fixed discoverer",
-			hostPorts:       []string{"dns://random_stuff"},
-			checkSuffixOnly: true,
-			notifier:        noopNotifier{},
-			discoverer:      discovery.FixedDiscoverer{},
+			target:               "///round_robin",
+			name:                 "with custom resolver and fixed discoverer",
+			hostPorts:            []string{"dns://random_stuff"},
+			checkSuffixOnly:      true,
+			notifier:             noopNotifier{},
+			discoverer:           discovery.FixedDiscoverer{},
+			checkConnectionState: false,
 		},
 		{
-			target:          "",
-			name:            "without collectorPorts and resolver",
-			hostPorts:       nil,
-			checkSuffixOnly: false,
-			notifier:        nil,
-			discoverer:      nil,
-			expectedError:   "at least one collector hostPort address is required when resolver is not available",
+			target:               "",
+			name:                 "without collectorPorts and resolver",
+			hostPorts:            nil,
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			expectedError:        "at least one collector hostPort address is required when resolver is not available",
+			checkConnectionState: false,
+		},
+		{
+			target:               addr1.String(),
+			name:                 "with collector connection status ready",
+			hostPorts:            []string{addr1.String()},
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: true,
+			expectedState:        "READY",
+		},
+		{
+			target:               "random_stuff",
+			name:                 "with collector connection status failure",
+			hostPorts:            []string{"random_stuff"},
+			checkSuffixOnly:      false,
+			notifier:             nil,
+			discoverer:           nil,
+			checkConnectionState: true,
+			expectedState:        "TRANSIENT_FAILURE",
 		},
 	}
 
@@ -117,7 +153,9 @@ func TestBuilderWithCollectors(t *testing.T) {
 			if test.expectedError == "" {
 				require.NoError(t, err)
 				require.NotNil(t, conn)
-
+				if test.checkConnectionState {
+					assertConnectionState(t, conn, test.expectedState)
+				}
 				if test.checkSuffixOnly {
 					assert.True(t, strings.HasSuffix(conn.Target(), test.target))
 				} else {
@@ -150,7 +188,7 @@ func TestProxyBuilder(t *testing.T) {
 				CollectorHostPorts: []string{"localhost:0000"},
 				TLS: tlscfg.Options{
 					Enabled: true,
-					CAPath:  "testdata/not/valid",
+					CAPath:  testCertKeyLocation + "/not/valid",
 				},
 			},
 			expectError: true,
@@ -161,9 +199,9 @@ func TestProxyBuilder(t *testing.T) {
 				CollectorHostPorts: []string{"localhost:0000"},
 				TLS: tlscfg.Options{
 					Enabled:  true,
-					CAPath:   "testdata/testCA.pem",
-					CertPath: "testdata/client.jaeger.io-client.pem",
-					KeyPath:  "testdata/client.jaeger.io-client-key.pem",
+					CAPath:   testCertKeyLocation + "/wrong-CA-cert.pem",
+					CertPath: testCertKeyLocation + "/example-client-cert.pem",
+					KeyPath:  testCertKeyLocation + "/example-client-key.pem",
 				},
 			},
 			expectError: false,
@@ -209,12 +247,12 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client to untrusted TLS server",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/server.jaeger.io.pem",
-				KeyPath:  "testdata/server.jaeger.io-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				ServerName: "server.jaeger.io",
+				ServerName: "example.com",
 			},
 			expectError: true,
 		},
@@ -222,12 +260,12 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/server.jaeger.io.pem",
-				KeyPath:  "testdata/server.jaeger.io-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled: true,
-				CAPath:  "testdata/rootCA.pem",
+				CAPath:  testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			expectError: true,
 		},
@@ -235,13 +273,13 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/server.jaeger.io.pem",
-				KeyPath:  "testdata/server.jaeger.io-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
 			},
 			expectError: false,
 		},
@@ -249,14 +287,14 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/server.jaeger.io.pem",
-				KeyPath:      "testdata/server.jaeger.io-key.pem",
-				ClientCAPath: "testdata/rootCA.pem",
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
 			},
 			expectError: true,
 		},
@@ -264,16 +302,16 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/server.jaeger.io.pem",
-				KeyPath:      "testdata/server.jaeger.io-key.pem",
-				ClientCAPath: "testdata/testCA.pem", // NB: wrong CA
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
-				CertPath:   "testdata/client.jaeger.io-client.pem",
-				KeyPath:    "testdata/client.jaeger.io-client-key.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: true,
 		},
@@ -281,16 +319,16 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/server.jaeger.io.pem",
-				KeyPath:      "testdata/server.jaeger.io-key.pem",
-				ClientCAPath: "testdata/rootCA.pem",
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
-				CertPath:   "testdata/client.jaeger.io-client.pem",
-				KeyPath:    "testdata/client.jaeger.io-client-key.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: false,
 		},
@@ -299,7 +337,7 @@ func TestProxyClientTLS(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var opts []grpc.ServerOption
 			if test.serverTLS.Enabled {
-				tlsCfg, err := test.serverTLS.Config()
+				tlsCfg, err := test.serverTLS.Config(zap.NewNop())
 				require.NoError(t, err)
 				opts = []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}
 			}
@@ -331,7 +369,7 @@ func TestProxyClientTLS(t *testing.T) {
 
 			r := proxy.GetReporter()
 
-			err = r.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+			err = r.EmitBatch(context.Background(), &jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
 
 			if test.expectError {
 				require.Error(t, err)
@@ -341,5 +379,19 @@ func TestProxyClientTLS(t *testing.T) {
 
 			require.Nil(t, proxy.Close())
 		})
+	}
+}
+
+func assertConnectionState(t *testing.T, conn *grpc.ClientConn, expectedState string) {
+	for {
+		s := conn.GetState()
+		if s == connectivity.Ready {
+			assert.True(t, s.String() == expectedState)
+			break
+		}
+		if s == connectivity.TransientFailure {
+			assert.True(t, s.String() == expectedState)
+			break
+		}
 	}
 }

@@ -1,0 +1,17 @@
+receivers:
+  examplereceiver:
+
+processors:
+  exampleprocessor:
+
+exporters:
+  jaeger_badger:
+    ephemeral: false
+    directory_key: key
+
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver]
+      processors: [exampleprocessor]
+      exporters: [jaeger_badger]

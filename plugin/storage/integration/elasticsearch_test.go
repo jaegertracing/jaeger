@@ -39,13 +39,15 @@ import (
 )
 
 const (
-	host            = "0.0.0.0"
-	queryPort       = "9200"
-	queryHostPort   = host + ":" + queryPort
-	queryURL        = "http://" + queryHostPort
-	indexPrefix     = "integration-test"
-	tagKeyDeDotChar = "@"
-	maxSpanAge      = time.Hour * 72
+	host               = "0.0.0.0"
+	queryPort          = "9200"
+	queryHostPort      = host + ":" + queryPort
+	queryURL           = "http://" + queryHostPort
+	indexPrefix        = "integration-test"
+	indexDateLayout    = "2006-01-02"
+	tagKeyDeDotChar    = "@"
+	maxSpanAge         = time.Hour * 72
+	defaultMaxDocCount = 10_000
 )
 
 type ESStorageIntegration struct {
@@ -78,16 +80,6 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
-
-	esVersion, err := s.getVersion()
-	if err != nil {
-		return err
-	}
-	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
-	client := eswrapper.WrapESClient(s.client, s.bulkProcessor, esVersion)
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
-	s.DependencyReader = dependencyStore
-	s.DependencyWriter = dependencyStore
 	s.initSpanstore(allTagsAsFields, archive)
 	s.CleanUp = func() error {
 		return s.esCleanUp(allTagsAsFields, archive)
@@ -95,7 +87,7 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	s.Refresh = s.esRefresh
 	s.esCleanUp(allTagsAsFields, archive)
 	// TODO: remove this flag after ES support returning spanKind when get operations
-	s.notSupportSpanKindWithOperation = true
+	s.NotSupportSpanKindWithOperation = true
 	return nil
 }
 
@@ -109,12 +101,13 @@ func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 
 func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
+	s.bulkProcessor = bp
 	esVersion, err := s.getVersion()
 	if err != nil {
 		return err
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping := es.GetMappings(5, 1, client.GetVersion())
+	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, client.GetVersion())
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,
@@ -138,7 +131,16 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
+		MaxDocCount:       defaultMaxDocCount,
 	})
+	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
+	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
+	err = dependencyStore.CreateTemplates(depMapping)
+	if err != nil {
+		return err
+	}
+	s.DependencyReader = dependencyStore
+	s.DependencyWriter = dependencyStore
 	return nil
 }
 
@@ -171,7 +173,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 	s := &ESStorageIntegration{}
 	require.NoError(t, s.initializeES(allTagsAsFields, archive))
 
-	s.Fixtures = loadAndParseQueryTestCases(t, "fixtures/queries_es.json")
+	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
 	if archive {
 		t.Run("ArchiveTrace", s.testArchiveTrace)
@@ -204,7 +206,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
-	require.NoError(t, s.SpanWriter.WriteSpan(expected))
+	require.NoError(t, s.SpanWriter.WriteSpan(context.Background(), expected))
 	s.refresh(t)
 
 	var actual *model.Trace

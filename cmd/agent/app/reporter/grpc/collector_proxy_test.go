@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"context"
 	"io"
 	"net"
 	"testing"
@@ -56,7 +57,7 @@ func TestMultipleCollectors(t *testing.T) {
 	r := proxy.GetReporter()
 	// TODO do not iterate, just create two batches
 	for i := 0; i < 100; i++ {
-		err := r.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+		err := r.EmitBatch(context.Background(), &jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
 		require.NoError(t, err)
 		if len(spanHandler1.getRequests()) > 0 && len(spanHandler2.getRequests()) > 0 {
 			bothServers = true

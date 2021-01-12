@@ -107,7 +107,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) 
 
 	var writeErrors []error
 	for _, span := range trace.Spans {
-		err := qs.options.ArchiveSpanWriter.WriteSpan(span)
+		err := qs.options.ArchiveSpanWriter.WriteSpan(ctx, span)
 		if err != nil {
 			writeErrors = append(writeErrors, err)
 		}
@@ -121,8 +121,8 @@ func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
 }
 
 // GetDependencies implements dependencystore.Reader.GetDependencies
-func (qs QueryService) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	return qs.dependencyReader.GetDependencies(endTs, lookback)
+func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	return qs.dependencyReader.GetDependencies(ctx, endTs, lookback)
 }
 
 // InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.

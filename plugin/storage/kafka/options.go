@@ -45,6 +45,7 @@ const (
 	suffixProtocolVersion  = ".protocol-version"
 	suffixBatchLinger      = ".batch-linger"
 	suffixBatchSize        = ".batch-size"
+	suffixBatchMinMessages = ".batch-min-messages"
 	suffixBatchMaxMessages = ".batch-max-messages"
 
 	defaultBroker           = "127.0.0.1:9092"
@@ -55,6 +56,7 @@ const (
 	defaultCompressionLevel = 0
 	defaultBatchLinger      = 0
 	defaultBatchSize        = 0
+	defaultBatchMinMessages = 0
 	defaultBatchMaxMessages = 0
 )
 
@@ -116,23 +118,6 @@ type Options struct {
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
-		configPrefix+suffixBrokers,
-		defaultBroker,
-		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
-	flagSet.String(
-		configPrefix+suffixTopic,
-		defaultTopic,
-		"The name of the kafka topic")
-	flagSet.String(
-		configPrefix+suffixProtocolVersion,
-		"",
-		"Kafka protocol version - must be supported by kafka server")
-	flagSet.String(
-		configPrefix+suffixEncoding,
-		defaultEncoding,
-		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
-	)
-	flagSet.String(
 		configPrefix+suffixRequiredAcks,
 		defaultRequiredAcks,
 		"(experimental) Required kafka broker acknowledgement. i.e. noack, local, all",
@@ -158,9 +143,36 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		"(experimental) Number of bytes to batch before sending records to Kafka. Higher value reduce request to Kafka but increase latency and the possibility of data loss in case of process restart. See https://kafka.apache.org/documentation/",
 	)
 	flagSet.Int(
+		configPrefix+suffixBatchMinMessages,
+		defaultBatchMinMessages,
+		"(experimental) The best-effort minimum number of messages needed to send a batch of records to Kafka. Higher value reduce request to Kafka but increase latency and the possibility of data loss in case of process restart. See https://kafka.apache.org/documentation/",
+	)
+	flagSet.Int(
 		configPrefix+suffixBatchMaxMessages,
 		defaultBatchMaxMessages,
-		"(experimental) Number of message to batch before sending records to Kafka. Higher value reduce request to Kafka but increase latency and the possibility of data loss in case of process restart. See https://kafka.apache.org/documentation/",
+		"(experimental) Maximum number of message to batch before sending records to Kafka",
+	)
+	opt.AddOTELFlags(flagSet)
+}
+
+// AddOTELFlags adds flags supported by the OTEL Collector
+func (opt *Options) AddOTELFlags(flagSet *flag.FlagSet) {
+	flagSet.String(
+		configPrefix+suffixBrokers,
+		defaultBroker,
+		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
+	flagSet.String(
+		configPrefix+suffixTopic,
+		defaultTopic,
+		"The name of the kafka topic")
+	flagSet.String(
+		configPrefix+suffixProtocolVersion,
+		"",
+		"Kafka protocol version - must be supported by kafka server")
+	flagSet.String(
+		configPrefix+suffixEncoding,
+		defaultEncoding,
+		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
 	)
 	auth.AddFlags(configPrefix, flagSet)
 }
@@ -195,6 +207,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		AuthenticationConfig: authenticationOptions,
 		BatchLinger:          v.GetDuration(configPrefix + suffixBatchLinger),
 		BatchSize:            v.GetInt(configPrefix + suffixBatchSize),
+		BatchMinMessages:     v.GetInt(configPrefix + suffixBatchMinMessages),
 		BatchMaxMessages:     v.GetInt(configPrefix + suffixBatchMaxMessages),
 	}
 	opt.Topic = v.GetString(configPrefix + suffixTopic)

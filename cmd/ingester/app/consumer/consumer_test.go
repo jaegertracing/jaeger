@@ -68,7 +68,7 @@ func (s partitionConsumerWrapper) Topic() string {
 	return s.topic
 }
 
-func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer) *kmocks.Consumer {
+func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, mc *smocks.PartitionConsumer) *kmocks.Consumer {
 	pcha := make(chan cluster.PartitionConsumer, 1)
 	pcha <- &partitionConsumerWrapper{
 		topic:             topic,
@@ -77,27 +77,26 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer) 
 	}
 	saramaClusterConsumer := &kmocks.Consumer{}
 	saramaClusterConsumer.On("Partitions").Return((<-chan cluster.PartitionConsumer)(pcha))
-	saramaClusterConsumer.On("Close").Return(nil)
+	saramaClusterConsumer.On("Close").Return(nil).Run(func(args mock.Arguments) {
+		mc.Close()
+	})
 	saramaClusterConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	return saramaClusterConsumer
 }
 
 func newConsumer(
+	t *testing.T,
 	metricsFactory metrics.Factory,
 	topic string,
 	processor processor.SpanProcessor,
 	consumer consumer.Consumer) *Consumer {
 
 	logger, _ := zap.NewDevelopment()
-	return &Consumer{
-		metricsFactory:      metricsFactory,
-		logger:              logger,
-		internalConsumer:    consumer,
-		partitionIDToState:  make(map[int32]*consumerState),
-		partitionsHeldGauge: partitionsHeldGauge(metricsFactory),
-		deadlockDetector:    newDeadlockDetector(metricsFactory, logger, time.Second),
-
-		processorFactory: ProcessorFactory{
+	consumerParams := Params{
+		MetricsFactory:   metricsFactory,
+		Logger:           logger,
+		InternalConsumer: consumer,
+		ProcessorFactory: ProcessorFactory{
 			topic:          topic,
 			consumer:       consumer,
 			metricsFactory: metricsFactory,
@@ -106,6 +105,10 @@ func newConsumer(
 			parallelism:    1,
 		},
 	}
+
+	c, err := New(consumerParams)
+	require.NoError(t, err)
+	return c
 }
 
 func TestSaramaConsumerWrapper_MarkPartitionOffset(t *testing.T) {
@@ -136,7 +139,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest := newConsumer(t, localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer, mc))
 
 	undertest.partitionIDToState = map[int32]*consumerState{
 		partition: {
@@ -202,7 +205,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest := newConsumer(t, localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer, mc))
 
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))
@@ -238,7 +241,7 @@ func TestHandleClosePartition(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(metricsFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest := newConsumer(t, metricsFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer, mc))
 	undertest.deadlockDetector = newDeadlockDetector(metricsFactory, undertest.logger, 200*time.Millisecond)
 	undertest.Start()
 	defer undertest.Close()

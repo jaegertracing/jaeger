@@ -15,6 +15,7 @@
 package adaptive
 
 import (
+	"context"
 	"errors"
 	"io"
 	"math"
@@ -151,7 +152,7 @@ func NewProcessor(
 }
 
 // GetSamplingStrategy implements Thrift endpoint for retrieving sampling strategy for a service.
-func (p *processor) GetSamplingStrategy(service string) (*sampling.SamplingStrategyResponse, error) {
+func (p *processor) GetSamplingStrategy(_ context.Context, service string) (*sampling.SamplingStrategyResponse, error) {
 	p.RLock()
 	defer p.RUnlock()
 	if strategy, ok := p.strategyResponses[service]; ok {

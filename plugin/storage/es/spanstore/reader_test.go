@@ -40,6 +40,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+const defaultMaxDocCount = 10_000
+
 var exampleESSpan = []byte(
 	`{
 	   "traceID": "1",
@@ -101,6 +103,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
+			MaxDocCount:       defaultMaxDocCount,
 		}),
 	}
 	fn(r)
@@ -173,7 +176,7 @@ func TestSpanReaderIndices(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
-		actual := r.timeRangeIndices(r.spanIndexPrefix, date, date)
+		actual := r.timeRangeIndices(r.spanIndexPrefix, "2006-01-02", date, date)
 		assert.Equal(t, []string{testCase.index}, actual)
 	}
 }
@@ -432,6 +435,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	yesterday := today.AddDate(0, 0, -1)
 	twoDaysAgo := today.AddDate(0, 0, -2)
+	dateLayout := "2006-01-02"
 
 	testCases := []struct {
 		startTime time.Time
@@ -442,30 +446,30 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
+				indexWithDate(spanIndex, dateLayout, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
+				indexWithDate(spanIndex, dateLayout, today),
+				indexWithDate(spanIndex, dateLayout, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
-				indexWithDate(spanIndex, twoDaysAgo),
+				indexWithDate(spanIndex, dateLayout, today),
+				indexWithDate(spanIndex, dateLayout, yesterday),
+				indexWithDate(spanIndex, dateLayout, twoDaysAgo),
 			},
 		},
 	}
 	withSpanReader(func(r *spanReaderTest) {
 		for _, testCase := range testCases {
-			actual := r.reader.timeRangeIndices(spanIndex, testCase.startTime, testCase.endTime)
+			actual := r.reader.timeRangeIndices(spanIndex, dateLayout, testCase.startTime, testCase.endTime)
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})
@@ -473,7 +477,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := indexWithDate(spanIndex, time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indexWithDate(spanIndex, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }
@@ -804,7 +808,18 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	testGet(traceIDAggregation, t)
+	testCases := []struct {
+		aggregrationID string
+	}{
+		{traceIDAggregation},
+		{servicesAggregation},
+		{operationsAggregation},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.aggregrationID, func(t *testing.T) {
+			testGet(testCase.aggregrationID, t)
+		})
+	}
 }
 
 func TestTraceIDsStringsToModelsConversion(t *testing.T) {
@@ -835,15 +850,23 @@ func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Ca
 	return multiSearchService.On("Do", mock.AnythingOfType("*context.valueCtx"))
 }
 
+// matchTermsAggregation uses reflection to match the size attribute of the TermsAggregation; neither
+// attributes nor getters are exported by TermsAggregation.
+func matchTermsAggregation(termsAgg *elastic.TermsAggregation) bool {
+	val := reflect.ValueOf(termsAgg).Elem()
+	sizeVal := val.FieldByName("size").Elem().Int()
+	return sizeVal == defaultMaxDocCount
+}
+
 func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService := &mocks.SearchService{}
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
-	searchService.On("Size", mock.MatchedBy(func(i int) bool {
-		return i == 0 || i == defaultDocCount
+	searchService.On("Size", mock.MatchedBy(func(size int) bool {
+		return size == 0 // Aggregations apply size (bucket) limits in their own query objects, and do not apply at the parent query level.
 	})).Return(searchService)
-	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.MatchedBy(func(ctx context.Context) bool {

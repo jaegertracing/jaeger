@@ -1,0 +1,30 @@
+name: FOSSA
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  fossa-license-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ^1.14.x
+
+      - name: Add GOPATH
+        run: |
+          echo "GOPATH=$(go env GOPATH)"
+          echo "GOPATH=$(go env GOPATH)" >>"$GITHUB_ENV"
+          echo "$GOPATH/bin" >>"$GITHUB_PATH"
+          
+      - name: Run FOSSA scan and upload report
+        uses: fossa-contrib/fossa-action@v1
+        with:
+          # FOSSA Push-Only API Token
+          fossa-api-key: 304657e2357ba57b416b94e6b119131b
+          github-token: ${{ github.token }}

@@ -15,20 +15,54 @@
 package netutils
 
 import (
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestPortZero(t *testing.T) {
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	defer lis.Close()
+type testAddr struct {
+	Address string
+}
 
-	port, err := GetPort(lis.Addr())
-	require.NoError(t, err)
+func (tA *testAddr) Network() string {
+	return "tcp"
+}
 
-	assert.Greater(t, port, 0)
+func (tA *testAddr) String() string {
+	return tA.Address
+}
+
+func TestGetPort(t *testing.T) {
+	cases := []struct {
+		address       testAddr
+		expected      int
+		expectedError string
+	}{
+		{
+			address: testAddr{
+				Address: "localhost:0",
+			},
+			expected: 0,
+		},
+		{
+			address: testAddr{
+				Address: "localhost",
+			},
+			expectedError: "address localhost: missing port in address",
+		},
+		{
+			address: testAddr{
+				Address: "localhost:port",
+			},
+			expectedError: "strconv.Atoi: parsing \"port\": invalid syntax",
+		},
+	}
+	for _, c := range cases {
+		port, err := GetPort(&c.address)
+		if c.expectedError != "" {
+			assert.EqualError(t, err, c.expectedError)
+		} else {
+			assert.Equal(t, c.expected, port)
+		}
+	}
 }

@@ -20,11 +20,13 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	grpcConfig "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/mocks"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -40,17 +42,43 @@ type mockPluginBuilder struct {
 	err    error
 }
 
-func (b *mockPluginBuilder) Build() (shared.StoragePlugin, error) {
+func (b *mockPluginBuilder) Build() (*grpcConfig.ClientPluginServices, error) {
 	if b.err != nil {
 		return nil, b.err
 	}
-	return b.plugin, nil
+
+	services := &grpcConfig.ClientPluginServices{
+		PluginServices: shared.PluginServices{
+			Store:        b.plugin,
+			ArchiveStore: b.plugin,
+		},
+	}
+	if b.plugin.capabilities != nil {
+		services.Capabilities = b.plugin
+	}
+
+	return services, nil
 }
 
 type mockPlugin struct {
 	spanReader       spanstore.Reader
 	spanWriter       spanstore.Writer
+	archiveReader    spanstore.Reader
+	archiveWriter    spanstore.Writer
+	capabilities     shared.PluginCapabilities
 	dependencyReader dependencystore.Reader
+}
+
+func (mp *mockPlugin) Capabilities() (*shared.Capabilities, error) {
+	return mp.capabilities.Capabilities()
+}
+
+func (mp *mockPlugin) ArchiveSpanReader() spanstore.Reader {
+	return mp.archiveReader
+}
+
+func (mp *mockPlugin) ArchiveSpanWriter() spanstore.Writer {
+	return mp.archiveWriter
 }
 
 func (mp *mockPlugin) SpanReader() spanstore.Reader {
@@ -75,12 +103,17 @@ func TestGRPCStorageFactory(t *testing.T) {
 	f.builder = &mockPluginBuilder{
 		err: errors.New("made-up error"),
 	}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "made-up error")
 
 	f.builder = &mockPluginBuilder{
 		plugin: &mockPlugin{
 			spanWriter:       new(spanStoreMocks.Writer),
 			spanReader:       new(spanStoreMocks.Reader),
+			archiveWriter:    new(spanStoreMocks.Writer),
+			archiveReader:    new(spanStoreMocks.Reader),
+			capabilities:     new(mocks.PluginCapabilities),
 			dependencyReader: new(dependencyStoreMocks.Reader),
 		},
 	}
@@ -98,14 +131,125 @@ func TestGRPCStorageFactory(t *testing.T) {
 	assert.Equal(t, f.store.DependencyReader(), depReader)
 }
 
+func TestGRPCStorageFactory_Capabilities(t *testing.T) {
+	f := NewFactory()
+	v := viper.New()
+	f.InitFromViper(v)
+
+	capabilities := new(mocks.PluginCapabilities)
+	capabilities.On("Capabilities").
+		Return(&shared.Capabilities{
+			ArchiveSpanReader: true,
+			ArchiveSpanWriter: true,
+		}, nil)
+
+	f.builder = &mockPluginBuilder{
+		plugin: &mockPlugin{
+			capabilities:  capabilities,
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
+		},
+	}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	assert.NotNil(t, f.store)
+	reader, err := f.CreateArchiveSpanReader()
+	assert.NoError(t, err)
+	assert.NotNil(t, reader)
+	writer, err := f.CreateArchiveSpanWriter()
+	assert.NoError(t, err)
+	assert.NotNil(t, writer)
+}
+
+func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
+	f := NewFactory()
+	v := viper.New()
+	f.InitFromViper(v)
+
+	capabilities := new(mocks.PluginCapabilities)
+	capabilities.On("Capabilities").
+		Return(&shared.Capabilities{
+			ArchiveSpanReader: false,
+			ArchiveSpanWriter: false,
+		}, nil)
+
+	f.builder = &mockPluginBuilder{
+		plugin: &mockPlugin{
+			capabilities:  capabilities,
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
+		},
+	}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	assert.NotNil(t, f.store)
+	reader, err := f.CreateArchiveSpanReader()
+	assert.EqualError(t, err, storage.ErrArchiveStorageNotSupported.Error())
+	assert.Nil(t, reader)
+	writer, err := f.CreateArchiveSpanWriter()
+	assert.EqualError(t, err, storage.ErrArchiveStorageNotSupported.Error())
+	assert.Nil(t, writer)
+}
+
+func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
+	f := NewFactory()
+	v := viper.New()
+	f.InitFromViper(v)
+
+	capabilities := new(mocks.PluginCapabilities)
+	customError := errors.New("made-up error")
+	capabilities.On("Capabilities").
+		Return(nil, customError)
+
+	f.builder = &mockPluginBuilder{
+		plugin: &mockPlugin{
+			capabilities:  capabilities,
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
+		},
+	}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	assert.NotNil(t, f.store)
+	reader, err := f.CreateArchiveSpanReader()
+	assert.EqualError(t, err, customError.Error())
+	assert.Nil(t, reader)
+	writer, err := f.CreateArchiveSpanWriter()
+	assert.EqualError(t, err, customError.Error())
+	assert.Nil(t, writer)
+}
+
+func TestGRPCStorageFactory_CapabilitiesNil(t *testing.T) {
+	f := NewFactory()
+	v := viper.New()
+	f.InitFromViper(v)
+
+	f.builder = &mockPluginBuilder{
+		plugin: &mockPlugin{
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
+		},
+	}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	assert.NotNil(t, f.store)
+	reader, err := f.CreateArchiveSpanReader()
+	assert.Equal(t, err, storage.ErrArchiveStorageNotSupported)
+	assert.Nil(t, reader)
+	writer, err := f.CreateArchiveSpanWriter()
+	assert.Equal(t, err, storage.ErrArchiveStorageNotSupported)
+	assert.Nil(t, writer)
+}
+
 func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{
+	err := command.ParseFlags([]string{
+		"--grpc-storage-plugin.log-level=debug",
 		"--grpc-storage-plugin.binary=noop-grpc-plugin",
 		"--grpc-storage-plugin.configuration-file=config.json",
-		"--grpc-storage-plugin.log-level=debug",
 	})
+	assert.NoError(t, err)
 	f.InitFromViper(v)
 	assert.Equal(t, f.options.Configuration.PluginBinary, "noop-grpc-plugin")
 	assert.Equal(t, f.options.Configuration.PluginConfigurationFile, "config.json")

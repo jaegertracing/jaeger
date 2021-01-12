@@ -133,6 +133,7 @@ func TestMaintenanceCodecov(t *testing.T) {
 	f.InitFromViper(v)
 	mFactory := metricstest.NewFactory(0)
 	f.Initialize(mFactory, zap.NewNop())
+	defer f.Close()
 
 	waiter := func() {
 		for sleeps := 0; sleeps < 8; sleeps++ {
@@ -186,4 +187,11 @@ func TestBadgerMetrics(t *testing.T) {
 
 	err := f.Close()
 	assert.NoError(t, err)
+}
+
+func TestInitFromOptions(t *testing.T) {
+	f := NewFactory()
+	opts := Options{}
+	f.InitFromOptions(opts)
+	assert.Equal(t, &opts, f.Options)
 }

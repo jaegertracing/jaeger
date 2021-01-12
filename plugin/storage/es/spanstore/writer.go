@@ -42,7 +42,6 @@ type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx              context.Context
 	client           es.Client
 	logger           *zap.Logger
 	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
@@ -58,6 +57,7 @@ type SpanWriterParams struct {
 	Logger              *zap.Logger
 	MetricsFactory      metrics.Factory
 	IndexPrefix         string
+	IndexDateLayout     string
 	AllTagsAsFields     bool
 	TagKeysAsFields     []string
 	TagDotReplacement   string
@@ -67,12 +67,9 @@ type SpanWriterParams struct {
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
-	ctx := context.Background()
-
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, time.Hour*12)
 	return &SpanWriter{
-		ctx:    ctx,
 		client: p.Client,
 		logger: p.Logger,
 		writerMetrics: spanWriterMetrics{
@@ -86,7 +83,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 			},
 		),
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix),
+		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.IndexDateLayout),
 	}
 }
 
@@ -106,7 +103,7 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string) error
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, dateLayout string) spanAndServiceIndexFn {
 	if prefix != "" {
 		prefix += indexPrefixSeparator
 	}
@@ -127,12 +124,12 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) 
 		}
 	}
 	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, date), indexWithDate(serviceIndexPrefix, date)
+		return indexWithDate(spanIndexPrefix, dateLayout, date), indexWithDate(serviceIndexPrefix, dateLayout, date)
 	}
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(span *model.Span) error {
+func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
 	if serviceIndexName != "" {

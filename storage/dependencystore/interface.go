@@ -16,6 +16,7 @@
 package dependencystore
 
 import (
+	"context"
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -28,5 +29,5 @@ type Writer interface {
 
 // Reader can load service dependencies from storage.
 type Reader interface {
-	GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error)
+	GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error)
 }

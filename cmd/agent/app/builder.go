@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/ports"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
-	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 const (
@@ -88,9 +87,10 @@ type ProcessorConfiguration struct {
 
 // ServerConfiguration holds config for a server that receives spans from the network
 type ServerConfiguration struct {
-	QueueSize     int    `yaml:"queueSize"`
-	MaxPacketSize int    `yaml:"maxPacketSize"`
-	HostPort      string `yaml:"hostPort" validate:"nonzero"`
+	QueueSize        int    `yaml:"queueSize"`
+	MaxPacketSize    int    `yaml:"maxPacketSize"`
+	SocketBufferSize int    `yaml:"socketBufferSize"`
+	HostPort         string `yaml:"hostPort" validate:"nonzero"`
 }
 
 // HTTPServerConfiguration holds config for a server providing sampling strategies and baggage restrictions to clients
@@ -112,6 +112,8 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
+	b.publishOpts(mFactory)
+
 	return NewAgent(processors, server, logger), nil
 }
 
@@ -127,6 +129,19 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 	return reporter.NewMultiReporter(rep...)
 }
 
+func (b *Builder) publishOpts(mFactory metrics.Factory) {
+	internalFactory := mFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	for _, p := range b.Processors {
+		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
+		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerMaxPacketSize}).
+			Update(int64(p.Server.MaxPacketSize))
+		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerQueueSize}).
+			Update(int64(p.Server.QueueSize))
+		internalFactory.Gauge(metrics.Options{Name: prefix + suffixWorkers}).
+			Update(int64(p.Workers))
+	}
+}
+
 func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {
 	retMe := make([]processors.Processor, len(b.Processors))
 	for idx, cfg := range b.Processors {
@@ -136,9 +151,7 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 		}
 		var handler processors.AgentProcessor
 		switch cfg.Model {
-		case jaegerModel:
-			handler = jaegerThrift.NewAgentProcessor(rep)
-		case zipkinModel:
+		case jaegerModel, zipkinModel:
 			handler = zipkinThrift.NewAgentProcessor(rep)
 		default:
 			return nil, fmt.Errorf("cannot find agent processor for data model %v", cfg.Model)
@@ -188,6 +201,7 @@ func (c *ProcessorConfiguration) applyDefaults() {
 func (c *ServerConfiguration) applyDefaults() {
 	c.QueueSize = defaultInt(c.QueueSize, defaultQueueSize)
 	c.MaxPacketSize = defaultInt(c.MaxPacketSize, defaultMaxPacketSize)
+	c.SocketBufferSize = defaultInt(c.SocketBufferSize, 0)
 }
 
 // getUDPServer gets a TBufferedServer backed server using the server configuration
@@ -200,6 +214,11 @@ func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Se
 	transport, err := thriftudp.NewTUDPServerTransport(c.HostPort)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create UDPServerTransport: %w", err)
+	}
+	if c.SocketBufferSize != 0 {
+		if err := transport.SetSocketBufferSize(c.SocketBufferSize); err != nil {
+			return nil, fmt.Errorf("cannot set UDP socket buffer size: %w", err)
+		}
 	}
 
 	return servers.NewTBufferedServer(transport, c.QueueSize, c.MaxPacketSize, mFactory)

@@ -40,6 +40,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.producer.compression-level=7",
 		"--kafka.producer.batch-linger=1s",
 		"--kafka.producer.batch-size=128000",
+		"--kafka.producer.batch-min-messages=50",
 		"--kafka.producer.batch-max-messages=100",
 	})
 	opts.InitFromViper(v)
@@ -52,6 +53,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 7, opts.Config.CompressionLevel)
 	assert.Equal(t, 128000, opts.Config.BatchSize)
 	assert.Equal(t, time.Duration(1*time.Second), opts.Config.BatchLinger)
+	assert.Equal(t, 50, opts.Config.BatchMinMessages)
 	assert.Equal(t, 100, opts.Config.BatchMaxMessages)
 }
 
@@ -69,6 +71,7 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, 0, opts.Config.CompressionLevel)
 	assert.Equal(t, 0, opts.Config.BatchSize)
 	assert.Equal(t, time.Duration(0*time.Second), opts.Config.BatchLinger)
+	assert.Equal(t, 0, opts.Config.BatchMinMessages)
 	assert.Equal(t, 0, opts.Config.BatchMaxMessages)
 }
 

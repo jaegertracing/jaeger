@@ -26,12 +26,12 @@ const limit = "memory.max-traces"
 
 // Options stores the configuration entries for this storage
 type Options struct {
-	Configuration config.Configuration
+	Configuration config.Configuration `mapstructure:",squash"`
 }
 
 // AddFlags from this storage to the CLI
-func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(limit, opt.Configuration.MaxTraces, "The maximum amount of traces to store in memory")
+func AddFlags(flagSet *flag.FlagSet) {
+	flagSet.Int(limit, 0, "The maximum amount of traces to store in memory. The default number of traces is unbounded.")
 }
 
 // InitFromViper initializes the options struct with values from Viper

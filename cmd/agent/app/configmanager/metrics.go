@@ -15,6 +15,8 @@
 package configmanager
 
 import (
+	"context"
+
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
@@ -50,8 +52,8 @@ func WrapWithMetrics(manager ClientConfigManager, mFactory metrics.Factory) *Man
 }
 
 // GetSamplingStrategy returns sampling strategy from server.
-func (m *ManagerWithMetrics) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	r, err := m.wrapped.GetSamplingStrategy(serviceName)
+func (m *ManagerWithMetrics) GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	r, err := m.wrapped.GetSamplingStrategy(ctx, serviceName)
 	if err != nil {
 		m.metrics.SamplingFailures.Inc(1)
 	} else {
@@ -61,8 +63,8 @@ func (m *ManagerWithMetrics) GetSamplingStrategy(serviceName string) (*sampling.
 }
 
 // GetBaggageRestrictions returns baggage restrictions from server.
-func (m *ManagerWithMetrics) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
-	r, err := m.wrapped.GetBaggageRestrictions(serviceName)
+func (m *ManagerWithMetrics) GetBaggageRestrictions(ctx context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
+	r, err := m.wrapped.GetBaggageRestrictions(ctx, serviceName)
 	if err != nil {
 		m.metrics.BaggageFailures.Inc(1)
 	} else {

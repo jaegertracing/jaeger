@@ -45,7 +45,7 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 
 	if params.TLSConfig.Enabled {
 		// user requested a server with TLS, setup creds
-		tlsCfg, err := params.TLSConfig.Config()
+		tlsCfg, err := params.TLSConfig.Config(params.Logger)
 		if err != nil {
 			return nil, err
 		}

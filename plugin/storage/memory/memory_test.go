@@ -34,7 +34,7 @@ var testingSpan = &model.Span{
 	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
-		Tags:        model.KeyValues{},
+		Tags:        []model.KeyValue(nil),
 	},
 	OperationName: "operationName",
 	Tags: model.KeyValues{
@@ -43,14 +43,14 @@ var testingSpan = &model.Span{
 	},
 	Logs: []model.Log{
 		{
-			Timestamp: time.Now(),
+			Timestamp: time.Now().UTC(),
 			Fields: []model.KeyValue{
 				model.String("logKey", "logValue"),
 			},
 		},
 	},
 	Duration:  time.Second * 5,
-	StartTime: time.Unix(300, 0),
+	StartTime: time.Unix(300, 0).UTC(),
 }
 
 var childSpan1 = &model.Span{
@@ -128,9 +128,17 @@ var childSpan2_1 = &model.Span{
 	StartTime: time.Unix(300, 0),
 }
 
+// This kind of trace cannot be serialized
+var nonSerializableSpan = &model.Span{
+	Process: &model.Process{
+		ServiceName: "naughtyService",
+	},
+	StartTime: time.Date(0, 0, 0, 0, 0, 0, 0, time.UTC),
+}
+
 func withPopulatedMemoryStore(f func(store *Store)) {
 	memStore := NewStore()
-	memStore.WriteSpan(testingSpan)
+	memStore.WriteSpan(context.Background(), testingSpan)
 	f(memStore)
 }
 func withMemoryStore(f func(store *Store)) {
@@ -139,7 +147,7 @@ func withMemoryStore(f func(store *Store)) {
 
 func TestStoreGetEmptyDependencies(t *testing.T) {
 	withMemoryStore(func(store *Store) {
-		links, err := store.GetDependencies(time.Now(), time.Hour)
+		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 	})
@@ -147,15 +155,15 @@ func TestStoreGetEmptyDependencies(t *testing.T) {
 
 func TestStoreGetDependencies(t *testing.T) {
 	withMemoryStore(func(store *Store) {
-		assert.NoError(t, store.WriteSpan(testingSpan))
-		assert.NoError(t, store.WriteSpan(childSpan1))
-		assert.NoError(t, store.WriteSpan(childSpan2))
-		assert.NoError(t, store.WriteSpan(childSpan2_1))
-		links, err := store.GetDependencies(time.Now(), time.Hour)
+		assert.NoError(t, store.WriteSpan(context.Background(), testingSpan))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan1))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
+		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 
-		links, err = store.GetDependencies(time.Unix(0, 0).Add(time.Hour), time.Hour)
+		links, err = store.GetDependencies(context.Background(), time.Unix(0, 0).Add(time.Hour), time.Hour)
 		assert.NoError(t, err)
 		assert.Equal(t, []model.DependencyLink{{
 			Parent:    "serviceName",
@@ -167,7 +175,7 @@ func TestStoreGetDependencies(t *testing.T) {
 
 func TestStoreWriteSpan(t *testing.T) {
 	withMemoryStore(func(store *Store) {
-		err := store.WriteSpan(testingSpan)
+		err := store.WriteSpan(context.Background(), testingSpan)
 		assert.NoError(t, err)
 	})
 }
@@ -178,7 +186,7 @@ func TestStoreWithLimit(t *testing.T) {
 
 	for i := 0; i < maxTraces*2; i++ {
 		id := model.NewTraceID(1, uint64(i))
-		err := store.WriteSpan(&model.Span{
+		err := store.WriteSpan(context.Background(), &model.Span{
 			TraceID: id,
 			Process: &model.Process{
 				ServiceName: "TestStoreWithLimit",
@@ -186,7 +194,7 @@ func TestStoreWithLimit(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		err = store.WriteSpan(&model.Span{
+		err = store.WriteSpan(context.Background(), &model.Span{
 			TraceID: id,
 			SpanID:  model.NewSpanID(uint64(i)),
 			Process: &model.Process{
@@ -210,6 +218,34 @@ func TestStoreGetTraceSuccess(t *testing.T) {
 	})
 }
 
+func TestStoreGetAndMutateTrace(t *testing.T) {
+	withPopulatedMemoryStore(func(store *Store) {
+		trace, err := store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace.Spans, 1)
+		assert.Equal(t, testingSpan, trace.Spans[0])
+		assert.Len(t, trace.Spans[0].Warnings, 0)
+
+		trace.Spans[0].Warnings = append(trace.Spans[0].Warnings, "the end is near")
+
+		trace, err = store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace.Spans, 1)
+		assert.Equal(t, testingSpan, trace.Spans[0])
+		assert.Len(t, trace.Spans[0].Warnings, 0)
+	})
+}
+
+func TestStoreGetTraceError(t *testing.T) {
+	withPopulatedMemoryStore(func(store *Store) {
+		store.traces[testingSpan.TraceID] = &model.Trace{
+			Spans: []*model.Span{nonSerializableSpan},
+		}
+		_, err := store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.Error(t, err)
+	})
+}
+
 func TestStoreGetTraceFailure(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
 		trace, err := store.GetTrace(context.Background(), model.TraceID{})
@@ -229,10 +265,10 @@ func TestStoreGetServices(t *testing.T) {
 
 func TestStoreGetAllOperationsFound(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		assert.NoError(t, store.WriteSpan(testingSpan))
-		assert.NoError(t, store.WriteSpan(childSpan1))
-		assert.NoError(t, store.WriteSpan(childSpan2))
-		assert.NoError(t, store.WriteSpan(childSpan2_1))
+		assert.NoError(t, store.WriteSpan(context.Background(), testingSpan))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan1))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
 		operations, err := store.GetOperations(
 			context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: childSpan1.Process.ServiceName},
@@ -245,10 +281,10 @@ func TestStoreGetAllOperationsFound(t *testing.T) {
 
 func TestStoreGetServerOperationsFound(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		assert.NoError(t, store.WriteSpan(testingSpan))
-		assert.NoError(t, store.WriteSpan(childSpan1))
-		assert.NoError(t, store.WriteSpan(childSpan2))
-		assert.NoError(t, store.WriteSpan(childSpan2_1))
+		assert.NoError(t, store.WriteSpan(context.Background(), testingSpan))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan1))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
 		expected := []spanstore.Operation{
 			{Name: childSpan1.OperationName, SpanKind: "server"},
 		}
@@ -279,6 +315,15 @@ func TestStoreGetEmptyTraceSet(t *testing.T) {
 		traces, err := store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		assert.NoError(t, err)
 		assert.Len(t, traces, 0)
+	})
+}
+
+func TestStoreFindTracesError(t *testing.T) {
+	withPopulatedMemoryStore(func(store *Store) {
+		err := store.WriteSpan(context.Background(), nonSerializableSpan)
+		assert.NoError(t, err)
+		_, err = store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{ServiceName: "naughtyService"})
+		assert.Error(t, err)
 	})
 }
 
@@ -315,7 +360,7 @@ func TestStoreFindTracesLimitGetsMostRecent(t *testing.T) {
 
 	memStore := NewStore()
 	for _, span := range spans {
-		memStore.WriteSpan(span)
+		memStore.WriteSpan(context.Background(), span)
 	}
 
 	gotTraces, err := memStore.FindTraces(context.Background(), &spanstore.TraceQueryParameters{

@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -106,7 +107,16 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 
-			server := app.NewServer(svc, queryService, queryOpts, tracer)
+			server, err := app.NewServer(svc.Logger, queryService, queryOpts, tracer)
+			if err != nil {
+				logger.Fatal("Failed to create server", zap.Error(err))
+			}
+
+			go func() {
+				for s := range server.HealthCheckStatus() {
+					svc.SetHealthCheckStatus(s)
+				}
+			}()
 
 			if err := server.Start(); err != nil {
 				logger.Fatal("Could not start servers", zap.Error(err))
@@ -114,6 +124,9 @@ func main() {
 
 			svc.RunAndThen(func() {
 				server.Close()
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
 			})
 			return nil
 		},
@@ -122,6 +135,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.QueryAdminHTTP))
 
 	config.AddFlags(
 		v,

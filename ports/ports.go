@@ -16,6 +16,7 @@ package ports
 
 import (
 	"strconv"
+	"strings"
 )
 
 const (
@@ -37,6 +38,8 @@ const (
 	// CollectorAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
 	CollectorAdminHTTP = 14269
 
+	// QueryGRPC is the default port of GRPC requests for Query trace retrieval
+	QueryGRPC = 16685
 	// QueryHTTP is the default port for UI and Query API (e.g. /api/* endpoints)
 	QueryHTTP = 16686
 	// QueryAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
@@ -49,4 +52,21 @@ const (
 // PortToHostPort converts the port into a host:port address string
 func PortToHostPort(port int) string {
 	return ":" + strconv.Itoa(port)
+}
+
+// GetAddressFromCLIOptions gets listening address based on port (deprecated flags) or host:port (new flags)
+func GetAddressFromCLIOptions(port int, hostPort string) string {
+	if port != 0 {
+		return PortToHostPort(port)
+	}
+
+	if hostPort == "" {
+		return ""
+	}
+
+	if strings.Contains(hostPort, ":") {
+		return hostPort
+	}
+
+	return ":" + hostPort
 }

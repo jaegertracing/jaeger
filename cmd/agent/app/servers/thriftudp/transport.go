@@ -17,6 +17,7 @@ package thriftudp
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net"
 	"sync/atomic"
@@ -25,7 +26,9 @@ import (
 )
 
 //MaxLength of UDP packet
-const MaxLength = 65000
+const (
+	MaxLength = 65000
+)
 
 var errConnAlreadyClosed = errors.New("connection already closed")
 
@@ -36,6 +39,8 @@ type TUDPTransport struct {
 	writeBuf bytes.Buffer
 	closed   uint32 // atomic flag
 }
+
+var _ thrift.TTransport = (*TUDPTransport)(nil)
 
 // NewTUDPClientTransport creates a net.UDPConn-backed TTransport for Thrift clients
 // All writes are buffered and flushed in one UDP packet. If locHostPort is not "", it
@@ -80,6 +85,7 @@ func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
 	}
+
 	return &TUDPTransport{addr: conn.LocalAddr(), conn: conn}, nil
 }
 
@@ -141,7 +147,7 @@ func (p *TUDPTransport) Write(buf []byte) (int, error) {
 }
 
 // Flush flushes the write buffer as one udp packet
-func (p *TUDPTransport) Flush() error {
+func (p *TUDPTransport) Flush(_ context.Context) error {
 	if !p.IsOpen() {
 		return thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
 	}
@@ -149,4 +155,9 @@ func (p *TUDPTransport) Flush() error {
 	_, err := p.conn.Write(p.writeBuf.Bytes())
 	p.writeBuf.Reset() // always reset the buffer, even in case of an error
 	return err
+}
+
+// SetSocketBufferSize sets udp buffer size
+func (p *TUDPTransport) SetSocketBufferSize(bufferSize int) error {
+	return setSocketBuffer(p.Conn(), bufferSize)
 }

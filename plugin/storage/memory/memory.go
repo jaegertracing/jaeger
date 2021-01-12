@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
@@ -58,7 +60,7 @@ func WithConfiguration(configuration config.Configuration) *Store {
 }
 
 // GetDependencies returns dependencies between services
-func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (m *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
 	defer m.Unlock()
@@ -114,7 +116,7 @@ func (m *Store) traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model
 }
 
 // WriteSpan writes the given span
-func (m *Store) WriteSpan(span *model.Span) error {
+func (m *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
@@ -164,15 +166,19 @@ func (m *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tra
 	if !ok {
 		return nil, spanstore.ErrTraceNotFound
 	}
-	return m.copyTrace(trace), nil
+	return m.copyTrace(trace)
 }
 
 // Spans may still be added to traces after they are returned to user code, so make copies.
-func (m *Store) copyTrace(trace *model.Trace) *model.Trace {
-	return &model.Trace{
-		Spans:    append([]*model.Span(nil), trace.Spans...),
-		Warnings: append([]string(nil), trace.Warnings...),
+func (m *Store) copyTrace(trace *model.Trace) (*model.Trace, error) {
+	bytes, err := proto.Marshal(trace)
+	if err != nil {
+		return nil, err
 	}
+
+	copied := &model.Trace{}
+	err = proto.Unmarshal(bytes, copied)
+	return copied, err
 }
 
 // GetServices returns a list of all known services
@@ -211,7 +217,12 @@ func (m *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParam
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
 		if m.validTrace(trace, query) {
-			retMe = append(retMe, m.copyTrace(trace))
+			copied, err := m.copyTrace(trace)
+			if err != nil {
+				return nil, err
+			}
+
+			retMe = append(retMe, copied)
 		}
 	}
 

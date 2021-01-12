@@ -3,40 +3,46 @@ sudo: required
 language: go
 go_import_path: github.com/jaegertracing/jaeger
 
-dist: trusty
+dist: bionic
 
 matrix:
   include:
-  - go: "1.14.x"
+  - go: "1.15.x"
     env:
     - TESTS=true
     - COVERAGE=true
-  - go: "1.14.x"
+  - go: "1.15.x"
     env:
     - PROTO_GEN_TEST=true
-  - go: "1.14.x"
+  - go: "1.15.x"
     env:
     - ALL_IN_ONE=true
-  - go: "1.14.x"
+  - go: "1.15.x"
     env:
     - CROSSDOCK=true
-  - go: "1.14.x"
+  - go: "1.15.x"
     env:
-      - CROSSDOCK_OTEL=true
-  - go: "1.14.x"
+    - CROSSDOCK_OTEL=true
+  - go: "1.15.x"
     env:
     - DOCKER=true
     - DEPLOY=true
-  - go: "1.14.x"
+  - go: "1.15.x"
     env:
     - ES_INTEGRATION_TEST=true
-  - go: "1.14.x"
+  - go: "1.15.x"
+    env:
+    - ES_OTEL_INTEGRATION_TEST=true
+  - go: "1.15.x"
     env:
     - KAFKA_INTEGRATION_TEST=true
-  - go: "1.14.x"
+  - go: "1.15.x"
     env:
     - CASSANDRA_INTEGRATION_TEST=true
-  - go: "1.14.x"
+  - go: "1.15.x"
+    env:
+    - MEM_AND_BADGER_INTEGRATION_TEST=true
+  - go: "1.15.x"
     env:
     - HOTROD=true
 
@@ -47,10 +53,6 @@ env:
   global:
     - DOCKER_COMPOSE_VERSION=1.8.0
     - COMMIT=${TRAVIS_COMMIT::8}
-    # DOCKER_USER
-    - secure: TNvbr5/d7raSovEtttxdrZl8tP7vCCzL56gKKhr2wF4ET5/iRbcfSP9zoFPEOlIdgmCHZhGTh+fED1Eqgyswv6HPOAfEuov5vtzNB9fkcI46/nRk7KbiDlcEuE2IFtwkijFDz6YdJlbPCozHa81/Ih6G20H61tgv6f0AsGGT9MR7DQ71cCu8xZykNDjEKTo7RF6GiqG2VYa+S1P3vCOKRv31ouo/a5SPP+1AIvAg8u++qWVC8WJixmkXnw2OplvCFgHS0dlT3FvUPjYtUtLens5gpBDo7kn7+Ba27m2D0IzkzDPW5sK0YMMZW61LLn8GLPiJtLqzUHovaJ2NcFfi07RQ4GSMnwnjP0nLQbgd0CzM2zJGJRcOTkYe7IEDrdcTBcljZdZAJdoJEzrGYYWRQcX0Kyjc83ghX3A5s+CQWlPElQrkBB7KhNZ+w2Cn4+Mr6zOiRnBYg1NIUV2eGHMNnC4HI9RqgvA1QqcT5YHWqpz20sddHx1kgzgh8vOW8csiFon/Wrvyb2TaemzsKxIlT/UZZfDuyWG/Lvm4oxmTp1GrgQsC2iJjox4z6VIxbhykZEqNU1dhY6KuvgjEGetxk2j/NVfI8Qb4tvWqKoXq5Buap/J0AWjxWjGbrIGZbz5FgzfEP33WR8X2Oh5Cy+TMl1v0+YBAB3OaMpe/Qe2rGlk=  # DOCKER_PASS
-    # DOCKER_PASS
-    - secure: XNFxKWRKZLqcM7cceyN3jGZmaisdwNCSG+9b4eq3h022llrRd11Zaxp3JDbVqXtsHDiC9lzuI41dyiRphO4KwXKysawpJicNS1ZymkiITaF/blNAcncIS5NMsEbszDbwiP+FjqHdnMloGpSa3aEz2ehVEBaW7kiH49ayRWVs7GKV2OeH7V16B1116y5KvFiniDY/m/ycBd3K7HqKRuGx4EvlMIUbq0IFpl2N1dcrOFTDGTm8qzGTOwGqCQc/1NfllB7Iv2mkdu6dWhEyhRVOdXEWbwqU4Hjn/ugnAKQ1NnukaYmwgKM1WUba5cu1nFpCyMwp5tiGSef1UqXM380wrQkUvPNyiM4MD4hX0ab3bZxtd8TmlTLyDBE4Q+CaJoZzcbqRwi0B4CSFCLvm17GRmjB9iY8w/ig3bEndDFzLua7tx0MMPQVHOG0fjB1chCdOOfzcmdvIiCpVmmVKfuodulHN/6yWCi8XHWLee8L20zNxyVPbPT0XOnlkQZrnjZMyYvrpFaw3J6EKCnduk3GhHYI5RigJk2xorRiXgeN9DkFw/TuBIV3CMHi6sbgiNIv15CLO0ZGlUJnF+q4u5o9qUT/XSykNn0+Z/2ABMIJvS496gU3OT7RbjmuZforqyvCniMow4hDiE8MtZMBYOSmM1CiHQb413/kPgUjYQ2ajnuU=
     # override default yarn
     - PATH=$HOME/.yarn/bin:$PATH
 
@@ -64,24 +66,26 @@ install:
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
   - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
-  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
-  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
-  - if [ "$CROSSDOCK_OTEL" == true ]; then make build-crossdock crossdock-otel ; else echo 'skipping OpenTelemetry crossdock'; fi
+  - if [ "$PROTO_GEN_TEST" == true ]; then make proto && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
+  - if [ "$ALL_IN_ONE" == true ]; then make create-baseimg-debugimg && bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
+  - if [ "$CROSSDOCK" == true ]; then travis_retry bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
+  - if [ "$CROSSDOCK_OTEL" == true ]; then travis_retry make build-crossdock crossdock-otel ; else echo 'skipping OpenTelemetry crossdock'; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping build-docker-images'; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/upload-all-docker-images.sh ; else echo 'skipping docker upload'; fi
   - if [ "$DEPLOY" == true ]; then make build-all-platforms ; else echo 'skipping build-all-platforms'; fi
-  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
-  - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
-  - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
+  - if [ "$ES_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
+  - if [ "$ES_OTEL_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
+  - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
+  - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then travis_retry bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
+  - if [ "$MEM_AND_BADGER_INTEGRATION_TEST" == true ]; then travis_retry make mem-and-badger-storage-integration-test ; else echo 'skipping mem and badger integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
-  - if [ "$PROTO_GEN_TEST" == true ]; then make proto && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
   - if [ "$COVERAGE" == true ]; then bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
 
 after_failure:
-  - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
+  - if [ "$CROSSDOCK" == true || "$CROSSDOCK_OTEL" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
   - if [ "$DEPLOY" == true ]; then bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploying binaries'; fi

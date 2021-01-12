@@ -156,12 +156,12 @@ func TestJsonFormat(t *testing.T) {
 		},
 		{
 			payload:    createSpan("bar", "", "1", "1", 156, 15145, false, annoJSON, binAnnoJSON),
-			expected:   "Unable to process request body: strconv.ParseUint: parsing \"\": invalid syntax\n",
+			expected:   "Unable to process request body: strconv.ParseUint: parsing &#34;&#34;: invalid syntax\n",
 			statusCode: http.StatusBadRequest,
 		},
 		{
 			payload:    createSpan("bar", "ZTA", "1", "1", 156, 15145, false, "", ""),
-			expected:   "Unable to process request body: strconv.ParseUint: parsing \"ZTA\": invalid syntax\n",
+			expected:   "Unable to process request body: strconv.ParseUint: parsing &#34;ZTA&#34;: invalid syntax\n",
 			statusCode: http.StatusBadRequest,
 		},
 		{
@@ -225,7 +225,7 @@ func TestFormatBadBody(t *testing.T) {
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte("not good"), createHeader("application/x-thrift"))
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to process request body: *zipkincore.Span field 0 read error: EOF\n", resBodyStr)
+	assert.EqualValues(t, "Unable to process request body: Unknown data type 111\n", resBodyStr)
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {

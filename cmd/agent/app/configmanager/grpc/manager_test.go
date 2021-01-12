@@ -41,7 +41,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	require.NoError(t, err)
 	defer s.GracefulStop()
 	manager := NewConfigManager(conn)
-	resp, err := manager.GetSamplingStrategy("any")
+	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.NoError(t, err)
 	assert.Equal(t, &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}, resp)
 }
@@ -51,7 +51,7 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	defer close(t, conn)
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)
-	resp, err := manager.GetSamplingStrategy("any")
+	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.Nil(t, resp)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Error while dialing dial tcp: address foo: missing port in address")
@@ -59,7 +59,7 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
 	manager := NewConfigManager(nil)
-	rest, err := manager.GetBaggageRestrictions("foo")
+	rest, err := manager.GetBaggageRestrictions(context.Background(), "foo")
 	require.Nil(t, rest)
 	assert.EqualError(t, err, "baggage not implemented")
 }

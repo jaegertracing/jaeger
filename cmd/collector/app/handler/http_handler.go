@@ -17,6 +17,7 @@ package handler
 
 import (
 	"fmt"
+	"html"
 	"io/ioutil"
 	"mime"
 	"net/http"
@@ -76,12 +77,11 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, ok := acceptedThriftFormats[contentType]; !ok {
-		http.Error(w, fmt.Sprintf("Unsupported content type: %v", contentType), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Unsupported content type: %v", html.EscapeString(contentType)), http.StatusBadRequest)
 		return
 	}
 
 	tdes := thrift.NewTDeserializer()
-	// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 	batch := &tJaeger.Batch{}
 	if err = tdes.Read(batch, bodyBytes); err != nil {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)

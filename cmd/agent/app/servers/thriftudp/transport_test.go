@@ -16,6 +16,7 @@
 package thriftudp
 
 import (
+	"context"
 	"net"
 	"strings"
 	"sync"
@@ -76,6 +77,20 @@ func TestNewTUDPServerTransport(t *testing.T) {
 	require.False(t, trans.IsOpen())
 }
 
+func TestSetSocketBufferSize(t *testing.T) {
+	trans, err := NewTUDPServerTransport(localListenAddr.String())
+	require.Nil(t, err)
+	require.True(t, trans.IsOpen())
+	require.Equal(t, ^uint64(0), trans.RemainingBytes())
+
+	err = trans.SetSocketBufferSize(1024)
+	require.Nil(t, err)
+
+	err = trans.Close()
+	require.Nil(t, err)
+	require.False(t, trans.IsOpen())
+}
+
 func TestTUDPServerTransportIsOpen(t *testing.T) {
 	_, err := NewTUDPServerTransport("fakeAddressAndPort")
 	require.NotNil(t, err)
@@ -121,7 +136,7 @@ func TestWriteRead(t *testing.T) {
 	n, err = client.Write([]byte("string"))
 	require.Nil(t, err)
 	require.Equal(t, 6, n)
-	err = client.Flush()
+	err = client.Flush(context.Background())
 	require.Nil(t, err)
 
 	expected := []byte("teststring")
@@ -183,7 +198,7 @@ func TestFlushErrors(t *testing.T) {
 
 		//flushing closed transport
 		trans.Close()
-		err = trans.Flush()
+		err = trans.Flush(context.Background())
 		require.NotNil(t, err)
 
 		//error when trying to write in flush
@@ -192,7 +207,7 @@ func TestFlushErrors(t *testing.T) {
 		trans.conn.Close()
 
 		trans.Write([]byte{1, 2, 3, 4})
-		err = trans.Flush()
+		err = trans.Flush(context.Background())
 		require.Error(t, err, "Flush with data should fail")
 	})
 }
@@ -207,7 +222,7 @@ func TestResetInFlush(t *testing.T) {
 	trans.Write([]byte("some nonsense"))
 	trans.conn.Close() // close the transport's connection via back door
 
-	err = trans.Flush()
+	err = trans.Flush(context.Background())
 	require.NotNil(t, err, "should fail to write to closed connection")
 	assert.Equal(t, 0, trans.writeBuf.Len(), "should reset the buffer")
 }

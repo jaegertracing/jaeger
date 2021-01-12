@@ -15,12 +15,13 @@
 package dependencystore_test
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -34,6 +35,10 @@ import (
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader)) {
 	f := badger.NewFactory()
+	defer func() {
+		require.NoError(tb, f.Close())
+	}()
+
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
@@ -51,22 +56,13 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	dr, err := f.CreateDependencyReader()
 	assert.NoError(tb, err)
 
-	defer func() {
-		if closer, ok := sw.(io.Closer); ok {
-			err := closer.Close()
-			assert.NoError(tb, err)
-		} else {
-			tb.FailNow()
-		}
-
-	}()
 	test(tb, sw, dr)
 }
 
 func TestDependencyReader(t *testing.T) {
 	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader) {
 		tid := time.Now()
-		links, err := dr.GetDependencies(tid, time.Hour)
+		links, err := dr.GetDependencies(context.Background(), tid, time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 
@@ -90,11 +86,11 @@ func TestDependencyReader(t *testing.T) {
 				if j > 0 {
 					s.References = []model.SpanRef{model.NewChildOfRef(s.TraceID, model.SpanID(j-1))}
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
-		links, err = dr.GetDependencies(time.Now(), time.Hour)
+		links, err = dr.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, links)
 		assert.Equal(t, spans-1, len(links))                // First span does not create a dependency
