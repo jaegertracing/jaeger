@@ -36,6 +36,7 @@ var authTypes = []string{
 	none,
 	kerberos,
 	tls,
+	plaintext,
 }
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
