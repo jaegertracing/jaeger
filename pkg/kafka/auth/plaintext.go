@@ -25,13 +25,15 @@ import (
 	"github.com/xdg/scram"
 )
 
-// used for return a *sarama.SCRAMClient on create SCRAMClientGeneratorFunc when the mechanism is SCRAM-SHA-256 or SCRAM-SHA-512
+// XDGSCRAMClient is return a *sarama.SCRAMClient on create SCRAMClientGeneratorFunc when the mechanism is SCRAM-SHA-256 or SCRAM-SHA-512
 type XDGSCRAMClient struct {
 	*scram.Client
 	*scram.ClientConversation
 	scram.HashGeneratorFcn
 }
 
+// Begin prepares the client for the SCRAM exchange
+// with the server with a user name and a password
 func (x *XDGSCRAMClient) Begin(userName, password, authzID string) (err error) {
 	x.Client, err = x.HashGeneratorFcn.NewClient(userName, password, authzID)
 	if err != nil {
@@ -41,11 +43,15 @@ func (x *XDGSCRAMClient) Begin(userName, password, authzID string) (err error) {
 	return nil
 }
 
+// Step steps client through the SCRAM exchange. It is
+// called repeatedly until it errors or `Done` returns true.
 func (x *XDGSCRAMClient) Step(challenge string) (response string, err error) {
 	response, err = x.ClientConversation.Step(challenge)
 	return
 }
 
+// Done should return true when the SCRAM conversation
+// is over.
 func (x *XDGSCRAMClient) Done() bool {
 	return x.ClientConversation.Done()
 }
