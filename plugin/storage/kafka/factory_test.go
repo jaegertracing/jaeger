@@ -120,6 +120,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 				"--kafka.producer.authentication=plaintext",
 				"--kafka.producer.plaintext.username=username",
 				"--kafka.producer.plaintext.password=SECRET",
+				"--kafka.producer.plaintext.mechanism=PLAINT",
 				"--kafka.producer.brokers=localhost:9092",
 			},
 		},

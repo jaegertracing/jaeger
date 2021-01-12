@@ -43,12 +43,14 @@ const (
 	defaultKerberosUsername    = ""
 	defaultKerberosKeyTab      = "/etc/security/kafka.keytab"
 
-	plainTextPrefix         = ".plaintext"
-	suffixPlainTextUserName = ".username"
-	suffixPlainTextPassword = ".password"
+	plainTextPrefix          = ".plaintext"
+	suffixPlainTextUserName  = ".username"
+	suffixPlainTextPassword  = ".password"
+	suffixPlainTextMechanism = ".mechanism"
 
-	defaultPlainTextUserName = ""
-	defaultPlainTextPassword = ""
+	defaultPlainTextUserName  = ""
+	defaultPlainTextPassword  = ""
+	defaultPlainTextMechanism = "PLAIN"
 )
 
 func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
@@ -91,6 +93,10 @@ func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
 		configPrefix+plainTextPrefix+suffixPlainTextPassword,
 		defaultPlainTextPassword,
 		"The plaintext Password for SASL/PLAIN authentication")
+	flagSet.String(
+		configPrefix+plainTextPrefix+suffixPlainTextMechanism,
+		defaultPlainTextMechanism,
+		"The plaintext Mechanism for SASL/PLAIN authentication, e.g. 'SCRAM-SHA-256' or 'SCRAM-SHA-512' or 'PLAIN'")
 }
 
 // AddFlags add configuration flags to a flagSet.
