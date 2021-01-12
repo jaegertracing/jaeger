@@ -1,4 +1,4 @@
-name: Build all-in-one
+name: CIT Hotrod
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  all-in-one:
+  hotrod:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -21,10 +21,6 @@ jobs:
     - uses: actions/setup-go@v2
       with:
         go-version: ^1.15
-
-    - uses: actions/setup-node@v2-beta
-      with:
-        node-version: '10'
 
     - uses: docker/login-action@v1
       id: dockerhub-login
@@ -46,5 +42,5 @@ jobs:
     - name: Install tools
       run: make install-ci
 
-    - name: Build, test, and publish all-in-one image
-      run: bash scripts/travis/build-all-in-one-image.sh
+    - name: Build, test, and publish hotrod image
+      run: bash scripts/travis/hotrod-integration-test.sh

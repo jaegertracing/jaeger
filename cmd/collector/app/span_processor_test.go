@@ -333,32 +333,51 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 }
 
 func TestSpanProcessorWithCollectorTags(t *testing.T) {
-
 	testCollectorTags := map[string]string{
 		"extra": "tag",
+		"env":   "prod",
+		"node":  "172.22.18.161",
 	}
 
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
+
 	defer assert.NoError(t, p.Close())
-
 	span := &model.Span{
-		Process: model.NewProcess("unit-test-service", []model.KeyValue{}),
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "node",
+				VStr: "k8s-test-node-01",
+			},
+		}),
 	}
-
 	p.addCollectorTags(span)
-
-	for k, v := range testCollectorTags {
-		var foundTag bool
-		for _, tag := range span.Process.Tags {
-			if tag.GetKey() == k {
-				assert.Equal(t, v, tag.AsString())
-				foundTag = true
-				break
-			}
-		}
-		assert.True(t, foundTag)
+	expected := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "extra",
+				VStr: "tag",
+			},
+			{
+				Key:  "node",
+				VStr: "172.22.18.161",
+			},
+			{
+				Key:  "node",
+				VStr: "k8s-test-node-01",
+			},
+		}),
 	}
+
+	assert.Equal(t, expected.Process, span.Process)
 }
 
 func TestSpanProcessorCountSpan(t *testing.T) {

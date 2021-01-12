@@ -144,8 +144,8 @@ func TestWriteSpans(t *testing.T) {
 	w := esSpanWriter{
 		logger:           zap.NewNop(),
 		client:           esClient,
-		spanIndexName:    esutil.NewIndexNameProvider("span", "", esutil.AliasNone, false),
-		serviceIndexName: esutil.NewIndexNameProvider("service", "", esutil.AliasNone, false),
+		spanIndexName:    esutil.NewIndexNameProvider("span", "", "2006-01-02", esutil.AliasNone, false),
+		serviceIndexName: esutil.NewIndexNameProvider("service", "", "2006-01-02", esutil.AliasNone, false),
 		serviceCache:     cache.NewLRU(1),
 		nameTag:          tag.Insert(storagemetrics.TagExporterName(), "name"),
 	}
