@@ -231,7 +231,8 @@ build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen
 	# UI packaged assets are up-to-date. To force a rebuild, run `make clean`.
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
-	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+	cd jaeger-ui/packages/jaeger-ui && yarn build
+	# cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
 
 cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build

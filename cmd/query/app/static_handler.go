@@ -215,13 +215,13 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	if uiConfig == "" {
 		return nil, nil
 	}
-	ext := filepath.Ext(uiConfig)
 	bytesConfig, err := ioutil.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}
 	var r []byte
 
+	ext := filepath.Ext(uiConfig)
 	switch strings.ToLower(ext) {
 	case ".json":
 		var c map[string]interface{}
@@ -237,8 +237,9 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 		}, nil
 	case ".js":
 		r = bytes.TrimSpace(bytesConfig)
-		if !bytes.Contains(r, []byte("function UIConfig(){")) {
-			return nil, fmt.Errorf("wrong JS function format in UI config file format %v", uiConfig)
+		re := regexp.MustCompile(`function\s+UIConfig(\s)?\(\s?\)(\s)?{`)
+		if !re.Match(r) {
+			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", uiConfig)
 		}
 
 		return &loadedConfig{
@@ -246,7 +247,7 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 			config: r,
 		}, nil
 	default:
-		return nil, fmt.Errorf("unrecognized UI config file format %v", uiConfig)
+		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", uiConfig)
 	}
 }
 

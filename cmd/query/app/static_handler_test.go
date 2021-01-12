@@ -209,7 +209,7 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("unsupported type", testCase{
 		configFile:    "fixture/ui-config.toml",
-		expectedError: "unrecognized UI config file format fixture/ui-config.toml",
+		expectedError: "unrecognized UI config file format, expecting .js or .json file: fixture/ui-config.toml",
 	})
 	run("malformed", testCase{
 		configFile:    "fixture/ui-config-malformed.json",
@@ -239,7 +239,7 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("malformed js config", testCase{
 		configFile:    "fixture/ui-config-malformed.js",
-		expectedError: "wrong JS function format in UI config file format fixture/ui-config-malformed.js",
+		expectedError: "UI config file must define function UIConfig(): fixture/ui-config-malformed.js",
 	})
 	run("js", testCase{
 		configFile: "fixture/ui-config.js",
