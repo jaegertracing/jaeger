@@ -36,7 +36,6 @@ var authTypes = []string{
 	none,
 	kerberos,
 	tls,
-	plaintext,
 }
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
@@ -68,7 +67,10 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		setKerberosConfiguration(&config.Kerberos, saramaConfig)
 		return nil
 	case plaintext:
-		setPlainTextConfiguration(&config.PlainText, saramaConfig)
+		err := setPlainTextConfiguration(&config.PlainText, saramaConfig)
+		if err != nil {
+			return err
+		}
 		return nil
 	default:
 		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
@@ -99,4 +101,5 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 
 	config.PlainText.UserName = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUserName)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
+	config.PlainText.Mechanism = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextMechanism)
 }
