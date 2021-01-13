@@ -15,7 +15,6 @@ package grpc
 
 import (
 	"context"
-	"expvar"
 	"net"
 	"strings"
 	"testing"
@@ -29,9 +28,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -47,10 +45,6 @@ collectorHostPorts:
 var testCertKeyLocation = "../../../../../pkg/config/tlscfg/testdata/"
 
 type noopNotifier struct{}
-
-type connectMetricsTest struct {
-	mf *metricstest.Factory
-}
 
 func (noopNotifier) Register(chan<- []string) {}
 
@@ -155,16 +149,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			cfg.Notifier = test.notifier
 			cfg.Discoverer = test.discoverer
 
-			mf := metricstest.NewFactory(time.Hour)
-			cm := reporter.ConnectMetrics{
-				MetricsFactory: mf,
-			}
-			cm.NewConnectMetrics()
-			tr := &connectMetricsTest{
-				mf: mf,
-			}
-			cfg.ConnectMetrics = &cm
-
 			conn, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
 			if test.expectedError == "" {
 				require.NoError(t, err)
@@ -177,21 +161,10 @@ func TestBuilderWithCollectors(t *testing.T) {
 				} else {
 					assert.True(t, conn.Target() == test.target)
 				}
-				if test.expectedState == "READY" {
-					counts, gauges := tr.mf.Snapshot()
-					assert.EqualValues(t, 1, gauges["connection_status.collector_connected"])
-					assert.EqualValues(t, 1, counts["connection_status.collector_reconnects"])
-					assert.Equal(t, test.target, expvar.Get("gRPCTarget").(*expvar.String).Value())
-				}
-				if test.expectedState == "TRANSIENT_FAILURE" {
-					_, gauges := tr.mf.Snapshot()
-					assert.EqualValues(t, 0, gauges["connection_status.collector_connected"])
-				}
 			} else {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.expectedError)
 			}
-
 		})
 	}
 }

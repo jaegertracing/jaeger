@@ -15,8 +15,6 @@
 package reporter
 
 import (
-	"time"
-
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 )
@@ -31,22 +29,13 @@ type connectMetrics struct {
 
 // ConnectMetrics include connectMetrics necessary params if want to modify metrics of connectMetrics, must via ConnectMetrics API
 type ConnectMetrics struct {
-	Logger          *zap.Logger     // required
-	MetricsFactory  metrics.Factory // required
-	ExpireFrequency time.Duration
-	ExpireTTL       time.Duration
-	connectMetrics  *connectMetrics
+	Logger         *zap.Logger     // required
+	MetricsFactory metrics.Factory // required
+	connectMetrics *connectMetrics
 }
 
 // NewConnectMetrics will be initialize ConnectMetrics
 func (r *ConnectMetrics) NewConnectMetrics() {
-	if r.ExpireFrequency == 0 {
-		r.ExpireFrequency = defaultExpireFrequency
-	}
-	if r.ExpireTTL == 0 {
-		r.ExpireTTL = defaultExpireTTL
-	}
-
 	r.connectMetrics = new(connectMetrics)
 	r.MetricsFactory = r.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
 	metrics.MustInit(r.connectMetrics, r.MetricsFactory, nil)
