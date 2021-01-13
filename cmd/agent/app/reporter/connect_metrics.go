@@ -15,8 +15,9 @@
 package reporter
 
 import (
+	"expvar"
+
 	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
 )
 
 type connectMetrics struct {
@@ -29,26 +30,37 @@ type connectMetrics struct {
 
 // ConnectMetrics include connectMetrics necessary params if want to modify metrics of connectMetrics, must via ConnectMetrics API
 type ConnectMetrics struct {
-	Logger         *zap.Logger     // required
-	MetricsFactory metrics.Factory // required
-	connectMetrics *connectMetrics
+	metrics connectMetrics
+	target  *expvar.String
 }
 
 // NewConnectMetrics will be initialize ConnectMetrics
-func (r *ConnectMetrics) NewConnectMetrics() {
-	r.connectMetrics = new(connectMetrics)
-	r.MetricsFactory = r.MetricsFactory.Namespace(metrics.NSOptions{Name: "connection_status"})
-	metrics.MustInit(r.connectMetrics, r.MetricsFactory, nil)
+func NewConnectMetrics(mf metrics.Factory) *ConnectMetrics {
+	cm := &ConnectMetrics{}
+	metrics.MustInit(&cm.metrics, mf.Namespace(metrics.NSOptions{Name: "connection_status"}), nil)
+
+	if r := expvar.Get("gRPCTarget"); r == nil {
+		cm.target = expvar.NewString("gRPCTarget")
+	} else {
+		cm.target = r.(*expvar.String)
+	}
+
+	return cm
 }
 
 // OnConnectionStatusChange used for pass the status parameter when connection is changed
 // 0 is disconnected, 1 is connected
 // For quick view status via use `sum(jaeger_agent_connection_status_collector_connected{}) by (instance) > bool 0`
-func (r *ConnectMetrics) OnConnectionStatusChange(connected bool) {
+func (cm *ConnectMetrics) OnConnectionStatusChange(connected bool) {
 	if connected {
-		r.connectMetrics.Status.Update(1)
-		r.connectMetrics.Reconnects.Inc(1)
+		cm.metrics.Status.Update(1)
+		cm.metrics.Reconnects.Inc(1)
 	} else {
-		r.connectMetrics.Status.Update(0)
+		cm.metrics.Status.Update(0)
 	}
+}
+
+// RecordTarget writes the current connection target to an expvar field.
+func (cm *ConnectMetrics) RecordTarget(target string) {
+	cm.target.Set(target)
 }
