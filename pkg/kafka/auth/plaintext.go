@@ -25,8 +25,8 @@ import (
 	"github.com/xdg/scram"
 )
 
-// XDGSCRAMClient is return a *sarama.SCRAMClient on create SCRAMClientGeneratorFunc when the mechanism is SCRAM-SHA-256 or SCRAM-SHA-512
-type XDGSCRAMClient struct {
+// scramClient is the client to use when the auth mechanism is SCRAM
+type scramClient struct {
 	*scram.Client
 	*scram.ClientConversation
 	scram.HashGeneratorFcn
@@ -34,7 +34,7 @@ type XDGSCRAMClient struct {
 
 // Begin prepares the client for the SCRAM exchange
 // with the server with a user name and a password
-func (x *XDGSCRAMClient) Begin(userName, password, authzID string) (err error) {
+func (x *scramClient) Begin(userName, password, authzID string) (err error) {
 	x.Client, err = x.HashGeneratorFcn.NewClient(userName, password, authzID)
 	if err != nil {
 		return err
@@ -45,14 +45,14 @@ func (x *XDGSCRAMClient) Begin(userName, password, authzID string) (err error) {
 
 // Step steps client through the SCRAM exchange. It is
 // called repeatedly until it errors or `Done` returns true.
-func (x *XDGSCRAMClient) Step(challenge string) (response string, err error) {
+func (x *scramClient) Step(challenge string) (response string, err error) {
 	response, err = x.ClientConversation.Step(challenge)
 	return
 }
 
 // Done should return true when the SCRAM conversation
 // is over.
-func (x *XDGSCRAMClient) Done() bool {
+func (x *scramClient) Done() bool {
 	return x.ClientConversation.Done()
 }
 
@@ -70,12 +70,12 @@ func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Con
 	switch strings.ToUpper(config.Mechanism) {
 	case "SCRAM-SHA-256":
 		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-			return &XDGSCRAMClient{HashGeneratorFcn: func() hash.Hash { return sha256.New() }}
+			return &scramClient{HashGeneratorFcn: func() hash.Hash { return sha256.New() }}
 		}
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
 	case "SCRAM-SHA-512":
 		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-			return &XDGSCRAMClient{HashGeneratorFcn: func() hash.Hash { return sha512.New() }}
+			return &scramClient{HashGeneratorFcn: func() hash.Hash { return sha512.New() }}
 		}
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
 	case "PLAIN":
