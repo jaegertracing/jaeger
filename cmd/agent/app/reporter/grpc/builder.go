@@ -17,11 +17,10 @@ package grpc
 import (
 	"context"
 	"errors"
-	"expvar"
 	"fmt"
 	"strings"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -47,9 +46,6 @@ type ConnBuilder struct {
 	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
 	Discoverer        discovery.Discoverer
-
-	// for unit test and provide ConnectMetrics and outside call
-	ConnectMetrics *reporter.ConnectMetrics
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -104,30 +100,18 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		return nil, err
 	}
 
-	if b.ConnectMetrics == nil {
-		cm := reporter.ConnectMetrics{
-			Logger:         logger,
-			MetricsFactory: mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}}),
-		}
-		cm.NewConnectMetrics()
-		b.ConnectMetrics = &cm
-	}
+	connectMetrics := reporter.NewConnectMetrics(
+		mFactory.Namespace(metrics.NSOptions{Tags: map[string]string{"protocol": "grpc"}}),
+	)
 
 	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetrics) {
 		logger.Info("Checking connection to collector")
-		var egt *expvar.String
-		r := expvar.Get("gRPCTarget")
-		if r == nil {
-			egt = expvar.NewString("gRPCTarget")
-		} else {
-			egt = r.(*expvar.String)
-		}
 
 		for {
 			s := cc.GetState()
 			if s == connectivity.Ready {
 				cm.OnConnectionStatusChange(true)
-				egt.Set(cc.Target())
+				cm.RecordTarget(cc.Target())
 			} else {
 				cm.OnConnectionStatusChange(false)
 			}
@@ -135,7 +119,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
 			cc.WaitForStateChange(context.Background(), s)
 		}
-	}(conn, b.ConnectMetrics)
+	}(conn, connectMetrics)
 
 	return conn, nil
 }

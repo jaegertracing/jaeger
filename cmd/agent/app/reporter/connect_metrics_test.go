@@ -15,6 +15,7 @@
 package reporter
 
 import (
+	"expvar"
 	"testing"
 	"time"
 
@@ -22,60 +23,38 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 )
 
-type connectMetricsTest struct {
-	mf *metricstest.Factory
-}
-
-func testConnectMetrics(fn func(tr *connectMetricsTest, r *ConnectMetrics)) {
-	testConnectMetricsWithParams(&ConnectMetrics{}, fn)
-}
-
-func testConnectMetricsWithParams(cm *ConnectMetrics, fn func(tr *connectMetricsTest, r *ConnectMetrics)) {
+func TestConnectMetrics(t *testing.T) {
 	mf := metricstest.NewFactory(time.Hour)
-	cm.MetricsFactory = mf
-	cm.NewConnectMetrics()
+	cm := NewConnectMetrics(mf)
 
-	tr := &connectMetricsTest{
-		mf: mf,
+	getGauge := func() map[string]int64 {
+		_, gauges := mf.Snapshot()
+		return gauges
 	}
 
-	fn(tr, cm)
-}
+	getCount := func() map[string]int64 {
+		counts, _ := mf.Snapshot()
+		return counts
+	}
 
-func testCollectorConnected(r *ConnectMetrics) {
-	r.OnConnectionStatusChange(true)
-}
+	// no connection
+	cm.OnConnectionStatusChange(false)
+	assert.EqualValues(t, 0, getGauge()["connection_status.collector_connected"])
 
-func testCollectorAborted(r *ConnectMetrics) {
-	r.OnConnectionStatusChange(false)
-}
+	// first connection
+	cm.OnConnectionStatusChange(true)
+	assert.EqualValues(t, 1, getGauge()["connection_status.collector_connected"])
+	assert.EqualValues(t, 1, getCount()["connection_status.collector_reconnects"])
 
-func TestConnectMetrics(t *testing.T) {
+	// reconnect
+	cm.OnConnectionStatusChange(false)
+	cm.OnConnectionStatusChange(true)
+	assert.EqualValues(t, 2, getCount()["connection_status.collector_reconnects"])
 
-	testConnectMetrics(func(tr *connectMetricsTest, r *ConnectMetrics) {
-		getGauge := func() map[string]int64 {
-			_, gauges := tr.mf.Snapshot()
-			return gauges
-		}
+	cm.RecordTarget("collector-host")
+	assert.Equal(t, `"collector-host"`, expvar.Get("gRPCTarget").String())
 
-		getCount := func() map[string]int64 {
-			counts, _ := tr.mf.Snapshot()
-			return counts
-		}
-
-		// testing connect aborted
-		testCollectorAborted(r)
-		assert.EqualValues(t, 0, getGauge()["connection_status.collector_connected"])
-
-		// testing connect connected
-		testCollectorConnected(r)
-		assert.EqualValues(t, 1, getGauge()["connection_status.collector_connected"])
-		assert.EqualValues(t, 1, getCount()["connection_status.collector_reconnects"])
-
-		// testing reconnect counts
-		testCollectorAborted(r)
-		testCollectorConnected(r)
-		assert.EqualValues(t, 2, getCount()["connection_status.collector_reconnects"])
-
-	})
+	// since expvars are singletons, the second constructor should grab the same var
+	cm2 := NewConnectMetrics(mf)
+	assert.Same(t, cm.target, cm2.target)
 }
