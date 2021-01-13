@@ -17,16 +17,20 @@ package grpc
 import (
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
 	"strings"
 
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver"
@@ -43,6 +47,9 @@ type ConnBuilder struct {
 	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
 	Discoverer        discovery.Discoverer
+
+	// for unit test and provide ConnectMetrics and outside call
+	ConnectMetrics *reporter.ConnectMetrics
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -51,7 +58,7 @@ func NewConnBuilder() *ConnBuilder {
 }
 
 // CreateConnection creates the gRPC connection
-func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, error) {
+func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Factory) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption
 	var dialTarget string
 	if b.TLS.Enabled { // user requested a secure connection
@@ -97,14 +104,38 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		return nil, err
 	}
 
-	go func(cc *grpc.ClientConn) {
+	if b.ConnectMetrics == nil {
+		cm := reporter.ConnectMetrics{
+			Logger:         logger,
+			MetricsFactory: mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}}),
+		}
+		cm.NewConnectMetrics()
+		b.ConnectMetrics = &cm
+	}
+
+	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetrics) {
 		logger.Info("Checking connection to collector")
+		var egt *expvar.String
+		r := expvar.Get("gRPCTarget")
+		if r == nil {
+			egt = expvar.NewString("gRPCTarget")
+		} else {
+			egt = r.(*expvar.String)
+		}
+
 		for {
 			s := cc.GetState()
+			if s == connectivity.Ready {
+				cm.OnConnectionStatusChange(true)
+				egt.Set(cc.Target())
+			} else {
+				cm.OnConnectionStatusChange(false)
+			}
+
 			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
 			cc.WaitForStateChange(context.Background(), s)
 		}
-	}(conn)
+	}(conn, b.ConnectMetrics)
 
 	return conn, nil
 }
