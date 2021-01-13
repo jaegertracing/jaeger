@@ -53,4 +53,8 @@ func TestConnectMetrics(t *testing.T) {
 
 	cm.RecordTarget("collector-host")
 	assert.Equal(t, `"collector-host"`, expvar.Get("gRPCTarget").String())
+
+	// since expvars are singletons, the second constructor should grab the same var
+	cm2 := NewConnectMetrics(mf)
+	assert.Same(t, cm.target, cm2.target)
 }
