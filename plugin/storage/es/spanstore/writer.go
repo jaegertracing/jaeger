@@ -57,6 +57,7 @@ type SpanWriterParams struct {
 	Logger              *zap.Logger
 	MetricsFactory      metrics.Factory
 	IndexPrefix         string
+	IndexDateLayout     string
 	AllTagsAsFields     bool
 	TagKeysAsFields     []string
 	TagDotReplacement   string
@@ -82,7 +83,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 			},
 		),
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix),
+		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.IndexDateLayout),
 	}
 }
 
@@ -102,7 +103,7 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string) error
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, dateLayout string) spanAndServiceIndexFn {
 	if prefix != "" {
 		prefix += indexPrefixSeparator
 	}
@@ -123,7 +124,7 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) 
 		}
 	}
 	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, date), indexWithDate(serviceIndexPrefix, date)
+		return indexWithDate(spanIndexPrefix, dateLayout, date), indexWithDate(serviceIndexPrefix, dateLayout, date)
 	}
 }
 

@@ -17,6 +17,7 @@ package es
 
 import (
 	"flag"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -45,6 +46,7 @@ const (
 	suffixBulkFlushInterval   = ".bulk.flush-interval"
 	suffixTimeout             = ".timeout"
 	suffixIndexPrefix         = ".index-prefix"
+	suffixIndexDateSeparator  = ".index-date-separator"
 	suffixTagsAsFields        = ".tags-as-fields"
 	suffixTagsAsFieldsAll     = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude = suffixTagsAsFields + ".include"
@@ -60,6 +62,8 @@ const (
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount = 10_000
 	defaultServerURL   = "http://127.0.0.1:9200"
+	// default separator for Elasticsearch index date layout.
+	defaultIndexDateSeparator = "-"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -210,6 +214,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexDateSeparator,
+		defaultIndexDateSeparator,
+		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20 \".")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
@@ -231,7 +239,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.UseReadWriteAliases,
 		"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
-			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
+			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" will influence trace search window start times.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
@@ -281,6 +289,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.IndexDateLayout = initDateLayout(v.GetString(cfg.namespace + suffixIndexDateSeparator))
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
 	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
@@ -324,4 +333,8 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 // stripWhiteSpace removes all whitespace characters from a string
 func stripWhiteSpace(str string) string {
 	return strings.Replace(str, " ", "", -1)
+}
+
+func initDateLayout(separator string) string {
+	return fmt.Sprintf("2006%s01%s02", separator, separator)
 }

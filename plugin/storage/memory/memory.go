@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
@@ -164,15 +166,19 @@ func (m *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tra
 	if !ok {
 		return nil, spanstore.ErrTraceNotFound
 	}
-	return m.copyTrace(trace), nil
+	return m.copyTrace(trace)
 }
 
 // Spans may still be added to traces after they are returned to user code, so make copies.
-func (m *Store) copyTrace(trace *model.Trace) *model.Trace {
-	return &model.Trace{
-		Spans:    append([]*model.Span(nil), trace.Spans...),
-		Warnings: append([]string(nil), trace.Warnings...),
+func (m *Store) copyTrace(trace *model.Trace) (*model.Trace, error) {
+	bytes, err := proto.Marshal(trace)
+	if err != nil {
+		return nil, err
 	}
+
+	copied := &model.Trace{}
+	err = proto.Unmarshal(bytes, copied)
+	return copied, err
 }
 
 // GetServices returns a list of all known services
@@ -211,7 +217,12 @@ func (m *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParam
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
 		if m.validTrace(trace, query) {
-			retMe = append(retMe, m.copyTrace(trace))
+			copied, err := m.copyTrace(trace)
+			if err != nil {
+				return nil, err
+			}
+
+			retMe = append(retMe, copied)
 		}
 	}
 
