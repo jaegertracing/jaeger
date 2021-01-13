@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2021 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package env
+package fswatcher
 
 import (
-	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestCommand(t *testing.T) {
-	cmd := Command()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.Run(cmd, nil)
-	assert.True(t, strings.Contains(buf.String(), "METRICS_BACKEND"))
-	assert.True(t, strings.Contains(buf.String(), "SPAN_STORAGE"))
+func TestFsWatcher(t *testing.T) {
+	w, err := NewWatcher()
+	require.NoError(t, err)
+	assert.IsType(t, &fsnotifyWatcherWrapper{}, w)
+
+	err = w.Add("foo")
+	assert.Error(t, err)
+
+	err = w.Add("../../cmd/query/app/fixture/ui-config.json")
+	assert.NoError(t, err)
+
+	events := w.Events()
+	assert.NotZero(t, events)
+
+	errs := w.Errors()
+	assert.NotZero(t, errs)
 }
