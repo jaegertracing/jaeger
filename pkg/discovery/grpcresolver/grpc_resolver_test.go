@@ -136,10 +136,13 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 		minPeers    int
 		connections int // expected number of unique connections to servers
 	}{
-		{3, 3}, {5, 5}, {7, 5},
+		{minPeers: 3, connections: 3},
+		{minPeers: 5, connections: 3},
+		// note: test cannot succeed with minPeers < connections because resolver
+		// will never return more than minPeers addresses.
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("minPeers=%d", test.minPeers), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
 			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
 			defer resolver.UnregisterForTesting(res.Scheme())
 
