@@ -55,7 +55,7 @@ func TestOptionsWithFlags(t *testing.T) {
 
 func TestTLSFlags(t *testing.T) {
 	kerb := auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}
-	plain := auth.PlainTextConfig{UserName: "", Password: "", Mechanism: "PLAIN"}
+	plain := auth.PlainTextConfig{Username: "", Password: "", Mechanism: "PLAIN"}
 	tests := []struct {
 		flags    []string
 		expected auth.AuthenticationConfig

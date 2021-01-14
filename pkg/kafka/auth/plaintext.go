@@ -58,7 +58,7 @@ func (x *scramClient) Done() bool {
 
 // PlainTextConfig describes the configuration properties needed for SASL/PLAIN with kafka
 type PlainTextConfig struct {
-	UserName  string `mapstructure:"username"`
+	Username  string `mapstructure:"username"`
 	Password  string `mapstructure:"password" json:"-"`
 	Mechanism string `mapstructure:"mechanism"`
 }
@@ -67,7 +67,7 @@ var _ sarama.SCRAMClient = (*scramClient)(nil)
 
 func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Config) error {
 	saramaConfig.Net.SASL.Enable = true
-	saramaConfig.Net.SASL.User = config.UserName
+	saramaConfig.Net.SASL.User = config.Username
 	saramaConfig.Net.SASL.Password = config.Password
 	switch strings.ToUpper(config.Mechanism) {
 	case "SCRAM-SHA-256":
