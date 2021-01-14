@@ -84,7 +84,7 @@ func makeSureConnectionsUp(t *testing.T, count int, testc grpctest.TestServiceCl
 	// Make sure connections to all servers are up.
 	for si := 0; si < count; si++ {
 		connected := false
-		for i := 0; i < 1000; i++ {
+		for i := 0; i < 3000; i++ { // 3000 * 10ms = 30s
 			_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
 			if err != nil {
 				continue
@@ -92,11 +92,12 @@ func makeSureConnectionsUp(t *testing.T, count int, testc grpctest.TestServiceCl
 			if _, ok := addrs[p.Addr.String()]; !ok {
 				addrs[p.Addr.String()] = struct{}{}
 				connected = true
+				t.Logf("connected to peer #%d (%v) on iteration %d", si, p.Addr, i)
 				break
 			}
 			time.Sleep(time.Millisecond * 10)
 		}
-		assert.True(t, connected, "Connection was still not up")
+		assert.True(t, connected, "Connection #%d was still not up. Connections so far: %+v", si, addrs)
 	}
 }
 
@@ -135,10 +136,13 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 		minPeers    int
 		connections int // expected number of unique connections to servers
 	}{
-		{3, 3}, {5, 5}, {7, 5},
+		{minPeers: 3, connections: 3},
+		{minPeers: 5, connections: 3},
+		// note: test cannot succeed with minPeers < connections because resolver
+		// will never return more than minPeers addresses.
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("minPeers=%d", test.minPeers), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
 			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
 			defer resolver.UnregisterForTesting(res.Scheme())
 
