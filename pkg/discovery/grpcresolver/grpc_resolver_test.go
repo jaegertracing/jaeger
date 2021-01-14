@@ -84,7 +84,7 @@ func makeSureConnectionsUp(t *testing.T, count int, testc grpctest.TestServiceCl
 	// Make sure connections to all servers are up.
 	for si := 0; si < count; si++ {
 		connected := false
-		for i := 0; i < 1000; i++ {
+		for i := 0; i < 3000; i++ { // 3000 * 10ms = 30s
 			_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
 			if err != nil {
 				continue
