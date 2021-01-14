@@ -134,11 +134,11 @@ func (r *Resolver) rendezvousHash(addresses []string) []string {
 	}
 	sort.Sort(hosts)
 	size := min(r.discoveryMinPeers, len(hosts))
-	addressesPerHost := make([]string, size)
+	topAddrs := make([]string, size)
 	for i := 0; i < size; i++ {
-		addressesPerHost[i] = hosts[i].address
+		topAddrs[i] = hosts[i].address
 	}
-	return addressesPerHost
+	return topAddrs
 }
 
 func min(a, b int) int {
