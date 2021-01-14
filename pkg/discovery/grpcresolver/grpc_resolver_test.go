@@ -92,11 +92,12 @@ func makeSureConnectionsUp(t *testing.T, count int, testc grpctest.TestServiceCl
 			if _, ok := addrs[p.Addr.String()]; !ok {
 				addrs[p.Addr.String()] = struct{}{}
 				connected = true
+				t.Logf("connected to peer #%d (%v) on iteration %d", si, p.Addr, i)
 				break
 			}
 			time.Sleep(time.Millisecond * 10)
 		}
-		assert.True(t, connected, "Connection was still not up")
+		assert.True(t, connected, "Connection #%d was still not up. Connections so far: %+v", si, addrs)
 	}
 }
 
