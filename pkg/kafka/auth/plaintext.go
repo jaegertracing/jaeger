@@ -63,6 +63,8 @@ type PlainTextConfig struct {
 	Mechanism string `mapstructure:"mechanism"`
 }
 
+var _ sarama.SCRAMClient = (*scramClient)(nil)
+
 func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Config) error {
 	saramaConfig.Net.SASL.Enable = true
 	saramaConfig.Net.SASL.User = config.UserName
