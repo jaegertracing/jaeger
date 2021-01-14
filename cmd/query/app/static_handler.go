@@ -16,6 +16,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -40,6 +41,7 @@ var (
 
 	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
+	configJsPattern = regexp.MustCompile(`(?im)^\s*\/\/\s*JAEGER_CONFIG_JS.*\n.*`)
 	versionPattern  = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
 	basePathPattern = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
 )
@@ -73,6 +75,11 @@ type StaticAssetsHandlerOptions struct {
 	UIConfigPath string
 	Logger       *zap.Logger
 	NewWatcher   func() (fswatcher.Watcher, error)
+}
+
+type loadedConfig struct {
+	regexp *regexp.Regexp
+	config []byte
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
@@ -113,17 +120,11 @@ func loadAndEnrichIndexHTML(open func(string) (http.File, error), options Static
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	// replace UI config
-	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
-	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
+	if configObject, err := loadUIConfig(options.UIConfigPath); err != nil {
 		return nil, err
-	} else if config != nil {
-		// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
-		// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
-		// interface{}, and json.Marshal() is unable to serialize it.
-		bytes, _ := json.Marshal(config)
-		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
+	} else if configObject != nil {
+		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
 	}
-	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
 	// replace Jaeger version
 	versionJSON, _ := json.Marshal(version.Get())
 	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
@@ -218,30 +219,44 @@ func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	return indexBytes, nil
 }
 
-func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
+func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	if uiConfig == "" {
 		return nil, nil
 	}
-	ext := filepath.Ext(uiConfig)
-	bytes, err := ioutil.ReadFile(filepath.Clean(uiConfig))
+	bytesConfig, err := ioutil.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}
+	var r []byte
 
-	var c map[string]interface{}
-	var unmarshal func([]byte, interface{}) error
-
+	ext := filepath.Ext(uiConfig)
 	switch strings.ToLower(ext) {
 	case ".json":
-		unmarshal = json.Unmarshal
-	default:
-		return nil, fmt.Errorf("unrecognized UI config file format %v", uiConfig)
-	}
+		var c map[string]interface{}
 
-	if err := unmarshal(bytes, &c); err != nil {
-		return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+		if err := json.Unmarshal(bytesConfig, &c); err != nil {
+			return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+		}
+		r, _ = json.Marshal(c)
+
+		return &loadedConfig{
+			regexp: configPattern,
+			config: append([]byte("JAEGER_CONFIG = "), append(r, byte(';'))...),
+		}, nil
+	case ".js":
+		r = bytes.TrimSpace(bytesConfig)
+		re := regexp.MustCompile(`function\s+UIConfig(\s)?\(\s?\)(\s)?{`)
+		if !re.Match(r) {
+			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", uiConfig)
+		}
+
+		return &loadedConfig{
+			regexp: configJsPattern,
+			config: r,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", uiConfig)
 	}
-	return c, nil
 }
 
 // RegisterRoutes registers routes for this handler on the given router
