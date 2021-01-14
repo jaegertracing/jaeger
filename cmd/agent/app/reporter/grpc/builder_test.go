@@ -59,7 +59,7 @@ func TestBuilderFromConfig(t *testing.T) {
 		t,
 		[]string{"127.0.0.1:14268", "127.0.0.1:14269"},
 		cfg.CollectorHostPorts)
-	r, err := cfg.CreateConnection(zap.NewNop())
+	r, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 }
@@ -149,7 +149,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 			cfg.Notifier = test.notifier
 			cfg.Discoverer = test.discoverer
 
-			conn, err := cfg.CreateConnection(zap.NewNop())
+			conn, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
 			if test.expectedError == "" {
 				require.NoError(t, err)
 				require.NotNil(t, conn)

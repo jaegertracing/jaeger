@@ -123,22 +123,25 @@ func (r *Resolver) Close() {
 	r.closing.Wait()
 }
 
+// rendezvousHash is the core of the algorithm. It takes input addresses,
+// assigns each of them a hash, sorts them by those hash values, and
+// returns top N of entries from the sorted list, up to minPeers parameter.
 func (r *Resolver) rendezvousHash(addresses []string) []string {
 	hasher := fnv.New32()
-	hosts := hostScores{}
-	for _, address := range addresses {
-		hosts = append(hosts, hostScore{
+	hosts := make(hostScores, len(addresses))
+	for i, address := range addresses {
+		hosts[i] = hostScore{
 			address: address,
 			score:   hashAddr(hasher, []byte(address), r.salt),
-		})
+		}
 	}
 	sort.Sort(hosts)
-	size := min(r.discoveryMinPeers, len(hosts))
-	addressesPerHost := make([]string, size)
-	for i := 0; i < size; i++ {
-		addressesPerHost[i] = hosts[i].address
+	n := min(r.discoveryMinPeers, len(hosts))
+	topN := make([]string, n)
+	for i := 0; i < n; i++ {
+		topN[i] = hosts[i].address
 	}
-	return addressesPerHost
+	return topN
 }
 
 func min(a, b int) int {
@@ -162,9 +165,9 @@ func (r *Resolver) updateAddresses(hostPorts []string) {
 }
 
 func generateAddresses(instances []string) []resolver.Address {
-	var addrs []resolver.Address
-	for _, instance := range instances {
-		addrs = append(addrs, resolver.Address{Addr: instance})
+	addrs := make([]resolver.Address, len(instances))
+	for i, instance := range instances {
+		addrs[i] = resolver.Address{Addr: instance}
 	}
 	return addrs
 }
