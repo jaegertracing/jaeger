@@ -77,7 +77,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 
 	if opts.Config.Authentication == "plaintext" {
 		cfg.Authentication.PlainText = &kafkaexporter.PlainTextConfig{
-			Username: opts.Config.PlainText.UserName,
+			Username: opts.Config.PlainText.Username,
 			Password: opts.Config.PlainText.Password,
 		}
 	}
