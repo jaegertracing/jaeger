@@ -16,13 +16,14 @@
 package es
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
+	"text/template"
 
-	"github.com/flosch/pongo2/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,13 @@ type mockClientBuilder struct {
 	escfg.Configuration
 	err                 error
 	createTemplateError error
+}
+var mockTextTemplateBuilder = func() es.TemplateBuilder {
+	tb := mocks.TemplateBuilder{}
+	ta := mocks.TemplateApplier{}
+	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+	tb.On("Parse", mock.Anything).Return(&ta, nil)
+	return &tb
 }
 
 func (m *mockClientBuilder) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
@@ -89,6 +97,15 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
+
+	oldTextTemplateBuilder := newTextTemplateBuilder
+	defer func() {
+		newTextTemplateBuilder = oldTextTemplateBuilder
+	}()
+
+	newTextTemplateBuilder = mockTextTemplateBuilder
+	_, err = f.CreateSpanWriter()
+	assert.EqualError(t,err,"template load error")
 
 	assert.NoError(t, f.Close())
 }
@@ -178,23 +195,30 @@ func TestFactory_LoadMapping(t *testing.T) {
 		{name: "/jaeger-dependencies-7.json"},
 	}
 	for _, test := range tests {
-		mapping := loadMapping(test.name)
+		mapping := LoadMapping(test.name)
+		writer := new(bytes.Buffer)
 		f, err := os.Open("mappings/" + test.name)
 		require.NoError(t, err)
 		b, err := ioutil.ReadAll(f)
 		require.NoError(t, err)
 		assert.Equal(t, string(b), mapping)
-		tempMapping, err := pongo2.FromString(mapping)
-		assert.NoError(t, err)
+		tempMapping, err := template.New("mapping").Parse(mapping)
+		require.NoError(t, err)
 		esPrefixTemplateVal := test.esPrefix
 		if esPrefixTemplateVal != "" {
 			esPrefixTemplateVal += "-"
 		}
-		expectedMapping, err := tempMapping.Execute(pongo2.Context{"NumberOfShards": 10, "NumberOfReplicas": 0, "ESPrefix": esPrefixTemplateVal, "UseILM": test.useILM})
-		assert.NoError(t, err)
-		actualMapping, err := fixMapping(es.PongoTemplateBuilder{}, mapping, 10, 0, test.esPrefix, test.useILM)
-		assert.NoError(t, err)
-		assert.Equal(t, expectedMapping, actualMapping)
+		values := struct {
+			NumberOfShards   int64
+			NumberOfReplicas int64
+			ESPrefix         string
+			UseILM           bool
+		}{10, 0, esPrefixTemplateVal, test.useILM}
+		err = tempMapping.Execute(writer, values)
+		require.NoError(t, err)
+		actualMapping, err := FixMapping(es.TextTemplateBuilder{}, mapping, 10, 0, test.esPrefix, test.useILM)
+		require.NoError(t, err)
+		assert.Equal(t, writer.String(), actualMapping)
 	}
 }
 
@@ -258,50 +282,172 @@ func TestFixMapping(t *testing.T) {
 	tests := []struct {
 		name                    string
 		templateBuilderMockFunc func() *mocks.TemplateBuilder
-		expectedResult          string
 		err                     string
 	}{
-		{name: "templateRenderSuccess",
+		{
+			name: "templateRenderSuccess",
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything).Return("test success", nil)
-				tb.On("FromString", mock.Anything).Return(&ta, nil)
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			expectedResult: "test success",
-			err:            "",
+			err: "",
 		},
-		{name: "templateRenderFailure",
+		{
+			name: "templateRenderFailure",
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything).Return("", errors.New("template exec error"))
-				tb.On("FromString", mock.Anything).Return(&ta, nil)
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template exec error"))
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			expectedResult: "",
-			err:            "template exec error",
+			err: "template exec error",
 		},
-		{name: "templateLoadError",
+		{
+			name: "templateLoadError",
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
-				tb.On("FromString", mock.Anything).Return(nil, errors.New("template load error"))
+				tb.On("Parse", mock.Anything).Return(nil, errors.New("template load error"))
 				return &tb
 			},
-			expectedResult: "",
-			err:            "template load error",
+			err: "template load error",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := fixMapping(test.templateBuilderMockFunc(), "test", 3, 5, "test", true)
-			assert.Equal(t, test.expectedResult, result)
+			_, err := FixMapping(test.templateBuilderMockFunc(), "test", 3, 5, "test", true)
 			if test.err != "" {
 				assert.EqualError(t, err, test.err)
+			} else {
+				assert.NoError(t, err)
 			}
 
 		})
 	}
+}
+
+func TestGetSpanServiceMappings(t *testing.T) {
+	type args struct {
+		shards    int64
+		replicas  int64
+		esVersion uint
+		esPrefix  string
+		useILM    bool
+	}
+	tests := []struct {
+		name                       string
+		args                       args
+		mockNewTextTemplateBuilder func() es.TemplateBuilder
+		err                        string
+	}{
+		{
+			name: "ES Version 7",
+			args: args{
+				shards:    3,
+				replicas:  3,
+				esVersion: 7,
+				esPrefix:  "test",
+				useILM:    true,
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err:                "",
+		},
+		{
+			name: "ES Version 7 Error",
+			args: args{
+				shards:    3,
+				replicas:  3,
+				esVersion: 7,
+				esPrefix:  "test",
+				useILM:    true,
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err:                "template load error",
+		},
+
+		{
+			name: "ES Version < 7",
+			args: args{
+				shards:    3,
+				replicas:  3,
+				esVersion: 6,
+				esPrefix:  "test",
+				useILM:    true,
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err:                "",
+		},
+		{
+			name: "ES Version < 7 Error",
+			args: args{
+				shards:    3,
+				replicas:  3,
+				esVersion: 6,
+				esPrefix:  "test",
+				useILM:    true,
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err:                "template load error",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			oldTextTemplateBuilder := newTextTemplateBuilder
+			defer func() {
+				newTextTemplateBuilder = oldTextTemplateBuilder
+			}()
+
+			newTextTemplateBuilder = test.mockNewTextTemplateBuilder
+			_, _, err := GetSpanServiceMappings(test.args.shards, test.args.replicas,
+				test.args.esVersion, test.args.esPrefix,
+				test.args.useILM)
+			if test.err != "" {
+				assert.EqualError(t, err, test.err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetDependenciesMappings(t *testing.T){
+	oldTextTemplateBuilder := newTextTemplateBuilder
+	defer func() {
+		newTextTemplateBuilder = oldTextTemplateBuilder
+	}()
+
+	newTextTemplateBuilder = mockTextTemplateBuilder
+	_,err := GetDependenciesMappings(5,5,7)
+	assert.EqualError(t, err,"template load error")
+	_, err = GetDependenciesMappings(5, 5, 6)
+	assert.EqualError(t, err,"template load error")
 }

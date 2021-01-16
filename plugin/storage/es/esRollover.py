@@ -7,11 +7,10 @@ import logging
 import os
 import requests
 import ssl
+import subprocess
 import sys
 import re
-from pathlib2 import Path
 from requests.auth import HTTPBasicAuth
-from jinja2 import Template
 
 ARCHIVE_INDEX = 'jaeger-span-archive'
 ROLLBACK_CONDITIONS = '{"max_age": "2d"}'
@@ -85,14 +84,12 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         esVersion = get_version(client)
         use_ilm = str2bool(os.getenv("ES_USE_ILM", 'false'))
         if esVersion == 7:
-            mapping = Path('./mappings/' + template_name + '-7.json').read_text()
             if use_ilm:
                 check_if_ilm_policy_exists("jaeger-ilm-policy")
         else:
-            mapping = Path('./mappings/' + template_name + '.json').read_text()
             if use_ilm:
                 sys.exit("ILM is supported only for ES version 7+")
-        create_index_template(fix_mapping(mapping, shards, replicas, prefix, use_ilm),
+        create_index_template(fix_mapping(template_name, esVersion, shards, replicas, prefix.rstrip("-"), use_ilm),
                               prefix + template_name)
 
         index = index_to_rollover + '-000001'
@@ -197,10 +194,15 @@ def str2bool(v):
     return v.lower() in ('true', '1')
 
 
-def fix_mapping(mapping, shards, replicas, esprefix, use_ilm):
-    template = Template(mapping)
-    mapping = template.render(NumberOfShards=shards, NumberOfReplicas=replicas,
-                              ESPrefix=esprefix, UseILM=use_ilm)
+def fix_mapping(template_name, esVersion, shards, replicas, esprefix, use_ilm):
+    output = subprocess.Popen(['templateloader', '-mapping', template_name, '-esVersion', str(esVersion),
+                               '-shards', str(shards), '-replicas',
+                               str(replicas), '-esPrefix', esprefix, '-useILM', str(use_ilm)],
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT)
+    mapping, stderr = output.communicate()
+    if output.returncode != 0:
+        sys.exit(mapping)
     return mapping
 
 
@@ -261,6 +263,7 @@ def check_if_ilm_policy_exists(ilm_policy):
     r = s.get(sys.argv[2] + '/_ilm/policy/' + ilm_policy)
     if r.status_code != 200:
         sys.exit("ILM policy '{}' doesn't exist in Elasticsearch. Please create it and rerun init".format(ilm_policy))
+
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)

@@ -137,9 +137,9 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxDocCount:       defaultMaxDocCount,
 	})
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
-	depMapping, ed := es.GetDependenciesMappings(5, 1, client.GetVersion())
-	if ed != nil {
-		return ed
+	depMapping, err := es.GetDependenciesMappings(5, 1, client.GetVersion())
+	if err != nil {
+		return err
 	}
 	err = dependencyStore.CreateTemplates(depMapping)
 	if err != nil {

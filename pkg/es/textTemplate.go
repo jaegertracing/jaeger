@@ -14,22 +14,30 @@
 
 package es
 
-import "github.com/flosch/pongo2/v4"
+import (
+	"io"
+	"text/template"
+)
 
-//TemplateApplier is an abstraction to support mocking pongo2
+// TemplateApplier is an abstraction to support mocking text/template
 type TemplateApplier interface {
-	Execute(ctx pongo2.Context) (string, error)
+	Execute(wr io.Writer, data interface{}) error
 }
 
-//TemplateBuilder is an abstraction to support mocking pongo2
+// TemplateBuilder is an abstraction to support mocking text/template
 type TemplateBuilder interface {
-	FromString(mapping string) (TemplateApplier, error)
+	Parse(text string) (TemplateApplier, error)
 }
 
-//PongoTemplateBuilder implements TemplateBuilder
-type PongoTemplateBuilder struct{}
+// TextTemplateBuilder implements TemplateBuilder
+type TextTemplateBuilder struct{}
 
-// FromString is a wrapper for pongo2.FromString
-func (p PongoTemplateBuilder) FromString(mapping string) (TemplateApplier, error) {
-	return pongo2.FromString(mapping)
+// Parse is a wrapper for template.Parse
+func (t TextTemplateBuilder) Parse(mapping string) (TemplateApplier, error) {
+	return template.New("mapping").Parse(mapping)
+}
+
+// NewTextTemplateBuilder returns a TextTemplateBuilder
+func NewTextTemplateBuilder() TemplateBuilder {
+	return TextTemplateBuilder{}
 }

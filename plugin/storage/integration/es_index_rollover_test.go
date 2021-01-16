@@ -44,11 +44,10 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	// make sure ES is clean
 	cleanES(t, client, "jaeger-ilm-policy")
 	envVars := []string{"ES_USE_ILM=true"}
-	errorMsg := "exit status 1"
-	er := runEsRollover("init", envVars)
-	assert.Equal(t, errorMsg, er.Error())
-	indices, err1 := client.IndexNames()
-	require.NoError(t, err1)
+	err = runEsRollover("init", envVars)
+	assert.EqualError(t, err, "exit status 1")
+	indices, err := client.IndexNames()
+	require.NoError(t, err)
 	assert.Empty(t, indices)
 }
 
@@ -61,8 +60,8 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 
 	if esVersion != 7 {
 		cleanES(t, client, "")
-		er := runEsRollover("init", []string{"ES_USE_ILM=true"})
-		assert.Equal(t, "exit status 1", er.Error())
+		err := runEsRollover("init", []string{"ES_USE_ILM=true"})
+		assert.EqualError(t, err, "exit status 1")
 		indices, err1 := client.IndexNames()
 		require.NoError(t, err1)
 		assert.Empty(t, indices)
@@ -100,7 +99,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 		expectedWriteAliases = append(expectedWriteAliases, prefix+alias)
 	}
 
-	//Run rollover with given EnvVars
+	// Run rollover with given EnvVars
 	err = runEsRollover("init", envVars)
 	require.NoError(t, err)
 

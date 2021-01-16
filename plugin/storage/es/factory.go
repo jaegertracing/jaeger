@@ -16,11 +16,11 @@
 package es
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
 
-	"github.com/flosch/pongo2/v4"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -38,6 +38,8 @@ const (
 	primaryNamespace = "es"
 	archiveNamespace = "es-archive"
 )
+
+var newTextTemplateBuilder = es.NewTextTemplateBuilder
 
 // Factory implements storage.Factory for Elasticsearch backend.
 type Factory struct {
@@ -168,7 +170,7 @@ func createSpanWriter(
 
 	spanMapping, serviceMapping, err := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
 	if err != nil {
-		logger.Error("Failed to get rendered index template mappings", zap.Error(err))
+		return nil, err
 	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
@@ -194,21 +196,21 @@ func createSpanWriter(
 // GetSpanServiceMappings returns span and service mappings
 func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string, error) {
 	if esVersion == 7 {
-		spanMapping, er := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
-		if er != nil {
-			return "", "", er
+		spanMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
+		if err != nil {
+			return "", "", err
 		}
-		serviceMapping, err := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
+		serviceMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
 		if err != nil {
 			return "", "", err
 		}
 		return spanMapping, serviceMapping, nil
 	}
-	spanMapping, er := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-span.json"), shards, replicas, "", false)
-	if er != nil {
-		return "", "", er
+	spanMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-span.json"), shards, replicas, "", false)
+	if err != nil {
+		return "", "", err
 	}
-	serviceMapping, err := fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-service.json"), shards, replicas, "", false)
+	serviceMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-service.json"), shards, replicas, "", false)
 	if err != nil {
 		return "", "", err
 	}
@@ -218,30 +220,43 @@ func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix str
 // GetDependenciesMappings returns dependencies mappings
 func GetDependenciesMappings(shards, replicas int64, esVersion uint) (string, error) {
 	if esVersion == 7 {
-		return fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
+		return FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
 	}
-	return fixMapping(es.PongoTemplateBuilder{}, loadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
+	return FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
 }
 
-func loadMapping(name string) string {
+// LoadMapping returns index mappings from go assets as strings
+func LoadMapping(name string) string {
 	s, _ := mappings.FSString(false, name)
 	return s
 }
 
-func fixMapping(tb es.TemplateBuilder, mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
-	t, err := tb.FromString(mapping)
+// FixMapping parses the index mappings with given values and returns parsed template as string
+func FixMapping(tb es.TemplateBuilder, mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
+
+	tmpl, err := tb.Parse(mapping)
+	writer := new(bytes.Buffer)
+
 	if err != nil {
 		return "", err
 	}
 	if esPrefix != "" {
 		esPrefix += "-"
 	}
-	fixedMapping, err := t.Execute(pongo2.Context{"NumberOfShards": shards, "NumberOfReplicas": replicas, "ESPrefix": esPrefix, "UseILM": useILM})
+	values := struct {
+		NumberOfShards   int64
+		NumberOfReplicas int64
+		ESPrefix         string
+		UseILM           bool
+	}{shards, replicas, esPrefix, useILM}
+
+	err = tmpl.Execute(writer, values)
 	if err != nil {
+
 		return "", err
 	}
 
-	return fixedMapping, nil
+	return writer.String(), nil
 }
 
 var _ io.Closer = (*Factory)(nil)

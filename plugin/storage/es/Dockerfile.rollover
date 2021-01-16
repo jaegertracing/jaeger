@@ -6,5 +6,6 @@ RUN pip install urllib3==1.24.3
 RUN pip install elasticsearch elasticsearch-curator pathlib2 Jinja2
 COPY ./mappings/* /mappings/
 COPY esRollover.py /es-rollover/
+COPY templateloader /usr/bin/
 
 ENTRYPOINT ["python3", "/es-rollover/esRollover.py"]
