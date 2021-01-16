@@ -44,6 +44,7 @@ type mockClientBuilder struct {
 	err                 error
 	createTemplateError error
 }
+
 var mockTextTemplateBuilder = func() es.TemplateBuilder {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
@@ -105,7 +106,7 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	newTextTemplateBuilder = mockTextTemplateBuilder
 	_, err = f.CreateSpanWriter()
-	assert.EqualError(t,err,"template load error")
+	assert.EqualError(t, err, "template load error")
 
 	assert.NoError(t, f.Close())
 }
@@ -360,7 +361,7 @@ func TestGetSpanServiceMappings(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err:                "",
+			err: "",
 		},
 		{
 			name: "ES Version 7 Error",
@@ -378,7 +379,7 @@ func TestGetSpanServiceMappings(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err:                "template load error",
+			err: "template load error",
 		},
 
 		{
@@ -397,7 +398,7 @@ func TestGetSpanServiceMappings(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err:                "",
+			err: "",
 		},
 		{
 			name: "ES Version < 7 Error",
@@ -415,7 +416,7 @@ func TestGetSpanServiceMappings(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err:                "template load error",
+			err: "template load error",
 		},
 	}
 	for _, test := range tests {
@@ -439,15 +440,15 @@ func TestGetSpanServiceMappings(t *testing.T) {
 	}
 }
 
-func TestGetDependenciesMappings(t *testing.T){
+func TestGetDependenciesMappings(t *testing.T) {
 	oldTextTemplateBuilder := newTextTemplateBuilder
 	defer func() {
 		newTextTemplateBuilder = oldTextTemplateBuilder
 	}()
 
 	newTextTemplateBuilder = mockTextTemplateBuilder
-	_,err := GetDependenciesMappings(5,5,7)
-	assert.EqualError(t, err,"template load error")
+	_, err := GetDependenciesMappings(5, 5, 7)
+	assert.EqualError(t, err, "template load error")
 	_, err = GetDependenciesMappings(5, 5, 6)
-	assert.EqualError(t, err,"template load error")
+	assert.EqualError(t, err, "template load error")
 }
