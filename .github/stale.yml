@@ -1,4 +1,24 @@
-daysUntilStale: 60
-daysUntilClose: 7
-onlyLabels:
-  - needs-info
+pulls:
+  daysUntilStale: 60
+  daysUntilClose: 14
+  onlyLabels: []
+  exemptLabels: []
+  markComment: >
+    This pull request has been automatically marked as stale because it has not had
+    recent activity. It will be closed if no further activity occurs. You may re-open
+    it if you need more time. Thank you for your contributions.
+  closeComment: >
+    This pull request has been automatically closed due to inactivity. You may re-open
+    it if you need more time. Thank you for your contributions.
+
+issues:
+  daysUntilStale: 30
+  daysUntilClose: 7
+  onlyLabels:
+    - question
+  exemptLabels: []
+  markComment: >
+    This issue has been automatically marked as stale because it has not had
+    recent activity. It will be closed if no further activity occurs.
+  closeComment: >
+    This issue has been automatically closed due to inactivity.
