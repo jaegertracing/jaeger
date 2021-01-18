@@ -127,7 +127,9 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 ## Maintainers
 
-Below are the official maintainers of the Jaeger project. Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
+Rules for becoming a maintainer are defined in the [GOVERNANCE](./GOVERNANCE.md) document.
+Below are the official maintainers of the Jaeger project.
+Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
 
 * [@black-adder](https://github.com/black-adder)
 * [@joe-elliott](https://github.com/joe-elliott)
