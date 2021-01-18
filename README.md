@@ -9,6 +9,8 @@
 
 [![Unit Tests][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][ci]
 
+<img src="https://github.com/cncf/artwork/blob/master/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="205">
+
 # Jaeger - a Distributed Tracing System
 
 Jaeger, inspired by [Dapper][dapper] and [OpenZipkin](https://zipkin.io),
@@ -27,8 +29,6 @@ See also:
   * Jaeger [documentation][doc] for getting started, operational details, and other information.
   * Blog post [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/).
   * Tutorial / walkthrough [Take OpenTracing for a HotROD ride][hotrod-tutorial].
-
-<img src="https://www.cncf.io/wp-content/uploads/2016/09/logo_cncf.png">
 
 Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF) as the 7th top-level project (graduated in October 2019). If you are a company that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF. For details about who's involved and how Jaeger plays a role, read the CNCF [Jaeger incubation announcement](https://www.cncf.io/blog/2017/09/13/cncf-hosts-jaeger/) and [Jaeger graduation announcement](https://www.cncf.io/announcement/2019/10/31/cloud-native-computing-foundation-announces-jaeger-graduation/).
 
