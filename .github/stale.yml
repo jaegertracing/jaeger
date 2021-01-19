@@ -1,3 +1,6 @@
+# Label to use when marking as stale
+staleLabel: stale
+
 pulls:
   daysUntilStale: 60
   daysUntilClose: 14
