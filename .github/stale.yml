@@ -6,10 +6,11 @@ pulls:
   markComment: >
     This pull request has been automatically marked as stale because it has not had
     recent activity. It will be closed if no further activity occurs. You may re-open
-    it if you need more time. Thank you for your contributions.
+    it if you need more time.
   closeComment: >
     This pull request has been automatically closed due to inactivity. You may re-open
-    it if you need more time. Thank you for your contributions.
+    it if you need more time. We really appreciate your contribution and we are sorry
+    that this has not been completed.
 
 issues:
   daysUntilStale: 30
