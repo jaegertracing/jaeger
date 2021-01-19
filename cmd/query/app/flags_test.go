@@ -61,26 +61,6 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
 }
 
-func TestQueryBuilderFlagsSeparatePorts(t *testing.T) {
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--query.http-server.host-port=127.0.0.1:8080",
-	})
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTPHostPort)
-	assert.Equal(t, ports.PortToHostPort(ports.QueryGRPC), qOpts.GRPCHostPort)
-}
-
-func TestQueryBuilderFlagsSeparateNoPorts(t *testing.T) {
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{})
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
-
-	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.HTTPHostPort)
-	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.GRPCHostPort)
-	assert.Equal(t, ports.PortToHostPort(ports.QueryHTTP), qOpts.HostPort)
-}
-
 func TestQueryBuilderBadHeadersFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
@@ -144,4 +124,117 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
+}
+
+func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
+	var flagPortCases = []struct {
+		name                 string
+		flagsArray           []string
+		expectedHTTPHostPort string
+		expectedGRPCHostPort string
+		verifyCommonPort     bool
+		expectedHostPort     string
+	}{
+		{
+			// Since TLS is enabled in atleast one server, the dedicated host-ports obtained from viper are used, even if common host-port is specified
+			name: "Atleast one dedicated host-port and common host-port is specified, atleast one of GRPC, HTTP TLS enabled",
+			flagsArray: []string{
+				"--query.grpc.tls.enabled=true",
+				"--query.http-server.host-port=127.0.0.1:8081",
+				"--query.host-port=127.0.0.1:8080",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8081",
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+			verifyCommonPort:     false,
+		},
+		{
+			// TLS is disabled in both servers, since common host-port is specified, common host-port is used
+			name: "Atleast one dedicated host-port is specified, common host-port is specified, both GRPC and HTTP TLS disabled",
+			flagsArray: []string{
+				"--query.http-server.host-port=127.0.0.1:8081",
+				"--query.host-port=127.0.0.1:8080",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8080",
+			expectedGRPCHostPort: "127.0.0.1:8080",
+			verifyCommonPort:     true,
+			expectedHostPort:     "127.0.0.1:8080",
+		},
+		{
+			// Since TLS is enabled in atleast one server, the dedicated host-ports obtained from viper are used
+			name: "Atleast one dedicated host-port is specified, common host-port is not specified, atleast one of GRPC, HTTP TLS enabled",
+			flagsArray: []string{
+				"--query.grpc.tls.enabled=true",
+				"--query.http-server.host-port=127.0.0.1:8081",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8081",
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), //  fallback in viper
+			verifyCommonPort:     false,
+		},
+		{
+			// TLS is disabled in both servers, since common host-port is not specified but atleast one dedicated port is specified, the dedicated host-ports obtained from viper are used
+			name: "Atleast one dedicated port, common port defined, both GRPC and HTTP TLS disabled",
+			flagsArray: []string{
+				"--query.http-server.host-port=127.0.0.1:8081",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8081",
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+			verifyCommonPort:     false,
+		},
+		{
+			// Since TLS is enabled in atleast one server, the dedicated host-ports obtained from viper are used, even if common host-port is specified and the dedicated host-port are not specified
+			name: "No dedicated host-port is specified, common host-port is specified, atleast one of GRPC, HTTP TLS enabled",
+			flagsArray: []string{
+				"--query.grpc.tls.enabled=true",
+				"--query.host-port=127.0.0.1:8080",
+			},
+			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+			verifyCommonPort:     false,
+		},
+		{
+			// TLS is disabled in both servers, since only common host-port is specified, common host-port is used
+			name: "No dedicated host-port is specified, common host-port is specified, both GRPC and HTTP TLS disabled",
+			flagsArray: []string{
+				"--query.host-port=127.0.0.1:8080",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8080",
+			expectedGRPCHostPort: "127.0.0.1:8080",
+			verifyCommonPort:     true,
+			expectedHostPort:     "127.0.0.1:8080",
+		},
+		{
+			// Since TLS is enabled in atleast one server, the dedicated host-ports obtained from viper are used
+			name: "No dedicated host-port is specified, common host-port is  not specified, atleast one of GRPC, HTTP TLS enabled",
+			flagsArray: []string{
+				"--query.grpc.tls.enabled=true",
+			},
+			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+			verifyCommonPort:     false,
+		},
+		{
+			// TLS is disabled in both servers, since common host-port is not specified and neither dedicated ports are specified, common host-port from viper is used
+			name:                 "No dedicated host-port is specified, common host-port is not specified, both GRPC and HTTP TLS disabled",
+			flagsArray:           []string{},
+			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP),
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryHTTP),
+			verifyCommonPort:     true,
+			expectedHostPort:     ports.PortToHostPort(ports.QueryHTTP), //  fallback in viper
+		},
+	}
+
+	for _, test := range flagPortCases {
+		t.Run(test.name, func(t *testing.T) {
+			v, command := config.Viperize(AddFlags)
+			command.ParseFlags(test.flagsArray)
+			qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+
+			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTPHostPort)
+			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPCHostPort)
+			if test.verifyCommonPort {
+				assert.Equal(t, test.expectedHostPort, qOpts.HostPort)
+			}
+
+		})
+	}
 }
