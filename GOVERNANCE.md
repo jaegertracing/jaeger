@@ -21,7 +21,7 @@ To become a maintainer you need to demonstrate the following:
     * contribute 10 non-trivial pull requests and have them merged into master,
   * ability to write good code,
   * ability to collaborate with the team,
-  * understanding of how the team works (policies, processes for testing and code review, etc), 
+  * understanding of how the team works (policies, processes for testing and code review, etc),
   * understanding of the projects' code base and coding style.
 
 A new maintainer must be proposed by an existing maintainer by sending a message to the
@@ -37,7 +37,21 @@ Two other maintainers need to second the nomination. If no one objects in 5 work
 
 ## Changes in Maintainership
 
-Maintainers can be removed by a 2/3 majority vote by maintainers.
+We do not expect anyone to make a permanent commitment to be a Jaeger maintainer forever. After all, circumstances change,
+people get new jobs, new interests, and may not be able to continue contributing to the project. At the same time, we need
+to keep the list of maintainers current in order to have effective governance. People may be removed from the current list
+of maintaners via one of the following ways:
+  * They can resign
+  * If they stop contributing to the project for a period of 6 months or more
+  * By a 2/3 majority vote by maintainers
+
+Former maintainers can be reinstated to full maintainer status through the same process of
+[Becoming a Maintainer](#becoming-a-maintainer) as first-time nominees.
+
+## Emeritus Maintainers
+
+Former maintainers are recognized with an honorary _Emeritus Maintainer_ status, and have their names permanently
+listed in the README as a form of gratitude for their contributions.
 
 ## GitHub Project Administration
 

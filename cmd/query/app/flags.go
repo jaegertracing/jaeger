@@ -51,8 +51,14 @@ const (
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 )
 
-var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
+var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix:       "query.grpc",
+	ShowEnabled:  true,
+	ShowClientCA: true,
+}
+
+var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix:       "query.http",
 	ShowEnabled:  true,
 	ShowClientCA: true,
 }
@@ -73,8 +79,10 @@ type QueryOptions struct {
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
-	// TLS configures secure transport
-	TLS tlscfg.Options
+	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
+	TLSGRPC tlscfg.Options
+	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
+	TLSHTTP tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
@@ -93,6 +101,8 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 	flagSet.Duration(queryMaxClockSkewAdjust, 0, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
+	tlsGRPCFlagsConfig.AddFlags(flagSet)
+	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }
 
 // InitPortsConfigFromViper initializes the port numbers and TLS configuration of ports
@@ -101,10 +111,16 @@ func (qOpts *QueryOptions) InitPortsConfigFromViper(v *viper.Viper, logger *zap.
 	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
 	qOpts.HostPort = ports.GetAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
 
-	qOpts.TLS = tlsFlagsConfig.InitFromViper(v)
+	qOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
+	qOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 
-	// query.host-port is not defined and at least one of query.grpc-server.host-port or query.http-server.host-port is defined.
-	// User intends to use separate GRPC and HTTP host:port flags
+	// If either GRPC or HTTP servers use TLS, use dedicated ports.
+	if qOpts.TLSGRPC.Enabled || qOpts.TLSHTTP.Enabled {
+		return qOpts
+	}
+
+	// --query.host-port flag is not set and either or both of --query.grpc-server.host-port or --query.http-server.host-port is set by the user with command line flags.
+	// i.e. user intends to use separate GRPC and HTTP host:port flags
 	if !(v.IsSet(queryHostPort) || v.IsSet(queryPort)) && (v.IsSet(queryHTTPHostPort) || v.IsSet(queryGRPCHostPort)) {
 		return qOpts
 	}
@@ -124,8 +140,8 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
-	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 
+	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
 	headers, err := stringSliceAsHeader(stringSlice)
 	if err != nil {
