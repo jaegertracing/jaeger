@@ -131,16 +131,21 @@ Rules for becoming a maintainer are defined in the [GOVERNANCE](./GOVERNANCE.md)
 Below are the official maintainers of the Jaeger project.
 Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
 
-* [@black-adder](https://github.com/black-adder)
 * [@joe-elliott](https://github.com/joe-elliott)
 * [@jpkrohling](https://github.com/jpkrohling)
 * [@objectiser](https://github.com/objectiser)
 * [@pavolloffay](https://github.com/pavolloffay)
-* [@tiffon](https://github.com/tiffon)
 * [@vprithvi](https://github.com/vprithvi)
 * [@yurishkuro](https://github.com/yurishkuro)
 
 Some repositories under [jaegertracing](https://github.com/jaegertracing) org have additional maintainers.
+
+### Emeritus Maintainers
+
+We are grateful to our former maintainers for their contributions to the Jaeger project.
+
+* [@black-adder](https://github.com/black-adder)
+* [@tiffon](https://github.com/tiffon)
 
 ## Project Status Bi-Weekly Meeting
 
