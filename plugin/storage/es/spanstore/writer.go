@@ -30,8 +30,10 @@ import (
 )
 
 const (
-	spanType    = "span"
-	serviceType = "service"
+	spanType               = "span"
+	serviceType            = "service"
+	serviceCacheTTLDefault = 12 * time.Hour
+	indexCacheTTLDefault   = 48 * time.Hour
 )
 
 type spanWriterMetrics struct {
@@ -63,12 +65,23 @@ type SpanWriterParams struct {
 	TagDotReplacement   string
 	Archive             bool
 	UseReadWriteAliases bool
+	ServiceCacheTTL     time.Duration
+	IndexCacheTTL       time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
-	// TODO: Configurable TTL
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, time.Hour*12)
+	serviceCacheTTL := p.ServiceCacheTTL
+	if p.ServiceCacheTTL == 0 {
+		serviceCacheTTL = serviceCacheTTLDefault
+	}
+
+	indexCacheTTL := p.IndexCacheTTL
+	if p.ServiceCacheTTL == 0 {
+		indexCacheTTL = indexCacheTTLDefault
+	}
+
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client: p.Client,
 		logger: p.Logger,
@@ -79,7 +92,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		indexCache: cache.NewLRUWithOptions(
 			5,
 			&cache.Options{
-				TTL: 48 * time.Hour,
+				TTL: indexCacheTTL,
 			},
 		),
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
