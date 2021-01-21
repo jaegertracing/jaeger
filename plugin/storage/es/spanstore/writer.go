@@ -65,29 +65,20 @@ type SpanWriterParams struct {
 	TagDotReplacement   string
 	Archive             bool
 	UseReadWriteAliases bool
-	ServiceCacheTTL     string
-	IndexCacheTTL       string
+	ServiceCacheTTL     time.Duration
+	IndexCacheTTL       time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
-	var err error
-	serviceCacheTTL := serviceCacheTTLDefault
-	if p.ServiceCacheTTL != "" {
-		serviceCacheTTL, err = time.ParseDuration(p.ServiceCacheTTL)
-		if err != nil {
-			p.Logger.Warn("error parsing service cache duration. Using default", zap.Error(err), zap.Duration("default", serviceCacheTTLDefault))
-			serviceCacheTTL = serviceCacheTTLDefault
-		}
+	serviceCacheTTL := p.ServiceCacheTTL
+	if p.ServiceCacheTTL == 0 {
+		serviceCacheTTL = serviceCacheTTLDefault
 	}
 
-	indexCacheTTL := indexCacheTTLDefault
-	if p.ServiceCacheTTL != "" {
-		indexCacheTTL, err = time.ParseDuration(p.IndexCacheTTL)
-		if err != nil {
-			p.Logger.Warn("error parsing index cache duration. Using default", zap.Error(err), zap.Duration("default", indexCacheTTLDefault))
-			indexCacheTTL = indexCacheTTLDefault
-		}
+	indexCacheTTL := p.IndexCacheTTL
+	if p.ServiceCacheTTL == 0 {
+		indexCacheTTL = indexCacheTTLDefault
 	}
 
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)

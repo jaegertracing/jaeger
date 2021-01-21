@@ -360,26 +360,20 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	testCases := []struct {
-		indexTTL         string
-		serviceTTL       string
+		indexTTL         time.Duration
+		serviceTTL       time.Duration
 		name             string
 		expectedAddCalls int
 	}{
 		{
-			indexTTL:         indexCacheTTLDefault.String(),
-			serviceTTL:       serviceCacheTTLDefault.String(),
+			indexTTL:         0,
+			serviceTTL:       0,
 			name:             "uses defaults",
 			expectedAddCalls: 1,
 		},
 		{
-			indexTTL:         "invalid",
-			serviceTTL:       "invalid2",
-			name:             "uses defaults if invalid input",
-			expectedAddCalls: 1,
-		},
-		{
-			indexTTL:         "1ns",
-			serviceTTL:       "1ns",
+			indexTTL:         1 * time.Nanosecond,
+			serviceTTL:       1 * time.Nanosecond,
 			name:             "uses provided values",
 			expectedAddCalls: 3,
 		},
