@@ -356,6 +356,80 @@ func TestNewSpanTags(t *testing.T) {
 	}
 }
 
+func TestSpanWriterParamsTTL(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+	metricsFactory := metricstest.NewFactory(0)
+	testCases := []struct {
+		indexTTL         string
+		serviceTTL       string
+		name             string
+		expectedAddCalls int
+	}{
+		{
+			indexTTL:         indexCacheTTLDefault.String(),
+			serviceTTL:       serviceCacheTTLDefault.String(),
+			name:             "uses defaults",
+			expectedAddCalls: 1,
+		},
+		{
+			indexTTL:         "invalid",
+			serviceTTL:       "invalid2",
+			name:             "uses defaults if invalid input",
+			expectedAddCalls: 1,
+		},
+		{
+			indexTTL:         "1ns",
+			serviceTTL:       "1ns",
+			name:             "uses provided values",
+			expectedAddCalls: 3,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			client := &mocks.Client{}
+			params := SpanWriterParams{
+				Client:          client,
+				Logger:          logger,
+				MetricsFactory:  metricsFactory,
+				ServiceCacheTTL: test.serviceTTL,
+				IndexCacheTTL:   test.indexTTL,
+			}
+			w := NewSpanWriter(params)
+
+			svc := dbmodel.Service{
+				ServiceName:   "foo",
+				OperationName: "bar",
+			}
+			serviceHash := hashCode(svc)
+
+			serviceIndexName := "jaeger-service-1995-04-21"
+
+			indexService := &mocks.IndexService{}
+
+			indexService.On("Index", stringMatcher(serviceIndexName)).Return(indexService)
+			indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
+			indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
+			indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
+			indexService.On("Add")
+
+			client.On("Index").Return(indexService)
+
+			jsonSpan := &dbmodel.Span{
+				Process:       dbmodel.Process{ServiceName: "foo"},
+				OperationName: "bar",
+			}
+
+			w.writeService(serviceIndexName, jsonSpan)
+			time.Sleep(1 * time.Nanosecond)
+			w.writeService(serviceIndexName, jsonSpan)
+			time.Sleep(1 * time.Nanosecond)
+			w.writeService(serviceIndexName, jsonSpan)
+			indexService.AssertNumberOfCalls(t, "Add", test.expectedAddCalls)
+		})
+	}
+}
+
 // stringMatcher can match a string argument when it contains a specific substring q
 func stringMatcher(q string) interface{} {
 	matchFunc := func(s string) bool {

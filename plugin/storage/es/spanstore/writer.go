@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	spanType                    = "span"
-	serviceType                 = "service"
-	serviceCacheDurationDefault = 12 * time.Hour
-	indexCacheDurationDefault   = 48 * time.Hour
+	spanType               = "span"
+	serviceType            = "service"
+	serviceCacheTTLDefault = 12 * time.Hour
+	indexCacheTTLDefault   = 48 * time.Hour
 )
 
 type spanWriterMetrics struct {
@@ -55,43 +55,42 @@ type SpanWriter struct {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client               es.Client
-	Logger               *zap.Logger
-	MetricsFactory       metrics.Factory
-	IndexPrefix          string
-	IndexDateLayout      string
-	AllTagsAsFields      bool
-	TagKeysAsFields      []string
-	TagDotReplacement    string
-	Archive              bool
-	UseReadWriteAliases  bool
-	ServiceCacheDuration string
-	IndexCacheDuration   string
+	Client              es.Client
+	Logger              *zap.Logger
+	MetricsFactory      metrics.Factory
+	IndexPrefix         string
+	IndexDateLayout     string
+	AllTagsAsFields     bool
+	TagKeysAsFields     []string
+	TagDotReplacement   string
+	Archive             bool
+	UseReadWriteAliases bool
+	ServiceCacheTTL     string
+	IndexCacheTTL       string
 }
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	var err error
-
-	serviceCacheDuration := serviceCacheDurationDefault
-	if p.ServiceCacheDuration != "" {
-		serviceCacheDuration, err = time.ParseDuration(p.ServiceCacheDuration)
+	serviceCacheTTL := serviceCacheTTLDefault
+	if p.ServiceCacheTTL != "" {
+		serviceCacheTTL, err = time.ParseDuration(p.ServiceCacheTTL)
 		if err != nil {
-			p.Logger.Warn("error parsing service cache duration. Using default", zap.Error(err), zap.Duration("default", serviceCacheDurationDefault))
-			serviceCacheDuration = serviceCacheDurationDefault
+			p.Logger.Warn("error parsing service cache duration. Using default", zap.Error(err), zap.Duration("default", serviceCacheTTLDefault))
+			serviceCacheTTL = serviceCacheTTLDefault
 		}
 	}
 
-	indexCacheDuration := indexCacheDurationDefault
-	if p.ServiceCacheDuration != "" {
-		indexCacheDuration, err = time.ParseDuration(p.IndexCacheDuration)
+	indexCacheTTL := indexCacheTTLDefault
+	if p.ServiceCacheTTL != "" {
+		indexCacheTTL, err = time.ParseDuration(p.IndexCacheTTL)
 		if err != nil {
-			p.Logger.Warn("error parsing index cache duration. Using default", zap.Error(err), zap.Duration("default", indexCacheDurationDefault))
-			indexCacheDuration = indexCacheDurationDefault
+			p.Logger.Warn("error parsing index cache duration. Using default", zap.Error(err), zap.Duration("default", indexCacheTTLDefault))
+			indexCacheTTL = indexCacheTTLDefault
 		}
 	}
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheDuration)
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client: p.Client,
 		logger: p.Logger,
@@ -102,7 +101,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		indexCache: cache.NewLRUWithOptions(
 			5,
 			&cache.Options{
-				TTL: indexCacheDuration,
+				TTL: indexCacheTTL,
 			},
 		),
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
