@@ -34,8 +34,3 @@ func TestParse(t *testing.T) {
 	assert.Equal(t, str, writer.String())
 
 }
-
-func TestNewTextTemplateBuilder(t *testing.T) {
-	textBuilder := NewTextTemplateBuilder()
-	assert.IsType(t, TextTemplateBuilder{}, textBuilder)
-}

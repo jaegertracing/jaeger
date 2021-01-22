@@ -19,12 +19,13 @@ import (
 	"text/template"
 )
 
-// TemplateApplier is an abstraction to support mocking text/template
+// TemplateApplier applies a parsed template to input data that maps to the template's variables.
 type TemplateApplier interface {
 	Execute(wr io.Writer, data interface{}) error
 }
 
-// TemplateBuilder is an abstraction to support mocking text/template
+// TemplateBuilder parses a given string and returns TemplateApplier
+// TemplateBuilder is an abstraction to support mocking template/text
 type TemplateBuilder interface {
 	Parse(text string) (TemplateApplier, error)
 }
@@ -35,9 +36,4 @@ type TextTemplateBuilder struct{}
 // Parse is a wrapper for template.Parse
 func (t TextTemplateBuilder) Parse(mapping string) (TemplateApplier, error) {
 	return template.New("mapping").Parse(mapping)
-}
-
-// NewTextTemplateBuilder returns a TextTemplateBuilder
-func NewTextTemplateBuilder() TemplateBuilder {
-	return TextTemplateBuilder{}
 }

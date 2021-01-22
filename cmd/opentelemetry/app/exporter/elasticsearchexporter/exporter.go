@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
+	esTemplate "github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
@@ -31,8 +32,8 @@ func newExporter(ctx context.Context, config *Config, params component.ExporterC
 		return nil, err
 	}
 	if config.Primary.IsCreateIndexTemplates() {
-		spanMapping, serviceMapping, e := es.GetSpanServiceMappings(esCfg.GetNumShards(), esCfg.GetNumReplicas(), uint(w.esClientVersion()), esCfg.GetIndexPrefix(), esCfg.GetUseILM())
-		if e != nil {
+		spanMapping, serviceMapping, err := es.GetSpanServiceMappings(esTemplate.TextTemplateBuilder{}, esCfg.GetNumShards(), esCfg.GetNumReplicas(), uint(w.esClientVersion()), esCfg.GetIndexPrefix(), esCfg.GetUseILM())
+		if err != nil {
 			return nil, err
 		}
 		if err = w.CreateTemplates(ctx, spanMapping, serviceMapping); err != nil {

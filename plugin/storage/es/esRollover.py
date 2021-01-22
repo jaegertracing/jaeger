@@ -195,9 +195,9 @@ def str2bool(v):
 
 
 def fix_mapping(template_name, esVersion, shards, replicas, esprefix, use_ilm):
-    output = subprocess.Popen(['templateloader', '-mapping', template_name, '-esVersion', str(esVersion),
-                               '-shards', str(shards), '-replicas',
-                               str(replicas), '-esPrefix', esprefix, '-useILM', str(use_ilm)],
+    output = subprocess.Popen(['templatizer', '--mapping', template_name, '--esVersion', str(esVersion),
+                               '--shards', str(shards), '--replicas',
+                               str(replicas), '--esPrefix', esprefix, '--useILM', str(use_ilm)],
                               stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)
     mapping, stderr = output.communicate()

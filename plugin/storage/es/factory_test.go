@@ -45,7 +45,7 @@ type mockClientBuilder struct {
 	createTemplateError error
 }
 
-var mockTextTemplateBuilder = func() es.TemplateBuilder {
+var mockErrTextTemplateBuilder = func() es.TemplateBuilder {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
 	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
@@ -98,16 +98,6 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
-
-	oldTextTemplateBuilder := newTextTemplateBuilder
-	defer func() {
-		newTextTemplateBuilder = oldTextTemplateBuilder
-	}()
-
-	newTextTemplateBuilder = mockTextTemplateBuilder
-	_, err = f.CreateSpanWriter()
-	assert.EqualError(t, err, "template load error")
-
 	assert.NoError(t, f.Close())
 }
 
@@ -375,7 +365,8 @@ func TestGetSpanServiceMappings(t *testing.T) {
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
@@ -412,7 +403,8 @@ func TestGetSpanServiceMappings(t *testing.T) {
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
@@ -421,14 +413,7 @@ func TestGetSpanServiceMappings(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
-			oldTextTemplateBuilder := newTextTemplateBuilder
-			defer func() {
-				newTextTemplateBuilder = oldTextTemplateBuilder
-			}()
-
-			newTextTemplateBuilder = test.mockNewTextTemplateBuilder
-			_, _, err := GetSpanServiceMappings(test.args.shards, test.args.replicas,
+			_, _, err := GetSpanServiceMappings(test.mockNewTextTemplateBuilder(), test.args.shards, test.args.replicas,
 				test.args.esVersion, test.args.esPrefix,
 				test.args.useILM)
 			if test.err != "" {
@@ -441,14 +426,9 @@ func TestGetSpanServiceMappings(t *testing.T) {
 }
 
 func TestGetDependenciesMappings(t *testing.T) {
-	oldTextTemplateBuilder := newTextTemplateBuilder
-	defer func() {
-		newTextTemplateBuilder = oldTextTemplateBuilder
-	}()
 
-	newTextTemplateBuilder = mockTextTemplateBuilder
-	_, err := GetDependenciesMappings(5, 5, 7)
+	_, err := GetDependenciesMappings(mockErrTextTemplateBuilder(), 5, 5, 7)
 	assert.EqualError(t, err, "template load error")
-	_, err = GetDependenciesMappings(5, 5, 6)
+	_, err = GetDependenciesMappings(mockErrTextTemplateBuilder(), 5, 5, 6)
 	assert.EqualError(t, err, "template load error")
 }

@@ -39,8 +39,6 @@ const (
 	archiveNamespace = "es-archive"
 )
 
-var newTextTemplateBuilder = es.NewTextTemplateBuilder
-
 // Factory implements storage.Factory for Elasticsearch backend.
 type Factory struct {
 	Options *Options
@@ -168,7 +166,7 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	spanMapping, serviceMapping, err := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
+	spanMapping, serviceMapping, err := GetSpanServiceMappings(es.TextTemplateBuilder{}, cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
 	if err != nil {
 		return nil, err
 	}
@@ -194,23 +192,23 @@ func createSpanWriter(
 }
 
 // GetSpanServiceMappings returns span and service mappings
-func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string, error) {
+func GetSpanServiceMappings(tb es.TemplateBuilder, shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string, error) {
 	if esVersion == 7 {
-		spanMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
+		spanMapping, err := FixMapping(tb, LoadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
 		if err != nil {
 			return "", "", err
 		}
-		serviceMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
+		serviceMapping, err := FixMapping(tb, LoadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
 		if err != nil {
 			return "", "", err
 		}
 		return spanMapping, serviceMapping, nil
 	}
-	spanMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-span.json"), shards, replicas, "", false)
+	spanMapping, err := FixMapping(tb, LoadMapping("/jaeger-span.json"), shards, replicas, "", false)
 	if err != nil {
 		return "", "", err
 	}
-	serviceMapping, err := FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-service.json"), shards, replicas, "", false)
+	serviceMapping, err := FixMapping(tb, LoadMapping("/jaeger-service.json"), shards, replicas, "", false)
 	if err != nil {
 		return "", "", err
 	}
@@ -218,11 +216,11 @@ func GetSpanServiceMappings(shards, replicas int64, esVersion uint, esPrefix str
 }
 
 // GetDependenciesMappings returns dependencies mappings
-func GetDependenciesMappings(shards, replicas int64, esVersion uint) (string, error) {
+func GetDependenciesMappings(tb es.TemplateBuilder, shards, replicas int64, esVersion uint) (string, error) {
 	if esVersion == 7 {
-		return FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
+		return FixMapping(tb, LoadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
 	}
-	return FixMapping(newTextTemplateBuilder(), LoadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
+	return FixMapping(tb, LoadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
 }
 
 // LoadMapping returns index mappings from go assets as strings
@@ -235,11 +233,11 @@ func LoadMapping(name string) string {
 func FixMapping(tb es.TemplateBuilder, mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
 
 	tmpl, err := tb.Parse(mapping)
-	writer := new(bytes.Buffer)
-
 	if err != nil {
 		return "", err
 	}
+	writer := new(bytes.Buffer)
+
 	if esPrefix != "" {
 		esPrefix += "-"
 	}
