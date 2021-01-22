@@ -354,7 +354,7 @@ func TestGetSpanServiceMappings(t *testing.T) {
 			err: "",
 		},
 		{
-			name: "ES Version 7 Error",
+			name: "ES Version 7 Service Error",
 			args: args{
 				shards:    3,
 				replicas:  3,
@@ -392,7 +392,7 @@ func TestGetSpanServiceMappings(t *testing.T) {
 			err: "",
 		},
 		{
-			name: "ES Version < 7 Error",
+			name: "ES Version < 7 Service Error",
 			args: args{
 				shards:    3,
 				replicas:  3,
@@ -404,6 +404,42 @@ func TestGetSpanServiceMappings(t *testing.T) {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "template load error",
+		},
+		{
+			name: "ES Version < 7 Span Error",
+			args: args{
+				shards:    3,
+				replicas:  3,
+				esVersion: 6,
+				esPrefix:  "test",
+				useILM:    true,
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "template load error",
+		},
+		{
+			name: "ES Version  7 Span Error",
+			args: args{
+				shards:    3,
+				replicas:  3,
+				esVersion: 7,
+				esPrefix:  "test",
+				useILM:    true,
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
