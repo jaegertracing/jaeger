@@ -27,6 +27,7 @@ var loadMappingFunc = es.LoadMapping
 var mapping string
 var err error
 
+// GetMappingAsString returns rendered index templates as string
 func GetMappingAsString(opt *app.Options) (string, error) {
 
 	if opt.EsVersion == 7 {
@@ -48,6 +49,7 @@ func GetMappingAsString(opt *app.Options) (string, error) {
 
 }
 
+// IsValidOption checks if passed option is a valid index template.
 func IsValidOption(val string) bool {
 	allowedValues := []string{"jaeger-span", "jaeger-service"}
 	for _, value := range allowedValues {

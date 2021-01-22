@@ -131,7 +131,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	})
 	s.SpanReader = reader
 
-	depMapping, err := es.GetDependenciesMappings(numShards, numReplicas, esVersion)
+	depMapping, err := es.GetDependenciesMappings(esTemplate.TextTemplateBuilder{},numShards, numReplicas, esVersion)
 	if err != nil {
 		return err
 	}

@@ -16,14 +16,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/spf13/cobra"
 	"os"
 
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/templatizer/app"
 	"github.com/jaegertracing/jaeger/cmd/templatizer/app/renderer"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -56,6 +56,5 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-
 
 }
