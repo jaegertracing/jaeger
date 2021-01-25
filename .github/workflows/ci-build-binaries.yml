@@ -1,0 +1,35 @@
+name: Build binaries
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-binaries:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+
+    - name: Export BRANCH variable
+      uses: ./.github/actions/setup-branch
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Build binaries
+      run: make build-all-platforms
+
+    - name: Upload binaries
+      run: bash scripts/travis/package-deploy.sh
