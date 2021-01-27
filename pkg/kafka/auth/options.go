@@ -26,22 +26,24 @@ const (
 	defaultAuthentication = none
 
 	// Kerberos configuration options
-	kerberosPrefix            = ".kerberos"
-	suffixKerberosServiceName = ".service-name"
-	suffixKerberosRealm       = ".realm"
-	suffixKerberosUseKeyTab   = ".use-keytab"
-	suffixKerberosUsername    = ".username"
-	suffixKerberosPassword    = ".password"
-	suffixKerberosConfig      = ".config-file"
-	suffixKerberosKeyTab      = ".keytab-file"
+	kerberosPrefix                = ".kerberos"
+	suffixKerberosServiceName     = ".service-name"
+	suffixKerberosRealm           = ".realm"
+	suffixKerberosUseKeyTab       = ".use-keytab"
+	suffixKerberosUsername        = ".username"
+	suffixKerberosPassword        = ".password"
+	suffixKerberosConfig          = ".config-file"
+	suffixKerberosKeyTab          = ".keytab-file"
+	suffixKerberosDisablePAFXFAST = ".disable-pa-fx-fast"
 
-	defaultKerberosConfig      = "/etc/krb5.conf"
-	defaultKerberosUseKeyTab   = false
-	defaultKerberosServiceName = "kafka"
-	defaultKerberosRealm       = ""
-	defaultKerberosPassword    = ""
-	defaultKerberosUsername    = ""
-	defaultKerberosKeyTab      = "/etc/security/kafka.keytab"
+	defaultKerberosConfig          = "/etc/krb5.conf"
+	defaultKerberosUseKeyTab       = false
+	defaultKerberosServiceName     = "kafka"
+	defaultKerberosRealm           = ""
+	defaultKerberosPassword        = ""
+	defaultKerberosUsername        = ""
+	defaultKerberosKeyTab          = "/etc/security/kafka.keytab"
+	defaultKerberosDisablePAFXFAST = false
 
 	plainTextPrefix          = ".plaintext"
 	suffixPlainTextUsername  = ".username"
@@ -82,6 +84,10 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 		configPrefix+kerberosPrefix+suffixKerberosKeyTab,
 		defaultKerberosKeyTab,
 		"Path to keytab file. i.e /etc/security/kafka.keytab")
+	flagSet.Bool(
+		configPrefix+kerberosPrefix+suffixKerberosDisablePAFXFAST,
+		defaultKerberosDisablePAFXFAST,
+		"Disable FAST negotiation when not supported by a KDC like Active Directory")
 }
 
 func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {

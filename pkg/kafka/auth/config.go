@@ -88,6 +88,7 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.Password = v.GetString(configPrefix + kerberosPrefix + suffixKerberosPassword)
 	config.Kerberos.ConfigPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosConfig)
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
+	config.Kerberos.DisablePAFXFAST = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST)
 
 	var tlsClientConfig = tlscfg.ClientFlagsConfig{
 		Prefix:         configPrefix,
