@@ -4,6 +4,19 @@ Changes by Version
 1.22.0 (unreleased)
 -------------------
 
+### Backend Changes
+
+### New Features
+
+* Add TLS Support for GRPC and HTTP endpoints of the Query server [#2337](https://github.com/jaegertracing/jaeger/pull/2337), [@rjs211](https://github.com/rjs211))
+
+    Enabling TLS in either or both of GRPC or HTTP endpoints forces the server to use dedicated host-port for the two endpoints.  The dedicated host-ports are set using the flags `--query.http-server.host-port` and `--query.grpc-server.host-port` for the HTTP and GRPC endpoints respectively.  
+
+    If TLS is disabled in both endpoints (default),  dedicated host-ports are used if either or both of `--query.http-server.host-port` or `--query.grpc-server.host-port`  is explicitly set. If neither of the dedicated host-port flags are explicitly set, the common host-port infered from `--query.host-port` is used for both the GRPC and HTTP endpoints.
+
+### UI Changes
+
+
 1.21.0 (2020-11-13)
 -------------------
 
