@@ -50,6 +50,8 @@ jobs:
 
     - name: Package binaries
       run: bash scripts/travis/package-deploy.sh
+      env:
+        DEPLOY: true
 
     - name: Upload binaries
       uses: svenstaro/upload-release-action@v2
