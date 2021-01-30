@@ -31,5 +31,5 @@ jobs:
     - name: Build binaries
       run: make build-all-platforms
 
-    - name: Upload binaries
+    - name: Package binaries
       run: bash scripts/travis/package-deploy.sh
