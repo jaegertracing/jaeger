@@ -46,12 +46,6 @@ function package {
     rm -rf $PACKAGE_STAGING_DIR
 }
 
-# script start
-if [ "$DEPLOY" != true ]; then
-    echo "Skipping the packaging of binaries as \$DEPLOY was not true."
-    exit 0
-fi
-
 set -e
 
 DEPLOY_STAGING_DIR=./deploy-staging

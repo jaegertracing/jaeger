@@ -63,8 +63,6 @@ jobs:
 
     - name: Build docker images
       run: make docker
-      env:
-        DOCKER_NAMESPACE: jaegertracing
 
     - name: Upload docker images
       run: bash scripts/travis/upload-all-docker-images.sh
