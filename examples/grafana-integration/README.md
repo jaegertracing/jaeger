@@ -28,7 +28,7 @@ grafana/loki-docker-driver:latest \
 
 ### Explore with Loki
 
-Currently, the most powerful way to correlate application logs with traces can be performed via Grafana's Explore interface.
+It is possible to correlate application logs with traces via Grafana's Explore interface.
 
 After setting the datasource to Loki, all the log labels become available, and can be easily filtered using [Loki's LogQL query language](https://grafana.com/docs/loki/latest/logql/).
 
