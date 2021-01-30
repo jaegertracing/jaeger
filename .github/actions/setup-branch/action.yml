@@ -10,11 +10,8 @@ runs:
           pull_request)
             BRANCH=${GITHUB_HEAD_REF}
             ;;
-          push)
+          push | release)
             BRANCH=${GITHUB_REF##*/}
-            ;;
-          release)
-            BRANCH=${GITHUB_REF}
             ;;
         esac
         echo "we are on branch=${BRANCH}"
