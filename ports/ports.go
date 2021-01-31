@@ -60,6 +60,11 @@ func GetAddressFromCLIOptions(port int, hostPort string) string {
 		return PortToHostPort(port)
 	}
 
+	return FormatHostPort(hostPort)
+}
+
+// FormatHostPort returns hostPort in a usable format (host:port) if it wasn't already
+func FormatHostPort(hostPort string) string {
 	if hostPort == "" {
 		return ""
 	}
