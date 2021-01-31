@@ -10,7 +10,7 @@ runs:
           pull_request)
             BRANCH=${GITHUB_HEAD_REF}
             ;;
-          push)
+          push | release)
             BRANCH=${GITHUB_REF##*/}
             ;;
         esac
