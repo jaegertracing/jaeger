@@ -100,33 +100,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "2006.01.02", aux.IndexDateLayout)
 }
 
-func TestMaxNumSpansUsage(t *testing.T) {
-	testCases := []struct {
-		namespace string
-		wantUsage string
-	}{
-		{
-			namespace: "es",
-			wantUsage: "(deprecated, will be removed in release v1.21.0. Please use es.max-doc-count). " +
-				"The maximum number of spans to fetch at a time per query in Elasticsearch. " +
-				"The lesser of es.max-num-spans and es.max-doc-count will be used if both are set.",
-		},
-		{
-			namespace: "es-archive",
-			wantUsage: "(deprecated, will be removed in release v1.21.0. Please use es-archive.max-doc-count). " +
-				"The maximum number of spans to fetch at a time per query in Elasticsearch. " +
-				"The lesser of es-archive.max-num-spans and es-archive.max-doc-count will be used if both are set.",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.namespace, func(t *testing.T) {
-			opts := NewOptions(tc.namespace)
-			_, command := config.Viperize(opts.AddFlags)
-			assert.Equal(t, tc.wantUsage, command.Flag(tc.namespace+".max-num-spans").Usage)
-		})
-	}
-}
-
 func TestMaxDocCount(t *testing.T) {
 	testCases := []struct {
 		name            string
