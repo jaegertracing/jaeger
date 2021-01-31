@@ -1,15 +1,16 @@
 <img align="right" width="290" height="290" src="https://www.jaegertracing.io/img/jaeger-vector.svg">
 
 
-[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
-[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge-flat.svg)](https://github.com/avelino/awesome-go#performance)
+[![Gitter chat][gitter-img]][gitter]
+[![Project+Community stats][community-badge]][community-stats]
 [![OpenTracing-1.0][ot-badge]](https://opentracing.io)
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge-flat.svg)](https://github.com/avelino/awesome-go#performance)
+[![Unit Tests][ci-img]][ci]
+[![Coverage Status][cov-img]][cov]
+[![FOSSA Status][fossa-img]][ci]
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
-[![Gitter chat][gitter-img]][gitter] [![Project+Community stats][community-badge]][community-stats]
-
-[![Unit Tests][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][ci]
-
-<img src="https://github.com/cncf/artwork/blob/master/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="205">
+<img src="https://github.com/cncf/artwork/blob/master/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
 
 # Jaeger - a Distributed Tracing System
 

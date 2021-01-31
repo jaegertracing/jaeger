@@ -28,14 +28,14 @@ grafana/loki-docker-driver:latest \
 
 ### Explore with Loki
 
-Currently the most powerful way to correlate application logs with traces can be performed via Grafana's Explore interface.
+It is possible to correlate application logs with traces via Grafana's Explore interface.
 
 After setting the datasource to Loki, all the log labels become available, and can be easily filtered using [Loki's LogQL query language](https://grafana.com/docs/loki/latest/logql/).
 
 For example, after selecting the compose project/service under Log labels , errors can be filtered with the following expression:
 
 ```
-{compose-project="grafana-integration"} |= "error"
+{compose_project="grafana-integration"} |= "error"
 ```
 
 which will list the redis timeout events.
@@ -48,7 +48,7 @@ This example includes a dashboard that contains a log panel for the selected ser
 
 There are also panels to display the ratio/percentage of errors in the current timeframe.
 
-Additionally, there are graphs for each service, visualing the rate of the requests and showing latency percentiles.
+Additionally, there are graphs for each service, visualizing the rate of the requests and showing latency percentiles.
 
 ### Clean up
 
