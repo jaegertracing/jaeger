@@ -46,12 +46,13 @@ jobs:
       run: make install-ci
 
     - name: Build binaries
+      id: build-binaries
       run: make build-all-platforms
 
     - name: Package binaries
+      id: package-binaries
       run: bash scripts/travis/package-deploy.sh
-      env:
-        DEPLOY: true
+      if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
       uses: svenstaro/upload-release-action@v2
@@ -60,12 +61,15 @@ jobs:
         file_glob: true
         tag: ${{ github.ref }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
+      if: steps.package-binaries.outcome == 'success'
 
     - name: Build docker images
+      id: build-images
       run: make docker
 
     - name: Upload docker images
       run: bash scripts/travis/upload-all-docker-images.sh
+      if: steps.build-images.outcome == 'success'
 
     - name: Build, test, and publish all-in-one image
       run: bash scripts/travis/build-all-in-one-image.sh
