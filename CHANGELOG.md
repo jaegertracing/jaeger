@@ -6,7 +6,9 @@ Changes by Version
 
 ### Backend Changes
 
-### New Features
+#### Breaking changes
+
+#### New Features
 
 * Add TLS Support for GRPC and HTTP endpoints of the Query server ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [@rjs211](https://github.com/rjs211))
 
