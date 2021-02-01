@@ -18,7 +18,6 @@ package es
 import (
 	"flag"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -37,7 +36,6 @@ const (
 	suffixTokenPath           = ".token-file"
 	suffixServerURLs          = ".server-urls"
 	suffixMaxSpanAge          = ".max-span-age"
-	suffixMaxNumSpans         = ".max-num-spans" // deprecated
 	suffixNumShards           = ".num-shards"
 	suffixNumReplicas         = ".num-replicas"
 	suffixBulkSize            = ".bulk.size"
@@ -180,12 +178,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
 		"The maximum lookback for spans in Elasticsearch")
-	flagSet.Int(
-		nsConfig.namespace+suffixMaxNumSpans,
-		nsConfig.MaxDocCount,
-		"(deprecated, will be removed in release v1.21.0. Please use "+nsConfig.namespace+".max-doc-count). "+
-			"The maximum number of spans to fetch at a time per query in Elasticsearch. "+
-			"The lesser of "+nsConfig.namespace+".max-num-spans and "+nsConfig.namespace+".max-doc-count will be used if both are set.")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
@@ -300,11 +292,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
-
-	if v.IsSet(cfg.namespace + suffixMaxNumSpans) {
-		maxNumSpans := v.GetInt(cfg.namespace + suffixMaxNumSpans)
-		cfg.MaxDocCount = int(math.Min(float64(maxNumSpans), float64(cfg.MaxDocCount)))
-	}
 
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
