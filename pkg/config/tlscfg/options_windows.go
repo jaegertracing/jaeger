@@ -16,6 +16,12 @@
 
 package tlscfg
 
+import (
+	"crypto/x509"
+	"syscall"
+	"unsafe"
+)
+
 const (
 	// CRYPT_E_NOT_FOUND is an error code specific to windows cert pool.
 	// See https://github.com/golang/go/issues/16736#issuecomment-540373689.
