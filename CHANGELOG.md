@@ -8,7 +8,7 @@ Changes by Version
 
 #### Breaking Changes
 
-* Remove deprecated CLI flags ([#2738](https://github.com/jaegertracing/jaeger/issues/2738), [@LostLaser](https://github.com/LostLaser)):
+* Remove deprecated CLI flags ([#2751](https://github.com/jaegertracing/jaeger/issues/2751), [@LostLaser](https://github.com/LostLaser)):
     * `--collector.http-port` is replaced by `--collector.http-server.host-port`
     * `--collector.grpc-port` is replaced by `--collector.grpc-server.host-port`
     * `--collector.zipkin.http-port` is replaced by `--collector.zipkin.host-port`
