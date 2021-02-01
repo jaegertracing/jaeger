@@ -24,7 +24,6 @@ import (
 	"go.opentelemetry.io/collector/processor/processorhelper"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 )
 
@@ -54,17 +53,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Processor {
 
 // GetTags returns tags to be added to all spans.
 func (f Factory) GetTags() map[string]string {
-	tagsLegacy := flags.ParseJaegerTags(f.Viper.GetString(reporter.AgentTagsDeprecated))
-	tags := flags.ParseJaegerTags(f.Viper.GetString(resourceLabels))
-	if tags == nil {
-		return tagsLegacy
-	}
-	for k, v := range tagsLegacy {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
-		}
-	}
-	return tags
+	return flags.ParseJaegerTags(f.Viper.GetString(resourceLabels))
 }
 
 // CreateTracesProcessor creates resource processor.

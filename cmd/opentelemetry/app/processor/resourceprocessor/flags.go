@@ -16,13 +16,9 @@ package resourceprocessor
 
 import (
 	"flag"
-	"fmt"
-
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(reporter.AgentTagsDeprecated, "", fmt.Sprintf("(deprecated, use --%s) One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}", resourceLabels))
 	flags.String(resourceLabels, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 }
