@@ -90,6 +90,13 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
 		}
+		if certPool == nil {
+			certPool = x509.NewCertPool()
+		}
+		certPool, err = appendCerts(certPool)
+		if err != nil {
+			return nil, fmt.Errorf("failed to append SystemCertPool: %w", err)
+		}
 		return certPool, nil
 	}
 	certPool := x509.NewCertPool()
