@@ -15,6 +15,8 @@ Changes by Version
 
 * Remove deprecated flags `--health-check-http-port` & `--admin-http-port`, please use `--admin.http.host-port` ([#2752](https://github.com/jaegertracing/jaeger/pull/2752), [@pradeepnnv](https://github.com/pradeepnnv))
 
+* Remove deprecated flag `--jaeger.tags`, please use `--agent.tags` ([#2752](https://github.com/jaegertracing/jaeger/pull/2752), [@yurishkuro](https://github.com/yurishkuro))
+
 #### New Features
 
 * Add TLS Support for GRPC and HTTP endpoints of the Query server ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [@rjs211](https://github.com/rjs211))
@@ -22,7 +24,7 @@ Changes by Version
     Enabling TLS in either or both of GRPC or HTTP endpoints forces the server to use dedicated host-port for the two endpoints.  The dedicated host-ports are set using the flags `--query.http-server.host-port` (defaults to `:16686`) and `--query.grpc-server.host-port` (defaults to `:16685`) for the HTTP and GRPC endpoints respectively. If either of both of the dedicated host-ports' flags are not explicitly set, the default values are used.
 
 
-    If TLS is disabled in both endpoints (default),  dedicated host-ports are used if either or both of `--query.http-server.host-port` or `--query.grpc-server.host-port`  is explicitly set. If only one of the dedicated host-port flags is set, the other flag uses its corresponding default value. If neither of the dedicated host-port flags are explicitly set, the common host-port infered from `--query.host-port` (defaults to `:16686`) is used for both the GRPC and HTTP endpoints.  
+    If TLS is disabled in both endpoints (default), dedicated host-ports are used if either or both of `--query.http-server.host-port` or `--query.grpc-server.host-port` is explicitly set. If only one of the dedicated host-port flags is set, the other flag uses its corresponding default value. If neither of the dedicated host-port flags are explicitly set, the common host-port infered from `--query.host-port` (defaults to `:16686`) is used for both the GRPC and HTTP endpoints.
 
 ### UI Changes
 
