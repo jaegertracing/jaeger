@@ -29,20 +29,15 @@ const (
 	collectorDynQueueSizeMemory = "collector.queue-size-memory"
 	collectorQueueSize          = "collector.queue-size"
 	collectorNumWorkers         = "collector.num-workers"
-	collectorGRPCPort           = "collector.grpc-port"
 	// CollectorHTTPHostPort is the flag for collector HTTP port
 	CollectorHTTPHostPort = "collector.http-server.host-port"
 	// CollectorGRPCHostPort is the flag for collector gRPC port
-	CollectorGRPCHostPort   = "collector.grpc-server.host-port"
-	collectorZipkinHTTPPort = "collector.zipkin.http-port"
+	CollectorGRPCHostPort = "collector.grpc-server.host-port"
 	// CollectorZipkinHTTPHostPort is the flag for Zipkin HTTP port
 	CollectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
 	collectorTags                 = "collector.tags"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
-
-	collectorGRPCPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
-	collectorZipkinHTTPPortWarning = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 )
 
 var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -79,8 +74,6 @@ type CollectorOptions struct {
 func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorGRPCPort, 0, collectorGRPCPortWarning+" see --"+CollectorGRPCHostPort)
-	flags.Int(collectorZipkinHTTPPort, 0, collectorZipkinHTTPPortWarning+" see --"+CollectorZipkinHTTPHostPort)
 	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
@@ -107,8 +100,8 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
 	cOpts.CollectorHTTPHostPort = ports.FormatHostPort(v.GetString(CollectorHTTPHostPort))
-	cOpts.CollectorGRPCHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(CollectorGRPCHostPort))
-	cOpts.CollectorZipkinHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(CollectorZipkinHTTPHostPort))
+	cOpts.CollectorGRPCHostPort = ports.FormatHostPort(v.GetString(CollectorGRPCHostPort))
+	cOpts.CollectorZipkinHTTPHostPort = ports.FormatHostPort(v.GetString(CollectorZipkinHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)

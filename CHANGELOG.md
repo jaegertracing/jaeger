@@ -6,6 +6,12 @@ Changes by Version
 
 ### Backend Changes
 
+#### Breaking Changes
+* Remove deprecated CLI flags ([#2738](https://github.com/jaegertracing/jaeger/issues/2738), [@LostLaser](https://github.com/LostLaser))
+    * The `--collector.http-port` flag has been removed in favour of `--collector.http-server.host-port`.
+    * The `--collector.grpc-port` flag has been removed in favour of `--collector.grpc-server.host-port`.
+    * The `--collector.zipkin.http-port` flag has been removed in favour of `--collector.zipkin.host-port`.
+
 ### New Features
 
 * Add TLS Support for GRPC and HTTP endpoints of the Query server ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [@rjs211](https://github.com/rjs211))
