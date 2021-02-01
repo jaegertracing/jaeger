@@ -9,6 +9,22 @@ on:
 jobs:
   build-binaries:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+        - name: linux
+          task: build-binaries-linux
+        - name: windows
+          task: build-binaries-windows
+        - name: osx
+          task: build-binaries-darwin
+        - name: system/390
+          task: build-binaries-s390x
+        - name: arm
+          task: build-binaries-arm64
+        - name: powerpc
+          task: build-binaries-ppc64le
+    name: binaries ${{ matrix.platform.name }}
     steps:
     - uses: actions/checkout@v2
       with:
@@ -29,4 +45,4 @@ jobs:
       run: make install-ci
 
     - name: Build binaries
-      run: make build-all-platforms
+      run: make ${{ matrix.platform.task }}
