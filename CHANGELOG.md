@@ -7,6 +7,7 @@ Changes by Version
 ### Backend Changes
 
 #### Breaking changes
+* Remove deprecated flag `--es.max-num-spans`, please use `--es.max-doc-count` ([#2482](https://github.com/jaegertracing/jaeger/pull/2482),[@BernardTolosajr](https://github.com/BernardTolosajr))
 
 #### New Features
 
