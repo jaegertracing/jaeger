@@ -8,7 +8,7 @@ Changes by Version
 
 #### Breaking changes
 
-* Remove depricated flags `healthCheckHTTPPortWarning` & `adminHTTPPortWarning` ([#2752](https://github.com/jaegertracing/jaeger/pull/2752), [@pradeepnnv](https://github.com/pradeepnnv))
+* Remove deprecated flags `--health-check-http-port` & `--admin-http-port`, please use `--admin.http.host-port` ([#2752](https://github.com/jaegertracing/jaeger/pull/2752), [@pradeepnnv](https://github.com/pradeepnnv))
 
 #### New Features
 
