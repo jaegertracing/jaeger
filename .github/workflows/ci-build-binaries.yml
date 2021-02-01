@@ -24,7 +24,7 @@ jobs:
           task: build-binaries-arm64
         - name: powerpc
           task: build-binaries-ppc64le
-    name: binaries ${{ matrix.platform.name }}
+    name: build binaries for ${{ matrix.platform.name }}
     steps:
     - uses: actions/checkout@v2
       with:
