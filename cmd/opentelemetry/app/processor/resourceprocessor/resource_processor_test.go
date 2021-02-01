@@ -47,7 +47,7 @@ func TestDefaultValues(t *testing.T) {
 
 func TestDefaultValueFromViper(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags)
-	err := c.ParseFlags([]string{"--resource.attributes=foo=bar,orig=fake", "--jaeger.tags=foo=legacy,leg=head"})
+	err := c.ParseFlags([]string{"--resource.attributes=foo=bar,orig=fake"})
 	require.NoError(t, err)
 
 	f := &Factory{
@@ -65,32 +65,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 	})
 	assert.Equal(t, []processorhelper.ActionKeyValue{
 		{Key: "foo", Value: "bar", Action: processorhelper.UPSERT},
-		{Key: "leg", Value: "head", Action: processorhelper.UPSERT},
 		{Key: "orig", Value: "fake", Action: processorhelper.UPSERT},
-	}, cfg.AttributesActions)
-}
-
-func TestLegacyJaegerTagsOnly(t *testing.T) {
-	v, c := jConfig.Viperize(AddFlags)
-	err := c.ParseFlags([]string{"--jaeger.tags=foo=legacy,leg=head"})
-	require.NoError(t, err)
-
-	f := &Factory{
-		Wrapped: resourceprocessor.NewFactory(),
-		Viper:   v,
-	}
-
-	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
-	p, err := f.CreateTracesProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, cfg, &componenttest.ExampleExporterConsumer{})
-	require.NoError(t, err)
-	assert.NotNil(t, p)
-
-	sort.Slice(cfg.AttributesActions, func(i, j int) bool {
-		return strings.Compare(cfg.AttributesActions[i].Key, cfg.AttributesActions[j].Key) < 0
-	})
-	assert.Equal(t, []processorhelper.ActionKeyValue{
-		{Key: "foo", Value: "legacy", Action: processorhelper.UPSERT},
-		{Key: "leg", Value: "head", Action: processorhelper.UPSERT},
 	}, cfg.AttributesActions)
 }
 
