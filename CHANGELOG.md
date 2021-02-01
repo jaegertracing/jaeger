@@ -6,7 +6,15 @@ Changes by Version
 
 ### Backend Changes
 
-#### Breaking changes
+#### Breaking Changes
+
+* Remove deprecated CLI flags ([#2751](https://github.com/jaegertracing/jaeger/issues/2751), [@LostLaser](https://github.com/LostLaser)):
+    * `--collector.http-port` is replaced by `--collector.http-server.host-port`
+    * `--collector.grpc-port` is replaced by `--collector.grpc-server.host-port`
+    * `--collector.zipkin.http-port` is replaced by `--collector.zipkin.host-port`
+
+* Remove deprecated flags `--health-check-http-port` & `--admin-http-port`, please use `--admin.http.host-port` ([#2752](https://github.com/jaegertracing/jaeger/pull/2752), [@pradeepnnv](https://github.com/pradeepnnv))
+
 * Remove deprecated flag `--es.max-num-spans`, please use `--es.max-doc-count` ([#2482](https://github.com/jaegertracing/jaeger/pull/2482),[@BernardTolosajr](https://github.com/BernardTolosajr))
 
 #### New Features
