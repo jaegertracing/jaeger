@@ -173,6 +173,12 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 			conf.AddFlags(flagSet)
 		}
 	}
+}
+
+// AddPipelineFlags adds all the standard flags as well as the downsampling
+//  flags.  This is
+func (f *Factory) AddPipelineFlags(flagSet *flag.FlagSet) {
+	f.AddFlags(flagSet)
 	addDownsamplingFlags(flagSet)
 }
 
@@ -201,6 +207,13 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
+	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
+	// and has no use for downsampling.  let's just set to default
+	if !v.IsSet(downsamplingRatio) {
+		f.FactoryConfig.DownsamplingRatio = defaultDownsamplingRatio
+		return
+	}
+
 	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
 	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
 		// Values not in the range of 0 ~ 1.0 will be set to default.

@@ -130,7 +130,7 @@ func main() {
 		command,
 		svc.AddFlags,
 		app.AddFlags,
-		storageFactory.AddFlags,
+		storageFactory.AddPipelineFlags,
 		strategyStoreFactory.AddFlags,
 	)
 
