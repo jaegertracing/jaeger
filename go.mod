@@ -82,3 +82,5 @@ require (
 	gopkg.in/yaml.v2 v2.3.0
 	honnef.co/go/tools v0.0.1-2019.2.3
 )
+
+replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
