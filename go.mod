@@ -81,4 +81,7 @@ require (
 	honnef.co/go/tools v0.0.1-2019.2.3
 )
 
-replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+replace (
+	github.com/apache/thrift => github.com/jaegertracing/thrift v1.13.0-patch1
+	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+)
