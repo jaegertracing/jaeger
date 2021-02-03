@@ -49,7 +49,7 @@ var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 func TestServerError(t *testing.T) {
 	srv := &Server{
 		queryOptions: &QueryOptions{
-			HostPort: ":-1",
+			HTTPHostPort: ":-1",
 		},
 	}
 	assert.Error(t, srv.Start())
@@ -612,7 +612,7 @@ func TestServer(t *testing.T) {
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
 	server, err := NewServer(flagsSvc.Logger, querySvc,
-		&QueryOptions{HostPort: hostPort, GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
+		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
@@ -661,7 +661,7 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: hostPort, GRPCHostPort: hostPort, HTTPHostPort: hostPort}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
@@ -688,7 +688,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0", GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	server.Close()
