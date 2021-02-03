@@ -336,7 +336,7 @@ func TestConfigurable(t *testing.T) {
 
 func TestParsingDownsamplingRatio(t *testing.T) {
 	f := Factory{}
-	v, command := config.Viperize(addDownsamplingFlags)
+	v, command := config.Viperize(f.AddPipelineFlags)
 	err := command.ParseFlags([]string{
 		"--downsampling.ratio=1.5",
 		"--downsampling.hashsalt=jaeger"})
@@ -351,6 +351,17 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	assert.NoError(t, err)
 	f.InitFromViper(v)
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
+}
+
+func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
+	f := Factory{}
+	v, command := config.Viperize(f.AddFlags)
+	err := command.ParseFlags([]string{})
+	assert.NoError(t, err)
+	f.InitFromViper(v)
+
+	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, defaultDownsamplingRatio)
+	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, defaultDownsamplingHashSalt)
 }
 
 func TestPublishOpts(t *testing.T) {

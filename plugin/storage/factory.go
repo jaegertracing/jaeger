@@ -176,7 +176,8 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // AddPipelineFlags adds all the standard flags as well as the downsampling
-//  flags.  This is
+//  flags.  This is intended to be used in Jaeger pipeline services such as
+//  the collector or ingester.
 func (f *Factory) AddPipelineFlags(flagSet *flag.FlagSet) {
 	f.AddFlags(flagSet)
 	addDownsamplingFlags(flagSet)
@@ -208,9 +209,10 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 
 func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
-	// and has no use for downsampling.  let's just set to default
+	// and has no use for downsampling.  the default settings effectively disable downsampling
 	if !v.IsSet(downsamplingRatio) {
 		f.FactoryConfig.DownsamplingRatio = defaultDownsamplingRatio
+		f.FactoryConfig.DownsamplingHashSalt = defaultDownsamplingHashSalt
 		return
 	}
 
