@@ -60,8 +60,9 @@ var AllStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, m
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-	metricsFactory metrics.Factory
-	factories      map[string]storage.Factory
+	metricsFactory         metrics.Factory
+	factories              map[string]storage.Factory
+	downsamplingFlagsAdded bool
 }
 
 // NewFactory creates the meta-factory.
@@ -180,11 +181,12 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 //  the collector or ingester.
 func (f *Factory) AddPipelineFlags(flagSet *flag.FlagSet) {
 	f.AddFlags(flagSet)
-	addDownsamplingFlags(flagSet)
+	f.addDownsamplingFlags(flagSet)
 }
 
 // addDownsamplingFlags add flags for Downsampling params
-func addDownsamplingFlags(flagSet *flag.FlagSet) {
+func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
+	f.downsamplingFlagsAdded = true
 	flagSet.Float64(
 		downsamplingRatio,
 		defaultDownsamplingRatio,
@@ -210,7 +212,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
 	// and has no use for downsampling.  the default settings effectively disable downsampling
-	if !v.IsSet(downsamplingRatio) {
+	if !f.downsamplingFlagsAdded {
 		f.FactoryConfig.DownsamplingRatio = defaultDownsamplingRatio
 		f.FactoryConfig.DownsamplingHashSalt = defaultDownsamplingHashSalt
 		return

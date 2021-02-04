@@ -362,6 +362,10 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, defaultDownsamplingRatio)
 	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, defaultDownsamplingHashSalt)
+
+	err = command.ParseFlags([]string{
+		"--downsampling.ratio=0.5"})
+	assert.Error(t, err)
 }
 
 func TestPublishOpts(t *testing.T) {
