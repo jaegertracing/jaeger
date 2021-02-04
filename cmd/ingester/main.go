@@ -106,7 +106,7 @@ func main() {
 		v,
 		command,
 		svc.AddFlags,
-		storageFactory.AddFlags,
+		storageFactory.AddPipelineFlags,
 		app.AddFlags,
 	)
 
