@@ -172,7 +172,7 @@ func (s *Server) initListener() (cmux.CMux, error) {
 	}
 
 	//  old behavior using cmux
-	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
+	conn, err := net.Listen("tcp", s.queryOptions.HTTPHostPort)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (s *Server) initListener() (cmux.CMux, error) {
 	s.logger.Info(
 		"Query server started",
 		zap.Int("port", tcpPort),
-		zap.String("addr", s.queryOptions.HostPort))
+		zap.String("addr", s.queryOptions.HTTPHostPort))
 
 	// cmux server acts as a reverse-proxy between HTTP and GRPC backends.
 	cmuxServer := cmux.New(s.conn)
@@ -197,8 +197,6 @@ func (s *Server) initListener() (cmux.CMux, error) {
 		cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
 	)
 	s.httpConn = cmuxServer.Match(cmux.Any())
-	s.queryOptions.HTTPHostPort = s.queryOptions.HostPort
-	s.queryOptions.GRPCHostPort = s.queryOptions.HostPort
 
 	return cmuxServer, nil
 
@@ -259,7 +257,7 @@ func (s *Server) Start() error {
 	// Start cmux server concurrently.
 	if !s.separatePorts {
 		go func() {
-			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
 			err := cmuxServer.Serve()
 			// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged

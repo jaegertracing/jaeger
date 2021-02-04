@@ -8,6 +8,9 @@ Changes by Version
 
 #### Breaking Changes
 
+* Remove deprecated flags of Query Server  `--query.port` and `--query.host-port`, please use dedicated HTTP `--query.http-server.host-port` (defaults to `:16686`) and gRPC `--query.grpc-server.host-port` (defaults to `:16685`)  host-ports flags instead ([#2772](https://github.com/jaegertracing/jaeger/pull/2772), [@rjs211](https://github.com/rjs211))
+    * By default, if no flags are set, the query server starts on the dedicated ports.  To use common port for gRPC and  HTTP endpoints, the host-port flags have to be explicitly set
+
 * Remove deprecated CLI flags ([#2751](https://github.com/jaegertracing/jaeger/issues/2751), [@LostLaser](https://github.com/LostLaser)):
     * `--collector.http-port` is replaced by `--collector.http-server.host-port`
     * `--collector.grpc-port` is replaced by `--collector.grpc-server.host-port`
@@ -21,12 +24,10 @@ Changes by Version
 
 #### New Features
 
-* Add TLS Support for GRPC and HTTP endpoints of the Query server ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [@rjs211](https://github.com/rjs211))
+* Add TLS Support for gRPC and HTTP endpoints of the Query server ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [#2772](https://github.com/jaegertracing/jaeger/pull/2772), [@rjs211](https://github.com/rjs211))
 
-    Enabling TLS in either or both of GRPC or HTTP endpoints forces the server to use dedicated host-port for the two endpoints.  The dedicated host-ports are set using the flags `--query.http-server.host-port` (defaults to `:16686`) and `--query.grpc-server.host-port` (defaults to `:16685`) for the HTTP and GRPC endpoints respectively. If either of both of the dedicated host-ports' flags are not explicitly set, the default values are used.
-
-
-    If TLS is disabled in both endpoints (default), dedicated host-ports are used if either or both of `--query.http-server.host-port` or `--query.grpc-server.host-port` is explicitly set. If only one of the dedicated host-port flags is set, the other flag uses its corresponding default value. If neither of the dedicated host-port flags are explicitly set, the common host-port infered from `--query.host-port` (defaults to `:16686`) is used for both the GRPC and HTTP endpoints.
+    *  If TLS in enabled on either or both of gRPC or HTTP endpoints, the gRPC host-port and the HTTP hostport have to be different
+    *  If TLS is disabled on both endpoints, common HTTP and gRPC host-port can be explicitly set using the `--query.http-server.host-port` and  `--query.grpc-server.host-port` host-port flags
 
 ### UI Changes
 
