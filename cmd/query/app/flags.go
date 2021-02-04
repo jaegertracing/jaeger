@@ -89,7 +89,7 @@ type QueryOptions struct {
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Var(&config.StringSlice{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
 	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the query's HTTP server")
-	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server")
+	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server")
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
@@ -99,24 +99,12 @@ func AddFlags(flagSet *flag.FlagSet) {
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }
 
-// InitPortsConfigFromViper initializes the port numbers and TLS configuration of ports
-func (qOpts *QueryOptions) InitPortsConfigFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
+// InitFromViper initializes QueryOptions with properties from viper
+func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
 	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
 	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
 	qOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
 	qOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
-
-	// if TLS is enabled, use different default host-port for GRPC endpoint
-	if (qOpts.TLSGRPC.Enabled || qOpts.TLSHTTP.Enabled) && !v.IsSet(queryGRPCHostPort) {
-		qOpts.GRPCHostPort = ports.PortToHostPort(ports.QueryGRPC)
-	}
-	return qOpts
-
-}
-
-// InitFromViper initializes QueryOptions with properties from viper
-func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
-	qOpts = qOpts.InitPortsConfigFromViper(v, logger)
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)

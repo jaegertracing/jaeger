@@ -129,55 +129,32 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 		expectedHostPort     string
 	}{
 		{
-			// Backward compatible default behavior.  Since TLS is disabled, Common host-port is used for both HTTP and GRPC endpoints
-			name:                 "No host-port flags specified, both GRPC and HTTP disabled",
+			// Default behavior. Dedicated host-port is used for both HTTP and GRPC endpoints
+			name:                 "No host-port flags specified, both GRPC and HTTP TLS disabled",
 			flagsArray:           []string{},
 			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
-			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
-			verifyCommonPort:     true,
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
 		},
 		{
-			// If any one host-port is specified, and TLS is diabled, fallback to ports.QueryHTTP
+			// If any one host-port is specified, and TLS is diabled, fallback to ports defined in viper
 			name: "Atleast one dedicated host-port is specified, both GRPC and HTTP TLS disabled",
 			flagsArray: []string{
 				"--query.http-server.host-port=127.0.0.1:8081",
 			},
 			expectedHTTPHostPort: "127.0.0.1:8081",
-			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
-			verifyCommonPort:     true,
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
 		},
 		{
-			// Since TLS is enabled in atleast one server, and no host-port flags are explicitly set,
-			// dedicated host-port are assigned during initilaizatiopn
-			name: "No dedicated host-port is specified, atleast one of GRPC, HTTP TLS enabled",
-			flagsArray: []string{
-				"--query.grpc.tls.enabled=true",
-			},
-			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
-			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // initialization logic
-			verifyCommonPort:     false,
-		},
-		{
-			// Since TLS is enabled in atleast one server, and HTTP host-port is specified, the dedicated GRPC host-port is set during initialization
-			name: "HTTP host-port is specified, atleast one of GRPC, HTTP TLS enabled",
+			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
+			// The server with TLS enabled with equal HTTP & GRPC host-ports, is still an acceptable flag configuration, but will throw an error during initialisation
+			name: "Common equal host-port specified, TLS enabled in atleast one server",
 			flagsArray: []string{
 				"--query.grpc.tls.enabled=true",
 				"--query.http-server.host-port=127.0.0.1:8081",
-			},
-			expectedHTTPHostPort: "127.0.0.1:8081",
-			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), //  initialization logic
-			verifyCommonPort:     false,
-		},
-		{
-			// Since TLS is enabled in atleast one server, and HTTP host-port is specified, the dedicated HTTP host-port is obtained from viper
-			name: "GRPC host-port is specified, atleast one of GRPC, HTTP TLS enabled",
-			flagsArray: []string{
-				"--query.grpc.tls.enabled=true",
 				"--query.grpc-server.host-port=127.0.0.1:8081",
 			},
-			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP), //  fallback in viper
+			expectedHTTPHostPort: "127.0.0.1:8081",
 			expectedGRPCHostPort: "127.0.0.1:8081",
-			verifyCommonPort:     false,
 		},
 	}
 
@@ -189,9 +166,6 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 
 			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTPHostPort)
 			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPCHostPort)
-			if test.verifyCommonPort {
-				assert.Equal(t, test.expectedHostPort, qOpts.HostPort)
-			}
 
 		})
 	}
