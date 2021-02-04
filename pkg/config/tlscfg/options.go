@@ -86,16 +86,9 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 
 func (p Options) loadCertPool() (*x509.CertPool, error) {
 	if len(p.CAPath) == 0 { // no truststore given, use SystemCertPool
-		certPool, err := systemCertPool()
+		certPool, err := createCertPool()
 		if err != nil {
-			return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
-		}
-		if certPool == nil {
-			certPool = x509.NewCertPool()
-		}
-		certPool, err = appendCerts(certPool)
-		if err != nil {
-			return nil, fmt.Errorf("failed to append SystemCertPool: %w", err)
+			return nil, fmt.Errorf("failed to create CertPool: %w", err)
 		}
 		return certPool, nil
 	}

@@ -60,3 +60,18 @@ func appendCerts(rootCAs *x509.CertPool) (*x509.CertPool, error) {
 	}
 	return rootCAs, nil
 }
+
+func createCertPool() (*x509.CertPool, error) {
+	certPool, err := systemCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
+	}
+	if certPool == nil {
+		certPool = x509.NewCertPool()
+	}
+	certPool, err = appendCerts(certPool)
+	if err != nil {
+		return nil, fmt.Errorf("failed to append SystemCertPool: %w", err)
+	}
+	return certPool, nil
+}
