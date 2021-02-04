@@ -18,6 +18,7 @@ package tlscfg
 
 import (
 	"crypto/x509"
+	"fmt"
 	"syscall"
 	"unsafe"
 )
