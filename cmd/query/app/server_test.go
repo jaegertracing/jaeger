@@ -536,9 +536,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				require.NoError(t, clientError)
 				assert.Equal(t, expectedServices, res.Services)
 			}
-			if client != nil {
-				require.Nil(t, client.conn.Close())
-			}
+			require.Nil(t, client.conn.Close())
 			server.Close()
 			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
