@@ -3,7 +3,7 @@
 set -euxf -o pipefail
 
 make docker-hotrod
-export REPO=jaegertracing/example-hotrod
+REPO=jaegertracing/example-hotrod
 export CID=$(docker run -d -p 8080:8080 $REPO:latest)
 i=0
 while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:8080)" != "200" && ${i} < 30 ]]; do
@@ -18,14 +18,19 @@ fi
 docker rm -f $CID
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
-DOCKERHUB_LOGIN=${DOCKERHUB_LOGIN:-false}
 
-# Only push images to Docker Hub for master branch or for release tags vM.N.P and when dockerhub login is done
-if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$DOCKERHUB_LOGIN" == "true" ]]; then
-  echo "upload to Docker Hub, BRANCH=$BRANCH"
+# Only push images to dockerhub/quay.io for master branch or for release tags vM.N.P
+if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "upload to dockerhub/quay.io, BRANCH=$BRANCH"
 else
-  echo "skip Docker upload, only allowed for tagged releases or master (latest tag)"
+  echo "skip docker images upload, only allowed for tagged releases or master (latest tag)"
   exit 0
 fi
 
-bash ./scripts/travis/upload-to-docker.sh
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-}
+DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
+QUAY_USERNAME=${QUAY_USERNAME:-}
+QUAY_TOKEN=${QUAY_TOKEN:-}
+
+bash scripts/travis/upload-to-registry.sh "docker.io" $REPO $DOCKERHUB_USERNAME $DOCKERHUB_TOKEN
+bash scripts/travis/upload-to-registry.sh "quay.io" $REPO $QUAY_USERNAME $QUAY_TOKEN

@@ -3,20 +3,25 @@
 set -euxf -o pipefail
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
-DOCKERHUB_LOGIN=${DOCKERHUB_LOGIN:-false}
 COMMIT=${GITHUB_SHA::8}
 
 make build-and-run-crossdock
 
-# Only push the docker container to Docker Hub for master branch and when dockerhub login is done
-if [[ "$BRANCH" == "master" && "$DOCKERHUB_LOGIN" == "true" ]]; then
-  echo 'upload to Docker Hub'
+# Only push images to dockerhub/quay.io for master branch
+if [[ "$BRANCH" == "master" ]]; then
+  echo 'upload images to dockerhub/quay.io'
 else
-  echo 'skip docker upload for PR'
+  echo 'skip docker images upload for PR'
   exit 0
 fi
 
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-}
+DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
+QUAY_USERNAME=${QUAY_USERNAME:-}
+QUAY_TOKEN=${QUAY_TOKEN:-}
+
 # docker image has been build when running the crossdock
-export REPO=jaegertracing/test-driver
+REPO=jaegertracing/test-driver
 docker tag $REPO:latest $REPO:$COMMIT
-bash ./scripts/travis/upload-to-docker.sh
+bash scripts/travis/upload-to-registry.sh "docker.io" $REPO $DOCKERHUB_USERNAME $DOCKERHUB_TOKEN
+bash scripts/travis/upload-to-registry.sh "quay.io" $REPO $QUAY_USERNAME $QUAY_TOKEN

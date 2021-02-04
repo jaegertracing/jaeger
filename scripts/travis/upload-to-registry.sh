@@ -1,0 +1,109 @@
+#!/bin/bash
+
+set -euxf -o pipefail
+
+usage() {
+  echo $"Usage: $0 <registry> <image> <user> <token>"
+  exit 1
+}
+
+check_args() {
+  if [ ! $# -eq 4 ]; then
+    echo "ERROR: need exactly four arguments"
+    usage
+  fi
+}
+
+compute_image_tag() {
+  local branch=$1
+
+  if [[ "${branch}" == "master" ]]; then
+    local tag="latest"
+    echo ${tag}
+  elif [[ "${branch}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    local major="${BASH_REMATCH[1]}"
+    local minor="${BASH_REMATCH[2]}"
+    local patch="${BASH_REMATCH[3]}"
+    local tag=${major}.${minor}.${patch}
+    echo "${tag} ${major} ${minor} ${patch}"
+  else
+    local tag="${branch}"
+    echo ${tag}
+  fi
+}
+
+label_release_tag() {
+  local registry=$1
+  local image=$2
+  local major=${3:-}
+  local minor=${4:-}
+  local patch=${5:-}
+
+  if [[ -n ${major} ]]; then
+    docker tag ${image} ${registry}/${image}:${major}
+    if [[ -n ${minor} ]]; then
+      docker tag ${image} ${registry}/${image}:${major}.${minor}
+      if [[ -n ${patch} ]]; then
+        docker tag ${image} ${registry}/${image}:${major}.${minor}.${patch}
+      fi
+    fi
+  fi
+}
+
+try_login() {
+  local registry=$1
+  local user=$2
+  local token=$3
+  local marker=.${registry}.login
+
+  if [ ! -f ${marker} ]; then
+    printenv ${token}  | docker login ${registry} --username ${user} --password-stdin
+    if [ $? -eq 0 ]; then
+      touch ${marker}
+    fi
+  fi
+}
+
+upload_images() {
+  local registry=$1
+  local image=$2
+  local user=$3
+  local token=$4
+  local marker=.${registry}.login
+
+  try_login ${registry} ${user} ${token}
+
+  # upload regular images
+  if [ ! -f ${marker} ]; then
+    echo "skipping upload to ${registry}, not logged in!"
+  else
+    case "$image" in
+      "jaegertracing/jaeger-opentelemetry-collector" | "jaegertracing/jaeger-opentelemetry-agent" | "jaegertracing/jaeger-opentelemetry-ingester" | "jaegertracing/opentelemetry-all-in-one" )
+        docker push ${registry}/${image}:latest
+        ;;
+      *)
+        docker push ${registry}/${image}
+        ;;
+    esac
+  fi
+
+  # upload snapshot images
+  if [ ! -f ${marker} ]; then
+    echo "skipping upload to ${registry}, not logged in!"
+  else
+    local snapshot_image="${image}-snapshot:${GITHUB_SHA}"
+    echo "pushing snapshot image ${snapshot_image}"
+    docker tag ${image} ${registry}/${snapshot_image}
+    docker push ${registry}/${snapshot_image}
+  fi
+}
+
+main() {
+  check_args "$@"
+
+  read -r tag major minor patch <<< "$(compute_image_tag ${BRANCH})"
+  label_release_tag $1 $2 ${major} ${minor} ${patch}
+  upload_images $1 $2 $3 $4
+}
+
+main "$@"
