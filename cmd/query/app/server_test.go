@@ -600,7 +600,7 @@ func TestServerInUseHostPort(t *testing.T) {
 	}
 }
 
-func TestServer(t *testing.T) {
+func TestServerSinglePort(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
 	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
