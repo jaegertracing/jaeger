@@ -18,13 +18,8 @@ package tlscfg
 
 import (
 	"crypto/x509"
-	"fmt"
 )
 
-func createCertPool() (*x509.CertPool, error) {
-	certPool, err := systemCertPool()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
-	}
-	return certPool, nil
+func loadSystemCertPool() (*x509.CertPool, error) {
+	return systemCertPool()
 }
