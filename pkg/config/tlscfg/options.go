@@ -86,7 +86,7 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 
 func (p Options) loadCertPool() (*x509.CertPool, error) {
 	if len(p.CAPath) == 0 { // no truststore given, use SystemCertPool
-		certPool, err := systemCertPool()
+		certPool, err := loadSystemCertPool()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
 		}
