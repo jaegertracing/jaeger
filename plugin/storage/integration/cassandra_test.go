@@ -87,7 +87,6 @@ func (s *CassandraStorageIntegration) initializeCassandra() error {
 func (s *CassandraStorageIntegration) initializeCassandraDependenciesV2() error {
 	f, err := s.initializeCassandraFactory([]string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
-		"--cassandra.enable-dependencies-v2=true",
 		"--cassandra.port=9043",
 	})
 	if err != nil {

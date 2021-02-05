@@ -22,9 +22,13 @@ Changes by Version
 
 * Remove deprecated flags `--health-check-http-port` & `--admin-http-port`, please use `--admin.http.host-port` ([#2752](https://github.com/jaegertracing/jaeger/pull/2752), [@pradeepnnv](https://github.com/pradeepnnv))
 
-* Remove deprecated flag `--es.max-num-spans`, please use `--es.max-doc-count` ([#2482](https://github.com/jaegertracing/jaeger/pull/2482),[@BernardTolosajr](https://github.com/BernardTolosajr))
+* Remove deprecated flag `--es.max-num-spans`, please use `--es.max-doc-count` ([#2482](https://github.com/jaegertracing/jaeger/pull/2482), [@BernardTolosajr](https://github.com/BernardTolosajr))
 
 * Remove deprecated flag `--jaeger.tags`, please use `--agent.tags` ([#2753](https://github.com/jaegertracing/jaeger/pull/2753), [@yurishkuro](https://github.com/yurishkuro))
+
+* Remove deprecated Cassandra flags ([#2789](https://github.com/jaegertracing/jaeger/pull/2789), [@albertteoh](https://github.com/albertteoh)):
+    * `--cassandra.enable-dependencies-v2` - Jaeger will automatically detect the version of the dependencies table
+    * `--cassandra.tls.verify-host` - please use `--cassandra.tls.skip-host-verify` instead
 
 #### New Features
 
