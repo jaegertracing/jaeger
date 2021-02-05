@@ -23,8 +23,8 @@ Changes by Version
 * Remove deprecated flag `--jaeger.tags`, please use `--agent.tags` ([#2753](https://github.com/jaegertracing/jaeger/pull/2753), [@yurishkuro](https://github.com/yurishkuro))
 
 * Remove deprecated Cassandra flags ([#2789](https://github.com/jaegertracing/jaeger/pull/2789), [@albertteoh](https://github.com/albertteoh)):
-    * `--cassandra.enable-dependencies-v2` as Jaeger will automatically detect the version of the dependencies table
-    * `--cassandra.tls.verify-host` is replaced by `--cassandra.tls.skip-host-verify`
+    * `--cassandra.enable-dependencies-v2` - Jaeger will automatically detect the version of the dependencies table
+    * `--cassandra.tls.verify-host` - please use `--cassandra.tls.skip-host-verify` instead
 
 #### New Features
 
