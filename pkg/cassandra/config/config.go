@@ -44,7 +44,6 @@ type Configuration struct {
 	Port                 int            `yaml:"port" mapstructure:"port"`
 	Authenticator        Authenticator  `yaml:"authenticator" mapstructure:",squash"`
 	DisableAutoDiscovery bool           `yaml:"disable_auto_discovery" mapstructure:"-"`
-	EnableDependenciesV2 bool           `yaml:"enable_dependencies_v2" mapstructure:"-"`
 	TLS                  tlscfg.Options `mapstructure:"tls"`
 }
 

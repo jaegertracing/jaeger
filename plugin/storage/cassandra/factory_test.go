@@ -55,7 +55,7 @@ func TestCassandraFactory(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--cassandra-archive.enabled=true", "--cassandra.enable-dependencies-v2=true"})
+	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
 	f.InitFromViper(v)
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
@@ -109,7 +109,6 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--cassandra-archive.enabled=true",
-		"--cassandra.enable-dependencies-v2=true",
 		"--cassandra.index.tag-whitelist=a,b,c",
 		"--cassandra.index.tag-blacklist=a,b,c"})
 	f.InitFromViper(v)

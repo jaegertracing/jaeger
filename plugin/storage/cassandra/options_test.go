@@ -68,7 +68,6 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
 		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
-		"--cas-aux.enable-dependencies-v2=true",
 	})
 	opts.InitFromViper(v)
 
@@ -77,7 +76,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "mojave", primary.LocalDC)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
-	assert.Equal(t, false, primary.EnableDependenciesV2)
 	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
 	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
 	assert.Equal(t, true, opts.Index.Tags)
@@ -96,19 +94,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "", aux.Consistency, "aux storage does not inherit consistency from primary")
 	assert.Equal(t, 3, aux.ProtoVersion)
 	assert.Equal(t, 42*time.Second, aux.SocketKeepAlive)
-	assert.Equal(t, true, aux.EnableDependenciesV2)
-}
-
-func TestDeprecatedTlsHostVerifyFlagShouldBeRespected(t *testing.T) {
-	opts := NewOptions("cas")
-	v, command := config.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{
-		"--cas.tls.verify-host=false",
-	})
-	opts.InitFromViper(v)
-
-	primary := opts.GetPrimary()
-	assert.Equal(t, true, primary.TLS.SkipHostVerify)
 }
 
 func TestDefaultTlsHostVerify(t *testing.T) {
