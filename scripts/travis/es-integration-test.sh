@@ -33,7 +33,7 @@ setup_es() {
 setup_query() {
   local arch=$(go env GOARCH)
   local params=(
-    --es.tls=false
+    --es.tls.enabled=false
     --es.version=7
     --es.server-urls=http://127.0.0.1:9200
     --query.bearer-token-propagation=true
