@@ -8,6 +8,17 @@ Changes by Version
 
 #### Breaking Changes
 
+* Remove deprecated TLS flags ([#2790](https://github.com/jaegertracing/jaeger/issues/2790), [@albertteoh](https://github.com/albertteoh)):
+    * `--cassandra.tls` is replaced by `--cassandra.tls.enabled`
+    * `--cassandra-archive.tls` is replaced by `--cassandra-archive.tls.enabled`
+    * `--collector.grpc.tls` is replaced by `--collector.grpc.tls.enabled`
+    * `--collector.grpc.tls.client.ca` is replaced by `--collector.grpc.tls.client-ca`
+    * `--es.tls` is replaced by `--es.tls.enabled`
+    * `--es-archive.tls` is replaced by `--es-archive.tls.enabled`
+    * `--kafka.consumer.tls` is replaced by `--kafka.consumer.tls.enabled`
+    * `--kafka.producer.tls` is replaced by `--kafka.producer.tls.enabled`
+    * `--reporter.grpc.tls` is replaced by `--reporter.grpc.tls.enabled`
+
 * Remove deprecated flags of Query Server  `--query.port` and `--query.host-port`, please use dedicated HTTP `--query.http-server.host-port` (defaults to `:16686`) and gRPC `--query.grpc-server.host-port` (defaults to `:16685`)  host-ports flags instead ([#2772](https://github.com/jaegertracing/jaeger/pull/2772), [@rjs211](https://github.com/rjs211))
     * By default, if no flags are set, the query server starts on the dedicated ports.  To use common port for gRPC and  HTTP endpoints, the host-port flags have to be explicitly set
 
