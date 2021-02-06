@@ -30,6 +30,8 @@ if [[ -n ${major:-} ]]; then
   fi
 fi
 
+docker login docker.io -u $DOCKERHUB_USER -p $DOCKERHUB_TOKEN
+
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
   docker push $REPO:latest

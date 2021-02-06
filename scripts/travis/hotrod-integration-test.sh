@@ -21,11 +21,13 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 DOCKERHUB_LOGIN=${DOCKERHUB_LOGIN:-false}
 
 # Only push images to Docker Hub for master branch or for release tags vM.N.P and when dockerhub login is done
-if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$DOCKERHUB_LOGIN" == "true" ]]; then
-  echo "upload to Docker Hub, BRANCH=$BRANCH"
+if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "trying to upload images, BRANCH=$BRANCH"
 else
-  echo "skip Docker upload, only allowed for tagged releases or master (latest tag)"
-  exit 0
+  # TODO testing
+  echo "trying to upload images, BRANCH=$BRANCH"
+  # echo "skip image upload, only allowed for tagged releases or master (latest tag)"
+  # exit 0
 fi
 
 bash ./scripts/travis/upload-to-docker.sh
