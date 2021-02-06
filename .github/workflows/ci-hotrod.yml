@@ -43,7 +43,9 @@ jobs:
       run: make install-ci
 
     - name: Build, test, and publish hotrod image
-      run: bash scripts/travis/hotrod-integration-test.sh
+      run: |
+        echo ${{ secrets.DOCKERHUB_TOKEN }} > DOCKERHUB_TOKEN.txt
+        bash scripts/travis/hotrod-integration-test.sh
       env:
         DOCKERHUB_USER: jaegertracingbot
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
