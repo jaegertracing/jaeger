@@ -16,11 +16,10 @@
 package es
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
-	"strconv"
-	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -167,7 +166,10 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
+	spanMapping, serviceMapping, err := GetSpanServiceMappings(es.TextTemplateBuilder{}, cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
+	if err != nil {
+		return nil, err
+	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -181,7 +183,7 @@ func createSpanWriter(
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 	})
 	if cfg.IsCreateIndexTemplates() {
-		err := writer.CreateTemplates(spanMapping, serviceMapping)
+		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
 		if err != nil {
 			return nil, err
 		}
@@ -190,32 +192,67 @@ func createSpanWriter(
 }
 
 // GetSpanServiceMappings returns span and service mappings
-func GetSpanServiceMappings(shards, replicas int64, esVersion uint) (string, string) {
+func GetSpanServiceMappings(tb es.TemplateBuilder, shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string, error) {
 	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas),
-			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas)
+		spanMapping, err := FixMapping(tb, LoadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
+		if err != nil {
+			return "", "", err
+		}
+		serviceMapping, err := FixMapping(tb, LoadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
+		if err != nil {
+			return "", "", err
+		}
+		return spanMapping, serviceMapping, nil
 	}
-	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas),
-		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas)
+	spanMapping, err := FixMapping(tb, LoadMapping("/jaeger-span.json"), shards, replicas, "", false)
+	if err != nil {
+		return "", "", err
+	}
+	serviceMapping, err := FixMapping(tb, LoadMapping("/jaeger-service.json"), shards, replicas, "", false)
+	if err != nil {
+		return "", "", err
+	}
+	return spanMapping, serviceMapping, nil
 }
 
 // GetDependenciesMappings returns dependencies mappings
-func GetDependenciesMappings(shards, replicas int64, esVersion uint) string {
+func GetDependenciesMappings(tb es.TemplateBuilder, shards, replicas int64, esVersion uint) (string, error) {
 	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas)
+		return FixMapping(tb, LoadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
 	}
-	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas)
+	return FixMapping(tb, LoadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
 }
 
-func loadMapping(name string) string {
+// LoadMapping returns index mappings from go assets as strings
+func LoadMapping(name string) string {
 	s, _ := mappings.FSString(false, name)
 	return s
 }
 
-func fixMapping(mapping string, shards, replicas int64) string {
-	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(shards, 10), 1)
-	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(replicas, 10), 1)
-	return mapping
+// FixMapping parses the index mappings with given values and returns parsed template as string
+func FixMapping(tb es.TemplateBuilder, mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
+
+	tmpl, err := tb.Parse(mapping)
+	if err != nil {
+		return "", err
+	}
+	writer := new(bytes.Buffer)
+
+	if esPrefix != "" {
+		esPrefix += "-"
+	}
+	values := struct {
+		NumberOfShards   int64
+		NumberOfReplicas int64
+		ESPrefix         string
+		UseILM           bool
+	}{shards, replicas, esPrefix, useILM}
+
+	if err := tmpl.Execute(writer, values); err != nil {
+		return "", err
+	}
+
+	return writer.String(), nil
 }
 
 var _ io.Closer = (*Factory)(nil)

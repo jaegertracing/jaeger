@@ -51,11 +51,11 @@ const (
 	suffixTagsFile            = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar        = suffixTagsAsFields + ".dot-replacement"
 	suffixReadAlias           = ".use-aliases"
+	suffixUseILM              = ".use-ilm"
 	suffixCreateIndexTemplate = ".create-index-templates"
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
 	suffixMaxDocCount         = ".max-doc-count"
-
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount = 10_000
@@ -233,6 +233,12 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
 			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" will influence trace search window start times.")
 	flagSet.Bool(
+		nsConfig.namespace+suffixUseILM,
+		nsConfig.UseILM,
+		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with  "+nsConfig.namespace+suffixReadAlias+". "+
+			"It requires an external component to create aliases before startup and then performing its management. "+
+			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+.")
+	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
 		"Create index templates at application startup. Set to false when templates are installed manually.")
@@ -292,6 +298,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
+	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)

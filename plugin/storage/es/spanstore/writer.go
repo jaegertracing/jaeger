@@ -101,12 +101,15 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 }
 
 // CreateTemplates creates index templates.
-func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string) error {
-	_, err := s.client.CreateTemplate("jaeger-span").Body(spanTemplate).Do(context.Background())
+func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix string) error {
+	if indexPrefix != "" {
+		indexPrefix += "-"
+	}
+	_, err := s.client.CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
-	_, err = s.client.CreateTemplate("jaeger-service").Body(serviceTemplate).Do(context.Background())
+	_, err = s.client.CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ const (
 	serviceIndexName      = "jaeger-service-2019-01-01"
 	indexCleanerImage     = "jaegertracing/jaeger-es-index-cleaner:latest"
 	rolloverImage         = "jaegertracing/jaeger-es-rollover:latest"
-	rolloverNowEnvVar     = "CONDITIONS='{\"max_age\":\"0s\"}'"
+	rolloverNowEnvVar     = `CONDITIONS='{"max_age":"0s"}'`
 )
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
