@@ -30,11 +30,12 @@ if [[ -n ${major:-} ]]; then
   fi
 fi
 
-wc -l DOCKERHUB_TOKEN.txt
-cat DOCKERHUB_TOKEN.txt | docker login docker.io --username $DOCKERHUB_USER --password-stdin
-
-echo login successful
-exit 0
+if [[ -v DOCKERHUB_TOKEN ]]; then
+  echo DOCKERHUB_TOKEN is defined, attempting to login
+else
+  echo DOCKERHUB_TOKEN is not defined, skipping image upload
+fi
+printenv DOCKERHUB_TOKEN | docker login docker.io --username $DOCKERHUB_USER --password-stdin
 
 if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" || "${REPO}" == "jaegertracing/opentelemetry-all-in-one" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
