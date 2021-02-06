@@ -30,7 +30,8 @@ if [[ -n ${major:-} ]]; then
   fi
 fi
 
-cat DOCKERHUB_TOKEN.txt | docker login docker.io -u $DOCKERHUB_USER --password-stdin
+wc -l DOCKERHUB_TOKEN.txt
+cat DOCKERHUB_TOKEN.txt | docker login docker.io --username $DOCKERHUB_USER --password-stdin
 
 echo login successful
 exit 0
