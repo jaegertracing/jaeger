@@ -114,8 +114,8 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
-	cOpts.TLSGRPC = tlsHTTPFlagsConfig.InitFromViper(v)
-	cOpts.TLSHTTP = tlsGRPCFlagsConfig.InitFromViper(v)
+	cOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
+	cOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 
 	return cOpts
 }
