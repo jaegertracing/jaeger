@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -32,6 +33,7 @@ import (
 
 // HTTPServerParams to construct a new Jaeger Collector HTTP Server
 type HTTPServerParams struct {
+	TLSConfig      tlscfg.Options
 	HostPort       string
 	Handler        handler.JaegerBatchesHandler
 	SamplingStore  strategystore.StrategyStore
@@ -50,6 +52,13 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	}
 
 	server := &http.Server{Addr: params.HostPort}
+	if params.TLSConfig.Enabled {
+		tlsCfg, err := params.TLSConfig.Config(params.Logger) // This checks if the certificates are correctly provided
+		if err != nil {
+			return nil, err
+		}
+		server.TLSConfig = tlsCfg
+	}
 	serveHTTP(server, listener, params)
 
 	return server, nil
@@ -74,7 +83,13 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
 	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory)
 	go func() {
-		if err := server.Serve(listener); err != nil {
+		var err error
+		if params.TLSConfig.Enabled {
+			err = server.ServeTLS(listener, "", "")
+		} else {
+			err = server.Serve(listener)
+		}
+		if err != nil {
 			if err != http.ErrServerClosed {
 				params.Logger.Error("Could not start HTTP collector", zap.Error(err))
 			}
