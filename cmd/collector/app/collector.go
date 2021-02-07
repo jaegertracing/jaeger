@@ -45,11 +45,11 @@ type Collector struct {
 	spanHandlers   *SpanHandlers
 
 	// state, read only
-	hServer       *http.Server
-	zkServer      *http.Server
-	grpcServer    *grpc.Server
-	TLSGRPCCloser io.Closer
-	TLSHTTPCloser io.Closer
+	hServer                  *http.Server
+	zkServer                 *http.Server
+	grpcServer               *grpc.Server
+	tlsGRPCCertWatcherCloser io.Closer
+	tlsHTTPCertWatcherCloser io.Closer
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -112,8 +112,8 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 	c.hServer = httpServer
 
-	c.TLSGRPCCloser = &builderOpts.TLSGRPC
-	c.TLSHTTPCloser = &builderOpts.TLSHTTP
+	c.tlsGRPCCertWatcherCloser = &builderOpts.TLSGRPC
+	c.tlsHTTPCertWatcherCloser = &builderOpts.TLSHTTP
 	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
 		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
@@ -168,11 +168,11 @@ func (c *Collector) Close() error {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
 	}
 
-	if err := c.TLSGRPCCloser.Close(); err != nil {
+	if err := c.tlsGRPCCertWatcherCloser.Close(); err != nil {
 		c.logger.Error("failed to close gRPC TLS certificate watcher", zap.Error(err))
 	}
 
-	if err := c.TLSHTTPCloser.Close(); err != nil {
+	if err := c.tlsHTTPCertWatcherCloser.Close(); err != nil {
 		c.logger.Error("failed to close HTTP TLS certificate watcher", zap.Error(err))
 	}
 

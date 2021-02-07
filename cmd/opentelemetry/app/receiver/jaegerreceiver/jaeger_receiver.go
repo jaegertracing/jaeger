@@ -120,7 +120,7 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 			}
 		}
 		cfg.ThriftHTTP.TLSSetting = &configtls.TLSServerSetting{
-			ClientCAFile: cOpts.TLSGRPC.ClientCAPath,
+			ClientCAFile: cOpts.TLSHTTP.ClientCAPath,
 			TLSSetting: configtls.TLSSetting{
 				CertFile: cOpts.TLSHTTP.CertPath,
 				KeyFile:  cOpts.TLSHTTP.KeyPath,
