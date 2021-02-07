@@ -37,9 +37,6 @@ func TestClientFlags(t *testing.T) {
 		option string
 	}{
 		{
-			option: "--prefix.tls=true",
-		},
-		{
 			option: "--prefix.tls.enabled=true",
 		},
 	}
@@ -76,7 +73,7 @@ func TestClientFlags(t *testing.T) {
 func TestServerFlags(t *testing.T) {
 	cmdLine := []string{
 		"##placeholder##", // replaced in each test below
-		"--prefix.tls=true",
+		"--prefix.tls.enabled=true",
 		"--prefix.tls.cert=cert-file",
 		"--prefix.tls.key=key-file",
 	}
@@ -88,10 +85,6 @@ func TestServerFlags(t *testing.T) {
 		{
 			option: "--prefix.tls.client-ca=client-ca-file",
 			file:   "client-ca-file",
-		},
-		{
-			option: "--prefix.tls.client.ca=legacy-client-ca-file",
-			file:   "legacy-client-ca-file",
 		},
 	}
 

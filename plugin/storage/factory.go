@@ -60,8 +60,9 @@ var AllStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, m
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-	metricsFactory metrics.Factory
-	factories      map[string]storage.Factory
+	metricsFactory         metrics.Factory
+	factories              map[string]storage.Factory
+	downsamplingFlagsAdded bool
 }
 
 // NewFactory creates the meta-factory.
@@ -173,11 +174,19 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 			conf.AddFlags(flagSet)
 		}
 	}
-	addDownsamplingFlags(flagSet)
+}
+
+// AddPipelineFlags adds all the standard flags as well as the downsampling
+//  flags.  This is intended to be used in Jaeger pipeline services such as
+//  the collector or ingester.
+func (f *Factory) AddPipelineFlags(flagSet *flag.FlagSet) {
+	f.AddFlags(flagSet)
+	f.addDownsamplingFlags(flagSet)
 }
 
 // addDownsamplingFlags add flags for Downsampling params
-func addDownsamplingFlags(flagSet *flag.FlagSet) {
+func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
+	f.downsamplingFlagsAdded = true
 	flagSet.Float64(
 		downsamplingRatio,
 		defaultDownsamplingRatio,
@@ -201,6 +210,14 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
+	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
+	// and has no use for downsampling.  the default settings effectively disable downsampling
+	if !f.downsamplingFlagsAdded {
+		f.FactoryConfig.DownsamplingRatio = defaultDownsamplingRatio
+		f.FactoryConfig.DownsamplingHashSalt = defaultDownsamplingHashSalt
+		return
+	}
+
 	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
 	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
 		// Values not in the range of 0 ~ 1.0 will be set to default.

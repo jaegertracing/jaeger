@@ -1,3 +1,0 @@
-# Add 'needs-triage' label to all new issues
-needs-triage:
-    - '.*'
