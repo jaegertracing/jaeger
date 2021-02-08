@@ -40,8 +40,14 @@ const (
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 )
 
-var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
+var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix:       "collector.grpc",
+	ShowEnabled:  true,
+	ShowClientCA: true,
+}
+
+var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix:       "collector.http",
 	ShowEnabled:  true,
 	ShowClientCA: true,
 }
@@ -58,8 +64,10 @@ type CollectorOptions struct {
 	CollectorHTTPHostPort string
 	// CollectorGRPCHostPort is the host:port address that the collector service listens in on for gRPC requests
 	CollectorGRPCHostPort string
-	// TLS configures secure transport
-	TLS tlscfg.Options
+	// TLSGRPC configures secure transport for gRPC endpoint to collect spans
+	TLSGRPC tlscfg.Options
+	// TLSHTTP configures secure transport for HTTP endpoint to collect spans
+	TLSHTTP tlscfg.Options
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
 	// CollectorZipkinHTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
@@ -86,7 +94,8 @@ func AddFlags(flags *flag.FlagSet) {
 func AddOTELJaegerFlags(flags *flag.FlagSet) {
 	flags.String(CollectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the collector's HTTP server")
 	flags.String(CollectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the collector's GRPC server")
-	tlsFlagsConfig.AddFlags(flags)
+	tlsGRPCFlagsConfig.AddFlags(flags)
+	tlsHTTPFlagsConfig.AddFlags(flags)
 }
 
 // AddOTELZipkinFlags adds flag that are exposed by OTEL Zipkin receiver
@@ -105,7 +114,8 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
-	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
+	cOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
+	cOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 
 	return cOpts
 }

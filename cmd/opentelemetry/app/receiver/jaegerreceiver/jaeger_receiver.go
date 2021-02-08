@@ -92,7 +92,7 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 			},
 		}
 	}
-	if cOpts.TLS.Enabled {
+	if cOpts.TLSGRPC.Enabled {
 		if cfg.GRPC == nil {
 			cfg.GRPC = &configgrpc.GRPCServerSettings{
 				NetAddr: confignet.NetAddr{
@@ -101,16 +101,30 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 			}
 		}
 		cfg.GRPC.TLSSetting = &configtls.TLSServerSetting{
-			ClientCAFile: cOpts.TLS.ClientCAPath,
+			ClientCAFile: cOpts.TLSGRPC.ClientCAPath,
 			TLSSetting: configtls.TLSSetting{
-				CertFile: cOpts.TLS.CertPath,
-				KeyFile:  cOpts.TLS.KeyPath,
+				CertFile: cOpts.TLSGRPC.CertPath,
+				KeyFile:  cOpts.TLSGRPC.KeyPath,
 			},
 		}
 	}
 	if v.IsSet(collectorApp.CollectorHTTPHostPort) {
 		cfg.ThriftHTTP = &confighttp.HTTPServerSettings{
 			Endpoint: cOpts.CollectorHTTPHostPort,
+		}
+	}
+	if cOpts.TLSHTTP.Enabled {
+		if cfg.ThriftHTTP == nil {
+			cfg.ThriftHTTP = &confighttp.HTTPServerSettings{
+				Endpoint: fmt.Sprintf(":%d", ports.CollectorHTTP),
+			}
+		}
+		cfg.ThriftHTTP.TLSSetting = &configtls.TLSServerSetting{
+			ClientCAFile: cOpts.TLSHTTP.ClientCAPath,
+			TLSSetting: configtls.TLSSetting{
+				CertFile: cOpts.TLSHTTP.CertPath,
+				KeyFile:  cOpts.TLSHTTP.KeyPath,
+			},
 		}
 	}
 }

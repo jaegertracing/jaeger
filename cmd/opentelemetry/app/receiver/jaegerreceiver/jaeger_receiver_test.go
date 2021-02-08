@@ -161,7 +161,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 			},
 		},
 		{
-			name: "collectorTLS",
+			name: "collectorGRPCTLS",
 			flags: []string{
 				"--collector.grpc.tls.enabled=true",
 				"--collector.grpc.tls.cert=/cert.pem",
@@ -174,6 +174,30 @@ func TestDefaultValueFromViper(t *testing.T) {
 						NetAddr: confignet.NetAddr{
 							Endpoint: ":14250",
 						},
+						TLSSetting: &configtls.TLSServerSetting{
+							TLSSetting: configtls.TLSSetting{
+								CertFile: "/cert.pem",
+								KeyFile:  "/key.pem",
+							},
+							ClientCAFile: "/client-ca.pem",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "collectorHTTPTLS",
+			flags: []string{
+				"--collector.http.tls.enabled=true",
+				"--collector.http.tls.cert=/cert.pem",
+				"--collector.http.tls.key=/key.pem",
+				"--collector.http.tls.client-ca=/client-ca.pem",
+			},
+			expected: &jaegerreceiver.Config{
+				Protocols: jaegerreceiver.Protocols{
+					ThriftHTTP: &confighttp.HTTPServerSettings{
+
+						Endpoint: ":14268",
 						TLSSetting: &configtls.TLSServerSetting{
 							TLSSetting: configtls.TLSSetting{
 								CertFile: "/cert.pem",

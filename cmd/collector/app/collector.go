@@ -45,10 +45,11 @@ type Collector struct {
 	spanHandlers   *SpanHandlers
 
 	// state, read only
-	hServer    *http.Server
-	zkServer   *http.Server
-	grpcServer *grpc.Server
-	tlsCloser  io.Closer
+	hServer                  *http.Server
+	zkServer                 *http.Server
+	grpcServer               *grpc.Server
+	tlsGRPCCertWatcherCloser io.Closer
+	tlsHTTPCertWatcherCloser io.Closer
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -88,7 +89,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		HostPort:      builderOpts.CollectorGRPCHostPort,
 		Handler:       c.spanHandlers.GRPCHandler,
-		TLSConfig:     builderOpts.TLS,
+		TLSConfig:     builderOpts.TLSGRPC,
 		SamplingStore: c.strategyStore,
 		Logger:        c.logger,
 	})
@@ -100,6 +101,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
 		HostPort:       builderOpts.CollectorHTTPHostPort,
 		Handler:        c.spanHandlers.JaegerBatchesHandler,
+		TLSConfig:      builderOpts.TLSHTTP,
 		HealthCheck:    c.hCheck,
 		MetricsFactory: c.metricsFactory,
 		SamplingStore:  c.strategyStore,
@@ -110,7 +112,8 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 	c.hServer = httpServer
 
-	c.tlsCloser = &builderOpts.TLS
+	c.tlsGRPCCertWatcherCloser = &builderOpts.TLSGRPC
+	c.tlsHTTPCertWatcherCloser = &builderOpts.TLSHTTP
 	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
 		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
@@ -165,9 +168,9 @@ func (c *Collector) Close() error {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
 	}
 
-	if err := c.tlsCloser.Close(); err != nil {
-		c.logger.Error("failed to close TLS certificate watcher", zap.Error(err))
-	}
+	// watchers actually never return errors from Close
+	_ = c.tlsGRPCCertWatcherCloser.Close()
+	_ = c.tlsHTTPCertWatcherCloser.Close()
 
 	return nil
 }
