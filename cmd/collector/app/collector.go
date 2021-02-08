@@ -168,13 +168,9 @@ func (c *Collector) Close() error {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
 	}
 
-	if err := c.tlsGRPCCertWatcherCloser.Close(); err != nil {
-		c.logger.Error("failed to close gRPC TLS certificate watcher", zap.Error(err))
-	}
-
-	if err := c.tlsHTTPCertWatcherCloser.Close(); err != nil {
-		c.logger.Error("failed to close HTTP TLS certificate watcher", zap.Error(err))
-	}
+	// watchers actually never return errors from Close
+	_ = c.tlsGRPCCertWatcherCloser.Close()
+	_ = c.tlsHTTPCertWatcherCloser.Close()
 
 	return nil
 }
