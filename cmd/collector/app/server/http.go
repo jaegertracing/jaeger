@@ -46,11 +46,6 @@ type HTTPServerParams struct {
 func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http host-port", params.HostPort))
 
-	listener, err := net.Listen("tcp", params.HostPort)
-	if err != nil {
-		return nil, err
-	}
-
 	server := &http.Server{Addr: params.HostPort}
 	if params.TLSConfig.Enabled {
 		tlsCfg, err := params.TLSConfig.Config(params.Logger) // This checks if the certificates are correctly provided
@@ -59,6 +54,12 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 		}
 		server.TLSConfig = tlsCfg
 	}
+
+	listener, err := net.Listen("tcp", params.HostPort)
+	if err != nil {
+		return nil, err
+	}
+
 	serveHTTP(server, listener, params)
 
 	return server, nil
