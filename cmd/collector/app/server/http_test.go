@@ -214,6 +214,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			}
 
 			server, err := StartHTTPServer(params)
+
 			if test.expectServerFail {
 				require.Error(t, err)
 			}
