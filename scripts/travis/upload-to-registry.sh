@@ -91,11 +91,16 @@ upload_images() {
 }
 
 main() {
+  local registry=$1
+  local image=$2
+  local user=$3
+  local token=$4
+
   check_args "$@"
 
   read -r tag major minor patch <<< "$(compute_image_tag ${BRANCH})"
-  label_release_tag $1 $2 ${major} ${minor} ${patch}
-  upload_images $1 $2 $3 $4
+  label_release_tag ${registry} ${image} ${major} ${minor} ${patch}
+  upload_images ${registry} ${image} ${user} ${token}
 }
 
 DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-}
