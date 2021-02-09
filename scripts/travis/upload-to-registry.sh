@@ -54,7 +54,7 @@ try_login() {
   local registry=$1
   local user=$2
   local token=$3
-  local marker=.${registry}.login
+  local marker=$4
 
   if [ ! -f ${marker} ]; then
     printenv ${token}  | docker login ${registry} --username ${user} --password-stdin
@@ -69,9 +69,8 @@ upload_images() {
   local token=$4
   local marker=.${registry}.login
 
-  try_login ${registry} ${user} ${token}
+  try_login ${registry} ${user} ${token} ${marker}
 
-  # upload regular images
   if [ ! -f ${marker} ]; then
     echo "skipping upload to ${registry}, not logged in!"
   else
@@ -83,12 +82,7 @@ upload_images() {
         docker push ${registry}/${image}
         ;;
     esac
-  fi
 
-  # upload snapshot images
-  if [ ! -f ${marker} ]; then
-    echo "skipping upload to ${registry}, not logged in!"
-  else
     local snapshot_image="${image}-snapshot:${GITHUB_SHA}"
     echo "pushing snapshot image ${snapshot_image}"
     docker tag ${image} ${registry}/${snapshot_image}
