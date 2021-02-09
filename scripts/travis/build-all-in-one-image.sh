@@ -35,17 +35,11 @@ run_integration_test() {
 }
 
 upload_to_docker() {
-  DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-}
-  DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
-  QUAY_USERNAME=${QUAY_USERNAME:-}
-  QUAY_TOKEN=${QUAY_TOKEN:-}
-
   # Only push the docker image to dockerhub/quay.io for master/release branch
   if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "upload $1 to dockerhub/quay.io"
     REPO=$1
-    bash scripts/travis/upload-to-registry.sh "docker.io" $REPO $DOCKERHUB_USERNAME $DOCKERHUB_TOKEN
-    bash scripts/travis/upload-to-registry.sh "quay.io" $REPO $QUAY_USERNAME $QUAY_TOKEN
+    bash scripts/travis/upload-to-registry.sh $REPO
   else
     echo 'skip docker images upload for PR'
   fi

@@ -3,13 +3,13 @@
 set -euxf -o pipefail
 
 usage() {
-  echo $"Usage: $0 <registry> <image> <user> <token>"
+  echo $"Usage: $0 <image>"
   exit 1
 }
 
 check_args() {
-  if [ ! $# -eq 4 ]; then
-    echo "ERROR: need exactly four arguments"
+  if [ ! $# -eq 1 ]; then
+    echo "ERROR: need exactly one argument"
     usage
   fi
 }
@@ -58,9 +58,7 @@ try_login() {
 
   if [ ! -f ${marker} ]; then
     printenv ${token}  | docker login ${registry} --username ${user} --password-stdin
-    if [ $? -eq 0 ]; then
-      touch ${marker}
-    fi
+    touch ${marker}
   fi
 }
 
@@ -106,4 +104,10 @@ main() {
   upload_images $1 $2 $3 $4
 }
 
-main "$@"
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-}
+DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
+QUAY_USERNAME=${QUAY_USERNAME:-}
+QUAY_TOKEN=${QUAY_TOKEN:-}
+
+main "docker.io" $1 ${DOCKERHUB_USERNAME} ${DOCKERHUB_TOKEN}
+main "quay.io" $1 ${QUAY_USERNAME} ${QUAY_TOKEN}
