@@ -61,7 +61,7 @@ try_login() {
   local token=$3
   local marker=$4
 
-  if [ ! -f ${marker} && -v ${token} ]; then
+  if [ ! -f ${marker} ] && [ -v ${token} ]; then
     printenv ${token} | docker login ${registry} --username ${user} --password-stdin
     touch ${marker}
   fi
@@ -76,7 +76,7 @@ upload_images() {
 
   try_login ${registry} ${user} ${token} ${marker}
 
-  if [ ! -f ${marker} && -v ${token} ]; then
+  if [ ! -f ${marker} ] && [ -v ${token} ]; then
     echo "skipping upload to ${registry}, not logged in!"
   else
     case "$image" in
