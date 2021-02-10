@@ -2,6 +2,11 @@
 
 set -euxf -o pipefail
 
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-"jaegertracingbot"}
+DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
+QUAY_USERNAME=${QUAY_USERNAME:-"jaegertracingbot+github_workflows"}
+QUAY_TOKEN=${QUAY_TOKEN:-}
+
 usage() {
   echo $"Usage: $0 <image>"
   exit 1
@@ -56,8 +61,8 @@ try_login() {
   local token=$3
   local marker=$4
 
-  if [ ! -f ${marker} ]; then
-    printenv ${token}  | docker login ${registry} --username ${user} --password-stdin
+  if [ ! -f ${marker} && -v ${token} ]; then
+    printenv ${token} | docker login ${registry} --username ${user} --password-stdin
     touch ${marker}
   fi
 }
@@ -71,7 +76,7 @@ upload_images() {
 
   try_login ${registry} ${user} ${token} ${marker}
 
-  if [ ! -f ${marker} ]; then
+  if [ ! -f ${marker} && -v ${token} ]; then
     echo "skipping upload to ${registry}, not logged in!"
   else
     case "$image" in
@@ -96,17 +101,12 @@ main() {
   local user=$3
   local token=$4
 
-  check_args "$@"
-
   read -r tag major minor patch <<< "$(compute_image_tag ${BRANCH})"
   label_release_tag ${registry} ${image} ${major} ${minor} ${patch}
   upload_images ${registry} ${image} ${user} ${token}
 }
 
-DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-}
-DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
-QUAY_USERNAME=${QUAY_USERNAME:-}
-QUAY_TOKEN=${QUAY_TOKEN:-}
+check_args "$@"
 
-main "docker.io" $1 ${DOCKERHUB_USERNAME} ${DOCKERHUB_TOKEN}
-main "quay.io" $1 ${QUAY_USERNAME} ${QUAY_TOKEN}
+main "docker.io" $1 ${DOCKERHUB_USERNAME} DOCKERHUB_TOKEN
+main "quay.io" $1 ${QUAY_USERNAME} QUAY_TOKEN
