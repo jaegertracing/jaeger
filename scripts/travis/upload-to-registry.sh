@@ -77,7 +77,7 @@ upload_images() {
 
   try_login ${registry} ${user} ${token} ${marker}
 
-  if [ ! -f ${marker} ] && [ -z ${token} ]; then
+  if [ ! -f ${marker} ]; then
     echo "skipping upload to ${registry}, not logged in!"
   else
     case "$image" in
