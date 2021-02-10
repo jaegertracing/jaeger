@@ -42,7 +42,7 @@ func TestDefaultValues(t *testing.T) {
 
 	f := &Factory{Viper: v, Wrapped: resourceprocessor.NewFactory()}
 	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
-	assert.Empty(t, cfg.Labels)
+	assert.Empty(t, cfg.AttributesActions)
 }
 
 func TestDefaultValueFromViper(t *testing.T) {

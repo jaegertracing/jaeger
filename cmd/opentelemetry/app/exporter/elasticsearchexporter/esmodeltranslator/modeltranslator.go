@@ -274,7 +274,7 @@ func (c *Translator) tags(span pdata.Span) ([]dbmodel.KeyValue, map[string]inter
 		tagsCount++
 	}
 	status := span.Status()
-	if !status.IsNil() {
+	if status.Code() != pdata.StatusCodeUnset {
 		statusCodeTag, statusCodeTagFound = getTagFromStatusCode(status.Code())
 		tagsCount++
 

@@ -6,7 +6,6 @@ receivers:
       thrift_binary:
 
 processors:
-  queued_retry: {}
 
 exporters:
   jaeger_elasticsearch:
@@ -15,5 +14,5 @@ service:
   pipelines:
     traces:
       receivers: [jaeger]
-      processors: [queued_retry]
+      processors: []
       exporters: [jaeger_elasticsearch]

@@ -6,7 +6,6 @@ receivers:
       thrift_binary:
 
 processors:
-  queued_retry: {}
   batch:
     timeout: 5s
 

@@ -15,7 +15,6 @@ receivers:
             - targets: ["localhost:8889"]
 
 processors:
-  queued_retry: {}
   batch:
     timeout: 5s
 

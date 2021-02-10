@@ -81,24 +81,6 @@ func TestService(t *testing.T) {
 			},
 		},
 		{
-			cfg: ComponentSettings{
-				ComponentType: Agent,
-			},
-			service: configmodels.Service{
-				Extensions: []string{"health_check"},
-				Pipelines: configmodels.Pipelines{
-					"traces": &configmodels.Pipeline{
-						Name:       "traces",
-						InputType:  configmodels.TracesDataType,
-						Receivers:  []string{"otlp", "jaeger"},
-						Processors: []string{"batch", "queued_retry"},
-						Exporters:  []string{"jaeger"},
-					},
-				},
-			},
-			otelConfig: "testdata/addqueuedprocessor.yaml",
-		},
-		{
 			viperConfig: map[string]interface{}{"resource.attributes": "foo=bar"},
 			cfg: ComponentSettings{
 				ComponentType: Collector,

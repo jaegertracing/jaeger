@@ -113,7 +113,6 @@ func TestConvertSpan(t *testing.T) {
 	instrumentationLibrary.SetVersion("1.0")
 	span := addSpan(traces, "root", traceID, spanID)
 	span.SetKind(pdata.SpanKindCLIENT)
-	span.Status().InitEmpty()
 	span.Status().SetCode(1)
 	span.Status().SetMessage("messagetext")
 	span.SetStartTime(pdata.TimestampUnixNano(1000000))
