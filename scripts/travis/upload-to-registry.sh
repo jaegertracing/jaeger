@@ -44,6 +44,7 @@ label_release_tag() {
   local minor=${4:-}
   local patch=${5:-}
 
+  docker tag ${image} ${registry}/${image}
   if [[ -n ${major} ]]; then
     docker tag ${image} ${registry}/${image}:${major}
     if [[ -n ${minor} ]]; then
