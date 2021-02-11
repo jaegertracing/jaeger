@@ -4,7 +4,7 @@ set -euxf -o pipefail
 
 DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-"jaegertracingbot"}
 DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
-QUAY_USERNAME=${QUAY_USERNAME:-"jaegertracingbot+github_workflows"}
+QUAY_USERNAME=${QUAY_USERNAME:-"jaegertracing+github_workflows"}
 QUAY_TOKEN=${QUAY_TOKEN:-}
 
 usage() {
