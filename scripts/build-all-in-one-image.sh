@@ -5,7 +5,7 @@ set -exu
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 # Set default GOARCH variable to the host GOARCH, the target architecture can
 # be overrided by passing architecture value to the script:
-# `GOARCH=<target arch> ./scripts/travis/build-all-in-one-image.sh`.
+# `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
 
 expected_version="v10"
@@ -39,7 +39,7 @@ upload_to_docker() {
   if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "upload $1 to dockerhub/quay.io"
     REPO=$1
-    bash scripts/travis/upload-to-registry.sh $REPO
+    bash scripts/upload-to-registry.sh $REPO
   else
     echo 'skip docker images upload for PR'
   fi

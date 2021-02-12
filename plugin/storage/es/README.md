@@ -50,9 +50,9 @@ To locally test the ElasticSearch storage plugin,
 * have [ElasticSearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/setup.html) running on port 9200
 * run `STORAGE=es make storage-integration-test` in the top folder.
 
-All integration tests also run on pull request via Travis. This integration test is against ElasticSearch v5.4.0.
+All integration tests also run on pull request via GitHub Actions. This integration test is against ElasticSearch v5.6.16, v6.8.2 and v7.3.0.
 
-* The script used in Travis can be found under `./travis/es-integration-test.sh`, 
+* The script used in GitHub Actions can be found under `scripts/es-integration-test.sh`,
 and that script be run from the top folder to integration test ElasticSearch as well.
 This script requires Docker to be running.
 

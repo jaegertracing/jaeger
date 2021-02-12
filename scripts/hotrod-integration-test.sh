@@ -27,4 +27,4 @@ else
   exit 0
 fi
 
-bash scripts/travis/upload-to-registry.sh $REPO
+bash scripts/upload-to-registry.sh $REPO

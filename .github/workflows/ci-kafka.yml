@@ -17,4 +17,4 @@ jobs:
         go-version: ^1.15
 
     - name: Run kafka integration tests
-      run: bash scripts/travis/kafka-integration-test.sh
+      run: bash scripts/kafka-integration-test.sh

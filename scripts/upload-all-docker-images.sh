@@ -38,5 +38,5 @@ jaeger_components=(
 for component in "${jaeger_components[@]}"
 do
   REPO="jaegertracing/jaeger-${component}"
-  bash scripts/travis/upload-to-registry.sh $REPO
+  bash scripts/upload-to-registry.sh $REPO
 done

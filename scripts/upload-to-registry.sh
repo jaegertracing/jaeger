@@ -85,7 +85,7 @@ upload_images() {
         docker push ${registry}/${image}:latest
         ;;
       *)
-        docker push ${registry}/${image}
+        docker push --all-tags ${registry}/${image}
         ;;
     esac
 
