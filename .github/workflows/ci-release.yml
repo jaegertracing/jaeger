@@ -65,3 +65,9 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish hotrod image
+      run: bash scripts/travis/hotrod-integration-test.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
