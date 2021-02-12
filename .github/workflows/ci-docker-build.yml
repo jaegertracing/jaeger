@@ -36,7 +36,7 @@ jobs:
       run: make docker
 
     - name: Upload docker images
-      run: bash scripts/travis/upload-all-docker-images.sh
+      run: bash scripts/upload-all-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

@@ -37,7 +37,7 @@ jobs:
 
     - name: Package binaries
       id: package-binaries
-      run: bash scripts/travis/package-deploy.sh
+      run: bash scripts/package-deploy.sh
       if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
@@ -54,20 +54,20 @@ jobs:
       run: make docker
 
     - name: Upload docker images
-      run: bash scripts/travis/upload-all-docker-images.sh
+      run: bash scripts/upload-all-docker-images.sh
       if: steps.build-images.outcome == 'success'
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Build, test, and publish all-in-one image
-      run: bash scripts/travis/build-all-in-one-image.sh
+      run: bash scripts/build-all-in-one-image.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Build, test, and publish hotrod image
-      run: bash scripts/travis/hotrod-integration-test.sh
+      run: bash scripts/hotrod-integration-test.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

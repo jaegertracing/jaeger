@@ -87,8 +87,7 @@ github.com/jaegertracing/jaeger
         spanstore/          - SpanReader / SpanWriter implementations
         dependencystore/
       elasticsearch/        - ES implementations of storage APIs
-  scripts/                  - Miscellaneous project scripts, e.g. license update script
-    travis/                 - Travis scripts called in .travis.yml
+  scripts/                  - Miscellaneous project scripts, e.g. github action and license update script
   storage/
     spanstore/              - SpanReader / SpanWriter interfaces
     dependencystore/

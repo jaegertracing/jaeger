@@ -18,4 +18,4 @@ fi
 # docker image has been build when running the crossdock
 REPO=jaegertracing/test-driver
 docker tag $REPO:latest $REPO:$COMMIT
-bash scripts/travis/upload-to-registry.sh $REPO
+bash scripts/upload-to-registry.sh $REPO

@@ -36,4 +36,4 @@ jobs:
       run: make install-ci
 
     - name: Run elasticsearch integration tests
-      run: bash scripts/travis/es-integration-test.sh ${{ matrix.version.image }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.image }}
