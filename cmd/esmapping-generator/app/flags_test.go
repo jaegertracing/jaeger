@@ -15,11 +15,11 @@
 package app
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOptionsWithDefaultFlags(t *testing.T) {
