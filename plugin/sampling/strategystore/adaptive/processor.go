@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -516,4 +517,42 @@ func (p *processor) generateDefaultSamplingStrategyResponse() *sampling.Sampling
 			DefaultLowerBoundTracesPerSecond: p.MinSamplesPerSecond,
 		},
 	}
+}
+
+type strategyStore struct {
+	logger           *zap.Logger
+	storedStrategies atomic.Value // holds *storedStrategies
+	ctx              context.Context
+	cancelFunc       context.CancelFunc
+}
+
+type storedStrategies struct {
+	defaultStrategy   *sampling.SamplingStrategyResponse
+	serviceStrategies map[string]*sampling.SamplingStrategyResponse
+}
+
+// GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
+func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	ss := h.storedStrategies.Load().(*storedStrategies)
+	serviceStrategies := ss.serviceStrategies
+	if strategy, ok := serviceStrategies[serviceName]; ok {
+		return strategy, nil
+	}
+	h.logger.Debug("sampling strategy not found, using default", zap.String("service", serviceName))
+	return ss.defaultStrategy, nil
+}
+
+// NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
+func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, error) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	h := &strategyStore{
+		logger:     logger,
+		ctx:        ctx,
+		cancelFunc: cancelFunc,
+	}
+	h.storedStrategies.Store(defaultStrategies())
+
+	// Create and start processor
+
+	return h, nil
 }

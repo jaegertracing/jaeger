@@ -33,7 +33,9 @@ type FactoryConfig struct {
 //   * `adaptive` - built-in // TODO
 func FactoryConfigFromEnv() FactoryConfig {
 	strategyStoreType := os.Getenv(SamplingTypeEnvVar)
-	if strategyStoreType == "" {
+	if strategyStoreType == "adaptive" {
+		strategyStoreType = adaptiveStrategyStoreType
+	} else {
 		strategyStoreType = staticStrategyStoreType
 	}
 	return FactoryConfig{

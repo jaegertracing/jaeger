@@ -24,14 +24,16 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
 const (
-	staticStrategyStoreType = "static"
+	staticStrategyStoreType   = "static"
+	adaptiveStrategyStoreType = "adaptive"
 )
 
-var allSamplingTypes = []string{staticStrategyStoreType} // TODO support adaptive
+var allSamplingTypes = []string{staticStrategyStoreType, adaptiveStrategyStoreType}
 
 // Factory implements strategystore.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
@@ -61,6 +63,8 @@ func (f *Factory) getFactoryOfType(factoryType string) (strategystore.Factory, e
 	switch factoryType {
 	case staticStrategyStoreType:
 		return static.NewFactory(), nil
+	case adaptiveStrategyStoreType:
+		return adaptive.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("unknown sampling strategy store type %s. Valid types are %v", factoryType, allSamplingTypes)
 	}
