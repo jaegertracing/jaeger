@@ -65,7 +65,7 @@ type Configuration struct {
 	TLS                   tlscfg.Options `mapstructure:"tls"`
 	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
 	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
-	UseILM                bool           `mapstructure:"-"`
+	UseILM                bool           `mapstructure:"use_ilm"`
 	Version               uint           `mapstructure:"version"`
 }
 

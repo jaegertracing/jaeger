@@ -17,12 +17,12 @@ package renderer
 import (
 	"strconv"
 
-	"github.com/jaegertracing/jaeger/cmd/templatizer/app"
+	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
 	esTemplate "github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
-var allowedValues = map[string]struct{}{
+var supportedMappings = map[string]struct{}{
 	"jaeger-span":    {},
 	"jaeger-service": {},
 }
@@ -41,6 +41,6 @@ func GetMappingAsString(builder esTemplate.TemplateBuilder, opt *app.Options) (s
 
 // IsValidOption checks if passed option is a valid index template.
 func IsValidOption(val string) bool {
-	_, ok := allowedValues[val]
+	_, ok := supportedMappings[val]
 	return ok
 }

@@ -17,6 +17,7 @@ package spanstore
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -102,7 +103,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 // CreateTemplates creates index templates.
 func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix string) error {
-	if indexPrefix != "" {
+	if indexPrefix != "" && !strings.HasSuffix(indexPrefix, "-") {
 		indexPrefix += "-"
 	}
 	_, err := s.client.CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())

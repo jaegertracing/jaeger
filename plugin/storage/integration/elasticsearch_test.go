@@ -31,7 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
-	esTemplate "github.com/jaegertracing/jaeger/pkg/es"
+	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -108,7 +108,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		return err
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(esTemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion(), indexPrefix, false)
+	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(estemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion(), indexPrefix, false)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxDocCount:       defaultMaxDocCount,
 	})
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
-	depMapping, err := es.GetDependenciesMappings(esTemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion())
+	depMapping, err := es.GetDependenciesMappings(estemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion())
 	if err != nil {
 		return err
 	}

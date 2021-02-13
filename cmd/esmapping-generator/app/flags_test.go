@@ -15,6 +15,7 @@
 package app
 
 import (
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -39,15 +40,15 @@ func TestOptionsWithFlags(t *testing.T) {
 	c := cobra.Command{}
 
 	o.AddFlags(&c)
-	c.ParseFlags([]string{
+	err := c.ParseFlags([]string{
 		"--mapping=jaeger-span",
-		"--esVersion=6",
+		"--es-version=6",
 		"--shards=5",
 		"--replicas=1",
-		"--esPrefix=test",
-		"--useILM=true",
+		"--es-prefix=test",
+		"--use-ilm=true",
 	})
-
+	require.NoError(t, err)
 	assert.Equal(t, "jaeger-span", o.Mapping)
 	assert.Equal(t, int64(6), o.EsVersion)
 	assert.Equal(t, int64(5), o.Shards)

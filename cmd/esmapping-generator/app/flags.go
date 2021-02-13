@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Options represent configurable parameters for jaeger-templatizer
+// Options represent configurable parameters for jaeger-esmapping-generator
 type Options struct {
 	Mapping   string
 	EsVersion int64
@@ -30,49 +30,43 @@ type Options struct {
 
 const (
 	mappingFlag   = "mapping"
-	esVersionFlag = "esVersion"
+	esVersionFlag = "es-version"
 	shardsFlag    = "shards"
 	replicasFlag  = "replicas"
-	esPrefixFlag  = "esPrefix"
-	useILMFlag    = "useILM"
+	esPrefixFlag  = "es-prefix"
+	useILMFlag    = "use-ilm"
 )
 
-// AddFlags adds flags for templatizer main program
+// AddFlags adds flags for esmapping-generator main program
 func (o *Options) AddFlags(command *cobra.Command) {
-	command.Flags().StringVarP(
+	command.Flags().StringVar(
 		&o.Mapping,
 		mappingFlag,
-		"m",
 		"",
 		"The index mapping the template will be applied to. Pass either jaeger-span or jaeger-service")
-	command.Flags().Int64VarP(
+	command.Flags().Int64Var(
 		&o.EsVersion,
 		esVersionFlag,
-		"v",
 		7,
 		"The major Elasticsearch version")
-	command.Flags().Int64VarP(
+	command.Flags().Int64Var(
 		&o.Shards,
 		shardsFlag,
-		"s",
 		5,
 		"The number of shards per index in Elasticsearch")
-	command.Flags().Int64VarP(
+	command.Flags().Int64Var(
 		&o.Replicas,
 		replicasFlag,
-		"r",
 		1,
 		"The number of replicas per index in Elasticsearch")
-	command.Flags().StringVarP(
+	command.Flags().StringVar(
 		&o.EsPrefix,
 		esPrefixFlag,
-		"p",
 		"",
 		"Specifies index prefix")
-	command.Flags().StringVarP(
+	command.Flags().StringVar(
 		&o.UseILM,
 		useILMFlag,
-		"i",
 		"false",
 		"Set to true to use ILM for managing lifecycle of jaeger indices")
 

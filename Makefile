@@ -225,13 +225,13 @@ build-tracegen:
 build-anonymizer:
 	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/main.go
 
-.PHONY: build-templatizer
-build-templatizer:
-	$(GOBUILD) -o ./plugin/storage/es/templatizer-$(GOOS)-$(GOARCH) ./cmd/templatizer/main.go
+.PHONY: build-esmapping-generator
+build-esmapping-generator:
+	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/main.go
 
-.PHONY: build-templatizer-linux
-build-templatizer-linux:
-	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/templatizer ./cmd/templatizer/main.go
+.PHONY: build-esmapping-generator-linux
+build-esmapping-generator-linux:
+	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/main.go
 
 .PHONY: docker-hotrod
 docker-hotrod:
@@ -352,7 +352,7 @@ docker-images-cassandra:
 	@echo "Finished building jaeger-cassandra-schema =============="
 
 .PHONY: docker-images-elastic
-docker-images-elastic: build-templatizer-linux
+docker-images-elastic: build-esmapping-generator-linux
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="

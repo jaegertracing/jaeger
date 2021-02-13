@@ -6,6 +6,6 @@ RUN pip install urllib3==1.24.3
 RUN pip install elasticsearch elasticsearch-curator
 COPY ./mappings/* /mappings/
 COPY esRollover.py /es-rollover/
-COPY templatizer /usr/bin/
+COPY esmapping-generator /usr/bin/
 
 ENTRYPOINT ["python3", "/es-rollover/esRollover.py"]
