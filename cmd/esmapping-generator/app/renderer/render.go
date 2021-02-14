@@ -18,7 +18,7 @@ import (
 	"strconv"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
-	esTemplate "github.com/jaegertracing/jaeger/pkg/es"
+	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
@@ -28,7 +28,7 @@ var supportedMappings = map[string]struct{}{
 }
 
 // GetMappingAsString returns rendered index templates as string
-func GetMappingAsString(builder esTemplate.TemplateBuilder, opt *app.Options) (string, error) {
+func GetMappingAsString(builder estemplate.TemplateBuilder, opt *app.Options) (string, error) {
 	if opt.EsVersion == 7 {
 		enableILM, err := strconv.ParseBool(opt.UseILM)
 		if err != nil {

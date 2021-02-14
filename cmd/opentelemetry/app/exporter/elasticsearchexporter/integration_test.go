@@ -32,7 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esdependencyreader"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esspanreader"
-	esTemplate "github.com/jaegertracing/jaeger/pkg/es"
+	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -105,7 +105,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 		return err
 	}
 	esVersion := uint(w.esClientVersion())
-	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(esTemplate.TextTemplateBuilder{}, numShards, numReplicas, esVersion, "", false)
+	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(estemplate.TextTemplateBuilder{}, numShards, numReplicas, esVersion, "", false)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	})
 	s.SpanReader = reader
 
-	depMapping, err := es.GetDependenciesMappings(esTemplate.TextTemplateBuilder{}, numShards, numReplicas, esVersion)
+	depMapping, err := es.GetDependenciesMappings(estemplate.TextTemplateBuilder{}, numShards, numReplicas, esVersion)
 	if err != nil {
 		return err
 	}
