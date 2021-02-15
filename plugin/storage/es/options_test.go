@@ -67,6 +67,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.tags-as-fields.include=test,tags",
 		"--es.tags-as-fields.config-file=./file.txt",
 		"--es.tags-as-fields.dot-replacement=!",
+		"--es.use-ilm=true",
 	})
 	opts.InitFromViper(v)
 
@@ -84,7 +85,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "./file.txt", primary.Tags.File)
 	assert.Equal(t, "test,tags", primary.Tags.Include)
 	assert.Equal(t, "20060102", primary.IndexDateLayout)
-
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
 	assert.Equal(t, "hello", aux.Username)
@@ -98,6 +98,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "./file.txt", aux.Tags.File)
 	assert.Equal(t, "test,tags", aux.Tags.Include)
 	assert.Equal(t, "2006.01.02", aux.IndexDateLayout)
+	assert.True(t, primary.UseILM)
 }
 
 func TestMaxDocCount(t *testing.T) {

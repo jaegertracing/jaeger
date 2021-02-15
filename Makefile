@@ -129,10 +129,18 @@ test-compile-es-scripts:
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
-	# Expire tests results for storage integration tests since the environment might change
+	# Expire test results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner $(STORAGE_PKGS) | $(COLORIZE)"
+
+.PHONY: index-rollover-integration-test
+index-rollover-integration-test: docker-images-elastic
+	# Expire test results for storage integration tests since the environment might change
+	# even though the code remains the same.
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover $(STORAGE_PKGS) | $(COLORIZE)"
+
 
 .PHONY: token-propagation-integration-test
 token-propagation-integration-test:
@@ -216,6 +224,14 @@ build-tracegen:
 .PHONY: build-anonymizer
 build-anonymizer:
 	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/main.go
+
+.PHONY: build-esmapping-generator
+build-esmapping-generator:
+	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/main.go
+
+.PHONY: build-esmapping-generator-linux
+build-esmapping-generator-linux:
+	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/main.go
 
 .PHONY: docker-hotrod
 docker-hotrod:
@@ -336,7 +352,7 @@ docker-images-cassandra:
 	@echo "Finished building jaeger-cassandra-schema =============="
 
 .PHONY: docker-images-elastic
-docker-images-elastic:
+docker-images-elastic: build-esmapping-generator-linux
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="

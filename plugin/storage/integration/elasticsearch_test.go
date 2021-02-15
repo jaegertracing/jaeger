@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
+	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -107,7 +108,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		return err
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, client.GetVersion())
+	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(estemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion(), indexPrefix, false)
+	if err != nil {
+		return err
+	}
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,
@@ -118,7 +122,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 			TagDotReplacement: tagKeyDeDotChar,
 			Archive:           archive,
 		})
-	err = w.CreateTemplates(spanMapping, serviceMapping)
+	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
 	if err != nil {
 		return err
 	}
@@ -134,7 +138,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxDocCount:       defaultMaxDocCount,
 	})
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
-	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
+	depMapping, err := es.GetDependenciesMappings(estemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion())
+	if err != nil {
+		return err
+	}
 	err = dependencyStore.CreateTemplates(depMapping)
 	if err != nil {
 		return err
@@ -192,6 +199,21 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 
 func TestElasticsearchStorage_Archive(t *testing.T) {
 	testElasticsearchStorage(t, false, true)
+}
+
+func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
+	if os.Getenv("STORAGE") != "elasticsearch" {
+		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
+	}
+	if err := healthCheck(); err != nil {
+		t.Fatal(err)
+	}
+	s := &ESStorageIntegration{}
+	require.NoError(t, s.initializeES(true, false))
+	serviceTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
+	spanTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
+	assert.True(t, serviceTemplateExists)
+	assert.True(t, spanTemplateExists)
 }
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
