@@ -14,8 +14,6 @@ jobs:
         steps:
         - name: crossdock
           cmd: bash scripts/build-crossdock.sh
-        - name: crossdock-otel
-          cmd: make build-crossdock crossdock-otel
     name: ${{ matrix.steps.name }}
     steps:
     - uses: actions/checkout@v2

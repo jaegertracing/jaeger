@@ -1,6 +1,5 @@
 JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
-OTEL_COLLECTOR_DIR = ./cmd/opentelemetry
 
 include docker/Makefile
 
@@ -87,12 +86,8 @@ clean:
 		jaeger-ui/packages/jaeger-ui/build
 
 .PHONY: test
-test: go-gen test-otel
+test: go-gen
 	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
-
-.PHONY: test-otel
-test-otel:
-	cd ${OTEL_COLLECTOR_DIR} && bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
@@ -116,11 +111,6 @@ badger-storage-integration-test:
 grpc-plugin-storage-integration-test:
 	(cd examples/memstore-plugin/ && go build .)
 	STORAGE=grpc-plugin $(MAKE) storage-integration-test
-
-.PHONY: es-otel-exporter-integration-test
-es-otel-exporter-integration-test: go-gen
-	go clean -testcache
-	bash -c "set -e; set -o pipefail; cd ${OTEL_COLLECTOR_DIR} && go clean -testcache && $(GOTEST) -tags=integration ./app/exporter/elasticsearchexporter | $(COLORIZE)"
 
 .PHONY: test-compile-es-scripts
 test-compile-es-scripts:
@@ -187,7 +177,7 @@ lint-staticcheck:
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
 
 .PHONY: lint
-lint: lint-staticcheck lint-gosec lint-otel
+lint: lint-staticcheck lint-gosec
 	$(GOVET) ./...
 	$(MAKE) go-lint
 	@echo Running go fmt on ALL_SRC ...
@@ -195,11 +185,6 @@ lint: lint-staticcheck lint-gosec lint-otel
 	./scripts/updateLicenses.sh >> $(FMT_LOG)
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
-
-.PHONY: lint-otel
-lint-otel:
-	cd ${OTEL_COLLECTOR_DIR} && $(GOVET) ./...
-	cd ${OTEL_COLLECTOR_DIR} && time gosec -quiet -exclude=G104,G107 ./...
 
 .PHONY: go-lint
 go-lint:
@@ -277,22 +262,6 @@ build-query build-query-debug: build-ui
 build-collector build-collector-debug: elasticsearch-mappings
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/collector/collector$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 
-.PHONY: build-otel-collector
-build-otel-collector: elasticsearch-mappings
-	cd ${OTEL_COLLECTOR_DIR}/cmd/collector && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-
-.PHONY: build-otel-agent
-build-otel-agent:
-	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-
-.PHONY: build-otel-ingester
-build-otel-ingester:
-	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-
-.PHONY: build-otel-all-in-one
-build-otel-all-in-one: build-ui
-	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -tags ui -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-
 .PHONY: build-ingester build-ingester-debug
 build-ingester build-ingester-debug:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
@@ -336,11 +305,7 @@ build-platform-binaries: build-agent \
 	build-all-in-one \
 	build-examples \
 	build-tracegen \
-	build-anonymizer \
-	build-otel-collector \
-	build-otel-agent \
-	build-otel-ingester \
-	build-otel-all-in-one
+	build-anonymizer
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
@@ -371,9 +336,6 @@ docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg 
 			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry/cmd/agent --build-arg TARGETARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry/cmd/ingester --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
@@ -449,9 +411,7 @@ install-tools:
 install-ci: install-tools
 
 .PHONY: test-ci
-# TODO (ys) added test-otel to at least ensure tests run in CI,
-#      but this needs to be changed in the lint and cover targets instead
-test-ci: build-examples lint cover test-otel
+test-ci: build-examples lint cover
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
