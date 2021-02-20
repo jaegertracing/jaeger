@@ -138,6 +138,9 @@ func createSpanReader(
 	cfg config.ClientBuilder,
 	archive bool,
 ) (spanstore.Reader, error) {
+	if cfg.GetUseILM() && !cfg.GetUseReadWriteAliases() {
+		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
 		Client:              client,
 		Logger:              logger,
@@ -161,6 +164,9 @@ func createSpanWriter(
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
+	if cfg.GetUseILM() && !cfg.GetUseReadWriteAliases() {
+		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	}
 	if tags, err = cfg.TagKeysAsFields(); err != nil {
 		logger.Error("failed to get tag keys", zap.Error(err))
 		return nil, err

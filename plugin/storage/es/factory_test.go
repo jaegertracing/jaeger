@@ -105,6 +105,22 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	assert.Nil(t, r)
 }
 
+func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
+	f := NewFactory()
+	mockConf := &mockClientBuilder{}
+	mockConf.UseILM = true
+	f.primaryConfig = mockConf
+	f.archiveConfig = mockConf
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	w, err := f.CreateSpanWriter()
+	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	assert.Nil(t, w)
+
+	r, err := f.CreateSpanReader()
+	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	assert.Nil(t, r)
+}
+
 func TestTagKeysAsFields(t *testing.T) {
 	tests := []struct {
 		path          string
