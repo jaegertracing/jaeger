@@ -49,11 +49,11 @@ func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
 
 // GetSpanServiceMappings returns span and service mappings
 func (mb *MappingBuilder) GetSpanServiceMappings() (string, string, error) {
-	spanMapping, err := mb.GetMapping("span")
+	spanMapping, err := mb.GetMapping("jaeger-span")
 	if err != nil {
 		return "", "", err
 	}
-	serviceMapping, err := mb.GetMapping("service")
+	serviceMapping, err := mb.GetMapping("jaeger-service")
 	if err != nil {
 		return "", "", err
 	}
@@ -62,7 +62,7 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (string, string, error) {
 
 // GetDependenciesMappings returns dependencies mappings
 func (mb *MappingBuilder) GetDependenciesMappings() (string, error) {
-	return mb.GetMapping("dependencies")
+	return mb.GetMapping("jaeger-dependencies")
 }
 
 func loadMapping(name string) string {
