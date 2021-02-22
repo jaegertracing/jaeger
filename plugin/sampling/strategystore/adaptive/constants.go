@@ -19,14 +19,6 @@ import (
 )
 
 const (
-	// samplerTypeProbabilistic is the type of sampler that samples traces
-	// with a certain fixed probability.
-	samplerTypeProbabilistic = "probabilistic"
-
-	// samplerTypeRateLimiting is the type of sampler that samples
-	// only up to a fixed number of traces per second.
-	samplerTypeRateLimiting = "ratelimiting"
-
 	// defaultSamplingProbability is the default sampling probability the
 	// Strategy Store will use if none is provided.
 	defaultSamplingProbability = 0.001
@@ -41,12 +33,4 @@ func defaultStrategyResponse() *sampling.SamplingStrategyResponse {
 			SamplingRate: defaultSamplingProbability,
 		},
 	}
-}
-
-func defaultStrategies() *storedStrategies {
-	s := &storedStrategies{
-		serviceStrategies: make(map[string]*sampling.SamplingStrategyResponse),
-	}
-	s.defaultStrategy = defaultStrategyResponse()
-	return s
 }

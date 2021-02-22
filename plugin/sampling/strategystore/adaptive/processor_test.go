@@ -17,7 +17,6 @@ package adaptive
 import (
 	"context"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
@@ -347,7 +346,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	}
 	p, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p.(*processor).Start()
+	p.Start()
 
 	for i := 0; i < 1000; i++ {
 		strategy, _ := p.GetSamplingStrategy(context.Background(), "svcA")
@@ -356,7 +355,7 @@ func TestRunCalculationLoop(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	p.(*processor).Close()
+	p.Close()
 
 	strategy, err := p.GetSamplingStrategy(context.Background(), "svcA")
 	assert.NoError(t, err)
@@ -378,9 +377,8 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 		AggregationBuckets:    2,
 		BucketsForCalculation: 10,
 	}
-	proc, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
+	p, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p := proc.(*processor)
 	p.shutdown = make(chan struct{})
 	defer close(p.shutdown)
 	go p.runCalculationLoop()
@@ -470,7 +468,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	}
 	p, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p.(*processor).Start()
+	p.Start()
 
 	for i := 0; i < 100; i++ {
 		strategy, _ := p.GetSamplingStrategy(context.Background(), "svcA")
@@ -479,7 +477,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-	p.(io.Closer).Close()
+	p.Close()
 
 	strategy, err := p.GetSamplingStrategy(context.Background(), "svcA")
 	assert.NoError(t, err)

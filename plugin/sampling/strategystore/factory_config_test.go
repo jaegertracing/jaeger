@@ -20,16 +20,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func clearEnv() {
-	os.Setenv(SamplingTypeEnvVar, "")
+	os.Setenv(SamplingTypeEnvVar, "static")
 }
 
 func TestFactoryConfigFromEnv(t *testing.T) {
 	clearEnv()
 	defer clearEnv()
 
-	f := FactoryConfigFromEnv()
-	assert.Equal(t, staticStrategyStoreType, f.StrategyStoreType)
+	f, err := FactoryConfigFromEnv()
+	require.NoError(t, err)
+	assert.Equal(t, StrategyStoreType("static"), f.StrategyStoreType)
 }

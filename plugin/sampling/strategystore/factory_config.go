@@ -15,6 +15,7 @@
 package strategystore
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -25,20 +26,24 @@ const (
 
 // FactoryConfig tells the Factory what sampling type it needs to create.
 type FactoryConfig struct {
-	StrategyStoreType string
+	StrategyStoreType StrategyStoreType
 }
 
 // FactoryConfigFromEnv reads the desired sampling type from the SAMPLING_TYPE environment variable. Allowed values:
 //   * `static` - built-in
-//   * `adaptive` - built-in // TODO
-func FactoryConfigFromEnv() FactoryConfig {
-	strategyStoreType := os.Getenv(SamplingTypeEnvVar)
-	if strategyStoreType == "adaptive" {
-		strategyStoreType = adaptiveStrategyStoreType
-	} else {
-		strategyStoreType = staticStrategyStoreType
+//   * `adaptive` - built-in
+func FactoryConfigFromEnv() (*FactoryConfig, error) {
+	var (
+		strategyStoreType string
+		ok                bool
+	)
+	if strategyStoreType, ok = os.LookupEnv(SamplingTypeEnvVar); !ok {
+		strategyStoreType = "static"
 	}
-	return FactoryConfig{
-		StrategyStoreType: strategyStoreType,
+	if strategyStoreType != "adaptive" && strategyStoreType != "static" {
+		return nil, fmt.Errorf("invalid sampling type: %s", strategyStoreType)
 	}
+	return &FactoryConfig{
+		StrategyStoreType: StrategyStoreType(strategyStoreType),
+	}, nil
 }

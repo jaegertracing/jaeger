@@ -20,15 +20,14 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -125,7 +124,7 @@ func NewProcessor(
 	electionParticipant leaderelection.ElectionParticipant,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-) (ss.StrategyStore, error) {
+) (*processor, error) {
 	if opts.CalculationInterval == 0 || opts.AggregationBuckets == 0 {
 		return nil, errNonZero
 	}
@@ -520,10 +519,10 @@ func (p *processor) generateDefaultSamplingStrategyResponse() *sampling.Sampling
 }
 
 type strategyStore struct {
-	logger           *zap.Logger
-	storedStrategies atomic.Value // holds *storedStrategies
-	ctx              context.Context
-	cancelFunc       context.CancelFunc
+	logger     *zap.Logger
+	processor  *processor
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 }
 
 type storedStrategies struct {
@@ -533,26 +532,28 @@ type storedStrategies struct {
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
 func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	ss := h.storedStrategies.Load().(*storedStrategies)
-	serviceStrategies := ss.serviceStrategies
+	serviceStrategies := h.processor.strategyResponses
 	if strategy, ok := serviceStrategies[serviceName]; ok {
 		return strategy, nil
 	}
 	h.logger.Debug("sampling strategy not found, using default", zap.String("service", serviceName))
-	return ss.defaultStrategy, nil
+	return defaultStrategyResponse(), nil
 }
 
 // NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
-func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, error) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	h := &strategyStore{
-		logger:     logger,
-		ctx:        ctx,
-		cancelFunc: cancelFunc,
+func NewStrategyStore(options Options, logger *zap.Logger) (*processor, error) {
+	// ctx, _ := context.WithCancel(context.Background())
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
 	}
-	h.storedStrategies.Store(defaultStrategies())
 
-	// Create and start processor
+	// How to initialize storage, electionParticipant, metricsFactory for the NewProcessor ?
+	p, err := NewProcessor(options, hostname, nil, nil, nil, logger)
+	if err != nil {
+		return nil, err
+	}
 
-	return h, nil
+	return p, nil
 }

@@ -59,5 +59,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
-	return NewStrategyStore(*f.options, f.logger)
+	p, err := NewStrategyStore(*f.options, f.logger)
+	if err != nil {
+		return nil, err
+	}
+	p.Start()
+	return p, nil
 }
