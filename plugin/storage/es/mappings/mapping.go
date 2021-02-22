@@ -30,7 +30,6 @@ type MappingBuilder struct {
 	UseILM          bool
 }
 
-
 // GetMapping returns the render mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
 	if mb.EsVersion == 7 {
