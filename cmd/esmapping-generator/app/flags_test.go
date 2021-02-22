@@ -28,7 +28,7 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 	o.AddFlags(&c)
 
 	assert.Equal(t, "", o.Mapping)
-	assert.Equal(t, int64(7), o.EsVersion)
+	assert.Equal(t, uint(7), o.EsVersion)
 	assert.Equal(t, int64(5), o.Shards)
 	assert.Equal(t, int64(1), o.Replicas)
 	assert.Equal(t, "", o.EsPrefix)
@@ -50,7 +50,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "jaeger-span", o.Mapping)
-	assert.Equal(t, int64(6), o.EsVersion)
+	assert.Equal(t, uint(6), o.EsVersion)
 	assert.Equal(t, int64(5), o.Shards)
 	assert.Equal(t, int64(1), o.Replicas)
 	assert.Equal(t, "test", o.EsPrefix)

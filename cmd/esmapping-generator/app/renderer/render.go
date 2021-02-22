@@ -18,8 +18,8 @@ import (
 	"strconv"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
-	estemplate "github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 var supportedMappings = map[string]struct{}{
@@ -28,15 +28,14 @@ var supportedMappings = map[string]struct{}{
 }
 
 // GetMappingAsString returns rendered index templates as string
-func GetMappingAsString(builder estemplate.TemplateBuilder, opt *app.Options) (string, error) {
-	if opt.EsVersion == 7 {
-		enableILM, err := strconv.ParseBool(opt.UseILM)
-		if err != nil {
-			return "", err
-		}
-		return es.FixMapping(builder, es.LoadMapping("/"+opt.Mapping+"-7.json"), opt.Shards, opt.Replicas, opt.EsPrefix, enableILM)
+func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, error) {
+
+	enableILM, err := strconv.ParseBool(opt.UseILM)
+	if err != nil {
+		return "", err
 	}
-	return es.FixMapping(builder, es.LoadMapping("/"+opt.Mapping+".json"), opt.Shards, opt.Replicas, "", false)
+	mappingBuilder := mappings.NewBuilder(builder, opt.Shards, opt.Replicas, opt.EsVersion, opt.EsPrefix, enableILM)
+	return mappingBuilder.GetMapping(opt.Mapping)
 }
 
 // IsValidOption checks if passed option is a valid index template.

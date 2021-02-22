@@ -21,7 +21,7 @@ import (
 // Options represent configurable parameters for jaeger-esmapping-generator
 type Options struct {
 	Mapping   string
-	EsVersion int64
+	EsVersion uint
 	Shards    int64
 	Replicas  int64
 	EsPrefix  string
@@ -44,7 +44,7 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		mappingFlag,
 		"",
 		"The index mapping the template will be applied to. Pass either jaeger-span or jaeger-service")
-	command.Flags().Int64Var(
+	command.Flags().UintVar(
 		&o.EsVersion,
 		esVersionFlag,
 		7,
