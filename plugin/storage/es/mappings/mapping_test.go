@@ -29,22 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
-func TestNewBuilder(t *testing.T) {
-
-	expectedMappingbuilder := MappingBuilder{
-		templateBuilder: es.TextTemplateBuilder{},
-		shards:          10,
-		replicas:        10,
-		esVersion:       7,
-		esPrefix:        "",
-		useILM:          false,
-	}
-
-	actualMappingBuilder := NewBuilder(es.TextTemplateBuilder{}, 10, 10, 7, "", false)
-	assert.Equal(t, &expectedMappingbuilder, actualMappingBuilder)
-
-}
-
 func TestMappingBuilder_GetMapping(t *testing.T) {
 	tests := []struct {
 		mapping   string
@@ -60,12 +44,12 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.mapping, func(t *testing.T) {
 			mb := &MappingBuilder{
-				templateBuilder: es.TextTemplateBuilder{},
-				shards:          3,
-				replicas:        3,
-				esVersion:       tt.esVersion,
-				esPrefix:        "",
-				useILM:          false,
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Shards:          3,
+				Replicas:        3,
+				EsVersion:       tt.esVersion,
+				IndexPrefix:     "",
+				UseILM:          false,
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
@@ -84,9 +68,9 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 
 func TestMappingBuilder_loadMapping(t *testing.T) {
 	tests := []struct {
-		name     string
-		esPrefix string
-		useILM   bool
+		name        string
+		indexPrefix string
+		useILM      bool
 	}{
 		{name: "/jaeger-span.json"},
 		{name: "/jaeger-service.json"},
@@ -148,7 +132,14 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mappingBuilder := NewBuilder(test.templateBuilderMockFunc(), 3, 5, 7, "test", true)
+			mappingBuilder := MappingBuilder{
+				TemplateBuilder: test.templateBuilderMockFunc(),
+				Shards:          3,
+				Replicas:        5,
+				EsVersion:       7,
+				IndexPrefix:     "test",
+				UseILM:          true,
+			}
 			_, err := mappingBuilder.fixMapping("test")
 			if test.err != "" {
 				assert.EqualError(t, err, test.err)
@@ -162,11 +153,11 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 
 func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 	type args struct {
-		shards    int64
-		replicas  int64
-		esVersion uint
-		esPrefix  string
-		useILM    bool
+		shards      int64
+		replicas    int64
+		esVersion   uint
+		indexPrefix string
+		useILM      bool
 	}
 	tests := []struct {
 		name                       string
@@ -177,11 +168,11 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7",
 			args: args{
-				shards:    3,
-				replicas:  3,
-				esVersion: 7,
-				esPrefix:  "test",
-				useILM:    true,
+				shards:      3,
+				replicas:    3,
+				esVersion:   7,
+				indexPrefix: "test",
+				useILM:      true,
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -195,11 +186,11 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7 Service Error",
 			args: args{
-				shards:    3,
-				replicas:  3,
-				esVersion: 7,
-				esPrefix:  "test",
-				useILM:    true,
+				shards:      3,
+				replicas:    3,
+				esVersion:   7,
+				indexPrefix: "test",
+				useILM:      true,
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -215,11 +206,11 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7",
 			args: args{
-				shards:    3,
-				replicas:  3,
-				esVersion: 6,
-				esPrefix:  "test",
-				useILM:    true,
+				shards:      3,
+				replicas:    3,
+				esVersion:   6,
+				indexPrefix: "test",
+				useILM:      true,
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -233,11 +224,11 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Service Error",
 			args: args{
-				shards:    3,
-				replicas:  3,
-				esVersion: 6,
-				esPrefix:  "test",
-				useILM:    true,
+				shards:      3,
+				replicas:    3,
+				esVersion:   6,
+				indexPrefix: "test",
+				useILM:      true,
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -252,11 +243,11 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Span Error",
 			args: args{
-				shards:    3,
-				replicas:  3,
-				esVersion: 6,
-				esPrefix:  "test",
-				useILM:    true,
+				shards:      3,
+				replicas:    3,
+				esVersion:   6,
+				indexPrefix: "test",
+				useILM:      true,
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -270,11 +261,11 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
-				shards:    3,
-				replicas:  3,
-				esVersion: 7,
-				esPrefix:  "test",
-				useILM:    true,
+				shards:      3,
+				replicas:    3,
+				esVersion:   7,
+				indexPrefix: "test",
+				useILM:      true,
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -288,9 +279,14 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mappingBuilder := NewBuilder(test.mockNewTextTemplateBuilder(), test.args.shards, test.args.replicas,
-				test.args.esVersion, test.args.esPrefix,
-				test.args.useILM)
+			mappingBuilder := MappingBuilder{
+				TemplateBuilder: test.mockNewTextTemplateBuilder(),
+				Shards:          test.args.shards,
+				Replicas:        test.args.replicas,
+				EsVersion:       test.args.esVersion,
+				IndexPrefix:     test.args.indexPrefix,
+				UseILM:          test.args.useILM,
+			}
 			_, _, err := mappingBuilder.GetSpanServiceMappings()
 			if test.err != "" {
 				assert.EqualError(t, err, test.err)
@@ -307,7 +303,14 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
 	tb.On("Parse", mock.Anything).Return(&ta, nil)
 
-	mappingBuilder := NewBuilder(&tb, 5, 5, 7, "", false)
+	mappingBuilder := MappingBuilder{
+		TemplateBuilder: &tb,
+		Shards:          5,
+		Replicas:        5,
+		EsVersion:       7,
+		IndexPrefix:     "",
+		UseILM:          false,
+	}
 	_, err := mappingBuilder.GetDependenciesMappings()
 	assert.EqualError(t, err, "template load error")
 }

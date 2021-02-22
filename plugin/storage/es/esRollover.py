@@ -194,10 +194,10 @@ def str2bool(v):
     return v.lower() in ('true', '1')
 
 
-def fix_mapping(template_name, esVersion, shards, replicas, esprefix, use_ilm):
+def fix_mapping(template_name, esVersion, shards, replicas, indexPrefix, use_ilm):
     output = subprocess.Popen(['esmapping-generator', '--mapping', template_name, '--es-version', str(esVersion),
                                '--shards', str(shards), '--replicas',
-                               str(replicas), '--es-prefix', esprefix, '--use-ilm', str(use_ilm)],
+                               str(replicas), '--index-prefix', indexPrefix, '--use-ilm', str(use_ilm)],
                               stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)
     mapping, stderr = output.communicate()

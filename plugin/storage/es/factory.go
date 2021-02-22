@@ -171,7 +171,14 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	mappingBuilder := mappings.NewBuilder(es.TextTemplateBuilder{}, cfg.GetNumShards(), cfg.GetNumReplicas(), cfg.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Shards:          cfg.GetNumShards(),
+		Replicas:        cfg.GetNumReplicas(),
+		EsVersion:       cfg.GetVersion(),
+		IndexPrefix:     cfg.GetIndexPrefix(),
+		UseILM:          cfg.GetUseILM(),
+	}
 
 	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {

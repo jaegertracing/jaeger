@@ -34,7 +34,15 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 	if err != nil {
 		return "", err
 	}
-	mappingBuilder := mappings.NewBuilder(builder, opt.Shards, opt.Replicas, opt.EsVersion, opt.EsPrefix, enableILM)
+
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: builder,
+		Shards:          opt.Shards,
+		Replicas:        opt.Replicas,
+		EsVersion:       opt.EsVersion,
+		IndexPrefix:     opt.IndexPrefix,
+		UseILM:          enableILM,
+	}
 	return mappingBuilder.GetMapping(opt.Mapping)
 }
 

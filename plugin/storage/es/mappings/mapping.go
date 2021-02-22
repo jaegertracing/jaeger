@@ -22,26 +22,18 @@ import (
 
 // MappingBuilder holds parameters required to render an elasticsearch index template
 type MappingBuilder struct {
-	templateBuilder es.TemplateBuilder
-	shards          int64
-	replicas        int64
-	esVersion       uint
-	esPrefix        string
-	useILM          bool
+	TemplateBuilder es.TemplateBuilder
+	Shards          int64
+	Replicas        int64
+	EsVersion       uint
+	IndexPrefix     string
+	UseILM          bool
 }
 
-// NewBuilder constructs and returns an initialized MappingBuilder
-func NewBuilder(tb es.TemplateBuilder, shards, replicas int64, esVersion uint, esPrefix string, useILM bool) *MappingBuilder {
-	return &MappingBuilder{templateBuilder: tb,
-		shards: shards, replicas: replicas,
-		esVersion: esVersion, esPrefix: esPrefix,
-		useILM: useILM,
-	}
-}
 
 // GetMapping returns the render mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
-	if mb.esVersion == 7 {
+	if mb.EsVersion == 7 {
 		return mb.fixMapping("/" + mapping + "-7.json")
 	}
 	return mb.fixMapping("/" + mapping + ".json")
@@ -72,23 +64,16 @@ func loadMapping(name string) string {
 
 func (mb *MappingBuilder) fixMapping(mapping string) (string, error) {
 
-	tmpl, err := mb.templateBuilder.Parse(loadMapping(mapping))
+	tmpl, err := mb.TemplateBuilder.Parse(loadMapping(mapping))
 	if err != nil {
 		return "", err
 	}
 	writer := new(bytes.Buffer)
 
-	if mb.esPrefix != "" {
-		mb.esPrefix += "-"
+	if mb.IndexPrefix != "" {
+		mb.IndexPrefix += "-"
 	}
-	values := struct {
-		NumberOfShards   int64
-		NumberOfReplicas int64
-		ESPrefix         string
-		UseILM           bool
-	}{mb.shards, mb.replicas, mb.esPrefix, mb.useILM}
-
-	if err := tmpl.Execute(writer, values); err != nil {
+	if err := tmpl.Execute(writer, mb); err != nil {
 		return "", err
 	}
 
