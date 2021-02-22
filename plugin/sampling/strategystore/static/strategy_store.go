@@ -42,7 +42,6 @@ type strategyStore struct {
 
 	storedStrategies atomic.Value // holds *storedStrategies
 
-	ctx        context.Context
 	cancelFunc context.CancelFunc
 }
 
@@ -58,7 +57,6 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	h := &strategyStore{
 		logger:     logger,
-		ctx:        ctx,
 		cancelFunc: cancelFunc,
 	}
 	h.storedStrategies.Store(defaultStrategies())
@@ -76,7 +74,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	h.parseStrategies(strategies)
 
 	if options.ReloadInterval > 0 {
-		go h.autoUpdateStrategies(options.ReloadInterval, loadFn)
+		go h.autoUpdateStrategies(ctx, options.ReloadInterval, loadFn)
 	}
 	return h, nil
 }
@@ -144,7 +142,7 @@ func samplingStrategyLoader(strategiesFile string) strategyLoader {
 	}
 }
 
-func (h *strategyStore) autoUpdateStrategies(interval time.Duration, loader strategyLoader) {
+func (h *strategyStore) autoUpdateStrategies(ctx context.Context, interval time.Duration, loader strategyLoader) {
 	lastValue := string(nullJSON)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -152,7 +150,7 @@ func (h *strategyStore) autoUpdateStrategies(interval time.Duration, loader stra
 		select {
 		case <-ticker.C:
 			lastValue = h.reloadSamplingStrategy(loader, lastValue)
-		case <-h.ctx.Done():
+		case <-ctx.Done():
 			return
 		}
 	}

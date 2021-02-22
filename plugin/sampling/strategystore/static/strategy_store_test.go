@@ -358,7 +358,7 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
-	// verify that reloading in no-op
+	// verify that reloading is a no-op
 	value := store.reloadSamplingStrategy(samplingStrategyLoader(dstFile), string(srcBytes))
 	assert.Equal(t, string(srcBytes), value)
 
