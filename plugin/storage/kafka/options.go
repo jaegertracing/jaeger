@@ -152,11 +152,6 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		defaultBatchMaxMessages,
 		"(experimental) Maximum number of message to batch before sending records to Kafka",
 	)
-	opt.AddOTELFlags(flagSet)
-}
-
-// AddOTELFlags adds flags supported by the OTEL Collector
-func (opt *Options) AddOTELFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixBrokers,
 		defaultBroker,
@@ -174,6 +169,7 @@ func (opt *Options) AddOTELFlags(flagSet *flag.FlagSet) {
 		defaultEncoding,
 		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
 	)
+
 	auth.AddFlags(configPrefix, flagSet)
 }
 
