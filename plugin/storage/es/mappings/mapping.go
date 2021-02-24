@@ -16,6 +16,7 @@ package mappings
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 )
@@ -69,7 +70,7 @@ func (mb *MappingBuilder) fixMapping(mapping string) (string, error) {
 	}
 	writer := new(bytes.Buffer)
 
-	if mb.IndexPrefix != "" {
+	if mb.IndexPrefix != "" && !strings.HasSuffix(mb.IndexPrefix, "-") {
 		mb.IndexPrefix += "-"
 	}
 	if err := tmpl.Execute(writer, mb); err != nil {
