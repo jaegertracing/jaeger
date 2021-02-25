@@ -1,3 +1,0 @@
-exporters:
-  jaeger:
-    wait_for_ready: true

@@ -67,9 +67,3 @@ docker build -f cmd/all-in-one/Dockerfile \
         --build-arg TARGETARCH=$GOARCH
 run_integration_test $repo
 upload_to_docker $repo
-
-make build-otel-all-in-one GOOS=linux GOARCH=$GOARCH
-repo=jaegertracing/opentelemetry-all-in-one
-docker build -f cmd/opentelemetry/cmd/all-in-one/Dockerfile -t $repo:latest cmd/opentelemetry/cmd/all-in-one --build-arg TARGETARCH=$GOARCH
-run_integration_test $repo
-upload_to_docker $repo

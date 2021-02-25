@@ -85,11 +85,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixDeadlockInterval,
 		DefaultDeadlockInterval,
 		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
-	AddOTELFlags(flagSet)
-}
 
-// AddOTELFlags adds only OTEL flags
-func AddOTELFlags(flagSet *flag.FlagSet) {
 	// Authentication flags
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixBrokers,
@@ -115,6 +111,7 @@ func AddOTELFlags(flagSet *flag.FlagSet) {
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
+
 	auth.AddFlags(KafkaConsumerConfigPrefix, flagSet)
 }
 

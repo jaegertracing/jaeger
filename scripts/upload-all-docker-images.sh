@@ -30,9 +30,6 @@ jaeger_components=(
 	ingester-debug
 	tracegen
 	anonymizer
-	opentelemetry-collector
-	opentelemetry-agent
-	opentelemetry-ingester
 )
 
 for component in "${jaeger_components[@]}"

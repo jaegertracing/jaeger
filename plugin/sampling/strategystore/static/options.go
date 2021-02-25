@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	// SamplingStrategiesFile contains the name of CLI option for config file.
-	SamplingStrategiesFile           = "sampling.strategies-file"
+	// samplingStrategiesFile contains the name of CLI option for config file.
+	samplingStrategiesFile           = "sampling.strategies-file"
 	samplingStrategiesReloadInterval = "sampling.strategies-reload-interval"
 )
 
@@ -38,17 +38,12 @@ type Options struct {
 // AddFlags adds flags for Options
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(samplingStrategiesReloadInterval, 0, "Reload interval to check and reload sampling strategies file. Zero value means no reloading")
-	AddOTELFlags(flagSet)
-}
-
-// AddOTELFlags adds flags that are exposed by OTEL collector
-func AddOTELFlags(flagSet *flag.FlagSet) {
-	flagSet.String(SamplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
+	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
-	opts.StrategiesFile = v.GetString(SamplingStrategiesFile)
+	opts.StrategiesFile = v.GetString(samplingStrategiesFile)
 	opts.ReloadInterval = v.GetDuration(samplingStrategiesReloadInterval)
 	return opts
 }
