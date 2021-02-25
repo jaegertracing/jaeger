@@ -227,7 +227,7 @@ run-all-in-one: build-ui
 	go run -tags ui ./cmd/all-in-one --log-level debug
 
 .PHONY: build-ui
-build-ui: cmd/query/app/ui/actual/gen_assets.go cmd/query/app/ui/placeholder/gen_assets.go
+build-ui: cmd/query/app/ui/actual/gen_assets.go
 	# UI packaged assets are up-to-date. To force a rebuild, run `make clean`.
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
@@ -235,9 +235,6 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
-
-cmd/query/app/ui/placeholder/gen_assets.go: cmd/query/app/ui/placeholder/public/index.html
-	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
@@ -377,9 +374,8 @@ include crossdock/rules.mk
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
 	mkdir -p jaeger-ui/packages/jaeger-ui/build/
-	cp cmd/query/app/ui/placeholder/public/index.html jaeger-ui/packages/jaeger-ui/build/index.html
-	mkdir -p cmd/query/app/ui/actual
-	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
+	cp cmd/query/app/ui/placeholder/index.html jaeger-ui/packages/jaeger-ui/build/index.html
+	$(MAKE) build-ui
 
 .PHONY: build-crossdock
 build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
