@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger
 
-go 1.14
+go 1.16
 
 require (
 	github.com/DataDog/zstd v1.4.4 // indirect

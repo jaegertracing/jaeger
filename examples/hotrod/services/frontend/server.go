@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
+	webassets "github.com/jaegertracing/jaeger/examples/hotrod/services/frontend/web_assets"
 )
 
 // Server implements jaeger-demo-frontend service
@@ -52,13 +53,12 @@ type ConfigOptions struct {
 
 // NewServer creates a new frontend.Server
 func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Factory) *Server {
-	assetFS := FS(false)
 	return &Server{
 		hostPort: options.FrontendHostPort,
 		tracer:   tracer,
 		logger:   logger,
 		bestETA:  newBestETA(tracer, logger, options),
-		assetFS:  assetFS,
+		assetFS:  http.FS(webassets.FS),
 		basepath: options.Basepath,
 		jaegerUI: options.JaegerUI,
 	}
