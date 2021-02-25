@@ -33,9 +33,7 @@ const (
 	suffixServerHostPort         = "server-host-port"
 
 	processorPrefixFmt = "processor.%s-%s."
-
-	// HTTPServerHostPort is the flag for HTTP endpoint
-	HTTPServerHostPort = "http-server.host-port"
+	httpServerHostPort = "http-server.host-port"
 )
 
 var defaultProcessors = []struct {
@@ -50,6 +48,11 @@ var defaultProcessors = []struct {
 
 // AddFlags adds flags for Builder.
 func AddFlags(flags *flag.FlagSet) {
+	flags.String(
+		httpServerHostPort,
+		defaultHTTPServerHostPort,
+		"host:port of the http server (e.g. for /sampling point and /baggageRestrictions endpoint)")
+
 	for _, p := range defaultProcessors {
 		prefix := fmt.Sprintf(processorPrefixFmt, p.model, p.protocol)
 		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
@@ -58,15 +61,6 @@ func AddFlags(flags *flag.FlagSet) {
 		flags.Int(prefix+suffixServerSocketBufferSize, 0, "socket buffer size for UDP packets in bytes")
 		flags.String(prefix+suffixServerHostPort, ":"+strconv.Itoa(p.port), "host:port for the UDP server")
 	}
-	AddOTELFlags(flags)
-}
-
-// AddOTELFlags adds flags that are exposed by OTEL collector
-func AddOTELFlags(flags *flag.FlagSet) {
-	flags.String(
-		HTTPServerHostPort,
-		defaultHTTPServerHostPort,
-		"host:port of the http server (e.g. for /sampling point and /baggageRestrictions endpoint)")
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.
@@ -82,7 +76,7 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 		b.Processors = append(b.Processors, *p)
 	}
 
-	b.HTTPServer.HostPort = portNumToHostPort(v.GetString(HTTPServerHostPort))
+	b.HTTPServer.HostPort = portNumToHostPort(v.GetString(httpServerHostPort))
 	return b
 }
 
