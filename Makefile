@@ -164,7 +164,7 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	time gosec -quiet -exclude=G104,G107 -exclude-dir=cmd/opentelemetry ./...
+	time gosec -quiet -exclude=G104,G107 ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:

@@ -80,15 +80,7 @@ upload_images() {
   if [ ! -f ${marker} ]; then
     echo "skipping upload to ${registry}, not logged in!"
   else
-    case "$image" in
-      "jaegertracing/jaeger-opentelemetry-collector" | "jaegertracing/jaeger-opentelemetry-agent" | "jaegertracing/jaeger-opentelemetry-ingester" | "jaegertracing/opentelemetry-all-in-one" )
-        docker push ${registry}/${image}:latest
-        ;;
-      *)
-        docker push --all-tags ${registry}/${image}
-        ;;
-    esac
-
+    docker push --all-tags ${registry}/${image}
     local snapshot_image="${image}-snapshot:${GITHUB_SHA}"
     echo "pushing snapshot image ${snapshot_image}"
     docker tag ${image} ${registry}/${snapshot_image}
