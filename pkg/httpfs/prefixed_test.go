@@ -25,8 +25,6 @@ import (
 //go:embed test_assets/*
 var assetFS embed.FS
 
-// httpfs.AddPrefixFS("web_assets", http.FS(assetFS)),
-
 func TestAddPrefixFS_Root(t *testing.T) {
 	fs := AddPrefixFS("test_assets", http.FS(assetFS))
 	root, err := fs.Open("/")

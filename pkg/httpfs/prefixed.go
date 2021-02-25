@@ -35,10 +35,11 @@ type addPrefixFS struct {
 func (fs *addPrefixFS) Open(name string) (http.File, error) {
 	prefixedName := fs.prefix + name
 	if name == "/" {
-		prefixedName = fs.prefix // drop the trailing / to return the dir
+		// Return the dir itself when asked for the root.
+		// This is what http.FS() also does to allow redirects
+		// from `/`` to `/index.html`.
+		prefixedName = fs.prefix
 	}
-	// fmt.Printf("translating %s to %s\n", name, prefixedName)
 	f, err := fs.fs.Open(prefixedName)
-	// fmt.Printf("returning f=%+v, err=%+v\n", f, err)
 	return f, err
 }
