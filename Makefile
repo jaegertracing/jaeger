@@ -214,7 +214,6 @@ elasticsearch-mappings:
 
 .PHONY: build-examples
 build-examples:
-	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
 
 .PHONY: build-tracegen
