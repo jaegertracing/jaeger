@@ -25,7 +25,7 @@ require (
 	github.com/go-openapi/swag v0.19.13
 	github.com/go-openapi/validate v0.19.8
 	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
-	github.com/gogo/googleapis v1.1.0
+	github.com/gogo/googleapis v1.4.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.4.3 // indirect
 	github.com/golang/protobuf v1.3.4
@@ -78,7 +78,7 @@ require (
 	gopkg.in/ini.v1 v1.52.0 // indirect
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
-	honnef.co/go/tools v0.1.1
+	honnef.co/go/tools v0.1.2
 )
 
 replace (
