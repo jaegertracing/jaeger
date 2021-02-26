@@ -62,7 +62,7 @@ func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Fact
 		tracer:   tracer,
 		logger:   logger,
 		bestETA:  newBestETA(tracer, logger, options),
-		assetFS:  httpfs.AddPrefixFS("web_assets", http.FS(assetFS)),
+		assetFS:  httpfs.PrefixedFS("web_assets", http.FS(assetFS)),
 		basepath: options.Basepath,
 		jaegerUI: options.JaegerUI,
 	}

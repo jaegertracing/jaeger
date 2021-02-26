@@ -18,21 +18,21 @@ import (
 	"net/http"
 )
 
-// AddPrefixFS returns a FileSystem that adds a path prefix to all files
+// PrefixedFS returns a FileSystem that adds a path prefix to all files
 // before delegating to the underlying fs.
-func AddPrefixFS(prefix string, fs http.FileSystem) http.FileSystem {
-	return &addPrefixFS{
+func PrefixedFS(prefix string, fs http.FileSystem) http.FileSystem {
+	return &prefixedFS{
 		prefix: prefix,
 		fs:     fs,
 	}
 }
 
-type addPrefixFS struct {
+type prefixedFS struct {
 	prefix string
 	fs     http.FileSystem
 }
 
-func (fs *addPrefixFS) Open(name string) (http.File, error) {
+func (fs *prefixedFS) Open(name string) (http.File, error) {
 	prefixedName := fs.prefix + name
 	if name == "/" {
 		// Return the dir itself when asked for the root.

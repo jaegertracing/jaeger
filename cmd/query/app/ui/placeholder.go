@@ -27,4 +27,4 @@ import (
 var assetsFS embed.FS
 
 // StaticFiles provides http filesystem with static files for UI
-var StaticFiles = httpfs.AddPrefixFS("placeholder", http.FS(assetsFS))
+var StaticFiles = httpfs.PrefixedFS("placeholder", http.FS(assetsFS))
