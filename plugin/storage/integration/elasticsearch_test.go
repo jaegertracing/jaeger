@@ -34,8 +34,8 @@ import (
 	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 )
 
@@ -108,7 +108,15 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		return err
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping, err := es.GetSpanServiceMappings(estemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion(), indexPrefix, false)
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: estemplate.TextTemplateBuilder{},
+		Shards:          5,
+		Replicas:        1,
+		EsVersion:       client.GetVersion(),
+		IndexPrefix:     indexPrefix,
+		UseILM:          false,
+	}
+	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
 		return err
 	}
@@ -138,7 +146,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxDocCount:       defaultMaxDocCount,
 	})
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
-	depMapping, err := es.GetDependenciesMappings(estemplate.TextTemplateBuilder{}, 5, 1, client.GetVersion())
+	depMapping, err := mappingBuilder.GetDependenciesMappings()
 	if err != nil {
 		return err
 	}

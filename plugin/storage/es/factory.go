@@ -16,7 +16,6 @@
 package es
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -172,7 +171,16 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	spanMapping, serviceMapping, err := GetSpanServiceMappings(es.TextTemplateBuilder{}, cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion(), cfg.GetIndexPrefix(), cfg.GetUseILM())
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Shards:          cfg.GetNumShards(),
+		Replicas:        cfg.GetNumReplicas(),
+		EsVersion:       cfg.GetVersion(),
+		IndexPrefix:     cfg.GetIndexPrefix(),
+		UseILM:          cfg.GetUseILM(),
+	}
+
+	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
 		return nil, err
 	}
@@ -195,70 +203,6 @@ func createSpanWriter(
 		}
 	}
 	return writer, nil
-}
-
-// GetSpanServiceMappings returns span and service mappings
-func GetSpanServiceMappings(tb es.TemplateBuilder, shards, replicas int64, esVersion uint, esPrefix string, useILM bool) (string, string, error) {
-	if esVersion == 7 {
-		spanMapping, err := FixMapping(tb, LoadMapping("/jaeger-span-7.json"), shards, replicas, esPrefix, useILM)
-		if err != nil {
-			return "", "", err
-		}
-		serviceMapping, err := FixMapping(tb, LoadMapping("/jaeger-service-7.json"), shards, replicas, esPrefix, useILM)
-		if err != nil {
-			return "", "", err
-		}
-		return spanMapping, serviceMapping, nil
-	}
-	spanMapping, err := FixMapping(tb, LoadMapping("/jaeger-span.json"), shards, replicas, "", false)
-	if err != nil {
-		return "", "", err
-	}
-	serviceMapping, err := FixMapping(tb, LoadMapping("/jaeger-service.json"), shards, replicas, "", false)
-	if err != nil {
-		return "", "", err
-	}
-	return spanMapping, serviceMapping, nil
-}
-
-// GetDependenciesMappings returns dependencies mappings
-func GetDependenciesMappings(tb es.TemplateBuilder, shards, replicas int64, esVersion uint) (string, error) {
-	if esVersion == 7 {
-		return FixMapping(tb, LoadMapping("/jaeger-dependencies-7.json"), shards, replicas, "", false)
-	}
-	return FixMapping(tb, LoadMapping("/jaeger-dependencies.json"), shards, replicas, "", false)
-}
-
-// LoadMapping returns index mappings from go assets as strings
-func LoadMapping(name string) string {
-	s, _ := mappings.FSString(false, name)
-	return s
-}
-
-// FixMapping parses the index mappings with given values and returns parsed template as string
-func FixMapping(tb es.TemplateBuilder, mapping string, shards, replicas int64, esPrefix string, useILM bool) (string, error) {
-
-	tmpl, err := tb.Parse(mapping)
-	if err != nil {
-		return "", err
-	}
-	writer := new(bytes.Buffer)
-
-	if esPrefix != "" {
-		esPrefix += "-"
-	}
-	values := struct {
-		NumberOfShards   int64
-		NumberOfReplicas int64
-		ESPrefix         string
-		UseILM           bool
-	}{shards, replicas, esPrefix, useILM}
-
-	if err := tmpl.Execute(writer, values); err != nil {
-		return "", err
-	}
-
-	return writer.String(), nil
 }
 
 var _ io.Closer = (*Factory)(nil)

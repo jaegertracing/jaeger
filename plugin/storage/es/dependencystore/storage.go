@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -47,7 +48,7 @@ type DependencyStore struct {
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix, indexDateLayout string, maxDocCount int) *DependencyStore {
 	var prefix string
-	if indexPrefix != "" {
+	if indexPrefix != "" && !strings.HasSuffix(indexPrefix, "-") {
 		prefix = indexPrefix + "-"
 	}
 	return &DependencyStore{

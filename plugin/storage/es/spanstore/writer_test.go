@@ -255,7 +255,7 @@ func TestCreateTemplates(t *testing.T) {
 	for _, test := range tests {
 		withSpanWriter(func(w *spanWriterTest) {
 			prefix := ""
-			if test.indexPrefix != "" {
+			if test.indexPrefix != "" && !strings.HasSuffix(test.indexPrefix, "-") {
 				prefix = test.indexPrefix + "-"
 			}
 			w.client.On("CreateTemplate", prefix+"jaeger-span").Return(test.spanTemplateService())

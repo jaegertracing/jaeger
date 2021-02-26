@@ -20,21 +20,21 @@ import (
 
 // Options represent configurable parameters for jaeger-esmapping-generator
 type Options struct {
-	Mapping   string
-	EsVersion int64
-	Shards    int64
-	Replicas  int64
-	EsPrefix  string
-	UseILM    string // using string as util is being used in python and using bool leads to type issues.
+	Mapping     string
+	EsVersion   uint
+	Shards      int64
+	Replicas    int64
+	IndexPrefix string
+	UseILM      string // using string as util is being used in python and using bool leads to type issues.
 }
 
 const (
-	mappingFlag   = "mapping"
-	esVersionFlag = "es-version"
-	shardsFlag    = "shards"
-	replicasFlag  = "replicas"
-	esPrefixFlag  = "es-prefix"
-	useILMFlag    = "use-ilm"
+	mappingFlag     = "mapping"
+	esVersionFlag   = "es-version"
+	shardsFlag      = "shards"
+	replicasFlag    = "replicas"
+	indexPrefixFlag = "index-prefix"
+	useILMFlag      = "use-ilm"
 )
 
 // AddFlags adds flags for esmapping-generator main program
@@ -44,7 +44,7 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		mappingFlag,
 		"",
 		"The index mapping the template will be applied to. Pass either jaeger-span or jaeger-service")
-	command.Flags().Int64Var(
+	command.Flags().UintVar(
 		&o.EsVersion,
 		esVersionFlag,
 		7,
@@ -60,8 +60,8 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		1,
 		"The number of replicas per index in Elasticsearch")
 	command.Flags().StringVar(
-		&o.EsPrefix,
-		esPrefixFlag,
+		&o.IndexPrefix,
+		indexPrefixFlag,
 		"",
 		"Specifies index prefix")
 	command.Flags().StringVar(
