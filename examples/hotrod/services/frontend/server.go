@@ -16,6 +16,7 @@
 package frontend
 
 import (
+	"embed"
 	"encoding/json"
 	"net/http"
 	"path"
@@ -26,8 +27,11 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
-	webassets "github.com/jaegertracing/jaeger/examples/hotrod/services/frontend/web_assets"
+	"github.com/jaegertracing/jaeger/pkg/httpfs"
 )
+
+//go:embed web_assets/*
+var assetFS embed.FS
 
 // Server implements jaeger-demo-frontend service
 type Server struct {
@@ -58,7 +62,7 @@ func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Fact
 		tracer:   tracer,
 		logger:   logger,
 		bestETA:  newBestETA(tracer, logger, options),
-		assetFS:  http.FS(webassets.FS),
+		assetFS:  httpfs.PrefixedFS("web_assets", http.FS(assetFS)),
 		basepath: options.Basepath,
 		jaegerUI: options.JaegerUI,
 	}
