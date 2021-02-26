@@ -136,7 +136,7 @@ type grpcClient struct {
 
 func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
-	grpcServer := grpc.NewServer(grpc.CustomCodec(NewStupidCodec(0)))
+	grpcServer := grpc.NewServer()
 	grpcHandler := NewGRPCHandler(q, logger, tracer)
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 
@@ -206,7 +206,7 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
 			TraceID: mockTraceID,
-		}, grpc.ForceCodec(NewStupidCodec(0)))
+		})
 
 		spanResChunk, _ := res.Recv()
 
@@ -231,7 +231,7 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
 			TraceID: mockTraceID,
-		}, grpc.ForceCodec(NewStupidCodec(0)))
+		})
 		assert.NoError(t, err)
 
 		spanResChunk, err := res.Recv()
@@ -252,7 +252,7 @@ func TestGetTraceNotFoundGRPC(t *testing.T) {
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
 			TraceID: mockTraceID,
-		}, grpc.ForceCodec(NewStupidCodec(0)))
+		})
 		assert.NoError(t, err)
 		spanResChunk, err := res.Recv()
 		assertGRPCError(t, err, codes.NotFound, "trace not found")
@@ -269,7 +269,7 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: mockTraceID,
-		}, grpc.ForceCodec(NewStupidCodec(0)))
+		})
 
 		assert.NoError(t, err)
 	})
@@ -284,7 +284,7 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: mockTraceID,
-		}, grpc.ForceCodec(NewStupidCodec(0)))
+		})
 
 		assertGRPCError(t, err, codes.NotFound, "trace not found")
 	})
@@ -300,7 +300,7 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: mockTraceID,
-		}, grpc.ForceCodec(NewStupidCodec(0)))
+		})
 
 		assertGRPCError(t, err, codes.Internal, "failed to archive trace")
 	})
