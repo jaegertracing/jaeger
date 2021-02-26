@@ -40,6 +40,5 @@ func (fs *prefixedFS) Open(name string) (http.File, error) {
 		// from `/`` to `/index.html`.
 		prefixedName = fs.prefix
 	}
-	f, err := fs.fs.Open(prefixedName)
-	return f, err
+	return fs.fs.Open(prefixedName)
 }
