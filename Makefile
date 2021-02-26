@@ -198,7 +198,8 @@ run-all-in-one: build-ui
 build-ui: cmd/query/app/ui/actual/index.html
 
 cmd/query/app/ui/actual/index.html: jaeger-ui/packages/jaeger-ui/build/index.html
-	rm -rf cmd/query/app/ui/actual/*
+	rm -rf cmd/query/app/ui/actual
+	mkdir cmd/query/app/ui/actual
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
