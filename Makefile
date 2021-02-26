@@ -193,10 +193,6 @@ go-lint:
 	@$(GOLINT) $(ALL_PKGS) | grep -v _nolint.go >> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
-.PHONY: elasticsearch-mappings
-elasticsearch-mappings:
-	esc -pkg mappings -o plugin/storage/es/mappings/gen_assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
-
 .PHONY: build-examples
 build-examples:
 	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
@@ -244,7 +240,7 @@ build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug
 build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: SUFFIX = -debug
 
 .PHONY: build-all-in-one build-all-in-one-debug
-build-all-in-one build-all-in-one-debug: build-ui elasticsearch-mappings
+build-all-in-one build-all-in-one-debug: build-ui
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/all-in-one/all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent build-agent-debug
@@ -256,7 +252,7 @@ build-query build-query-debug: build-ui
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/query/query$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector build-collector-debug
-build-collector build-collector-debug: elasticsearch-mappings
+build-collector build-collector-debug:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/collector/collector$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: build-ingester build-ingester-debug

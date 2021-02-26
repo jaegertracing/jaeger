@@ -16,10 +16,15 @@ package mappings
 
 import (
 	"bytes"
+	"embed"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 )
+
+//go:embed *.json
+// MAPPINGS contains embeded index templates.
+var MAPPINGS embed.FS
 
 // MappingBuilder holds parameters required to render an elasticsearch index template
 type MappingBuilder struct {
@@ -31,12 +36,12 @@ type MappingBuilder struct {
 	UseILM          bool
 }
 
-// GetMapping returns the render mapping based on elasticsearch version
+// GetMapping returns the rendered mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
 	if mb.EsVersion == 7 {
-		return mb.fixMapping("/" + mapping + "-7.json")
+		return mb.fixMapping(mapping + "-7.json")
 	}
-	return mb.fixMapping("/" + mapping + ".json")
+	return mb.fixMapping(mapping + ".json")
 }
 
 // GetSpanServiceMappings returns span and service mappings
@@ -58,8 +63,8 @@ func (mb *MappingBuilder) GetDependenciesMappings() (string, error) {
 }
 
 func loadMapping(name string) string {
-	s, _ := FSString(false, name)
-	return s
+	s, _ := MAPPINGS.ReadFile(name)
+	return string(s)
 }
 
 func (mb *MappingBuilder) fixMapping(mapping string) (string, error) {

@@ -15,6 +15,7 @@
 package mappings
 
 import (
+	"embed"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -28,6 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
+
+//go:embed fixtures/*.json
+var FIXTURES embed.FS
 
 func TestMappingBuilder_GetMapping(t *testing.T) {
 	tests := []struct {
@@ -48,19 +52,20 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 				Shards:          3,
 				Replicas:        3,
 				EsVersion:       tt.esVersion,
-				IndexPrefix:     "",
-				UseILM:          false,
+				IndexPrefix:     "test-",
+				UseILM:          true,
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
-			want := ""
+			var wantbytes []byte
 			if tt.esVersion == 7 {
-				want, err = mb.fixMapping("/" + tt.mapping + "-7.json")
+				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + "-7.json")
 				require.NoError(t, err)
 			} else {
-				want, err = mb.fixMapping("/" + tt.mapping + ".json")
+				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + ".json")
 				require.NoError(t, err)
 			}
+			want := string(wantbytes)
 			assert.Equal(t, got, want)
 		})
 	}
@@ -68,16 +73,14 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 
 func TestMappingBuilder_loadMapping(t *testing.T) {
 	tests := []struct {
-		name        string
-		indexPrefix string
-		useILM      bool
+		name string
 	}{
-		{name: "/jaeger-span.json"},
-		{name: "/jaeger-service.json"},
-		{name: "/jaeger-span-7.json"},
-		{name: "/jaeger-service-7.json"},
-		{name: "/jaeger-dependencies.json"},
-		{name: "/jaeger-dependencies-7.json"},
+		{name: "jaeger-span.json"},
+		{name: "jaeger-service.json"},
+		{name: "jaeger-span-7.json"},
+		{name: "jaeger-service-7.json"},
+		{name: "jaeger-dependencies.json"},
+		{name: "jaeger-dependencies-7.json"},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
@@ -305,11 +308,6 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 
 	mappingBuilder := MappingBuilder{
 		TemplateBuilder: &tb,
-		Shards:          5,
-		Replicas:        5,
-		EsVersion:       7,
-		IndexPrefix:     "",
-		UseILM:          false,
 	}
 	_, err := mappingBuilder.GetDependenciesMappings()
 	assert.EqualError(t, err, "template load error")
