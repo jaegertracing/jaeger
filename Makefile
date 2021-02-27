@@ -8,7 +8,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
-				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
@@ -361,7 +360,6 @@ changelog:
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.9.4
-	go install github.com/mjibson/esc@v0.2.0
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.0
 
 .PHONY: install-ci
