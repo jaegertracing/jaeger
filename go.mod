@@ -75,6 +75,8 @@ require (
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
 	google.golang.org/grpc v1.35.0
+	google.golang.org/grpc/examples v0.0.0-20210226164526-c949703b4b98 // indirect
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/ini.v1 v1.52.0 // indirect
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
