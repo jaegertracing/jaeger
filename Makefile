@@ -60,8 +60,6 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
-#JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.2.0
-#JAEGER_DOCKER_PROTOBUF=test-jaeger-proto
 JAEGER_DOCKER_PROTOBUF=otel/build-protobuf:0.2.1
 
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
