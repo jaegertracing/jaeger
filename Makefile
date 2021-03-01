@@ -175,7 +175,9 @@ lint-staticcheck:
 	@cat /dev/null > $(LINT_LOG)
 	time staticcheck ./... \
 		| grep -v \
+			-e proto-gen \
 			-e model/model.pb.go \
+			-e _test.pb.go \
 			-e thrift-gen/ \
 		>> $(LINT_LOG) || true
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
