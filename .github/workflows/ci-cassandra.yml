@@ -14,7 +14,7 @@ jobs:
 
     - uses: actions/setup-go@v2
       with:
-        go-version: ^1.15
+        go-version: ^1.16
 
     - name: Run cassandra integration tests
-      run: bash scripts/travis/cassandra-integration-test.sh
+      run: bash scripts/cassandra-integration-test.sh

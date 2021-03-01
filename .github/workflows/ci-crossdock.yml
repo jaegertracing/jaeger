@@ -13,9 +13,7 @@ jobs:
       matrix:
         steps:
         - name: crossdock
-          cmd: bash scripts/travis/build-crossdock.sh
-        - name: crossdock-otel
-          cmd: make build-crossdock crossdock-otel
+          cmd: bash scripts/build-crossdock.sh
     name: ${{ matrix.steps.name }}
     steps:
     - uses: actions/checkout@v2
@@ -28,21 +26,7 @@ jobs:
 
     - uses: actions/setup-go@v2
       with:
-        go-version: ^1.15
-
-    - uses: docker/login-action@v1
-      id: dockerhub-login
-      with:
-        username: jaegertracingbot
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      if: env.DOCKERHUB_TOKEN != null
-
-    - name: Export DOCKERHUB_LOGIN variable
-      run: |
-        echo "DOCKERHUB_LOGIN=true" >> $GITHUB_ENV
-      if: steps.dockerhub-login.outcome == 'success'
+        go-version: ^1.16
 
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch
@@ -52,6 +36,9 @@ jobs:
 
     - name: Build, test, and publish ${{ matrix.steps.name }} image
       run: ${{ matrix.steps.cmd }}
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Output crossdock logs
       run: make crossdock-logs

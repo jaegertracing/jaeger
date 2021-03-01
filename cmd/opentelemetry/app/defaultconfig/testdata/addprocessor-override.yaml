@@ -1,8 +1,0 @@
-processors:
-  batch:
-    timeout: 5s
-
-service:
-  pipelines:
-    traces:
-      processors: [batch]

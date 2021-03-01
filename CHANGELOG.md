@@ -1,7 +1,10 @@
 Changes by Version
 ==================
 
-1.22.0 (unreleased)
+1.23.0 (unreleased)
+-------------------
+
+1.22.0 (2021-02-23)
 -------------------
 
 ### Backend Changes
@@ -37,14 +40,50 @@ Changes by Version
     * `--cassandra.enable-dependencies-v2` - Jaeger will automatically detect the version of the dependencies table
     * `--cassandra.tls.verify-host` - please use `--cassandra.tls.skip-host-verify` instead
 
+* Remove incorrectly scoped downsample flags from the query service ([#2782](https://github.com/jaegertracing/jaeger/pull/2782), [@joe-elliott](https://github.com/joe-elliott))
+    * `--downsampling.hashsalt` removed from jaeger-query
+    * `--downsampling.ratio` removed from jaeger-query
+    
 #### New Features
 
-* Add TLS Support for gRPC and HTTP endpoints of the Query server ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [#2772](https://github.com/jaegertracing/jaeger/pull/2772), [@rjs211](https://github.com/rjs211))
+* Add TLS Support for gRPC and HTTP endpoints of the Query and Collector servers ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [#2772](https://github.com/jaegertracing/jaeger/pull/2772), [#2798](https://github.com/jaegertracing/jaeger/pull/2798), [@rjs211](https://github.com/rjs211))
 
-    *  If TLS in enabled on either or both of gRPC or HTTP endpoints, the gRPC host-port and the HTTP hostport have to be different
-    *  If TLS is disabled on both endpoints, common HTTP and gRPC host-port can be explicitly set using the `--query.http-server.host-port` and  `--query.grpc-server.host-port` host-port flags
+    *  If TLS in enabled on either or both of gRPC or HTTP endpoints, the gRPC host-port and the HTTP host-port have to be different
+    *  If TLS is disabled on both endpoints, common HTTP and gRPC host-port can be explicitly set using the following host-port flags respectively:
+        * Query: `--query.http-server.host-port` and  `--query.grpc-server.host-port`
+        * Collector: `--collector.http-server.host-port` and `--collector.grpc-server.host-port`
+* Add support for Kafka SASL/PLAIN authentication via SCRAM-SHA-256 or SCRAM-SHA-512 mechanism ([#2724](https://github.com/jaegertracing/jaeger/pull/2724), [@WalkerWang731](https://github.com/WalkerWang731))
+* [agent] Add metrics to show connections status between agent and collectors ([#2657](https://github.com/jaegertracing/jaeger/pull/2657), [@WalkerWang731](https://github.com/WalkerWang731))
+* Add plaintext as a supported kafka auth option ([#2721](https://github.com/jaegertracing/jaeger/pull/2721), [@pdepaepe](https://github.com/pdepaepe))
+* Add ability to use JS file for UI configuration (#123 from jaeger-ui) ([#2707](https://github.com/jaegertracing/jaeger/pull/2707), [@th3M1ke](https://github.com/th3M1ke))
+* Support Elasticsearch ILM for managing jaeger indices ([#2796](https://github.com/jaegertracing/jaeger/pull/2796), [@bhiravabhatla](https://github.com/bhiravabhatla))
+* Push official images to quay.io, in addition to Docker Hub ([#2783](https://github.com/jaegertracing/jaeger/pull/2783), [@Ashmita152](https://github.com/Ashmita152))
+* Add status command ([#2684](https://github.com/jaegertracing/jaeger/pull/2684), [@sniperking1234](https://github.com/sniperking1234))
+    * Usage:
+      ```bash
+      $ ./cmd/collector/collector-darwin-amd64 status
+      {"status":"Server available","upSince":"2021-02-19T17:57:12.671902+11:00","uptime":"25.241233383s"}
+      ```
+* Support configurable date separator for Elasticsearch index names ([#2637](https://github.com/jaegertracing/jaeger/pull/2637), [@sniperking1234](https://github.com/sniperking1234))
+
+#### Bug fixes, Minor Improvements
+
+* Use workaround for windows x509.SystemCertPool() ([#2756](https://github.com/jaegertracing/jaeger/pull/2756), [@Ashmita152](https://github.com/Ashmita152))
+* Guard against mal-formed payloads received by the agent, potentially causing high memory utilization ([#2780](https://github.com/jaegertracing/jaeger/pull/2780), [@jpkrohling](https://github.com/jpkrohling))
+* Expose cache TTL for ES span writer index+service ([#2737](https://github.com/jaegertracing/jaeger/pull/2737), [@necrolyte2](https://github.com/necrolyte2))
+* Copy spans from memory store ([#2720](https://github.com/jaegertracing/jaeger/pull/2720), [@bobrik](https://github.com/bobrik))
+* [pkg/queue] Add `StartConsumersWithFactory` function ([#2714](https://github.com/jaegertracing/jaeger/pull/2714), [@mx-psi](https://github.com/mx-psi))
+* Fix potential cross-site scripting issue ([#2697](https://github.com/jaegertracing/jaeger/pull/2697), [@yurishkuro](https://github.com/yurishkuro))
+* Updated gRPC Storage Plugin README with example ([#2687](https://github.com/jaegertracing/jaeger/pull/2687), [@js8080](https://github.com/js8080))
+* Deduplicate collector tags ([#2658](https://github.com/jaegertracing/jaeger/pull/2658), [@Betula-L](https://github.com/Betula-L))
+* Add latency metrics on collector HTTP endpoints ([#2664](https://github.com/jaegertracing/jaeger/pull/2664), [@dimitarvdimitrov](https://github.com/dimitarvdimitrov))
+* Fix collector panic due to sarama sdk ([#2654](https://github.com/jaegertracing/jaeger/pull/2654), [@Betula-L](https://github.com/Betula-L))
+* Handle collector Start error ([#2647](https://github.com/jaegertracing/jaeger/pull/2647), [@albertteoh](https://github.com/albertteoh))
+* [anonymizer] Save trace in UI format ([#2629](https://github.com/jaegertracing/jaeger/pull/2629), [@yurishkuro](https://github.com/yurishkuro))
 
 ### UI Changes
+
+* UI pinned to version 1.13.0. The changelog is available here [v1.13.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1130-february-20-2021)
 
 
 1.21.0 (2020-11-13)

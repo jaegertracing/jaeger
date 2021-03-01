@@ -18,10 +18,6 @@ package es
 import (
 	"context"
 	"errors"
-	"io/ioutil"
-	"os"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,7 +86,6 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
-
 	assert.NoError(t, f.Close())
 }
 
@@ -103,6 +98,22 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	r, err := f.CreateSpanWriter()
 	require.Error(t, err)
+	assert.Nil(t, r)
+}
+
+func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
+	f := NewFactory()
+	mockConf := &mockClientBuilder{}
+	mockConf.UseILM = true
+	f.primaryConfig = mockConf
+	f.archiveConfig = mockConf
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	w, err := f.CreateSpanWriter()
+	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	assert.Nil(t, w)
+
+	r, err := f.CreateSpanReader()
+	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	assert.Nil(t, r)
 }
 
@@ -160,40 +171,6 @@ func TestTagKeysAsFields(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, tags)
 		}
-	}
-}
-
-func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping5, serviceMapping5 := GetSpanServiceMappings(10, 0, 5)
-	spanMapping6, serviceMapping6 := GetSpanServiceMappings(10, 0, 6)
-	spanMapping7, serviceMapping7 := GetSpanServiceMappings(10, 0, 7)
-	dependenciesMapping6 := GetDependenciesMappings(10, 0, 6)
-	dependenciesMapping7 := GetDependenciesMappings(10, 0, 7)
-	tests := []struct {
-		name   string
-		toTest string
-	}{
-		{name: "/jaeger-span.json", toTest: spanMapping5},
-		{name: "/jaeger-service.json", toTest: serviceMapping5},
-		{name: "/jaeger-span.json", toTest: spanMapping6},
-		{name: "/jaeger-service.json", toTest: serviceMapping6},
-		{name: "/jaeger-span-7.json", toTest: spanMapping7},
-		{name: "/jaeger-service-7.json", toTest: serviceMapping7},
-		{name: "/jaeger-dependencies.json", toTest: dependenciesMapping6},
-		{name: "/jaeger-dependencies-7.json", toTest: dependenciesMapping7},
-	}
-	for _, test := range tests {
-		mapping := loadMapping(test.name)
-		f, err := os.Open("mappings/" + test.name)
-		require.NoError(t, err)
-		b, err := ioutil.ReadAll(f)
-		require.NoError(t, err)
-		assert.Equal(t, string(b), mapping)
-
-		expectedMapping := string(b)
-		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
-		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
-		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
 	}
 }
 

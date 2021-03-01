@@ -17,8 +17,14 @@
 package ui
 
 import (
-	"github.com/jaegertracing/jaeger/cmd/query/app/ui/placeholder"
+	"embed"
+	"net/http"
+
+	"github.com/jaegertracing/jaeger/pkg/httpfs"
 )
 
+//go:embed placeholder/index.html
+var assetsFS embed.FS
+
 // StaticFiles provides http filesystem with static files for UI
-var StaticFiles = assets.FS(false)
+var StaticFiles = httpfs.PrefixedFS("placeholder", http.FS(assetsFS))

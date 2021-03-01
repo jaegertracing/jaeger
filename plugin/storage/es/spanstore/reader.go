@@ -141,14 +141,14 @@ type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
 func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 	if archive {
-		var archivePrefix string
+		var archiveSuffix string
 		if useReadWriteAliases {
-			archivePrefix = archiveReadIndexSuffix
+			archiveSuffix = archiveReadIndexSuffix
 		} else {
-			archivePrefix = archiveIndexSuffix
+			archiveSuffix = archiveIndexSuffix
 		}
 		return func(indexName, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
-			return []string{archiveIndex(indexName, archivePrefix)}
+			return []string{archiveIndex(indexName, archiveSuffix)}
 		}
 	}
 	if useReadWriteAliases {

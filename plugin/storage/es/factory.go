@@ -19,8 +19,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"strconv"
-	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -139,6 +137,9 @@ func createSpanReader(
 	cfg config.ClientBuilder,
 	archive bool,
 ) (spanstore.Reader, error) {
+	if cfg.GetUseILM() && !cfg.GetUseReadWriteAliases() {
+		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
 		Client:              client,
 		Logger:              logger,
@@ -162,12 +163,27 @@ func createSpanWriter(
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
+	if cfg.GetUseILM() && !cfg.GetUseReadWriteAliases() {
+		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	}
 	if tags, err = cfg.TagKeysAsFields(); err != nil {
 		logger.Error("failed to get tag keys", zap.Error(err))
 		return nil, err
 	}
 
-	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Shards:          cfg.GetNumShards(),
+		Replicas:        cfg.GetNumReplicas(),
+		EsVersion:       cfg.GetVersion(),
+		IndexPrefix:     cfg.GetIndexPrefix(),
+		UseILM:          cfg.GetUseILM(),
+	}
+
+	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+	if err != nil {
+		return nil, err
+	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -181,41 +197,12 @@ func createSpanWriter(
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 	})
 	if cfg.IsCreateIndexTemplates() {
-		err := writer.CreateTemplates(spanMapping, serviceMapping)
+		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
 		if err != nil {
 			return nil, err
 		}
 	}
 	return writer, nil
-}
-
-// GetSpanServiceMappings returns span and service mappings
-func GetSpanServiceMappings(shards, replicas int64, esVersion uint) (string, string) {
-	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas),
-			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas)
-	}
-	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas),
-		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas)
-}
-
-// GetDependenciesMappings returns dependencies mappings
-func GetDependenciesMappings(shards, replicas int64, esVersion uint) string {
-	if esVersion == 7 {
-		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas)
-	}
-	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas)
-}
-
-func loadMapping(name string) string {
-	s, _ := mappings.FSString(false, name)
-	return s
-}
-
-func fixMapping(mapping string, shards, replicas int64) string {
-	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(shards, 10), 1)
-	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(replicas, 10), 1)
-	return mapping
 }
 
 var _ io.Closer = (*Factory)(nil)

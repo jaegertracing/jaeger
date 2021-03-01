@@ -190,6 +190,7 @@ func TestCreateTemplates(t *testing.T) {
 		err                    string
 		spanTemplateService    func() *mocks.TemplateCreateService
 		serviceTemplateService func() *mocks.TemplateCreateService
+		indexPrefix            string
 	}{
 		{
 			spanTemplateService: func() *mocks.TemplateCreateService {
@@ -204,6 +205,20 @@ func TestCreateTemplates(t *testing.T) {
 				tService.On("Do", context.Background()).Return(nil, nil)
 				return tService
 			},
+		}, {
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			indexPrefix: "test",
 		},
 		{
 			err: "span-template-error",
@@ -239,9 +254,13 @@ func TestCreateTemplates(t *testing.T) {
 
 	for _, test := range tests {
 		withSpanWriter(func(w *spanWriterTest) {
-			w.client.On("CreateTemplate", "jaeger-span").Return(test.spanTemplateService())
-			w.client.On("CreateTemplate", "jaeger-service").Return(test.serviceTemplateService())
-			err := w.writer.CreateTemplates(mock.Anything, mock.Anything)
+			prefix := ""
+			if test.indexPrefix != "" && !strings.HasSuffix(test.indexPrefix, "-") {
+				prefix = test.indexPrefix + "-"
+			}
+			w.client.On("CreateTemplate", prefix+"jaeger-span").Return(test.spanTemplateService())
+			w.client.On("CreateTemplate", prefix+"jaeger-service").Return(test.serviceTemplateService())
+			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, test.indexPrefix)
 			if test.err != "" {
 				assert.Error(t, err, test.err)
 			}

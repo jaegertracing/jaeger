@@ -30,10 +30,10 @@ jobs:
 
     - uses: actions/setup-go@v2
       with:
-        go-version: ^1.15
+        go-version: ^1.16
 
     - name: Install tools
       run: make install-ci
 
     - name: Run elasticsearch integration tests
-      run: bash scripts/travis/es-integration-test.sh ${{ matrix.version.image }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.image }}
