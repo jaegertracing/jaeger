@@ -1,4 +1,4 @@
-package api_v2
+package model
 
 import (
 	proto "github.com/gogo/protobuf/proto"
