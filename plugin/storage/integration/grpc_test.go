@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	_ "github.com/jaegertracing/jaeger/proto-gen/api_v2" // imported to force registration of gogoproto.  see protogen/api_v2/codec.go
 )
 
 const defaultPluginBinaryPath = "../../../examples/memstore-plugin/memstore-plugin"
