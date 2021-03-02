@@ -12,7 +12,6 @@ import (
 	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	golang_proto "github.com/golang/protobuf/proto"
-	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options"
 	github_com_jaegertracing_jaeger_model "github.com/jaegertracing/jaeger/model"
 	model "github.com/jaegertracing/jaeger/model"
 	grpc "google.golang.org/grpc"

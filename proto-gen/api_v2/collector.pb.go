@@ -10,7 +10,6 @@ import (
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	golang_proto "github.com/golang/protobuf/proto"
-	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options"
 	model "github.com/jaegertracing/jaeger/model"
 	grpc "google.golang.org/grpc"
 	io "io"
