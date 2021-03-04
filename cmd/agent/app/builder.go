@@ -57,8 +57,8 @@ type Protocol string
 
 var (
 	protocolFactoryMap = map[Protocol]thrift.TProtocolFactory{
-		compactProtocol: thrift.NewTCompactProtocolFactory(),
-		binaryProtocol:  thrift.NewTBinaryProtocolFactoryDefault(),
+		compactProtocol: thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{}),
+		binaryProtocol:  thrift.NewTBinaryProtocolFactoryConf(&thrift.TConfiguration{}),
 	}
 )
 

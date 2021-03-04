@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	athrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
@@ -64,7 +64,7 @@ func TestTBufferedServer_SendReceive(t *testing.T) {
 			assert.NotEqual(t, 0, len(readBuf.GetBytes()))
 
 			inMemReporter := testutils.NewInMemoryReporter()
-			protoFact := athrift.NewTCompactProtocolFactory()
+			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
 			trans := &customtransport.TBufferedReadTransport{}
 			protocol := protoFact.GetProtocol(trans)
 

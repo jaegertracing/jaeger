@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v0.9.0 // indirect
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
-	github.com/apache/thrift v0.13.0
+	github.com/apache/thrift v0.14.1
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger v1.6.2
@@ -81,7 +81,4 @@ require (
 	honnef.co/go/tools v0.1.2
 )
 
-replace (
-	github.com/apache/thrift => github.com/jaegertracing/thrift v1.13.0-patch1
-	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
-)
+replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2

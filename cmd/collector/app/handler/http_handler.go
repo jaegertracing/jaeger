@@ -83,7 +83,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 
 	tdes := thrift.NewTDeserializer()
 	batch := &tJaeger.Batch{}
-	if err = tdes.Read(batch, bodyBytes); err != nil {
+	if err = tdes.Read(r.Context(), batch, bodyBytes); err != nil {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
 	}

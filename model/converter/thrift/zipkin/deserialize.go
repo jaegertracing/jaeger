@@ -16,6 +16,8 @@
 package zipkin
 
 import (
+	"context"
+
 	"github.com/apache/thrift/lib/go/thrift"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -23,23 +25,25 @@ import (
 
 // SerializeThrift is only used in tests.
 func SerializeThrift(spans []*zipkincore.Span) []byte {
+	ctx := context.Background()
 	t := thrift.NewTMemoryBuffer()
-	p := thrift.NewTBinaryProtocolTransport(t)
-	p.WriteListBegin(thrift.STRUCT, len(spans))
+	p := thrift.NewTBinaryProtocolConf(t, &thrift.TConfiguration{})
+	p.WriteListBegin(ctx, thrift.STRUCT, len(spans))
 	for _, s := range spans {
-		s.Write(p)
+		s.Write(ctx, p)
 	}
-	p.WriteListEnd()
+	p.WriteListEnd(ctx)
 	return t.Buffer.Bytes()
 }
 
 // DeserializeThrift decodes Thrift bytes to a list of spans.
 func DeserializeThrift(b []byte) ([]*zipkincore.Span, error) {
+	ctx := context.Background()
 	buffer := thrift.NewTMemoryBuffer()
 	buffer.Write(b)
 
-	transport := thrift.NewTBinaryProtocolTransport(buffer)
-	_, size, err := transport.ReadListBegin() // Ignore the returned element type
+	transport := thrift.NewTBinaryProtocolConf(buffer, &thrift.TConfiguration{})
+	_, size, err := transport.ReadListBegin(ctx) // Ignore the returned element type
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +53,7 @@ func DeserializeThrift(b []byte) ([]*zipkincore.Span, error) {
 	var spans []*zipkincore.Span
 	for i := 0; i < size; i++ {
 		zs := &zipkincore.Span{}
-		if err = zs.Read(transport); err != nil {
+		if err = zs.Read(ctx, transport); err != nil {
 			return nil, err
 		}
 		spans = append(spans, zs)

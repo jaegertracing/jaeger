@@ -31,7 +31,7 @@ func NewZipkinThriftUDPClient(hostPort string) (*agent.AgentClient, io.Closer, e
 		return nil, nil, err
 	}
 
-	protocolFactory := thrift.NewTCompactProtocolFactory()
+	protocolFactory := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
 	client := agent.NewAgentClientFactory(clientTransport, protocolFactory)
 	return client, clientTransport, nil
 }
