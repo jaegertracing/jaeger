@@ -111,22 +111,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	return options
 }
 
-// NewOptionsFromConfig creates Options from primary and archive config
-func NewOptionsFromConfig(primary config.Configuration, archive config.Configuration) *Options {
-	return &Options{
-		Primary: namespaceConfig{
-			namespace:     primaryStorageConfig,
-			Configuration: primary,
-		},
-		others: map[string]*namespaceConfig{
-			archiveStorageConfig: {
-				namespace:     archiveStorageConfig,
-				Configuration: archive,
-			},
-		},
-	}
-}
-
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	addFlags(flagSet, opt.Primary)
