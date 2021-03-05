@@ -32,6 +32,7 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -362,6 +363,18 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+
+	// Elastic client requires a "Printf"-able logger.
+	l := zapgrpc.NewLogger(logger)
+	switch {
+	case logger.Core().Enabled(zap.DebugLevel):
+		l = zapgrpc.NewLogger(logger, zapgrpc.WithDebug())
+		options = append(options, elastic.SetTraceLog(l))
+	case logger.Core().Enabled(zap.InfoLevel):
+		options = append(options, elastic.SetInfoLog(l))
+	default:
+		options = append(options, elastic.SetErrorLog(l))
+	}
 	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
