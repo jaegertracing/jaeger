@@ -31,8 +31,6 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 // Enable custom Size method (Required by Marshal and Unmarshal).
 option (gogoproto.sizer_all) = true;
-// Enable registration with golang/protobuf for the grpc-gateway.
-option (gogoproto.goproto_registration) = true;
 
 message GetDependenciesRequest {
     google.protobuf.Timestamp start_time = 1 [
