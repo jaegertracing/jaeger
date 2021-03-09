@@ -17,14 +17,7 @@ package shared
 import (
 	"strings"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
 	"google.golang.org/grpc/metadata"
-)
-
-var (
-	// Morally a const:
-	gRPCComponentTag = opentracing.Tag{string(ext.Component), "gRPC"}
 )
 
 // internal data struct
