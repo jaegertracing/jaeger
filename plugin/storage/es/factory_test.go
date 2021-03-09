@@ -218,14 +218,3 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
 }
-
-func TestNewOptions(t *testing.T) {
-	primaryCfg := escfg.Configuration{IndexPrefix: "primary"}
-	archiveCfg := escfg.Configuration{IndexPrefix: "archive"}
-	o := NewOptionsFromConfig(primaryCfg, archiveCfg)
-	assert.Equal(t, primaryCfg, o.Primary.Configuration)
-	assert.Equal(t, primaryNamespace, o.Primary.namespace)
-	assert.Equal(t, 1, len(o.others))
-	assert.Equal(t, archiveCfg, o.others[archiveNamespace].Configuration)
-	assert.Equal(t, archiveNamespace, o.others[archiveNamespace].namespace)
-}

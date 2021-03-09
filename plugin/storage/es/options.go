@@ -117,22 +117,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	return options
 }
 
-// NewOptionsFromConfig creates Options from primary and archive config
-func NewOptionsFromConfig(primary config.Configuration, archive config.Configuration) *Options {
-	return &Options{
-		Primary: namespaceConfig{
-			namespace:     primaryNamespace,
-			Configuration: primary,
-		},
-		others: map[string]*namespaceConfig{
-			archiveNamespace: {
-				namespace:     archiveNamespace,
-				Configuration: archive,
-			},
-		},
-	}
-}
-
 func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
 		Prefix:         config.namespace,

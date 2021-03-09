@@ -465,7 +465,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 
 .PHONY: proto
 proto:
-	# Generate gogo, gRPC-Gateway, swagger, go-validators, gRPC-storage-plugin output.
+	# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance
 	# This is how proto resolves the protofile imports.
@@ -473,8 +473,6 @@ proto:
 	# folders and use the first one it finds.
 	#
 	# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
-	# --grpc-gateway_out generates gRPC-Gateway output.
-	# --swagger_out generates an OpenAPI 2.0 specification for our gRPC-Gateway endpoints.
 	# --govalidators_out generates Go validation files for our messages types, if specified.
 	#
 	# The lines starting with Mgoogle/... are proto import replacements,
@@ -495,8 +493,6 @@ proto:
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
 		idl/proto/api_v2/query.proto
-		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
-		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
 
 	$(PROTOC) \
