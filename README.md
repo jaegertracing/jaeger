@@ -1,7 +1,7 @@
 <img align="right" width="290" height="290" src="https://www.jaegertracing.io/img/jaeger-vector.svg">
 
 
-[![Gitter chat][gitter-img]][gitter]
+[![Slack chat][slack-img]][slack]
 [![Project+Community stats][community-badge]][community-stats]
 [![OpenTracing-1.0][ot-badge]](https://opentracing.io)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge-flat.svg)](https://github.com/avelino/awesome-go#performance)
@@ -163,7 +163,7 @@ See https://www.jaegertracing.io/docs/roadmap/
 Reach project contributors via these channels:
 
  * [jaeger-tracing mail group](https://groups.google.com/forum/#!forum/jaeger-tracing)
- * [Gitter chat room](https://gitter.im/jaegertracing/Lobby)
+ * [Slack chat room](https://cloud-native.slack.com/archives/CGG7NFUJ3)
  * [Github issues](https://github.com/jaegertracing/jaeger/issues)
 
 ## Adopters
@@ -194,5 +194,5 @@ If you would like to add your organization to the list, please comment on our
 [community-badge]: https://img.shields.io/badge/Project+Community-stats-blue.svg
 [community-stats]: https://all.devstats.cncf.io/d/54/project-health?orgId=1&var-repogroup_name=Jaeger
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
-[gitter]: https://gitter.im/jaegertracing/Lobby
-[gitter-img]: https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg
+[slack]: https://cloud-native.slack.com/archives/CGG7NFUJ3
+[slack-img]: https://img.shields.io/badge/slack-join%20chat%20%E2%86%92-brightgreen?logo=slack
