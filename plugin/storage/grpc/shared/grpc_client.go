@@ -55,7 +55,7 @@ type grpcClient struct {
 type ContextUpgradeFunc func(ctx context.Context) context.Context
 
 // composeContextUpgradeFuncs composes ContextUpgradeFunc and returns a composed function
-// to run the given func in strict order
+// to run the given func in strict order.
 func composeContextUpgradeFuncs(funcs ...ContextUpgradeFunc) ContextUpgradeFunc {
 	return func(ctx context.Context) context.Context {
 		for _, fun := range funcs {
@@ -84,7 +84,7 @@ func upgradeContextWithBearerToken(ctx context.Context) context.Context {
 // upgradeWithTraceContext injects the current active span given into the outgoing gRPC metadata,
 // and returns the context being decorated.
 // If no global tracer is registered or no active span is found in the context,
-// returns the original context
+// returns the original context.
 func upgradeWithTraceContext(ctx context.Context) context.Context {
 	if !opentracing.IsGlobalTracerRegistered() {
 		return ctx
