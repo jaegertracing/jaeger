@@ -20,6 +20,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -52,11 +54,45 @@ type grpcClient struct {
 func upgradeContextWithBearerToken(ctx context.Context) context.Context {
 	bearerToken, hasToken := spanstore.GetBearerToken(ctx)
 	if hasToken {
-		requestMetadata := metadata.New(map[string]string{
-			spanstore.BearerTokenKey: bearerToken,
-		})
-		return metadata.NewOutgoingContext(ctx, requestMetadata)
+		md, ok := metadata.FromOutgoingContext(ctx)
+		if !ok {
+			md = metadata.New(nil)
+		} else {
+			md = md.Copy()
+		}
+		mdWriter := metadataReaderWriter{md}
+		mdWriter.Append(spanstore.BearerTokenKey, bearerToken)
+		return metadata.NewOutgoingContext(ctx, md)
 	}
+	return ctx
+}
+
+// upgradeWithTraceContext injects the current active span given into the outgoing gRPC metadata,
+// and returns the context being decorated.
+// If no global tracer is registered or no active span is found in the context,
+// returns the original context
+func upgradeWithTraceContext(ctx context.Context) context.Context {
+	if !opentracing.IsGlobalTracerRegistered() {
+		return ctx
+	}
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		tracer := opentracing.GlobalTracer()
+		md, ok := metadata.FromOutgoingContext(ctx)
+		if !ok {
+			md = metadata.New(nil)
+		} else {
+			md = md.Copy()
+		}
+		mdWriter := metadataReaderWriter{md}
+		err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, mdWriter)
+		// We have no better place to record an error than the Span itself :-/
+		if err != nil {
+			span.LogFields(log.String("event", "Tracer.Inject() failed"), log.Error(err))
+		}
+		return metadata.NewOutgoingContext(ctx, md)
+	}
+
 	return ctx
 }
 
@@ -85,7 +121,7 @@ func (c *grpcClient) ArchiveSpanWriter() spanstore.Writer {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	stream, err := c.readerClient.GetTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
+	stream, err := c.readerClient.GetTrace(upgradeWithTraceContext(upgradeContextWithBearerToken(ctx)), &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
 	if status.Code(err) == codes.NotFound {
@@ -100,7 +136,7 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 
 // GetServices returns a list of all known services
 func (c *grpcClient) GetServices(ctx context.Context) ([]string, error) {
-	resp, err := c.readerClient.GetServices(upgradeContextWithBearerToken(ctx), &storage_v1.GetServicesRequest{})
+	resp, err := c.readerClient.GetServices(upgradeWithTraceContext(upgradeContextWithBearerToken(ctx)), &storage_v1.GetServicesRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
@@ -113,7 +149,7 @@ func (c *grpcClient) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	resp, err := c.readerClient.GetOperations(upgradeContextWithBearerToken(ctx), &storage_v1.GetOperationsRequest{
+	resp, err := c.readerClient.GetOperations(upgradeWithTraceContext(upgradeContextWithBearerToken(ctx)), &storage_v1.GetOperationsRequest{
 		Service:  query.ServiceName,
 		SpanKind: query.SpanKind,
 	})
@@ -141,7 +177,7 @@ func (c *grpcClient) GetOperations(
 
 // FindTraces retrieves traces that match the traceQuery
 func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	stream, err := c.readerClient.FindTraces(upgradeContextWithBearerToken(ctx), &storage_v1.FindTracesRequest{
+	stream, err := c.readerClient.FindTraces(upgradeWithTraceContext(upgradeContextWithBearerToken(ctx)), &storage_v1.FindTracesRequest{
 		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
@@ -179,7 +215,7 @@ func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
 func (c *grpcClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	resp, err := c.readerClient.FindTraceIDs(upgradeContextWithBearerToken(ctx), &storage_v1.FindTraceIDsRequest{
+	resp, err := c.readerClient.FindTraceIDs(upgradeWithTraceContext(upgradeContextWithBearerToken(ctx)), &storage_v1.FindTraceIDsRequest{
 		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
