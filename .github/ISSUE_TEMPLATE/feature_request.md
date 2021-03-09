@@ -14,7 +14,7 @@ Welcome to the Jaeger project! 👋🎉
 - Please be respectful and considerate of others when commenting on issues.
 - Please provide as much information as possible so we all understand the issue.
 - If you only have a question, you may get a faster response by asking in
-    - our chat room https://gitter.im/jaegertracing/Lobby, or
+    - our chat room https://cloud-native.slack.com/archives/CGG7NFUJ3, or
     - the forum https://groups.google.com/d/forum/jaeger-tracing
     (but please don't double post)
 -->
