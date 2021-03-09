@@ -74,11 +74,8 @@ func upgradeContextWithBearerToken(ctx context.Context) context.Context {
 		md, ok := metadata.FromOutgoingContext(ctx)
 		if !ok {
 			md = metadata.New(nil)
-		} else {
-			md = md.Copy()
 		}
-		mdWriter := metadataReaderWriter{md}
-		mdWriter.Append(spanstore.BearerTokenKey, bearerToken)
+		md.Set(spanstore.BearerTokenKey, bearerToken)
 		return metadata.NewOutgoingContext(ctx, md)
 	}
 	return ctx
@@ -98,8 +95,6 @@ func upgradeWithTraceContext(ctx context.Context) context.Context {
 		md, ok := metadata.FromOutgoingContext(ctx)
 		if !ok {
 			md = metadata.New(nil)
-		} else {
-			md = md.Copy()
 		}
 		mdWriter := metadataReaderWriter{md}
 		err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, mdWriter)
