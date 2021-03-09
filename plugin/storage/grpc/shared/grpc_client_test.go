@@ -17,15 +17,15 @@ package shared
 import (
 	"context"
 	"errors"
-	"github.com/opentracing/opentracing-go"
-	jaegerClient "github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-client-go/zipkin"
 	"io"
 	"testing"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	jaegerClient "github.com/uber/jaeger-client-go"
+	"github.com/uber/jaeger-client-go/zipkin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
