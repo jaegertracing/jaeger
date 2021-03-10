@@ -68,6 +68,7 @@ type Configuration struct {
 	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
 	UseILM                bool           `mapstructure:"use_ilm"`
 	Version               uint           `mapstructure:"version"`
+	LogLevel              string         `mapstructure:"log_level"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -103,6 +104,7 @@ type ClientBuilder interface {
 	GetVersion() uint
 	TagKeysAsFields() ([]string, error)
 	GetUseILM() bool
+	GetLogLevel() string
 }
 
 // NewClient creates a new ElasticSearch client
@@ -238,6 +240,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxDocCount == 0 {
 		c.MaxDocCount = source.MaxDocCount
 	}
+	if c.LogLevel == "" {
+		c.LogLevel = source.LogLevel
+	}
 }
 
 // GetNumShards returns number of shards from Configuration
@@ -299,6 +304,11 @@ func (c *Configuration) GetUseReadWriteAliases() bool {
 // GetUseILM indicates whether ILM should be used
 func (c *Configuration) GetUseILM() bool {
 	return c.UseILM
+}
+
+// GetLogLevel returns the log-level the ES client should log at.
+func (c *Configuration) GetLogLevel() string {
+	return c.LogLevel
 }
 
 // GetTokenFilePath returns file path containing the bearer token
@@ -364,22 +374,43 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	options = append(options, elastic.SetHttpClient(httpClient))
 	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 
-	// Elastic client requires a "Printf"-able logger.
-	l := zapgrpc.NewLogger(logger)
-	switch {
-	case logger.Core().Enabled(zap.DebugLevel):
-		l = zapgrpc.NewLogger(logger, zapgrpc.WithDebug())
-		options = append(options, elastic.SetTraceLog(l))
-	case logger.Core().Enabled(zap.InfoLevel):
-		options = append(options, elastic.SetInfoLog(l))
-	default:
-		options = append(options, elastic.SetErrorLog(l))
+	options, err := addLoggerOptions(options, c.LogLevel)
+	if err != nil {
+		return options, err
 	}
+
 	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
 	}
 	httpClient.Transport = transport
+	return options, nil
+}
+
+func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]elastic.ClientOptionFunc, error) {
+	// Decouple ES logger from the log-level assigned to the parent application's log-level; otherwise, the least
+	// permissive log-level will dominate.
+	// e.g. --log-level=info and --es.log-level=debug would mute ES's debug logging and would require --log-level=debug
+	// to show ES debug logs.
+	prodConfig := zap.NewProductionConfig()
+	prodConfig.Level.SetLevel(zap.DebugLevel)
+
+	esLogger, err := prodConfig.Build()
+	if err != nil {
+		return options, err
+	}
+
+	// Elastic client requires a "Printf"-able logger.
+	l := zapgrpc.NewLogger(esLogger)
+	switch logLevel {
+	case "debug":
+		l = zapgrpc.NewLogger(esLogger, zapgrpc.WithDebug())
+		options = append(options, elastic.SetTraceLog(l))
+	case "info":
+		options = append(options, elastic.SetInfoLog(l))
+	default:
+		options = append(options, elastic.SetErrorLog(l))
+	}
 	return options, nil
 }
 
