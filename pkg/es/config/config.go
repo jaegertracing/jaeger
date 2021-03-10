@@ -237,9 +237,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxDocCount == 0 {
 		c.MaxDocCount = source.MaxDocCount
 	}
-	if c.Version == 0 {
-		c.Version = source.Version
-	}
 }
 
 // GetNumShards returns number of shards from Configuration
