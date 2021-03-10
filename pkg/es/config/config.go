@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -408,8 +409,10 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 		options = append(options, elastic.SetTraceLog(l))
 	case "info":
 		options = append(options, elastic.SetInfoLog(l))
-	default:
+	case "error":
 		options = append(options, elastic.SetErrorLog(l))
+	default:
+		return options, fmt.Errorf("unrecognized log-level: \"%s\"", logLevel)
 	}
 	return options, nil
 }
