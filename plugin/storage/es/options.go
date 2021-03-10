@@ -111,6 +111,8 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
 	}
 
+	// Other namespaces need to be explicitly enabled.
+	defaultConfig.Enabled = false
 	for _, namespace := range otherNamespaces {
 		options.others[namespace] = &namespaceConfig{
 			Configuration: defaultConfig,
