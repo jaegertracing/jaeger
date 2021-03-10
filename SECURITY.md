@@ -15,9 +15,9 @@ If you find something suspicious and want to report it, we'd really appreciate!
 ### Ways to report
 
 * It is preferable to always encrypt your message, no matter the channel you choose to report the issue
-* Contact us on our open chat room on [Gitter][gitter-room]
-* If you can't use Gitter, send a message to [jaeger-tracing@googlegroups.com][mailing-list]
-* If you can't use Gitter nor send an email, open a merge request on GitHub: fork the affected repository and send us a pull request. We really prefer if you'd talk to us before, though, as our repositories are public and we would like to give a heads up to our users before disclosing it publicly
+* Contact us on our open chat room on [Slack][slack-room]
+* If you can't use Slack, send a message to [jaeger-tracing@googlegroups.com][mailing-list]
+* If you can't use Slack nor send an email, open a merge request on GitHub: fork the affected repository and send us a pull request. We really prefer if you'd talk to us before, though, as our repositories are public and we would like to give a heads up to our users before disclosing it publicly
 
 ### Our PGP key
 
@@ -91,7 +91,7 @@ oF+qZY4uEvqFvYo8
 
 [published-key]: http://pool.sks-keyservers.net/pks/lookup?op=get&search=0xC043A4D2B3F2AC31
 [mailing-list]: https://groups.google.com/forum/#!forum/jaeger-tracing
-[gitter-room]: https://gitter.im/jaegertracing/Lobby
+[slack-room]: https://cloud-native.slack.com/archives/CGG7NFUJ3
 
 ## Securing a Jaeger installation
 

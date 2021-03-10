@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -45,7 +46,7 @@ func TestOptions(t *testing.T) {
 func TestOptionsWithFlags(t *testing.T) {
 	opts := NewOptions("es", "es.aux")
 	v, command := config.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{
+	err := command.ParseFlags([]string{
 		"--es.server-urls=1.1.1.1, 2.2.2.2",
 		"--es.username=hello",
 		"--es.password=world",
@@ -69,6 +70,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.tags-as-fields.dot-replacement=!",
 		"--es.use-ilm=true",
 	})
+	require.NoError(t, err)
 	opts.InitFromViper(v)
 
 	primary := opts.GetPrimary()
@@ -89,16 +91,24 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
 	assert.Equal(t, "hello", aux.Username)
 	assert.Equal(t, "world", aux.Password)
-	assert.Equal(t, int64(20), aux.NumShards)
+	assert.Equal(t, int64(5), aux.NumShards)
 	assert.Equal(t, int64(10), aux.NumReplicas)
 	assert.Equal(t, 24*time.Hour, aux.MaxSpanAge)
 	assert.True(t, aux.Sniffer)
 	assert.True(t, aux.Tags.AllAsFields)
-	assert.Equal(t, "!", aux.Tags.DotReplacement)
+	assert.Equal(t, "@", aux.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", aux.Tags.File)
 	assert.Equal(t, "test,tags", aux.Tags.Include)
 	assert.Equal(t, "2006.01.02", aux.IndexDateLayout)
 	assert.True(t, primary.UseILM)
+}
+
+func TestMaxSpanAgeSetErrorInArchiveMode(t *testing.T) {
+	opts := NewOptions("es", archiveNamespace)
+	_, command := config.Viperize(opts.AddFlags)
+	flags := []string{"--es-archive.max-span-age=24h"}
+	err := command.ParseFlags(flags)
+	assert.EqualError(t, err, "unknown flag: --es-archive.max-span-age")
 }
 
 func TestMaxDocCount(t *testing.T) {

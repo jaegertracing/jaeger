@@ -22,6 +22,6 @@
 5. [Publish documentation](https://github.com/jaegertracing/documentation/blob/master/RELEASE.md) for the new version in [jaegertracing.io](https://www.jaegertracing.io/docs/latest).
    1. Check [jaegertracing.io](https://www.jaegertracing.io/docs/latest) redirects to the new documentation release version URL.
    2. For monitoring and troubleshooting, refer to the [jaegertracing/documentation GithubActions tab](https://github.com/jaegertracing/documentation/actions).
-6. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [gitter](https://gitter.im/jaegertracing/Lobby), and [twitter](https://twitter.com/JaegerTracing?lang=en).
+6. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
 Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-1.8`).

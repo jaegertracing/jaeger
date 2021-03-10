@@ -83,35 +83,41 @@ type namespaceConfig struct {
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
+	defaultConfig := config.Configuration{
+		Username:          "",
+		Password:          "",
+		Sniffer:           false,
+		MaxSpanAge:        72 * time.Hour,
+		NumShards:         5,
+		NumReplicas:       1,
+		BulkSize:          5 * 1000 * 1000,
+		BulkWorkers:       1,
+		BulkActions:       1000,
+		BulkFlushInterval: time.Millisecond * 200,
+		Tags: config.TagsAsFields{
+			DotReplacement: "@",
+		},
+		Enabled:              true,
+		CreateIndexTemplates: true,
+		Version:              0,
+		Servers:              []string{defaultServerURL},
+		MaxDocCount:          defaultMaxDocCount,
+	}
 	options := &Options{
 		Primary: namespaceConfig{
-			Configuration: config.Configuration{
-				Username:          "",
-				Password:          "",
-				Sniffer:           false,
-				MaxSpanAge:        72 * time.Hour,
-				NumShards:         5,
-				NumReplicas:       1,
-				BulkSize:          5 * 1000 * 1000,
-				BulkWorkers:       1,
-				BulkActions:       1000,
-				BulkFlushInterval: time.Millisecond * 200,
-				Tags: config.TagsAsFields{
-					DotReplacement: "@",
-				},
-				Enabled:              true,
-				CreateIndexTemplates: true,
-				Version:              0,
-				Servers:              []string{defaultServerURL},
-				MaxDocCount:          defaultMaxDocCount,
-			},
-			namespace: primaryNamespace,
+			Configuration: defaultConfig,
+			namespace:     primaryNamespace,
 		},
 		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
 	}
 
+	// Other namespaces need to be explicitly enabled.
+	defaultConfig.Enabled = false
 	for _, namespace := range otherNamespaces {
-		options.others[namespace] = &namespaceConfig{namespace: namespace}
+		options.others[namespace] = &namespaceConfig{
+			Configuration: defaultConfig,
+			namespace:     namespace,
+		}
 	}
 
 	return options
@@ -158,10 +164,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
-	flagSet.Duration(
-		nsConfig.namespace+suffixMaxSpanAge,
-		nsConfig.MaxSpanAge,
-		"The maximum lookback for spans in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
@@ -215,7 +217,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.UseReadWriteAliases,
 		"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
-			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" will influence trace search window start times.")
+			"Note that es"+suffixMaxSpanAge+" will influence trace search window start times.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixUseILM,
 		nsConfig.UseILM,
@@ -238,11 +240,19 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixMaxDocCount,
 		nsConfig.MaxDocCount,
 		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.")
+
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
 			nsConfig.Enabled,
 			"Enable extra storage")
+	} else {
+		// MaxSpanAge is only relevant when searching for unarchived traces.
+		// Archived traces are searched with no look-back limit.
+		flagSet.Duration(
+			nsConfig.namespace+suffixMaxSpanAge,
+			nsConfig.MaxSpanAge,
+			"The maximum lookback for spans in Elasticsearch")
 	}
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
