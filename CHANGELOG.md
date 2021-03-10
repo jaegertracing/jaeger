@@ -3,6 +3,11 @@ Changes by Version
 
 1.23.0 (unreleased)
 -------------------
+### Backend Changes
+
+#### Breaking Changes
+
+* Remove unused `--es-archive.max-span-age` flag ([#2865](https://github.com/jaegertracing/jaeger/pull/2865), [@albertteoh](https://github.com/albertteoh)):
 
 1.22.0 (2021-02-23)
 -------------------
