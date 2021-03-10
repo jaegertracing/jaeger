@@ -126,7 +126,13 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
 
-## Maintainers
+Thanks to all the people who already contributed!
+
+<a href="https://github.com/jaegertracing/jaeger/graphs/contributors">
+  <img src="https://contributors-img.web.app/image?repo=jaegertracing/jaeger" />
+</a>
+
+### Maintainers
 
 Rules for becoming a maintainer are defined in the [GOVERNANCE](./GOVERNANCE.md) document.
 Below are the official maintainers of the Jaeger project.
