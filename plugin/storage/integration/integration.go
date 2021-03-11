@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	iterations = 30
+	iterations = 100
 )
 
 // StorageIntegration holds components for storage integration test
@@ -90,7 +90,7 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
+		time.Sleep(100 * time.Millisecond) // Will wait up to 10 seconds at worst.
 	}
 	return predicate(t)
 }
