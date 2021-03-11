@@ -35,6 +35,7 @@ const (
 	suffixSnifferTLSEnabled   = ".sniffer-tls-enabled"
 	suffixTokenPath           = ".token-file"
 	suffixServerURLs          = ".server-urls"
+	suffixRemoteReadClusters  = ".remote-read-clusters"
 	suffixMaxSpanAge          = ".max-span-age"
 	suffixNumShards           = ".num-shards"
 	suffixNumReplicas         = ".num-replicas"
@@ -59,8 +60,9 @@ const (
 	suffixLogLevel            = ".log-level"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
-	defaultMaxDocCount = 10_000
-	defaultServerURL   = "http://127.0.0.1:9200"
+	defaultMaxDocCount        = 10_000
+	defaultServerURL          = "http://127.0.0.1:9200"
+	defaultRemoteReadClusters = ""
 	// default separator for Elasticsearch index date layout.
 	defaultIndexDateSeparator = "-"
 )
@@ -102,6 +104,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		CreateIndexTemplates: true,
 		Version:              0,
 		Servers:              []string{defaultServerURL},
+		RemoteReadClusters:   []string{},
 		MaxDocCount:          defaultMaxDocCount,
 		LogLevel:             "error",
 	}
@@ -162,6 +165,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixServerURLs,
 		defaultServerURL,
 		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200")
+	flagSet.String(
+		nsConfig.namespace+suffixRemoteReadClusters,
+		defaultRemoteReadClusters,
+		"Comma-separated list of Elasticsearch remote cluster names for cross-cluster querying."+
+			"See Elasticsearch remote clusters and cross-cluster query api.")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
@@ -278,6 +286,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
+	cfg.RemoteReadClusters = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixRemoteReadClusters)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)

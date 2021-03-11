@@ -116,6 +116,7 @@ type SpanReaderParams struct {
 	TagDotReplacement   string
 	Archive             bool
 	UseReadWriteAliases bool
+	RemoteReadClusters  []string
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -129,7 +130,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		indexDateLayout:         p.IndexDateLayout,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
-		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
+		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
 		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
 	}
@@ -139,7 +140,7 @@ type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime t
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
-func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
+func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
 	if archive {
 		var archiveSuffix string
 		if useReadWriteAliases {
@@ -147,16 +148,35 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 		} else {
 			archiveSuffix = archiveIndexSuffix
 		}
-		return func(indexName, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+		return addRemoteReadClusters(func(indexName, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
 			return []string{archiveIndex(indexName, archiveSuffix)}
-		}
+		}, remoteReadClusters)
 	}
 	if useReadWriteAliases {
-		return func(indices string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+		return addRemoteReadClusters(func(indices string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
 			return []string{indices + "read"}
-		}
+		}, remoteReadClusters)
 	}
-	return timeRangeIndices
+	return addRemoteReadClusters(timeRangeIndices, remoteReadClusters)
+}
+
+// Elasticsearch cross cluster query api example: GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
+// Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices
+func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) timeRangeIndexFn {
+	return func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+		jaegerIndices := fn(indexName, indexDateLayout, startTime, endTime)
+
+		if len(remoteReadClusters) > 0 {
+			for _, jaegerIndex := range jaegerIndices {
+				for _, remoteCluster := range remoteReadClusters {
+					remoteIndex := remoteCluster + ":" + jaegerIndex
+					jaegerIndices = append(jaegerIndices, remoteIndex)
+				}
+			}
+		}
+
+		return jaegerIndices
+	}
 }
 
 func getSourceFn(archive bool, maxDocCount int) sourceFn {
