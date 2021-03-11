@@ -56,6 +56,7 @@ const (
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
 	suffixMaxDocCount         = ".max-doc-count"
+	suffixLogLevel            = ".log-level"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount = 10_000
@@ -102,6 +103,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		Version:              0,
 		Servers:              []string{defaultServerURL},
 		MaxDocCount:          defaultMaxDocCount,
+		LogLevel:             "error",
 	}
 	options := &Options{
 		Primary: namespaceConfig{
@@ -240,6 +242,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixMaxDocCount,
 		nsConfig.MaxDocCount,
 		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.")
+	flagSet.String(
+		nsConfig.namespace+suffixLogLevel,
+		nsConfig.LogLevel,
+		"The Elasticsearch client log-level. Valid levels: [debug, info, error]")
 
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
@@ -290,6 +296,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
+	cfg.LogLevel = v.GetString(cfg.namespace + suffixLogLevel)
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
