@@ -148,8 +148,8 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 		} else {
 			archiveSuffix = archiveIndexSuffix
 		}
-		return addRemoteReadClusters(func(indexName, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
-			return []string{archiveIndex(indexName, archiveSuffix)}
+		return addRemoteReadClusters(func(indexPrefix, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+			return []string{archiveIndex(indexPrefix, archiveSuffix)}
 		}, remoteReadClusters)
 	}
 	if useReadWriteAliases {
@@ -160,18 +160,19 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 	return addRemoteReadClusters(timeRangeIndices, remoteReadClusters)
 }
 
-// Elasticsearch cross cluster query api example: GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
-// Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices
+// Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices.
+// Elasticsearch cross cluster api example GET /twitter,cluster_one:twitter,cluster_two:twitter/_search.
 func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) timeRangeIndexFn {
-	return func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
-		jaegerIndices := fn(indexName, indexDateLayout, startTime, endTime)
+	return func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+		jaegerIndices := fn(indexPrefix, indexDateLayout, startTime, endTime)
+		if len(remoteReadClusters) == 0 {
+			return jaegerIndices
+		}
 
-		if len(remoteReadClusters) > 0 {
-			for _, jaegerIndex := range jaegerIndices {
-				for _, remoteCluster := range remoteReadClusters {
-					remoteIndex := remoteCluster + ":" + jaegerIndex
-					jaegerIndices = append(jaegerIndices, remoteIndex)
-				}
+		for _, jaegerIndex := range jaegerIndices {
+			for _, remoteCluster := range remoteReadClusters {
+				remoteIndex := remoteCluster + ":" + jaegerIndex
+				jaegerIndices = append(jaegerIndices, remoteIndex)
 			}
 		}
 
