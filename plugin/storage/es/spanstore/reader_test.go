@@ -175,9 +175,28 @@ func TestSpanReaderIndices(t *testing.T) {
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix}},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"}},
-			indices: []string{spanIndex + dateFormat,
+			indices: []string{
+				spanIndex + dateFormat,
 				"cluster_one:" + spanIndex + dateFormat,
 				"cluster_two:" + spanIndex + dateFormat}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"}},
+			indices: []string{
+				spanIndex + archiveIndexSuffix,
+				"cluster_one:" + spanIndex + archiveIndexSuffix,
+				"cluster_two:" + spanIndex + archiveIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"}},
+			indices: []string{
+				spanIndex + "read",
+				"cluster_one:" + spanIndex + "read",
+				"cluster_two:" + spanIndex + "read"}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"}},
+			indices: []string{
+				spanIndex + archiveReadIndexSuffix,
+				"cluster_one:" + spanIndex + archiveReadIndexSuffix,
+				"cluster_two:" + spanIndex + archiveReadIndexSuffix}},
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
