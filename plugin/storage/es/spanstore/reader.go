@@ -154,7 +154,7 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 	}
 	if useReadWriteAliases {
 		return addRemoteReadClusters(func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
-			return []string{indices + "read"}
+			return []string{indexPrefix + "read"}
 		}, remoteReadClusters)
 	}
 	return addRemoteReadClusters(timeRangeIndices, remoteReadClusters)
