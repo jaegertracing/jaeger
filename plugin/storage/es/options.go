@@ -286,7 +286,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
-	cfg.RemoteReadClusters = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixRemoteReadClusters)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
@@ -313,6 +312,11 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
+
+	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
+	if len(remoteReadClusters) > 0 {
+		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
+	}
 }
 
 // GetPrimary returns primary configuration.

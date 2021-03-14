@@ -31,6 +31,7 @@ func TestOptions(t *testing.T) {
 	assert.Empty(t, primary.Username)
 	assert.Empty(t, primary.Password)
 	assert.NotEmpty(t, primary.Servers)
+	assert.Empty(t, primary.RemoteReadClusters)
 	assert.Equal(t, int64(5), primary.NumShards)
 	assert.Equal(t, int64(1), primary.NumReplicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
@@ -58,6 +59,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.num-replicas=10",
 		"--es.index-date-separator=",
 		// a couple overrides
+		"--es.remote-read-clusters=cluster_one,cluster_two",
 		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
 		"--es.aux.max-span-age=24h",
 		"--es.aux.num-replicas=10",
@@ -77,6 +79,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "hello", primary.Username)
 	assert.Equal(t, "/foo/bar", primary.TokenFilePath)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
+	assert.Equal(t, []string{"cluster_one", "cluster_two"}, primary.RemoteReadClusters)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)
 	assert.True(t, primary.SnifferTLSEnabled)
@@ -101,6 +104,19 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "test,tags", aux.Tags.Include)
 	assert.Equal(t, "2006.01.02", aux.IndexDateLayout)
 	assert.True(t, primary.UseILM)
+}
+
+func TestEmptyRemoteReadClusters(t *testing.T) {
+	opts := NewOptions("es", "es.aux")
+	v, command := config.Viperize(opts.AddFlags)
+	err := command.ParseFlags([]string{
+		"--es.remote-read-clusters=",
+	})
+	require.NoError(t, err)
+	opts.InitFromViper(v)
+
+	primary := opts.GetPrimary()
+	assert.Equal(t, []string{}, primary.RemoteReadClusters)
 }
 
 func TestMaxSpanAgeSetErrorInArchiveMode(t *testing.T) {
