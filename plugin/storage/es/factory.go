@@ -151,6 +151,7 @@ func createSpanReader(
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 		Archive:             archive,
+		RemoteReadClusters:  cfg.GetRemoteReadClusters(),
 	}), nil
 }
 
