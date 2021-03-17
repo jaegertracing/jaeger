@@ -1,0 +1,25 @@
+run:
+  timeout: 5m
+
+# all available settings of specific linters
+linters-settings:
+  goheader:
+    template-path: header.txt
+  goimports:
+    local-prefixes: github.com/jaegertracing/jaeger/v2
+  maligned:
+    suggest-new: true
+  misspell:
+    locale: US
+
+linters:
+  enable:
+    - exhaustive
+    - gci
+    - godot
+    - goheader
+    - goimports
+    - gosec
+    - maligned
+    - misspell
+    - unparam

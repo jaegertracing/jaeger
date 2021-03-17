@@ -1,0 +1,29 @@
+dist:
+  module: github.com/jaegertracing/jaeger/v2
+  name: jaeger-agent
+  description: Jaeger Agent Distribution
+  version: placeholder # will be replaced by the build
+  include_core: false
+  output_path: ./_build/agent/
+
+extensions:
+  - import: go.opentelemetry.io/collector/extension/healthcheckextension
+    gomod: go.opentelemetry.io/collector v0.22.0
+
+receivers:
+  - import: go.opentelemetry.io/collector/receiver/jaegerreceiver
+    gomod: go.opentelemetry.io/collector v0.22.0
+
+  - import: go.opentelemetry.io/collector/receiver/otlpreceiver
+    gomod: go.opentelemetry.io/collector v0.22.0
+
+processors:
+  - import: go.opentelemetry.io/collector/processor/batchprocessor
+    gomod: go.opentelemetry.io/collector v0.22.0
+
+exporters:
+  - import: go.opentelemetry.io/collector/exporter/jaegerexporter
+    gomod: go.opentelemetry.io/collector v0.22.0
+
+  - import: go.opentelemetry.io/collector/exporter/loggingexporter
+    gomod: go.opentelemetry.io/collector v0.22.0

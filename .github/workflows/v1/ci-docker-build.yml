@@ -1,13 +1,17 @@
-name: CIT Hotrod
+name: Build docker images
 
 on:
   push:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
   pull_request:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
 
 jobs:
-  hotrod:
+  docker-images:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -22,14 +26,21 @@ jobs:
       with:
         go-version: ^1.16
 
+    - uses: actions/setup-node@v2.1.5
+      with:
+        node-version: '10'
+
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch
 
     - name: Install tools
       run: make install-ci
 
-    - name: Build, test, and publish hotrod image
-      run: bash scripts/hotrod-integration-test.sh
+    - name: Build docker images
+      run: make docker
+
+    - name: Upload docker images
+      run: bash scripts/upload-all-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

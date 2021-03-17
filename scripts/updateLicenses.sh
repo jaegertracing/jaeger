@@ -4,12 +4,13 @@ set -e
 
 python scripts/updateLicense.py $(git ls-files "*\.go" | \
     grep -v \
-        -e thrift-gen \
-        -e swagger-gen \
-        -e proto-gen \
         -e gen_assets.go \
-        -e model.pb.go \
-        -e model.pb.gw.go \
         -e model_test.pb.go \
-        -e storage_test.pb.go
+        -e model.pb.go \
+        -e proto-gen \
+        -e storage_test.pb.go \
+        -e swagger-gen \
+        -e thrift-0.9.2 \
+        -e thrift-gen \
+        -e v2/
 )

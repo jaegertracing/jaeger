@@ -4,6 +4,7 @@ STORAGE_PKGS = ./plugin/storage/integration/...
 include docker/Makefile
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
+# v2 sources are managed by the Makefile in the v2 directory
 ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
@@ -14,6 +15,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'model_test.pb.go' \
 				   -not -name 'storage_test.pb.go' \
 				   -not -path './examples/*' \
+				   -not -path './v2/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
@@ -164,7 +166,7 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	time gosec -quiet -exclude=G104,G107 ./...
+	time gosec -quiet -exclude=G104,G107 -exclude-dir v2 ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:

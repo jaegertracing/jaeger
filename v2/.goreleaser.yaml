@@ -1,0 +1,145 @@
+before:
+  hooks:
+    ## this will generate the sources and an initial binary, which will be overridden by the `builds` part
+    - make -e VERSION="{{.Version}}" build
+
+dist: ./_build/dist
+
+builds:
+  ## we generate two binaries for the agent:
+  ## 1. regular, production optimized
+  ## 2. debug, with no optimization or inlining
+  - &agent-build
+    id: jaeger-agent
+    dir: ./_build/agent
+    binary: jaeger-agent
+    flags: 
+      - -trimpath
+    gcflags:
+      - all=-N -l
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - &agent-debug-build
+    <<: *agent-build
+    id: jaeger-agent-debug
+    binary: jaeger-agent-debug
+    gcflags:
+      - all=-N -l
+
+dockers:
+  # we generate 4 images that will serve as base for the multi arch images that people actually end up using
+  ## these can be used directly, but are intended to only be referenced in the multi arch manifest
+  ## the images here are: 
+  ## 1. amd64 image
+  ## 2. arm64 image
+  ## 3. amd64 debug image
+  ## 4. arm64 debug image
+
+  - &agent-container
+    ids: [jaeger-agent]
+    dockerfile: "manifests/Dockerfile.jaeger-agent"
+    goarch: amd64
+    use_buildx: true
+    image_templates:
+      - "jaegertracing/jaeger-agent:{{ .Tag }}-amd64"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+
+  - &agent-container-arm64v8
+    <<: *agent-container
+    goarch: arm64
+    image_templates:
+      - "jaegertracing/jaeger-agent:{{ .Tag }}-arm64v8"
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+
+  - &agent-container-debug
+    <<: *agent-container
+    ids: [jaeger-agent-debug]
+    dockerfile: "manifests/Dockerfile.jaeger-agent-debug"
+    image_templates:
+      - "jaegertracing/jaeger-agent-debug:{{ .Tag }}-amd64"
+
+  - &agent-container-debug-arm64v8
+    <<: *agent-container-debug
+    goarch: arm64
+    image_templates:
+      - "jaegertracing/jaeger-agent-debug:{{ .Tag }}-arm64v8"
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+
+docker_manifests:
+  # we generate 12 sets of multi arch images for the agent, each image has a reference to the platform-specific images
+  ## 1. DockerHub with the full version tag (v2.0.0)
+  ## 2. DockerHub with the major version (v2)
+  ## 3. DockerHub with the major.minor version (v2.0)
+  ## 4-6: Same as above, for Quay
+  ## 7-9: Same as 1-3, with debug images
+  ## 10-12: same as above, for Quay
+
+  # multi-arch images to be pushed to Docker Hub
+  - &agent-multiarch-version-dockerhub
+    name_template: docker.io/jaegertracing/jaeger-agent:{{ .Tag }}
+    image_templates:
+      - jaegertracing/jaeger-agent:{{ .Tag }}-amd64
+      - jaegertracing/jaeger-agent:{{ .Tag }}-arm64v8
+
+  - &agent-multiarch-major-dockerhub
+    <<: *agent-multiarch-version-dockerhub
+    name_template: docker.io/jaegertracing/jaeger-agent:v{{ .Major }}
+  
+  - &agent-multiarch-major-minor-dockerhub
+    <<: *agent-multiarch-version-dockerhub
+    name_template: docker.io/jaegertracing/jaeger-agent:v{{ .Major }}.{{ .Minor }}
+
+  # same, for quay.io
+  - &agent-multiarch-version-quay
+    <<: *agent-multiarch-version-dockerhub
+    name_template: quay.io/jaegertracing/jaeger-agent:{{ .Tag }}
+
+  - &agent-multiarch-major-quay
+    <<: *agent-multiarch-version-dockerhub
+    name_template: quay.io/jaegertracing/jaeger-agent:v{{ .Major }}
+
+  - &agent-multiarch-major-minor-quay
+    <<: *agent-multiarch-version-dockerhub
+    name_template: quay.io/jaegertracing/jaeger-agent:v{{ .Major }}.{{ .Minor }}
+
+  # agent debug images
+  - &agent-debug-multiarch-version-dockerhub
+    <<: *agent-multiarch-version-dockerhub
+    name_template: docker.io/jaegertracing/jaeger-agent-debug:{{ .Tag }}
+    image_templates:
+      - jaegertracing/jaeger-agent-debug:{{ .Tag }}-amd64
+      - jaegertracing/jaeger-agent-debug:{{ .Tag }}-arm64v8
+
+  - &agent-debug-multiarch-major-dockerhub
+    <<: *agent-debug-multiarch-version-dockerhub
+    name_template: docker.io/jaegertracing/jaeger-agent-debug:v{{ .Major }}
+  
+  - &agent-debug-multiarch-major-minor-dockerhub
+    <<: *agent-debug-multiarch-version-dockerhub
+    name_template: docker.io/jaegertracing/jaeger-agent-debug:v{{ .Major }}.{{ .Minor }}
+
+  - &agent-debug-multiarch-version-quay
+    <<: *agent-debug-multiarch-version-dockerhub
+    name_template: quay.io/jaegertracing/jaeger-agent-debug:{{ .Tag }}
+
+  - &agent-debug-multiarch-major-quay
+    <<: *agent-debug-multiarch-version-dockerhub
+    name_template: quay.io/jaegertracing/jaeger-agent-debug:v{{ .Major }}
+
+  - &agent-debug-multiarch-major-minor-quay
+    <<: *agent-debug-multiarch-version-dockerhub
+    name_template: quay.io/jaegertracing/jaeger-agent-debug:v{{ .Major }}.{{ .Minor }}
+
+archives:
+  - format: binary
+checksum:
+  name_template: "checksums.txt"

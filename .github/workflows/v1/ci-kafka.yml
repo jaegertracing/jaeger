@@ -1,13 +1,17 @@
-name: CIT Cassandra
+name: CIT Kafka
 
 on:
   push:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
   pull_request:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
 
 jobs:
-  cassandra:
+  kafka:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -16,5 +20,5 @@ jobs:
       with:
         go-version: ^1.16
 
-    - name: Run cassandra integration tests
-      run: bash scripts/cassandra-integration-test.sh
+    - name: Run kafka integration tests
+      run: bash scripts/kafka-integration-test.sh

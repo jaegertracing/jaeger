@@ -3,8 +3,12 @@ name: Unit Tests
 on:
   push:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
   pull_request:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
 
 jobs:
   unit-tests:

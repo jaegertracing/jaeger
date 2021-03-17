@@ -1,13 +1,17 @@
-name: CIT Memory And Badger
+name: CIT Cassandra
 
 on:
   push:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
   pull_request:
     branches: [ master ]
+    paths-ignore:
+    - v2/**
 
 jobs:
-  memory-badger:
+  cassandra:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -16,5 +20,5 @@ jobs:
       with:
         go-version: ^1.16
 
-    - name: Run in-memory and badger integration tests
-      run: make mem-and-badger-storage-integration-test
+    - name: Run cassandra integration tests
+      run: bash scripts/cassandra-integration-test.sh

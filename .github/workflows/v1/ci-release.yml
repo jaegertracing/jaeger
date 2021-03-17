@@ -1,9 +1,9 @@
 name: Publish release
 
 on:
-  release:
-    types:
-      - published
+  push:
+    tags:
+      - "v1*"
 
 jobs:
   publish-release:

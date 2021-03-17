@@ -1,0 +1,7 @@
+FROM registry.access.redhat.com/ubi8/ubi
+
+USER nobody
+EXPOSE 5775/udp 6831/udp 6832/udp 5778/tcp
+
+COPY jaeger-agent /bin/jaeger-agent
+ENTRYPOINT ["/bin/jaeger-agent"]

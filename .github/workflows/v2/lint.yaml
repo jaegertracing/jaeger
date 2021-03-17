@@ -1,0 +1,26 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - v2/**
+  pull_request:
+    branches: [main]
+    paths:
+      - v2/**
+
+jobs:
+  lint:
+    name: Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v2.5.1
+        with:
+          args: -v
+          version: v1.38
+          working-directory: v2

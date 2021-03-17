@@ -35,3 +35,5 @@ cmd/docs/*.yaml
 crossdock/crossdock-*
 run-crossdock.log
 __pycache__
+
+v2/_build

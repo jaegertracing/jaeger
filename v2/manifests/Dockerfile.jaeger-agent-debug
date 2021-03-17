@@ -1,0 +1,7 @@
+FROM registry.access.redhat.com/ubi8/ubi
+
+USER nobody
+EXPOSE 5775/udp 6831/udp 6832/udp 5778/tcp 12345/tcp
+
+COPY jaeger-agent-debug /bin/jaeger-agent-debug
+ENTRYPOINT ["/go/bin/dlv", "exec", "/bin/jaeger-agent-debug", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
