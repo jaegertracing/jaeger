@@ -1,12 +1,16 @@
-name: Tests
+name: v2 - Tests
 
 on:
   push:
-    branches: [main]
+    branches:
+    - master
+    - main
     paths:
       - v2/**
   pull_request:
-    branches: [main]
+    branches:
+    - master
+    - main
     paths:
       - v2/**
 

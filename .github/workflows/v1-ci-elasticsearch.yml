@@ -1,4 +1,4 @@
-name: CIT Elasticsearch
+name: v1 - CIT Elasticsearch
 
 on:
   push:

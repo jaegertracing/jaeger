@@ -1,12 +1,16 @@
-name: Code Quality
+name: v2 - Code Quality
 
 on:
   push:
-    branches: [main]
+    branches:
+    - master
+    - main
     paths:
       - v2/**
   pull_request:
-    branches: [main]
+    branches:
+    - master
+    - main
     paths:
       - v2/**
 

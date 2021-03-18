@@ -1,4 +1,4 @@
-name: Protogen Validation
+name: v1 - Protogen Validation
 
 on:
   push:
