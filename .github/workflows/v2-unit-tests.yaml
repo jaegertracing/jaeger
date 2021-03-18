@@ -27,4 +27,4 @@ jobs:
           go-version: ^1.16
       
       - name: Basic Checks
-        run: make ci
+        run: make test
