@@ -15,8 +15,6 @@ builds:
     binary: jaeger-agent
     flags: 
       - -trimpath
-    gcflags:
-      - all=-N -l
     env:
       - CGO_ENABLED=0
     goos:
