@@ -2,7 +2,7 @@ ARG base_image
 ARG debug_image
 
 FROM $base_image AS release
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 # Agent zipkin.thrift compact
 EXPOSE 5775/udp
@@ -27,6 +27,8 @@ EXPOSE 16686
 
 COPY all-in-one-linux-$TARGETARCH /go/bin/all-in-one-linux
 COPY sampling_strategies.json /etc/jaeger/
+
+RUN chmod +x /go/bin/all-in-one-linux
 
 VOLUME ["/tmp"]
 ENTRYPOINT ["/go/bin/all-in-one-linux"]
