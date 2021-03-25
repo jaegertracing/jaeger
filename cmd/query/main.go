@@ -145,8 +145,8 @@ func main() {
 		app.AddFlags,
 	)
 
-	if error := command.Execute(); error != nil {
-		fmt.Println(error.Error())
+	if err := command.Execute(); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 }
