@@ -454,7 +454,15 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 			return json.MarshalIndent(v, "", "    ")
 		}
 	}
-	resp, _ := marshall(response)
+	resp, err := marshall(response)
+	if err != nil {
+		aH.logger.Error("Marshal HTTP response error", zap.Error(err))
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(resp)
+	if b, err := w.Write(resp); err != nil {
+		aH.logger.Error("Write HTTP response error", zap.Error(err))
+	} else {
+		aH.logger.Debug("Successfully wrote HTTP response", zap.Int("bytes", b))
+	}
 }

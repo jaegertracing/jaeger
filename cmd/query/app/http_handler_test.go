@@ -207,8 +207,11 @@ func TestPrettyPrint(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.param, func(t *testing.T) {
+			apiHandler := &APIHandler{
+				logger: zap.NewNop(),
+			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				new(APIHandler).writeJSON(w, r, &data)
+				apiHandler.writeJSON(w, r, &data)
 			}))
 			defer server.Close()
 
