@@ -3,18 +3,14 @@ module github.com/jaegertracing/jaeger
 go 1.16
 
 require (
-	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v0.9.0 // indirect
-	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
+	github.com/Shopify/sarama v1.28.0
 	github.com/apache/thrift v0.14.1
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger v1.6.2
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
-	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/fatih/color v1.9.0 // indirect
-	github.com/fortytw2/leaktest v1.3.0 // indirect
-	github.com/frankban/quicktest v1.7.3 // indirect
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-openapi/errors v0.19.4
@@ -45,12 +41,10 @@ require (
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pelletier/go-toml v1.6.0 // indirect
-	github.com/pierrec/lz4 v2.4.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/common v0.10.0 // indirect
 	github.com/prometheus/procfs v0.1.3 // indirect
-	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/rs/cors v1.7.0
 	github.com/securego/gosec v0.0.0-20200203094520-d13bb6d2420c
 	github.com/soheilhy/cmux v0.1.4
@@ -75,7 +69,6 @@ require (
 	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
 	google.golang.org/grpc v1.29.1
 	gopkg.in/ini.v1 v1.52.0 // indirect
-	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	honnef.co/go/tools v0.1.2
 )
