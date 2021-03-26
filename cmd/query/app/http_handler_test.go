@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -185,16 +186,59 @@ func TestLogOnServerError(t *testing.T) {
 	assert.Equal(t, e, (*l.logs)[0].f[0].Interface)
 }
 
-func TestPrettyPrint(t *testing.T) {
-	data := struct{ Data string }{Data: "Bender"}
+// httpResponseErrWriter implements the http.ResponseWriter interface
+// that returns an error on Write.
+type httpResponseErrWriter struct{}
 
+func (h *httpResponseErrWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("failed to write")
+}
+func (h *httpResponseErrWriter) WriteHeader(statusCode int) {}
+func (h *httpResponseErrWriter) Header() http.Header {
+	return http.Header{}
+}
+
+// ErrHandlerFunc injects the httpResponseErrWriter into the HTTP handler.
+type ErrHandlerFunc func(http.ResponseWriter, *http.Request)
+
+func (f ErrHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f(&httpResponseErrWriter{}, r)
+}
+func TestWriteJSON(t *testing.T) {
 	testCases := []struct {
-		param  string
-		output string
+		name         string
+		data         interface{}
+		param        string
+		output       string
+		httpWriteErr bool
 	}{
-		{output: `{"Data":"Bender"}`},
-		{param: "?prettyPrint=false", output: `{"Data":"Bender"}`},
-		{param: "?prettyPrint=x", output: "{\n    \"Data\": \"Bender\"\n}"},
+		{
+			name:   "no pretty print param passed",
+			data:   struct{ Data string }{Data: "Bender"},
+			output: `{"Data":"Bender"}`,
+		},
+		{
+			name:   "pretty print explicitly disabled",
+			data:   struct{ Data string }{Data: "Bender"},
+			param:  "?prettyPrint=false",
+			output: `{"Data":"Bender"}`,
+		},
+		{
+			name:   "pretty print enabled",
+			data:   struct{ Data string }{Data: "Bender"},
+			param:  "?prettyPrint=x",
+			output: "{\n    \"Data\": \"Bender\"\n}",
+		},
+		{
+			name:   "fail JSON marshal",
+			data:   struct{ Data float64 }{Data: math.Inf(1)},
+			output: "{\"data\":null,\"total\":0,\"limit\":0,\"offset\":0,\"errors\":[{\"code\":500,\"msg\":\"failed marshalling HTTP response to JSON: json: unsupported value: +Inf\"}]}\n",
+		},
+		{
+			name:         "fail http write",
+			data:         struct{ Data string }{Data: "Bender"},
+			httpWriteErr: true,
+		},
 	}
 
 	get := func(url string) string {
@@ -210,9 +254,15 @@ func TestPrettyPrint(t *testing.T) {
 			apiHandler := &APIHandler{
 				logger: zap.NewNop(),
 			}
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				apiHandler.writeJSON(w, r, &data)
-			}))
+			httpHandler := func(w http.ResponseWriter, r *http.Request) {
+				apiHandler.writeJSON(w, r, &testCase.data)
+			}
+			var server *httptest.Server
+			if testCase.httpWriteErr {
+				server = httptest.NewServer(ErrHandlerFunc(httpHandler))
+			} else {
+				server = httptest.NewServer(http.HandlerFunc(httpHandler))
+			}
 			defer server.Close()
 
 			out := get(server.URL + testCase.param)
