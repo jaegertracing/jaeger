@@ -456,12 +456,12 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 	}
 	resp, err := marshall(response)
 	if err != nil {
-		aH.logger.Error("Marshal HTTP response error", zap.Error(err))
+		aH.logger.Error("Failed marshalling HTTP response to JSON", zap.Error(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if b, err := w.Write(resp); err != nil {
-		aH.logger.Error("Write HTTP response error", zap.Error(err))
+		aH.logger.Error("Failed writing HTTP response", zap.Error(err))
 	} else {
 		aH.logger.Debug("Successfully wrote HTTP response", zap.Int("bytes", b))
 	}
