@@ -186,8 +186,7 @@ func TestLogOnServerError(t *testing.T) {
 	assert.Equal(t, e, (*l.logs)[0].f[0].Interface)
 }
 
-// httpResponseErrWriter implements the http.ResponseWriter interface
-// that returns an error on Write.
+// httpResponseErrWriter implements the http.ResponseWriter interface that returns an error on Write.
 type httpResponseErrWriter struct{}
 
 func (h *httpResponseErrWriter) Write([]byte) (int, error) {
@@ -196,13 +195,6 @@ func (h *httpResponseErrWriter) Write([]byte) (int, error) {
 func (h *httpResponseErrWriter) WriteHeader(statusCode int) {}
 func (h *httpResponseErrWriter) Header() http.Header {
 	return http.Header{}
-}
-
-// ErrHandlerFunc injects the httpResponseErrWriter into the HTTP handler.
-type ErrHandlerFunc func(http.ResponseWriter, *http.Request)
-
-func (f ErrHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f(&httpResponseErrWriter{}, r)
 }
 func TestWriteJSON(t *testing.T) {
 	testCases := []struct {
@@ -250,19 +242,17 @@ func TestWriteJSON(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		t.Run(testCase.param, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			apiHandler := &APIHandler{
 				logger: zap.NewNop(),
 			}
 			httpHandler := func(w http.ResponseWriter, r *http.Request) {
+				if testCase.httpWriteErr {
+					w = &httpResponseErrWriter{}
+				}
 				apiHandler.writeJSON(w, r, &testCase.data)
 			}
-			var server *httptest.Server
-			if testCase.httpWriteErr {
-				server = httptest.NewServer(ErrHandlerFunc(httpHandler))
-			} else {
-				server = httptest.NewServer(http.HandlerFunc(httpHandler))
-			}
+			server := httptest.NewServer(http.HandlerFunc(httpHandler))
 			defer server.Close()
 
 			out := get(server.URL + testCase.param)

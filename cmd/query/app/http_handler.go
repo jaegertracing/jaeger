@@ -460,9 +460,7 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if b, err := w.Write(resp); err != nil {
+	if _, err := w.Write(resp); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
-	} else {
-		aH.logger.Debug("Successfully wrote HTTP response", zap.Int("bytes", b))
 	}
 }
