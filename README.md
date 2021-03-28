@@ -203,3 +203,27 @@ If you would like to add your organization to the list, please comment on our
 [slack]: https://cloud-native.slack.com/archives/CGG7NFUJ3
 [slack-join]: https://slack.cncf.io
 [slack-img]: https://img.shields.io/badge/slack-join%20chat%20%E2%86%92-brightgreen?logo=slack
+
+## Releases
+
+Release binaries are available from [Jaeger's Download page](https://www.jaegertracing.io/download/).
+
+The accompanying release notes (including breaking changes, new features and bug fixes)
+can be found on [Jaeger's Github releases page](https://github.com/jaegertracing/jaeger/releases/) along with past releases.
+
+### Deprecated CLI Flags
+
+Occasionally, CLI flags can be deprecated due to, for example, usability improvements or new functionality.
+In such situations, developers introducing the deprecation are required to follow [these guidelines](./CONTRIBUTING.md#deprecated-cli-flags).
+
+In short, for a deprecated CLI flag, you should expect to see the following message in the `--help` documentation:
+```
+(deprecated, will be removed after yyyy-mm-dd or in release vX.Y.Z, whichever is later)
+```
+
+A grace period of at least **3 months** or **two minor version bumps** from the first release
+containing the deprecation notice (whichever is later) will be provided before the deprecated CLI flag _can_ be deleted.
+
+For example, if hypothetically, v1.28.0 is released on 01/06/2021 containing a deprecation notice for a CLI flag.
+This flag will remain in a deprecated state until at least 01/09/2021 or v1.30.0 before it _can_ be removed.
+It may remain deprecated for longer than the aforementioned grace period.
