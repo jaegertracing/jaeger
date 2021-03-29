@@ -65,14 +65,14 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	for k, v := range tags {
 		values.Add("tag", k+":"+v)
 	}
-	url := fmt.Sprintf(getTraceURL(s.url), values.Encode())
-	resp, err := http.Get(url)
+	traceURL := fmt.Sprintf(getTraceURL(s.url), values.Encode())
+	resp, err := http.Get(traceURL)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", url))
+	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", traceURL))
 
 	var queryResponse response
 	if err = json.Unmarshal(body, &queryResponse); err != nil {
