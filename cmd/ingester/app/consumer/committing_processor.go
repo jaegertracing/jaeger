@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 )
 
-type comittingProcessor struct {
+type committingProcessor struct {
 	processor processor.SpanProcessor
 	marker    offsetMarker
 	io.Closer
@@ -33,13 +33,13 @@ type offsetMarker interface {
 
 // NewCommittingProcessor returns a processor that commits message offsets to Kafka
 func NewCommittingProcessor(processor processor.SpanProcessor, marker offsetMarker) processor.SpanProcessor {
-	return &comittingProcessor{
+	return &committingProcessor{
 		processor: processor,
 		marker:    marker,
 	}
 }
 
-func (d *comittingProcessor) Process(message processor.Message) error {
+func (d *committingProcessor) Process(message processor.Message) error {
 	if msg, ok := message.(Message); ok {
 		err := d.processor.Process(message)
 		if err == nil {
