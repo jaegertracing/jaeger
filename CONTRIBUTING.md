@@ -192,7 +192,7 @@ After the merge make sure referenced issues were closed.
 * When reading the flag into config, log a warning with the same warning.
 * Take care of deprecated flags in `initFromViper` functions, do not pass them to business functions.
 
-## Removing Deprecated CLI Flags
+### Removing Deprecated CLI Flags
 * Ensure all references to the flag's variables have been removed in code.
 * Ensure a "Breaking Changes" entry is added in the [CHANGELOG](./CHANGELOG.md) indicating which CLI flag
 is being removed and which CLI flag should be used in favor of this removed flag.
