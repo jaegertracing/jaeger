@@ -59,7 +59,7 @@ require (
 	github.com/uber/jaeger-lib v2.4.0+incompatible
 	github.com/vektra/mockery v0.0.0-20181123154057-e78b021dcbb5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
-	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
+	github.com/xdg-go/scram v1.0.2
 	go.mongodb.org/mongo-driver v1.3.2 // indirect
 	go.uber.org/atomic v1.7.0
 	go.uber.org/automaxprocs v1.4.0
