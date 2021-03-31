@@ -135,6 +135,10 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 				c.logger.Info("Message channel closed. ", zap.Int32("partition", pc.Partition()))
 				return
 			}
+			if msg == nil || msg.Value == nil {
+				c.logger.Info("Message or Message value is nil")
+				continue
+			}
 			c.logger.Debug("Got msg", zap.Any("msg", msg))
 			msgMetrics.counter.Inc(1)
 			msgMetrics.offsetGauge.Update(msg.Offset)
