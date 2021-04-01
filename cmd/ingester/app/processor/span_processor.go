@@ -16,6 +16,7 @@ package processor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -59,6 +60,9 @@ func NewSpanProcessor(params SpanProcessorParams) *KafkaSpanProcessor {
 
 // Process unmarshals and writes a single kafka message
 func (s KafkaSpanProcessor) Process(message Message) error {
+	if message == nil {
+		return errors.New("cannot process a nil message")
+	}
 	span, err := s.unmarshaller.Unmarshal(message.Value())
 	if err != nil {
 		return fmt.Errorf("cannot unmarshall byte array into span: %w", err)
