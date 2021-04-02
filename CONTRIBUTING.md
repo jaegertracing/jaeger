@@ -172,3 +172,32 @@ Before merging a PR make sure:
 
 Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
 After the merge make sure referenced issues were closed.
+
+## Deprecating CLI Flags
+
+* If a flag is deprecated in release N, it can be removed in release N+2 or three months later, whichever is later.
+* When adding a (deprecated) prefix to the flags, indicate via a deprecation message that the flag could be removed in the future. For example:
+  ```
+  (deprecated, will be removed after 2020-03-15 or in release v1.19.0, whichever is later)
+  ```
+* At the top of the file where the flag name is defined, add a constant and a comment, e.g.
+  ```
+  // TODO deprecated flag to be removed
+  healthCheckHTTPPortWarning = "(deprecated, will be removed after 2020-03-15 or in release v1.19.0, whichever is later)"
+  ```
+* Use that constant as the prefix to the help text, e.g.
+  ```
+  flagSet.Int(healthCheckHTTPPort, 0, healthCheckHTTPPortWarning+" see --"+adminHTTPHostPort)
+  ```
+* When parsing a deprecated flag into config, log a warning with the same deprecation message
+* Take care of deprecated flags in `initFromViper` functions, do not pass them to business functions.
+
+### Removing Deprecated CLI Flags
+* Ensure all references to the flag's variables have been removed in code.
+* Ensure a "Breaking Changes" entry is added in the [CHANGELOG](./CHANGELOG.md) indicating which CLI flag
+is being removed and which CLI flag should be used in favor of this removed flag.
+  
+For example:
+```
+* Remove deprecated flags `--old-flag`, please use `--new-flag` ([#1234](<pull-request URL>), [@myusername](https://github.com/myusername))
+```
