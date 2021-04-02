@@ -57,9 +57,12 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(flags []string)
 	s.logger, _ = testutils.NewLogger()
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags(flags)
+	err := command.ParseFlags(flags)
+	if err != nil {
+		return nil, err
+	}
 	f.InitFromViper(v)
-	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
+	if err = f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return nil, err
 	}
 	return f, nil
