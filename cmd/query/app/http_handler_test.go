@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -185,16 +186,51 @@ func TestLogOnServerError(t *testing.T) {
 	assert.Equal(t, e, (*l.logs)[0].f[0].Interface)
 }
 
-func TestPrettyPrint(t *testing.T) {
-	data := struct{ Data string }{Data: "Bender"}
+// httpResponseErrWriter implements the http.ResponseWriter interface that returns an error on Write.
+type httpResponseErrWriter struct{}
 
+func (h *httpResponseErrWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("failed to write")
+}
+func (h *httpResponseErrWriter) WriteHeader(statusCode int) {}
+func (h *httpResponseErrWriter) Header() http.Header {
+	return http.Header{}
+}
+func TestWriteJSON(t *testing.T) {
 	testCases := []struct {
-		param  string
-		output string
+		name         string
+		data         interface{}
+		param        string
+		output       string
+		httpWriteErr bool
 	}{
-		{output: `{"Data":"Bender"}`},
-		{param: "?prettyPrint=false", output: `{"Data":"Bender"}`},
-		{param: "?prettyPrint=x", output: "{\n    \"Data\": \"Bender\"\n}"},
+		{
+			name:   "no pretty print param passed",
+			data:   struct{ Data string }{Data: "Bender"},
+			output: `{"Data":"Bender"}`,
+		},
+		{
+			name:   "pretty print explicitly disabled",
+			data:   struct{ Data string }{Data: "Bender"},
+			param:  "?prettyPrint=false",
+			output: `{"Data":"Bender"}`,
+		},
+		{
+			name:   "pretty print enabled",
+			data:   struct{ Data string }{Data: "Bender"},
+			param:  "?prettyPrint=x",
+			output: "{\n    \"Data\": \"Bender\"\n}",
+		},
+		{
+			name:   "fail JSON marshal",
+			data:   struct{ Data float64 }{Data: math.Inf(1)},
+			output: "{\"data\":null,\"total\":0,\"limit\":0,\"offset\":0,\"errors\":[{\"code\":500,\"msg\":\"failed marshalling HTTP response to JSON: json: unsupported value: +Inf\"}]}\n",
+		},
+		{
+			name:         "fail http write",
+			data:         struct{ Data string }{Data: "Bender"},
+			httpWriteErr: true,
+		},
 	}
 
 	get := func(url string) string {
@@ -206,10 +242,17 @@ func TestPrettyPrint(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		t.Run(testCase.param, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				new(APIHandler).writeJSON(w, r, &data)
-			}))
+		t.Run(testCase.name, func(t *testing.T) {
+			apiHandler := &APIHandler{
+				logger: zap.NewNop(),
+			}
+			httpHandler := func(w http.ResponseWriter, r *http.Request) {
+				if testCase.httpWriteErr {
+					w = &httpResponseErrWriter{}
+				}
+				apiHandler.writeJSON(w, r, &testCase.data)
+			}
+			server := httptest.NewServer(http.HandlerFunc(httpHandler))
 			defer server.Close()
 
 			out := get(server.URL + testCase.param)

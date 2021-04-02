@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
-	"github.com/xdg/scram"
+	"github.com/xdg-go/scram"
 )
 
 // scramClient is the client to use when the auth mechanism is SCRAM
