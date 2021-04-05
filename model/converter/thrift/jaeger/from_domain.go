@@ -46,7 +46,7 @@ type domainToJaegerTransformer struct{}
 
 func (d domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag {
 	if kv.VType == model.StringType {
-		stringValue := string(kv.VStr)
+		stringValue := kv.VStr
 		return &jaeger.Tag{
 			Key:   kv.Key,
 			VType: jaeger.TagType_STRING,
