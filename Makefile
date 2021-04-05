@@ -64,7 +64,7 @@ JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.2.0
 
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
 COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
-COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
+COLORIZE ?=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
