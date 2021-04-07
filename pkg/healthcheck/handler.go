@@ -98,9 +98,10 @@ func (hc *HealthCheck) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		state := hc.getState()
 		template := hc.responses[state.status]
-		w.WriteHeader(template.statusCode)
 
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(template.statusCode)
+
 		w.Write(hc.createRespBody(state, template))
 	})
 }
