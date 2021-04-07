@@ -61,13 +61,13 @@ func TestGetTraces(t *testing.T) {
 
 	_, err = query.GetTraces("bad_svc", "op", map[string]string{"key": "value"})
 	assert.Error(t, err)
+}
 
-	// Test ioutil.ReadAll error
-	// responds saying there's something in the response body but sends nothing in the body.
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestGetTracesReadAllErr(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "1")
 	}))
-	query = NewQueryService(server.URL, zap.NewNop())
-	_, err = query.GetTraces("svc", "op", map[string]string{"key": "value"})
+	query := NewQueryService(server.URL, zap.NewNop())
+	_, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
 	assert.EqualError(t, err, "unexpected EOF")
 }
