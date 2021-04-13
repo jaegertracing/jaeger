@@ -174,3 +174,27 @@ func TestIndexDateSeparator(t *testing.T) {
 		})
 	}
 }
+
+func TestIndexRotate(t *testing.T) {
+	testCases := []struct {
+		name           string
+		flags          []string
+		wantDateLayout string
+	}{
+		{"not defined (default)", []string{}, "2006-01-02"},
+		{"day rotation", []string{"--es.index-rotate=day"}, "2006-01-02"},
+		{"hour rotation", []string{"--es.index-rotate=hour"}, "2006-01-02-15"},
+		{"error rotation change default", []string{"--es.index-rotate=hours"}, "2006-01-02"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := NewOptions("es")
+			v, command := config.Viperize(opts.AddFlags)
+			command.ParseFlags(tc.flags)
+			opts.InitFromViper(v)
+			primary := opts.GetPrimary()
+			assert.Equal(t, tc.wantDateLayout, primary.IndexDateLayout)
+
+		})
+	}
+}
