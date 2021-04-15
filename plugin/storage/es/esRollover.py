@@ -19,6 +19,7 @@ UNIT_COUNT = 2
 SHARDS = 5
 REPLICAS = 1
 
+TIMEOUT=120
 
 def main():
     if len(sys.argv) != 3:
@@ -55,9 +56,11 @@ def main():
         print('\tUNIT_COUNT ... count of UNITs (default {}).'.format(UNIT_COUNT))
         sys.exit(1)
 
+    timeout = int(os.getenv("TIMEOUT", TIMEOUT))
+
     client = create_client(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')),
                            os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"),
-                           str2bool(os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false')))
+                           str2bool(os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false')), timeout)
     prefix = os.getenv('INDEX_PREFIX', '')
     if prefix != '':
         prefix += '-'
@@ -237,7 +240,7 @@ def get_version(client):
     return esVersion
 
 
-def create_client(username, password, tls, ca, cert, key, skipHostVerify):
+def create_client(username, password, tls, ca, cert, key, skipHostVerify, timeout):
     context = ssl.create_default_context()
     if ca is not None:
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=ca)
@@ -245,12 +248,12 @@ def create_client(username, password, tls, ca, cert, key, skipHostVerify):
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
     if username is not None and password is not None:
-        return elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password), ssl_context=context)
+        return elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password), ssl_context=context, timeout=timeout)
     elif tls:
         context.load_cert_chain(certfile=cert, keyfile=key)
-        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
+        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context, timeout=timeout)
     else:
-        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
+        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context, timeout=timeout)
 
 
 def check_if_ilm_policy_exists(ilm_policy):
