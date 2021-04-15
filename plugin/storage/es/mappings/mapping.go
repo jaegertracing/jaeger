@@ -23,7 +23,7 @@ import (
 )
 
 //go:embed *.json
-// MAPPINGS contains embeded index templates.
+// MAPPINGS contains embedded index templates.
 var MAPPINGS embed.FS
 
 // MappingBuilder holds parameters required to render an elasticsearch index template
