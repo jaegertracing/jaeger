@@ -1,0 +1,155 @@
+// Copyright (c) 2021 The Jaeger Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax="proto3";
+
+package jaeger.api_v2;
+
+import "otelmetric.proto";
+import "otelspankind.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+option go_package = "api_v2";
+option java_package = "io.jaegertracing.api_v2";
+
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+
+// MetricsQueryBaseRequest is the base request parameter accompanying a MetricsQueryService RPC call.
+message MetricsQueryBaseRequest {
+  // end_time is the ending time of the time series query range.
+  // Optional. Default = now.
+  google.protobuf.Timestamp end_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true
+  ];
+
+  // lookback is the duration from the end_time to look back on for metrics data points.
+  // For example, if set to 1h, the query would span from end_time-1h to end_time.
+  // Optional. Default = 1h.
+  google.protobuf.Duration lookback = 2 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = true
+  ];
+
+  // step size is the duration between data points of the query results.
+  // For example, if set to 5s, the results would produce a data point every 5 seconds
+  // from the start_time to end_time.
+  // Optional. Default = 5s.
+  google.protobuf.Duration step = 3 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = true
+  ];
+
+  // ratePer is the duration in which the per-second rate of change is calculated for a cumulative counter metric.
+  // Optional. Default = 10m.
+  google.protobuf.Duration ratePer = 4 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = true
+  ];
+
+  // spanKinds is the list of span kinds to include (logical OR) in the resulting metrics aggregation.
+  // Optional. Default = [SPAN_KIND_SERVER].
+  repeated SpanKind spanKinds = 5;
+}
+
+// GetPerServiceLatenciesRequest contains parameters for the GetPerServiceLatencies RPC call.
+message GetPerServiceLatenciesRequest {
+  MetricsQueryBaseRequest baseRequest = 1;
+  // quantile is the quantile to compute from latency histogram metrics.
+  // Required.
+  double quantile = 2;
+}
+
+// GetPerServiceCallRatesRequest contains parameters for the GetPerServiceCallRates RPC call.
+message GetPerServiceCallRatesRequest {
+  MetricsQueryBaseRequest baseRequest = 1;
+}
+
+// GetPerServiceErrorRatesRequest contains parameters for the GetPerServiceErrorRates RPC call.
+message GetPerServiceErrorRatesRequest {
+  MetricsQueryBaseRequest baseRequest = 1;
+}
+
+// GetPerOperationLatenciesRequest contains parameters for the GetPerOperationLatencies RPC call.
+message GetPerOperationLatenciesRequest {
+  MetricsQueryBaseRequest baseRequest = 1;
+  // service_name is the service name to fetch operation metrics from.
+  // Required.
+  string service_name = 2;
+  // quantile is the quantile to compute from latency histogram metrics.
+  // Required.
+  double quantile = 3;
+}
+
+// GetPerOperationCallRatesRequest contains parameters for the GetPerOperationCallRates RPC call.
+message GetPerOperationCallRatesRequest {
+  MetricsQueryBaseRequest baseRequest = 1;
+  // service_name is the service name to fetch operation metrics from.
+  // Required.
+  string service_name = 2;
+}
+
+// GetPerOperationErrorRatesRequest contains parameters for the GetPerOperationErrorRates RPC call.
+message GetPerOperationErrorRatesRequest {
+  MetricsQueryBaseRequest baseRequest = 1;
+  // service_name is the service name to fetch operation metrics from.
+  // Required.
+  string service_name = 2;
+}
+
+message GetMinStepDurationRequest{};
+
+message GetMinStepDurationResponse {
+  google.protobuf.Duration minStep = 1 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+message GetMetricsResponse {
+  repeated Metric metrics = 1 [
+    (gogoproto.nullable) = false
+  ];
+}
+
+service MetricsQueryService {
+  // GetMinStepDuration gets the min step duration supported by the backing metrics store.
+  rpc GetMinStepDuration(GetMinStepDurationRequest) returns (GetMinStepDurationResponse);
+
+  // GetPerServiceLatencies gets latency metrics grouped by service.
+  rpc GetPerServiceLatencies(GetPerServiceLatenciesRequest) returns (GetMetricsResponse);
+
+  // GetPerServiceCallRates gets the call rate metrics grouped by service.
+  rpc GetPerServiceCallRates(GetPerServiceCallRatesRequest) returns (GetMetricsResponse);
+
+  // GetPerServiceErrorRates gets the error rate metrics grouped by service.
+  rpc GetPerServiceErrorRates(GetPerServiceErrorRatesRequest) returns (GetMetricsResponse);
+
+  // GetPerOperationLatencies gets the latency metrics grouped by operation for a given service.
+  rpc GetPerOperationLatencies(GetPerOperationLatenciesRequest) returns (GetMetricsResponse);
+
+  // GetPerOperationCallRates gets the call rate metrics grouped by operation for a given service.
+  rpc GetPerOperationCallRates(GetPerOperationCallRatesRequest) returns (GetMetricsResponse);
+
+  // GetPerOperationErrorRates gets the error rate metrics grouped by operation for a given service.
+  rpc GetPerOperationErrorRates(GetPerOperationErrorRatesRequest) returns (GetMetricsResponse);
+}
