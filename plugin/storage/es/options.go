@@ -46,7 +46,7 @@ const (
 	suffixTimeout             = ".timeout"
 	suffixIndexPrefix         = ".index-prefix"
 	suffixIndexDateSeparator  = ".index-date-separator"
-	suffixIndexRotate         = ".index-rotate"
+	suffixIndexRollover       = ".index-rollover"
 	suffixTagsAsFields        = ".tags-as-fields"
 	suffixTagsAsFieldsAll     = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude = suffixTagsAsFields + ".include"
@@ -67,7 +67,7 @@ const (
 	// default separator for Elasticsearch index date layout.
 	defaultIndexDateSeparator = "-"
 
-	defaultIndexRotate = "day"
+	defaultIndexRollover = "day"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -210,9 +210,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		defaultIndexDateSeparator,
 		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".")
 	flagSet.String(
-		nsConfig.namespace+suffixIndexRotate,
-		defaultIndexRotate,
-		"Optional rotation opportunity of Jaeger indices. For example \"day\" creates \"jaeger-span-yyyy-HH-dd\" every day after UTC 12AM. Valid opportunity: [hour, day]")
+		nsConfig.namespace+suffixIndexRollover,
+		defaultIndexRollover,
+		"Rotates Jaeger indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-HH-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
+			"Jaeger also support Elasticsearch ILM to manage indices, reference(https://www.jaegertracing.io/docs/deployment/#elasticsearch-ilm-support)")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
@@ -302,6 +303,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.IndexDateLayout = initDateLayout(strings.ToLower(v.GetString(cfg.namespace+suffixIndexRollover)), v.GetString(cfg.namespace+suffixIndexDateSeparator))
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
 	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
@@ -322,19 +324,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
-	}
-
-	indexRotate := strings.ToLower(v.GetString(cfg.namespace + suffixIndexRotate))
-
-	switch indexRotate {
-	case "day":
-		cfg.IndexDateLayout = initDateLayoutDay(v.GetString(cfg.namespace + suffixIndexDateSeparator))
-
-	case "hour":
-		cfg.IndexDateLayout = initDateLayoutHours(v.GetString(cfg.namespace + suffixIndexDateSeparator))
-
-	default:
-		cfg.IndexDateLayout = initDateLayoutDay(v.GetString(cfg.namespace + suffixIndexDateSeparator))
 	}
 }
 
@@ -362,10 +351,12 @@ func stripWhiteSpace(str string) string {
 	return strings.Replace(str, " ", "", -1)
 }
 
-func initDateLayoutDay(separator string) string {
-	return fmt.Sprintf("2006%s01%s02", separator, separator)
-}
-
-func initDateLayoutHours(separator string) string {
-	return fmt.Sprintf("2006%s01%s02%s15", separator, separator, separator)
+func initDateLayout(RolloverBy, separator string) string {
+	seps := []interface{}{separator, separator}
+	indexLayout := "2006%s01%s02"
+	if RolloverBy == "hour" {
+		indexLayout = "2006%s01%s02%s15"
+		seps = append(seps, separator)
+	}
+	return fmt.Sprintf(indexLayout, seps...)
 }

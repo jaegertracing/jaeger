@@ -175,16 +175,16 @@ func TestIndexDateSeparator(t *testing.T) {
 	}
 }
 
-func TestIndexRotate(t *testing.T) {
+func TestIndexRollover(t *testing.T) {
 	testCases := []struct {
 		name           string
 		flags          []string
 		wantDateLayout string
 	}{
 		{"not defined (default)", []string{}, "2006-01-02"},
-		{"day rotation", []string{"--es.index-rotate=day"}, "2006-01-02"},
-		{"hour rotation", []string{"--es.index-rotate=hour"}, "2006-01-02-15"},
-		{"error rotation change default", []string{"--es.index-rotate=hours"}, "2006-01-02"},
+		{"day rotation", []string{"--es.index-rollover=day"}, "2006-01-02"},
+		{"hour rotation", []string{"--es.index-rollover=hour"}, "2006-01-02-15"},
+		{"error rotation change default", []string{"--es.index-rollover=hours"}, "2006-01-02"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
