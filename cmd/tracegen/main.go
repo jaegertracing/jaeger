@@ -16,9 +16,11 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	jaegerConfig "github.com/uber/jaeger-client-go/config"
 	jaegerZap "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics/prometheus"
@@ -60,6 +62,10 @@ func main() {
 
 	opentracing.InitGlobalTracer(tracer)
 	logger.Info("Initialized global tracer")
+
+	http.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(":2112", nil)
+	logger.Info("Initialized Prometheus endpoint at 2112")
 
 	tracegen.Run(cfg, logger)
 

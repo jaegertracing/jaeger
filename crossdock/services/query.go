@@ -71,7 +71,10 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", url))
 
 	var queryResponse response

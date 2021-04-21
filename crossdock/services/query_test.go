@@ -62,3 +62,12 @@ func TestGetTraces(t *testing.T) {
 	_, err = query.GetTraces("bad_svc", "op", map[string]string{"key": "value"})
 	assert.Error(t, err)
 }
+
+func TestGetTracesReadAllErr(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "1")
+	}))
+	query := NewQueryService(server.URL, zap.NewNop())
+	_, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
+	assert.EqualError(t, err, "unexpected EOF")
+}

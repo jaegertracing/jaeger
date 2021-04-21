@@ -92,6 +92,23 @@ using Zipkin libraries, you do not have to rewrite all that code. Jaeger provide
 by accepting spans in Zipkin formats (Thrift or JSON v1/v2) over HTTP. Switching from Zipkin backend is just a matter
 of routing the traffic from Zipkin libraries to the Jaeger backend.
 
+## Version Compatibility Guarantees
+
+Occasionally, CLI flags can be deprecated due to, for example, usability improvements or new functionality.
+In such situations, developers introducing the deprecation are required to follow [these guidelines](./CONTRIBUTING.md#deprecating-cli-flags).
+
+In short, for a deprecated CLI flag, you should expect to see the following message in the `--help` documentation:
+```
+(deprecated, will be removed after yyyy-mm-dd or in release vX.Y.Z, whichever is later)
+```
+
+A grace period of at least **3 months** or **two minor version bumps** (whichever is later) from the first release
+containing the deprecation notice will be provided before the deprecated CLI flag _can_ be deleted.
+
+For example, consider a scenario where v1.28.0 is released on 01-Jun-2021 containing a deprecation notice for a CLI flag.
+This flag will remain in a deprecated state until the later of 01-Sep-2021 or v1.30.0 where it _can_ be removed on or after either of those events.
+It may remain deprecated for longer than the aforementioned grace period.
+
 ## Related Repositories
 
 ### Documentation
