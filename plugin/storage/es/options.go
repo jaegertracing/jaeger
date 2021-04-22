@@ -212,8 +212,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRollover,
 		defaultIndexRollover,
-		"Rotates Jaeger indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-HH-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
-			"Jaeger also support Elasticsearch ILM to manage indices, reference(https://www.jaegertracing.io/docs/deployment/#elasticsearch-ilm-support)")
+		"Rotates Jaeger indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
+			"Jaeger additionally supports manual and automated (via ILM) index management. Reference: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
@@ -303,7 +303,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
-	cfg.IndexDateLayout = initDateLayout(strings.ToLower(v.GetString(cfg.namespace+suffixIndexRollover)), v.GetString(cfg.namespace+suffixIndexDateSeparator))
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
 	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
@@ -325,6 +324,10 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	if len(remoteReadClusters) > 0 {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
+
+	rolloverBy := strings.ToLower(v.GetString(cfg.namespace + suffixIndexRollover))
+	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
+	cfg.IndexDateLayout = initDateLayout(rolloverBy, separator)
 }
 
 // GetPrimary returns primary configuration.
@@ -351,10 +354,13 @@ func stripWhiteSpace(str string) string {
 	return strings.Replace(str, " ", "", -1)
 }
 
-func initDateLayout(RolloverBy, separator string) string {
+func initDateLayout(rolloverBy, separator string) string {
 	seps := []interface{}{separator, separator}
+
+	// Default "day" index layout.
 	indexLayout := "2006%s01%s02"
-	if RolloverBy == "hour" {
+
+	if rolloverBy == "hour" {
 		indexLayout = "2006%s01%s02%s15"
 		seps = append(seps, separator)
 	}
