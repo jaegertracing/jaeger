@@ -71,26 +71,8 @@ message MetricsQueryBaseRequest {
   repeated SpanKind spanKinds = 5;
 }
 
-// GetPerServiceLatenciesRequest contains parameters for the GetPerServiceLatencies RPC call.
-message GetPerServiceLatenciesRequest {
-  MetricsQueryBaseRequest baseRequest = 1;
-  // quantile is the quantile to compute from latency histogram metrics.
-  // Required.
-  double quantile = 2;
-}
-
-// GetPerServiceCallRatesRequest contains parameters for the GetPerServiceCallRates RPC call.
-message GetPerServiceCallRatesRequest {
-  MetricsQueryBaseRequest baseRequest = 1;
-}
-
-// GetPerServiceErrorRatesRequest contains parameters for the GetPerServiceErrorRates RPC call.
-message GetPerServiceErrorRatesRequest {
-  MetricsQueryBaseRequest baseRequest = 1;
-}
-
-// GetPerOperationLatenciesRequest contains parameters for the GetPerOperationLatencies RPC call.
-message GetPerOperationLatenciesRequest {
+// GetServiceLatenciesRequest contains parameters for the GetServiceLatencies RPC call.
+message GetServiceLatenciesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
   // service_name is the service name to fetch operation metrics from.
   // Required.
@@ -100,16 +82,16 @@ message GetPerOperationLatenciesRequest {
   double quantile = 3;
 }
 
-// GetPerOperationCallRatesRequest contains parameters for the GetPerOperationCallRates RPC call.
-message GetPerOperationCallRatesRequest {
+// GetServiceCallRatesRequest contains parameters for the GetServiceCallRates RPC call.
+message GetServiceCallRatesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
   // service_name is the service name to fetch operation metrics from.
   // Required.
   string service_name = 2;
 }
 
-// GetPerOperationErrorRatesRequest contains parameters for the GetPerOperationErrorRates RPC call.
-message GetPerOperationErrorRatesRequest {
+// GetServiceErrorRatesRequest contains parameters for the GetServiceErrorRates RPC call.
+message GetServiceErrorRatesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
   // service_name is the service name to fetch operation metrics from.
   // Required.
@@ -135,21 +117,12 @@ service MetricsQueryService {
   // GetMinStepDuration gets the min step duration supported by the backing metrics store.
   rpc GetMinStepDuration(GetMinStepDurationRequest) returns (GetMinStepDurationResponse);
 
-  // GetPerServiceLatencies gets latency metrics grouped by service.
-  rpc GetPerServiceLatencies(GetPerServiceLatenciesRequest) returns (GetMetricsResponse);
+  // GetServiceLatencies gets the latency metrics grouped by operation for a given service.
+  rpc GetServiceLatencies(GetServiceLatenciesRequest) returns (GetMetricsResponse);
 
-  // GetPerServiceCallRates gets the call rate metrics grouped by service.
-  rpc GetPerServiceCallRates(GetPerServiceCallRatesRequest) returns (GetMetricsResponse);
+  // GetServiceCallRates gets the call rate metrics grouped by operation for a given service.
+  rpc GetServiceCallRates(GetServiceCallRatesRequest) returns (GetMetricsResponse);
 
-  // GetPerServiceErrorRates gets the error rate metrics grouped by service.
-  rpc GetPerServiceErrorRates(GetPerServiceErrorRatesRequest) returns (GetMetricsResponse);
-
-  // GetPerOperationLatencies gets the latency metrics grouped by operation for a given service.
-  rpc GetPerOperationLatencies(GetPerOperationLatenciesRequest) returns (GetMetricsResponse);
-
-  // GetPerOperationCallRates gets the call rate metrics grouped by operation for a given service.
-  rpc GetPerOperationCallRates(GetPerOperationCallRatesRequest) returns (GetMetricsResponse);
-
-  // GetPerOperationErrorRates gets the error rate metrics grouped by operation for a given service.
-  rpc GetPerOperationErrorRates(GetPerOperationErrorRatesRequest) returns (GetMetricsResponse);
+  // GetServiceErrorRates gets the error rate metrics grouped by operation for a given service.
+  rpc GetServiceErrorRates(GetServiceErrorRatesRequest) returns (GetMetricsResponse);
 }

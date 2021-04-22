@@ -42,8 +42,8 @@ The key trade-offs are:
 
 - Synchronizing with the original source proto definition.
   - It is anticipated that the maintenance effort to synchronize data models will be minimal considering
-    there is no direct dependency between Jaeger and OpenTelemetry in the context querying metrics,
-    with exception to SpanKind, and the existing data model more than satisfies existing metrics querying requirements.
+    there is no direct dependency between Jaeger and OpenTelemetry in the context of querying metrics,
+    with exception to `SpanKind`, and the existing data model more than satisfies existing metrics querying requirements.
 
     The OpenTelemetry metrics data model primarily serves as a carrier of metrics data, rather than a protocol
     of communication between Jaeger and OpenTelemetry components.
