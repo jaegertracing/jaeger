@@ -74,9 +74,9 @@ message MetricsQueryBaseRequest {
 // GetServiceLatenciesRequest contains parameters for the GetServiceLatencies RPC call.
 message GetServiceLatenciesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
-  // service_name is the service name to fetch operation metrics from.
+  // service_names are the service names to fetch operation metrics from.
   // Required.
-  string service_name = 2;
+  repeated string service_names = 2;
   // quantile is the quantile to compute from latency histogram metrics.
   // Required.
   double quantile = 3;
@@ -85,17 +85,17 @@ message GetServiceLatenciesRequest {
 // GetServiceCallRatesRequest contains parameters for the GetServiceCallRates RPC call.
 message GetServiceCallRatesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
-  // service_name is the service name to fetch operation metrics from.
+  // service_names are the service names to fetch operation metrics from.
   // Required.
-  string service_name = 2;
+  repeated string service_names = 2;
 }
 
 // GetServiceErrorRatesRequest contains parameters for the GetServiceErrorRates RPC call.
 message GetServiceErrorRatesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
-  // service_name is the service name to fetch operation metrics from.
+  // service_names are the service names to fetch operation metrics from.
   // Required.
-  string service_name = 2;
+  repeated string service_names = 2;
 }
 
 message GetMinStepDurationRequest{};
