@@ -68,45 +68,33 @@ build_upload_multiarch_to_docker(){
   ## if we are on a release tag, let's extract the version number
   ## the other possible value, currently, is 'master' (or another branch name)
   if [[ $BRANCH == v* ]]; then
-      COMPONENT_VERSION=$(echo ${BRANCH} | grep -Po "([\d\.]+)")
-      MAJOR_MINOR=$(echo ${COMPONENT_VERSION} | awk -F. '{print $1"."$2}')
-      MAJOR1=$(echo ${COMPONENT_VERSION} | awk -F. '{print $1}')
+      MAJOR_MINOR_PATCH=$(echo ${BRANCH} | grep -Po "([\d\.]+)")
+      MAJOR_MINOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1"."$2}')
+      MAJOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1}')
   
   else
-      COMPONENT_VERSION="latest"
+      MAJOR_MINOR_PATCH="latest"
       MAJOR_MINOR=""
-      MAJOR1=""
+      MAJOR=""
   fi
 
-  # for docker.io
-  BUILD_IMAGE=${BUILD_IMAGE:-"${BASE_BUILD_IMAGE}:${COMPONENT_VERSION}"}
-  IMAGE_TAGS="--tag docker.io/${BASE_BUILD_IMAGE} --tag docker.io/${BUILD_IMAGE}"
+  # for docker.io and quay.io
+  BUILD_IMAGE=${BUILD_IMAGE:-"${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"}
+  IMAGE_TAGS="--tag docker.io/${BASE_BUILD_IMAGE} --tag docker.io/${BUILD_IMAGE} --tag quay.io/${BASE_BUILD_IMAGE} --tag quay.io/${BUILD_IMAGE}"
   SNAPSHOT_TAG="${BASE_BUILD_IMAGE}-snapshot:${GITHUB_SHA}"
 
   if [ "${MAJOR_MINOR}x" != "x" ]; then
       MAJOR_MINOR_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR_MINOR}"
-      IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_MINOR_IMAGE}"
+      IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_MINOR_IMAGE} --tag quay.io/${MAJOR_MINOR_IMAGE}"
   fi
 
-  if [ "${MAJOR1}x" != "x" ]; then
-      MAJOR1_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR1}"
-      IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR1_IMAGE}"
+  if [ "${MAJOR}x" != "x" ]; then
+      MAJOR_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR}"
+      IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_IMAGE} --tag quay.io/${MAJOR_IMAGE}"
   fi
 
-  IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG}"
+  IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG} --tag quay.io/${SNAPSHOT_TAG}"
 
-  ## for quay.io
-  IMAGE_TAGS="${IMAGE_TAGS} --tag quay.io/${BASE_BUILD_IMAGE} --tag quay.io/${BUILD_IMAGE}"
-
-  if [ "${MAJOR_MINOR}x" != "x" ]; then
-      IMAGE_TAGS="${IMAGE_TAGS} --tag quay.io/${MAJOR_MINOR_IMAGE}"
-  fi
-
-  if [ "${MAJOR1}x" != "x" ]; then
-      IMAGE_TAGS="${IMAGE_TAGS} --tag quay.io/${MAJOR1_IMAGE}"
-  fi
-
-  IMAGE_TAGS="${IMAGE_TAGS} --tag quay.io/${SNAPSHOT_TAG}"
   ################################
 
   # Only push images to dockerhub/quay.io for master branch or for release tags vM.N.P
