@@ -45,85 +45,32 @@ upload_to_docker() {
   fi
 }
 
-upload_multiarch_to_docker() {
+build_upload_multiarch_to_docker(){
   # Only push the docker image to dockerhub/quay.io for master/release branch
   if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "upload $1 to dockerhub/quay.io"
-    REPO=$1
-    build_upload_multiarch_to_docker $REPO
+    bash scripts/docker-login-for-multiarch-image.sh
+    IMAGE_TAGS=$(bash scripts/compute-tag-for-multiarch-image.sh $1)
+    docker buildx build --output "type=image, push=true" \
+      --progress=plain --target release \
+      --build-arg base_image="localhost:5000/baseimg:1.0.0-alpine-3.12" \
+      --build-arg debug_image="golang:1.15-alpine" \
+      --platform=$PLATFORMS \
+      --file cmd/all-in-one/Dockerfile \
+      ${IMAGE_TAGS} \
+      cmd/all-in-one
   else
     echo 'skip docker images upload for PR'
   fi
 }
 
-build_upload_multiarch_to_docker(){
-  DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-"jaegertracingbot"}
-  DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
-  QUAY_USERNAME=${QUAY_USERNAME:-"jaegertracing+github_workflows"}
-  QUAY_TOKEN=${QUAY_TOKEN:-}
-
-  ###############Compute the tag
-  BASE_BUILD_IMAGE=$1
-
-  ## if we are on a release tag, let's extract the version number
-  ## the other possible value, currently, is 'master' (or another branch name)
-  if [[ $BRANCH == v* ]]; then
-      MAJOR_MINOR_PATCH=$(echo ${BRANCH} | grep -Po "([\d\.]+)")
-      MAJOR_MINOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1"."$2}')
-      MAJOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1}')
-  
-  else
-      MAJOR_MINOR_PATCH="latest"
-      MAJOR_MINOR=""
-      MAJOR=""
-  fi
-
-  # for docker.io and quay.io
-  BUILD_IMAGE=${BUILD_IMAGE:-"${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"}
-  IMAGE_TAGS="--tag docker.io/${BASE_BUILD_IMAGE} --tag docker.io/${BUILD_IMAGE} --tag quay.io/${BASE_BUILD_IMAGE} --tag quay.io/${BUILD_IMAGE}"
-  SNAPSHOT_TAG="${BASE_BUILD_IMAGE}-snapshot:${GITHUB_SHA}"
-
-  if [ "${MAJOR_MINOR}x" != "x" ]; then
-      MAJOR_MINOR_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR_MINOR}"
-      IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_MINOR_IMAGE} --tag quay.io/${MAJOR_MINOR_IMAGE}"
-  fi
-
-  if [ "${MAJOR}x" != "x" ]; then
-      MAJOR_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR}"
-      IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_IMAGE} --tag quay.io/${MAJOR_IMAGE}"
-  fi
-
-  IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG} --tag quay.io/${SNAPSHOT_TAG}"
-
-  ################################
-
-  # Only push images to dockerhub/quay.io for master branch or for release tags vM.N.P
-  echo "build multiarch images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
-
-  echo "Performing a 'docker login' for DockerHub"
-  echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" docker.io --password-stdin
-
-  echo "Performing a 'docker login' for Quay"
-  echo "${QUAY_TOKEN}" | docker login -u "${QUAY_USERNAME}" quay.io --password-stdin
-
-  docker buildx build --output "type=image, push=true" \
-    --progress=plain --target release \
-    --build-arg base_image="localhost:5000/baseimg:1.0.0-alpine-3.12" \
-    --build-arg debug_image="golang:1.15-alpine" \
-    --platform=$PLATFORMS \
-    --file cmd/all-in-one/Dockerfile \
-    ${IMAGE_TAGS} \
-    cmd/all-in-one
-}
-
 make build-all-in-one GOOS=linux GOARCH=amd64
 make build-all-in-one GOOS=linux GOARCH=s390x
 
-make create-baseimage-multiarch
+PLATFORMS="linux/amd64,linux/s390x"
+bash scripts/build-multiarch-baseimg.sh
 make create-baseimg-debugimg
 repo=jaegertracing/all-in-one
-
-PLATFORMS="linux/amd64,linux/s390x"
 
 docker buildx build --push \
     --progress=plain --target release \
@@ -134,7 +81,7 @@ docker buildx build --push \
     --tag localhost:5000/$repo:latest \
     cmd/all-in-one
 run_integration_test localhost:5000/$repo
-upload_multiarch_to_docker $repo
+build_upload_multiarch_to_docker $repo
 
 make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
 repo=jaegertracing/all-in-one-debug
