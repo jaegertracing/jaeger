@@ -35,9 +35,13 @@ option (gogoproto.sizer_all) = true;
 
 // MetricsQueryBaseRequest is the base request parameter accompanying a MetricsQueryService RPC call.
 message MetricsQueryBaseRequest {
+  // groupByOperation determines if the metrics returned should be grouped by operation.
+  // Optional. Default = false.
+  bool groupByOperation = 1;
+
   // end_time is the ending time of the time series query range.
   // Optional. Default = now.
-  google.protobuf.Timestamp end_time = 1 [
+  google.protobuf.Timestamp end_time = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true
   ];
@@ -45,7 +49,7 @@ message MetricsQueryBaseRequest {
   // lookback is the duration from the end_time to look back on for metrics data points.
   // For example, if set to 1h, the query would span from end_time-1h to end_time.
   // Optional. Default = 1h.
-  google.protobuf.Duration lookback = 2 [
+  google.protobuf.Duration lookback = 3 [
     (gogoproto.stdduration) = true,
     (gogoproto.nullable) = true
   ];
@@ -54,25 +58,25 @@ message MetricsQueryBaseRequest {
   // For example, if set to 5s, the results would produce a data point every 5 seconds
   // from the start_time to end_time.
   // Optional. Default = 5s.
-  google.protobuf.Duration step = 3 [
+  google.protobuf.Duration step = 4 [
     (gogoproto.stdduration) = true,
     (gogoproto.nullable) = true
   ];
 
   // ratePer is the duration in which the per-second rate of change is calculated for a cumulative counter metric.
   // Optional. Default = 10m.
-  google.protobuf.Duration ratePer = 4 [
+  google.protobuf.Duration ratePer = 5 [
     (gogoproto.stdduration) = true,
     (gogoproto.nullable) = true
   ];
 
   // spanKinds is the list of span kinds to include (logical OR) in the resulting metrics aggregation.
   // Optional. Default = [SPAN_KIND_SERVER].
-  repeated SpanKind spanKinds = 5;
+  repeated SpanKind spanKinds = 6;
 }
 
-// GetServiceLatenciesRequest contains parameters for the GetServiceLatencies RPC call.
-message GetServiceLatenciesRequest {
+// GetLatenciesRequest contains parameters for the GetLatencies RPC call.
+message GetLatenciesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
   // service_names are the service names to fetch operation metrics from.
   // Required.
@@ -82,16 +86,16 @@ message GetServiceLatenciesRequest {
   double quantile = 3;
 }
 
-// GetServiceCallRatesRequest contains parameters for the GetServiceCallRates RPC call.
-message GetServiceCallRatesRequest {
+// GetCallRatesRequest contains parameters for the GetCallRates RPC call.
+message GetCallRatesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
   // service_names are the service names to fetch operation metrics from.
   // Required.
   repeated string service_names = 2;
 }
 
-// GetServiceErrorRatesRequest contains parameters for the GetServiceErrorRates RPC call.
-message GetServiceErrorRatesRequest {
+// GetErrorRatesRequest contains parameters for the GetErrorRates RPC call.
+message GetErrorRatesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
   // service_names are the service names to fetch operation metrics from.
   // Required.
@@ -117,12 +121,12 @@ service MetricsQueryService {
   // GetMinStepDuration gets the min step duration supported by the backing metrics store.
   rpc GetMinStepDuration(GetMinStepDurationRequest) returns (GetMinStepDurationResponse);
 
-  // GetServiceLatencies gets the latency metrics grouped by operation for a given service.
-  rpc GetServiceLatencies(GetServiceLatenciesRequest) returns (GetMetricsResponse);
+  // GetLatencies gets the latency metrics grouped by operation for a given service.
+  rpc GetLatencies(GetLatenciesRequest) returns (GetMetricsResponse);
 
-  // GetServiceCallRates gets the call rate metrics grouped by operation for a given service.
-  rpc GetServiceCallRates(GetServiceCallRatesRequest) returns (GetMetricsResponse);
+  // GetCallRates gets the call rate metrics grouped by operation for a given service.
+  rpc GetCallRates(GetCallRatesRequest) returns (GetMetricsResponse);
 
-  // GetServiceErrorRates gets the error rate metrics grouped by operation for a given service.
-  rpc GetServiceErrorRates(GetServiceErrorRatesRequest) returns (GetMetricsResponse);
+  // GetErrorRates gets the error rate metrics grouped by operation for a given service.
+  rpc GetErrorRates(GetErrorRatesRequest) returns (GetMetricsResponse);
 }
