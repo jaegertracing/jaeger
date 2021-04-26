@@ -354,15 +354,12 @@ func stripWhiteSpace(str string) string {
 	return strings.Replace(str, " ", "", -1)
 }
 
-func initDateLayout(rolloverBy, separator string) string {
-	seps := []interface{}{separator, separator}
-
-	// Default "day" index layout.
-	indexLayout := "2006%s01%s02"
-
-	if rolloverBy == "hour" {
-		indexLayout = "2006%s01%s02%s15"
-		seps = append(seps, separator)
-	}
-	return fmt.Sprintf(indexLayout, seps...)
+func initDateLayout(rolloverFreq, sep string) string {
+    // default to daily format
+    indexLayout := "2006" + sep + "01" + sep + "02"
+    if rolloverFreq == "hour" {
+        indexLayout = indexLayout + sep + "15"
+    }
+    return indexLayout
+}
 }
