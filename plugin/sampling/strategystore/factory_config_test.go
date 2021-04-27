@@ -23,15 +23,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func clearEnv() {
-	os.Setenv(SamplingTypeEnvVar, "static")
-}
-
 func TestFactoryConfigFromEnv(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
+	tests := []struct {
+		env          string
+		expectedType StrategyStoreType
+		expectsError bool
+	}{
+		{
+			expectedType: StrategyStoreType("static"),
+		},
+		{
+			env:          "static",
+			expectedType: StrategyStoreType("static"),
+		},
+		{
+			env:          "adaptive",
+			expectedType: StrategyStoreType("adaptive"),
+		},
+		{
+			env:          "??",
+			expectsError: true,
+		},
+	}
 
-	f, err := FactoryConfigFromEnv()
-	require.NoError(t, err)
-	assert.Equal(t, StrategyStoreType("static"), f.StrategyStoreType)
+	for _, tc := range tests {
+		err := os.Setenv(SamplingTypeEnvVar, tc.env)
+		require.NoError(t, err)
+
+		f, err := FactoryConfigFromEnv()
+		if tc.expectsError {
+			assert.Error(t, err)
+			continue
+		}
+
+		require.NoError(t, err)
+		assert.Equal(t, tc.expectedType, f.StrategyStoreType)
+	}
 }

@@ -18,6 +18,7 @@ package strategystore
 import (
 	"errors"
 	"flag"
+	"os"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -29,6 +30,10 @@ import (
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin"
 )
+
+func clearEnv() {
+	os.Setenv(SamplingTypeEnvVar, "static")
+}
 
 var _ ss.Factory = new(Factory)
 var _ plugin.Configurable = new(Factory)

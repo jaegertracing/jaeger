@@ -33,11 +33,8 @@ type FactoryConfig struct {
 //   * `static` - built-in
 //   * `adaptive` - built-in
 func FactoryConfigFromEnv() (*FactoryConfig, error) {
-	var (
-		strategyStoreType string
-		ok                bool
-	)
-	if strategyStoreType, ok = os.LookupEnv(SamplingTypeEnvVar); !ok {
+	strategyStoreType := os.Getenv(SamplingTypeEnvVar)
+	if strategyStoreType == "" {
 		strategyStoreType = "static"
 	}
 	if strategyStoreType != "adaptive" && strategyStoreType != "static" {
