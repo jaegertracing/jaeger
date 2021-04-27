@@ -20,6 +20,7 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -124,7 +124,7 @@ func NewProcessor(
 	electionParticipant leaderelection.ElectionParticipant,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-) (ss.StrategyStore, error) {
+) (*processor, error) {
 	if opts.CalculationInterval == 0 || opts.AggregationBuckets == 0 {
 		return nil, errNonZero
 	}
@@ -516,4 +516,44 @@ func (p *processor) generateDefaultSamplingStrategyResponse() *sampling.Sampling
 			DefaultLowerBoundTracesPerSecond: p.MinSamplesPerSecond,
 		},
 	}
+}
+
+type strategyStore struct {
+	logger     *zap.Logger
+	processor  *processor
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+}
+
+type storedStrategies struct {
+	defaultStrategy   *sampling.SamplingStrategyResponse
+	serviceStrategies map[string]*sampling.SamplingStrategyResponse
+}
+
+// GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
+func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	serviceStrategies := h.processor.strategyResponses
+	if strategy, ok := serviceStrategies[serviceName]; ok {
+		return strategy, nil
+	}
+	h.logger.Debug("sampling strategy not found, using default", zap.String("service", serviceName))
+	return defaultStrategyResponse(), nil
+}
+
+// NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
+func NewStrategyStore(options Options, logger *zap.Logger) (*processor, error) {
+	// ctx, _ := context.WithCancel(context.Background())
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+
+	// How to initialize storage, electionParticipant, metricsFactory for the NewProcessor ?
+	p, err := NewProcessor(options, hostname, nil, nil, nil, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }

@@ -34,14 +34,14 @@ var _ ss.Factory = new(Factory)
 var _ plugin.Configurable = new(Factory)
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(FactoryConfig{StrategyStoreType: staticStrategyStoreType})
+	f, err := NewFactory(FactoryConfig{StrategyStoreType: "static"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[staticStrategyStoreType])
-	assert.Equal(t, staticStrategyStoreType, f.StrategyStoreType)
+	assert.NotEmpty(t, f.factories["static"])
+	assert.Equal(t, StrategyStoreType("static"), f.StrategyStoreType)
 
 	mock := new(mockFactory)
-	f.factories[staticStrategyStoreType] = mock
+	f.factories["static"] = mock
 
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	_, err = f.CreateStrategyStore()
@@ -66,13 +66,13 @@ func TestConfigurable(t *testing.T) {
 	clearEnv()
 	defer clearEnv()
 
-	f, err := NewFactory(FactoryConfig{StrategyStoreType: staticStrategyStoreType})
+	f, err := NewFactory(FactoryConfig{StrategyStoreType: "static"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[staticStrategyStoreType])
+	assert.NotEmpty(t, f.factories["static"])
 
 	mock := new(mockFactory)
-	f.factories[staticStrategyStoreType] = mock
+	f.factories["static"] = mock
 
 	fs := new(flag.FlagSet)
 	v := viper.New()

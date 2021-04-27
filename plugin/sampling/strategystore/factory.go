@@ -24,29 +24,28 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
-const (
-	staticStrategyStoreType = "static"
-)
+type StrategyStoreType string
 
-var allSamplingTypes = []string{staticStrategyStoreType} // TODO support adaptive
+var allSamplingTypes = []StrategyStoreType{"static", "adaptive"}
 
 // Factory implements strategystore.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
 	FactoryConfig
 
-	factories map[string]strategystore.Factory
+	factories map[StrategyStoreType]strategystore.Factory
 }
 
 // NewFactory creates the meta-factory.
 func NewFactory(config FactoryConfig) (*Factory, error) {
 	f := &Factory{FactoryConfig: config}
-	uniqueTypes := map[string]struct{}{
+	uniqueTypes := map[StrategyStoreType]struct{}{
 		f.StrategyStoreType: {},
 	}
-	f.factories = make(map[string]strategystore.Factory)
+	f.factories = make(map[StrategyStoreType]strategystore.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
@@ -57,10 +56,12 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (f *Factory) getFactoryOfType(factoryType string) (strategystore.Factory, error) {
+func (f *Factory) getFactoryOfType(factoryType StrategyStoreType) (strategystore.Factory, error) {
 	switch factoryType {
-	case staticStrategyStoreType:
+	case "static":
 		return static.NewFactory(), nil
+	case "adaptive":
+		return adaptive.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("unknown sampling strategy store type %s. Valid types are %v", factoryType, allSamplingTypes)
 	}
