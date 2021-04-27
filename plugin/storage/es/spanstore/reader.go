@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -199,9 +200,16 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 	var indices []string
 	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
+
+	reduce := -24 * time.Hour
+	if strings.HasSuffix(indexDateLayout, "15") {
+		reduce = -1 * time.Hour
+	}
 	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		endTime = endTime.Add(-24 * time.Hour)
+		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
+			indices = append(indices, currentIndex)
+		}
+		endTime = endTime.Add(reduce)
 		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)

@@ -44,33 +44,34 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers               []string       `mapstructure:"server_urls"`
-	RemoteReadClusters    []string       `mapstructure:"remote_read_clusters"`
-	Username              string         `mapstructure:"username"`
-	Password              string         `mapstructure:"password" json:"-"`
-	TokenFilePath         string         `mapstructure:"token_file"`
-	AllowTokenFromContext bool           `mapstructure:"-"`
-	Sniffer               bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled     bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount           int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
-	NumReplicas           int64          `yaml:"replicas" mapstructure:"num_replicas"`
-	Timeout               time.Duration  `validate:"min=500" mapstructure:"-"`
-	BulkSize              int            `mapstructure:"-"`
-	BulkWorkers           int            `mapstructure:"-"`
-	BulkActions           int            `mapstructure:"-"`
-	BulkFlushInterval     time.Duration  `mapstructure:"-"`
-	IndexPrefix           string         `mapstructure:"index_prefix"`
-	IndexDateLayout       string         `mapstructure:"index_date_layout"`
-	Tags                  TagsAsFields   `mapstructure:"tags_as_fields"`
-	Enabled               bool           `mapstructure:"-"`
-	TLS                   tlscfg.Options `mapstructure:"tls"`
-	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
-	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
-	UseILM                bool           `mapstructure:"use_ilm"`
-	Version               uint           `mapstructure:"version"`
-	LogLevel              string         `mapstructure:"log_level"`
+	Servers                []string       `mapstructure:"server_urls"`
+	RemoteReadClusters     []string       `mapstructure:"remote_read_clusters"`
+	Username               string         `mapstructure:"username"`
+	Password               string         `mapstructure:"password" json:"-"`
+	TokenFilePath          string         `mapstructure:"token_file"`
+	AllowTokenFromContext  bool           `mapstructure:"-"`
+	Sniffer                bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
+	SnifferTLSEnabled      bool           `mapstructure:"sniffer_tls_enabled"`
+	MaxDocCount            int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge             time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards              int64          `yaml:"shards" mapstructure:"num_shards"`
+	NumReplicas            int64          `yaml:"replicas" mapstructure:"num_replicas"`
+	Timeout                time.Duration  `validate:"min=500" mapstructure:"-"`
+	BulkSize               int            `mapstructure:"-"`
+	BulkWorkers            int            `mapstructure:"-"`
+	BulkActions            int            `mapstructure:"-"`
+	BulkFlushInterval      time.Duration  `mapstructure:"-"`
+	IndexPrefix            string         `mapstructure:"index_prefix"`
+	IndexDateLayout        string         `mapstructure:"index_date_layout"`
+	IndexRolloverFrequency string         `mapstructure:"-"`
+	Tags                   TagsAsFields   `mapstructure:"tags_as_fields"`
+	Enabled                bool           `mapstructure:"-"`
+	TLS                    tlscfg.Options `mapstructure:"tls"`
+	UseReadWriteAliases    bool           `mapstructure:"use_aliases"`
+	CreateIndexTemplates   bool           `mapstructure:"create_mappings"`
+	UseILM                 bool           `mapstructure:"use_ilm"`
+	Version                uint           `mapstructure:"version"`
+	LogLevel               string         `mapstructure:"log_level"`
 }
 
 // TagsAsFields holds configuration for tag schema.
