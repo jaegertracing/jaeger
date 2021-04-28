@@ -15,6 +15,7 @@
 package adaptive
 
 import (
+	"errors"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -22,6 +23,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 // Factory implements strategystore.Factory for an adaptive strategy store.
@@ -29,6 +32,8 @@ type Factory struct {
 	options        *Options
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
+	lock           distributedlock.Lock
+	store          samplingstore.Store
 }
 
 // NewFactory creates a new Factory.
@@ -37,6 +42,8 @@ func NewFactory() *Factory {
 		options:        &Options{},
 		logger:         zap.NewNop(),
 		metricsFactory: metrics.NullFactory,
+		lock:           nil,
+		store:          nil,
 	}
 }
 
@@ -51,15 +58,21 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) error {
+	if lock == nil || store == nil {
+		return errors.New("lock or samplingStore nil. adaptive sampling only supported with Cassandra backend") // todo(jpe): better check/error msg
+	}
+
 	f.logger = logger
 	f.metricsFactory = metricsFactory
+	f.lock = lock
+	f.store = store
 	return nil
 }
 
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
-	p, err := NewStrategyStore(*f.options, f.logger)
+	p, err := NewStrategyStore(*f.options, f.metricsFactory, f.logger, f.lock, f.store)
 	if err != nil {
 		return nil, err
 	}

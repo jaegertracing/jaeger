@@ -34,10 +34,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -410,6 +412,10 @@ func (e errorCloseFactory) CreateSpanWriter() (spanstore.Writer, error) {
 }
 
 func (e errorCloseFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	panic("implement me")
+}
+
+func (e errorCloseFactory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
 	panic("implement me")
 }
 

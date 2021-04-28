@@ -28,6 +28,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -43,6 +44,8 @@ const (
 
 	// The number of past entries for samplingCache the leader keeps in memory
 	serviceCacheSize = 25
+
+	defaultResourceName = "sampling_store_leader"
 )
 
 var (
@@ -521,7 +524,6 @@ func (p *processor) generateDefaultSamplingStrategyResponse() *sampling.Sampling
 type strategyStore struct {
 	logger     *zap.Logger
 	processor  *processor
-	ctx        context.Context
 	cancelFunc context.CancelFunc
 }
 
@@ -541,16 +543,14 @@ func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName strin
 }
 
 // NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
-func NewStrategyStore(options Options, logger *zap.Logger) (*processor, error) {
-	// ctx, _ := context.WithCancel(context.Background())
-
+func NewStrategyStore(options Options, metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) (*processor, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, err
 	}
 
-	// How to initialize storage, electionParticipant, metricsFactory for the NewProcessor ?
-	p, err := NewProcessor(options, hostname, nil, nil, nil, logger)
+	participant := leaderelection.NewElectionParticipant(lock, defaultResourceName, leaderelection.ElectionParticipantOptions{}) // todo(jpe) : wire up options/resource name
+	p, err := NewProcessor(options, hostname, store, participant, metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}

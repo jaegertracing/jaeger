@@ -26,17 +26,23 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
+	cSamplingStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/samplingstore"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
 	primaryStorageConfig = "cassandra"
 	archiveStorageConfig = "cassandra-archive"
+
+	defaultLockTenant = "jaeger"
 )
 
 // Factory implements storage.Factory for Cassandra backend.
@@ -145,6 +151,13 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, err
 	}
 	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...), nil
+}
+
+func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
+	store := cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger)
+	lock := cLock.NewLock(f.primarySession, defaultLockTenant)
+
+	return lock, store, nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {

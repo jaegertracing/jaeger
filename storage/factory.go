@@ -21,7 +21,9 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -44,6 +46,10 @@ type Factory interface {
 
 	// CreateDependencyReader creates a dependencystore.Reader.
 	CreateDependencyReader() (dependencystore.Reader, error)
+
+	// CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store.
+	//  These are used for adaptive sampling.
+	CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error)
 }
 
 var (
@@ -52,6 +58,9 @@ var (
 
 	// ErrArchiveStorageNotSupported can be returned by the ArchiveFactory when the archive storage is not supported by the backend.
 	ErrArchiveStorageNotSupported = errors.New("archive storage not supported")
+
+	// ErrLockAndSamplingStoreNotSupported can be returned by the StorageFactory when the sampling storage is not supported by the backend.
+	ErrLockAndSamplingStoreNotSupported = errors.New("archive storage not supported")
 )
 
 // ArchiveFactory is an additional interface that can be implemented by a factory to support trace archiving.

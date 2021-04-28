@@ -82,9 +82,13 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
+			lock, samplingStore, err := storageFactory.CreateLockAndSamplingStore()
+			if err != nil {
+				logger.Fatal("Failed to create lock and sampling store for adaptive sampling", zap.Error(err))
+			}
 
 			strategyStoreFactory.InitFromViper(v)
-			if err := strategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
+			if err := strategyStoreFactory.Initialize(metricsFactory, logger, lock, samplingStore); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
 			strategyStore, err := strategyStoreFactory.CreateStrategyStore()

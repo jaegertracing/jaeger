@@ -15,6 +15,8 @@
 package strategystore
 
 import (
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 )
@@ -27,7 +29,7 @@ import (
 // plugin.Configurable
 type Factory interface {
 	// Initialize performs internal initialization of the factory.
-	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+	Initialize(metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) error
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
 	CreateStrategyStore() (StrategyStore, error)

@@ -23,9 +23,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 type StrategyStoreType string
@@ -86,9 +88,9 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) error {
 	for _, factory := range f.factories {
-		if err := factory.Initialize(metricsFactory, logger); err != nil {
+		if err := factory.Initialize(metricsFactory, logger, lock, store); err != nil {
 			return err
 		}
 	}
