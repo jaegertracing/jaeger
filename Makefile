@@ -235,6 +235,7 @@ cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.
 		echo "Check:" ; \
 		echo "- esc is installed: 'make install-tools'" ; \
 		echo "- add \$$GOPATH into \$$PATH: 'export PATH=\$$PATH:\$$(go env GOPATH)/bin'" ; \
+		false \
 	else \
 		esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build ; \
 	fi
