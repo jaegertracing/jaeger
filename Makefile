@@ -230,15 +230,14 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
 
 cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
-	@if ! command -v esc &> /dev/null; then \
+	@if ! command -v esc > /dev/null 2>&1 ; then \
 		echo "esc: Command not found" ; \
 		echo "Check:" ; \
 		echo "- esc is installed: 'make install-tools'" ; \
 		echo "- add \$$GOPATH into \$$PATH: 'export PATH=\$$PATH:\$$(go env GOPATH)/bin'" ; \
-		false \
-	else \
-		esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build ; \
+		false ; \
 	fi
+	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build ; \
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
