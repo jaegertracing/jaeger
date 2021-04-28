@@ -49,8 +49,8 @@ build_upload_multiarch_to_docker(){
   # Only push the docker image to dockerhub/quay.io for master/release branch
   if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "upload $1 to dockerhub/quay.io"
-    bash scripts/docker-login-for-multiarch-image.sh
-    IMAGE_TAGS=$(bash scripts/compute-tag-for-multiarch-image.sh $1)
+    bash scripts/docker-login.sh
+    IMAGE_TAGS=$(bash scripts/compute-tags.sh $1)
     docker buildx build --output "type=image, push=true" \
       --progress=plain --target release \
       --build-arg base_image="localhost:5000/baseimg:1.0.0-alpine-3.12" \
