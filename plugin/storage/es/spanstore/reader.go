@@ -288,7 +288,7 @@ func (s *SpanReader) GetOperations(
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
