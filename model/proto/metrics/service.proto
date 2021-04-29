@@ -117,12 +117,15 @@ service MetricsQueryService {
   // GetMinStepDuration gets the min step duration supported by the backing metrics store.
   rpc GetMinStepDuration(GetMinStepDurationRequest) returns (GetMinStepDurationResponse);
 
-  // GetLatencies gets the latency metrics grouped by operation for a given service.
+  // GetLatencies gets the latency metrics for a given list of services grouped by service
+  // and optionally grouped by operation.
   rpc GetLatencies(GetLatenciesRequest) returns (GetMetricsResponse);
 
-  // GetCallRates gets the call rate metrics grouped by operation for a given service.
+  // GetCallRates gets the call rate metrics for a given list of services grouped by service
+  // and optionally grouped by operation.
   rpc GetCallRates(GetCallRatesRequest) returns (GetMetricsResponse);
 
-  // GetErrorRates gets the error rate metrics grouped by operation for a given service.
+  // GetErrorRates gets the error rate metrics for a given list of services grouped by service
+  // and optionally grouped by operation.
   rpc GetErrorRates(GetErrorRatesRequest) returns (GetMetricsResponse);
 }
