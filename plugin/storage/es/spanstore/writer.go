@@ -56,18 +56,19 @@ type SpanWriter struct {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client              es.Client
-	Logger              *zap.Logger
-	MetricsFactory      metrics.Factory
-	IndexPrefix         string
-	IndexDateLayout     string
-	AllTagsAsFields     bool
-	TagKeysAsFields     []string
-	TagDotReplacement   string
-	Archive             bool
-	UseReadWriteAliases bool
-	ServiceCacheTTL     time.Duration
-	IndexCacheTTL       time.Duration
+	Client                 es.Client
+	Logger                 *zap.Logger
+	MetricsFactory         metrics.Factory
+	IndexPrefix            string
+	SpanIndexDateLayout    string
+	ServiceIndexDateLayout string
+	AllTagsAsFields        bool
+	TagKeysAsFields        []string
+	TagDotReplacement      string
+	Archive                bool
+	UseReadWriteAliases    bool
+	ServiceCacheTTL        time.Duration
+	IndexCacheTTL          time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -97,7 +98,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 			},
 		),
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.IndexDateLayout),
+		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.SpanIndexDateLayout, p.ServiceIndexDateLayout),
 	}
 }
 
@@ -120,7 +121,7 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, dateLayout string) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, spanDateLayout string, serviceDateLayout string) spanAndServiceIndexFn {
 	if prefix != "" {
 		prefix += indexPrefixSeparator
 	}
@@ -141,7 +142,7 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, dateLay
 		}
 	}
 	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, dateLayout, date), indexWithDate(serviceIndexPrefix, dateLayout, date)
+		return indexWithDate(spanIndexPrefix, spanDateLayout, date), indexWithDate(serviceIndexPrefix, serviceDateLayout, date)
 	}
 }
 

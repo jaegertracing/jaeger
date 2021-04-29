@@ -28,36 +28,37 @@ import (
 )
 
 const (
-	suffixUsername               = ".username"
-	suffixPassword               = ".password"
-	suffixSniffer                = ".sniffer"
-	suffixSnifferTLSEnabled      = ".sniffer-tls-enabled"
-	suffixTokenPath              = ".token-file"
-	suffixServerURLs             = ".server-urls"
-	suffixRemoteReadClusters     = ".remote-read-clusters"
-	suffixMaxSpanAge             = ".max-span-age"
-	suffixNumShards              = ".num-shards"
-	suffixNumReplicas            = ".num-replicas"
-	suffixBulkSize               = ".bulk.size"
-	suffixBulkWorkers            = ".bulk.workers"
-	suffixBulkActions            = ".bulk.actions"
-	suffixBulkFlushInterval      = ".bulk.flush-interval"
-	suffixTimeout                = ".timeout"
-	suffixIndexPrefix            = ".index-prefix"
-	suffixIndexDateSeparator     = ".index-date-separator"
-	suffixIndexRolloverFrequency = ".index-rollover-frequency"
-	suffixTagsAsFields           = ".tags-as-fields"
-	suffixTagsAsFieldsAll        = suffixTagsAsFields + ".all"
-	suffixTagsAsFieldsInclude    = suffixTagsAsFields + ".include"
-	suffixTagsFile               = suffixTagsAsFields + ".config-file"
-	suffixTagDeDotChar           = suffixTagsAsFields + ".dot-replacement"
-	suffixReadAlias              = ".use-aliases"
-	suffixUseILM                 = ".use-ilm"
-	suffixCreateIndexTemplate    = ".create-index-templates"
-	suffixEnabled                = ".enabled"
-	suffixVersion                = ".version"
-	suffixMaxDocCount            = ".max-doc-count"
-	suffixLogLevel               = ".log-level"
+	suffixUsername                       = ".username"
+	suffixPassword                       = ".password"
+	suffixSniffer                        = ".sniffer"
+	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
+	suffixTokenPath                      = ".token-file"
+	suffixServerURLs                     = ".server-urls"
+	suffixRemoteReadClusters             = ".remote-read-clusters"
+	suffixMaxSpanAge                     = ".max-span-age"
+	suffixNumShards                      = ".num-shards"
+	suffixNumReplicas                    = ".num-replicas"
+	suffixBulkSize                       = ".bulk.size"
+	suffixBulkWorkers                    = ".bulk.workers"
+	suffixBulkActions                    = ".bulk.actions"
+	suffixBulkFlushInterval              = ".bulk.flush-interval"
+	suffixTimeout                        = ".timeout"
+	suffixIndexPrefix                    = ".index-prefix"
+	suffixIndexDateSeparator             = ".index-date-separator"
+	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
+	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
+	suffixTagsAsFields                   = ".tags-as-fields"
+	suffixTagsAsFieldsAll                = suffixTagsAsFields + ".all"
+	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
+	suffixTagsFile                       = suffixTagsAsFields + ".config-file"
+	suffixTagDeDotChar                   = suffixTagsAsFields + ".dot-replacement"
+	suffixReadAlias                      = ".use-aliases"
+	suffixUseILM                         = ".use-ilm"
+	suffixCreateIndexTemplate            = ".create-index-templates"
+	suffixEnabled                        = ".enabled"
+	suffixVersion                        = ".version"
+	suffixMaxDocCount                    = ".max-doc-count"
+	suffixLogLevel                       = ".log-level"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
@@ -209,9 +210,14 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		defaultIndexDateSeparator,
 		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".")
 	flagSet.String(
-		nsConfig.namespace+suffixIndexRolloverFrequency,
+		nsConfig.namespace+suffixIndexRolloverFrequencySpans,
 		defaultIndexRolloverFrequency,
-		"Rotates Jaeger indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
+		"Rotates jaeger-span indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
+			"Jaeger additionally supports manual and automated (via ILM) index management. Reference: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover.")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexRolloverFrequencyServices,
+		defaultIndexRolloverFrequency,
+		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"Jaeger additionally supports manual and automated (via ILM) index management. Reference: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
@@ -324,9 +330,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	rolloverFreq := strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequency))
+	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
+	cfg.IndexRolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
+
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
-	cfg.IndexDateLayout = initDateLayout(rolloverFreq, separator)
+	cfg.IndexDateLayoutSpans = initDateLayout(cfg.IndexRolloverFrequencySpans, separator)
+	cfg.IndexDateLayoutServices = initDateLayout(cfg.IndexRolloverFrequencyServices, separator)
+	cfg.IndexDateLayoutDependencies = initDateLayout("day", separator)
 }
 
 // GetPrimary returns primary configuration.
