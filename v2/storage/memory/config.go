@@ -14,9 +14,9 @@
 
 package memory
 
-import "go.opentelemetry.io/collector/config/configmodels"
+import "go.opentelemetry.io/collector/config"
 
 // Config defines configuration for the exporter.
 type Config struct {
-	configmodels.ExporterSettings `mapstructure:",squash"`
+	config.ExporterSettings `mapstructure:",squash"`
 }

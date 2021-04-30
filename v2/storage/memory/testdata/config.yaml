@@ -1,8 +1,8 @@
 receivers:
-  examplereceiver:
+  nop:
 
 processors:
-  exampleprocessor:
+  nop:
 
 exporters:
   memory:
@@ -10,6 +10,6 @@ exporters:
 service:
   pipelines:
     traces:
-      receivers: [examplereceiver]
-      processors: [exampleprocessor]
+      receivers: [nop]
+      processors: [nop]
       exporters: [memory]

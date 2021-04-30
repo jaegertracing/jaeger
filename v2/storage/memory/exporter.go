@@ -43,7 +43,7 @@ func newExporter(cfg *Config, logger *zap.Logger) (component.TracesExporter, err
 		stopCh: make(chan (struct{})),
 	}
 
-	return exporterhelper.NewTraceExporter(
+	return exporterhelper.NewTracesExporter(
 		cfg,
 		logger,
 		s.pushTraceData,
@@ -52,8 +52,8 @@ func newExporter(cfg *Config, logger *zap.Logger) (component.TracesExporter, err
 	)
 }
 
-func (s *inMemoryExporter) pushTraceData(ctx context.Context, td pdata.Traces) (droppedSpans int, err error) {
-	return 0, nil
+func (s *inMemoryExporter) pushTraceData(ctx context.Context, td pdata.Traces) error {
+	return nil
 }
 
 func (s *inMemoryExporter) shutdown(context.Context) error {
