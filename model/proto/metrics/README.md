@@ -27,7 +27,7 @@ in compilation errors from the generated code as opentelemetry-proto's Metric ty
 gogoproto.marshaler_all, gogoproto.unmarshaler_all, etc. enabled.
 
 Moreover, if direct imports of other repositories were possible, it would mean importing and generating code for
-transitive dependencies not required by Jaeger leading to longer build times, and potentially larger docker
+transitive dependencies not required by Jaeger leading to longer build times, and potentially larger container
 image sizes.
 
 Given the aforementioned limitations, selectively copying necessary messages and enums allow for:
