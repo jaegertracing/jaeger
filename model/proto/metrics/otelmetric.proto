@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Based on: https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/metrics/v1/metrics.proto
+// Based on: https://github.com/open-telemetry/opentelemetry-proto/blob/v0.8.0/opentelemetry/proto/metrics/v1/metrics.proto
 
 syntax="proto3";
 
