@@ -84,6 +84,11 @@ message MetricsQueryBaseRequest {
 message GetLatenciesRequest {
   MetricsQueryBaseRequest baseRequest = 1;
   // quantile is the quantile to compute from latency histogram metrics.
+  // Valid range: 0 - 1 (inclusive).
+  //
+  // e.g. 0.99 will return the 99th percentile or P99 which is the worst latency
+  // observed from 99% of all spans for the given service (and operation).
+  //
   // Required.
   double quantile = 2;
 }
@@ -114,7 +119,8 @@ message GetMetricsResponse {
 }
 
 service MetricsQueryService {
-  // GetMinStepDuration gets the min step duration supported by the backing metrics store.
+  // GetMinStepDuration gets the min time resolution supported by the backing metrics store,
+  // e.g. 10s means the backend can only return data points that are at least 10s apart, not closer.
   rpc GetMinStepDuration(GetMinStepDurationRequest) returns (GetMinStepDurationResponse);
 
   // GetLatencies gets the latency metrics for a given list of services grouped by service
