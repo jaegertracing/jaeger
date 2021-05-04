@@ -15,10 +15,11 @@
 package strategystore
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 // Factory defines an interface for a factory that can create implementations of different strategy storage components.
@@ -33,4 +34,7 @@ type Factory interface {
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
 	CreateStrategyStore() (StrategyStore, error)
+
+	// RequiresLockAndSamplingStore indicates whether this strategy store requires a Lock and SamplingStore
+	RequiresLockAndSamplingStore() (bool, error)
 }

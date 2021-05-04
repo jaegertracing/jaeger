@@ -60,3 +60,8 @@ func (f *Factory) Initialize(_ metrics.Factory, logger *zap.Logger, _ distribute
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
 	return NewStrategyStore(*f.options, f.logger)
 }
+
+// RequiresLockAndSamplingStore implements strategystore.Factory
+func (f *Factory) RequiresLockAndSamplingStore() (bool, error) {
+	return false, nil
+}

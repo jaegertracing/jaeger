@@ -35,10 +35,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 const serviceName = "jaeger-collector"
@@ -82,11 +84,19 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
-			lock, samplingStore, err := storageFactory.CreateLockAndSamplingStore()
-			if err != nil {
-				logger.Fatal("Failed to create lock and sampling store for adaptive sampling", zap.Error(err))
-			}
 
+			requireLockAndSamplingStore, err := strategyStoreFactory.RequiresLockAndSamplingStore()
+			if err != nil {
+				logger.Fatal("Failed to determine if lock and sampling store is required.", zap.Error(err))
+			}
+			var lock distributedlock.Lock
+			var samplingStore samplingstore.Store
+			if requireLockAndSamplingStore {
+				lock, samplingStore, err = storageFactory.CreateLockAndSamplingStore()
+				if err != nil {
+					logger.Fatal("Failed to create lock and sampling store for adaptive sampling", zap.Error(err))
+				}
+			}
 			strategyStoreFactory.InitFromViper(v)
 			if err := strategyStoreFactory.Initialize(metricsFactory, logger, lock, samplingStore); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))

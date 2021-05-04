@@ -124,6 +124,13 @@ func (f *mockFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Log
 	return nil
 }
 
+func (f *mockFactory) RequiresLockAndSamplingStore() (bool, error) {
+	if f.retError {
+		return false, errors.New("error creating store")
+	}
+	return false, nil
+}
+
 type mockStore struct{}
 
 func (m *mockStore) InsertThroughput(throughput []*model.Throughput) error {

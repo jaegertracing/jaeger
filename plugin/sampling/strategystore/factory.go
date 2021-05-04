@@ -106,3 +106,12 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
 	}
 	return factory.CreateStrategyStore()
 }
+
+// RequiresLockAndSamplingStore indicates whether or not the configured sampling strategy store
+func (f *Factory) RequiresLockAndSamplingStore() (bool, error) {
+	factory, ok := f.factories[f.StrategyStoreType]
+	if !ok {
+		return false, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
+	}
+	return factory.RequiresLockAndSamplingStore()
+}

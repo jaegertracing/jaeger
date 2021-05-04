@@ -79,3 +79,8 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
 	p.Start()
 	return p, nil
 }
+
+// RequiresLockAndSamplingStore implements strategystore.Factory
+func (f *Factory) RequiresLockAndSamplingStore() (bool, error) {
+	return true, nil
+}
