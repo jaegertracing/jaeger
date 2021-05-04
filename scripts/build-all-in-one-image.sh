@@ -86,10 +86,10 @@ build_upload_multiarch_to_docker $repo
 make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
 repo=jaegertracing/all-in-one-debug
 docker build -f cmd/all-in-one/Dockerfile \
-        --target debug \
-        --tag $repo:latest cmd/all-in-one \
-        --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
-        --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
-        --build-arg TARGETARCH=$GOARCH
+    --target debug \
+    --tag $repo:latest cmd/all-in-one \
+    --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
+    --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
+    --build-arg TARGETARCH=$GOARCH
 run_integration_test $repo
 upload_to_docker $repo

@@ -2,39 +2,48 @@
 
 set -euxf -o pipefail
 
+docker_buildx_build(){
+	local component_name=$1
+	local dir_arg=$2
+	local docker_file_arg=$3
+
+	if [[ "$4" == "N" ]]; then
+		local target_arg=""
+	else
+		local target_arg="--target $4 "
+	fi
+
+	if [[ "$5" == "N" ]]; then
+		local base_debug_img_arg=""
+	else
+		local base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg:1.0.0-alpine-3.12 --build-arg debug_image=golang:1.15-alpine "
+	fi
+
+	docker buildx build --output "${PUSHTAG}" \
+		--progress=plain ${target_arg} ${base_debug_img_arg}\
+		--platform=${PLATFORMS} \
+		${docker_file_arg} \
+		$(echo ${IMAGE_TAGS} | sed "s/JAEGERCOMP/${component_name}/g") \
+		${dir_arg}
+
+	echo "Finished building multiarch jager-${component_name} =============="
+}
+
 build_upload_multiarch_images(){
+	# build/upload images for Jaeger backend components
 	for component in agent collector query ingester
 	do
-		docker buildx build --output "${PUSHTAG}" \
-			--progress=plain --target release \
-			--build-arg base_image="localhost:5000/baseimg:1.0.0-alpine-3.12" \
-			--build-arg debug_image="golang:1.15-alpine" \
-			--platform=${PLATFORMS} \
-			--file cmd/${component}/Dockerfile \
-			$(echo ${IMAGE_TAGS} | sed "s/JAEGERCOMP/${component}/g") \
-			cmd/${component}
-		echo "Finished building multiarch jager-${component} =============="
+		docker_buildx_build "${component}" "cmd/${component}" "--file cmd/${component}/Dockerfile" "release" "Y" 
 	done
 
-	for component in es-index-cleaner es-rollover tracegen anonymizer
+	# build/upload images for jaeger-es-index-cleaner and jaeger-es-rollover
+	docker_buildx_build "es-index-cleaner" "plugin/storage/es" "--file plugin/storage/es/Dockerfile" "N" "N"
+	docker_buildx_build "es-rollover" "plugin/storage/es" "--file plugin/storage/es/Dockerfile.rollover" "N" "N"
+
+	# build/upload images for jaeger-tracegen and jaeger-anonymizer
+	for component in tracegen anonymizer
 	do
-		if [[ "${component}" == "es-rollover" ]]; then
-			docker_file_arg="--file plugin/storage/es/Dockerfile.rollover"
-		else
-			docker_file_arg=""
-		fi
-		if [[ "${component}" =~ ^es-.* ]]; then
-			dir_arg="plugin/storage/es"
-		else 
-			dir_arg="cmd/${component}"
-		fi
-		docker buildx build --output "${PUSHTAG}" \
-			--progress=plain \
-			--platform=${PLATFORMS} \
-			$(echo ${IMAGE_TAGS} | sed "s/JAEGERCOMP/${component}/g") \
-			${dir_arg} \
-			${docker_file_arg}
-		echo "Finished building multiarch jaeger-${component} =============="
+		docker_buildx_build "${component}" "cmd/${component}" "--file cmd/${component}/Dockerfile" "N" "N" 
 	done 
 }
 
@@ -49,12 +58,12 @@ IMAGE_TAGS=$(bash scripts/compute-tags.sh "jaegertracing/jaeger-JAEGERCOMP")
 
 # Only push multi-arch images to dockerhub/quay.io for master branch or for release tags vM.N.P
 if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "build multiarch images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
-  bash scripts/docker-login.sh
-  PUSHTAG="type=image, push=true"
+	echo "build multiarch images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
+	bash scripts/docker-login.sh
+	PUSHTAG="type=image, push=true"
 else
-  echo 'skip multiarch docker images upload, only allowed for tagged releases or master (latest tag)'
-  PUSHTAG="type=image, push=false"
+	echo 'skip multiarch docker images upload, only allowed for tagged releases or master (latest tag)'
+	PUSHTAG="type=image, push=false"
 fi
 build_upload_multiarch_images
 
@@ -63,10 +72,10 @@ make docker-images-jaeger-backend-debug
 make docker-images-cassandra
 # Only push amd64 specific images to dockerhub/quay.io for master branch or for release tags vM.N.P
 if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "upload to dockerhub/quay.io, BRANCH=$BRANCH"
+	echo "upload to dockerhub/quay.io, BRANCH=$BRANCH"
 else
-  echo 'skip docker images upload, only allowed for tagged releases or master (latest tag)'
-  exit 0
+	echo 'skip docker images upload, only allowed for tagged releases or master (latest tag)'
+	exit 0
 fi
 
 export DOCKER_NAMESPACE=jaegertracing
@@ -81,7 +90,7 @@ jaeger_components=(
 
 for component in "${jaeger_components[@]}"
 do
-  REPO="jaegertracing/jaeger-${component}"
-  bash scripts/upload-to-registry.sh $REPO
+	REPO="jaegertracing/jaeger-${component}"
+	bash scripts/upload-to-registry.sh $REPO
 done
 

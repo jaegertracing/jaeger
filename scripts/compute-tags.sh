@@ -2,7 +2,7 @@
 
 set -exu
 
-###############Compute the tag
+# Compute the tag
 BASE_BUILD_IMAGE=$1
 
 ## if we are on a release tag, let's extract the version number
@@ -33,7 +33,5 @@ if [ "${MAJOR}x" != "x" ]; then
 fi
 
 IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG} --tag quay.io/${SNAPSHOT_TAG}"
-
-################################
 
 echo ${IMAGE_TAGS}
