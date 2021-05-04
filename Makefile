@@ -458,6 +458,7 @@ echo-version:
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
+	-Imodel/proto/metrics \
 	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -501,6 +502,21 @@ proto:
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
 		idl/proto/api_v2/query.proto
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		model/proto/metrics/otelspankind.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		model/proto/metrics/otelmetric.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		model/proto/metrics/service.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
