@@ -44,6 +44,8 @@ func TestMemoryStorageFactory(t *testing.T) {
 	depReader, err := f.CreateDependencyReader()
 	assert.NoError(t, err)
 	assert.Equal(t, f.store, depReader)
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
 }
 
 func TestWithConfiguration(t *testing.T) {

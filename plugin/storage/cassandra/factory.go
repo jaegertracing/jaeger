@@ -154,7 +154,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 }
 
 // CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
-func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
+func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) { // todo(jpe): test
 	store := cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger)
 	lock := cLock.NewLock(f.primarySession, defaultLockTenant)
 

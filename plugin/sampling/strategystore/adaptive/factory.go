@@ -15,7 +15,6 @@
 package adaptive
 
 import (
-	"errors"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -59,10 +58,6 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 
 // Initialize implements strategystore.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) error {
-	if lock == nil || store == nil {
-		return errors.New("lock or samplingStore nil. adaptive sampling only supported with Cassandra backend") // todo(jpe): better check/error msg
-	}
-
 	f.logger = logger
 	f.metricsFactory = metricsFactory
 	f.lock = lock

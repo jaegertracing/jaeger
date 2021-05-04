@@ -28,6 +28,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 func TestInitializationErrors(t *testing.T) {
@@ -67,6 +68,9 @@ func TestForCodecov(t *testing.T) {
 
 	_, err = f.CreateDependencyReader()
 	assert.NoError(t, err)
+
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
 
 	// Now, remove the badger directories
 	err = os.RemoveAll(f.tmpDir)

@@ -43,35 +43,48 @@ var _ ss.Factory = new(Factory)
 var _ plugin.Configurable = new(Factory)
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(FactoryConfig{StrategyStoreType: "static"})
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories["static"])
-	assert.Equal(t, Kind("static"), f.StrategyStoreType)
-
-	mock := new(mockFactory)
-	f.factories["static"] = mock
+	tests := []struct {
+		strategyStoreType string
+		expectError       bool
+	}{
+		{
+			strategyStoreType: "static",
+		},
+		{
+			strategyStoreType: "adaptive",
+		},
+		{
+			strategyStoreType: "nonsense",
+			expectError:       true,
+		},
+	}
 
 	lock := &mockLock{}
 	store := &mockStore{}
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), lock, store))
-	_, err = f.CreateStrategyStore()
-	assert.NoError(t, err)
+	for _, tc := range tests {
+		f, err := NewFactory(FactoryConfig{StrategyStoreType: Kind(tc.strategyStoreType)})
+		if tc.expectError {
+			assert.Error(t, err)
+			continue
+		}
+		assert.NotEmpty(t, f.factories)
+		assert.NotEmpty(t, f.factories[Kind(tc.strategyStoreType)])
+		assert.Equal(t, Kind(tc.strategyStoreType), f.StrategyStoreType)
 
-	// force the mock to return errors
-	mock.retError = true
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), lock, store), "error initializing store")
-	_, err = f.CreateStrategyStore()
-	assert.EqualError(t, err, "error creating store")
+		mock := new(mockFactory)
+		f.factories[Kind(tc.strategyStoreType)] = mock
 
-	f.StrategyStoreType = "nonsense"
-	_, err = f.CreateStrategyStore()
-	assert.EqualError(t, err, "no nonsense strategy store registered")
+		assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), lock, store))
+		_, err = f.CreateStrategyStore()
+		require.NoError(t, err)
 
-	_, err = NewFactory(FactoryConfig{StrategyStoreType: "nonsense"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown sampling strategy store type")
+		// force the mock to return errors
+		mock.retError = true
+		assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), lock, store), "error initializing store")
+		_, err = f.CreateStrategyStore()
+		assert.EqualError(t, err, "error creating store")
+	}
 }
 
 func TestConfigurable(t *testing.T) {

@@ -107,7 +107,7 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
 	return factory.CreateStrategyStore()
 }
 
-// RequiresLockAndSamplingStore indicates whether or not the configured sampling strategy store
+// RequiresLockAndSamplingStore implements strategystore.Factory
 func (f *Factory) RequiresLockAndSamplingStore() (bool, error) {
 	factory, ok := f.factories[f.StrategyStoreType]
 	if !ok {

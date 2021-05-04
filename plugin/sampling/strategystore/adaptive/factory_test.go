@@ -67,6 +67,13 @@ func TestFactory(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestRequiresLockAndSamplingStore(t *testing.T) {
+	f := NewFactory()
+	required, err := f.RequiresLockAndSamplingStore()
+	assert.True(t, required)
+	assert.NoError(t, err)
+}
+
 type mockStore struct{}
 
 func (m *mockStore) InsertThroughput(throughput []*model.Throughput) error {

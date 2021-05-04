@@ -87,6 +87,9 @@ func TestElasticsearchFactory(t *testing.T) {
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
 	assert.NoError(t, f.Close())
+
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {

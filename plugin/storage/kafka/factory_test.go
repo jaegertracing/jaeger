@@ -73,6 +73,9 @@ func TestKafkaFactory(t *testing.T) {
 	_, err = f.CreateDependencyReader()
 	assert.Error(t, err)
 
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
+
 	assert.NoError(t, f.Close())
 }
 
