@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	indexILMName  = "jaeger-ilm-policy"
-	rolloverImage = "jaegertracing/jaeger-es-rollover:latest"
+	defaultILMPolicyName = "jaeger-ilm-policy"
+	rolloverImage        = "jaegertracing/jaeger-es-rollover:latest"
 )
 
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
@@ -42,7 +42,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 		t.Skip("Integration test - " + t.Name() + " against ElasticSearch skipped for ES version " + fmt.Sprint(esVersion))
 	}
 	// make sure ES is clean
-	cleanES(t, client, "jaeger-ilm-policy")
+	cleanES(t, client, defaultILMPolicyName)
 	envVars := []string{"ES_USE_ILM=true"}
 	err = runEsRollover("init", envVars)
 	assert.EqualError(t, err, "exit status 1")
@@ -52,40 +52,61 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 }
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
+
+	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
+	t.Run(fmt.Sprintf("DefaultPolicyName"), func(t *testing.T) {
+		runCreateIndicesWithILM(t, defaultILMPolicyName)
+	})
+
+	// Test using a configured ILM Policy Name, i.e. pass the ES_ILM_POLICY_NAME env var to the rollover script.
+	t.Run(fmt.Sprintf("SetPolicyName"), func(t *testing.T) {
+		runCreateIndicesWithILM(t, "jaeger-test-policy")
+	})
+}
+
+func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
+
 	client, err := createESClient()
 	require.NoError(t, err)
 
 	esVersion, err := getVersion(client)
 	require.NoError(t, err)
 
+	envVars := []string{
+		"ES_USE_ILM=true",
+	}
+
+	if ilmPolicyName != defaultILMPolicyName {
+		envVars = append(envVars, "ES_ILM_POLICY_NAME="+ilmPolicyName)
+	}
+
 	if esVersion != 7 {
 		cleanES(t, client, "")
-		err := runEsRollover("init", []string{"ES_USE_ILM=true"})
+		err := runEsRollover("init", envVars)
 		assert.EqualError(t, err, "exit status 1")
 		indices, err1 := client.IndexNames()
 		require.NoError(t, err1)
 		assert.Empty(t, indices)
 
 	} else {
-		envVars := []string{"ES_USE_ILM=true"}
 		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001"}
-		t.Run(fmt.Sprintf("%s_no_prefix", "CreateIndicesWithILM"), func(t *testing.T) {
-			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars)
+		t.Run(fmt.Sprintf("NoPrefix"), func(t *testing.T) {
+			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName)
 		})
-		t.Run(fmt.Sprintf("%s_prefix", "CreateIndicesWithILM"), func(t *testing.T) {
-			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix))
+		t.Run(fmt.Sprintf("WithPrefix"), func(t *testing.T) {
+			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName)
 		})
 	}
 }
 
-func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string) {
+func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string, ilmPolicyName string) {
 	writeAliases := []string{"jaeger-service-write", "jaeger-span-write"}
 
 	// make sure ES is cleaned before test
-	cleanES(t, client, "jaeger-ilm-policy")
+	cleanES(t, client, ilmPolicyName)
 	// make sure ES is cleaned after test
-	defer cleanES(t, client, "jaeger-ilm-policy")
-	err := createILMPolicy(client, "jaeger-ilm-policy")
+	defer cleanES(t, client, ilmPolicyName)
+	err := createILMPolicy(client, ilmPolicyName)
 	require.NoError(t, err)
 
 	if prefix != "" {
@@ -111,7 +132,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	require.NoError(t, err)
 	//Check ILM Policy is attached and Get rollover alias attached
 	for _, v := range settings {
-		assert.Equal(t, indexILMName, v.Settings["index.lifecycle.name"])
+		assert.Equal(t, ilmPolicyName, v.Settings["index.lifecycle.name"])
 		actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
 	}
 	//Check indices created

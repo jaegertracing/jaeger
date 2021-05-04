@@ -18,6 +18,7 @@ UNIT = 'days'
 UNIT_COUNT = 2
 SHARDS = 5
 REPLICAS = 1
+ILM_POLICY_NAME = 'jaeger-ilm-policy'
 
 
 def main():
@@ -39,6 +40,7 @@ def main():
         print('ES_TLS_CERT ... Path to TLS certificate file.')
         print('ES_TLS_KEY ... Path to TLS key file.')
         print('ES_USE_ILM .. Use ILM to manage jaeger indices.')
+        print('ES_ILM_POLICY_NAME .. The name of the ILM policy to use if ILM is active.')
         print('ES_TLS_SKIP_HOST_VERIFY ... (insecure) Skip server\'s certificate chain and host name verification.')
         print(
             'ES_VERSION ... The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.')
@@ -83,13 +85,14 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         replicas = os.getenv('REPLICAS', REPLICAS)
         esVersion = get_version(client)
         use_ilm = str2bool(os.getenv("ES_USE_ILM", 'false'))
+        ilm_policy_name = os.getenv('ES_ILM_POLICY_NAME', ILM_POLICY_NAME)
         if esVersion == 7:
             if use_ilm:
-                check_if_ilm_policy_exists("jaeger-ilm-policy")
+                check_if_ilm_policy_exists(ilm_policy_name)
         else:
             if use_ilm:
                 sys.exit("ILM is supported only for ES version 7+")
-        create_index_template(fix_mapping(template_name, esVersion, shards, replicas, prefix.rstrip("-"), use_ilm),
+        create_index_template(fix_mapping(template_name, esVersion, shards, replicas, prefix.rstrip("-"), use_ilm, ilm_policy_name),
                               prefix + template_name)
 
         index = index_to_rollover + '-000001'
@@ -194,10 +197,11 @@ def str2bool(v):
     return v.lower() in ('true', '1')
 
 
-def fix_mapping(template_name, esVersion, shards, replicas, indexPrefix, use_ilm):
+def fix_mapping(template_name, esVersion, shards, replicas, indexPrefix, use_ilm, ilm_policy_name):
     output = subprocess.Popen(['esmapping-generator', '--mapping', template_name, '--es-version', str(esVersion),
                                '--shards', str(shards), '--replicas',
-                               str(replicas), '--index-prefix', indexPrefix, '--use-ilm', str(use_ilm)],
+                               str(replicas), '--index-prefix', indexPrefix,
+                               '--use-ilm', str(use_ilm), '--ilm-policy-name', ilm_policy_name],
                               stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)
     mapping, stderr = output.communicate()
