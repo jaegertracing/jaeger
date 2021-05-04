@@ -20,21 +20,23 @@ import (
 
 // Options represent configurable parameters for jaeger-esmapping-generator
 type Options struct {
-	Mapping     string
-	EsVersion   uint
-	Shards      int64
-	Replicas    int64
-	IndexPrefix string
-	UseILM      string // using string as util is being used in python and using bool leads to type issues.
+	Mapping       string
+	EsVersion     uint
+	Shards        int64
+	Replicas      int64
+	IndexPrefix   string
+	UseILM        string // using string as util is being used in python and using bool leads to type issues.
+	ILMPolicyName string
 }
 
 const (
-	mappingFlag     = "mapping"
-	esVersionFlag   = "es-version"
-	shardsFlag      = "shards"
-	replicasFlag    = "replicas"
-	indexPrefixFlag = "index-prefix"
-	useILMFlag      = "use-ilm"
+	mappingFlag       = "mapping"
+	esVersionFlag     = "es-version"
+	shardsFlag        = "shards"
+	replicasFlag      = "replicas"
+	indexPrefixFlag   = "index-prefix"
+	useILMFlag        = "use-ilm"
+	ilmPolicyNameFlag = "ilm-policy-name"
 )
 
 // AddFlags adds flags for esmapping-generator main program
@@ -69,6 +71,11 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		useILMFlag,
 		"false",
 		"Set to true to use ILM for managing lifecycle of jaeger indices")
+	command.Flags().StringVar(
+		&o.ILMPolicyName,
+		ilmPolicyNameFlag,
+		"jaeger-ilm-policy",
+		"The name of the ILM policy to use if ILM is active")
 
 	// mark mapping flag as mandatory
 	command.MarkFlagRequired(mappingFlag)
