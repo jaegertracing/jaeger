@@ -103,9 +103,9 @@ func (_m *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return r0, r1
 }
 
-// CreateLockAndSamplingStore returns all nils ... for now
+// CreateLockAndSamplingStore is not supproted
 func (_m *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	return nil, nil, nil
+	return nil, nil, storage.ErrLockAndSamplingStoreNotSupported // todo(jpe): add tests that require this?
 }
 
 // Initialize provides a mock function with given fields: metricsFactory, logger

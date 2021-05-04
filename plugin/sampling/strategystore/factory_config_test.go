@@ -26,19 +26,19 @@ import (
 func TestFactoryConfigFromEnv(t *testing.T) {
 	tests := []struct {
 		env          string
-		expectedType StrategyStoreType
+		expectedType Kind
 		expectsError bool
 	}{
 		{
-			expectedType: StrategyStoreType("static"),
+			expectedType: Kind("static"),
 		},
 		{
 			env:          "static",
-			expectedType: StrategyStoreType("static"),
+			expectedType: Kind("static"),
 		},
 		{
 			env:          "adaptive",
-			expectedType: StrategyStoreType("adaptive"),
+			expectedType: Kind("adaptive"),
 		},
 		{
 			env:          "??",

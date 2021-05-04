@@ -30,6 +30,7 @@ import (
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -134,7 +135,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 
 // CreateLockAndSamplingStore implements storage.ArchiveFactory. It is not supported by this storage plugin.
 func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	return nil, nil, nil
+	return nil, nil, storage.ErrLockAndSamplingStoreNotSupported
 }
 
 func createSpanReader(

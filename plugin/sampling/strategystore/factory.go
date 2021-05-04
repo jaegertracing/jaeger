@@ -30,24 +30,25 @@ import (
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
-type StrategyStoreType string
+// Kind is a datatype holding the type of strategy store.
+type Kind string
 
-var allSamplingTypes = []StrategyStoreType{"static", "adaptive"}
+var allSamplingTypes = []Kind{"static", "adaptive"}
 
 // Factory implements strategystore.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
 	FactoryConfig
 
-	factories map[StrategyStoreType]strategystore.Factory
+	factories map[Kind]strategystore.Factory
 }
 
 // NewFactory creates the meta-factory.
 func NewFactory(config FactoryConfig) (*Factory, error) {
 	f := &Factory{FactoryConfig: config}
-	uniqueTypes := map[StrategyStoreType]struct{}{
+	uniqueTypes := map[Kind]struct{}{
 		f.StrategyStoreType: {},
 	}
-	f.factories = make(map[StrategyStoreType]strategystore.Factory)
+	f.factories = make(map[Kind]strategystore.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
@@ -58,7 +59,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (f *Factory) getFactoryOfType(factoryType StrategyStoreType) (strategystore.Factory, error) {
+func (f *Factory) getFactoryOfType(factoryType Kind) (strategystore.Factory, error) {
 	switch factoryType {
 	case "static":
 		return static.NewFactory(), nil

@@ -26,7 +26,7 @@ const (
 
 // FactoryConfig tells the Factory what sampling type it needs to create.
 type FactoryConfig struct {
-	StrategyStoreType StrategyStoreType
+	StrategyStoreType Kind
 }
 
 // FactoryConfigFromEnv reads the desired sampling type from the SAMPLING_TYPE environment variable. Allowed values:
@@ -41,6 +41,6 @@ func FactoryConfigFromEnv() (*FactoryConfig, error) {
 		return nil, fmt.Errorf("invalid sampling type: %s", strategyStoreType)
 	}
 	return &FactoryConfig{
-		StrategyStoreType: StrategyStoreType(strategyStoreType),
+		StrategyStoreType: Kind(strategyStoreType),
 	}, nil
 }

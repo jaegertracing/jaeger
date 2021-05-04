@@ -160,6 +160,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	}), nil
 }
 
+// CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
 func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
 	for _, factory := range f.factories {
 		lock, store, err := factory.CreateLockAndSamplingStore()

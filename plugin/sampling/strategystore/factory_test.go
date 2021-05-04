@@ -47,7 +47,7 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories["static"])
-	assert.Equal(t, StrategyStoreType("static"), f.StrategyStoreType)
+	assert.Equal(t, Kind("static"), f.StrategyStoreType)
 
 	mock := new(mockFactory)
 	f.factories["static"] = mock
