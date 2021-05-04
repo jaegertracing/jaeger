@@ -59,6 +59,16 @@ type TBufferedServer struct {
 	}
 }
 
+// state values for TBufferedServer.serving
+//
+// init -> serving -> stopped
+// init -> stopped (might happen in unit tests)
+const (
+	stateStopped = iota
+	stateServing
+	stateInit
+)
+
 // NewTBufferedServer creates a TBufferedServer
 func NewTBufferedServer(
 	transport ThriftTransport,
@@ -79,14 +89,20 @@ func NewTBufferedServer(
 		maxQueueSize:  maxQueueSize,
 		maxPacketSize: maxPacketSize,
 		readBufPool:   readBufPool,
+		serving:       stateInit,
 	}
+
 	metrics.MustInit(&res.metrics, mFactory, nil)
 	return res, nil
 }
 
 // Serve initiates the readers and starts serving traffic
 func (s *TBufferedServer) Serve() {
-	atomic.StoreUint32(&s.serving, 1)
+	defer close(s.dataChan)
+	if !atomic.CompareAndSwapUint32(&s.serving, stateInit, stateServing) {
+		return // Stop already called
+	}
+
 	for s.IsServing() {
 		readBuf := s.readBufPool.Get().(*ReadBuf)
 		n, err := s.transport.Read(readBuf.bytes)
@@ -98,9 +114,11 @@ func (s *TBufferedServer) Serve() {
 				s.metrics.PacketsProcessed.Inc(1)
 				s.updateQueueSize(1)
 			default:
+				s.readBufPool.Put(readBuf)
 				s.metrics.PacketsDropped.Inc(1)
 			}
 		} else {
+			s.readBufPool.Put(readBuf)
 			s.metrics.ReadError.Inc(1)
 		}
 	}
@@ -113,15 +131,14 @@ func (s *TBufferedServer) updateQueueSize(delta int64) {
 
 // IsServing indicates whether the server is currently serving traffic
 func (s *TBufferedServer) IsServing() bool {
-	return atomic.LoadUint32(&s.serving) == 1
+	return atomic.LoadUint32(&s.serving) == stateServing
 }
 
 // Stop stops the serving of traffic and waits until the queue is
 // emptied by the readers
 func (s *TBufferedServer) Stop() {
-	atomic.StoreUint32(&s.serving, 0)
+	atomic.StoreUint32(&s.serving, stateStopped)
 	_ = s.transport.Close()
-	close(s.dataChan)
 }
 
 // DataChan returns the data chan of the buffered server

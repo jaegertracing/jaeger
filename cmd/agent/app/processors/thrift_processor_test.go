@@ -42,8 +42,8 @@ import (
 // TODO make these tests faster, they take almost 4 seconds
 
 var (
-	compactFactory = thrift.NewTCompactProtocolFactory()
-	binaryFactory  = thrift.NewTBinaryProtocolFactoryDefault()
+	compactFactory = thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
+	binaryFactory  = thrift.NewTBinaryProtocolFactoryConf(&thrift.TConfiguration{})
 
 	testSpanName = "span1"
 

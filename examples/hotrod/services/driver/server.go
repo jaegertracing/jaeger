@@ -34,7 +34,7 @@ type Server struct {
 	tracer   opentracing.Tracer
 	logger   log.Factory
 	redis    *Redis
-	server *grpc.Server
+	server   *grpc.Server
 }
 
 var _ DriverServiceServer = (*Server)(nil)
@@ -49,7 +49,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metric
 		hostPort: hostPort,
 		tracer:   tracer,
 		logger:   logger,
-		server: server,
+		server:   server,
 		redis:    newRedis(metricsFactory, logger),
 	}
 }

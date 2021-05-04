@@ -15,17 +15,21 @@
 package grpc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver"
@@ -50,12 +54,12 @@ func NewConnBuilder() *ConnBuilder {
 }
 
 // CreateConnection creates the gRPC connection
-func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, error) {
+func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Factory) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption
 	var dialTarget string
 	if b.TLS.Enabled { // user requested a secure connection
 		logger.Info("Agent requested secure grpc connection to collector(s)")
-		tlsConf, err := b.TLS.Config()
+		tlsConf, err := b.TLS.Config(logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS config: %w", err)
 		}
@@ -90,5 +94,32 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
-	return grpc.Dial(dialTarget, dialOptions...)
+	conn, err := grpc.Dial(dialTarget, dialOptions...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	connectMetrics := reporter.NewConnectMetrics(
+		mFactory.Namespace(metrics.NSOptions{Tags: map[string]string{"protocol": "grpc"}}),
+	)
+
+	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetrics) {
+		logger.Info("Checking connection to collector")
+
+		for {
+			s := cc.GetState()
+			if s == connectivity.Ready {
+				cm.OnConnectionStatusChange(true)
+				cm.RecordTarget(cc.Target())
+			} else {
+				cm.OnConnectionStatusChange(false)
+			}
+
+			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
+			cc.WaitForStateChange(context.Background(), s)
+		}
+	}(conn, connectMetrics)
+
+	return conn, nil
 }

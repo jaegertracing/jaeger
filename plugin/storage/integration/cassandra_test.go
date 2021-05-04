@@ -16,6 +16,7 @@
 package integration
 
 import (
+	"context"
 	"errors"
 	"os"
 	"testing"
@@ -86,7 +87,6 @@ func (s *CassandraStorageIntegration) initializeCassandra() error {
 func (s *CassandraStorageIntegration) initializeCassandraDependenciesV2() error {
 	f, err := s.initializeCassandraFactory([]string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
-		"--cassandra.enable-dependencies-v2=true",
 		"--cassandra.port=9043",
 	})
 	if err != nil {
@@ -134,7 +134,7 @@ func (s *StorageIntegration) testCassandraGetDependencies(t *testing.T) {
 	}
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
-	actual, err := s.DependencyReader.GetDependencies(time.Now(), 5*time.Minute)
+	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
 	assert.EqualValues(t, expected, actual)
 }

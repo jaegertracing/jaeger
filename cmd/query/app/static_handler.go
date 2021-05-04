@@ -16,6 +16,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,15 +31,19 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 var (
 	favoriteIcon    = "favicon.ico"
 	staticRootFiles = []string{favoriteIcon}
+
+	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	basePathPattern = regexp.MustCompile(`<base href="/"`)
-	basePathReplace = `<base href="%s/"`
-	errBadBasePath  = "Invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'"
+	configJsPattern = regexp.MustCompile(`(?im)^\s*\/\/\s*JAEGER_CONFIG_JS.*\n.*`)
+	versionPattern  = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
+	basePathPattern = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
@@ -58,9 +63,10 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
-	options   StaticAssetsHandlerOptions
-	indexHTML atomic.Value // stores []byte
-	assetsFS  http.FileSystem
+	options    StaticAssetsHandlerOptions
+	indexHTML  atomic.Value // stores []byte
+	assetsFS   http.FileSystem
+	newWatcher func() (fswatcher.Watcher, error)
 }
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
@@ -68,6 +74,12 @@ type StaticAssetsHandlerOptions struct {
 	BasePath     string
 	UIConfigPath string
 	Logger       *zap.Logger
+	NewWatcher   func() (fswatcher.Watcher, error)
+}
+
+type loadedConfig struct {
+	regexp *regexp.Regexp
+	config []byte
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
@@ -81,14 +93,19 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		options.Logger = zap.NewNop()
 	}
 
-	indexHTML, err := loadIndexBytes(assetsFS.Open, options)
+	if options.NewWatcher == nil {
+		options.NewWatcher = fswatcher.NewWatcher
+	}
+
+	indexHTML, err := loadAndEnrichIndexHTML(assetsFS.Open, options)
 	if err != nil {
 		return nil, err
 	}
 
 	h := &StaticAssetsHandler{
-		options:  options,
-		assetsFS: assetsFS,
+		options:    options,
+		assetsFS:   assetsFS,
+		newWatcher: options.NewWatcher,
 	}
 
 	h.indexHTML.Store(indexHTML)
@@ -97,39 +114,39 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	return h, nil
 }
 
-func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
+func loadAndEnrichIndexHTML(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
 	indexBytes, err := loadIndexHTML(open)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
-	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
-	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
+	// replace UI config
+	if configObject, err := loadUIConfig(options.UIConfigPath); err != nil {
 		return nil, err
-	} else if config != nil {
-		// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
-		// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
-		// interface{}, and json.Marshal() is unable to serialize it.
-		bytes, _ := json.Marshal(config)
-		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
+	} else if configObject != nil {
+		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
 	}
-	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
+	// replace Jaeger version
+	versionJSON, _ := json.Marshal(version.Get())
+	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
+	indexBytes = versionPattern.ReplaceAll(indexBytes, []byte(versionString))
+	// replace base path
 	if options.BasePath == "" {
 		options.BasePath = "/"
 	}
 	if options.BasePath != "/" {
 		if !strings.HasPrefix(options.BasePath, "/") || strings.HasSuffix(options.BasePath, "/") {
-			return nil, fmt.Errorf(errBadBasePath, options.BasePath)
+			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", options.BasePath)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(basePathReplace, options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, options.BasePath)))
 	}
 
 	return indexBytes, nil
 }
 
-func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
+func (sH *StaticAssetsHandler) configListener(watcher fswatcher.Watcher) {
 	for {
 		select {
-		case event := <-watcher.Events:
+		case event := <-watcher.Events():
 			// ignore if the event filename is not the UI configuration
 			if filepath.Base(event.Name) != filepath.Base(sH.options.UIConfigPath) {
 				continue
@@ -144,12 +161,13 @@ func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
 			}
 			// this will catch events for all files inside the same directory, which is OK if we don't have many changes
 			sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
-			content, err := loadIndexBytes(sH.assetsFS.Open, sH.options)
+			content, err := loadAndEnrichIndexHTML(sH.assetsFS.Open, sH.options)
 			if err != nil {
 				sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
 			}
 			sH.indexHTML.Store(content)
-		case err, ok := <-watcher.Errors:
+			sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.UIConfigPath))
+		case err, ok := <-watcher.Errors():
 			if !ok {
 				return
 			}
@@ -160,10 +178,11 @@ func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
 
 func (sH *StaticAssetsHandler) watch() {
 	if sH.options.UIConfigPath == "" {
+		sH.options.Logger.Info("UI config path not provided, config file will not be watched")
 		return
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := sH.newWatcher()
 	if err != nil {
 		sH.options.Logger.Error("failed to create a new watcher for the UI config", zap.Error(err))
 		return
@@ -173,16 +192,14 @@ func (sH *StaticAssetsHandler) watch() {
 		sH.configListener(watcher)
 	}()
 
-	err = watcher.Add(sH.options.UIConfigPath)
-	if err != nil {
+	if err := watcher.Add(sH.options.UIConfigPath); err != nil {
 		sH.options.Logger.Error("error adding watcher to file", zap.String("file", sH.options.UIConfigPath), zap.Error(err))
 	} else {
 		sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
 	}
 
 	dir := filepath.Dir(sH.options.UIConfigPath)
-	err = watcher.Add(dir)
-	if err != nil {
+	if err := watcher.Add(dir); err != nil {
 		sH.options.Logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
 	} else {
 		sH.options.Logger.Info("watching", zap.String("dir", dir))
@@ -202,30 +219,44 @@ func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	return indexBytes, nil
 }
 
-func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
+func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	if uiConfig == "" {
 		return nil, nil
 	}
-	ext := filepath.Ext(uiConfig)
-	bytes, err := ioutil.ReadFile(uiConfig) /* nolint #nosec , this comes from an admin, not user */
+	bytesConfig, err := ioutil.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}
+	var r []byte
 
-	var c map[string]interface{}
-	var unmarshal func([]byte, interface{}) error
-
+	ext := filepath.Ext(uiConfig)
 	switch strings.ToLower(ext) {
 	case ".json":
-		unmarshal = json.Unmarshal
-	default:
-		return nil, fmt.Errorf("unrecognized UI config file format %v", uiConfig)
-	}
+		var c map[string]interface{}
 
-	if err := unmarshal(bytes, &c); err != nil {
-		return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+		if err := json.Unmarshal(bytesConfig, &c); err != nil {
+			return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+		}
+		r, _ = json.Marshal(c)
+
+		return &loadedConfig{
+			regexp: configPattern,
+			config: append([]byte("JAEGER_CONFIG = "), append(r, byte(';'))...),
+		}, nil
+	case ".js":
+		r = bytes.TrimSpace(bytesConfig)
+		re := regexp.MustCompile(`function\s+UIConfig(\s)?\(\s?\)(\s)?{`)
+		if !re.Match(r) {
+			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", uiConfig)
+		}
+
+		return &loadedConfig{
+			regexp: configJsPattern,
+			config: r,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", uiConfig)
 	}
-	return c, nil
 }
 
 // RegisterRoutes registers routes for this handler on the given router

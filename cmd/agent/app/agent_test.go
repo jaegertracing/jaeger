@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	"go.uber.org/zap"
 
 	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -95,12 +96,13 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 			},
 		},
 		HTTPServer: HTTPServerConfiguration{
-			HostPort: ":0",
+			HostPort: "127.0.0.1:0",
 		},
 	}
 	logger, logBuf := testutils.NewLogger()
 	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
-	mFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
 	require.NoError(t, err)
@@ -126,15 +128,6 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 
 	testcase(agent.HTTPAddr(), ch)
 
-	// TODO (wjang) We sleep because the processors in the agent might not have had time to
-	// start up yet. If we were to call Stop() before the processors have time to startup,
-	// it'll panic because of a DATA RACE between wg.Add() and wg.Wait() in thrift_processor.
-	// A real fix for this issue would be to add semaphores to tbuffered_server, thrift_processor,
-	// and agent itself. Given all this extra overhead and testing required to get this to work
-	// "elegantly", I opted to just sleep here given how unlikely this situation will occur in
-	// production.
-	time.Sleep(2 * time.Second)
-
 	agent.Stop()
 	assert.NoError(t, <-ch)
 
@@ -154,15 +147,17 @@ func TestStartStopRace(t *testing.T) {
 			{
 				Model:    jaegerModel,
 				Protocol: compactProtocol,
+				Workers:  1,
 				Server: ServerConfiguration{
 					HostPort: "127.0.0.1:0",
 				},
 			},
 		},
 	}
-	logger, logBuf := testutils.NewLogger()
+	logger, logBuf := testutils.NewEchoLogger(t)
 	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
-	mFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
 	require.NoError(t, err)
@@ -174,9 +169,10 @@ func TestStartStopRace(t *testing.T) {
 	// run with -race flag.
 
 	if err := agent.Run(); err != nil {
-		t.Errorf("error from agent.Run(): %s", err)
+		t.Fatalf("error from agent.Run(): %s", err)
 	}
 
+	t.Log("stopping agent")
 	agent.Stop()
 
 	for i := 0; i < 1000; i++ {

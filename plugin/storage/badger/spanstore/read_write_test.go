@@ -17,7 +17,6 @@ package spanstore_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -27,17 +26,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
-	bss "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
-
-var _ io.Closer = new(bss.SpanWriter)
 
 func TestWriteReadBack(t *testing.T) {
 	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
@@ -76,7 +73,7 @@ func TestWriteReadBack(t *testing.T) {
 						},
 					},
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -173,7 +170,7 @@ func TestIndexSeeks(t *testing.T) {
 					},
 				}
 
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -303,10 +300,10 @@ func TestFindNothing(t *testing.T) {
 
 		trs, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(trs))
+		assert.Len(t, trs, 0)
 
 		tr, err := sr.GetTrace(context.Background(), model.TraceID{High: 0, Low: 0})
-		assert.NoError(t, err)
+		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, tr)
 	})
 }
@@ -331,7 +328,7 @@ func TestWriteDuplicates(t *testing.T) {
 					StartTime: tid.Add(time.Duration(10)),
 					Duration:  time.Duration(i + j),
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -359,7 +356,7 @@ func TestMenuSeeks(t *testing.T) {
 					StartTime: tid.Add(time.Duration(i)),
 					Duration:  time.Duration(i + j),
 				}
-				err := sw.WriteSpan(&s)
+				err := sw.WriteSpan(context.Background(), &s)
 				assert.NoError(t, err)
 			}
 		}
@@ -385,6 +382,10 @@ func TestPersist(t *testing.T) {
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
 		f := badger.NewFactory()
+		defer func() {
+			require.NoError(t, f.Close())
+		}()
+
 		opts := badger.NewOptions("badger")
 		v, command := config.Viperize(opts.AddFlags)
 
@@ -408,16 +409,6 @@ func TestPersist(t *testing.T) {
 		sr, err := f.CreateSpanReader()
 		assert.NoError(t, err)
 
-		defer func() {
-			if closer, ok := sw.(io.Closer); ok {
-				err := closer.Close()
-				assert.NoError(t, err)
-			} else {
-				t.FailNow()
-			}
-
-		}()
-
 		test(t, sw, sr)
 	}
 
@@ -435,7 +426,7 @@ func TestPersist(t *testing.T) {
 			StartTime: time.Now(),
 			Duration:  time.Duration(1 * time.Hour),
 		}
-		err := sw.WriteSpan(&s)
+		err := sw.WriteSpan(context.Background(), &s)
 		assert.NoError(t, err)
 	})
 
@@ -456,6 +447,10 @@ func TestPersist(t *testing.T) {
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	f := badger.NewFactory()
+	defer func() {
+		require.NoError(tb, f.Close())
+	}()
+
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
@@ -473,15 +468,6 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	sr, err := f.CreateSpanReader()
 	assert.NoError(tb, err)
 
-	defer func() {
-		if closer, ok := sw.(io.Closer); ok {
-			err := closer.Close()
-			assert.NoError(tb, err)
-		} else {
-			tb.FailNow()
-		}
-
-	}()
 	test(tb, sw, sr)
 }
 
@@ -504,7 +490,7 @@ func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations
 				StartTime: tid.Add(time.Duration(time.Millisecond)),
 				Duration:  time.Duration(time.Millisecond * time.Duration(i+j)),
 			}
-			_ = sw.WriteSpan(&s)
+			_ = sw.WriteSpan(context.Background(), &s)
 		}
 	}
 }
@@ -654,13 +640,9 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 	assert.NoError(err)
 
 	defer func() {
-		if closer, ok := sw.(io.Closer); ok {
-			err := closer.Close()
-			os.RemoveAll(dir)
-			assert.NoError(err)
-		} else {
-			assert.FailNow("io.Closer not implemented by SpanWriter")
-		}
+		err := f.Close()
+		os.RemoveAll(dir)
+		require.NoError(tb, err)
 	}()
 	test(tb, sw, sr)
 }
@@ -688,7 +670,7 @@ func TestRandomTraceID(t *testing.T) {
 			StartTime: time.Now(),
 			Duration:  1 * time.Second,
 		}
-		err := sw.WriteSpan(&s1)
+		err := sw.WriteSpan(context.Background(), &s1)
 		assert.NoError(t, err)
 
 		s2 := model.Span{
@@ -711,7 +693,7 @@ func TestRandomTraceID(t *testing.T) {
 			StartTime: time.Now(),
 			Duration:  1 * time.Second,
 		}
-		err = sw.WriteSpan(&s2)
+		err = sw.WriteSpan(context.Background(), &s2)
 		assert.NoError(t, err)
 
 		params := &spanstore.TraceQueryParameters{

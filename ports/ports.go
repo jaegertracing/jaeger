@@ -38,6 +38,8 @@ const (
 	// CollectorAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
 	CollectorAdminHTTP = 14269
 
+	// QueryGRPC is the default port of GRPC requests for Query trace retrieval
+	QueryGRPC = 16685
 	// QueryHTTP is the default port for UI and Query API (e.g. /api/* endpoints)
 	QueryHTTP = 16686
 	// QueryAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
@@ -56,6 +58,15 @@ func PortToHostPort(port int) string {
 func GetAddressFromCLIOptions(port int, hostPort string) string {
 	if port != 0 {
 		return PortToHostPort(port)
+	}
+
+	return FormatHostPort(hostPort)
+}
+
+// FormatHostPort returns hostPort in a usable format (host:port) if it wasn't already
+func FormatHostPort(hostPort string) string {
+	if hostPort == "" {
+		return ""
 	}
 
 	if strings.Contains(hostPort, ":") {

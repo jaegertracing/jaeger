@@ -2,7 +2,7 @@
 
 This is a demo application that consists of several microservices and illustrates
 the use of the OpenTracing API. It can be run standalone, but requires Jaeger backend
-to view the traces. A tutorial / walkthough is available:
+to view the traces. A tutorial / walkthrough is available:
   * as a blog post [Take OpenTracing for a HotROD ride][hotrod-tutorial],
   * as a video [OpenShift Commons Briefing: Distributed Tracing with Jaeger & Prometheus on Kubernetes][hotrod-openshift].
 
@@ -47,8 +47,8 @@ Jaeger UI can be accessed at http://localhost:16686.
 
 ```bash
 git clone git@github.com:jaegertracing/jaeger.git jaeger
-cd jaeger/examples/hotrod
-go run ./main.go all
+cd jaeger
+go run ./examples/hotrod/main.go all
 ```
 
 ### Run HotROD from docker
@@ -73,3 +73,14 @@ The app exposes metrics in either Go's `expvar` format (by default) or in Promet
 
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
 [hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/
+
+## Linking to traces
+
+The HotROD UI can generate links to the Jaeger UI to find traces corresponding
+to each executed request. By default it uses the standard Jaeger UI address
+http://localhost:16686, but if your Jaeger UI is running at a different address,
+it can be customized via `-j <address>` flag passed to HotROD, e.g.
+
+```
+go run ./examples/hotrod/main.go all -j http://jaeger-ui:16686
+```

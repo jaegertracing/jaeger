@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -76,6 +77,9 @@ func main() {
 			consumer.Start()
 
 			svc.RunAndThen(func() {
+				if err := options.TLS.Close(); err != nil {
+					logger.Error("Failed to close TLS certificates watcher", zap.Error(err))
+				}
 				if err = consumer.Close(); err != nil {
 					logger.Error("Failed to close consumer", zap.Error(err))
 				}
@@ -85,6 +89,9 @@ func main() {
 						logger.Error("Failed to close span writer", zap.Error(err))
 					}
 				}
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
 			})
 			return nil
 		},
@@ -93,12 +100,13 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.IngesterAdminHTTP))
 
 	config.AddFlags(
 		v,
 		command,
 		svc.AddFlags,
-		storageFactory.AddFlags,
+		storageFactory.AddPipelineFlags,
 		app.AddFlags,
 	)
 

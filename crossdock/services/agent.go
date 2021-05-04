@@ -61,7 +61,10 @@ func (s *agentService) GetSamplingRate(service, operation string) (float64, erro
 		return 0, err
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
 	s.logger.Info("Retrieved sampling rates from agent", zap.String("body", string(body)))
 
 	var response sampling.SamplingStrategyResponse

@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	iterations = 30
+	iterations = 100
 )
 
 // StorageIntegration holds components for storage integration test
@@ -90,7 +90,7 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
+		time.Sleep(100 * time.Millisecond) // Will wait up to 10 seconds at worst.
 	}
 	return predicate(t)
 }
@@ -188,6 +188,13 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
 	}
+
+	t.Run("NotFound error", func(t *testing.T) {
+		fakeTraceID := model.TraceID{High: 0, Low: 0}
+		trace, err := s.SpanReader.GetTrace(context.Background(), fakeTraceID)
+		assert.Equal(t, spanstore.ErrTraceNotFound, err)
+		assert.Nil(t, trace)
+	})
 }
 
 func (s *StorageIntegration) testFindTraces(t *testing.T) {
@@ -245,7 +252,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) error {
 	for _, span := range trace.Spans {
-		if err := s.SpanWriter.WriteSpan(span); err != nil {
+		if err := s.SpanWriter.WriteSpan(context.Background(), span); err != nil {
 			return err
 		}
 	}
@@ -364,7 +371,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	}
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
-	actual, err := s.DependencyReader.GetDependencies(time.Now(), 5*time.Minute)
+	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
 	assert.EqualValues(t, expected, actual)
 }

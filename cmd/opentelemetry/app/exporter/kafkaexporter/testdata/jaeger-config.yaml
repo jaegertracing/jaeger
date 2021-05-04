@@ -1,3 +1,0 @@
-kafka.producer:
-  kerberos:
-    username: from-jaeger-config

@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -123,6 +124,9 @@ func main() {
 
 			svc.RunAndThen(func() {
 				server.Close()
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
 			})
 			return nil
 		},
@@ -131,6 +135,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.QueryAdminHTTP))
 
 	config.AddFlags(
 		v,
@@ -140,8 +145,8 @@ func main() {
 		app.AddFlags,
 	)
 
-	if error := command.Execute(); error != nil {
-		fmt.Println(error.Error())
+	if err := command.Execute(); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 }

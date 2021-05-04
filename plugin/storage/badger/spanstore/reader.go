@@ -25,7 +25,6 @@ import (
 	"sort"
 
 	"github.com/dgraph-io/badger"
-	"github.com/golang/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -54,6 +53,9 @@ var (
 
 	// ErrNotSupported during development, don't support every option - yet
 	ErrNotSupported = errors.New("this query parameter is not supported yet")
+
+	// ErrInternalConsistencyError indicates internal data consistency issue
+	ErrInternalConsistencyError = errors.New("internal data consistency issue")
 )
 
 const (
@@ -98,7 +100,7 @@ func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
 			return nil, err
 		}
 	case protoEncoding:
-		if err := proto.Unmarshal(val, &sp); err != nil {
+		if err := sp.Unmarshal(val); err != nil {
 			return nil, err
 		}
 	default:
@@ -160,11 +162,14 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 	if err != nil {
 		return nil, err
 	}
+	if len(traces) == 0 {
+		return nil, spanstore.ErrTraceNotFound
+	}
 	if len(traces) == 1 {
 		return traces[0], nil
 	}
 
-	return nil, nil
+	return nil, ErrInternalConsistencyError
 }
 
 // scanTimeRange returns all the Traces found between startTs and endTs
@@ -259,23 +264,28 @@ func setQueryDefaults(query *spanstore.TraceQueryParameters) {
 func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) [][]byte {
 	if query.ServiceName != "" {
 		indexSearchKey := make([]byte, 0, 64) // 64 is a magic guess
+		tagQueryUsed := false
+		for k, v := range query.Tags {
+			tagSearch := []byte(query.ServiceName + k + v)
+			tagSearchKey := make([]byte, 0, len(tagSearch)+1)
+			tagSearchKey = append(tagSearchKey, tagIndexKey)
+			tagSearchKey = append(tagSearchKey, tagSearch...)
+			indexSeeks = append(indexSeeks, tagSearchKey)
+			tagQueryUsed = true
+		}
+
 		if query.OperationName != "" {
 			indexSearchKey = append(indexSearchKey, operationNameIndexKey)
 			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName+query.OperationName)...)
 		} else {
-			indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
-			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
+			if !tagQueryUsed { // Tag query already reduces the search set with a serviceName
+				indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
+				indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
+			}
 		}
 
-		indexSeeks = append(indexSeeks, indexSearchKey)
-		if len(query.Tags) > 0 {
-			for k, v := range query.Tags {
-				tagSearch := []byte(query.ServiceName + k + v)
-				tagSearchKey := make([]byte, 0, len(tagSearch)+1)
-				tagSearchKey = append(tagSearchKey, tagIndexKey)
-				tagSearchKey = append(tagSearchKey, tagSearch...)
-				indexSeeks = append(indexSeeks, tagSearchKey)
-			}
+		if len(indexSearchKey) > 0 {
+			indexSeeks = append(indexSeeks, indexSearchKey)
 		}
 	}
 	return indexSeeks
@@ -559,7 +569,7 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) (
 
 // scanFunction compares the index name as well as the time range in the index key
 func scanFunction(it *badger.Iterator, indexPrefix []byte, timeBytesEnd []byte) bool {
-	if it.Item() != nil {
+	if it.Valid() {
 		// We can't use the indexPrefix length, because we might have the same prefixValue for non-matching cases also
 		timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
 		timestamp := it.Item().Key()[timestampStartIndex : timestampStartIndex+8]
@@ -610,7 +620,7 @@ func (r *TraceReader) scanRangeIndex(plan *executionPlan, indexStartValue []byte
 
 // scanRangeFunction seeks until the index end has been reached
 func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
-	if it.Item() != nil {
+	if it.Valid() {
 		compareSlice := it.Item().Key()[:len(indexEndValue)]
 		return bytes.Compare(indexEndValue, compareSlice) >= 0
 	}

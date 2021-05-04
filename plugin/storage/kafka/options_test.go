@@ -173,29 +173,30 @@ func TestRequiredAcksFailures(t *testing.T) {
 
 func TestTLSFlags(t *testing.T) {
 	kerb := auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}
+	plain := auth.PlainTextConfig{Username: "", Password: "", Mechanism: "PLAIN"}
 	tests := []struct {
 		flags    []string
 		expected auth.AuthenticationConfig
 	}{
 		{
 			flags:    []string{},
-			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb},
+			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=foo"},
-			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb},
+			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
-			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}},
+			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=tls"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
 		},
 	}
 

@@ -37,6 +37,7 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 	f.InitFromViper(v)
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
+	defer f.Close()
 
 	// We're not expecting any value in !linux, just no error
 	err = f.diskStatisticsUpdate()

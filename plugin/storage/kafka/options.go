@@ -118,23 +118,6 @@ type Options struct {
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
-		configPrefix+suffixBrokers,
-		defaultBroker,
-		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
-	flagSet.String(
-		configPrefix+suffixTopic,
-		defaultTopic,
-		"The name of the kafka topic")
-	flagSet.String(
-		configPrefix+suffixProtocolVersion,
-		"",
-		"Kafka protocol version - must be supported by kafka server")
-	flagSet.String(
-		configPrefix+suffixEncoding,
-		defaultEncoding,
-		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
-	)
-	flagSet.String(
 		configPrefix+suffixRequiredAcks,
 		defaultRequiredAcks,
 		"(experimental) Required kafka broker acknowledgement. i.e. noack, local, all",
@@ -169,6 +152,24 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		defaultBatchMaxMessages,
 		"(experimental) Maximum number of message to batch before sending records to Kafka",
 	)
+	flagSet.String(
+		configPrefix+suffixBrokers,
+		defaultBroker,
+		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
+	flagSet.String(
+		configPrefix+suffixTopic,
+		defaultTopic,
+		"The name of the kafka topic")
+	flagSet.String(
+		configPrefix+suffixProtocolVersion,
+		"",
+		"Kafka protocol version - must be supported by kafka server")
+	flagSet.String(
+		configPrefix+suffixEncoding,
+		defaultEncoding,
+		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
+	)
+
 	auth.AddFlags(configPrefix, flagSet)
 }
 

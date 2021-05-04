@@ -1,0 +1,39 @@
+name: Build all-in-one
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  all-in-one:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.16
+
+    - uses: actions/setup-node@v2.1.5
+      with:
+        node-version: '10'
+
+    - name: Export BRANCH variable
+      uses: ./.github/actions/setup-branch
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Build, test, and publish all-in-one image
+      run: bash scripts/build-all-in-one-image.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

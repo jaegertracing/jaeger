@@ -33,11 +33,11 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		rw := NewTraceReader(store, cache)
 
 		sw.encodingType = jsonEncoding
-		err := sw.WriteSpan(&testSpan)
+		err := sw.WriteSpan(context.Background(), &testSpan)
 		assert.NoError(t, err)
 
 		tr, err := rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
@@ -50,11 +50,11 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		// rw := NewTraceReader(store, cache)
 
 		sw.encodingType = 0x04
-		err := sw.WriteSpan(&testSpan)
+		err := sw.WriteSpan(context.Background(), &testSpan)
 		assert.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 
@@ -63,10 +63,10 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		rw := NewTraceReader(store, cache)
 
-		err := sw.WriteSpan(&testSpan)
+		err := sw.WriteSpan(context.Background(), &testSpan)
 		assert.NoError(t, err)
 
 		startTime := model.TimeAsEpochMicroseconds(testSpan.StartTime)
@@ -102,7 +102,7 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		rw := NewTraceReader(store, cache)
 		origStartTime := testSpan.StartTime
 
@@ -112,7 +112,7 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 			for i := 0; i < 32; i++ {
 				testSpan.SpanID = model.SpanID(rand.Uint64())
 				testSpan.StartTime = origStartTime.Add(time.Duration(rand.Int31n(8000)) * time.Millisecond)
-				err := sw.WriteSpan(&testSpan)
+				err := sw.WriteSpan(context.Background(), &testSpan)
 				assert.NoError(t, err)
 			}
 		}

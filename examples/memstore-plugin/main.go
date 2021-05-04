@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -45,21 +46,37 @@ func main() {
 	opts := memory.Options{}
 	opts.InitFromViper(v)
 
-	grpc.Serve(&memoryStore{store: memory.NewStore()})
+	plugin := &memoryStorePlugin{
+		store:        memory.NewStore(),
+		archiveStore: memory.NewStore(),
+	}
+	grpc.Serve(&shared.PluginServices{
+		Store:        plugin,
+		ArchiveStore: plugin,
+	})
 }
 
-type memoryStore struct {
-	store *memory.Store
+type memoryStorePlugin struct {
+	store        *memory.Store
+	archiveStore *memory.Store
 }
 
-func (ns *memoryStore) DependencyReader() dependencystore.Reader {
+func (ns *memoryStorePlugin) DependencyReader() dependencystore.Reader {
 	return ns.store
 }
 
-func (ns *memoryStore) SpanReader() spanstore.Reader {
+func (ns *memoryStorePlugin) SpanReader() spanstore.Reader {
 	return ns.store
 }
 
-func (ns *memoryStore) SpanWriter() spanstore.Writer {
+func (ns *memoryStorePlugin) SpanWriter() spanstore.Writer {
 	return ns.store
+}
+
+func (ns *memoryStorePlugin) ArchiveSpanReader() spanstore.Reader {
+	return ns.archiveStore
+}
+
+func (ns *memoryStorePlugin) ArchiveSpanWriter() spanstore.Writer {
+	return ns.archiveStore
 }

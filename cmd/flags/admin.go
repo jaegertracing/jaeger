@@ -17,6 +17,7 @@ package flags
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -27,16 +28,12 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
 	healthCheckHTTPPort = "health-check-http-port"
 	adminHTTPPort       = "admin-http-port"
 	adminHTTPHostPort   = "admin.http.host-port"
-
-	healthCheckHTTPPortWarning = "(deprecated, will be removed after 2020-03-15 or in release v1.19.0, whichever is later)"
-	adminHTTPPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 )
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
@@ -73,17 +70,7 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(healthCheckHTTPPort, 0, healthCheckHTTPPortWarning+" see --"+adminHTTPHostPort)
-	flagSet.Int(adminHTTPPort, 0, adminHTTPPortWarning+" see --"+adminHTTPHostPort)
-	flagSet.String(adminHTTPHostPort, s.adminHostPort, "The host:port (e.g. 127.0.0.1:5555 or :5555) for the admin server, including health check, /metrics, etc.")
-}
-
-// Util function to use deprecated flag value if specified
-func (s *AdminServer) checkDeprecatedFlag(v *viper.Viper, actualFlagName string, expectedFlagName string) {
-	if v := v.GetInt(actualFlagName); v != 0 {
-		s.logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", actualFlagName, expectedFlagName)
-		s.adminHostPort = ports.PortToHostPort(v)
-	}
+	flagSet.String(adminHTTPHostPort, s.adminHostPort, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.adminHostPort, s.adminHostPort))
 }
 
 // InitFromViper initializes the server with properties retrieved from Viper.
@@ -91,8 +78,6 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) {
 	s.setLogger(logger)
 
 	s.adminHostPort = v.GetString(adminHTTPHostPort)
-	s.checkDeprecatedFlag(v, healthCheckHTTPPort, adminHTTPHostPort)
-	s.checkDeprecatedFlag(v, adminHTTPPort, adminHTTPHostPort)
 }
 
 // Handle adds a new handler to the admin server.

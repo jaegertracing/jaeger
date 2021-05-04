@@ -1,18 +1,257 @@
 Changes by Version
 ==================
 
-1.19.0 (unreleased)
-------------------
+1.23.0 (unreleased)
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
+* Remove unused `--es-archive.max-span-age` flag ([#2865](https://github.com/jaegertracing/jaeger/pull/2865), [@albertteoh](https://github.com/albertteoh)):
+
+1.22.0 (2021-02-23)
+-------------------
 
 ### Backend Changes
 
 #### Breaking Changes
 
+* Remove deprecated TLS flags ([#2790](https://github.com/jaegertracing/jaeger/issues/2790), [@albertteoh](https://github.com/albertteoh)):
+    * `--cassandra.tls` is replaced by `--cassandra.tls.enabled`
+    * `--cassandra-archive.tls` is replaced by `--cassandra-archive.tls.enabled`
+    * `--collector.grpc.tls` is replaced by `--collector.grpc.tls.enabled`
+    * `--collector.grpc.tls.client.ca` is replaced by `--collector.grpc.tls.client-ca`
+    * `--es.tls` is replaced by `--es.tls.enabled`
+    * `--es-archive.tls` is replaced by `--es-archive.tls.enabled`
+    * `--kafka.consumer.tls` is replaced by `--kafka.consumer.tls.enabled`
+    * `--kafka.producer.tls` is replaced by `--kafka.producer.tls.enabled`
+    * `--reporter.grpc.tls` is replaced by `--reporter.grpc.tls.enabled`
+
+* Remove deprecated flags of Query Server  `--query.port` and `--query.host-port`, please use dedicated HTTP `--query.http-server.host-port` (defaults to `:16686`) and gRPC `--query.grpc-server.host-port` (defaults to `:16685`)  host-ports flags instead ([#2772](https://github.com/jaegertracing/jaeger/pull/2772), [@rjs211](https://github.com/rjs211))
+    * By default, if no flags are set, the query server starts on the dedicated ports.  To use common port for gRPC and  HTTP endpoints, the host-port flags have to be explicitly set
+
+* Remove deprecated CLI flags ([#2751](https://github.com/jaegertracing/jaeger/issues/2751), [@LostLaser](https://github.com/LostLaser)):
+    * `--collector.http-port` is replaced by `--collector.http-server.host-port`
+    * `--collector.grpc-port` is replaced by `--collector.grpc-server.host-port`
+    * `--collector.zipkin.http-port` is replaced by `--collector.zipkin.host-port`
+
+* Remove deprecated flags `--health-check-http-port` & `--admin-http-port`, please use `--admin.http.host-port` ([#2752](https://github.com/jaegertracing/jaeger/pull/2752), [@pradeepnnv](https://github.com/pradeepnnv))
+
+* Remove deprecated flag `--es.max-num-spans`, please use `--es.max-doc-count` ([#2482](https://github.com/jaegertracing/jaeger/pull/2482), [@BernardTolosajr](https://github.com/BernardTolosajr))
+
+* Remove deprecated flag `--jaeger.tags`, please use `--agent.tags` ([#2753](https://github.com/jaegertracing/jaeger/pull/2753), [@yurishkuro](https://github.com/yurishkuro))
+
+* Remove deprecated Cassandra flags ([#2789](https://github.com/jaegertracing/jaeger/pull/2789), [@albertteoh](https://github.com/albertteoh)):
+    * `--cassandra.enable-dependencies-v2` - Jaeger will automatically detect the version of the dependencies table
+    * `--cassandra.tls.verify-host` - please use `--cassandra.tls.skip-host-verify` instead
+
+* Remove incorrectly scoped downsample flags from the query service ([#2782](https://github.com/jaegertracing/jaeger/pull/2782), [@joe-elliott](https://github.com/joe-elliott))
+    * `--downsampling.hashsalt` removed from jaeger-query
+    * `--downsampling.ratio` removed from jaeger-query
+    
 #### New Features
+
+* Add TLS Support for gRPC and HTTP endpoints of the Query and Collector servers ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [#2772](https://github.com/jaegertracing/jaeger/pull/2772), [#2798](https://github.com/jaegertracing/jaeger/pull/2798), [@rjs211](https://github.com/rjs211))
+
+    *  If TLS in enabled on either or both of gRPC or HTTP endpoints, the gRPC host-port and the HTTP host-port have to be different
+    *  If TLS is disabled on both endpoints, common HTTP and gRPC host-port can be explicitly set using the following host-port flags respectively:
+        * Query: `--query.http-server.host-port` and  `--query.grpc-server.host-port`
+        * Collector: `--collector.http-server.host-port` and `--collector.grpc-server.host-port`
+* Add support for Kafka SASL/PLAIN authentication via SCRAM-SHA-256 or SCRAM-SHA-512 mechanism ([#2724](https://github.com/jaegertracing/jaeger/pull/2724), [@WalkerWang731](https://github.com/WalkerWang731))
+* [agent] Add metrics to show connections status between agent and collectors ([#2657](https://github.com/jaegertracing/jaeger/pull/2657), [@WalkerWang731](https://github.com/WalkerWang731))
+* Add plaintext as a supported kafka auth option ([#2721](https://github.com/jaegertracing/jaeger/pull/2721), [@pdepaepe](https://github.com/pdepaepe))
+* Add ability to use JS file for UI configuration (#123 from jaeger-ui) ([#2707](https://github.com/jaegertracing/jaeger/pull/2707), [@th3M1ke](https://github.com/th3M1ke))
+* Support Elasticsearch ILM for managing jaeger indices ([#2796](https://github.com/jaegertracing/jaeger/pull/2796), [@bhiravabhatla](https://github.com/bhiravabhatla))
+* Push official images to quay.io, in addition to Docker Hub ([#2783](https://github.com/jaegertracing/jaeger/pull/2783), [@Ashmita152](https://github.com/Ashmita152))
+* Add status command ([#2684](https://github.com/jaegertracing/jaeger/pull/2684), [@sniperking1234](https://github.com/sniperking1234))
+    * Usage:
+      ```bash
+      $ ./cmd/collector/collector-darwin-amd64 status
+      {"status":"Server available","upSince":"2021-02-19T17:57:12.671902+11:00","uptime":"25.241233383s"}
+      ```
+* Support configurable date separator for Elasticsearch index names ([#2637](https://github.com/jaegertracing/jaeger/pull/2637), [@sniperking1234](https://github.com/sniperking1234))
 
 #### Bug fixes, Minor Improvements
 
+* Use workaround for windows x509.SystemCertPool() ([#2756](https://github.com/jaegertracing/jaeger/pull/2756), [@Ashmita152](https://github.com/Ashmita152))
+* Guard against mal-formed payloads received by the agent, potentially causing high memory utilization ([#2780](https://github.com/jaegertracing/jaeger/pull/2780), [@jpkrohling](https://github.com/jpkrohling))
+* Expose cache TTL for ES span writer index+service ([#2737](https://github.com/jaegertracing/jaeger/pull/2737), [@necrolyte2](https://github.com/necrolyte2))
+* Copy spans from memory store ([#2720](https://github.com/jaegertracing/jaeger/pull/2720), [@bobrik](https://github.com/bobrik))
+* [pkg/queue] Add `StartConsumersWithFactory` function ([#2714](https://github.com/jaegertracing/jaeger/pull/2714), [@mx-psi](https://github.com/mx-psi))
+* Fix potential cross-site scripting issue ([#2697](https://github.com/jaegertracing/jaeger/pull/2697), [@yurishkuro](https://github.com/yurishkuro))
+* Updated gRPC Storage Plugin README with example ([#2687](https://github.com/jaegertracing/jaeger/pull/2687), [@js8080](https://github.com/js8080))
+* Deduplicate collector tags ([#2658](https://github.com/jaegertracing/jaeger/pull/2658), [@Betula-L](https://github.com/Betula-L))
+* Add latency metrics on collector HTTP endpoints ([#2664](https://github.com/jaegertracing/jaeger/pull/2664), [@dimitarvdimitrov](https://github.com/dimitarvdimitrov))
+* Fix collector panic due to sarama sdk ([#2654](https://github.com/jaegertracing/jaeger/pull/2654), [@Betula-L](https://github.com/Betula-L))
+* Handle collector Start error ([#2647](https://github.com/jaegertracing/jaeger/pull/2647), [@albertteoh](https://github.com/albertteoh))
+* [anonymizer] Save trace in UI format ([#2629](https://github.com/jaegertracing/jaeger/pull/2629), [@yurishkuro](https://github.com/yurishkuro))
+
 ### UI Changes
+
+* UI pinned to version 1.13.0. The changelog is available here [v1.13.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1130-february-20-2021)
+
+
+1.21.0 (2020-11-13)
+-------------------
+
+### Backend Changes
+
+#### New Features
+
+* Add trace anonymizer utility ([#2621](https://github.com/jaegertracing/jaeger/pull/2621), [#2585](https://github.com/jaegertracing/jaeger/pull/2585), [@Ashmita152](https://github.com/Ashmita152))
+* Add URL option for sampling strategies file ([#2519](https://github.com/jaegertracing/jaeger/pull/2519), [@goku321](https://github.com/goku321))
+* Expose tunning options via expvar ([#2496](https://github.com/jaegertracing/jaeger/pull/2496), [@dstdfx](https://github.com/dstdfx))
+* Support more encodings for Kafka in OTel Ingester ([#2580](https://github.com/jaegertracing/jaeger/pull/2580), [@XSAM](https://github.com/XSAM))
+* Create debug docker images for jaeger backends ([#2545](https://github.com/jaegertracing/jaeger/pull/2545), [@Ashmita152](https://github.com/Ashmita152))
+* Display backend & UI versions in Jaeger UI
+  * Inject version info into index.html ([#2547](https://github.com/jaegertracing/jaeger/pull/2547), [@yurishkuro](https://github.com/yurishkuro))
+  * Added jaeger ui version to about menu ([#606](https://github.com/jaegertracing/jaeger-ui/pull/606), [@alanisaac](https://github.com/alanisaac))
+
+#### Bug fixes, Minor Improvements
+
+* Update x/text to v0.3.4 ([#2625](https://github.com/jaegertracing/jaeger/pull/2625), [@objectiser](https://github.com/objectiser))
+* Update CodeQL to latest best practices ([#2615](https://github.com/jaegertracing/jaeger/pull/2615), [@jhutchings1](https://github.com/jhutchings1))
+* Bump opentelemetry-collector to v0.14.0 ([#2617](https://github.com/jaegertracing/jaeger/pull/2617), [@Vemmy124](https://github.com/Vemmy124))
+* Bump Badger to v1.6.2 ([#2613](https://github.com/jaegertracing/jaeger/pull/2613), [@Ackar](https://github.com/Ackar))
+* Fix sarama consumer deadlock ([#2587](https://github.com/jaegertracing/jaeger/pull/2587), [@albertteoh](https://github.com/albertteoh))
+* Avoid deadlock if Stop is called before Serve ([#2608](https://github.com/jaegertracing/jaeger/pull/2608), [@chlunde](https://github.com/chlunde))
+* Return buffers to pool on network errors or queue overflow ([#2609](https://github.com/jaegertracing/jaeger/pull/2609), [@chlunde](https://github.com/chlunde))
+* Clarify deadlock panic message ([#2605](https://github.com/jaegertracing/jaeger/pull/2605), [@yurishkuro](https://github.com/yurishkuro))
+* fix: don't create tags w/ empty name for internal zipkin spans ([#2596](https://github.com/jaegertracing/jaeger/pull/2596), [@mzahor](https://github.com/mzahor))
+* TBufferedServer: Avoid channel close/send race on Stop ([#2583](https://github.com/jaegertracing/jaeger/pull/2583), [@chlunde](https://github.com/chlunde))
+* Bumped OpenTelemetry Collector to v0.12.0 ([#2562](https://github.com/jaegertracing/jaeger/pull/2562), [@jpkrohling](https://github.com/jpkrohling))
+* Disable Zipkin server if port/address is not configured ([#2554](https://github.com/jaegertracing/jaeger/pull/2554), [@yurishkuro](https://github.com/yurishkuro))
+* [hotrod] Add links to traces ([#2536](https://github.com/jaegertracing/jaeger/pull/2536), [@yurishkuro](https://github.com/yurishkuro))
+* OTel Cassandra/Elasticsearch Exporter queue defaults ([#2533](https://github.com/jaegertracing/jaeger/pull/2533), [@joe-elliott](https://github.com/joe-elliott))
+* [otel] Update jaeger-lib to v2.4.0 ([#2538](https://github.com/jaegertracing/jaeger/pull/2538), [@dstdfx](https://github.com/dstdfx))
+* Remove unnecessary ServiceName index seek if tags query is available ([#2535](https://github.com/jaegertracing/jaeger/pull/2535), [@burmanm](https://github.com/burmanm))
+* Update static UI assets path in contrib doc ([#2548](https://github.com/jaegertracing/jaeger/pull/2548), [@albertteoh](https://github.com/albertteoh))
+
+### UI Changes
+
+* UI pinned to version 1.12.0. The changelog is available here [v1.12.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1120-november-14-2020)
+
+
+1.20.0 (2020-09-29)
+-------------------
+
+### Backend Changes
+
+#### Breaking Changes
+* Configurable ES doc count ([#2453](https://github.com/jaegertracing/jaeger/pull/2453), [@albertteoh](https://github.com/albertteoh))
+
+    The `--es.max-num-spans` flag has been deprecated in favour of `--es.max-doc-count`.
+    `--es.max-num-spans` is marked for removal in v1.21.0 as indicated in the flag description.
+
+    If both `--es.max-num-spans` and `--es.max-doc-count` are set, the lesser of the two will be used.
+
+    The use of `--es.max-doc-count` (which defaults to 10,000) will limit the results from all Elasticsearch
+    queries by the configured value, limiting counts for Jaeger UI:
+
+    * Services
+    * Operations
+    * Dependencies (edges in a dependency graph)
+    * Span fetch size for a trace
+
+* The default value for the flag `query.max-clock-skew-adjustment` has changed to `0s`, meaning that the clock skew adjustment is now disabled by default. See [#1459](https://github.com/jaegertracing/jaeger/issues/1459).
+
+#### New Features
+
+* Grpc plugin archive storage support ([#2317](https://github.com/jaegertracing/jaeger/pull/2317), [@m8rge](https://github.com/m8rge))
+* Separate Ports for GRPC and HTTP requests in Query Server ([#2387](https://github.com/jaegertracing/jaeger/pull/2387), [@rjs211](https://github.com/rjs211))
+* Configurable ES doc count ([#2453](https://github.com/jaegertracing/jaeger/pull/2453), [@albertteoh](https://github.com/albertteoh))
+* Add storage metrics to OTEL, metrics by span service name ([#2431](https://github.com/jaegertracing/jaeger/pull/2431), [@pavolloffay](https://github.com/pavolloffay))
+
+#### Bug fixes, Minor Improvements
+
+* Increase coverage on otel/app/defaultconfig and otel/app/defaultcomponents ([#2515](https://github.com/jaegertracing/jaeger/pull/2515), [@joe-elliott](https://github.com/joe-elliott))
+* Use OTEL Kafka Exporter/Receiver Instead of Jaeger Core ([#2494](https://github.com/jaegertracing/jaeger/pull/2494), [@joe-elliott](https://github.com/joe-elliott))
+* Fix OTEL kafka receiver/ingester panic ([#2512](https://github.com/jaegertracing/jaeger/pull/2512), [@pavolloffay](https://github.com/pavolloffay))
+* Disable clock-skew-adjustment by default. ([#2513](https://github.com/jaegertracing/jaeger/pull/2513), [@jpkrohling](https://github.com/jpkrohling))
+* Fix ES OTEL status code ([#2501](https://github.com/jaegertracing/jaeger/pull/2501), [@pavolloffay](https://github.com/pavolloffay))
+* OTel: Factored out Config Factory ([#2495](https://github.com/jaegertracing/jaeger/pull/2495), [@joe-elliott](https://github.com/joe-elliott))
+* Fix failing ServerInUseHostPort test on MacOS ([#2477](https://github.com/jaegertracing/jaeger/pull/2477), [@albertteoh](https://github.com/albertteoh))
+* Fix unmarshalling in OTEL badger ([#2488](https://github.com/jaegertracing/jaeger/pull/2488), [@pavolloffay](https://github.com/pavolloffay))
+* Improve UI placeholder message ([#2487](https://github.com/jaegertracing/jaeger/pull/2487), [@yurishkuro](https://github.com/yurishkuro))
+* Translate OTEL instrumentation library to ES DB model ([#2484](https://github.com/jaegertracing/jaeger/pull/2484), [@pavolloffay](https://github.com/pavolloffay))
+* Add partial retry capability to OTEL ES exporter. ([#2456](https://github.com/jaegertracing/jaeger/pull/2456), [@pavolloffay](https://github.com/pavolloffay))
+* Log deprecation warning only when deprecated flags are set ([#2479](https://github.com/jaegertracing/jaeger/pull/2479), [@pavolloffay](https://github.com/pavolloffay))
+* Clean-up Badger's trace-not-found check ([#2481](https://github.com/jaegertracing/jaeger/pull/2481), [@yurishkuro](https://github.com/yurishkuro))
+* Run the jaeger-agent as a non-root user by default ([#2466](https://github.com/jaegertracing/jaeger/pull/2466), [@chgl](https://github.com/chgl))
+* Regenerate certificates to use SANs instead of Common Name ([#2461](https://github.com/jaegertracing/jaeger/pull/2461), [@albertteoh](https://github.com/albertteoh))
+* Support custom port in cassandra schema creation ([#2472](https://github.com/jaegertracing/jaeger/pull/2472), [@MarianZoll](https://github.com/MarianZoll))
+* Consolidated OTel ES IndexNameProviders ([#2458](https://github.com/jaegertracing/jaeger/pull/2458), [@joe-elliott](https://github.com/joe-elliott))
+* Add positive confirmation that Agent made a connection to Collector (… ([#2423](https://github.com/jaegertracing/jaeger/pull/2423), [@BernardTolosajr](https://github.com/BernardTolosajr))
+* Propagate TraceNotFound error from grpc storage plugins ([#2455](https://github.com/jaegertracing/jaeger/pull/2455), [@joe-elliott](https://github.com/joe-elliott))
+* Use new ES reader implementation in OTEL ([#2441](https://github.com/jaegertracing/jaeger/pull/2441), [@pavolloffay](https://github.com/pavolloffay))
+* Updated grpc-go to v1.29.1 ([#2445](https://github.com/jaegertracing/jaeger/pull/2445), [@jpkrohling](https://github.com/jpkrohling))
+* Remove olivere elastic client from OTEL ([#2448](https://github.com/jaegertracing/jaeger/pull/2448), [@pavolloffay](https://github.com/pavolloffay))
+* Use queue retry per exporter ([#2444](https://github.com/jaegertracing/jaeger/pull/2444), [@pavolloffay](https://github.com/pavolloffay))
+* Add context.Context to WriteSpan ([#2436](https://github.com/jaegertracing/jaeger/pull/2436), [@yurishkuro](https://github.com/yurishkuro))
+* Fix mutex unlock in storage exporters ([#2442](https://github.com/jaegertracing/jaeger/pull/2442), [@pavolloffay](https://github.com/pavolloffay))
+* Add Grafana integration example ([#2408](https://github.com/jaegertracing/jaeger/pull/2408), [@fktkrt](https://github.com/fktkrt))
+* Fix TLS flags settings in jaeger OTEL receiver ([#2438](https://github.com/jaegertracing/jaeger/pull/2438), [@pavolloffay](https://github.com/pavolloffay))
+* Add context to dependencies endpoint ([#2434](https://github.com/jaegertracing/jaeger/pull/2434), [@yoave23](https://github.com/yoave23))
+* Fix error equals ([#2429](https://github.com/jaegertracing/jaeger/pull/2429), [@albertteoh](https://github.com/albertteoh))
+
+### UI Changes
+
+* UI pinned to version 1.11.0. The changelog is available here [v1.11.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1110-september-28-2020)
+
+1.19.2 (2020-08-26)
+-------------------
+
+Upgrade to a working UI version before React refactoring.
+
+
+1.19.1 (2020-08-26)
+-------------------
+
+Revert UI back to 1.9 due to a bug https://github.com/jaegertracing/jaeger-ui/issues/628
+
+
+1.19.0 (2020-08-26)
+-------------------
+
+### Known Issues
+
+The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aimed to add TLS support for the gRPC Query server but the flag registration is missing, so that this feature can't be used at the moment. A fix is planned for the next Jaeger version (1.20).
+
+### Backend Changes
+
+#### New Features
+
+* Reload TLS certificates on change ([#2389](https://github.com/jaegertracing/jaeger/pull/2389), [@pavolloffay](https://github.com/pavolloffay))
+* Add --kafka.producer.batch-min-messages collector flag ([#2371](https://github.com/jaegertracing/jaeger/pull/2371), [@prymitive](https://github.com/prymitive))
+* Make UDP socket buffer size configurable ([#2336](https://github.com/jaegertracing/jaeger/pull/2336), [@kbarukhov](https://github.com/kbarukhov))
+* Enable batch and queued retry processors by default ([#2330](https://github.com/jaegertracing/jaeger/pull/2330), [@pavolloffay](https://github.com/pavolloffay))
+* Add trace anonymizer prototype ([#2328](https://github.com/jaegertracing/jaeger/pull/2328), [@yurishkuro](https://github.com/yurishkuro))
+* Add native OTEL ES exporter ([#2295](https://github.com/jaegertracing/jaeger/pull/2295), [@pavolloffay](https://github.com/pavolloffay))
+* Define busy error type in processor ([#2314](https://github.com/jaegertracing/jaeger/pull/2314), [@pavolloffay](https://github.com/pavolloffay))
+* Use gRPC instead of tchannel in hotrod ([#2307](https://github.com/jaegertracing/jaeger/pull/2307), [@pavolloffay](https://github.com/pavolloffay))
+* TLS support for gRPC Query server ([#2297](https://github.com/jaegertracing/jaeger/pull/2297), [@jan25](https://github.com/jan25))
+
+#### Bug fixes, Minor Improvements
+
+* Check missing server URL in ES OTEL client ([#2411](https://github.com/jaegertracing/jaeger/pull/2411), [@pavolloffay](https://github.com/pavolloffay))
+* Fix Elasticsearch version in ES OTEL writer ([#2409](https://github.com/jaegertracing/jaeger/pull/2409), [@pavolloffay](https://github.com/pavolloffay))
+* Fix go vet warnings on Go 1.15 ([#2401](https://github.com/jaegertracing/jaeger/pull/2401), [@prymitive](https://github.com/prymitive))
+* Add new Elasticsearch reader implementation ([#2364](https://github.com/jaegertracing/jaeger/pull/2364), [@pavolloffay](https://github.com/pavolloffay))
+* Only add the collector port if it was not explicitly set ([#2396](https://github.com/jaegertracing/jaeger/pull/2396), [@joe-elliott](https://github.com/joe-elliott))
+* Fix panic in collector when Zipkin server is shutdown  ([#2392](https://github.com/jaegertracing/jaeger/pull/2392), [@Sreevani871](https://github.com/Sreevani871))
+* Update validity of TLS certificates to 3650 days ([#2390](https://github.com/jaegertracing/jaeger/pull/2390), [@rjs211](https://github.com/rjs211))
+* Added span and trace id to hotrod logs ([#2384](https://github.com/jaegertracing/jaeger/pull/2384), [@joe-elliott](https://github.com/joe-elliott))
+* Jaeger agent logs "0" whenever sampling strategies are requested ([#2382](https://github.com/jaegertracing/jaeger/pull/2382), [@jpkrohling](https://github.com/jpkrohling))
+* Fix shutdown order for collector components ([#2381](https://github.com/jaegertracing/jaeger/pull/2381), [@Sreevani871](https://github.com/Sreevani871))
+* Serve jquery-3.1.1.min.js locally ([#2378](https://github.com/jaegertracing/jaeger/pull/2378), [@chaseSpace](https://github.com/chaseSpace))
+* Use a single shared set of CA, client & server keys/certs for testing ([#2343](https://github.com/jaegertracing/jaeger/pull/2343), [@rjs211](https://github.com/rjs211))
+* fix null pointer in jaeger-spark-dependencies ([#2327](https://github.com/jaegertracing/jaeger/pull/2327), [@moolen](https://github.com/moolen))
+* Rename ARCH to TARGETARCH for multi platform build by docker buildx ([#2320](https://github.com/jaegertracing/jaeger/pull/2320), [@morlay](https://github.com/morlay))
+* Mask passwords when written as json ([#2302](https://github.com/jaegertracing/jaeger/pull/2302), [@objectiser](https://github.com/objectiser))
+
+### UI Changes
+
+* UI pinned to version 1.10.0. The changelog is available here [v1.10.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1100-august-25-2020)
 
 1.18.1 (2020-06-19)
 ------------------
@@ -53,8 +292,8 @@ Changes by Version
 #### Breaking Changes
 
 * Remove Tchannel between agent and collector ([#2115](https://github.com/jaegertracing/jaeger/pull/2115), [#2112](https://github.com/jaegertracing/jaeger/pull/2112), [@pavolloffay](https://github.com/pavolloffay))
-    
-    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent. 
+
+    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent.
 
     These flags were removed from agent:
     ```
@@ -103,7 +342,7 @@ Changes by Version
 * Add Jaeger OTEL agent to docker image upload ([#2227](https://github.com/jaegertracing/jaeger/pull/2227), [@ning2008wisc](https://github.com/ning2008wisc))
 * Support adding process tags in OTEL via env variable ([#2220](https://github.com/jaegertracing/jaeger/pull/2220), [@pavolloffay](https://github.com/pavolloffay))
 * Bump OTEL version and update exporters to use new API ([#2196](https://github.com/jaegertracing/jaeger/pull/2196), [@pavolloffay](https://github.com/pavolloffay))
-* Support sampling startegies file flag in OTEL collector ([#2195](https://github.com/jaegertracing/jaeger/pull/2195), [@pavolloffay](https://github.com/pavolloffay))
+* Support sampling strategies file flag in OTEL collector ([#2195](https://github.com/jaegertracing/jaeger/pull/2195), [@pavolloffay](https://github.com/pavolloffay))
 * Add zipkin receiver to OTEL collector ([#2181](https://github.com/jaegertracing/jaeger/pull/2181), [@pavolloffay](https://github.com/pavolloffay))
 * Add Dockerfile for OTEL collector and publish latest tag ([#2167](https://github.com/jaegertracing/jaeger/pull/2167), [@pavolloffay](https://github.com/pavolloffay))
 * Run OTEL collector without configuration file ([#2148](https://github.com/jaegertracing/jaeger/pull/2148), [@pavolloffay](https://github.com/pavolloffay))
@@ -187,7 +426,7 @@ Changes by Version
 * Endpoint changes:
     * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
      is absent or empty, operations from all kinds of spans will be returned.
-    * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please 
+    * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please
     update your client code to process the new response. Example response:
         ```
         curl 'http://localhost:6686/api/operations?service=UserService&spanKind=server' | jq
@@ -209,23 +448,23 @@ Changes by Version
     * The legacy http endpoint stay untouched:
         ```
         /services/{%s}/operations
-        ```    
+        ```
 * Storage plugin changes:
     * Memory updated to support spanKind on write & read, no migration is required.
-    * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923) 
-    to be implemented:  
+    * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923)
+    to be implemented:
     For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
-    * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):  
-        If you don't run the migration script, nothing will break, the system will used the old table 
-        `operation_names` and set empty `spanKind` in the response.  
+    * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):
+        If you don't run the migration script, nothing will break, the system will used the old table
+        `operation_names` and set empty `spanKind` in the response.
         Steps to get the updated functionality:
         1.  You will need to run the command below on the host where you can use `cqlsh` to connect to Cassandra:
             ```
-            KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' 
+            KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000'
             bash ./v002tov003.sh
             ```
-            The script will create new table `operation_names_v2` and migrate data from the old table.  
-            `spanKind` column will be empty for those data.  
+            The script will create new table `operation_names_v2` and migrate data from the old table.
+            `spanKind` column will be empty for those data.
             At the end, it will ask you whether you want to drop the old table or not.
         2. Restart ingester & query services so that they begin to use the new table
 

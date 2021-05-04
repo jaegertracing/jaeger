@@ -18,11 +18,13 @@ package storage
 import (
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -44,6 +46,7 @@ const (
 	badgerStorageType        = "badger"
 	downsamplingRatio        = "downsampling.ratio"
 	downsamplingHashSalt     = "downsampling.hashsalt"
+	spanStorageType          = "span-storage-type"
 
 	// defaultDownsamplingRatio is the default downsampling ratio.
 	defaultDownsamplingRatio = 1.0
@@ -57,8 +60,9 @@ var AllStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, m
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-	metricsFactory metrics.Factory
-	factories      map[string]storage.Factory
+	metricsFactory         metrics.Factory
+	factories              map[string]storage.Factory
+	downsamplingFlagsAdded bool
 }
 
 // NewFactory creates the meta-factory.
@@ -109,6 +113,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			return err
 		}
 	}
+	f.publishOpts()
+
 	return nil
 }
 
@@ -168,11 +174,19 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 			conf.AddFlags(flagSet)
 		}
 	}
-	addDownsamplingFlags(flagSet)
+}
+
+// AddPipelineFlags adds all the standard flags as well as the downsampling
+//  flags.  This is intended to be used in Jaeger pipeline services such as
+//  the collector or ingester.
+func (f *Factory) AddPipelineFlags(flagSet *flag.FlagSet) {
+	f.AddFlags(flagSet)
+	f.addDownsamplingFlags(flagSet)
 }
 
 // addDownsamplingFlags add flags for Downsampling params
-func addDownsamplingFlags(flagSet *flag.FlagSet) {
+func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
+	f.downsamplingFlagsAdded = true
 	flagSet.Float64(
 		downsamplingRatio,
 		defaultDownsamplingRatio,
@@ -196,6 +210,14 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
+	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
+	// and has no use for downsampling.  the default settings effectively disable downsampling
+	if !f.downsamplingFlagsAdded {
+		f.FactoryConfig.DownsamplingRatio = defaultDownsamplingRatio
+		f.FactoryConfig.DownsamplingHashSalt = defaultDownsamplingHashSalt
+		return
+	}
+
 	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
 	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
 		// Values not in the range of 0 ~ 1.0 will be set to default.
@@ -228,4 +250,30 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
 	return archive.CreateArchiveSpanWriter()
+}
+
+var _ io.Closer = (*Factory)(nil)
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	var errs []error
+	for _, storageType := range f.SpanWriterTypes {
+		if factory, ok := f.factories[storageType]; ok {
+			if closer, ok := factory.(io.Closer); ok {
+				err := closer.Close()
+				if err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
+	return multierror.Wrap(errs)
+}
+
+func (f *Factory) publishOpts() {
+	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	internalFactory.Gauge(metrics.Options{Name: downsamplingRatio}).
+		Update(int64(f.FactoryConfig.DownsamplingRatio))
+	internalFactory.Gauge(metrics.Options{Name: spanStorageType + "-" + f.SpanReaderType}).
+		Update(1)
 }

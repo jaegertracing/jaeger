@@ -1,0 +1,73 @@
+name: Publish release
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.16
+
+    - uses: actions/setup-node@v2.1.5
+      with:
+        node-version: '10'
+
+    - name: Export BRANCH variable
+      uses: ./.github/actions/setup-branch
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Build binaries
+      id: build-binaries
+      run: make build-all-platforms
+
+    - name: Package binaries
+      id: package-binaries
+      run: bash scripts/package-deploy.sh
+      if: steps.build-binaries.outcome == 'success'
+
+    - name: Upload binaries
+      uses: svenstaro/upload-release-action@v2
+      with:
+        file: deploy/*.tar.gz
+        file_glob: true
+        tag: ${{ github.ref }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+      if: steps.package-binaries.outcome == 'success'
+
+    - name: Build docker images
+      id: build-images
+      run: make docker
+
+    - name: Upload docker images
+      run: bash scripts/upload-all-docker-images.sh
+      if: steps.build-images.outcome == 'success'
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish all-in-one image
+      run: bash scripts/build-all-in-one-image.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish hotrod image
+      run: bash scripts/hotrod-integration-test.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

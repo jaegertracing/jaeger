@@ -30,10 +30,11 @@ import (
 
 // Config contains parameters to NewWriter.
 type Config struct {
-	MaxSpansCount  int    `yaml:"max_spans_count" name:"max_spans_count"`
-	CapturedFile   string `yaml:"captured_file" name:"captured_file"`
-	AnonymizedFile string `yaml:"anonymized_file" name:"anonymized_file"`
-	MappingFile    string `yaml:"mapping_file" name:"mapping_file"`
+	MaxSpansCount  int                `yaml:"max_spans_count" name:"max_spans_count"`
+	CapturedFile   string             `yaml:"captured_file" name:"captured_file"`
+	AnonymizedFile string             `yaml:"anonymized_file" name:"anonymized_file"`
+	MappingFile    string             `yaml:"mapping_file" name:"mapping_file"`
+	AnonymizerOpts anonymizer.Options `yaml:"anonymizer" name:"anonymizer"`
 }
 
 // Writer is a span Writer that obfuscates the span and writes it to a JSON file.
@@ -75,12 +76,20 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot write tp output file: %w", err)
 	}
+
+	options := anonymizer.Options{
+		HashStandardTags: config.AnonymizerOpts.HashStandardTags,
+		HashCustomTags:   config.AnonymizerOpts.HashCustomTags,
+		HashLogs:         config.AnonymizerOpts.HashLogs,
+		HashProcess:      config.AnonymizerOpts.HashProcess,
+	}
+
 	return &Writer{
 		config:         config,
 		logger:         logger,
 		capturedFile:   cf,
 		anonymizedFile: af,
-		anonymizer:     anonymizer.New(config.MappingFile, logger),
+		anonymizer:     anonymizer.New(config.MappingFile, options, logger),
 	}, nil
 }
 
@@ -118,15 +127,20 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 		w.logger.Info("progress", zap.Int("numSpans", w.spanCount))
 	}
 
-	if w.spanCount >= w.config.MaxSpansCount {
+	if w.config.MaxSpansCount > 0 && w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
-		w.capturedFile.WriteString("\n]\n")
-		w.capturedFile.Close()
-		w.anonymizedFile.WriteString("\n]\n")
-		w.anonymizedFile.Close()
-		w.anonymizer.SaveMapping()
+		w.Close()
 		os.Exit(0)
 	}
 
 	return nil
+}
+
+// Close closes the captured and anonymized files.
+func (w *Writer) Close() {
+	w.capturedFile.WriteString("\n]\n")
+	w.capturedFile.Close()
+	w.anonymizedFile.WriteString("\n]\n")
+	w.anonymizedFile.Close()
+	w.anonymizer.SaveMapping()
 }

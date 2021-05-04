@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
@@ -60,4 +61,40 @@ type mockStrategyStore struct {
 
 func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	return &sampling.SamplingStrategyResponse{}, nil
+}
+
+func TestCollector_PublishOpts(t *testing.T) {
+	// prepare
+	hc := healthcheck.New()
+	logger := zap.NewNop()
+	baseMetrics := metricstest.NewFactory(time.Second)
+	forkFactory := metricstest.NewFactory(time.Second)
+	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	spanWriter := &fakeSpanWriter{}
+	strategyStore := &mockStrategyStore{}
+
+	c := New(&CollectorParams{
+		ServiceName:    "collector",
+		Logger:         logger,
+		MetricsFactory: metricsFactory,
+		SpanWriter:     spanWriter,
+		StrategyStore:  strategyStore,
+		HealthCheck:    hc,
+	})
+	collectorOpts := &CollectorOptions{
+		NumWorkers: 24,
+		QueueSize:  42,
+	}
+
+	c.Start(collectorOpts)
+	defer c.Close()
+
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.collector.num-workers",
+		Value: 24,
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.collector.queue-size",
+		Value: 42,
+	})
 }

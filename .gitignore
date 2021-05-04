@@ -18,6 +18,8 @@ examples/memstore-plugin/memstore-plugin
 cmd/all-in-one/all-in-one-*
 cmd/agent/agent
 cmd/agent/agent-*
+cmd/anonymizer/anonymizer
+cmd/anonymizer/anonymizer-*
 cmd/collector/collector
 cmd/collector/collector-*
 cmd/ingester/ingester
@@ -32,8 +34,4 @@ cmd/docs/*.1
 cmd/docs/*.yaml
 crossdock/crossdock-*
 run-crossdock.log
-cmd/opentelemetry/cmd/collector/opentelemetry-collector-*
-cmd/opentelemetry/cmd/agent/opentelemetry-agent-*
-cmd/opentelemetry/cmd/ingester/opentelemetry-ingester-*
-cmd/opentelemetry/cmd/all-in-one/opentelemetry-all-in-one-*
 __pycache__

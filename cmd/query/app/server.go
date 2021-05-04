@@ -15,6 +15,7 @@
 package app
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"strings"
@@ -42,14 +43,36 @@ type Server struct {
 	tracer opentracing.Tracer // TODO make part of flags.Service
 
 	conn               net.Listener
+	grpcConn           net.Listener
+	httpConn           net.Listener
 	grpcServer         *grpc.Server
 	httpServer         *http.Server
+	separatePorts      bool
 	unavailableChannel chan healthcheck.Status
 }
 
 // NewServer creates and initializes Server
 func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
+
+	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
+	if err != nil {
+		return nil, err
+	}
+	_, grpcPort, err := net.SplitHostPort(options.GRPCHostPort)
+	if err != nil {
+		return nil, err
+	}
+
+	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && (grpcPort == httpPort) {
+		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
+	}
+
 	grpcServer, err := createGRPCServer(querySvc, options, logger, tracer)
+	if err != nil {
+		return nil, err
+	}
+
+	httpServer, err := createHTTPServer(querySvc, options, tracer, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +83,8 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 		queryOptions:       options,
 		tracer:             tracer,
 		grpcServer:         grpcServer,
-		httpServer:         createHTTPServer(querySvc, options, tracer, logger),
+		httpServer:         httpServer,
+		separatePorts:      grpcPort != httpPort,
 		unavailableChannel: make(chan healthcheck.Status),
 	}, nil
 }
@@ -73,11 +97,12 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
-	if options.TLS.Enabled {
-		tlsCfg, err := options.TLS.Config()
+	if options.TLSGRPC.Enabled {
+		tlsCfg, err := options.TLSGRPC.Config(logger)
 		if err != nil {
 			return nil, err
 		}
+
 		creds := credentials.NewTLS(tlsCfg)
 
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
@@ -90,11 +115,12 @@ func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, lo
 	return server, nil
 }
 
-func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) *http.Server {
+func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
 	}
+
 	apiHandler := NewAPIHandler(
 		querySvc,
 		apiHandlerOptions...)
@@ -112,17 +138,45 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	}
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-	return &http.Server{
+
+	server := &http.Server{
 		Handler: recoveryHandler(handler),
 	}
+
+	if queryOpts.TLSHTTP.Enabled {
+		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
+		if err != nil {
+			return nil, err
+		}
+		server.TLSConfig = tlsCfg
+
+	}
+	return server, nil
 }
 
-// Start http, GRPC and cmux servers concurrently
-func (s *Server) Start() error {
-	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
-	if err != nil {
-		return err
+// initListener initialises listeners of the server
+func (s *Server) initListener() (cmux.CMux, error) {
+	if s.separatePorts { // use separate ports and listeners each for gRPC and HTTP requests
+		var err error
+		s.grpcConn, err = net.Listen("tcp", s.queryOptions.GRPCHostPort)
+		if err != nil {
+			return nil, err
+		}
+
+		s.httpConn, err = net.Listen("tcp", s.queryOptions.HTTPHostPort)
+		if err != nil {
+			return nil, err
+		}
+		s.logger.Info("Query server started")
+		return nil, nil
 	}
+
+	//  old behavior using cmux
+	conn, err := net.Listen("tcp", s.queryOptions.HTTPHostPort)
+	if err != nil {
+		return nil, err
+	}
+
 	s.conn = conn
 
 	var tcpPort int
@@ -133,57 +187,101 @@ func (s *Server) Start() error {
 	s.logger.Info(
 		"Query server started",
 		zap.Int("port", tcpPort),
-		zap.String("addr", s.queryOptions.HostPort))
+		zap.String("addr", s.queryOptions.HTTPHostPort))
 
 	// cmux server acts as a reverse-proxy between HTTP and GRPC backends.
 	cmuxServer := cmux.New(s.conn)
 
-	grpcListener := cmuxServer.MatchWithWriters(
+	s.grpcConn = cmuxServer.MatchWithWriters(
 		cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
 		cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
 	)
-	httpListener := cmuxServer.Match(cmux.Any())
+	s.httpConn = cmuxServer.Match(cmux.Any())
+
+	return cmuxServer, nil
+
+}
+
+// Start http, GRPC and cmux servers concurrently
+func (s *Server) Start() error {
+	cmuxServer, err := s.initListener()
+	if err != nil {
+		return err
+	}
+
+	var tcpPort int
+	if !s.separatePorts {
+		if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
+			tcpPort = port
+		}
+	}
+
+	var httpPort int
+	if port, err := netutils.GetPort(s.httpConn.Addr()); err == nil {
+		httpPort = port
+	}
+
+	var grpcPort int
+	if port, err := netutils.GetPort(s.grpcConn.Addr()); err == nil {
+		grpcPort = port
+	}
 
 	go func() {
-		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
-
-		switch err := s.httpServer.Serve(httpListener); err {
+		s.logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
+		var err error
+		if s.queryOptions.TLSHTTP.Enabled {
+			err = s.httpServer.ServeTLS(s.httpConn, "", "")
+		} else {
+			err = s.httpServer.Serve(s.httpConn)
+		}
+		switch err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
 			// normal exit, nothing to do
 		default:
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
+
 		s.unavailableChannel <- healthcheck.Unavailable
 	}()
 
 	// Start GRPC server concurrently
 	go func() {
-		s.logger.Info("Starting GRPC server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+		s.logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
-		if err := s.grpcServer.Serve(grpcListener); err != nil {
+		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.unavailableChannel <- healthcheck.Unavailable
 	}()
 
 	// Start cmux server concurrently.
-	go func() {
-		s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+	if !s.separatePorts {
+		go func() {
+			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
-		err := cmuxServer.Serve()
-		// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged
-		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-			s.logger.Error("Could not start multiplexed server", zap.Error(err))
-		}
-		s.unavailableChannel <- healthcheck.Unavailable
-	}()
+			err := cmuxServer.Serve()
+			// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged
+			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+				s.logger.Error("Could not start multiplexed server", zap.Error(err))
+			}
+			s.unavailableChannel <- healthcheck.Unavailable
+		}()
+	}
 
 	return nil
 }
 
 // Close stops http, GRPC servers and closes the port listener.
-func (s *Server) Close() {
+func (s *Server) Close() error {
+	s.queryOptions.TLSGRPC.Close()
+	s.queryOptions.TLSHTTP.Close()
 	s.grpcServer.Stop()
 	s.httpServer.Close()
-	s.conn.Close()
+	if s.separatePorts {
+		s.httpConn.Close()
+		s.grpcConn.Close()
+	} else {
+		s.conn.Close()
+	}
+	return nil
 }

@@ -16,6 +16,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -43,9 +45,11 @@ type Collector struct {
 	spanHandlers   *SpanHandlers
 
 	// state, read only
-	hServer    *http.Server
-	zkServer   *http.Server
-	grpcServer *grpc.Server
+	hServer                  *http.Server
+	zkServer                 *http.Server
+	grpcServer               *grpc.Server
+	tlsGRPCCertWatcherCloser io.Closer
+	tlsHTTPCertWatcherCloser io.Closer
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -82,45 +86,57 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor()
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
-	if grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
+	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		HostPort:      builderOpts.CollectorGRPCHostPort,
 		Handler:       c.spanHandlers.GRPCHandler,
-		TLSConfig:     builderOpts.TLS,
+		TLSConfig:     builderOpts.TLSGRPC,
 		SamplingStore: c.strategyStore,
 		Logger:        c.logger,
-	}); err != nil {
-		c.logger.Fatal("could not start gRPC collector", zap.Error(err))
-	} else {
-		c.grpcServer = grpcServer
+	})
+	if err != nil {
+		return fmt.Errorf("could not start gRPC collector %w", err)
 	}
+	c.grpcServer = grpcServer
 
-	if httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
+	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
 		HostPort:       builderOpts.CollectorHTTPHostPort,
 		Handler:        c.spanHandlers.JaegerBatchesHandler,
+		TLSConfig:      builderOpts.TLSHTTP,
 		HealthCheck:    c.hCheck,
 		MetricsFactory: c.metricsFactory,
 		SamplingStore:  c.strategyStore,
 		Logger:         c.logger,
-	}); err != nil {
-		c.logger.Fatal("could not start the HTTP server", zap.Error(err))
-	} else {
-		c.hServer = httpServer
+	})
+	if err != nil {
+		return fmt.Errorf("could not start the HTTP server %w", err)
 	}
+	c.hServer = httpServer
 
-	if zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
+	c.tlsGRPCCertWatcherCloser = &builderOpts.TLSGRPC
+	c.tlsHTTPCertWatcherCloser = &builderOpts.TLSHTTP
+	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
 		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
 		HealthCheck:    c.hCheck,
 		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
 		Logger:         c.logger,
-	}); err != nil {
-		c.logger.Fatal("could not start the Zipkin server", zap.Error(err))
-	} else {
-		c.zkServer = zkServer
+		MetricsFactory: c.metricsFactory,
+	})
+	if err != nil {
+		return fmt.Errorf("could not start the Zipkin server %w", err)
 	}
+	c.zkServer = zkServer
+
+	c.publishOpts(builderOpts)
 
 	return nil
+}
+
+func (c *Collector) publishOpts(cOpts *CollectorOptions) {
+	internalFactory := c.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
+	internalFactory.Gauge(metrics.Options{Name: collectorNumWorkers}).Update(int64(cOpts.NumWorkers))
+	internalFactory.Gauge(metrics.Options{Name: collectorQueueSize}).Update(int64(cOpts.QueueSize))
 }
 
 // Close the component and all its underlying dependencies
@@ -133,9 +149,8 @@ func (c *Collector) Close() error {
 	// HTTP server
 	if c.hServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := c.hServer.Shutdown(timeout)
-		if err != nil {
-			c.logger.Error("failed to stop the main HTTP server", zap.Error(err))
+		if err := c.hServer.Shutdown(timeout); err != nil {
+			c.logger.Fatal("failed to stop the main HTTP server", zap.Error(err))
 		}
 		defer cancel()
 	}
@@ -143,9 +158,8 @@ func (c *Collector) Close() error {
 	// Zipkin server
 	if c.zkServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := c.zkServer.Shutdown(timeout)
-		if err != nil {
-			c.logger.Error("failed to stop the Zipkin server", zap.Error(err))
+		if err := c.zkServer.Shutdown(timeout); err != nil {
+			c.logger.Fatal("failed to stop the Zipkin server", zap.Error(err))
 		}
 		defer cancel()
 	}
@@ -153,6 +167,10 @@ func (c *Collector) Close() error {
 	if err := c.spanProcessor.Close(); err != nil {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
 	}
+
+	// watchers actually never return errors from Close
+	_ = c.tlsGRPCCertWatcherCloser.Close()
+	_ = c.tlsHTTPCertWatcherCloser.Close()
 
 	return nil
 }

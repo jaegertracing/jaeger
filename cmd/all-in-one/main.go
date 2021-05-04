@@ -16,7 +16,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -27,6 +26,8 @@ import (
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -81,7 +83,10 @@ by default uses only in-memory database.`,
 			}
 			logger := svc.Logger                     // shortcut
 			rootMetricsFactory := svc.MetricsFactory // shortcut
-			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			metricsFactory := fork.New("internal",
+				jexpvar.NewFactory(10), // backend for internal opts
+				rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
+
 			tracerCloser := initTracer(rootMetricsFactory, svc.Logger)
 
 			storageFactory.InitFromViper(v)
@@ -126,10 +131,15 @@ by default uses only in-memory database.`,
 				StrategyStore:  strategyStore,
 				HealthCheck:    svc.HC(),
 			})
-			c.Start(cOpts)
+			if err := c.Start(cOpts); err != nil {
+				log.Fatal(err)
+			}
 
 			// agent
-			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCHostPort)
+			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
+			if len(grpcBuilder.CollectorHostPorts) == 0 {
+				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCHostPort)
+			}
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
 				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
@@ -153,16 +163,18 @@ by default uses only in-memory database.`,
 
 			svc.RunAndThen(func() {
 				agent.Stop()
-				cp.Close()
-				c.Close()
-				querySrv.Close()
+				_ = cp.Close()
+				_ = c.Close()
+				_ = querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {
-					err := closer.Close()
-					if err != nil {
+					if err := closer.Close(); err != nil {
 						logger.Error("Failed to close span writer", zap.Error(err))
 					}
 				}
-				tracerCloser.Close()
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
+				_ = tracerCloser.Close()
 			})
 			return nil
 		},
@@ -171,12 +183,13 @@ by default uses only in-memory database.`,
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
+	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))
 
 	config.AddFlags(
 		v,
 		command,
 		svc.AddFlags,
-		storageFactory.AddFlags,
+		storageFactory.AddPipelineFlags,
 		agentApp.AddFlags,
 		agentRep.AddFlags,
 		agentGrpcRep.AddFlags,
@@ -186,8 +199,7 @@ by default uses only in-memory database.`,
 	)
 
 	if err := command.Execute(); err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
 

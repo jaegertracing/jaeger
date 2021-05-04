@@ -16,11 +16,14 @@ package shared
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -32,9 +35,19 @@ import (
 )
 
 type mockStoragePlugin struct {
-	spanReader *spanStoreMocks.Reader
-	spanWriter *spanStoreMocks.Writer
-	depsReader *dependencyStoreMocks.Reader
+	spanReader    *spanStoreMocks.Reader
+	spanWriter    *spanStoreMocks.Writer
+	archiveReader *spanStoreMocks.Reader
+	archiveWriter *spanStoreMocks.Writer
+	depsReader    *dependencyStoreMocks.Reader
+}
+
+func (plugin *mockStoragePlugin) ArchiveSpanReader() spanstore.Reader {
+	return plugin.archiveReader
+}
+
+func (plugin *mockStoragePlugin) ArchiveSpanWriter() spanstore.Writer {
+	return plugin.archiveWriter
 }
 
 func (plugin *mockStoragePlugin) SpanReader() spanstore.Reader {
@@ -57,17 +70,22 @@ type grpcServerTest struct {
 func withGRPCServer(fn func(r *grpcServerTest)) {
 	spanReader := new(spanStoreMocks.Reader)
 	spanWriter := new(spanStoreMocks.Writer)
+	archiveReader := new(spanStoreMocks.Reader)
+	archiveWriter := new(spanStoreMocks.Writer)
 	depReader := new(dependencyStoreMocks.Reader)
 
 	impl := &mockStoragePlugin{
-		spanWriter: spanWriter,
-		spanReader: spanReader,
-		depsReader: depReader,
+		spanReader:    spanReader,
+		spanWriter:    spanWriter,
+		archiveReader: archiveReader,
+		archiveWriter: archiveWriter,
+		depsReader:    depReader,
 	}
 
 	r := &grpcServerTest{
 		server: &grpcServer{
-			Impl: impl,
+			Impl:        impl,
+			ArchiveImpl: impl,
 		},
 		impl: impl,
 	}
@@ -131,6 +149,21 @@ func TestGRPCServerGetTrace(t *testing.T) {
 	})
 }
 
+func TestGRPCServerGetTrace_NotFound(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam.On("Context").Return(context.Background())
+
+		r.impl.spanReader.On("GetTrace", mock.Anything, mockTraceID).
+			Return(nil, spanstore.ErrTraceNotFound)
+
+		err := r.server.GetTrace(&storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}, traceSteam)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+	})
+}
+
 func TestGRPCServerFindTraces(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
 		traceSteam := new(grpcMocks.SpanReaderPlugin_FindTracesServer)
@@ -177,7 +210,7 @@ func TestGRPCServerFindTraceIDs(t *testing.T) {
 
 func TestGRPCServerWriteSpan(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.spanWriter.On("WriteSpan", &mockTraceSpans[0]).
+		r.impl.spanWriter.On("WriteSpan", context.Background(), &mockTraceSpans[0]).
 			Return(nil)
 
 		s, err := r.server.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{
@@ -207,5 +240,146 @@ func TestGRPCServerGetDependencies(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, &storage_v1.GetDependenciesResponse{Dependencies: deps}, s)
+	})
+}
+
+func TestGRPCServerGetArchiveTrace(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam.On("Context").Return(context.Background())
+		traceSteam.On("Send", &storage_v1.SpansResponseChunk{Spans: mockTraceSpans}).
+			Return(nil)
+
+		var traceSpans []*model.Span
+		for i := range mockTraceSpans {
+			traceSpans = append(traceSpans, &mockTraceSpans[i])
+		}
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
+			Return(&model.Trace{Spans: traceSpans}, nil)
+
+		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}, traceSteam)
+		assert.NoError(t, err)
+	})
+}
+
+func TestGRPCServerGetArchiveTrace_NotFound(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam.On("Context").Return(context.Background())
+
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
+			Return(nil, spanstore.ErrTraceNotFound)
+
+		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}, traceSteam)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+	})
+}
+
+func TestGRPCServerGetArchiveTrace_Error(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam.On("Context").Return(context.Background())
+
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
+			Return(nil, fmt.Errorf("some error"))
+
+		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}, traceSteam)
+		assert.Error(t, err)
+	})
+}
+
+func TestGRPCServerGetArchiveTrace_NoImpl(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		r.server.ArchiveImpl = nil
+		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
+			Return(nil, fmt.Errorf("some error"))
+
+		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}, traceSteam)
+		assert.Equal(t, codes.Unimplemented, status.Code(err))
+	})
+}
+
+func TestGRPCServerGetArchiveTrace_StreamError(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam.On("Context").Return(context.Background())
+		traceSteam.On("Send", &storage_v1.SpansResponseChunk{Spans: mockTraceSpans}).
+			Return(fmt.Errorf("some error"))
+
+		var traceSpans []*model.Span
+		for i := range mockTraceSpans {
+			traceSpans = append(traceSpans, &mockTraceSpans[i])
+		}
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
+			Return(&model.Trace{Spans: traceSpans}, nil)
+
+		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}, traceSteam)
+		assert.Error(t, err)
+	})
+}
+
+func TestGRPCServerWriteArchiveSpan_NoImpl(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		r.server.ArchiveImpl = nil
+
+		_, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
+			Span: &mockTraceSpans[0],
+		})
+		assert.Equal(t, codes.Unimplemented, status.Code(err))
+	})
+}
+
+func TestGRPCServerWriteArchiveSpan(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		r.impl.archiveWriter.On("WriteSpan", mock.Anything, &mockTraceSpans[0]).
+			Return(nil)
+
+		s, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
+			Span: &mockTraceSpans[0],
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, &storage_v1.WriteSpanResponse{}, s)
+	})
+}
+
+func TestGRPCServerWriteArchiveSpan_Error(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		r.impl.archiveWriter.On("WriteSpan", mock.Anything, &mockTraceSpans[0]).
+			Return(fmt.Errorf("some error"))
+
+		_, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
+			Span: &mockTraceSpans[0],
+		})
+		assert.Error(t, err)
+	})
+}
+
+func TestGRPCServerCapabilities(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
+		assert.NoError(t, err)
+		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: true}, capabilities)
+	})
+}
+
+func TestGRPCServerCapabilities_NoArchive(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		r.server.ArchiveImpl = nil
+
+		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
+		assert.NoError(t, err)
+		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: false, ArchiveSpanWriter: false}, capabilities)
 	})
 }

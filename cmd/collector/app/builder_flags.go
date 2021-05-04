@@ -26,29 +26,25 @@ import (
 )
 
 const (
-	collectorDynQueueSizeMemory = "collector.queue-size-memory"
-	collectorQueueSize          = "collector.queue-size"
-	collectorNumWorkers         = "collector.num-workers"
-	collectorHTTPPort           = "collector.http-port"
-	collectorGRPCPort           = "collector.grpc-port"
-	// CollectorHTTPHostPort is the flag for collector HTTP port
-	CollectorHTTPHostPort = "collector.http-server.host-port"
-	// CollectorGRPCHostPort is the flag for collector gRPC port
-	CollectorGRPCHostPort   = "collector.grpc-server.host-port"
-	collectorZipkinHTTPPort = "collector.zipkin.http-port"
-	// CollectorZipkinHTTPHostPort is the flag for Zipkin HTTP port
-	CollectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
+	collectorDynQueueSizeMemory   = "collector.queue-size-memory"
+	collectorGRPCHostPort         = "collector.grpc-server.host-port"
+	collectorHTTPHostPort         = "collector.http-server.host-port"
+	collectorNumWorkers           = "collector.num-workers"
+	collectorQueueSize            = "collector.queue-size"
 	collectorTags                 = "collector.tags"
-	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
-
-	collectorHTTPPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
-	collectorGRPCPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
-	collectorZipkinHTTPPortWarning = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
+	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
+	collectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
 )
 
-var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
+var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix:       "collector.grpc",
+	ShowEnabled:  true,
+	ShowClientCA: true,
+}
+
+var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix:       "collector.http",
 	ShowEnabled:  true,
 	ShowClientCA: true,
 }
@@ -65,8 +61,10 @@ type CollectorOptions struct {
 	CollectorHTTPHostPort string
 	// CollectorGRPCHostPort is the host:port address that the collector service listens in on for gRPC requests
 	CollectorGRPCHostPort string
-	// TLS configures secure transport
-	TLS tlscfg.Options
+	// TLSGRPC configures secure transport for gRPC endpoint to collect spans
+	TLSGRPC tlscfg.Options
+	// TLSHTTP configures secure transport for HTTP endpoint to collect spans
+	TLSHTTP tlscfg.Options
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
 	// CollectorZipkinHTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
@@ -79,42 +77,33 @@ type CollectorOptions struct {
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
-	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorHTTPPort, 0, collectorHTTPPortWarning+" see --"+CollectorHTTPHostPort)
-	flags.Int(collectorGRPCPort, 0, collectorGRPCPortWarning+" see --"+CollectorGRPCHostPort)
-	flags.Int(collectorZipkinHTTPPort, 0, collectorZipkinHTTPPortWarning+" see --"+CollectorZipkinHTTPHostPort)
-	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
+	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
+	flags.String(collectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the collector's GRPC server")
+	flags.String(collectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the collector's HTTP server")
 	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
-	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
-	AddOTELJaegerFlags(flags)
-	AddOTELZipkinFlags(flags)
-}
+	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
+	flags.String(collectorZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
+	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 
-// AddOTELJaegerFlags adds flags that are exposed by OTEL Jaeger receier
-func AddOTELJaegerFlags(flags *flag.FlagSet) {
-	flags.String(CollectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's HTTP server")
-	flags.String(CollectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the collector's GRPC server")
-	tlsFlagsConfig.AddFlags(flags)
-}
-
-// AddOTELZipkinFlags adds flag that are exposed by OTEL Zipkin receiver
-func AddOTELZipkinFlags(flags *flag.FlagSet) {
-	flags.String(CollectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
+	tlsGRPCFlagsConfig.AddFlags(flags)
+	tlsHTTPFlagsConfig.AddFlags(flags)
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
 func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
-	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
-	cOpts.QueueSize = v.GetInt(collectorQueueSize)
-	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.CollectorHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(CollectorHTTPHostPort))
-	cOpts.CollectorGRPCHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(CollectorGRPCHostPort))
-	cOpts.CollectorZipkinHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(CollectorZipkinHTTPHostPort))
+	cOpts.CollectorGRPCHostPort = ports.FormatHostPort(v.GetString(collectorGRPCHostPort))
+	cOpts.CollectorHTTPHostPort = ports.FormatHostPort(v.GetString(collectorHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
-	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
-	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
+	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
+	cOpts.CollectorZipkinHTTPHostPort = ports.FormatHostPort(v.GetString(collectorZipkinHTTPHostPort))
+	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
+	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
+	cOpts.QueueSize = v.GetInt(collectorQueueSize)
+	cOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
+	cOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
+
 	return cOpts
 }

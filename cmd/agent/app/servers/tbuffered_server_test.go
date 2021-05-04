@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	athrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
@@ -64,7 +64,7 @@ func TestTBufferedServer_SendReceive(t *testing.T) {
 			assert.NotEqual(t, 0, len(readBuf.GetBytes()))
 
 			inMemReporter := testutils.NewInMemoryReporter()
-			protoFact := athrift.NewTCompactProtocolFactory()
+			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
 			trans := &customtransport.TBufferedReadTransport{}
 			protocol := protoFact.GetProtocol(trans)
 
@@ -96,13 +96,19 @@ type fakeTransport struct {
 	wg     sync.WaitGroup
 }
 
+// Read simulates three packets received, then blocks until semaphore is released at the end of the test.
+// First packet is returned as normal.
+// Second packet is simulated as error.
+// Third packet is returned as normal, but will be dropped as overflow by the server whose queue size = 1.
 func (t *fakeTransport) Read(p []byte) (n int, err error) {
 	packet := t.packet.Inc()
-	if packet > 2 {
-		if packet > 3 {
-			// return error once when packet==3, otherwise block
-			t.wg.Wait()
-		}
+	if packet == 2 {
+		// return some error packet, followed by valid one
+		return 0, io.ErrNoProgress
+	}
+	if packet > 3 {
+		// block after 3 packets until the server is shutdown and semaphore released
+		t.wg.Wait()
 		return 0, io.EOF
 	}
 	for i := range p {
@@ -128,9 +134,9 @@ func TestTBufferedServer_Metrics(t *testing.T) {
 	go server.Serve()
 	defer server.Stop()
 
-	// The fakeTransport will allow the server to read exactly two packets and one error.
+	// The fakeTransport will allow the server to read exactly two packets and one error in between.
 	// Since we use the server with queue size == 1, the first packet will be
-	// sent to channel, and the second one dropped.
+	// sent to channel, the error will increment the metric, and the second valid packet dropped.
 
 	packetDropped := false
 	for i := 0; i < 5000; i++ {

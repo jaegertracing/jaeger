@@ -15,6 +15,8 @@
 package kafka
 
 import (
+	"context"
+
 	"github.com/Shopify/sarama"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -55,7 +57,9 @@ func NewSpanWriter(
 	}()
 	go func() {
 		for e := range producer.Errors() {
-			logger.Error(e.Err.Error())
+			if e != nil && e.Err != nil {
+				logger.Error(e.Err.Error())
+			}
 			writeMetrics.SpansWrittenFailure.Inc(1)
 		}
 	}()
@@ -69,7 +73,7 @@ func NewSpanWriter(
 }
 
 // WriteSpan writes the span to kafka.
-func (w *SpanWriter) WriteSpan(span *model.Span) error {
+func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	spanBytes, err := w.marshaller.Marshal(span)
 	if err != nil {
 		w.metrics.SpansWrittenFailure.Inc(1)

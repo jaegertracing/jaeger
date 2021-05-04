@@ -28,25 +28,22 @@ import (
 
 const (
 	// session settings
-	suffixEnabled              = ".enabled"
-	suffixConnPerHost          = ".connections-per-host"
-	suffixMaxRetryAttempts     = ".max-retry-attempts"
-	suffixTimeout              = ".timeout"
-	suffixConnectTimeout       = ".connect-timeout"
-	suffixReconnectInterval    = ".reconnect-interval"
-	suffixServers              = ".servers"
-	suffixPort                 = ".port"
-	suffixKeyspace             = ".keyspace"
-	suffixDC                   = ".local-dc"
-	suffixConsistency          = ".consistency"
-	suffixDisableCompression   = ".disable-compression"
-	suffixProtoVer             = ".proto-version"
-	suffixSocketKeepAlive      = ".socket-keep-alive"
-	suffixUsername             = ".username"
-	suffixPassword             = ".password"
-	suffixEnableDependenciesV2 = ".enable-dependencies-v2"
-
-	suffixVerifyHost = ".tls.verify-host"
+	suffixEnabled            = ".enabled"
+	suffixConnPerHost        = ".connections-per-host"
+	suffixMaxRetryAttempts   = ".max-retry-attempts"
+	suffixTimeout            = ".timeout"
+	suffixConnectTimeout     = ".connect-timeout"
+	suffixReconnectInterval  = ".reconnect-interval"
+	suffixServers            = ".servers"
+	suffixPort               = ".port"
+	suffixKeyspace           = ".keyspace"
+	suffixDC                 = ".local-dc"
+	suffixConsistency        = ".consistency"
+	suffixDisableCompression = ".disable-compression"
+	suffixProtoVer           = ".proto-version"
+	suffixSocketKeepAlive    = ".socket-keep-alive"
+	suffixUsername           = ".username"
+	suffixPassword           = ".password"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
@@ -112,22 +109,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	}
 
 	return options
-}
-
-// NewOptionsFromConfig creates Options from primary and archive config
-func NewOptionsFromConfig(primary config.Configuration, archive config.Configuration) *Options {
-	return &Options{
-		Primary: namespaceConfig{
-			namespace:     primaryStorageConfig,
-			Configuration: primary,
-		},
-		others: map[string]*namespaceConfig{
-			archiveStorageConfig: {
-				namespace:     archiveStorageConfig,
-				Configuration: archive,
-			},
-		},
-	}
 }
 
 // AddFlags adds flags for Options
@@ -231,14 +212,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Authenticator.Basic.Password,
 		"Password for password authentication for Cassandra")
-	flagSet.Bool(
-		nsConfig.namespace+suffixEnableDependenciesV2,
-		nsConfig.EnableDependenciesV2,
-		"(deprecated) Jaeger will automatically detect the version of the dependencies table")
-	flagSet.Bool(
-		nsConfig.namespace+suffixVerifyHost,
-		false,
-		"(deprecated) Enable (or disable) host key verification. Use "+nsConfig.namespace+".tls.skip-host-verify instead")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -282,13 +255,8 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
 	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
-	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 	cfg.TLS = tlsFlagsConfig.InitFromViper(v)
-
-	if v.IsSet(cfg.namespace + suffixVerifyHost) {
-		cfg.TLS.SkipHostVerify = !v.GetBool(cfg.namespace + suffixVerifyHost)
-	}
 }
 
 // GetPrimary returns primary configuration.

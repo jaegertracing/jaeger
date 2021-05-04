@@ -24,18 +24,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	spanstore_mocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
-
-func TestQueryBuilderFlagsDeprecation(t *testing.T) {
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--query.port=80",
-	})
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	assert.Equal(t, ":80", qOpts.HostPort)
-}
 
 func TestQueryBuilderFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
@@ -43,7 +35,8 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.static-files=/dev/null",
 		"--query.ui-config=some.json",
 		"--query.base-path=/jaeger",
-		"--query.host-port=127.0.0.1:8080",
+		"--query.http-server.host-port=127.0.0.1:8080",
+		"--query.grpc-server.host-port=127.0.0.1:8081",
 		"--query.additional-headers=access-control-allow-origin:blerg",
 		"--query.additional-headers=whatever:thing",
 		"--query.max-clock-skew-adjustment=10s",
@@ -52,7 +45,8 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
-	assert.Equal(t, "127.0.0.1:8080", qOpts.HostPort)
+	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTPHostPort)
+	assert.Equal(t, "127.0.0.1:8081", qOpts.GRPCHostPort)
 	assert.Equal(t, http.Header{
 		"Access-Control-Allow-Origin": []string{"blerg"},
 		"Whatever":                    []string{"thing"},
@@ -123,4 +117,56 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
+}
+
+func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
+	var flagPortCases = []struct {
+		name                 string
+		flagsArray           []string
+		expectedHTTPHostPort string
+		expectedGRPCHostPort string
+		verifyCommonPort     bool
+		expectedHostPort     string
+	}{
+		{
+			// Default behavior. Dedicated host-port is used for both HTTP and GRPC endpoints
+			name:                 "No host-port flags specified, both GRPC and HTTP TLS disabled",
+			flagsArray:           []string{},
+			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+		},
+		{
+			// If any one host-port is specified, and TLS is diabled, fallback to ports defined in viper
+			name: "Atleast one dedicated host-port is specified, both GRPC and HTTP TLS disabled",
+			flagsArray: []string{
+				"--query.http-server.host-port=127.0.0.1:8081",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8081",
+			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+		},
+		{
+			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
+			// The server with TLS enabled with equal HTTP & GRPC host-ports, is still an acceptable flag configuration, but will throw an error during initialisation
+			name: "Common equal host-port specified, TLS enabled in atleast one server",
+			flagsArray: []string{
+				"--query.grpc.tls.enabled=true",
+				"--query.http-server.host-port=127.0.0.1:8081",
+				"--query.grpc-server.host-port=127.0.0.1:8081",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8081",
+			expectedGRPCHostPort: "127.0.0.1:8081",
+		},
+	}
+
+	for _, test := range flagPortCases {
+		t.Run(test.name, func(t *testing.T) {
+			v, command := config.Viperize(AddFlags)
+			command.ParseFlags(test.flagsArray)
+			qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+
+			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTPHostPort)
+			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPCHostPort)
+
+		})
+	}
 }

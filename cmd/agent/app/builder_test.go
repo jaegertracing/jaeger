@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/fork"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	yaml "gopkg.in/yaml.v2"
@@ -57,7 +58,7 @@ processors:
     - model: jaeger
       protocol: compact
       server:
-        hostPort: 3.3.3.3:6831 
+        hostPort: 3.3.3.3:6831
         socketBufferSize: 16384
     - model: jaeger
       protocol: binary
@@ -276,4 +277,43 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	assert.EqualError(t, err, "unknown reporter type ")
+}
+
+func TestPublishOpts(t *testing.T) {
+	v := viper.New()
+	cfg := &Builder{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+	err := command.ParseFlags([]string{
+		"--http-server.host-port=:8080",
+		"--processor.jaeger-binary.server-host-port=:1111",
+		"--processor.jaeger-binary.server-max-packet-size=4242",
+		"--processor.jaeger-binary.server-queue-size=24",
+		"--processor.jaeger-binary.workers=42",
+	})
+	require.NoError(t, err)
+	cfg.InitFromViper(v)
+
+	baseMetrics := metricstest.NewFactory(time.Second)
+	forkFactory := metricstest.NewFactory(time.Second)
+	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.server-max-packet-size",
+		Value: 4242,
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.server-queue-size",
+		Value: 24,
+	})
+	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "internal.processor.jaeger-binary.workers",
+		Value: 42,
+	})
 }
