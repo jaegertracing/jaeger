@@ -370,6 +370,24 @@ func TestSearchFailure_GRPC(t *testing.T) {
 		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 			Return(nil, mockErrorGRPC).Once()
 
+		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+			Query: nil,
+		})
+		assert.NoError(t, err)
+
+		spanResChunk, err := res.Recv()
+		assert.Error(t, err)
+		assert.Nil(t, spanResChunk)
+	})
+}
+
+func TestSearchInvalid_GRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		mockErrorGRPC := fmt.Errorf("whatsamattayou")
+
+		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+			Return(nil, mockErrorGRPC).Once()
+
 		// Trace query parameters.
 		queryParams := &api_v2.TraceQueryParameters{
 			ServiceName:   "service",
