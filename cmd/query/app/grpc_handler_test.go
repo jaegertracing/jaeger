@@ -363,7 +363,7 @@ func TestSearchSuccess_SpanStreamingGRPC(t *testing.T) {
 	})
 }
 
-func TestSearchFailure_GRPC(t *testing.T) {
+func TestSearchInvalid_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
 			Query: nil,
@@ -376,7 +376,7 @@ func TestSearchFailure_GRPC(t *testing.T) {
 	})
 }
 
-func TestSearchInvalid_GRPC(t *testing.T) {
+func TestSearchFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		mockErrorGRPC := fmt.Errorf("whatsamattayou")
 
