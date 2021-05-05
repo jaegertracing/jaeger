@@ -365,11 +365,6 @@ func TestSearchSuccess_SpanStreamingGRPC(t *testing.T) {
 
 func TestSearchFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		mockErrorGRPC := fmt.Errorf("whatsamattayou")
-
-		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
-			Return(nil, mockErrorGRPC).Once()
-
 		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
 			Query: nil,
 		})
