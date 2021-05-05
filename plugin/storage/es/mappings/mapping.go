@@ -34,6 +34,7 @@ type MappingBuilder struct {
 	EsVersion       uint
 	IndexPrefix     string
 	UseILM          bool
+	ILMPolicyName   string
 }
 
 // GetMapping returns the rendered mapping based on elasticsearch version

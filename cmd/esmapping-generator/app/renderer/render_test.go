@@ -50,23 +50,23 @@ func Test_getMappingAsString(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "ES version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true"},
+			name: "ES version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			want: "ES version 7",
 		},
 		{
-			name: "ES version 6", args: app.Options{Mapping: "jaeger-span", EsVersion: 6, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "false"},
+			name: "ES version 6", args: app.Options{Mapping: "jaeger-span", EsVersion: 6, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "false", ILMPolicyName: "jaeger-test-policy"},
 			want: "ES version 6",
 		},
 		{
-			name: "Parse Error version 6", args: app.Options{Mapping: "jaeger-span", EsVersion: 6, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "false"},
+			name: "Parse Error version 6", args: app.Options{Mapping: "jaeger-span", EsVersion: 6, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "false", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("parse error"),
 		},
 		{
-			name: "Parse Error version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true"},
+			name: "Parse Error version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("parse error"),
 		},
 		{
-			name: "Parse bool error", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "foo"},
+			name: "Parse bool error", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
 		},
 	}

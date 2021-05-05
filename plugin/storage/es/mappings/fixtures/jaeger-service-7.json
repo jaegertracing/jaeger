@@ -9,7 +9,7 @@
     "index.mapping.nested_fields.limit":50,
     "index.requests.cache.enable":true
     ,"lifecycle": {
-        "name": "jaeger-ilm-policy",
+        "name": "jaeger-test-policy",
         "rollover_alias": "test-jaeger-service-write"
     }
   },
