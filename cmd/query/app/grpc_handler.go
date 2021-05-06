@@ -84,6 +84,9 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 // FindTraces is the gRPC handler to fetch traces based on TraceQueryParameters.
 func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.QueryService_FindTracesServer) error {
 	query := r.GetQuery()
+	if query == nil {
+		return status.Errorf(codes.InvalidArgument, "missing query")
+	}
 	queryParams := spanstore.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
