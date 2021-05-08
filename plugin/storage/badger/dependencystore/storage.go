@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// DependencyStore handles all queries and insertions to Cassandra dependencies
+// DependencyStore handles all queries and insertions to Badger dependencies
 type DependencyStore struct {
 	reader spanstore.Reader
 }
