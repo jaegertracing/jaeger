@@ -243,17 +243,17 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		traceId1Query := elastic.NewBoolQuery().Should(
+		traceID1Query := elastic.NewBoolQuery().Should(
 			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String()).Boost(2),
 			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 1)))
-		id1Query := elastic.NewBoolQuery().Must(traceId1Query)
+		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		traceId2Query := elastic.NewBoolQuery().Should(
+		traceID2Query := elastic.NewBoolQuery().Should(
 			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String()).Boost(2),
 			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 2)))
-		id2Query := elastic.NewBoolQuery().Must(traceId2Query)
+		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
