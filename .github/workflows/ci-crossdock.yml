@@ -9,6 +9,11 @@ on:
 jobs:
   crossdock:
     runs-on: ubuntu-latest
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
     strategy:
       matrix:
         steps:
@@ -33,6 +38,12 @@ jobs:
 
     - name: Install tools
       run: make install-ci
+    
+    - uses: docker/setup-qemu-action@v1
+
+    - uses: docker/setup-buildx-action@v1
+      with:
+        driver-opts: network=host
 
     - name: Build, test, and publish ${{ matrix.steps.name }} image
       run: ${{ matrix.steps.cmd }}

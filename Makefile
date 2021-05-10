@@ -354,9 +354,13 @@ docker-images-only: docker-images-cassandra \
 	docker-images-tracegen \
 	docker-images-anonymizer
 
+.PHONY: build-crossdock-binary
+build-crossdock-binary:
+	$(GOBUILD) -o ./crossdock/crossdock-$(GOOS)-$(GOARCH) ./crossdock/main.go
+
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
+	GOOS=linux $(MAKE) build-crossdock-binary
 
 include crossdock/rules.mk
 
@@ -369,7 +373,7 @@ build-crossdock-ui-placeholder:
 
 .PHONY: build-crossdock
 build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
+	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} --build-arg TARGETARCH=$(GOARCH) crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
 .PHONY: build-and-run-crossdock

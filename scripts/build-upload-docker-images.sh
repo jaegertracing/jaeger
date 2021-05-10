@@ -30,6 +30,9 @@ docker_buildx_build(){
 }
 
 build_upload_multiarch_images(){
+	PLATFORMS="linux/amd64,linux/s390x"
+	IMAGE_TAGS=$(bash scripts/compute-tags.sh "jaegertracing/jaeger-JAEGERCOMP")
+
 	# build/upload images for Jaeger backend components
 	for component in agent collector query ingester
 	do
@@ -47,50 +50,41 @@ build_upload_multiarch_images(){
 	done 
 }
 
-#Step 1: build and upload multiarch docker images
+upload_docker_images(){
+	# upload amd64 docker images
+	jaeger_components=(
+		agent-debug
+		cassandra-schema
+		collector-debug
+		query-debug
+		ingester-debug
+	)
+
+	for component in "${jaeger_components[@]}"
+	do
+		REPO="jaegertracing/jaeger-${component}"
+		bash scripts/upload-to-registry.sh $REPO
+	done
+}
+
+# build multi-arch binaries
 make build-binaries-linux
 make build-binaries-s390x
-
-PLATFORMS="linux/amd64,linux/s390x"
-bash scripts/build-multiarch-baseimg.sh
-
-IMAGE_TAGS=$(bash scripts/compute-tags.sh "jaegertracing/jaeger-JAEGERCOMP")
+# build amd64 docker images
+make docker-images-jaeger-backend-debug
+make docker-images-cassandra
 
 # Only push multi-arch images to dockerhub/quay.io for master branch or for release tags vM.N.P
 if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-	echo "build multiarch images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
+	echo "build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
 	bash scripts/docker-login.sh
+	upload_docker_images
 	PUSHTAG="type=image, push=true"
 else
-	echo 'skip multiarch docker images upload, only allowed for tagged releases or master (latest tag)'
+	echo 'skip docker images upload, only allowed for tagged releases or master (latest tag)'
 	PUSHTAG="type=image, push=false"
 fi
 build_upload_multiarch_images
 
-#Step 2: build and upload amd64 docker images
-make docker-images-jaeger-backend-debug
-make docker-images-cassandra
-# Only push amd64 specific images to dockerhub/quay.io for master branch or for release tags vM.N.P
-if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-	echo "upload to dockerhub/quay.io, BRANCH=$BRANCH"
-else
-	echo 'skip docker images upload, only allowed for tagged releases or master (latest tag)'
-	exit 0
-fi
 
-export DOCKER_NAMESPACE=jaegertracing
-
-jaeger_components=(
-	agent-debug
-	cassandra-schema
-	collector-debug
-	query-debug
-	ingester-debug
-)
-
-for component in "${jaeger_components[@]}"
-do
-	REPO="jaegertracing/jaeger-${component}"
-	bash scripts/upload-to-registry.sh $REPO
-done
 
