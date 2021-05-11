@@ -29,7 +29,7 @@ type MetricsReader struct{}
 
 // NewMetricsReader returns a new MetricsReader, assigning the first reachable host:port from the provided list.
 // This host:port forms part of the URL to call when making queries to the underlying metrics store.
-func NewMetricsReader(metricsStorageType string, logger *zap.Logger, hostPorts []string, connTimeout time.Duration) (*MetricsReader, error) {
+func NewMetricsReader(logger *zap.Logger, hostPorts []string, connTimeout time.Duration) (*MetricsReader, error) {
 	// TODO: Implement me
 	return &MetricsReader{}, nil
 }
