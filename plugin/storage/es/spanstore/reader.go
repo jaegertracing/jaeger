@@ -355,10 +355,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	// i.e starts in one and ends in another.
 	indices := s.timeRangeIndices(s.spanIndexPrefix, s.indexDateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
-	var startTimeRangeQuery elastic.Query
-	if s.useReadWriteAliases {
-		startTimeRangeQuery = s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
-	}
 	searchAfterTime := make(map[model.TraceID]uint64)
 	totalDocumentsFetched := make(map[model.TraceID]int)
 	tracesMap := make(map[model.TraceID]*model.Trace)
@@ -369,14 +365,11 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
 			traceQuery := buildTraceByIDQuery(traceID)
-			var query *elastic.BoolQuery
+			query := elastic.NewBoolQuery().
+				Must(traceQuery)
 			if s.useReadWriteAliases {
-				query = elastic.NewBoolQuery().
-					Must(startTimeRangeQuery).
-					Must(traceQuery)
-			} else {
-				query = elastic.NewBoolQuery().
-					Must(traceQuery)
+				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
+				query = query.Must(startTimeRangeQuery)
 			}
 
 			if val, ok := searchAfterTime[traceID]; ok {
