@@ -243,15 +243,17 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		id1Query := elastic.NewBoolQuery().Should(
+		traceID1Query := elastic.NewBoolQuery().Should(
 			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String()).Boost(2),
 			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 1)))
+		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		id2Query := elastic.NewBoolQuery().Should(
+		traceID2Query := elastic.NewBoolQuery().Should(
 			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String()).Boost(2),
 			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 2)))
+		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
@@ -1020,7 +1022,7 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 	expectedStr :=
 		`{ "range":
-			{ "startTime": { "include_lower": true,
+			{ "startTimeMillis": { "include_lower": true,
 				         "include_upper": true,
 				         "from": 1000000,
 				         "to": 2000000 }
@@ -1036,8 +1038,8 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
 		// We need to do this because we cannot process a json into uint64.
-		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["from"] = model.TimeAsEpochMicroseconds(startTimeMin)
-		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["to"] = model.TimeAsEpochMicroseconds(startTimeMax)
+		expected["range"].(map[string]interface{})["startTimeMillis"].(map[string]interface{})["from"] = model.TimeAsEpochMicroseconds(startTimeMin) / 1000
+		expected["range"].(map[string]interface{})["startTimeMillis"].(map[string]interface{})["to"] = model.TimeAsEpochMicroseconds(startTimeMax) / 1000
 
 		assert.EqualValues(t, expected, actual)
 	})
