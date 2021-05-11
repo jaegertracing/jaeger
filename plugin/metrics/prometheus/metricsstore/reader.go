@@ -15,26 +15,44 @@
 package metricsstore
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore/prometheus"
 )
 
-// Type is the metrics storage type.
-const Type = "prometheus"
+// MetricsReader is a Prometheus metrics reader.
+type MetricsReader struct{}
 
-// MetricsReader is the reader for the M3 metrics backing store.
-type MetricsReader struct {
-	*prometheus.MetricsReader
+// NewMetricsReader returns a new MetricsReader, assigning the first reachable host:port from the provided list.
+// This host:port forms part of the URL to call when making queries to the underlying metrics store.
+func NewMetricsReader(metricsStorageType string, logger *zap.Logger, hostPorts []string, connTimeout time.Duration) (*MetricsReader, error) {
+	// TODO: Implement me
+	return &MetricsReader{}, nil
 }
 
-// NewMetricsReader returns a new Prometheus MetricsReader, composing an underlying prometheus.MetricsReader.
-func NewMetricsReader(logger *zap.Logger, hostPorts []string, connTimeout time.Duration) (metricsstore.Reader, error) {
-	promReader, _ := prometheus.NewMetricsReader(Type, logger, hostPorts, connTimeout)
-	return &MetricsReader{
-		MetricsReader: promReader,
-	}, nil
+// GetLatencies gets the latency metrics for the given set of latency query parameters.
+func (m *MetricsReader) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) ([]metrics.Metric, error) {
+	// TODO: Implement me
+	return nil, nil
+}
+
+// GetCallRates gets the call rate metrics for the given set of call rate query parameters.
+func (m *MetricsReader) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) ([]metrics.Metric, error) {
+	// TODO: Implement me
+	return nil, nil
+}
+
+// GetErrorRates gets the error rate metrics for the given set of error rate query parameters.
+func (m *MetricsReader) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) ([]metrics.Metric, error) {
+	// TODO: Implement me
+	return nil, nil
+}
+
+// GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
+func (m *MetricsReader) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+	return time.Millisecond, nil
 }
