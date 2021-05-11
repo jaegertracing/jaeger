@@ -125,14 +125,14 @@ func (options) QueueSize(queueSize int) Option {
 	}
 }
 
-// DynQueueSize creates an Option that initializes the queue size
+// DynQueueSizeWarmup creates an Option that initializes the dynamic queue size
 func (options) DynQueueSizeWarmup(dynQueueSizeWarmup uint) Option {
 	return func(b *options) {
 		b.dynQueueSizeWarmup = dynQueueSizeWarmup
 	}
 }
 
-// DynQueueSize creates an Option that initializes the queue size
+// DynQueueSizeMemory creates an Option that initializes the dynamic queue memory
 func (options) DynQueueSizeMemory(dynQueueSizeMemory uint) Option {
 	return func(b *options) {
 		b.dynQueueSizeMemory = dynQueueSizeMemory
