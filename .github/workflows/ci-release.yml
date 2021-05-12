@@ -41,7 +41,7 @@ jobs:
       if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
-      uses: svenstaro/upload-release-action@v2
+      uses: svenstaro/upload-release-action@2.2.1
       with:
         file: deploy/*.tar.gz
         file_glob: true
