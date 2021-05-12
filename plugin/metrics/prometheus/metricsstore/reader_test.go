@@ -66,16 +66,6 @@ func TestNewMetricsReaderMultipleErrors(t *testing.T) {
 	assert.Nil(t, reader)
 }
 
-func TestNewMetricsReaderInvalidHostPort(t *testing.T) {
-	logger := zap.NewNop()
-
-	reader, err := NewMetricsReader(logger, []string{"invalidhostport"}, time.Second)
-
-	const wantErrMsg = "none of the provided prometheus query host:ports are reachable: address invalidhostport: missing port in address"
-	assert.EqualError(t, err, wantErrMsg)
-	assert.Nil(t, reader)
-}
-
 func TestNewMetricsReaderMissingHostPort(t *testing.T) {
 	logger := zap.NewNop()
 	var emptyHostPorts []string

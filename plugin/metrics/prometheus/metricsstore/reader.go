@@ -41,13 +41,7 @@ func NewMetricsReader(logger *zap.Logger, hostPorts []string, connTimeout time.D
 	}
 	errs := make([]error, 0)
 	for _, hostPort := range hostPorts {
-		host, port, err := net.SplitHostPort(hostPort)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), connTimeout)
+		conn, err := net.DialTimeout("tcp", hostPort, connTimeout)
 		if err != nil {
 			errs = append(errs, err)
 			continue
