@@ -16,22 +16,51 @@ package metricsstore
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
 // MetricsReader is a Prometheus metrics reader.
-type MetricsReader struct{}
+type MetricsReader struct {
+	url    string
+	logger *zap.Logger
+}
 
 // NewMetricsReader returns a new MetricsReader, assigning the first reachable host:port from the provided list.
 // This host:port forms part of the URL to call when making queries to the underlying metrics store.
 func NewMetricsReader(logger *zap.Logger, hostPorts []string, connTimeout time.Duration) (*MetricsReader, error) {
-	// TODO: Implement me
-	return &MetricsReader{}, nil
+	if len(hostPorts) < 1 {
+		return nil, fmt.Errorf("no prometheus query host:port provided")
+	}
+	errs := make([]error, 0)
+	for _, hostPort := range hostPorts {
+		host, port, err := net.SplitHostPort(hostPort)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), connTimeout)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		logger.Info("Connected to Prometheus backend", zap.String("http-addr", hostPort))
+		conn.Close()
+
+		return &MetricsReader{
+			url:    fmt.Sprintf("http://%s/api/v1/query_range", hostPort),
+			logger: logger,
+		}, nil
+	}
+	return nil, fmt.Errorf("none of the provided prometheus query host:ports are reachable: %w", multierror.Wrap(errs))
 }
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
