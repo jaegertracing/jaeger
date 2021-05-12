@@ -363,6 +363,19 @@ func TestSearchSuccess_SpanStreamingGRPC(t *testing.T) {
 	})
 }
 
+func TestSearchInvalid_GRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+			Query: nil,
+		})
+		assert.NoError(t, err)
+
+		spanResChunk, err := res.Recv()
+		assert.Error(t, err)
+		assert.Nil(t, spanResChunk)
+	})
+}
+
 func TestSearchFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		mockErrorGRPC := fmt.Errorf("whatsamattayou")

@@ -12,7 +12,7 @@
     "index.requests.cache.enable":true
   {{- if .UseILM }}
     ,"lifecycle": {
-        "name": "jaeger-ilm-policy",
+        "name": "{{ .ILMPolicyName }}",
         "rollover_alias": "{{ .IndexPrefix }}jaeger-service-write"
     }
   {{- end }}
