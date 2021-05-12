@@ -33,6 +33,7 @@ const (
 	minSamplesPerSecond          = "sampling.min-samples-per-second"
 	leaderLeaseRefreshInterval   = "sampling.leader-lease-refresh-interval"
 	followerLeaseRefreshInterval = "sampling.follower-lease-refresh-interval"
+	overrideHostname             = "sampling.override-hostname"
 
 	defaultTargetSamplesPerSecond       = 1
 	defaultDeltaTolerance               = 0.3
@@ -45,6 +46,7 @@ const (
 	defaultMinSamplesPerSecond          = 1.0 / float64(time.Minute/time.Second) // once every 1 minute
 	defaultLeaderLeaseRefreshInterval   = 5 * time.Second
 	defaultFollowerLeaseRefreshInterval = 60 * time.Second
+	defaultOverrideHostname             = ""
 )
 
 // Options holds configuration for the adaptive sampling strategy store.
@@ -111,6 +113,10 @@ type Options struct {
 	// FollowerLeaseRefreshInterval is the duration to sleep if this processor is a follower
 	// (ie. failed to gain the leader lock).
 	FollowerLeaseRefreshInterval time.Duration
+
+	// OverrideHostname overrides the hostname returned from os.Hostname for use in the adaptive sampling
+	// strategy processor
+	OverrideHostname string
 }
 
 // AddFlags adds flags for Options
@@ -148,6 +154,9 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(followerLeaseRefreshInterval, defaultFollowerLeaseRefreshInterval,
 		"The duration to sleep if this processor is a follower.",
 	)
+	flagSet.String(overrideHostname, defaultOverrideHostname,
+		"Overrides os.Hostname() for use in adaptive sampling.",
+	)
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -163,5 +172,6 @@ func (opts *Options) InitFromViper(v *viper.Viper) *Options {
 	opts.MinSamplesPerSecond = v.GetFloat64(minSamplesPerSecond)
 	opts.LeaderLeaseRefreshInterval = v.GetDuration(leaderLeaseRefreshInterval)
 	opts.FollowerLeaseRefreshInterval = v.GetDuration(followerLeaseRefreshInterval)
+	opts.OverrideHostname = v.GetString(overrideHostname)
 	return opts
 }

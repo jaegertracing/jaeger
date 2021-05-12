@@ -27,12 +27,21 @@ import (
 
 // NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
 func NewStrategyStore(options Options, metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) (*Processor, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, err
+	hostname := options.OverrideHostname
+	if len(hostname) == 0 {
+		var err error
+		hostname, err = os.Hostname()
+		if err != nil {
+			return nil, err
+		}
+		logger.Info("Adaptive sampling hostname retrieved from os.Hostname()", zap.String("hostname", hostname))
 	}
 
-	participant := leaderelection.NewElectionParticipant(lock, defaultResourceName, leaderelection.ElectionParticipantOptions{}) // todo(jpe) : wire up options/resource name
+	participant := leaderelection.NewElectionParticipant(lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
+		FollowerLeaseRefreshInterval: options.FollowerLeaseRefreshInterval,
+		LeaderLeaseRefreshInterval:   options.LeaderLeaseRefreshInterval,
+		Logger:                       logger,
+	})
 	p, err := newProcessor(options, hostname, store, participant, metricsFactory, logger)
 	if err != nil {
 		return nil, err
