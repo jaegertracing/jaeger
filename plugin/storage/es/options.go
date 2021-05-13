@@ -213,12 +213,12 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexRolloverFrequencySpans,
 		defaultIndexRolloverFrequency,
 		"Rotates jaeger-span indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
-			"Jaeger additionally supports manual and automated (via ILM) index management. Reference: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover.")
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRolloverFrequencyServices,
 		defaultIndexRolloverFrequency,
 		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
-			"Jaeger additionally supports manual and automated (via ILM) index management. Reference: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover.")
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
