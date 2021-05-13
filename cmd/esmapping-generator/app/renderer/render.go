@@ -42,6 +42,7 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 		EsVersion:       opt.EsVersion,
 		IndexPrefix:     opt.IndexPrefix,
 		UseILM:          enableILM,
+		ILMPolicyName:   opt.ILMPolicyName,
 	}
 	return mappingBuilder.GetMapping(opt.Mapping)
 }
