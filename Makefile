@@ -173,6 +173,7 @@ lint-staticcheck:
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
+			-e swagger-gen/ \
 		>> $(LINT_LOG) || true
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
 
