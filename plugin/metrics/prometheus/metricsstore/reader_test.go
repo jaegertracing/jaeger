@@ -16,7 +16,6 @@ package metricsstore
 
 import (
 	"context"
-	"net"
 	"testing"
 	"time"
 
@@ -26,68 +25,26 @@ import (
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
-func TestNewMetricsReaderSingleListenedHostPort(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:")
-	assert.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
+func TestNewMetricsReaderValidAddress(t *testing.T) {
 	logger := zap.NewNop()
-	addr := listener.Addr().String()
-
-	reader, err := NewMetricsReader(logger, []string{addr}, time.Second)
-
+	reader, err := NewMetricsReader(logger, "localhost:1234")
 	assert.NoError(t, err)
 	assert.NotNil(t, reader)
 }
 
-func TestNewMetricsReaderOneOfTwoListeningOnHostPort(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:")
-	assert.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
+func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 	logger := zap.NewNop()
-	addr := listener.Addr().String()
-
-	reader, err := NewMetricsReader(logger, []string{"nooneislistening:1234", addr}, time.Second)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, reader)
-}
-
-func TestNewMetricsReaderMultipleErrors(t *testing.T) {
-	logger := zap.NewNop()
-
-	reader, err := NewMetricsReader(logger, []string{"localhost:12345", "localhost:12346"}, time.Nanosecond)
-
-	const wantErrMsg = "none of the provided prometheus query host:ports are reachable: [dial tcp: i/o timeout, dial tcp: i/o timeout]"
-	assert.EqualError(t, err, wantErrMsg)
-	assert.Nil(t, reader)
-}
-
-func TestNewMetricsReaderMissingHostPort(t *testing.T) {
-	logger := zap.NewNop()
-	var emptyHostPorts []string
-
-	reader, err := NewMetricsReader(logger, emptyHostPorts, time.Second)
-
-	const wantErrMsg = "no prometheus query host:port provided"
+	reader, err := NewMetricsReader(logger, "\n")
+	const wantErrMsg = `parse "http://\n": net/url: invalid control character in URL`
 	assert.EqualError(t, err, wantErrMsg)
 	assert.Nil(t, reader)
 }
 
 func TestGetMinStepDuration(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:")
-	assert.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	addr := listener.Addr().String()
 	params := metricsstore.MinStepDurationQueryParameters{}
 	logger := zap.NewNop()
 
-	reader, err := NewMetricsReader(logger, []string{addr}, time.Second)
+	reader, err := NewMetricsReader(logger, "localhost:1234")
 	assert.NoError(t, err)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
@@ -96,55 +53,37 @@ func TestGetMinStepDuration(t *testing.T) {
 }
 
 func TestGetLatencies(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:")
-	assert.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	addr := listener.Addr().String()
 	params := metricsstore.LatenciesQueryParameters{}
 	logger := zap.NewNop()
 
-	reader, err := NewMetricsReader(logger, []string{addr}, time.Second)
+	reader, err := NewMetricsReader(logger, "localhost:1234")
 	assert.NoError(t, err)
 
 	m, err := reader.GetLatencies(context.Background(), &params)
 	assert.NoError(t, err)
-	assert.Nil(t, m)
+	assert.Empty(t, m)
 }
 
 func TestGetCallRates(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:")
-	assert.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	addr := listener.Addr().String()
 	params := metricsstore.CallRateQueryParameters{}
 	logger := zap.NewNop()
 
-	reader, err := NewMetricsReader(logger, []string{addr}, time.Second)
+	reader, err := NewMetricsReader(logger, "localhost:1234")
 	assert.NoError(t, err)
 
 	m, err := reader.GetCallRates(context.Background(), &params)
 	assert.NoError(t, err)
-	assert.Nil(t, m)
+	assert.Empty(t, m)
 }
 
 func TestGetErrorRates(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:")
-	assert.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	addr := listener.Addr().String()
 	params := metricsstore.ErrorRateQueryParameters{}
 	logger := zap.NewNop()
 
-	reader, err := NewMetricsReader(logger, []string{addr}, time.Second)
+	reader, err := NewMetricsReader(logger, "localhost:1234")
 	assert.NoError(t, err)
 
 	m, err := reader.GetErrorRates(context.Background(), &params)
 	assert.NoError(t, err)
-	assert.Nil(t, m)
+	assert.Empty(t, m)
 }
