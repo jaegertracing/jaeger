@@ -6,9 +6,9 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	strfmt "github.com/go-openapi/strfmt"
+	"context"
 
-	"github.com/go-openapi/errors"
+	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 )
 
@@ -20,8 +20,8 @@ import (
 // Zipkin v1 core annotations such as "cs" and "sr" have been replaced with
 // Span.Kind, which interprets timestamp and duration.
 //
+//
 // swagger:model Annotation
-
 type Annotation struct {
 
 	// Epoch **microseconds** of this event.
@@ -42,17 +42,13 @@ type Annotation struct {
 	Value string `json:"value,omitempty"`
 }
 
-/* polymorph Annotation timestamp false */
-
-/* polymorph Annotation value false */
-
 // Validate validates this annotation
 func (m *Annotation) Validate(formats strfmt.Registry) error {
-	var res []error
+	return nil
+}
 
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
+// ContextValidate validates this annotation based on context it is used
+func (m *Annotation) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	return nil
 }
 
