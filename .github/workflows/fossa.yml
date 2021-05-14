@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2.3.4
 
       - uses: actions/setup-go@v2
         with:
@@ -23,7 +23,7 @@ jobs:
           echo "$GOPATH/bin" >>"$GITHUB_PATH"
           
       - name: Run FOSSA scan and upload report
-        uses: fossa-contrib/fossa-action@v1
+        uses: fossa-contrib/fossa-action@v1.1.4
         with:
           # FOSSA Push-Only API Token
           fossa-api-key: 304657e2357ba57b416b94e6b119131b

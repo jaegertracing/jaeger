@@ -34,7 +34,7 @@ type Reader interface {
 	GetErrorRates(ctx context.Context, params *ErrorRateQueryParameters) ([]metrics.Metric, error)
 	// GetMinStepDuration gets the min time resolution supported by the backing metrics store,
 	// e.g. 10s means the backend can only return data points that are at least 10s apart, not closer.
-	GetMinStepDuration(ctx context.Context, params *MinStepDurationQueryParameters) (*metrics.GetMinStepDurationResponse, error)
+	GetMinStepDuration(ctx context.Context, params *MinStepDurationQueryParameters) (time.Duration, error)
 }
 
 // BaseQueryParameters contains the common set of parameters used by all metrics queries:
