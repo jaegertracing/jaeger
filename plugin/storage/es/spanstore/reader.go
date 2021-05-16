@@ -107,7 +107,6 @@ type SpanReader struct {
 	sourceFn                      sourceFn
 	maxDocCount                   int
 	useReadWriteAliases           bool
-
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
