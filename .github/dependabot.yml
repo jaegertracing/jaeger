@@ -5,11 +5,6 @@ updates:
     schedule:
       interval: daily
 
-  - package-ecosystem: gomod
-    directory: "/v2"
-    schedule:
-      interval: daily
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

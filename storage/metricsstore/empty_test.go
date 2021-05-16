@@ -12,23 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package memory
-
-import (
-	"context"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/consumer/pdata"
-	"go.uber.org/zap"
-)
-
-func TestNew(t *testing.T) {
-	exp, err := newExporter(&Config{}, zap.NewNop())
-	require.NoError(t, err)
-	require.NotNil(t, exp)
-
-	err = exp.ConsumeTraces(context.Background(), pdata.NewTraces())
-	assert.NoError(t, err)
-}
+package metricsstore

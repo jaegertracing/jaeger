@@ -23,7 +23,7 @@ import (
 )
 
 //go:embed *.json
-// MAPPINGS contains embeded index templates.
+// MAPPINGS contains embedded index templates.
 var MAPPINGS embed.FS
 
 // MappingBuilder holds parameters required to render an elasticsearch index template
@@ -34,6 +34,7 @@ type MappingBuilder struct {
 	EsVersion       uint
 	IndexPrefix     string
 	UseILM          bool
+	ILMPolicyName   string
 }
 
 // GetMapping returns the rendered mapping based on elasticsearch version

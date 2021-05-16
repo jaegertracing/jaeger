@@ -48,6 +48,7 @@ const (
 	traceIDField           = "traceID"
 	durationField          = "duration"
 	startTimeField         = "startTime"
+	startTimeMillisField   = "startTimeMillis"
 	serviceNameField       = "process.serviceName"
 	operationNameField     = "operationName"
 	objectTagsField        = "tag"
@@ -102,6 +103,7 @@ type SpanReader struct {
 	timeRangeIndices        timeRangeIndexFn
 	sourceFn                sourceFn
 	maxDocCount             int
+	useReadWriteAliases     bool
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -133,6 +135,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
 		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
+		useReadWriteAliases:     p.UseReadWriteAliases,
 	}
 }
 
@@ -352,7 +355,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	// i.e starts in one and ends in another.
 	indices := s.timeRangeIndices(s.spanIndexPrefix, s.indexDateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
-
 	searchAfterTime := make(map[model.TraceID]uint64)
 	totalDocumentsFetched := make(map[model.TraceID]int)
 	tracesMap := make(map[model.TraceID]*model.Trace)
@@ -362,13 +364,19 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
-			query := buildTraceByIDQuery(traceID)
+			traceQuery := buildTraceByIDQuery(traceID)
+			query := elastic.NewBoolQuery().
+				Must(traceQuery)
+			if s.useReadWriteAliases {
+				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
+				query = query.Must(startTimeRangeQuery)
+			}
+
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
 
 			s := s.sourceFn(query, nextTime)
-
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
 				Source(s)
@@ -617,7 +625,10 @@ func (s *SpanReader) buildDurationQuery(durationMin time.Duration, durationMax t
 func (s *SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
 	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
 	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMax)
-	return elastic.NewRangeQuery(startTimeField).Gte(minStartTimeMicros).Lte(maxStartTimeMicros)
+	// startTimeMillisField is date field in ES mapping.
+	// Using date field in range queries helps to skip search on unnecessary shards at Elasticsearch side.
+	// https://discuss.elastic.co/t/timeline-query-on-timestamped-indices/129328/2
+	return elastic.NewRangeQuery(startTimeMillisField).Gte(minStartTimeMicros / 1000).Lte(maxStartTimeMicros / 1000)
 }
 
 func (s *SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {

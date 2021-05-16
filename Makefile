@@ -230,7 +230,14 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
 
 cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
-	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
+	@if ! command -v esc > /dev/null 2>&1 ; then \
+		echo "esc: Command not found" ; \
+		echo "Check:" ; \
+		echo "- esc is installed: 'make install-tools'" ; \
+		echo "- add \$$GOPATH into \$$PATH: 'export PATH=\$$PATH:\$$(go env GOPATH)/bin'" ; \
+		false ; \
+	fi
+	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build ; \
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
@@ -451,6 +458,7 @@ echo-version:
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
+	-Imodel/proto/metrics \
 	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -494,6 +502,21 @@ proto:
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
 		idl/proto/api_v2/query.proto
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
+		model/proto/metrics/otelspankind.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
+		model/proto/metrics/otelmetric.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
+		model/proto/metrics/metricsquery.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
