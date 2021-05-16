@@ -54,7 +54,7 @@ def main():
             '\tUNIT ... used with lookback to remove indices from read alias e.g. ..., days, weeks, months, years (default {}).'.format(
                 UNIT))
         print('\tUNIT_COUNT ... count of UNITs (default {}).'.format(UNIT_COUNT))
-        print('TIMEOUT ...  number of seconds to wait for master node response(default {}).'.format(TIMEOUT))
+        print('TIMEOUT ...  number of seconds to wait for master node response (default {}).'.format(TIMEOUT))
         sys.exit(1)
 
     timeout = int(os.getenv("TIMEOUT", TIMEOUT))
