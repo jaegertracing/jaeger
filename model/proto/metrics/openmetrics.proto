@@ -12,17 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The OpenMetrics protobuf schema which defines the protobuf wire format.
-// Ensure to interpret "required" as semantically required for a valid message.
-// All string fields MUST be UTF-8 encoded strings.
-// Based on: https://github.com/OpenObservability/OpenMetrics/blob/v1.0.0/proto/openmetrics_data_model.proto
+// This file is a copy of https://github.com/OpenObservability/OpenMetrics/blob/v1.0.0/proto/openmetrics_data_model.proto,
+// with the following additions (see README.md for more details):
+//
+//  * Add import to gogoproto/gogo.proto.
+//  * Add options defining the per-language generated code's packages.
+//  * Add options enabling gogoproto un/marshal, required for sending imported message types over the wire.
 
 syntax="proto3";
 
+// The OpenMetrics protobuf schema which defines the protobuf wire format.
+// Ensure to interpret "required" as semantically required for a valid message.
+// All string fields MUST be UTF-8 encoded strings.
 package jaeger.api_v2.metrics;
 
-import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
+// -- BEGIN ADDITIONS
+import "gogoproto/gogo.proto";
 
 option go_package = "metrics";
 option java_package = "io.jaegertracing.api_v2.metrics";
@@ -34,6 +40,7 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 // Enable custom Size method (Required by Marshal and Unmarshal).
 option (gogoproto.sizer_all) = true;
+// -- END ADDITIONS
 
 // The top-level container type that is encoded and sent over the wire.
 message MetricSet {
