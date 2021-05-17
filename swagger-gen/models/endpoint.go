@@ -6,22 +6,25 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	strfmt "github.com/go-openapi/strfmt"
+	"context"
 
 	"github.com/go-openapi/errors"
+	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // Endpoint Endpoint
 //
 // The network context of a node in the service graph
+//
 // swagger:model Endpoint
-
 type Endpoint struct {
 
 	// The text representation of the primary IPv4 address associated with this
 	// a connection. Ex. 192.168.99.100 Absent if unknown.
 	//
+	// Format: ipv4
 	IPV4 strfmt.IPv4 `json:"ipv4,omitempty"`
 
 	// The text representation of the primary IPv6 address associated with this
@@ -29,6 +32,7 @@ type Endpoint struct {
 	//
 	// Prefer using the ipv4 field for mapped addresses.
 	//
+	// Format: ipv6
 	IPV6 strfmt.IPv6 `json:"ipv6,omitempty"`
 
 	// Depending on context, this could be a listen port or the client-side of a
@@ -45,21 +49,50 @@ type Endpoint struct {
 	ServiceName string `json:"serviceName,omitempty"`
 }
 
-/* polymorph Endpoint ipv4 false */
-
-/* polymorph Endpoint ipv6 false */
-
-/* polymorph Endpoint port false */
-
-/* polymorph Endpoint serviceName false */
-
 // Validate validates this endpoint
 func (m *Endpoint) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateIPV4(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateIPV6(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *Endpoint) validateIPV4(formats strfmt.Registry) error {
+	if swag.IsZero(m.IPV4) { // not required
+		return nil
+	}
+
+	if err := validate.FormatOf("ipv4", "body", "ipv4", m.IPV4.String(), formats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Endpoint) validateIPV6(formats strfmt.Registry) error {
+	if swag.IsZero(m.IPV6) { // not required
+		return nil
+	}
+
+	if err := validate.FormatOf("ipv6", "body", "ipv6", m.IPV6.String(), formats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this endpoint based on context it is used
+func (m *Endpoint) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	return nil
 }
 

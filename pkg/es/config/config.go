@@ -44,33 +44,37 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers               []string       `mapstructure:"server_urls"`
-	RemoteReadClusters    []string       `mapstructure:"remote_read_clusters"`
-	Username              string         `mapstructure:"username"`
-	Password              string         `mapstructure:"password" json:"-"`
-	TokenFilePath         string         `mapstructure:"token_file"`
-	AllowTokenFromContext bool           `mapstructure:"-"`
-	Sniffer               bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled     bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount           int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
-	NumReplicas           int64          `yaml:"replicas" mapstructure:"num_replicas"`
-	Timeout               time.Duration  `validate:"min=500" mapstructure:"-"`
-	BulkSize              int            `mapstructure:"-"`
-	BulkWorkers           int            `mapstructure:"-"`
-	BulkActions           int            `mapstructure:"-"`
-	BulkFlushInterval     time.Duration  `mapstructure:"-"`
-	IndexPrefix           string         `mapstructure:"index_prefix"`
-	IndexDateLayout       string         `mapstructure:"index_date_layout"`
-	Tags                  TagsAsFields   `mapstructure:"tags_as_fields"`
-	Enabled               bool           `mapstructure:"-"`
-	TLS                   tlscfg.Options `mapstructure:"tls"`
-	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
-	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
-	UseILM                bool           `mapstructure:"use_ilm"`
-	Version               uint           `mapstructure:"version"`
-	LogLevel              string         `mapstructure:"log_level"`
+	Servers                        []string       `mapstructure:"server_urls"`
+	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
+	Username                       string         `mapstructure:"username"`
+	Password                       string         `mapstructure:"password" json:"-"`
+	TokenFilePath                  string         `mapstructure:"token_file"`
+	AllowTokenFromContext          bool           `mapstructure:"-"`
+	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
+	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
+	MaxDocCount                    int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge                     time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards                      int64          `yaml:"shards" mapstructure:"num_shards"`
+	NumReplicas                    int64          `yaml:"replicas" mapstructure:"num_replicas"`
+	Timeout                        time.Duration  `validate:"min=500" mapstructure:"-"`
+	BulkSize                       int            `mapstructure:"-"`
+	BulkWorkers                    int            `mapstructure:"-"`
+	BulkActions                    int            `mapstructure:"-"`
+	BulkFlushInterval              time.Duration  `mapstructure:"-"`
+	IndexPrefix                    string         `mapstructure:"index_prefix"`
+	IndexDateLayoutSpans           string         `mapstructure:"-"`
+	IndexDateLayoutServices        string         `mapstructure:"-"`
+	IndexDateLayoutDependencies    string         `mapstructure:"-"`
+	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
+	IndexRolloverFrequencyServices string         `mapstructure:"-"`
+	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
+	Enabled                        bool           `mapstructure:"-"`
+	TLS                            tlscfg.Options `mapstructure:"tls"`
+	UseReadWriteAliases            bool           `mapstructure:"use_aliases"`
+	CreateIndexTemplates           bool           `mapstructure:"create_mappings"`
+	UseILM                         bool           `mapstructure:"use_ilm"`
+	Version                        uint           `mapstructure:"version"`
+	LogLevel                       string         `mapstructure:"log_level"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -96,7 +100,11 @@ type ClientBuilder interface {
 	GetMaxSpanAge() time.Duration
 	GetMaxDocCount() int
 	GetIndexPrefix() string
-	GetIndexDateLayout() string
+	GetIndexDateLayoutSpans() string
+	GetIndexDateLayoutServices() string
+	GetIndexDateLayoutDependencies() string
+	GetIndexRolloverFrequencySpansDuration() time.Duration
+	GetIndexRolloverFrequencyServicesDuration() time.Duration
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
 	GetTagDotReplacement() string
@@ -281,9 +289,35 @@ func (c *Configuration) GetIndexPrefix() string {
 	return c.IndexPrefix
 }
 
-// GetIndexDateLayout returns index date layout
-func (c *Configuration) GetIndexDateLayout() string {
-	return c.IndexDateLayout
+// GetIndexDateLayoutSpans returns jaeger-span index date layout
+func (c *Configuration) GetIndexDateLayoutSpans() string {
+	return c.IndexDateLayoutSpans
+}
+
+// GetIndexDateLayoutServices returns jaeger-service index date layout
+func (c *Configuration) GetIndexDateLayoutServices() string {
+	return c.IndexDateLayoutServices
+}
+
+// GetIndexDateLayoutDependencies returns jaeger-dependencies index date layout
+func (c *Configuration) GetIndexDateLayoutDependencies() string {
+	return c.IndexDateLayoutDependencies
+}
+
+// GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
+func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
+	if c.IndexRolloverFrequencySpans == "hour" {
+		return -1 * time.Hour
+	}
+	return -24 * time.Hour
+}
+
+// GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
+func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
+	if c.IndexRolloverFrequencyServices == "hour" {
+		return -1 * time.Hour
+	}
+	return -24 * time.Hour
 }
 
 // GetTagsFilePath returns a path to file containing tag keys

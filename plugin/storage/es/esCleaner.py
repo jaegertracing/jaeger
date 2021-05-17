@@ -13,7 +13,7 @@ def main():
         print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] ... {} NUM_OF_DAYS http://HOSTNAME[:PORT]'.format(sys.argv[0]))
         print('NUM_OF_DAYS ... delete indices that are older than the given number of days.')
         print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
-        print('TIMEOUT ...  number of seconds to wait for master node response.'.format(TIMEOUT))
+        print('TIMEOUT ...  number of seconds to wait for master node response (default {}).'.format(TIMEOUT))
         print('INDEX_PREFIX ... specifies index prefix.')
         print('INDEX_DATE_SEPARATOR ... specifies index date separator.')
         print('ARCHIVE ... specifies whether to remove archive indices (only works for rollover) (default false).')

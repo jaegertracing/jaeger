@@ -6,19 +6,19 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 
-	strfmt "github.com/go-openapi/strfmt"
-
 	"github.com/go-openapi/errors"
+	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 	"github.com/go-openapi/validate"
 )
 
 // Span Span
+//
 // swagger:model Span
-
 type Span struct {
 
 	// Associates events that explain latency with the time they happened.
@@ -72,6 +72,7 @@ type Span struct {
 	//   * duration - When present represents delay consuming the message, such as from backlog.
 	//   * remoteEndpoint - Represents the broker. Leave serviceName absent if unknown.
 	//
+	// Enum: [CLIENT SERVER PRODUCER CONSUMER]
 	Kind string `json:"kind,omitempty"`
 
 	// The host that recorded this span, primarily for query by service name.
@@ -132,73 +133,43 @@ type Span struct {
 	TraceID *string `json:"traceId"`
 }
 
-/* polymorph Span annotations false */
-
-/* polymorph Span debug false */
-
-/* polymorph Span duration false */
-
-/* polymorph Span id false */
-
-/* polymorph Span kind false */
-
-/* polymorph Span localEndpoint false */
-
-/* polymorph Span name false */
-
-/* polymorph Span parentId false */
-
-/* polymorph Span remoteEndpoint false */
-
-/* polymorph Span shared false */
-
-/* polymorph Span tags false */
-
-/* polymorph Span timestamp false */
-
-/* polymorph Span traceId false */
-
 // Validate validates this span
 func (m *Span) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateAnnotations(formats); err != nil {
-		// prop
 		res = append(res, err)
 	}
 
 	if err := m.validateDuration(formats); err != nil {
-		// prop
 		res = append(res, err)
 	}
 
 	if err := m.validateID(formats); err != nil {
-		// prop
 		res = append(res, err)
 	}
 
 	if err := m.validateKind(formats); err != nil {
-		// prop
 		res = append(res, err)
 	}
 
 	if err := m.validateLocalEndpoint(formats); err != nil {
-		// prop
 		res = append(res, err)
 	}
 
 	if err := m.validateParentID(formats); err != nil {
-		// prop
 		res = append(res, err)
 	}
 
 	if err := m.validateRemoteEndpoint(formats); err != nil {
-		// prop
+		res = append(res, err)
+	}
+
+	if err := m.validateTags(formats); err != nil {
 		res = append(res, err)
 	}
 
 	if err := m.validateTraceID(formats); err != nil {
-		// prop
 		res = append(res, err)
 	}
 
@@ -209,7 +180,6 @@ func (m *Span) Validate(formats strfmt.Registry) error {
 }
 
 func (m *Span) validateAnnotations(formats strfmt.Registry) error {
-
 	if swag.IsZero(m.Annotations) { // not required
 		return nil
 	}
@@ -219,13 +189,11 @@ func (m *Span) validateAnnotations(formats strfmt.Registry) error {
 	}
 
 	for i := 0; i < len(m.Annotations); i++ {
-
 		if swag.IsZero(m.Annotations[i]) { // not required
 			continue
 		}
 
 		if m.Annotations[i] != nil {
-
 			if err := m.Annotations[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("annotations" + "." + strconv.Itoa(i))
@@ -240,12 +208,11 @@ func (m *Span) validateAnnotations(formats strfmt.Registry) error {
 }
 
 func (m *Span) validateDuration(formats strfmt.Registry) error {
-
 	if swag.IsZero(m.Duration) { // not required
 		return nil
 	}
 
-	if err := validate.MinimumInt("duration", "body", int64(m.Duration), 1, false); err != nil {
+	if err := validate.MinimumInt("duration", "body", m.Duration, 1, false); err != nil {
 		return err
 	}
 
@@ -258,15 +225,15 @@ func (m *Span) validateID(formats strfmt.Registry) error {
 		return err
 	}
 
-	if err := validate.MinLength("id", "body", string(*m.ID), 16); err != nil {
+	if err := validate.MinLength("id", "body", *m.ID, 16); err != nil {
 		return err
 	}
 
-	if err := validate.MaxLength("id", "body", string(*m.ID), 16); err != nil {
+	if err := validate.MaxLength("id", "body", *m.ID, 16); err != nil {
 		return err
 	}
 
-	if err := validate.Pattern("id", "body", string(*m.ID), `[a-z0-9]{16}`); err != nil {
+	if err := validate.Pattern("id", "body", *m.ID, `[a-z0-9]{16}`); err != nil {
 		return err
 	}
 
@@ -286,26 +253,29 @@ func init() {
 }
 
 const (
+
 	// SpanKindCLIENT captures enum value "CLIENT"
 	SpanKindCLIENT string = "CLIENT"
+
 	// SpanKindSERVER captures enum value "SERVER"
 	SpanKindSERVER string = "SERVER"
+
 	// SpanKindPRODUCER captures enum value "PRODUCER"
 	SpanKindPRODUCER string = "PRODUCER"
+
 	// SpanKindCONSUMER captures enum value "CONSUMER"
 	SpanKindCONSUMER string = "CONSUMER"
 )
 
 // prop value enum
 func (m *Span) validateKindEnum(path, location string, value string) error {
-	if err := validate.Enum(path, location, value, spanTypeKindPropEnum); err != nil {
+	if err := validate.EnumCase(path, location, value, spanTypeKindPropEnum, true); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (m *Span) validateKind(formats strfmt.Registry) error {
-
 	if swag.IsZero(m.Kind) { // not required
 		return nil
 	}
@@ -319,13 +289,11 @@ func (m *Span) validateKind(formats strfmt.Registry) error {
 }
 
 func (m *Span) validateLocalEndpoint(formats strfmt.Registry) error {
-
 	if swag.IsZero(m.LocalEndpoint) { // not required
 		return nil
 	}
 
 	if m.LocalEndpoint != nil {
-
 		if err := m.LocalEndpoint.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("localEndpoint")
@@ -338,20 +306,19 @@ func (m *Span) validateLocalEndpoint(formats strfmt.Registry) error {
 }
 
 func (m *Span) validateParentID(formats strfmt.Registry) error {
-
 	if swag.IsZero(m.ParentID) { // not required
 		return nil
 	}
 
-	if err := validate.MinLength("parentId", "body", string(m.ParentID), 16); err != nil {
+	if err := validate.MinLength("parentId", "body", m.ParentID, 16); err != nil {
 		return err
 	}
 
-	if err := validate.MaxLength("parentId", "body", string(m.ParentID), 16); err != nil {
+	if err := validate.MaxLength("parentId", "body", m.ParentID, 16); err != nil {
 		return err
 	}
 
-	if err := validate.Pattern("parentId", "body", string(m.ParentID), `[a-z0-9]{16}`); err != nil {
+	if err := validate.Pattern("parentId", "body", m.ParentID, `[a-z0-9]{16}`); err != nil {
 		return err
 	}
 
@@ -359,16 +326,31 @@ func (m *Span) validateParentID(formats strfmt.Registry) error {
 }
 
 func (m *Span) validateRemoteEndpoint(formats strfmt.Registry) error {
-
 	if swag.IsZero(m.RemoteEndpoint) { // not required
 		return nil
 	}
 
 	if m.RemoteEndpoint != nil {
-
 		if err := m.RemoteEndpoint.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("remoteEndpoint")
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *Span) validateTags(formats strfmt.Registry) error {
+	if swag.IsZero(m.Tags) { // not required
+		return nil
+	}
+
+	if m.Tags != nil {
+		if err := m.Tags.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("tags")
 			}
 			return err
 		}
@@ -383,15 +365,99 @@ func (m *Span) validateTraceID(formats strfmt.Registry) error {
 		return err
 	}
 
-	if err := validate.MinLength("traceId", "body", string(*m.TraceID), 16); err != nil {
+	if err := validate.MinLength("traceId", "body", *m.TraceID, 16); err != nil {
 		return err
 	}
 
-	if err := validate.MaxLength("traceId", "body", string(*m.TraceID), 32); err != nil {
+	if err := validate.MaxLength("traceId", "body", *m.TraceID, 32); err != nil {
 		return err
 	}
 
-	if err := validate.Pattern("traceId", "body", string(*m.TraceID), `[a-z0-9]{16,32}`); err != nil {
+	if err := validate.Pattern("traceId", "body", *m.TraceID, `[a-z0-9]{16,32}`); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validate this span based on the context it is used
+func (m *Span) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.contextValidateAnnotations(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateLocalEndpoint(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateRemoteEndpoint(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateTags(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *Span) contextValidateAnnotations(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.Annotations); i++ {
+
+		if m.Annotations[i] != nil {
+			if err := m.Annotations[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("annotations" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *Span) contextValidateLocalEndpoint(ctx context.Context, formats strfmt.Registry) error {
+
+	if m.LocalEndpoint != nil {
+		if err := m.LocalEndpoint.ContextValidate(ctx, formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("localEndpoint")
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *Span) contextValidateRemoteEndpoint(ctx context.Context, formats strfmt.Registry) error {
+
+	if m.RemoteEndpoint != nil {
+		if err := m.RemoteEndpoint.ContextValidate(ctx, formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("remoteEndpoint")
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *Span) contextValidateTags(ctx context.Context, formats strfmt.Registry) error {
+
+	if err := m.Tags.ContextValidate(ctx, formats); err != nil {
+		if ve, ok := err.(*errors.Validation); ok {
+			return ve.ValidateName("tags")
+		}
 		return err
 	}
 
