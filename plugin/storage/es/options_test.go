@@ -189,33 +189,38 @@ func TestIndexRollover(t *testing.T) {
 		wantSpanIndexRolloverFrequency    time.Duration
 		wantServiceIndexRolloverFrequency time.Duration
 	}{
-		{"not defined (default)",
-			[]string{},
-			"2006-01-02",
-			"2006-01-02",
-			-24 * time.Hour,
-			-24 * time.Hour},
-		{"index day rollover",
-			[]string{"--es.index-rollover-frequency-services=day", "--es.index-rollover-frequency-spans=hour"},
-			"2006-01-02-15",
-			"2006-01-02",
-			-1 * time.Hour,
-			-24 * time.Hour},
-		{"index hour rollover", []string{"--es.index-rollover-frequency-services=hour", "--es.index-rollover-frequency-spans=day"},
-			"2006-01-02",
-			"2006-01-02-15",
-			-24 * time.Hour,
-			-1 * time.Hour},
-		{"index error rollover change default", []string{"--es.index-rollover-frequency-services=hours", "--es.index-rollover-frequency-spans=hours"},
-
-			"2006-01-02",
-			"2006-01-02",
-			-24 * time.Hour,
-			-24 * time.Hour},
-
-		//{"jaeger-service index day rollover", []string{"--es.index-rollover-frequency-services=day"}, "2006-01-02"},
-		//{"jaeger-service index hour rollover", []string{"--es.index-rollover-frequency-services=hour"}, "2006-01-02-15"},
-		//{"jaeger-service index error rollover change default", []string{"--es.index-rollover-services=hours"}, "2006-01-02"},
+		{
+			name: "not defined (default)",
+			flags:                             []string{},
+			wantSpanDateLayout:                "2006-01-02",
+			wantServiceDateLayout:             "2006-01-02",
+			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
+			wantServiceIndexRolloverFrequency: -24 * time.Hour,
+		},
+		{
+			name:                              "index day rollover",
+			flags:                             []string{"--es.index-rollover-frequency-services=day", "--es.index-rollover-frequency-spans=hour"},
+			wantSpanDateLayout:                "2006-01-02-15",
+			wantServiceDateLayout:             "2006-01-02",
+			wantSpanIndexRolloverFrequency:    -1 * time.Hour,
+			wantServiceIndexRolloverFrequency: -24 * time.Hour,
+		},
+		{
+			name:                              "index hour rollover",
+			flags:                             []string{"--es.index-rollover-frequency-services=hour", "--es.index-rollover-frequency-spans=day"},
+			wantSpanDateLayout:                "2006-01-02",
+			wantServiceDateLayout:             "2006-01-02-15",
+			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
+			wantServiceIndexRolloverFrequency: -1 * time.Hour,
+		},
+		{
+			name:                              "index error rollover change default",
+			flags:                             []string{"--es.index-rollover-frequency-services=hours", "--es.index-rollover-frequency-spans=hours"},
+			wantSpanDateLayout:                "2006-01-02",
+			wantServiceDateLayout:             "2006-01-02",
+			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
+			wantServiceIndexRolloverFrequency: -24 * time.Hour,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
