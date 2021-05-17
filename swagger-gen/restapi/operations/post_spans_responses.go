@@ -23,11 +23,14 @@ type PostSpansAccepted struct {
 
 // NewPostSpansAccepted creates PostSpansAccepted with default headers values
 func NewPostSpansAccepted() *PostSpansAccepted {
+
 	return &PostSpansAccepted{}
 }
 
 // WriteResponse to the client
 func (o *PostSpansAccepted) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
 
 	rw.WriteHeader(202)
 }
