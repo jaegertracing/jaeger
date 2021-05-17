@@ -8,7 +8,7 @@ package operations
 import (
 	"net/http"
 
-	middleware "github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/runtime/middleware"
 )
 
 // PostSpansHandlerFunc turns a function with the right signature into a post spans handler
@@ -29,7 +29,7 @@ func NewPostSpans(ctx *middleware.Context, handler PostSpansHandler) *PostSpans 
 	return &PostSpans{Context: ctx, Handler: handler}
 }
 
-/*PostSpans swagger:route POST /spans postSpans
+/* PostSpans swagger:route POST /spans postSpans
 
 Uploads a list of spans encoded per content-type, for example json.
 
@@ -43,17 +43,15 @@ type PostSpans struct {
 func (o *PostSpans) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewPostSpansParams()
-
 	if err := o.Context.BindValidRequest(r, route, &Params); err != nil { // bind params
 		o.Context.Respond(rw, r, route.Produces, route, err)
 		return
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
-
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }
