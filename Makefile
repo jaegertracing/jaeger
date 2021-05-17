@@ -511,7 +511,7 @@ proto:
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
-		model/proto/metrics/otelmetric.proto
+		model/proto/metrics/openmetrics.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \

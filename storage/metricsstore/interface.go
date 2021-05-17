@@ -25,13 +25,13 @@ import (
 type Reader interface {
 	// GetLatencies gets the latency metrics for a specific quantile (e.g. 0.99) and list of services
 	// grouped by service and optionally grouped by operation.
-	GetLatencies(ctx context.Context, params *LatenciesQueryParameters) ([]metrics.Metric, error)
+	GetLatencies(ctx context.Context, params *LatenciesQueryParameters) (*metrics.MetricFamily, error)
 	// GetCallRates gets the call rate metrics for a given list of services grouped by service
 	// and optionally grouped by operation.
-	GetCallRates(ctx context.Context, params *CallRateQueryParameters) ([]metrics.Metric, error)
+	GetCallRates(ctx context.Context, params *CallRateQueryParameters) (*metrics.MetricFamily, error)
 	// GetErrorRates gets the error rate metrics for a given list of services grouped by service
 	// and optionally grouped by operation.
-	GetErrorRates(ctx context.Context, params *ErrorRateQueryParameters) ([]metrics.Metric, error)
+	GetErrorRates(ctx context.Context, params *ErrorRateQueryParameters) (*metrics.MetricFamily, error)
 	// GetMinStepDuration gets the min time resolution supported by the backing metrics store,
 	// e.g. 10s means the backend can only return data points that are at least 10s apart, not closer.
 	GetMinStepDuration(ctx context.Context, params *MinStepDurationQueryParameters) (time.Duration, error)
