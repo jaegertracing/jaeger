@@ -190,7 +190,7 @@ func TestIndexRollover(t *testing.T) {
 		wantServiceIndexRolloverFrequency time.Duration
 	}{
 		{
-			name: "not defined (default)",
+			name:                              "not defined (default)",
 			flags:                             []string{},
 			wantSpanDateLayout:                "2006-01-02",
 			wantServiceDateLayout:             "2006-01-02",
@@ -214,7 +214,7 @@ func TestIndexRollover(t *testing.T) {
 			wantServiceIndexRolloverFrequency: -1 * time.Hour,
 		},
 		{
-			name:                              "index error rollover change default",
+			name:                              "invalid index rollover frequency falls back to default 'day'",
 			flags:                             []string{"--es.index-rollover-frequency-services=hours", "--es.index-rollover-frequency-spans=hours"},
 			wantSpanDateLayout:                "2006-01-02",
 			wantServiceDateLayout:             "2006-01-02",
