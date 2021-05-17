@@ -63,21 +63,21 @@ func NewMetricsReader(logger *zap.Logger, hostPort string, connectTimeout time.D
 }
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
-func (m *MetricsReader) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (metrics.MetricFamily, error) {
+func (m *MetricsReader) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
 	// TODO: Implement me
-	return metrics.MetricFamily{}, nil
+	return &metrics.MetricFamily{}, nil
 }
 
 // GetCallRates gets the call rate metrics for the given set of call rate query parameters.
-func (m *MetricsReader) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (metrics.MetricFamily, error) {
+func (m *MetricsReader) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	// TODO: Implement me
-	return metrics.MetricFamily{}, nil
+	return &metrics.MetricFamily{}, nil
 }
 
 // GetErrorRates gets the error rate metrics for the given set of error rate query parameters.
-func (m *MetricsReader) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (metrics.MetricFamily, error) {
+func (m *MetricsReader) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	// TODO: Implement me
-	return metrics.MetricFamily{}, nil
+	return &metrics.MetricFamily{}, nil
 }
 
 // GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
