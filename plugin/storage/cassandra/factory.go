@@ -19,6 +19,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"os"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -41,8 +42,6 @@ import (
 const (
 	primaryStorageConfig = "cassandra"
 	archiveStorageConfig = "cassandra-archive"
-
-	defaultLockTenant = "jaeger"
 )
 
 // Factory implements storage.Factory for Cassandra backend.
@@ -155,8 +154,13 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 
 // CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
 func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) { // todo(jpe): test
+	hostname, err := os.Hostname() // todo(jpe): wire up --sampling.override-hostname in ./plugin/sampling/strategystore/adaptive/options.go?
+	if err != nil {
+		return nil, nil, err
+	}
+
 	store := cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger)
-	lock := cLock.NewLock(f.primarySession, defaultLockTenant)
+	lock := cLock.NewLock(f.primarySession, hostname)
 
 	return lock, store, nil
 }
