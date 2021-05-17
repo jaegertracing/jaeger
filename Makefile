@@ -55,8 +55,8 @@ THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
 THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
 THRIFT_GEN_DIR=thrift-gen
 
-SWAGGER_VER=0.12.0
-SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
+SWAGGER_VER=0.27.0
+SWAGGER_IMAGE=quay.io/goswagger/swagger:v$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
@@ -173,6 +173,7 @@ lint-staticcheck:
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
+			-e swagger-gen/ \
 		>> $(LINT_LOG) || true
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
 

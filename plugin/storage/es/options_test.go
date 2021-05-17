@@ -58,12 +58,15 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.num-shards=20",
 		"--es.num-replicas=10",
 		"--es.index-date-separator=",
+		"--es.index-rollover-frequency-spans=hour",
+		"--es.index-rollover-frequency-services=day",
 		// a couple overrides
 		"--es.remote-read-clusters=cluster_one,cluster_two",
 		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
 		"--es.aux.max-span-age=24h",
 		"--es.aux.num-replicas=10",
 		"--es.aux.index-date-separator=.",
+		"--es.aux.index-rollover-frequency-spans=hour",
 		"--es.tls.enabled=true",
 		"--es.tls.skip-host-verify=true",
 		"--es.tags-as-fields.all=true",
@@ -89,7 +92,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "!", primary.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", primary.Tags.File)
 	assert.Equal(t, "test,tags", primary.Tags.Include)
-	assert.Equal(t, "20060102", primary.IndexDateLayout)
+	assert.Equal(t, "20060102", primary.IndexDateLayoutServices)
+	assert.Equal(t, "2006010215", primary.IndexDateLayoutSpans)
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
 	assert.Equal(t, "hello", aux.Username)
@@ -102,7 +106,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "@", aux.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", aux.Tags.File)
 	assert.Equal(t, "test,tags", aux.Tags.Include)
-	assert.Equal(t, "2006.01.02", aux.IndexDateLayout)
+	assert.Equal(t, "2006.01.02", aux.IndexDateLayoutServices)
+	assert.Equal(t, "2006.01.02.15", aux.IndexDateLayoutSpans)
 	assert.True(t, primary.UseILM)
 }
 
@@ -170,7 +175,64 @@ func TestIndexDateSeparator(t *testing.T) {
 			opts.InitFromViper(v)
 
 			primary := opts.GetPrimary()
-			assert.Equal(t, tc.wantDateLayout, primary.IndexDateLayout)
+			assert.Equal(t, tc.wantDateLayout, primary.IndexDateLayoutSpans)
+		})
+	}
+}
+
+func TestIndexRollover(t *testing.T) {
+	testCases := []struct {
+		name                              string
+		flags                             []string
+		wantSpanDateLayout                string
+		wantServiceDateLayout             string
+		wantSpanIndexRolloverFrequency    time.Duration
+		wantServiceIndexRolloverFrequency time.Duration
+	}{
+		{
+			name:                              "not defined (default)",
+			flags:                             []string{},
+			wantSpanDateLayout:                "2006-01-02",
+			wantServiceDateLayout:             "2006-01-02",
+			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
+			wantServiceIndexRolloverFrequency: -24 * time.Hour,
+		},
+		{
+			name:                              "index day rollover",
+			flags:                             []string{"--es.index-rollover-frequency-services=day", "--es.index-rollover-frequency-spans=hour"},
+			wantSpanDateLayout:                "2006-01-02-15",
+			wantServiceDateLayout:             "2006-01-02",
+			wantSpanIndexRolloverFrequency:    -1 * time.Hour,
+			wantServiceIndexRolloverFrequency: -24 * time.Hour,
+		},
+		{
+			name:                              "index hour rollover",
+			flags:                             []string{"--es.index-rollover-frequency-services=hour", "--es.index-rollover-frequency-spans=day"},
+			wantSpanDateLayout:                "2006-01-02",
+			wantServiceDateLayout:             "2006-01-02-15",
+			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
+			wantServiceIndexRolloverFrequency: -1 * time.Hour,
+		},
+		{
+			name:                              "invalid index rollover frequency falls back to default 'day'",
+			flags:                             []string{"--es.index-rollover-frequency-services=hours", "--es.index-rollover-frequency-spans=hours"},
+			wantSpanDateLayout:                "2006-01-02",
+			wantServiceDateLayout:             "2006-01-02",
+			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
+			wantServiceIndexRolloverFrequency: -24 * time.Hour,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := NewOptions("es")
+			v, command := config.Viperize(opts.AddFlags)
+			command.ParseFlags(tc.flags)
+			opts.InitFromViper(v)
+			primary := opts.GetPrimary()
+			assert.Equal(t, tc.wantSpanDateLayout, primary.IndexDateLayoutSpans)
+			assert.Equal(t, tc.wantServiceDateLayout, primary.IndexDateLayoutServices)
+			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, primary.GetIndexRolloverFrequencySpansDuration())
+			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, primary.GetIndexRolloverFrequencyServicesDuration())
 		})
 	}
 }
