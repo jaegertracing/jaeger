@@ -4,6 +4,8 @@ services:
     jaeger-collector:
       image: jaegertracing/jaeger-collector
       command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.host-port=9411"]
+      environment: 
+        - SAMPLING_TYPE=adaptive
       ports:
         - "14269"
         - "14268:14268"
