@@ -23,7 +23,7 @@ require (
 	github.com/go-openapi/swag v0.19.15
 	github.com/go-openapi/validate v0.20.2
 	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
-	github.com/gogo/googleapis v1.4.0
+	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.4.3 // indirect
 	github.com/golang/protobuf v1.3.4
