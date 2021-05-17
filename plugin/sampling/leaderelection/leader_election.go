@@ -31,6 +31,8 @@ const (
 // ElectionParticipant partakes in leader election to become leader.
 type ElectionParticipant interface {
 	IsLeader() bool
+	Start() error
+	Close() error
 }
 
 // DistributedElectionParticipant implements ElectionParticipant on top of a distributed lock.

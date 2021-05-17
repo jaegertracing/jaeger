@@ -17,7 +17,6 @@ package adaptive
 import (
 	"context"
 	"errors"
-	"io"
 	"math"
 	"math/rand"
 	"sync"
@@ -165,6 +164,9 @@ func (p *Processor) GetSamplingStrategy(_ context.Context, service string) (*sam
 // Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
 func (p *Processor) Start() error {
 	p.logger.Info("starting adaptive sampling processor")
+	if err := p.electionParticipant.Start(); err != nil {
+		return err
+	}
 	p.shutdown = make(chan struct{})
 	p.loadProbabilities()
 	p.generateStrategyResponses()
@@ -176,8 +178,8 @@ func (p *Processor) Start() error {
 // Close stops the processor from calculating probabilities.
 func (p *Processor) Close() error {
 	p.logger.Info("stopping adaptive sampling processor")
-	if closer, ok := p.electionParticipant.(io.Closer); ok {
-		closer.Close()
+	if err := p.electionParticipant.Close(); err != nil {
+		return err
 	}
 	close(p.shutdown)
 	return nil
