@@ -70,7 +70,7 @@ require (
 	google.golang.org/grpc v1.29.1
 	gopkg.in/ini.v1 v1.52.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
-	honnef.co/go/tools v0.1.2
+	honnef.co/go/tools v0.1.4
 )
 
 replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
