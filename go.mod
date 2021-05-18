@@ -23,13 +23,13 @@ require (
 	github.com/go-openapi/swag v0.19.15
 	github.com/go-openapi/validate v0.20.2
 	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
-	github.com/gogo/googleapis v1.4.0
+	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.4.3 // indirect
 	github.com/golang/protobuf v1.3.4
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.7.4
-	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
+	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/hashicorp/go-hclog v0.15.0
 	github.com/hashicorp/go-plugin v1.4.1
 	github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d // indirect
