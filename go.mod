@@ -26,7 +26,7 @@ require (
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.4.3 // indirect
-	github.com/golang/protobuf v1.3.4
+	github.com/golang/protobuf v1.3.5
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.7.4
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
