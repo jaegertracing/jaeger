@@ -136,7 +136,7 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
 		},
 		{
-			// If any one host-port is specified, and TLS is diabled, fallback to ports defined in viper
+			// If any one host-port is specified, and TLS is disabled, fallback to ports defined in viper
 			name: "Atleast one dedicated host-port is specified, both GRPC and HTTP TLS disabled",
 			flagsArray: []string{
 				"--query.http-server.host-port=127.0.0.1:8081",
