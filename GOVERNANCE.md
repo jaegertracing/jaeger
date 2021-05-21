@@ -40,7 +40,7 @@ Two other maintainers need to second the nomination. If no one objects in 5 work
 We do not expect anyone to make a permanent commitment to be a Jaeger maintainer forever. After all, circumstances change,
 people get new jobs, new interests, and may not be able to continue contributing to the project. At the same time, we need
 to keep the list of maintainers current in order to have effective governance. People may be removed from the current list
-of maintaners via one of the following ways:
+of maintainers via one of the following ways:
   * They can resign
   * If they stop contributing to the project for a period of 6 months or more
   * By a 2/3 majority vote by maintainers

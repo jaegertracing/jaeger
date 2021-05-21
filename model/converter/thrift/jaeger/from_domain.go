@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
-// FromDomain takes an arrya of model.Span and returns
+// FromDomain takes an array of model.Span and returns
 // an array of jaeger.Span.  If errors are found during
 // conversion of tags, then error tags are appended.
 func FromDomain(spans []*model.Span) []*jaeger.Span {
