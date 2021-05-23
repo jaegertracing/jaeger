@@ -94,52 +94,61 @@ type SpanReader struct {
 	logger *zap.Logger
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge              time.Duration
-	serviceOperationStorage *ServiceOperationStorage
-	spanIndexPrefix         string
-	serviceIndexPrefix      string
-	indexDateLayout         string
-	spanConverter           dbmodel.ToDomain
-	timeRangeIndices        timeRangeIndexFn
-	sourceFn                sourceFn
-	maxDocCount             int
-	useReadWriteAliases     bool
+	maxSpanAge                    time.Duration
+	serviceOperationStorage       *ServiceOperationStorage
+	spanIndexPrefix               string
+	serviceIndexPrefix            string
+	spanIndexDateLayout           string
+	serviceIndexDateLayout        string
+	spanIndexRolloverFrequency    time.Duration
+	serviceIndexRolloverFrequency time.Duration
+	spanConverter                 dbmodel.ToDomain
+	timeRangeIndices              timeRangeIndexFn
+	sourceFn                      sourceFn
+	maxDocCount                   int
+	useReadWriteAliases           bool
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client              es.Client
-	Logger              *zap.Logger
-	MaxSpanAge          time.Duration
-	MaxDocCount         int
-	MetricsFactory      metrics.Factory
-	IndexPrefix         string
-	IndexDateLayout     string
-	TagDotReplacement   string
-	Archive             bool
-	UseReadWriteAliases bool
-	RemoteReadClusters  []string
+	Client                        es.Client
+	Logger                        *zap.Logger
+	MaxSpanAge                    time.Duration
+	MaxDocCount                   int
+	MetricsFactory                metrics.Factory
+	IndexPrefix                   string
+	SpanIndexDateLayout           string
+	ServiceIndexDateLayout        string
+	SpanIndexRolloverFrequency    time.Duration
+	ServiceIndexRolloverFrequency time.Duration
+	TagDotReplacement             string
+	Archive                       bool
+	UseReadWriteAliases           bool
+	RemoteReadClusters            []string
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
-		client:                  p.Client,
-		logger:                  p.Logger,
-		maxSpanAge:              p.MaxSpanAge,
-		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
-		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
-		indexDateLayout:         p.IndexDateLayout,
-		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
-		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
-		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
-		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     p.UseReadWriteAliases,
+		client:                        p.Client,
+		logger:                        p.Logger,
+		maxSpanAge:                    p.MaxSpanAge,
+		serviceOperationStorage:       NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
+		spanIndexPrefix:               indexNames(p.IndexPrefix, spanIndex),
+		serviceIndexPrefix:            indexNames(p.IndexPrefix, serviceIndex),
+		spanIndexDateLayout:           p.SpanIndexDateLayout,
+		serviceIndexDateLayout:        p.ServiceIndexDateLayout,
+		spanIndexRolloverFrequency:    p.SpanIndexRolloverFrequency,
+		serviceIndexRolloverFrequency: p.SpanIndexRolloverFrequency,
+		spanConverter:                 dbmodel.NewToDomain(p.TagDotReplacement),
+		timeRangeIndices:              getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
+		sourceFn:                      getSourceFn(p.Archive, p.MaxDocCount),
+		maxDocCount:                   p.MaxDocCount,
+		useReadWriteAliases:           p.UseReadWriteAliases,
 	}
 }
 
-type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time) []string
+type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
@@ -151,12 +160,12 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 		} else {
 			archiveSuffix = archiveIndexSuffix
 		}
-		return addRemoteReadClusters(func(indexPrefix, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+		return addRemoteReadClusters(func(indexPrefix, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 			return []string{archiveIndex(indexPrefix, archiveSuffix)}
 		}, remoteReadClusters)
 	}
 	if useReadWriteAliases {
-		return addRemoteReadClusters(func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+		return addRemoteReadClusters(func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 			return []string{indexPrefix + "read"}
 		}, remoteReadClusters)
 	}
@@ -166,8 +175,8 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 // Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices.
 // Elasticsearch cross cluster api example GET /twitter,cluster_one:twitter,cluster_two:twitter/_search.
 func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) timeRangeIndexFn {
-	return func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
-		jaegerIndices := fn(indexPrefix, indexDateLayout, startTime, endTime)
+	return func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+		jaegerIndices := fn(indexPrefix, indexDateLayout, startTime, endTime, reduceDuration)
 		if len(remoteReadClusters) == 0 {
 			return jaegerIndices
 		}
@@ -198,13 +207,15 @@ func getSourceFn(archive bool, maxDocCount int) sourceFn {
 }
 
 // timeRangeIndices returns the array of indices that we need to query, based on query params
-func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time) []string {
+func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 	var indices []string
 	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		endTime = endTime.Add(-24 * time.Hour)
+		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
+			indices = append(indices, currentIndex)
+		}
+		endTime = endTime.Add(reduceDuration)
 		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)
@@ -268,7 +279,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetServices")
 	defer span.Finish()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.indexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
@@ -280,7 +291,7 @@ func (s *SpanReader) GetOperations(
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.indexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
@@ -353,7 +364,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
-	indices := s.timeRangeIndices(s.spanIndexPrefix, s.indexDateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour))
+	indices := s.timeRangeIndices(s.spanIndexPrefix, s.spanIndexDateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour), s.spanIndexRolloverFrequency)
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	searchAfterTime := make(map[model.TraceID]uint64)
 	totalDocumentsFetched := make(map[model.TraceID]int)
@@ -544,7 +555,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.indexDateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.spanIndexDateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax, s.spanIndexRolloverFrequency)
 
 	searchService := s.client.Search(jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.
