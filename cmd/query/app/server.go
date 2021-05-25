@@ -235,7 +235,7 @@ func (s *Server) Start() error {
 			err = s.httpServer.Serve(s.httpConn)
 		}
 		switch err {
-		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
+		case nil, http.ErrServerClosed, cmux.ErrListenerClosed, cmux.ErrServerClosed:
 			// normal exit, nothing to do
 		default:
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
