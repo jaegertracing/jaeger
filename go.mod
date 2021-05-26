@@ -63,7 +63,7 @@ require (
 	go.mongodb.org/mongo-driver v1.5.2 // indirect
 	go.uber.org/atomic v1.7.0
 	go.uber.org/automaxprocs v1.4.0
-	go.uber.org/zap v1.16.0
+	go.uber.org/zap v1.17.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/net v0.0.0-20210510120150-4163338589ed
 	golang.org/x/sys v0.0.0-20210423082822-04245dca01da
