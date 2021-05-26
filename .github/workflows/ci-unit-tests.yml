@@ -22,6 +22,12 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
+    - name: Publish unit test results
+      uses: EnricoMi/publish-unit-test-result-action@v1
+      if: always()
+      with:
+        files: test_report.xml
+
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v1.5.0
       with:

@@ -35,6 +35,7 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
+GOTESTREPORT=gotestsum --junitfile test-report.xml -- -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
@@ -145,7 +146,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -timeout 5m -coverprofile cover.out ./...
+	$(GOTESTREPORT) -timeout 5m -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -406,6 +407,7 @@ install-tools:
 	go install github.com/mjibson/esc
 	go install github.com/securego/gosec/cmd/gosec
 	go install honnef.co/go/tools/cmd/staticcheck
+	go install gotest.tools/gotestsum
 
 .PHONY: install-ci
 install-ci: install-tools
