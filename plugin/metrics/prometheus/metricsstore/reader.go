@@ -171,6 +171,9 @@ func (m *MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) 
 	}
 	promQuery := buildPromQuery(p)
 
+	span, ctx := startSpanForQuery(ctx, p.metricName, promQuery)
+	defer span.Finish()
+
 	queryRange := promapi.Range{
 		Start: p.EndTime.Add(-1 * *p.Lookback),
 		End:   *p.EndTime,
@@ -179,14 +182,11 @@ func (m *MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) 
 
 	m.logger.Debug("Executing Prometheus query", zap.String("query", promQuery), zap.Any("range", queryRange))
 
-	span, ctx := startSpanForQuery(ctx, p.metricName, promQuery)
-	defer span.Finish()
 	mv, warnings, err := m.client.QueryRange(ctx, promQuery, queryRange)
 	if err != nil {
 		logErrorToSpan(span, err)
 		return &metrics.MetricFamily{}, fmt.Errorf("failed executing metrics query: %w", err)
 	}
-
 	if len(warnings) > 0 {
 		m.logger.Warn("Warnings detected on Prometheus query", zap.Any("warnings", warnings))
 	}
