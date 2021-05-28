@@ -16,7 +16,7 @@ docker_buildx_build(){
 	if [[ "$5" == "N" ]]; then
 		local base_debug_img_arg=""
 	else
-		local base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg:1.0.0-alpine-3.12 --build-arg debug_image=golang:1.15-alpine "
+		local base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg:1.0.0-alpine-3.13 --build-arg debug_image=golang:1.15-alpine "
 	fi
 
 	docker buildx build --output "${PUSHTAG}" \

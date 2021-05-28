@@ -64,7 +64,7 @@ make build-all-in-one GOOS=linux GOARCH=s390x
 PLATFORMS="linux/amd64,linux/s390x"
 make create-baseimg-debugimg
 repo=jaegertracing/all-in-one
-BASE_IMAGE="localhost:5000/baseimg:1.0.0-alpine-3.12"
+BASE_IMAGE="localhost:5000/baseimg:1.0.0-alpine-3.13"
 
 docker buildx build --push \
     --progress=plain --target release \
