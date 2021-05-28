@@ -110,7 +110,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix(),
-		f.primaryConfig.GetIndexDateLayout(), f.primaryConfig.GetMaxDocCount())
+		f.primaryConfig.GetIndexDateLayoutDependencies(), f.primaryConfig.GetMaxDocCount())
 	return reader, nil
 }
 
@@ -141,17 +141,20 @@ func createSpanReader(
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
-		Client:              client,
-		Logger:              logger,
-		MetricsFactory:      mFactory,
-		MaxDocCount:         cfg.GetMaxDocCount(),
-		MaxSpanAge:          cfg.GetMaxSpanAge(),
-		IndexPrefix:         cfg.GetIndexPrefix(),
-		IndexDateLayout:     cfg.GetIndexDateLayout(),
-		TagDotReplacement:   cfg.GetTagDotReplacement(),
-		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
-		Archive:             archive,
-		RemoteReadClusters:  cfg.GetRemoteReadClusters(),
+		Client:                        client,
+		Logger:                        logger,
+		MetricsFactory:                mFactory,
+		MaxDocCount:                   cfg.GetMaxDocCount(),
+		MaxSpanAge:                    cfg.GetMaxSpanAge(),
+		IndexPrefix:                   cfg.GetIndexPrefix(),
+		SpanIndexDateLayout:           cfg.GetIndexDateLayoutSpans(),
+		ServiceIndexDateLayout:        cfg.GetIndexDateLayoutServices(),
+		SpanIndexRolloverFrequency:    cfg.GetIndexRolloverFrequencySpansDuration(),
+		ServiceIndexRolloverFrequency: cfg.GetIndexRolloverFrequencyServicesDuration(),
+		TagDotReplacement:             cfg.GetTagDotReplacement(),
+		UseReadWriteAliases:           cfg.GetUseReadWriteAliases(),
+		Archive:                       archive,
+		RemoteReadClusters:            cfg.GetRemoteReadClusters(),
 	}), nil
 }
 
@@ -186,16 +189,17 @@ func createSpanWriter(
 		return nil, err
 	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
-		Client:              client,
-		Logger:              logger,
-		MetricsFactory:      mFactory,
-		IndexPrefix:         cfg.GetIndexPrefix(),
-		IndexDateLayout:     cfg.GetIndexDateLayout(),
-		AllTagsAsFields:     cfg.GetAllTagsAsFields(),
-		TagKeysAsFields:     tags,
-		TagDotReplacement:   cfg.GetTagDotReplacement(),
-		Archive:             archive,
-		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+		Client:                 client,
+		Logger:                 logger,
+		MetricsFactory:         mFactory,
+		IndexPrefix:            cfg.GetIndexPrefix(),
+		SpanIndexDateLayout:    cfg.GetIndexDateLayoutSpans(),
+		ServiceIndexDateLayout: cfg.GetIndexDateLayoutServices(),
+		AllTagsAsFields:        cfg.GetAllTagsAsFields(),
+		TagKeysAsFields:        tags,
+		TagDotReplacement:      cfg.GetTagDotReplacement(),
+		Archive:                archive,
+		UseReadWriteAliases:    cfg.GetUseReadWriteAliases(),
 	})
 	if cfg.IsCreateIndexTemplates() {
 		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())

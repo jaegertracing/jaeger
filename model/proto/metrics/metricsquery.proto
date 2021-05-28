@@ -16,7 +16,7 @@ syntax="proto3";
 
 package jaeger.api_v2.metrics;
 
-import "otelmetric.proto";
+import "openmetrics.proto";
 import "otelspankind.proto";
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
@@ -113,7 +113,7 @@ message GetMinStepDurationResponse {
 }
 
 message GetMetricsResponse {
-  repeated Metric metrics = 1 [
+  MetricFamily metrics = 1 [
     (gogoproto.nullable) = false
   ];
 }
