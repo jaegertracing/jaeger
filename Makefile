@@ -564,3 +564,43 @@ certs:
 .PHONY: certs-dryrun
 certs-dryrun:
 	cd pkg/config/tlscfg/testdata && ./gen-certs.sh -d
+
+
+### Dependencies
+DOCKER_PROTOBUF ?= otel/build-protobuf:0.2.1
+PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
+PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
+PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
+
+.PHONY: gen-proto
+gen-proto:
+	@echo --
+	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
+	@echo --
+	mkdir -p $(PROTO_INTERMEDIATE_DIR)
+	cp -R opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
+
+	@echo --
+	@echo -- Editing proto
+	@echo --
+
+	@# Update package and types from opentelemetry.proto.* -> tempopb.*
+	@# giving final types like "tempopb.common.v1.InstrumentationLibrary" which
+	@# will not conflict with other usages of opentelemetry proto in downstream apps.
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+ opentelemetry.proto+ jaeger+g'
+
+	@# Update go_package
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+github.com/open-telemetry/opentelemetry-proto/gen/go+github.com/jaegertracing/jaeger/pkg/otel+g'
+
+	@# Update import paths
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'
+
+	@echo --
+	@echo -- Gen proto --
+	@echo --
+	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto,./pkg/otel/)
+	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/otel/)
+	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/otel/)
+
+	rm -rf $(PROTO_INTERMEDIATE_DIR)

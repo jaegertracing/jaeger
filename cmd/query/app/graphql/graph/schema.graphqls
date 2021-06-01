@@ -1,0 +1,53 @@
+type Query {
+  todos: [Todo!]!
+
+  services: [String!]!
+  operations("Service name" service: String!): [String!]!
+  traces(
+    "Service name" service: String!,
+    "Span operation name" operationName: String,
+    minSpanDuration: Int,
+    maxSpanDuration: Int,
+    "Maximum number of results" limit: Int = 20,
+    "Start time in microseconds" startMicros: Int!,
+    "End time in microseconds" endMicros: Int!): [Span!]!
+  trace(traceId: String!): [Span!]
+}
+
+# TODO make it OTLP compliant and use pdata.Traces
+
+type Resource {
+  dropped_attributes_cound: Int
+}
+
+type Span {
+  spanId: String!
+  traceId: String!
+
+  name: String!
+  startTimeUnixNano: Int
+  # TODO add more fields
+}
+
+# TODO remove all below
+type Todo {
+  id: ID!
+  text: String!
+  done: Boolean!
+  user: User!
+}
+
+type User {
+  id: ID!
+  name: String!
+}
+
+input NewTodo {
+  text: String!
+  userId: String!
+}
+
+type Mutation {
+  createTodo(input: NewTodo!): Todo!
+}
+
