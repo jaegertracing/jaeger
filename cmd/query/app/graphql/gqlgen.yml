@@ -41,9 +41,7 @@ models:
   Span:
     model:
      - github.com/jaegertracing/jaeger/pkg/otel/trace/v1.Span
-#  :
-#    model:
-#      - github.com/jaegertracing/pkg/otel/trace/v1.Span
+
   ID:
     model:
       - github.com/99designs/gqlgen/graphql.ID

@@ -6,9 +6,9 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/99designs/gqlgen/graphql"
 	"math/rand"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/generated"
 	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/model"
 	"github.com/jaegertracing/jaeger/pkg/otel/trace/v1"
@@ -51,12 +51,11 @@ func (r *queryResolver) Trace(ctx context.Context, traceID string) ([]*v1.Span, 
 		names[p] = true
 	}
 
-	fmt.Println("Getting trace")
 	fmt.Println(traceID)
 	fmt.Println(preloads)
 	s := &v1.Span{
 		TraceId: []byte{0, 1, 2, 3, 4},
-		Name: "mock name",
+		Name:    "mock name",
 	}
 
 	// Remove fields that hasn't been requested
@@ -73,20 +72,15 @@ func (r *queryResolver) Trace(ctx context.Context, traceID string) ([]*v1.Span, 
 	return []*v1.Span{s}, nil
 }
 
-// These are virtual methods that do not map to a field in the model
-
 func (r *spanResolver) SpanID(ctx context.Context, obj *v1.Span) (string, error) {
-	fmt.Println("spanID")
 	panic(fmt.Errorf("not implemented"))
 }
 
 func (r *spanResolver) TraceID(ctx context.Context, obj *v1.Span) (string, error) {
-	fmt.Println("TraceID")
 	panic(fmt.Errorf("not implemented"))
 }
 
 func (r *spanResolver) StartTimeUnixNano(ctx context.Context, obj *v1.Span) (*int, error) {
-	fmt.Println("StartTimeUnixNano")
 	panic(fmt.Errorf("not implemented"))
 }
 
@@ -106,6 +100,17 @@ func (r *Resolver) Span() generated.SpanResolver { return &spanResolver{r} }
 // Todo returns generated.TodoResolver implementation.
 func (r *Resolver) Todo() generated.TodoResolver { return &todoResolver{r} }
 
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type spanResolver struct{ *Resolver }
+type todoResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
 func GetPreloads(ctx context.Context) []string {
 	return GetNestedPreloads(
 		graphql.GetOperationContext(ctx),
@@ -113,7 +118,6 @@ func GetPreloads(ctx context.Context) []string {
 		"",
 	)
 }
-
 func GetNestedPreloads(ctx *graphql.OperationContext, fields []graphql.CollectedField, prefix string) (preloads []string) {
 	for _, column := range fields {
 		prefixColumn := GetPreloadString(prefix, column.Name)
@@ -122,16 +126,9 @@ func GetNestedPreloads(ctx *graphql.OperationContext, fields []graphql.Collected
 	}
 	return
 }
-
 func GetPreloadString(prefix, name string) string {
 	if len(prefix) > 0 {
 		return prefix + "." + name
 	}
 	return name
 }
-
-
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type spanResolver struct{ *Resolver }
-type todoResolver struct{ *Resolver }
