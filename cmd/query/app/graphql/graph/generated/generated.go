@@ -13,6 +13,8 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/model"
+	v12 "github.com/jaegertracing/jaeger/pkg/otel/common/v1"
+	v11 "github.com/jaegertracing/jaeger/pkg/otel/resource/v1"
 	"github.com/jaegertracing/jaeger/pkg/otel/trace/v1"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -36,70 +38,64 @@ type Config struct {
 }
 
 type ResolverRoot interface {
-	Mutation() MutationResolver
 	Query() QueryResolver
+	Resource() ResourceResolver
 	Span() SpanResolver
-	Todo() TodoResolver
 }
 
 type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
-	Mutation struct {
-		CreateTodo func(childComplexity int, input model.NewTodo) int
+	InstrumentatationLibrarySpans struct {
+		InstrumentationLibrary func(childComplexity int) int
+		Spans                  func(childComplexity int) int
+	}
+
+	InstrumentationLibrary struct {
+		Name    func(childComplexity int) int
+		Version func(childComplexity int) int
 	}
 
 	Query struct {
 		Operations func(childComplexity int, service string) int
 		Services   func(childComplexity int) int
-		Todos      func(childComplexity int) int
 		Trace      func(childComplexity int, traceID string) int
-		Traces     func(childComplexity int, service string, operationName *string, minSpanDuration *int, maxSpanDuration *int, limit *int, startMicros int, endMicros int) int
+		Traces     func(childComplexity int, service string, operationName *string, tags []string, minSpanDuration *int, maxSpanDuration *int, limit *int, startMicros int, endMicros int) int
 	}
 
 	Resource struct {
-		DroppedAttributesCound func(childComplexity int) int
+		DroppedAttributesCount func(childComplexity int) int
+	}
+
+	ResourceSpans struct {
+		InstrumentationLibrarySpans func(childComplexity int) int
+		Resource                    func(childComplexity int) int
 	}
 
 	Span struct {
-		Name              func(childComplexity int) int
-		SpanID            func(childComplexity int) int
-		StartTimeUnixNano func(childComplexity int) int
-		TraceID           func(childComplexity int) int
+		Name    func(childComplexity int) int
+		SpanID  func(childComplexity int) int
+		TraceID func(childComplexity int) int
 	}
 
-	Todo struct {
-		Done func(childComplexity int) int
-		ID   func(childComplexity int) int
-		Text func(childComplexity int) int
-		User func(childComplexity int) int
-	}
-
-	User struct {
-		ID   func(childComplexity int) int
-		Name func(childComplexity int) int
+	TracesResponse struct {
+		ResourceSpans func(childComplexity int) int
 	}
 }
 
-type MutationResolver interface {
-	CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error)
-}
 type QueryResolver interface {
-	Todos(ctx context.Context) ([]*model.Todo, error)
 	Services(ctx context.Context) ([]string, error)
 	Operations(ctx context.Context, service string) ([]string, error)
-	Traces(ctx context.Context, service string, operationName *string, minSpanDuration *int, maxSpanDuration *int, limit *int, startMicros int, endMicros int) ([]*v1.Span, error)
-	Trace(ctx context.Context, traceID string) ([]*v1.Span, error)
+	Traces(ctx context.Context, service string, operationName *string, tags []string, minSpanDuration *int, maxSpanDuration *int, limit *int, startMicros int, endMicros int) ([]*v1.Span, error)
+	Trace(ctx context.Context, traceID string) (*model.TracesResponse, error)
+}
+type ResourceResolver interface {
+	DroppedAttributesCount(ctx context.Context, obj *v11.Resource) (*int, error)
 }
 type SpanResolver interface {
 	SpanID(ctx context.Context, obj *v1.Span) (string, error)
 	TraceID(ctx context.Context, obj *v1.Span) (string, error)
-
-	StartTimeUnixNano(ctx context.Context, obj *v1.Span) (*int, error)
-}
-type TodoResolver interface {
-	User(ctx context.Context, obj *model.Todo) (*model.User, error)
 }
 
 type executableSchema struct {
@@ -117,17 +113,33 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
-	case "Mutation.createTodo":
-		if e.complexity.Mutation.CreateTodo == nil {
+	case "InstrumentatationLibrarySpans.instrumentationLibrary":
+		if e.complexity.InstrumentatationLibrarySpans.InstrumentationLibrary == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_createTodo_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
+		return e.complexity.InstrumentatationLibrarySpans.InstrumentationLibrary(childComplexity), true
+
+	case "InstrumentatationLibrarySpans.spans":
+		if e.complexity.InstrumentatationLibrarySpans.Spans == nil {
+			break
 		}
 
-		return e.complexity.Mutation.CreateTodo(childComplexity, args["input"].(model.NewTodo)), true
+		return e.complexity.InstrumentatationLibrarySpans.Spans(childComplexity), true
+
+	case "InstrumentationLibrary.name":
+		if e.complexity.InstrumentationLibrary.Name == nil {
+			break
+		}
+
+		return e.complexity.InstrumentationLibrary.Name(childComplexity), true
+
+	case "InstrumentationLibrary.version":
+		if e.complexity.InstrumentationLibrary.Version == nil {
+			break
+		}
+
+		return e.complexity.InstrumentationLibrary.Version(childComplexity), true
 
 	case "Query.operations":
 		if e.complexity.Query.Operations == nil {
@@ -147,13 +159,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Services(childComplexity), true
-
-	case "Query.todos":
-		if e.complexity.Query.Todos == nil {
-			break
-		}
-
-		return e.complexity.Query.Todos(childComplexity), true
 
 	case "Query.trace":
 		if e.complexity.Query.Trace == nil {
@@ -177,14 +182,28 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Traces(childComplexity, args["service"].(string), args["operationName"].(*string), args["minSpanDuration"].(*int), args["maxSpanDuration"].(*int), args["limit"].(*int), args["startMicros"].(int), args["endMicros"].(int)), true
+		return e.complexity.Query.Traces(childComplexity, args["service"].(string), args["operationName"].(*string), args["tags"].([]string), args["minSpanDuration"].(*int), args["maxSpanDuration"].(*int), args["limit"].(*int), args["startMicros"].(int), args["endMicros"].(int)), true
 
-	case "Resource.dropped_attributes_cound":
-		if e.complexity.Resource.DroppedAttributesCound == nil {
+	case "Resource.droppedAttributesCount":
+		if e.complexity.Resource.DroppedAttributesCount == nil {
 			break
 		}
 
-		return e.complexity.Resource.DroppedAttributesCound(childComplexity), true
+		return e.complexity.Resource.DroppedAttributesCount(childComplexity), true
+
+	case "ResourceSpans.instrumentationLibrarySpans":
+		if e.complexity.ResourceSpans.InstrumentationLibrarySpans == nil {
+			break
+		}
+
+		return e.complexity.ResourceSpans.InstrumentationLibrarySpans(childComplexity), true
+
+	case "ResourceSpans.resource":
+		if e.complexity.ResourceSpans.Resource == nil {
+			break
+		}
+
+		return e.complexity.ResourceSpans.Resource(childComplexity), true
 
 	case "Span.name":
 		if e.complexity.Span.Name == nil {
@@ -200,13 +219,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Span.SpanID(childComplexity), true
 
-	case "Span.startTimeUnixNano":
-		if e.complexity.Span.StartTimeUnixNano == nil {
-			break
-		}
-
-		return e.complexity.Span.StartTimeUnixNano(childComplexity), true
-
 	case "Span.traceId":
 		if e.complexity.Span.TraceID == nil {
 			break
@@ -214,47 +226,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Span.TraceID(childComplexity), true
 
-	case "Todo.done":
-		if e.complexity.Todo.Done == nil {
+	case "TracesResponse.resourceSpans":
+		if e.complexity.TracesResponse.ResourceSpans == nil {
 			break
 		}
 
-		return e.complexity.Todo.Done(childComplexity), true
-
-	case "Todo.id":
-		if e.complexity.Todo.ID == nil {
-			break
-		}
-
-		return e.complexity.Todo.ID(childComplexity), true
-
-	case "Todo.text":
-		if e.complexity.Todo.Text == nil {
-			break
-		}
-
-		return e.complexity.Todo.Text(childComplexity), true
-
-	case "Todo.user":
-		if e.complexity.Todo.User == nil {
-			break
-		}
-
-		return e.complexity.Todo.User(childComplexity), true
-
-	case "User.id":
-		if e.complexity.User.ID == nil {
-			break
-		}
-
-		return e.complexity.User.ID(childComplexity), true
-
-	case "User.name":
-		if e.complexity.User.Name == nil {
-			break
-		}
-
-		return e.complexity.User.Name(childComplexity), true
+		return e.complexity.TracesResponse.ResourceSpans(childComplexity), true
 
 	}
 	return 0, false
@@ -273,20 +250,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			}
 			first = false
 			data := ec._Query(ctx, rc.Operation.SelectionSet)
-			var buf bytes.Buffer
-			data.MarshalGQL(&buf)
-
-			return &graphql.Response{
-				Data: buf.Bytes(),
-			}
-		}
-	case ast.Mutation:
-		return func(ctx context.Context) *graphql.Response {
-			if !first {
-				return nil
-			}
-			first = false
-			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
 
@@ -321,58 +284,51 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 
 var sources = []*ast.Source{
 	{Name: "graph/schema.graphqls", Input: `type Query {
-  todos: [Todo!]!
-
   services: [String!]!
   operations("Service name" service: String!): [String!]!
   traces(
     "Service name" service: String!,
     "Span operation name" operationName: String,
+    "Tags, key and value are separated by '=', e.g. [span.kind=client]" tags: [String!],
     minSpanDuration: Int,
     maxSpanDuration: Int,
     "Maximum number of results" limit: Int = 20,
     "Start time in microseconds" startMicros: Int!,
-    "End time in microseconds" endMicros: Int!): [Span!]!
-  trace(traceId: String!): [Span!]
+    "End time in microseconds" endMicros: Int!)
+  : [Span!]!
+
+  # curl -ivX POST -H 'Content-Type: application/json' -d '{"query": "query {trace(traceId: \"todo\") { resourceSpans{instrumentationLibrarySpans{spans{name}}} }}"}' http://localhost:8080/query
+  trace(traceId: String!): TracesResponse!
 }
 
-# TODO make it OTLP compliant and use pdata.Traces
+type TracesResponse{
+  resourceSpans: ResourceSpans
+}
+
+type ResourceSpans {
+  resource: Resource
+  instrumentationLibrarySpans: [InstrumentatationLibrarySpans]
+}
+
+type InstrumentatationLibrarySpans {
+  spans: [Span]
+  instrumentationLibrary: InstrumentationLibrary
+}
 
 type Resource {
-  dropped_attributes_cound: Int
+  droppedAttributesCount: Int
+}
+
+type InstrumentationLibrary {
+  name: String
+  version: String
 }
 
 type Span {
   spanId: String!
   traceId: String!
-
-  name: String!
-  startTimeUnixNano: Int
-  # TODO add more fields
-}
-
-# TODO remove all below
-type Todo {
-  id: ID!
-  text: String!
-  done: Boolean!
-  user: User!
-}
-
-type User {
-  id: ID!
   name: String!
 }
-
-input NewTodo {
-  text: String!
-  userId: String!
-}
-
-type Mutation {
-  createTodo(input: NewTodo!): Todo!
-}
-
 `, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
@@ -380,21 +336,6 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
-
-func (ec *executionContext) field_Mutation_createTodo_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 model.NewTodo
-	if tmp, ok := rawArgs["input"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("input"))
-		arg0, err = ec.unmarshalNNewTodo2githubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐNewTodo(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["input"] = arg0
-	return args, nil
-}
 
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -462,51 +403,60 @@ func (ec *executionContext) field_Query_traces_args(ctx context.Context, rawArgs
 		}
 	}
 	args["operationName"] = arg1
-	var arg2 *int
-	if tmp, ok := rawArgs["minSpanDuration"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("minSpanDuration"))
-		arg2, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+	var arg2 []string
+	if tmp, ok := rawArgs["tags"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("tags"))
+		arg2, err = ec.unmarshalOString2ᚕstringᚄ(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["minSpanDuration"] = arg2
+	args["tags"] = arg2
 	var arg3 *int
-	if tmp, ok := rawArgs["maxSpanDuration"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("maxSpanDuration"))
+	if tmp, ok := rawArgs["minSpanDuration"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("minSpanDuration"))
 		arg3, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["maxSpanDuration"] = arg3
+	args["minSpanDuration"] = arg3
 	var arg4 *int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("limit"))
+	if tmp, ok := rawArgs["maxSpanDuration"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("maxSpanDuration"))
 		arg4, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["limit"] = arg4
-	var arg5 int
-	if tmp, ok := rawArgs["startMicros"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("startMicros"))
-		arg5, err = ec.unmarshalNInt2int(ctx, tmp)
+	args["maxSpanDuration"] = arg4
+	var arg5 *int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("limit"))
+		arg5, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["startMicros"] = arg5
+	args["limit"] = arg5
 	var arg6 int
-	if tmp, ok := rawArgs["endMicros"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("endMicros"))
+	if tmp, ok := rawArgs["startMicros"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("startMicros"))
 		arg6, err = ec.unmarshalNInt2int(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["endMicros"] = arg6
+	args["startMicros"] = arg6
+	var arg7 int
+	if tmp, ok := rawArgs["endMicros"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("endMicros"))
+		arg7, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["endMicros"] = arg7
 	return args, nil
 }
 
@@ -548,7 +498,7 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Mutation_createTodo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _InstrumentatationLibrarySpans_spans(ctx context.Context, field graphql.CollectedField, obj *v1.InstrumentationLibrarySpans) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -556,40 +506,30 @@ func (ec *executionContext) _Mutation_createTodo(ctx context.Context, field grap
 		}
 	}()
 	fc := &graphql.FieldContext{
-		Object:   "Mutation",
+		Object:   "InstrumentatationLibrarySpans",
 		Field:    field,
 		Args:     nil,
-		IsMethod: true,
+		IsMethod: false,
 	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
-	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_createTodo_args(ctx, rawArgs)
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateTodo(rctx, args["input"].(model.NewTodo))
+		return obj.Spans, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.Todo)
+	res := resTmp.([]*v1.Span)
 	fc.Result = res
-	return ec.marshalNTodo2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTodo(ctx, field.Selections, res)
+	return ec.marshalOSpan2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpan(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Query_todos(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _InstrumentatationLibrarySpans_instrumentationLibrary(ctx context.Context, field graphql.CollectedField, obj *v1.InstrumentationLibrarySpans) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -597,30 +537,89 @@ func (ec *executionContext) _Query_todos(ctx context.Context, field graphql.Coll
 		}
 	}()
 	fc := &graphql.FieldContext{
-		Object:   "Query",
+		Object:   "InstrumentatationLibrarySpans",
 		Field:    field,
 		Args:     nil,
-		IsMethod: true,
+		IsMethod: false,
 	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Todos(rctx)
+		return obj.InstrumentationLibrary, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.Todo)
+	res := resTmp.(*v12.InstrumentationLibrary)
 	fc.Result = res
-	return ec.marshalNTodo2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTodoᚄ(ctx, field.Selections, res)
+	return ec.marshalOInstrumentationLibrary2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋcommonᚋv1ᚐInstrumentationLibrary(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _InstrumentationLibrary_name(ctx context.Context, field graphql.CollectedField, obj *v12.InstrumentationLibrary) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "InstrumentationLibrary",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _InstrumentationLibrary_version(ctx context.Context, field graphql.CollectedField, obj *v12.InstrumentationLibrary) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "InstrumentationLibrary",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Version, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_services(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -722,7 +721,7 @@ func (ec *executionContext) _Query_traces(ctx context.Context, field graphql.Col
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Traces(rctx, args["service"].(string), args["operationName"].(*string), args["minSpanDuration"].(*int), args["maxSpanDuration"].(*int), args["limit"].(*int), args["startMicros"].(int), args["endMicros"].(int))
+		return ec.resolvers.Query().Traces(rctx, args["service"].(string), args["operationName"].(*string), args["tags"].([]string), args["minSpanDuration"].(*int), args["maxSpanDuration"].(*int), args["limit"].(*int), args["startMicros"].(int), args["endMicros"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -770,11 +769,14 @@ func (ec *executionContext) _Query_trace(ctx context.Context, field graphql.Coll
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.([]*v1.Span)
+	res := resTmp.(*model.TracesResponse)
 	fc.Result = res
-	return ec.marshalOSpan2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpanᚄ(ctx, field.Selections, res)
+	return ec.marshalNTracesResponse2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTracesResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -846,7 +848,7 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Resource_dropped_attributes_cound(ctx context.Context, field graphql.CollectedField, obj *model.Resource) (ret graphql.Marshaler) {
+func (ec *executionContext) _Resource_droppedAttributesCount(ctx context.Context, field graphql.CollectedField, obj *v11.Resource) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -857,13 +859,13 @@ func (ec *executionContext) _Resource_dropped_attributes_cound(ctx context.Conte
 		Object:   "Resource",
 		Field:    field,
 		Args:     nil,
-		IsMethod: false,
+		IsMethod: true,
 	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.DroppedAttributesCound, nil
+		return ec.resolvers.Resource().DroppedAttributesCount(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -875,6 +877,68 @@ func (ec *executionContext) _Resource_dropped_attributes_cound(ctx context.Conte
 	res := resTmp.(*int)
 	fc.Result = res
 	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ResourceSpans_resource(ctx context.Context, field graphql.CollectedField, obj *v1.ResourceSpans) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "ResourceSpans",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Resource, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*v11.Resource)
+	fc.Result = res
+	return ec.marshalOResource2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋresourceᚋv1ᚐResource(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ResourceSpans_instrumentationLibrarySpans(ctx context.Context, field graphql.CollectedField, obj *v1.ResourceSpans) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "ResourceSpans",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.InstrumentationLibrarySpans, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*v1.InstrumentationLibrarySpans)
+	fc.Result = res
+	return ec.marshalOInstrumentatationLibrarySpans2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐInstrumentationLibrarySpans(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Span_spanId(ctx context.Context, field graphql.CollectedField, obj *v1.Span) (ret graphql.Marshaler) {
@@ -979,7 +1043,7 @@ func (ec *executionContext) _Span_name(ctx context.Context, field graphql.Collec
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Span_startTimeUnixNano(ctx context.Context, field graphql.CollectedField, obj *v1.Span) (ret graphql.Marshaler) {
+func (ec *executionContext) _TracesResponse_resourceSpans(ctx context.Context, field graphql.CollectedField, obj *model.TracesResponse) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -987,38 +1051,7 @@ func (ec *executionContext) _Span_startTimeUnixNano(ctx context.Context, field g
 		}
 	}()
 	fc := &graphql.FieldContext{
-		Object:   "Span",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Span().StartTimeUnixNano(rctx, obj)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*int)
-	fc.Result = res
-	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Todo_id(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Todo",
+		Object:   "TracesResponse",
 		Field:    field,
 		Args:     nil,
 		IsMethod: false,
@@ -1027,191 +1060,18 @@ func (ec *executionContext) _Todo_id(ctx context.Context, field graphql.Collecte
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.ID, nil
+		return obj.ResourceSpans, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*v1.ResourceSpans)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Todo_text(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Todo",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Text, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Todo_done(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Todo",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Done, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Todo_user(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Todo",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Todo().User(rctx, obj)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(*model.User)
-	fc.Result = res
-	return ec.marshalNUser2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "User",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ID, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _User_name(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "User",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Name, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalOResourceSpans2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐResourceSpans(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -2269,34 +2129,6 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputNewTodo(ctx context.Context, obj interface{}) (model.NewTodo, error) {
-	var it model.NewTodo
-	var asMap = obj.(map[string]interface{})
-
-	for k, v := range asMap {
-		switch k {
-		case "text":
-			var err error
-
-			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("text"))
-			it.Text, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "userId":
-			var err error
-
-			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("userId"))
-			it.UserID, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		}
-	}
-
-	return it, nil
-}
-
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2305,26 +2137,47 @@ func (ec *executionContext) unmarshalInputNewTodo(ctx context.Context, obj inter
 
 // region    **************************** object.gotpl ****************************
 
-var mutationImplementors = []string{"Mutation"}
+var instrumentatationLibrarySpansImplementors = []string{"InstrumentatationLibrarySpans"}
 
-func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
-
-	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
-		Object: "Mutation",
-	})
+func (ec *executionContext) _InstrumentatationLibrarySpans(ctx context.Context, sel ast.SelectionSet, obj *v1.InstrumentationLibrarySpans) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, instrumentatationLibrarySpansImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	var invalids uint32
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("Mutation")
-		case "createTodo":
-			out.Values[i] = ec._Mutation_createTodo(ctx, field)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
+			out.Values[i] = graphql.MarshalString("InstrumentatationLibrarySpans")
+		case "spans":
+			out.Values[i] = ec._InstrumentatationLibrarySpans_spans(ctx, field, obj)
+		case "instrumentationLibrary":
+			out.Values[i] = ec._InstrumentatationLibrarySpans_instrumentationLibrary(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var instrumentationLibraryImplementors = []string{"InstrumentationLibrary"}
+
+func (ec *executionContext) _InstrumentationLibrary(ctx context.Context, sel ast.SelectionSet, obj *v12.InstrumentationLibrary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, instrumentationLibraryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InstrumentationLibrary")
+		case "name":
+			out.Values[i] = ec._InstrumentationLibrary_name(ctx, field, obj)
+		case "version":
+			out.Values[i] = ec._InstrumentationLibrary_version(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2351,20 +2204,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
-		case "todos":
-			field := field
-			out.Concurrently(i, func() (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_todos(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
-				}
-				return res
-			})
 		case "services":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -2416,6 +2255,9 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_trace(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
 				return res
 			})
 		case "__type":
@@ -2435,7 +2277,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 
 var resourceImplementors = []string{"Resource"}
 
-func (ec *executionContext) _Resource(ctx context.Context, sel ast.SelectionSet, obj *model.Resource) graphql.Marshaler {
+func (ec *executionContext) _Resource(ctx context.Context, sel ast.SelectionSet, obj *v11.Resource) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, resourceImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -2444,8 +2286,43 @@ func (ec *executionContext) _Resource(ctx context.Context, sel ast.SelectionSet,
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Resource")
-		case "dropped_attributes_cound":
-			out.Values[i] = ec._Resource_dropped_attributes_cound(ctx, field, obj)
+		case "droppedAttributesCount":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Resource_droppedAttributesCount(ctx, field, obj)
+				return res
+			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var resourceSpansImplementors = []string{"ResourceSpans"}
+
+func (ec *executionContext) _ResourceSpans(ctx context.Context, sel ast.SelectionSet, obj *v1.ResourceSpans) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, resourceSpansImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ResourceSpans")
+		case "resource":
+			out.Values[i] = ec._ResourceSpans_resource(ctx, field, obj)
+		case "instrumentationLibrarySpans":
+			out.Values[i] = ec._ResourceSpans_instrumentationLibrarySpans(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2501,17 +2378,6 @@ func (ec *executionContext) _Span(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
-		case "startTimeUnixNano":
-			field := field
-			out.Concurrently(i, func() (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Span_startTimeUnixNano(ctx, field, obj)
-				return res
-			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2523,78 +2389,19 @@ func (ec *executionContext) _Span(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
-var todoImplementors = []string{"Todo"}
+var tracesResponseImplementors = []string{"TracesResponse"}
 
-func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj *model.Todo) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, todoImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	var invalids uint32
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("Todo")
-		case "id":
-			out.Values[i] = ec._Todo_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
-			}
-		case "text":
-			out.Values[i] = ec._Todo_text(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
-			}
-		case "done":
-			out.Values[i] = ec._Todo_done(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
-			}
-		case "user":
-			field := field
-			out.Concurrently(i, func() (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Todo_user(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
-				}
-				return res
-			})
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch()
-	if invalids > 0 {
-		return graphql.Null
-	}
-	return out
-}
-
-var userImplementors = []string{"User"}
-
-func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, userImplementors)
+func (ec *executionContext) _TracesResponse(ctx context.Context, sel ast.SelectionSet, obj *model.TracesResponse) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tracesResponseImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	var invalids uint32
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("User")
-		case "id":
-			out.Values[i] = ec._User_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "name":
-			out.Values[i] = ec._User_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
+			out.Values[i] = graphql.MarshalString("TracesResponse")
+		case "resourceSpans":
+			out.Values[i] = ec._TracesResponse_resourceSpans(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2866,21 +2673,6 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
-	res, err := graphql.UnmarshalID(v)
-	return res, graphql.WrapErrorWithInputPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
-	res := graphql.MarshalID(v)
-	if res == graphql.Null {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
-		}
-	}
-	return res
-}
-
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
 	res, err := graphql.UnmarshalInt(v)
 	return res, graphql.WrapErrorWithInputPath(ctx, err)
@@ -2894,11 +2686,6 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalNNewTodo2githubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐNewTodo(ctx context.Context, v interface{}) (model.NewTodo, error) {
-	res, err := ec.unmarshalInputNewTodo(ctx, v)
-	return res, graphql.WrapErrorWithInputPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNSpan2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpanᚄ(ctx context.Context, sel ast.SelectionSet, v []*v1.Span) graphql.Marshaler {
@@ -2993,69 +2780,18 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) marshalNTodo2githubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTodo(ctx context.Context, sel ast.SelectionSet, v model.Todo) graphql.Marshaler {
-	return ec._Todo(ctx, sel, &v)
+func (ec *executionContext) marshalNTracesResponse2githubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTracesResponse(ctx context.Context, sel ast.SelectionSet, v model.TracesResponse) graphql.Marshaler {
+	return ec._TracesResponse(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTodo2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTodoᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Todo) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNTodo2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTodo(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-	return ret
-}
-
-func (ec *executionContext) marshalNTodo2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTodo(ctx context.Context, sel ast.SelectionSet, v *model.Todo) graphql.Marshaler {
+func (ec *executionContext) marshalNTracesResponse2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTracesResponse(ctx context.Context, sel ast.SelectionSet, v *model.TracesResponse) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
 		}
 		return graphql.Null
 	}
-	return ec._Todo(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNUser2githubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
-	return ec._User(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	return ec._User(ctx, sel, v)
+	return ec._TracesResponse(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -3311,22 +3047,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return graphql.MarshalBoolean(*v)
 }
 
-func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := graphql.UnmarshalInt(v)
-	return &res, graphql.WrapErrorWithInputPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return graphql.MarshalInt(*v)
-}
-
-func (ec *executionContext) marshalOSpan2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpanᚄ(ctx context.Context, sel ast.SelectionSet, v []*v1.Span) graphql.Marshaler {
+func (ec *executionContext) marshalOInstrumentatationLibrarySpans2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐInstrumentationLibrarySpans(ctx context.Context, sel ast.SelectionSet, v []*v1.InstrumentationLibrarySpans) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -3353,7 +3074,7 @@ func (ec *executionContext) marshalOSpan2ᚕᚖgithubᚗcomᚋjaegertracingᚋja
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSpan2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpan(ctx, sel, v[i])
+			ret[i] = ec.marshalOInstrumentatationLibrarySpans2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐInstrumentationLibrarySpans(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3366,6 +3087,96 @@ func (ec *executionContext) marshalOSpan2ᚕᚖgithubᚗcomᚋjaegertracingᚋja
 	return ret
 }
 
+func (ec *executionContext) marshalOInstrumentatationLibrarySpans2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐInstrumentationLibrarySpans(ctx context.Context, sel ast.SelectionSet, v *v1.InstrumentationLibrarySpans) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._InstrumentatationLibrarySpans(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOInstrumentationLibrary2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋcommonᚋv1ᚐInstrumentationLibrary(ctx context.Context, sel ast.SelectionSet, v *v12.InstrumentationLibrary) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._InstrumentationLibrary(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.WrapErrorWithInputPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return graphql.MarshalInt(*v)
+}
+
+func (ec *executionContext) marshalOResource2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋresourceᚋv1ᚐResource(ctx context.Context, sel ast.SelectionSet, v *v11.Resource) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Resource(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOResourceSpans2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐResourceSpans(ctx context.Context, sel ast.SelectionSet, v *v1.ResourceSpans) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalOSpan2ᚕᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpan(ctx context.Context, sel ast.SelectionSet, v []*v1.Span) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalOSpan2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpan(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalOSpan2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋpkgᚋotelᚋtraceᚋv1ᚐSpan(ctx context.Context, sel ast.SelectionSet, v *v1.Span) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.WrapErrorWithInputPath(ctx, err)
@@ -3373,6 +3184,42 @@ func (ec *executionContext) unmarshalOString2string(ctx context.Context, v inter
 
 func (ec *executionContext) marshalOString2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
 	return graphql.MarshalString(v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, graphql.WrapErrorWithInputPath(ctx, err)
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

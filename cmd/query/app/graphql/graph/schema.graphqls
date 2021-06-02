@@ -1,53 +1,46 @@
 type Query {
-  todos: [Todo!]!
-
   services: [String!]!
   operations("Service name" service: String!): [String!]!
   traces(
     "Service name" service: String!,
     "Span operation name" operationName: String,
+    "Tags, key and value are separated by '=', e.g. [span.kind=client]" tags: [String!],
     minSpanDuration: Int,
     maxSpanDuration: Int,
     "Maximum number of results" limit: Int = 20,
     "Start time in microseconds" startMicros: Int!,
-    "End time in microseconds" endMicros: Int!): [Span!]!
-  trace(traceId: String!): [Span!]
+    "End time in microseconds" endMicros: Int!)
+  : [Span!]!
+
+  # curl -ivX POST -H 'Content-Type: application/json' -d '{"query": "query {trace(traceId: \"todo\") { resourceSpans{instrumentationLibrarySpans{spans{name}}} }}"}' http://localhost:8080/query
+  trace(traceId: String!): TracesResponse!
 }
 
-# TODO make it OTLP compliant and use pdata.Traces
+type TracesResponse{
+  resourceSpans: ResourceSpans
+}
+
+type ResourceSpans {
+  resource: Resource
+  instrumentationLibrarySpans: [InstrumentatationLibrarySpans]
+}
+
+type InstrumentatationLibrarySpans {
+  spans: [Span]
+  instrumentationLibrary: InstrumentationLibrary
+}
 
 type Resource {
-  dropped_attributes_cound: Int
+  droppedAttributesCount: Int
+}
+
+type InstrumentationLibrary {
+  name: String
+  version: String
 }
 
 type Span {
   spanId: String!
   traceId: String!
-
-  name: String!
-  startTimeUnixNano: Int
-  # TODO add more fields
-}
-
-# TODO remove all below
-type Todo {
-  id: ID!
-  text: String!
-  done: Boolean!
-  user: User!
-}
-
-type User {
-  id: ID!
   name: String!
 }
-
-input NewTodo {
-  text: String!
-  userId: String!
-}
-
-type Mutation {
-  createTodo(input: NewTodo!): Todo!
-}
-

@@ -41,7 +41,20 @@ models:
   Span:
     model:
      - github.com/jaegertracing/jaeger/pkg/otel/trace/v1.Span
+  ResourceSpans:
+    model:
+      - github.com/jaegertracing/jaeger/pkg/otel/trace/v1.ResourceSpans
+  InstrumentatationLibrarySpans:
+    model:
+      - github.com/jaegertracing/jaeger/pkg/otel/trace/v1.InstrumentationLibrarySpans
+  Resource:
+    model:
+      - github.com/jaegertracing/jaeger/pkg/otel/resource/v1.Resource
+  InstrumentationLibrary:
+    model:
+      - github.com/jaegertracing/jaeger/pkg/otel/common/v1.InstrumentationLibrary
 
+  # TODO remove following if not used
   ID:
     model:
       - github.com/99designs/gqlgen/graphql.ID

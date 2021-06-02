@@ -6,28 +6,12 @@ package graph
 import (
 	"context"
 	"fmt"
-	"math/rand"
 
-	"github.com/99designs/gqlgen/graphql"
 	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/generated"
 	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/model"
+	v11 "github.com/jaegertracing/jaeger/pkg/otel/resource/v1"
 	"github.com/jaegertracing/jaeger/pkg/otel/trace/v1"
 )
-
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	todo := &model.Todo{
-		Text:   input.Text,
-		ID:     fmt.Sprintf("T%d", rand.Int()),
-		UserID: input.UserID, // fix this line
-	}
-	r.todos = append(r.todos, todo)
-	return todo, nil
-}
-
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	fmt.Println("getting todos")
-	return r.todos, nil
-}
 
 func (r *queryResolver) Services(ctx context.Context) ([]string, error) {
 	panic(fmt.Errorf("not implemented"))
@@ -37,14 +21,15 @@ func (r *queryResolver) Operations(ctx context.Context, service string) ([]strin
 	panic(fmt.Errorf("not implemented"))
 }
 
-func (r *queryResolver) Traces(ctx context.Context, service string, operationName *string, minSpanDuration *int, maxSpanDuration *int, limit *int, startMicros int, endMicros int) ([]*v1.Span, error) {
+func (r *queryResolver) Traces(ctx context.Context, service string, operationName *string, tags []string, minSpanDuration *int, maxSpanDuration *int, limit *int, startMicros int, endMicros int) ([]*v1.Span, error) {
 	fmt.Println(*limit)
 	fmt.Println(service)
 	fmt.Println(operationName)
+	fmt.Println(tags)
 	return nil, nil
 }
 
-func (r *queryResolver) Trace(ctx context.Context, traceID string) ([]*v1.Span, error) {
+func (r *queryResolver) Trace(ctx context.Context, traceID string) (*model.TracesResponse, error) {
 	preloads := GetPreloads(ctx)
 	names := map[string]bool{}
 	for _, p := range preloads {
@@ -55,7 +40,7 @@ func (r *queryResolver) Trace(ctx context.Context, traceID string) ([]*v1.Span, 
 	fmt.Println(preloads)
 	s := &v1.Span{
 		TraceId: []byte{0, 1, 2, 3, 4},
-		Name:    "mock name",
+		Name:    "hello",
 	}
 
 	// Remove fields that hasn't been requested
@@ -63,13 +48,25 @@ func (r *queryResolver) Trace(ctx context.Context, traceID string) ([]*v1.Span, 
 	// * a custom marshaller is used for OTLP Span
 	//   to ensure compatibility with OTLP JSON (e.g. standard JSON marshalling cannot be used for protos)
 	// * a custom marshaller works well only with scalar types
-	if !names["traceId"] {
+	if !names["resourceSpans.instrumentationLibrarySpans.spans.traceId"] {
 		s.TraceId = nil
 	}
-	if !names["name"] {
+	if !names["resourceSpans.instrumentationLibrarySpans.spans.name"] {
 		s.Name = ""
 	}
-	return []*v1.Span{s}, nil
+	return &model.TracesResponse{
+		ResourceSpans: &v1.ResourceSpans{
+			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+				{
+					Spans: []*v1.Span{s},
+				},
+			},
+		},
+	}, nil
+}
+
+func (r *resourceResolver) DroppedAttributesCount(ctx context.Context, obj *v11.Resource) (*int, error) {
+	panic(fmt.Errorf("not implemented"))
 }
 
 func (r *spanResolver) SpanID(ctx context.Context, obj *v1.Span) (string, error) {
@@ -80,55 +77,15 @@ func (r *spanResolver) TraceID(ctx context.Context, obj *v1.Span) (string, error
 	panic(fmt.Errorf("not implemented"))
 }
 
-func (r *spanResolver) StartTimeUnixNano(ctx context.Context, obj *v1.Span) (*int, error) {
-	panic(fmt.Errorf("not implemented"))
-}
-
-func (r *todoResolver) User(ctx context.Context, obj *model.Todo) (*model.User, error) {
-	return &model.User{ID: obj.UserID, Name: "user " + obj.UserID}, nil
-}
-
-// Mutation returns generated.MutationResolver implementation.
-func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
-
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
+
+// Resource returns generated.ResourceResolver implementation.
+func (r *Resolver) Resource() generated.ResourceResolver { return &resourceResolver{r} }
 
 // Span returns generated.SpanResolver implementation.
 func (r *Resolver) Span() generated.SpanResolver { return &spanResolver{r} }
 
-// Todo returns generated.TodoResolver implementation.
-func (r *Resolver) Todo() generated.TodoResolver { return &todoResolver{r} }
-
-type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type resourceResolver struct{ *Resolver }
 type spanResolver struct{ *Resolver }
-type todoResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-func GetPreloads(ctx context.Context) []string {
-	return GetNestedPreloads(
-		graphql.GetOperationContext(ctx),
-		graphql.CollectFieldsCtx(ctx, nil),
-		"",
-	)
-}
-func GetNestedPreloads(ctx *graphql.OperationContext, fields []graphql.CollectedField, prefix string) (preloads []string) {
-	for _, column := range fields {
-		prefixColumn := GetPreloadString(prefix, column.Name)
-		preloads = append(preloads, prefixColumn)
-		preloads = append(preloads, GetNestedPreloads(ctx, graphql.CollectFields(ctx, column.Selections, nil), prefixColumn)...)
-	}
-	return
-}
-func GetPreloadString(prefix, name string) string {
-	if len(prefix) > 0 {
-		return prefix + "." + name
-	}
-	return name
-}

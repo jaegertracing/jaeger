@@ -2,6 +2,10 @@
 
 package model
 
-type Resource struct {
-	DroppedAttributesCound *int `json:"dropped_attributes_cound"`
+import (
+	"github.com/jaegertracing/jaeger/pkg/otel/trace/v1"
+)
+
+type TracesResponse struct {
+	ResourceSpans *v1.ResourceSpans `json:"resourceSpans"`
 }
