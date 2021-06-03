@@ -73,4 +73,5 @@ require (
 	honnef.co/go/tools v0.1.4
 )
 
+// TODO: remove once the 0.14.2 or 0.15.0 is released
 replace github.com/apache/thrift => github.com/jaegertracing/thrift v0.14.1-patch1
