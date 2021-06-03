@@ -12,7 +12,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/model"
+	"github.com/jaegertracing/jaeger/cmd/query/app/gqlgen/graph/model"
 	v12 "github.com/jaegertracing/jaeger/pkg/otel/common/v1"
 	v11 "github.com/jaegertracing/jaeger/pkg/otel/resource/v1"
 	"github.com/jaegertracing/jaeger/pkg/otel/trace/v1"
@@ -297,7 +297,7 @@ var sources = []*ast.Source{
     "End time in microseconds" endMicros: Int!)
   : [Span!]!
 
-  # curl -ivX POST -H 'Content-Type: application/json' -d '{"query": "query {trace(traceId: \"todo\") { resourceSpans{instrumentationLibrarySpans{spans{name}}} }}"}' http://localhost:8080/query
+  # curl -ivX POST -H 'Content-Type: application/json' -d '{"query": "query {trace(traceId: \"<traceId>\") { resourceSpans{instrumentationLibrarySpans{spans{name}}} }}"}' http://localhost:8080/query
   trace(traceId: String!): TracesResponse!
 }
 
@@ -776,7 +776,7 @@ func (ec *executionContext) _Query_trace(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.(*model.TracesResponse)
 	fc.Result = res
-	return ec.marshalNTracesResponse2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTracesResponse(ctx, field.Selections, res)
+	return ec.marshalNTracesResponse2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgqlgenᚋgraphᚋmodelᚐTracesResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2732,7 +2732,7 @@ func (ec *executionContext) marshalNSpan2ᚖgithubᚗcomᚋjaegertracingᚋjaege
 		}
 		return graphql.Null
 	}
-	return v
+	return ec._Span(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -2780,11 +2780,11 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) marshalNTracesResponse2githubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTracesResponse(ctx context.Context, sel ast.SelectionSet, v model.TracesResponse) graphql.Marshaler {
+func (ec *executionContext) marshalNTracesResponse2githubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgqlgenᚋgraphᚋmodelᚐTracesResponse(ctx context.Context, sel ast.SelectionSet, v model.TracesResponse) graphql.Marshaler {
 	return ec._TracesResponse(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTracesResponse2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgraphqlᚋgraphᚋmodelᚐTracesResponse(ctx context.Context, sel ast.SelectionSet, v *model.TracesResponse) graphql.Marshaler {
+func (ec *executionContext) marshalNTracesResponse2ᚖgithubᚗcomᚋjaegertracingᚋjaegerᚋcmdᚋqueryᚋappᚋgqlgenᚋgraphᚋmodelᚐTracesResponse(ctx context.Context, sel ast.SelectionSet, v *model.TracesResponse) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -3174,7 +3174,7 @@ func (ec *executionContext) marshalOSpan2ᚖgithubᚗcomᚋjaegertracingᚋjaege
 	if v == nil {
 		return graphql.Null
 	}
-	return v
+	return ec._Span(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {

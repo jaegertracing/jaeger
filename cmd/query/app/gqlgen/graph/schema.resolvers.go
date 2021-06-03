@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/generated"
-	"github.com/jaegertracing/jaeger/cmd/query/app/graphql/graph/model"
+	"github.com/jaegertracing/jaeger/cmd/query/app/gqlgen/graph/generated"
+	"github.com/jaegertracing/jaeger/cmd/query/app/gqlgen/graph/model"
 	v11 "github.com/jaegertracing/jaeger/pkg/otel/resource/v1"
 	"github.com/jaegertracing/jaeger/pkg/otel/trace/v1"
 )
