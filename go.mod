@@ -70,7 +70,7 @@ require (
 	google.golang.org/grpc v1.29.1
 	gopkg.in/ini.v1 v1.52.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
-	honnef.co/go/tools v0.1.4
+	honnef.co/go/tools v0.2.0
 )
 
 // TODO: remove once the 0.14.2 or 0.15.0 is released
