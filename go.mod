@@ -43,7 +43,7 @@ require (
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.5.1
-	github.com/prometheus/common v0.10.0 // indirect
+	github.com/prometheus/common v0.10.0
 	github.com/prometheus/procfs v0.1.3 // indirect
 	github.com/rs/cors v1.7.0
 	github.com/securego/gosec v0.0.0-20200203094520-d13bb6d2420c
@@ -73,4 +73,4 @@ require (
 	honnef.co/go/tools v0.1.4
 )
 
-replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+replace github.com/apache/thrift => github.com/jaegertracing/thrift v0.14.1-patch1
