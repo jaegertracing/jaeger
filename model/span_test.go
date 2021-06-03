@@ -18,7 +18,6 @@ package model_test
 import (
 	"bytes"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"testing"
 	"time"
 
@@ -27,29 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/jaegertracing/jaeger/model"
 )
-
-func TestNewJSON(t *testing.T) {
-	spans := &model.Span{}
-
-	var marshaler = protojson.MarshalOptions{EmitUnpopulated: false}
-
-	if m, ok := spans.(proto.Message); ok {
-		marshal, err := marshaler.Marshal(m)
-		require.NoError(t, err)
-		fmt.Println(marshal)
-	}
-
-//	m := jsonpb.Marshaler{}
-//	marshal, err2 := protojson.Marshal(spans)
-//	toString, err := m.MarshalToString(spans)
-//	require.NoError(t, err)
-//	fmt.Printlnintln(toString)
-}
-
 
 // Verify: https://cryptii.com/base64-to-hex
 var testCasesTraceID = []struct {

@@ -12,7 +12,7 @@ type Query {
     "End time in microseconds" endMicros: Int!)
   : [Span!]!
 
-  # curl -ivX POST -H 'Content-Type: application/json' -d '{"query": "query {trace(traceId: \"todo\") { resourceSpans{instrumentationLibrarySpans{spans{name}}} }}"}' http://localhost:8080/query
+  # curl -ivX POST -H 'Content-Type: application/json' -d '{"query": "query {trace(traceId: \"<traceId>\") { resourceSpans{instrumentationLibrarySpans{spans{name}}} }}"}' http://localhost:8080/query
   trace(traceId: String!): TracesResponse!
 }
 

@@ -22,10 +22,7 @@ func (r *queryResolver) Operations(ctx context.Context, service string) ([]strin
 }
 
 func (r *queryResolver) Traces(ctx context.Context, service string, operationName *string, tags []string, minSpanDuration *int, maxSpanDuration *int, limit *int, startMicros int, endMicros int) ([]*v1.Span, error) {
-	fmt.Println(*limit)
-	fmt.Println(service)
-	fmt.Println(operationName)
-	fmt.Println(tags)
+	// TODO access the storage
 	return nil, nil
 }
 
@@ -36,8 +33,6 @@ func (r *queryResolver) Trace(ctx context.Context, traceID string) (*model.Trace
 		names[p] = true
 	}
 
-	fmt.Println(traceID)
-	fmt.Println(preloads)
 	s := &v1.Span{
 		TraceId: []byte{0, 1, 2, 3, 4},
 		Name:    "hello",
