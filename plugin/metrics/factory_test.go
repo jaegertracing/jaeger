@@ -47,7 +47,7 @@ func TestUnsupportedMetricsStorageType(t *testing.T) {
 	f, err := NewFactory(FactoryConfig{MetricsStorageType: "foo"})
 	require.Error(t, err)
 	assert.Nil(t, f)
-	assert.EqualError(t, err, "unknown metrics type foo. Valid types are [prometheus]")
+	assert.EqualError(t, err, `unknown metrics type "foo". Valid types are [prometheus]`)
 }
 
 func TestCreateMetricsReader(t *testing.T) {
@@ -66,7 +66,7 @@ func TestCreateMetricsReader(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, reader)
 
-	assert.EqualError(t, err, "no foo backend registered for metrics store")
+	assert.EqualError(t, err, `no "foo" backend registered for metrics store`)
 }
 
 type configurable struct {

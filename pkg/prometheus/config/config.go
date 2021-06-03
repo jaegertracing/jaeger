@@ -16,7 +16,7 @@ package config
 
 import "time"
 
-// Configuration describes the options to customize the storage behavior
+// Configuration describes the options to customize the storage behavior.
 type Configuration struct {
 	HostPort       string        `validate:"nonzero" mapstructure:"server"`
 	ConnectTimeout time.Duration `validate:"nonzero" mapstructure:"timeout"`
