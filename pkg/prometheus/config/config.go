@@ -22,7 +22,7 @@ import (
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	ServerURL      string         `validate:"nonzero" mapstructure:"server"`
-	ConnectTimeout time.Duration  `validate:"nonzero" mapstructure:"timeout"`
-	TLS            tlscfg.Options `mapstructure:"tls"`
+	ServerURL      string
+	ConnectTimeout time.Duration
+	TLS            tlscfg.Options
 }

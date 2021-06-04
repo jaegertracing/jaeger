@@ -313,17 +313,32 @@ func TestWarningResponse(t *testing.T) {
 	assert.NotNil(t, m)
 }
 
-func TestTLSEnabledMetricsReader(t *testing.T) {
-	logger := zap.NewNop()
-	reader, err := NewMetricsReader(logger, config.Configuration{
-		ServerURL:      "https://localhost:1234",
-		ConnectTimeout: defaultTimeout,
-		TLS: tlscfg.Options{
-			Enabled: true,
-		},
-	})
-	require.NoError(t, err)
-	assert.NotNil(t, reader)
+func TestGetRoundTripper(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		tlsEnabled bool
+	}{
+		{"tls tlsEnabled", true},
+		{"tls disabled", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := zap.NewNop()
+			rt, err := getHTTPRoundTripper(&config.Configuration{
+				ServerURL:      "https://localhost:1234",
+				ConnectTimeout: 9 * time.Millisecond,
+				TLS: tlscfg.Options{
+					Enabled: tc.tlsEnabled,
+				},
+			}, logger)
+			require.NoError(t, err)
+			assert.IsType(t, &http.Transport{}, rt)
+			if tc.tlsEnabled {
+				assert.NotNil(t, rt.(*http.Transport).TLSClientConfig)
+			} else {
+				assert.Nil(t, rt.(*http.Transport).TLSClientConfig)
+			}
+		})
+	}
 }
 
 func TestInvalidCertFile(t *testing.T) {

@@ -16,6 +16,7 @@ package metricsstore
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -242,13 +243,12 @@ func logErrorToSpan(span opentracing.Span, err error) {
 	span.LogFields(otlog.Error(err))
 }
 
-func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (http.RoundTripper, error) {
-	if !c.TLS.Enabled {
-		return nil, nil
-	}
-	ctlsConfig, err := c.TLS.Config(logger)
-	if err != nil {
-		return nil, err
+func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.RoundTripper, err error) {
+	var ctlsConfig *tls.Config
+	if c.TLS.Enabled {
+		if ctlsConfig, err = c.TLS.Config(logger); err != nil {
+			return nil, err
+		}
 	}
 
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
