@@ -16,13 +16,13 @@ package config
 
 import (
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"os/exec"
 	"runtime"
 
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+	"github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
