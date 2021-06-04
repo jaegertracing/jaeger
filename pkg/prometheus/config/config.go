@@ -14,10 +14,15 @@
 
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+)
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	HostPort       string        `validate:"nonzero" mapstructure:"server"`
-	ConnectTimeout time.Duration `validate:"nonzero" mapstructure:"timeout"`
+	ServerURL      string
+	ConnectTimeout time.Duration
+	TLS            tlscfg.Options
 }

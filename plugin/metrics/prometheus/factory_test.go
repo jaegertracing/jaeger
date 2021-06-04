@@ -40,7 +40,7 @@ func TestPrometheusFactory(t *testing.T) {
 	assert.NotNil(t, listener)
 	defer listener.Close()
 
-	f.options.Primary.HostPort = listener.Addr().String()
+	f.options.Primary.ServerURL = "http://" + listener.Addr().String()
 	reader, err := f.CreateMetricsReader()
 
 	assert.NoError(t, err)
@@ -49,20 +49,20 @@ func TestPrometheusFactory(t *testing.T) {
 
 func TestWithDefaultConfiguration(t *testing.T) {
 	f := NewFactory()
-	assert.Equal(t, f.options.Primary.HostPort, defaultServerHostPort)
-	assert.Equal(t, f.options.Primary.ConnectTimeout, defaultConnectTimeout)
+	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:9090")
+	assert.Equal(t, f.options.Primary.ConnectTimeout, 30*time.Second)
 }
 
 func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
-		"--prometheus.host-port=localhost:1234",
+		"--prometheus.server-url=http://localhost:1234",
 		"--prometheus.connect-timeout=5s",
 	})
 	require.NoError(t, err)
 
 	f.InitFromViper(v)
-	assert.Equal(t, f.options.Primary.HostPort, "localhost:1234")
+	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:1234")
 	assert.Equal(t, f.options.Primary.ConnectTimeout, 5*time.Second)
 }

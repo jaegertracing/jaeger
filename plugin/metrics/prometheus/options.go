@@ -21,14 +21,15 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 )
 
 const (
-	suffixHostPort       = ".host-port"
+	suffixServerURL      = ".server-url"
 	suffixConnectTimeout = ".connect-timeout"
 
-	defaultServerHostPort = "localhost:9090"
+	defaultServerURL      = "http://localhost:9090"
 	defaultConnectTimeout = 30 * time.Second
 )
 
@@ -45,7 +46,7 @@ type Options struct {
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string) *Options {
 	defaultConfig := config.Configuration{
-		HostPort:       defaultServerHostPort,
+		ServerURL:      defaultServerURL,
 		ConnectTimeout: defaultConnectTimeout,
 	}
 
@@ -60,15 +61,26 @@ func NewOptions(primaryNamespace string) *Options {
 // AddFlags from this storage to the CLI.
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	nsConfig := &opt.Primary
-	flagSet.String(nsConfig.namespace+suffixHostPort, defaultServerHostPort, "The host:port of the Prometheus query service.")
+	flagSet.String(nsConfig.namespace+suffixServerURL, defaultServerURL, "The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090")
 	flagSet.Duration(nsConfig.namespace+suffixConnectTimeout, defaultConnectTimeout, "The period to wait for a connection to Prometheus when executing queries.")
+
+	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
 
 // InitFromViper initializes the options struct with values from Viper.
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	cfg := &opt.Primary
-	cfg.HostPort = stripWhiteSpace(v.GetString(cfg.namespace + suffixHostPort))
+	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
+	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
+}
+
+func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
+	return tlscfg.ClientFlagsConfig{
+		Prefix:         config.namespace,
+		ShowEnabled:    true,
+		ShowServerName: true,
+	}
 }
 
 // stripWhiteSpace removes all whitespace characters from a string.

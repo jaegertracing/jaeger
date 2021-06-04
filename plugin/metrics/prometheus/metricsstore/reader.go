@@ -16,6 +16,7 @@ package metricsstore
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -72,20 +74,13 @@ type (
 )
 
 // NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(logger *zap.Logger, hostPort string, connectTimeout time.Duration) (*MetricsReader, error) {
-	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
-	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
-	roundTripper := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   connectTimeout,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		TLSHandshakeTimeout: 10 * time.Second,
+func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsReader, error) {
+	roundTripper, err := getHTTPRoundTripper(&cfg, logger)
+	if err != nil {
+		return nil, err
 	}
-
 	client, err := api.NewClient(api.Config{
-		Address:      "http://" + hostPort,
+		Address:      cfg.ServerURL,
 		RoundTripper: roundTripper,
 	})
 	if err != nil {
@@ -95,7 +90,7 @@ func NewMetricsReader(logger *zap.Logger, hostPort string, connectTimeout time.D
 		client: promapi.NewAPI(client),
 		logger: logger,
 	}
-	logger.Info("Prometheus reader initialized", zap.String("addr", hostPort))
+	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
 	return mr, nil
 }
 
@@ -246,4 +241,25 @@ func startSpanForQuery(ctx context.Context, metricName, query string) (opentraci
 func logErrorToSpan(span opentracing.Span, err error) {
 	ottag.Error.Set(span, true)
 	span.LogFields(otlog.Error(err))
+}
+
+func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.RoundTripper, err error) {
+	var ctlsConfig *tls.Config
+	if c.TLS.Enabled {
+		if ctlsConfig, err = c.TLS.Config(logger); err != nil {
+			return nil, err
+		}
+	}
+
+	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
+	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   c.ConnectTimeout,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     ctlsConfig,
+	}, nil
 }
