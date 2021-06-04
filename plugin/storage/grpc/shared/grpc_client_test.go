@@ -21,11 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	jaegerClient "github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-client-go/zipkin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -123,107 +120,6 @@ func TestContextUpgradeWithoutToken(t *testing.T) {
 	upgradedToken := upgradeContextWithBearerToken(context.Background())
 	_, ok := metadata.FromOutgoingContext(upgradedToken)
 	assert.Falsef(t, ok, "Expected no metadata in context")
-}
-
-func TestContextUpgradeWithTraceAndUberPropagator(t *testing.T) {
-	tracer, closer := jaegerClient.NewTracer(
-		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewInMemoryReporter(),
-	)
-	defer closer.Close()
-
-	opentracing.SetGlobalTracer(tracer)
-
-	_, rootCtx := opentracing.StartSpanFromContext(context.Background(), "root")
-	upgradedCtx := upgradeWithTraceContext(rootCtx)
-	md, ok := metadata.FromOutgoingContext(upgradedCtx)
-	assert.Truef(t, ok, "Expected metadata in context")
-	assert.Containsf(t, md, "uber-trace-id", "Expected traceId in metadata")
-}
-
-func TestContextUpgradeWithTraceAndZipkinB3Propagator(t *testing.T) {
-	zipkinPropagator := zipkin.NewZipkinB3HTTPHeaderPropagator()
-	injector := jaegerClient.TracerOptions.Injector(opentracing.HTTPHeaders, zipkinPropagator)
-	extractor := jaegerClient.TracerOptions.Extractor(opentracing.HTTPHeaders, zipkinPropagator)
-
-	// Zipkin shares span ID between client and server spans; it must be enabled via the following option.
-	zipkinSharedRPCSpan := jaegerClient.TracerOptions.ZipkinSharedRPCSpan(true)
-
-	tracer, closer := jaegerClient.NewTracer(
-		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewInMemoryReporter(),
-		injector,
-		extractor,
-		zipkinSharedRPCSpan,
-	)
-	defer closer.Close()
-
-	opentracing.SetGlobalTracer(tracer)
-
-	_, rootCtx := opentracing.StartSpanFromContext(context.Background(), "root")
-	upgradedCtx := upgradeWithTraceContext(rootCtx)
-	md, ok := metadata.FromOutgoingContext(upgradedCtx)
-	assert.Truef(t, ok, "Expected metadata in context")
-	assert.Containsf(t, md, "x-b3-sampled", "Expected X-B3-Sampled header in metadata")
-	assert.Containsf(t, md, "x-b3-traceid", "Expected X-B3-TraceId header in metadata")
-	assert.Containsf(t, md, "x-b3-spanid", "Expected X-B3-SpanId header in metadata")
-}
-
-func TestContextUpgradeWithoutTracerRegistered(t *testing.T) {
-	tracer, closer := jaegerClient.NewTracer(
-		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewInMemoryReporter(),
-	)
-	defer closer.Close()
-
-	_ = tracer.StartSpan("root")
-
-	upgradedCtx := upgradeWithTraceContext(context.Background())
-	_, ok := metadata.FromOutgoingContext(upgradedCtx)
-	assert.Falsef(t, ok, "Expected no metadata in context")
-}
-
-func TestContextUpgradeWithoutTrace(t *testing.T) {
-	upgradedCtx := upgradeWithTraceContext(context.Background())
-	_, ok := metadata.FromOutgoingContext(upgradedCtx)
-	assert.Falsef(t, ok, "Expected no metadata in context")
-}
-
-func TestCompositeUpgradeFunc(t *testing.T) {
-	testBearerToken := "test-bearer-token"
-	ctx := spanstore.ContextWithBearerToken(context.Background(), testBearerToken)
-
-	zipkinPropagator := zipkin.NewZipkinB3HTTPHeaderPropagator()
-	injector := jaegerClient.TracerOptions.Injector(opentracing.HTTPHeaders, zipkinPropagator)
-	extractor := jaegerClient.TracerOptions.Extractor(opentracing.HTTPHeaders, zipkinPropagator)
-
-	// Zipkin shares span ID between client and server spans; it must be enabled via the following option.
-	zipkinSharedRPCSpan := jaegerClient.TracerOptions.ZipkinSharedRPCSpan(true)
-
-	tracer, closer := jaegerClient.NewTracer(
-		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewInMemoryReporter(),
-		injector,
-		extractor,
-		zipkinSharedRPCSpan,
-	)
-	defer closer.Close()
-
-	opentracing.SetGlobalTracer(tracer)
-
-	_, rootCtx := opentracing.StartSpanFromContext(ctx, "root")
-	upgradedCtx := upgradeContext(rootCtx)
-	md, ok := metadata.FromOutgoingContext(upgradedCtx)
-	assert.Truef(t, ok, "Expected metadata in context")
-	assert.Containsf(t, md, "x-b3-sampled", "Expected X-B3-Sampled header in metadata")
-	assert.Containsf(t, md, "x-b3-traceid", "Expected X-B3-TraceId header in metadata")
-	assert.Containsf(t, md, "x-b3-spanid", "Expected X-B3-SpanId header in metadata")
-	bearerTokenFromMetadata := md.Get(spanstore.BearerTokenKey)
-	assert.Equal(t, []string{testBearerToken}, bearerTokenFromMetadata)
 }
 
 func TestGRPCClientGetServices(t *testing.T) {
