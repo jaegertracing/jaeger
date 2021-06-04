@@ -1,13 +1,32 @@
 Changes by Version
 ==================
 
-1.23.0 (unreleased)
+1.23.0 (2021-06-04)
 -------------------
 ### Backend Changes
 
 #### Breaking Changes
 
 * Remove unused `--es-archive.max-span-age` flag ([#2865](https://github.com/jaegertracing/jaeger/pull/2865), [@albertteoh](https://github.com/albertteoh)):
+
+#### New Features
+
+* Inject trace context to grpc metadata ([#2870](https://github.com/jaegertracing/jaeger/pull/2870), [@lujiajing1126](https://github.com/lujiajing1126))
+* Passing default sampling strategies file as environment variable ([#3027](https://github.com/jaegertracing/jaeger/pull/3027), [@Ashmita152](https://github.com/Ashmita152))
+* [es] Add index rollover mode that can choose day and hour ([#2965](https://github.com/jaegertracing/jaeger/pull/2965), [@WalkerWang731](https://github.com/WalkerWang731))
+* Add a TIMEOUT environment variable for es rollover ([#2938](https://github.com/jaegertracing/jaeger/pull/2938), [@ediezh](https://github.com/ediezh))
+* Allow the ILM policy name to be configurable ([#2971](https://github.com/jaegertracing/jaeger/pull/2971), [@jrRibeiro](https://github.com/jrRibeiro))
+* [es] Add remote read clusters option for cross-cluster querying ([#2874](https://github.com/jaegertracing/jaeger/pull/2874), [@dgrizzanti](https://github.com/dgrizzanti))
+* Enable logging in ES client ([#2862](https://github.com/jaegertracing/jaeger/pull/2862), [@albertteoh](https://github.com/albertteoh))
+
+#### Bug fixes, Minor Improvements
+
+* Fix jaeger-agent reproducible memory leak ([#3050](https://github.com/jaegertracing/jaeger/pull/3050), [@jpkrohling](https://github.com/jpkrohling))
+* Changed Range Query to use startTimeMillis date field instead of startTime field ([#2980](https://github.com/jaegertracing/jaeger/pull/2980), [@Sreevani871](https://github.com/Sreevani871))
+* Verify FindTraces() received a query ([#2979](https://github.com/jaegertracing/jaeger/pull/2979), [@esnible](https://github.com/esnible))
+* Set Content-Type in healthcheck's http response ([#2926](https://github.com/jaegertracing/jaeger/pull/2926), [@logeable](https://github.com/logeable))
+* Add jaeger-query HTTP handler diagnostic logging ([#2906](https://github.com/jaegertracing/jaeger/pull/2906), [@albertteoh](https://github.com/albertteoh))
+* Fix es-archive namespace default values ([#2865](https://github.com/jaegertracing/jaeger/pull/2865), [@albertteoh](https://github.com/albertteoh))
 
 1.22.0 (2021-02-23)
 -------------------
