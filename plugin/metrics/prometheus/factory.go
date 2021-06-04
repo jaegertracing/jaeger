@@ -55,5 +55,5 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	return prometheusstore.NewMetricsReader(f.logger, f.options.Primary.HostPort, f.options.Primary.ConnectTimeout)
+	return prometheusstore.NewMetricsReader(f.logger, f.options.Primary.Configuration)
 }
