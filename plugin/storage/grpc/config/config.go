@@ -16,11 +16,14 @@ package config
 
 import (
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"os/exec"
 	"runtime"
 
+	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
@@ -58,6 +61,10 @@ func (c *Configuration) Build() (*ClientPluginServices, error) {
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Level: hclog.LevelFromString(c.PluginLogLevel),
 		}),
+		GRPCDialOptions: []grpc.DialOption{
+			grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
+			grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
+		},
 	})
 
 	runtime.SetFinalizer(client, func(c *plugin.Client) {
