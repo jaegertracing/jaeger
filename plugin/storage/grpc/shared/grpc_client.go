@@ -20,8 +20,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -38,7 +36,7 @@ var (
 	_ PluginCapabilities   = (*grpcClient)(nil)
 
 	// upgradeContext composites several steps of upgrading context
-	upgradeContext = composeContextUpgradeFuncs(upgradeContextWithBearerToken, upgradeWithTraceContext)
+	upgradeContext = composeContextUpgradeFuncs(upgradeContextWithBearerToken)
 )
 
 // grpcClient implements shared.StoragePlugin and reads/writes spans and dependencies
@@ -78,33 +76,6 @@ func upgradeContextWithBearerToken(ctx context.Context) context.Context {
 		md.Set(spanstore.BearerTokenKey, bearerToken)
 		return metadata.NewOutgoingContext(ctx, md)
 	}
-	return ctx
-}
-
-// upgradeWithTraceContext injects the current active span given into the outgoing gRPC metadata,
-// and returns the context being decorated.
-// If no global tracer is registered or no active span is found in the context,
-// returns the original context.
-func upgradeWithTraceContext(ctx context.Context) context.Context {
-	if !opentracing.IsGlobalTracerRegistered() {
-		return ctx
-	}
-
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		tracer := opentracing.GlobalTracer()
-		md, ok := metadata.FromOutgoingContext(ctx)
-		if !ok {
-			md = metadata.New(nil)
-		}
-		mdWriter := metadataReaderWriter{md}
-		err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, mdWriter)
-		// We have no better place to record an error than the Span itself :-/
-		if err != nil {
-			span.LogFields(log.String("event", "Tracer.Inject() failed"), log.Error(err))
-		}
-		return metadata.NewOutgoingContext(ctx, md)
-	}
-
 	return ctx
 }
 
