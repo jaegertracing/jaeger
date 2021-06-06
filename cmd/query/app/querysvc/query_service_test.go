@@ -59,118 +59,119 @@ var (
 	}
 )
 
-type testMocks struct {
-	spanReader *spanstoremocks.Reader
-	depsReader *depsmocks.Reader
+type testQueryService struct {
+	queryService *QueryService
+	spanReader   *spanstoremocks.Reader
+	depsReader   *depsmocks.Reader
 
 	archiveSpanReader *spanstoremocks.Reader
 	archiveSpanWriter *spanstoremocks.Writer
 }
 
-type QueryServiceOptionApplier func(*testMocks, *QueryServiceOptions)
+type testOption func(*testQueryService, *QueryServiceOptions)
 
-func withArchiveSpanReader() QueryServiceOptionApplier {
-	return func(mocks *testMocks, options *QueryServiceOptions) {
+func withArchiveSpanReader() testOption {
+	return func(mocks *testQueryService, options *QueryServiceOptions) {
 		r := &spanstoremocks.Reader{}
-		options.ArchiveSpanReader = r
 		mocks.archiveSpanReader = r
+		options.ArchiveSpanReader = r
 	}
 }
 
-func withArchiveSpanWriter() QueryServiceOptionApplier {
-	return func(mocks *testMocks, options *QueryServiceOptions) {
+func withArchiveSpanWriter() testOption {
+	return func(mocks *testQueryService, options *QueryServiceOptions) {
 		r := &spanstoremocks.Writer{}
-		options.ArchiveSpanWriter = r
 		mocks.archiveSpanWriter = r
+		options.ArchiveSpanWriter = r
 	}
 }
 
-func withAdjuster() QueryServiceOptionApplier {
-	return func(mocks *testMocks, options *QueryServiceOptions) {
+func withAdjuster() testOption {
+	return func(mocks *testQueryService, options *QueryServiceOptions) {
 		options.Adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 			return trace, errAdjustment
 		})
 	}
 }
 
-func initializeTestService(optionAppliers ...QueryServiceOptionApplier) (*QueryService, *testMocks) {
+func initializeTestService(optionAppliers ...testOption) *testQueryService {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 
 	options := QueryServiceOptions{}
 
-	mocks := testMocks{
+	tqs := testQueryService{
 		spanReader: readStorage,
 		depsReader: dependencyStorage,
 	}
 
 	for _, optApplier := range optionAppliers {
-		optApplier(&mocks, &options)
+		optApplier(&tqs, &options)
 	}
 
-	qs := NewQueryService(readStorage, dependencyStorage, options)
-	return qs, &mocks
+	tqs.queryService = NewQueryService(readStorage, dependencyStorage, options)
+	return &tqs
 }
 
 // Test QueryService.GetTrace()
 func TestGetTraceSuccess(t *testing.T) {
-	qs, mocks := initializeTestService()
-	mocks.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs := initializeTestService()
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	res, err := qs.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
 }
 
 // Test QueryService.GetTrace() without ArchiveSpanReader
 func TestGetTraceNotFound(t *testing.T) {
-	qs, mocks := initializeTestService()
-	mocks.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs := initializeTestService()
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	_, err := qs.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	_, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.Equal(t, err, spanstore.ErrTraceNotFound)
 }
 
 // Test QueryService.GetTrace() with ArchiveSpanReader
 func TestGetTraceFromArchiveStorage(t *testing.T) {
-	qs, mocks := initializeTestService(withArchiveSpanReader())
-	mocks.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs := initializeTestService(withArchiveSpanReader())
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
-	mocks.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	res, err := qs.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
 }
 
 // Test QueryService.GetServices() for success.
 func TestGetServices(t *testing.T) {
-	qs, mocks := initializeTestService()
+	tqs := initializeTestService()
 	expectedServices := []string{"trifle", "bling"}
-	mocks.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
+	tqs.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	actualServices, err := qs.GetServices(context.WithValue(ctx, contextKey("foo"), "bar"))
+	actualServices, err := tqs.queryService.GetServices(context.WithValue(ctx, contextKey("foo"), "bar"))
 	assert.NoError(t, err)
 	assert.Equal(t, expectedServices, actualServices)
 }
 
 // Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
-	qs, mocks := initializeTestService()
+	tqs := initializeTestService()
 	expectedOperations := []spanstore.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
 	operationQuery := spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}
-	mocks.spanReader.On(
+	tqs.spanReader.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
 		operationQuery,
@@ -178,15 +179,15 @@ func TestGetOperations(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	actualOperations, err := qs.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), operationQuery)
+	actualOperations, err := tqs.queryService.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), operationQuery)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperations, actualOperations)
 }
 
 // Test QueryService.FindTraces() for success.
 func TestFindTraces(t *testing.T) {
-	qs, mocks := initializeTestService()
-	mocks.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+	tqs := initializeTestService()
+	tqs.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
 
 	type contextKey string
@@ -199,46 +200,46 @@ func TestFindTraces(t *testing.T) {
 		DurationMin:   duration,
 		NumTraces:     200,
 	}
-	traces, err := qs.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
+	traces, err := tqs.queryService.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
 	assert.NoError(t, err)
 	assert.Len(t, traces, 1)
 }
 
 // Test QueryService.ArchiveTrace() with no ArchiveSpanWriter.
 func TestArchiveTraceNoOptions(t *testing.T) {
-	qs, _ := initializeTestService()
+	tqs := initializeTestService()
 
 	type contextKey string
 	ctx := context.Background()
-	err := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.Equal(t, errNoArchiveSpanStorage, err)
 }
 
 // Test QueryService.ArchiveTrace() with ArchiveSpanWriter but invalid traceID.
 func TestArchiveTraceWithInvalidTraceID(t *testing.T) {
-	qs, mocks := initializeTestService(withArchiveSpanReader(), withArchiveSpanWriter())
-	mocks.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs := initializeTestService(withArchiveSpanReader(), withArchiveSpanWriter())
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
-	mocks.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	err := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.Equal(t, spanstore.ErrTraceNotFound, err)
 }
 
 // Test QueryService.ArchiveTrace(), save error with ArchiveSpanWriter.
 func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
-	qs, mocks := initializeTestService(withArchiveSpanWriter())
-	mocks.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs := initializeTestService(withArchiveSpanWriter())
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
-	mocks.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
+	tqs.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(errors.New("cannot save")).Times(2)
 
 	type contextKey string
 	ctx := context.Background()
-	multiErr := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	multiErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.Len(t, multiErr, 2)
 	// There are two spans in the mockTrace, ArchiveTrace should return a wrapped error.
 	assert.EqualError(t, multiErr, "[cannot save, cannot save]")
@@ -246,30 +247,30 @@ func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 
 // Test QueryService.ArchiveTrace() with correctly configured ArchiveSpanWriter.
 func TestArchiveTraceSuccess(t *testing.T) {
-	qs, mocks := initializeTestService(withArchiveSpanWriter())
-	mocks.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs := initializeTestService(withArchiveSpanWriter())
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
-	mocks.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
+	tqs.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(nil).Times(2)
 
 	type contextKey string
 	ctx := context.Background()
-	err := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.NoError(t, err)
 }
 
 // Test QueryService.Adjust()
 func TestTraceAdjustmentFailure(t *testing.T) {
-	qs, _ := initializeTestService(withAdjuster())
+	tqs := initializeTestService(withAdjuster())
 
-	_, err := qs.Adjust(mockTrace)
+	_, err := tqs.queryService.Adjust(mockTrace)
 	assert.Error(t, err)
 	assert.EqualValues(t, errAdjustment.Error(), err.Error())
 }
 
 // Test QueryService.GetDependencies()
 func TestGetDependencies(t *testing.T) {
-	qs, mocks := initializeTestService()
+	tqs := initializeTestService()
 	expectedDependencies := []model.DependencyLink{
 		{
 			Parent:    "killer",
@@ -278,9 +279,9 @@ func TestGetDependencies(t *testing.T) {
 		},
 	}
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	mocks.depsReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
+	tqs.depsReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
 
-	actualDependencies, err := qs.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
+	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDependencies, actualDependencies)
 }
