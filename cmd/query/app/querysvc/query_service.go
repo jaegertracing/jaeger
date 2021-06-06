@@ -24,8 +24,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -42,6 +44,7 @@ type QueryServiceOptions struct {
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
 	Adjuster          adjuster.Adjuster
+	MetricsReader     metricsstore.Reader
 }
 
 // QueryService contains span utils required by the query-service.
@@ -49,6 +52,16 @@ type QueryService struct {
 	spanReader       spanstore.Reader
 	dependencyReader dependencystore.Reader
 	options          QueryServiceOptions
+}
+
+// QSOption is the functional option for configuring QueryServiceOptions.
+type QSOption func(qOpts *QueryServiceOptions)
+
+// WithMetricsReader sets QueryServiceOptions' MetricsReader.
+func WithMetricsReader(metricsReader metricsstore.Reader) QSOption {
+	return func(qOpts *QueryServiceOptions) {
+		qOpts.MetricsReader = metricsReader
+	}
 }
 
 // NewQueryService returns a new QueryService.
@@ -123,6 +136,32 @@ func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
 // GetDependencies implements dependencystore.Reader.GetDependencies
 func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	return qs.dependencyReader.GetDependencies(ctx, endTs, lookback)
+}
+
+// MetricsQueryEnabled returns whether if metric query capabilities are enabled, opted-in by setting the
+// METRICS_STORAGE_TYPE environment variable.
+func (qs QueryService) MetricsQueryEnabled() bool {
+	return qs.options.MetricsReader != nil
+}
+
+// GetLatencies is the queryService implementation of metricsstore.Reader.
+func (qs QueryService) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	return qs.options.MetricsReader.GetLatencies(ctx, params)
+}
+
+// GetCallRates is the queryService implementation of metricsstore.Reader.
+func (qs QueryService) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	return qs.options.MetricsReader.GetCallRates(ctx, params)
+}
+
+// GetErrorRates is the queryService implementation of metricsstore.Reader.
+func (qs QueryService) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+	return qs.options.MetricsReader.GetErrorRates(ctx, params)
+}
+
+// GetMinStepDuration is the queryService implementation of metricsstore.Reader.
+func (qs QueryService) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+	return qs.options.MetricsReader.GetMinStepDuration(ctx, params)
 }
 
 // InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.
