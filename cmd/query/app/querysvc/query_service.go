@@ -57,13 +57,6 @@ type QueryService struct {
 // QSOption is the functional option for configuring QueryServiceOptions.
 type QSOption func(qOpts *QueryServiceOptions)
 
-// WithMetricsReader sets QueryServiceOptions' MetricsReader.
-func WithMetricsReader(metricsReader metricsstore.Reader) QSOption {
-	return func(qOpts *QueryServiceOptions) {
-		qOpts.MetricsReader = metricsReader
-	}
-}
-
 // NewQueryService returns a new QueryService.
 func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, options QueryServiceOptions) *QueryService {
 	qsvc := &QueryService{
