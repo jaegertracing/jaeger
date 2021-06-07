@@ -11,7 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func TestCodecMarshallAndUnmarshall(t *testing.T) {
+func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
 	c := newCodec()
 	s1 := &model.Span{OperationName: "foo", TraceID: model.NewTraceID(1, 2)}
 	data, err := c.Marshal(s1)
@@ -21,6 +21,18 @@ func TestCodecMarshallAndUnmarshall(t *testing.T) {
 	err = c.Unmarshal(data, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
+}
+
+func TestCodecMarshallAndUnmarshall_no_jaeger_type(t *testing.T) {
+	c := newCodec()
+	goprotoMessage1 := &emptypb.Empty{}
+	data, err := c.Marshal(goprotoMessage1)
+	require.NoError(t, err)
+
+	goprotoMessage2 := &emptypb.Empty{}
+	err = c.Unmarshal(data, goprotoMessage2)
+	require.NoError(t, err)
+	assert.Equal(t, goprotoMessage1, goprotoMessage2)
 }
 
 func TestWireCompatibility(t *testing.T) {
