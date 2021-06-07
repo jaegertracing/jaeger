@@ -1,12 +1,12 @@
 package proto_gen
 
 import (
-	"github.com/golang/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/model"
 )
