@@ -19,13 +19,22 @@ import (
 	"path"
 	"strings"
 
+	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
+	"github.com/hashicorp/go-plugin"
+	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
+	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
+	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+)
+
+const (
+	serviceName = "mem-store"
 )
 
 var configPath string
@@ -46,13 +55,34 @@ func main() {
 	opts := memory.Options{}
 	opts.InitFromViper(v)
 
-	plugin := &memoryStorePlugin{
+	traceCfg := &jaegerClientConfig.Configuration{
+		ServiceName: serviceName,
+		Sampler: &jaegerClientConfig.SamplerConfig{
+			Type:  "const",
+			Param: 1.0,
+		},
+		RPCMetrics: true,
+	}
+
+	tracer, closer, err := traceCfg.NewTracer()
+	if err != nil {
+		panic("Failed to initialize tracer")
+	}
+	defer closer.Close()
+	opentracing.SetGlobalTracer(tracer)
+
+	memStorePlugin := &memoryStorePlugin{
 		store:        memory.NewStore(),
 		archiveStore: memory.NewStore(),
 	}
-	grpc.Serve(&shared.PluginServices{
-		Store:        plugin,
-		ArchiveStore: plugin,
+	grpc.ServeWithGRPCServer(&shared.PluginServices{
+		Store:        memStorePlugin,
+		ArchiveStore: memStorePlugin,
+	}, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
+		return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
+			googleGRPC.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
+			googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
+		})
 	})
 }
 

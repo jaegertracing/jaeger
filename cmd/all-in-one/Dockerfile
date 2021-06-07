@@ -25,12 +25,14 @@ EXPOSE 14250
 # Web HTTP
 EXPOSE 16686
 
+# Default configuration file for setting sampling strategies
+ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
+
 COPY all-in-one-linux-$TARGETARCH /go/bin/all-in-one-linux
 COPY sampling_strategies.json /etc/jaeger/
 
 VOLUME ["/tmp"]
 ENTRYPOINT ["/go/bin/all-in-one-linux"]
-CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]
 
 FROM $debug_image AS debug
 ARG TARGETARCH=amd64
@@ -59,9 +61,11 @@ EXPOSE 16686
 # Delve
 EXPOSE 12345
 
+# Default configuration file for setting sampling strategies
+ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
+
 COPY all-in-one-debug-linux-$TARGETARCH /go/bin/all-in-one-linux
 COPY sampling_strategies.json /etc/jaeger/
 
 VOLUME ["/tmp"]
 ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/all-in-one-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
-CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]
