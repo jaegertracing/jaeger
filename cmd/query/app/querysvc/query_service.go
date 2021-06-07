@@ -54,9 +54,6 @@ type QueryService struct {
 	options          QueryServiceOptions
 }
 
-// QSOption is the functional option for configuring QueryServiceOptions.
-type QSOption func(qOpts *QueryServiceOptions)
-
 // NewQueryService returns a new QueryService.
 func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, options QueryServiceOptions) *QueryService {
 	qsvc := &QueryService{
