@@ -44,6 +44,8 @@ func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	err := command.ParseFlags([]string{
 		"--grpc-storage-plugin.binary",
 		s.pluginBinaryPath,
+		"--grpc-storage-plugin.log-level",
+		"debug",
 	})
 	if err != nil {
 		return err
