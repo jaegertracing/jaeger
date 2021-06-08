@@ -28,7 +28,7 @@ require (
 	github.com/golang/mock v1.4.3 // indirect
 	github.com/golang/protobuf v1.5.2
 	github.com/gorilla/handlers v1.5.1
-	github.com/gorilla/mux v1.7.4
+	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.16.1
