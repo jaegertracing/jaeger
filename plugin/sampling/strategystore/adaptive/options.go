@@ -70,7 +70,7 @@ type Options struct {
 	CalculationInterval time.Duration
 
 	// AggregationBuckets is the total number of aggregated throughput buckets kept in memory, ie. if
-	// the CalculationInterval is 1 minute (each bucket contains 1 minute of thoughput data) and the
+	// the CalculationInterval is 1 minute (each bucket contains 1 minute of throughput data) and the
 	// AggregationBuckets is 3, the adaptive sampling processor will keep at most 3 buckets in memory for
 	// all operations.
 	// TODO(wjang): Expand on why this is needed when BucketsForCalculation seems to suffice.
