@@ -1,6 +1,6 @@
 VERSION := 1.0.0
-ROOT_IMAGE ?= alpine:3.12
-CERT_IMAGE := alpine:3.12
+ROOT_IMAGE ?= alpine:3.13
+CERT_IMAGE := alpine:3.13
 GOLANG_IMAGE := golang:1.15-alpine
 
 BASE_IMAGE := localhost/baseimg:$(VERSION)-$(shell echo $(ROOT_IMAGE) | tr : -)

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -330,4 +331,55 @@ func BenchmarkSpanHash(b *testing.B) {
 		buf.Reset()
 		span.Hash(buf)
 	}
+}
+
+func BenchmarkBatchSerialization(b *testing.B) {
+	batch := &model.Batch{
+		Spans: []*model.Span{
+			{
+				TraceID:       model.NewTraceID(154, 1879),
+				SpanID:        model.NewSpanID(66974),
+				OperationName: "test_op",
+				References: []model.SpanRef{
+					{
+						TraceID: model.NewTraceID(45, 12),
+						SpanID:  model.NewSpanID(789),
+						RefType: model.SpanRefType_CHILD_OF,
+					},
+				},
+				Flags:     0,
+				StartTime: time.Now(),
+				Duration:  time.Second,
+				Tags: []model.KeyValue{
+					model.String("foo", "bar"), model.Bool("haha", true),
+				},
+				Logs: []model.Log{
+					{
+						Timestamp: time.Now(),
+						Fields: []model.KeyValue{
+							model.String("foo", "bar"), model.Int64("bar", 156),
+						},
+					},
+				},
+				Process:   model.NewProcess("process1", []model.KeyValue{model.String("aaa", "bbb")}),
+				ProcessID: "156",
+			},
+		},
+		Process: nil,
+	}
+
+	b.Run("marshal", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			proto.Marshal(batch)
+		}
+	})
+
+	data, err := proto.Marshal(batch)
+	require.NoError(b, err)
+	b.Run("unmarshal", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			var batch2 model.Batch
+			proto.Unmarshal(data, &batch2)
+		}
+	})
 }

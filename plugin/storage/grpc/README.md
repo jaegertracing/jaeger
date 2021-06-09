@@ -150,6 +150,28 @@ There are more logger options that can be used with `hclog` listed on [godoc](ht
 Note: Setting the `Output` option to `os.Stdout` can confuse the `go-plugin` framework and lead it to consider the plugin
 errored.
 
+Tracing
+-------
+
+When `grpc-plugin` is used, it will be running as a separated process, thus context propagation is necessary for inter-process scenarios.
+
+In order to get complete traces containing both `jaeger-component`(s) and the `grpc-plugin`, developers should enable tracing at server-side.
+Thus, we can leverage gRPC interceptors,
+
+```golang
+grpc.ServeWithGRPCServer(&shared.PluginServices{
+    Store:        memStorePlugin,
+    ArchiveStore: memStorePlugin,
+}, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
+    return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
+        googleGRPC.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
+        googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
+    })
+})
+```
+
+Refer to `example/memstore-plugin` for more details.
+
 Bearer token propagation from the UI
 ------------------------------------
 When using `--query.bearer-token-propagation=true`, the bearer token will be properly passed on to the gRPC plugin server. To get access to the bearer token in your plugin, use a method similar to:

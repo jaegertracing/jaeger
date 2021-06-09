@@ -24,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" //force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )

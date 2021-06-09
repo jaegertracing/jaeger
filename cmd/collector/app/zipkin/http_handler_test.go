@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -225,7 +225,7 @@ func TestFormatBadBody(t *testing.T) {
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte("not good"), createHeader("application/x-thrift"))
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to process request body: Unknown data type 111\n", resBodyStr)
+	assert.Contains(t, resBodyStr, "Unable to process request body:")
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {

@@ -1,0 +1,20 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "operation": "/OrderResult",
+          "service_name": "emailservice"
+        },
+        "values": [
+          [
+            1620351786,
+            "9223372036854"
+          ]
+        ]
+      }
+    ]
+  }
+}

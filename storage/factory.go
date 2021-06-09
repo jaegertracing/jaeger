@@ -23,6 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	metricsstore "github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -70,4 +71,19 @@ type ArchiveFactory interface {
 
 	// CreateArchiveSpanWriter creates a spanstore.Writer.
 	CreateArchiveSpanWriter() (spanstore.Writer, error)
+}
+
+// MetricsFactory defines an interface for a factory that can create implementations of different metrics storage components.
+// Implementations are also encouraged to implement plugin.Configurable interface.
+//
+// See also
+//
+// plugin.Configurable
+type MetricsFactory interface {
+	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
+	// It is called after all configuration of the factory itself has been done.
+	Initialize(logger *zap.Logger) error
+
+	// CreateMetricsReader creates a metricsstore.Reader.
+	CreateMetricsReader() (metricsstore.Reader, error)
 }
