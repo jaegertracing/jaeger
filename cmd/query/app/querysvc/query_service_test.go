@@ -27,12 +27,9 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
-	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	metricsmocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -63,24 +60,15 @@ var (
 )
 
 type testQueryService struct {
-	queryService  *QueryService
-	spanReader    *spanstoremocks.Reader
-	depsReader    *depsmocks.Reader
-	metricsReader *metricsmocks.Reader
+	queryService *QueryService
+	spanReader   *spanstoremocks.Reader
+	depsReader   *depsmocks.Reader
 
 	archiveSpanReader *spanstoremocks.Reader
 	archiveSpanWriter *spanstoremocks.Writer
 }
 
 type testOption func(*testQueryService, *QueryServiceOptions)
-
-func withMetricsReader() testOption {
-	return func(mocks *testQueryService, options *QueryServiceOptions) {
-		r := &metricsmocks.Reader{}
-		options.MetricsReader = r
-		mocks.metricsReader = r
-	}
-}
 
 func withArchiveSpanReader() testOption {
 	return func(tqs *testQueryService, options *QueryServiceOptions) {
@@ -296,72 +284,6 @@ func TestGetDependencies(t *testing.T) {
 	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDependencies, actualDependencies)
-}
-
-// Test QueryService.MetricsQueryEnabled()
-func TestMetricsQueryEnabled(t *testing.T) {
-	tqs := initializeTestService(withMetricsReader())
-	assert.True(t, tqs.queryService.MetricsQueryEnabled())
-}
-
-// Test QueryService.MetricsQueryEnabled()
-func TestMetricsQueryDisabled(t *testing.T) {
-	tqs := initializeTestService()
-	assert.False(t, tqs.queryService.MetricsQueryEnabled())
-}
-
-// Test QueryService.GetLatencies()
-func TestGetLatencies(t *testing.T) {
-	tqs := initializeTestService(withMetricsReader())
-	expectedLatencies := &protometrics.MetricFamily{
-		Name:    "latencies",
-		Metrics: []*protometrics.Metric{},
-	}
-	qParams := &metricsstore.LatenciesQueryParameters{}
-	tqs.metricsReader.On("GetLatencies", mock.Anything, qParams).Return(expectedLatencies, nil).Times(1)
-
-	actualLatencies, err := tqs.queryService.GetLatencies(context.Background(), qParams)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedLatencies, actualLatencies)
-}
-
-// Test QueryService.GetCallRates()
-func TestGetCallRates(t *testing.T) {
-	tqs := initializeTestService(withMetricsReader())
-	expectedCallRates := &protometrics.MetricFamily{
-		Name:    "call rates",
-		Metrics: []*protometrics.Metric{},
-	}
-	qParams := &metricsstore.CallRateQueryParameters{}
-	tqs.metricsReader.On("GetCallRates", mock.Anything, qParams).Return(expectedCallRates, nil).Times(1)
-
-	actualCallRates, err := tqs.queryService.GetCallRates(context.Background(), qParams)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedCallRates, actualCallRates)
-}
-
-// Test QueryService.GetErrorRates()
-func TestGetErrorRates(t *testing.T) {
-	tqs := initializeTestService(withMetricsReader())
-	expectedErrorRates := &protometrics.MetricFamily{}
-	qParams := &metricsstore.ErrorRateQueryParameters{}
-	tqs.metricsReader.On("GetErrorRates", mock.Anything, qParams).Return(expectedErrorRates, nil).Times(1)
-
-	actualErrorRates, err := tqs.queryService.GetErrorRates(context.Background(), qParams)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedErrorRates, actualErrorRates)
-}
-
-// Test QueryService.GetMinStepDurations()
-func TestGetMinStepDurations(t *testing.T) {
-	tqs := initializeTestService(withMetricsReader())
-	expectedMinStep := time.Second
-	qParams := &metricsstore.MinStepDurationQueryParameters{}
-	tqs.metricsReader.On("GetMinStepDuration", mock.Anything, qParams).Return(expectedMinStep, nil).Times(1)
-
-	actualMinStep, err := tqs.queryService.GetMinStepDuration(context.Background(), qParams)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedMinStep, actualMinStep)
 }
 
 type fakeStorageFactory1 struct {
