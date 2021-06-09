@@ -71,23 +71,23 @@ type testQueryService struct {
 type testOption func(*testQueryService, *QueryServiceOptions)
 
 func withArchiveSpanReader() testOption {
-	return func(mocks *testQueryService, options *QueryServiceOptions) {
+	return func(tqs *testQueryService, options *QueryServiceOptions) {
 		r := &spanstoremocks.Reader{}
-		mocks.archiveSpanReader = r
+		tqs.archiveSpanReader = r
 		options.ArchiveSpanReader = r
 	}
 }
 
 func withArchiveSpanWriter() testOption {
-	return func(mocks *testQueryService, options *QueryServiceOptions) {
+	return func(tqs *testQueryService, options *QueryServiceOptions) {
 		r := &spanstoremocks.Writer{}
-		mocks.archiveSpanWriter = r
+		tqs.archiveSpanWriter = r
 		options.ArchiveSpanWriter = r
 	}
 }
 
 func withAdjuster() testOption {
-	return func(mocks *testQueryService, options *QueryServiceOptions) {
+	return func(tqs *testQueryService, options *QueryServiceOptions) {
 		options.Adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 			return trace, errAdjustment
 		})
