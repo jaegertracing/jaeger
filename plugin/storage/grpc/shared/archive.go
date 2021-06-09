@@ -44,7 +44,7 @@ type archiveWriter struct {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID from Archive Storage
 func (r *archiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	stream, err := r.client.GetArchiveTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
+	stream, err := r.client.GetArchiveTrace(upgradeContext(ctx), &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
 	if status.Code(err) == codes.NotFound {

@@ -18,7 +18,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
@@ -80,7 +82,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
 		}
 		if len(b.CollectorHostPorts) > 1 {
-			r, _ := manual.GenerateAndRegisterManualResolver()
+			r, _ := generateAndRegisterManualResolver()
 			var resolvedAddrs []resolver.Address
 			for _, addr := range b.CollectorHostPorts {
 				resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
@@ -122,4 +124,13 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 	}(conn, connectMetrics)
 
 	return conn, nil
+}
+
+// generateAndRegisterManualResolver was removed from grpc.
+// Copied here to keep behavior the same.
+func generateAndRegisterManualResolver() (*manual.Resolver, func()) {
+	scheme := strconv.FormatInt(time.Now().UnixNano(), 36)
+	r := manual.NewBuilderWithScheme(scheme)
+	resolver.Register(r)
+	return r, func() { resolver.UnregisterForTesting(scheme) }
 }
