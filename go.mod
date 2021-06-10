@@ -62,7 +62,7 @@ require (
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/xdg-go/scram v1.0.2
 	go.mongodb.org/mongo-driver v1.5.2 // indirect
-	go.uber.org/atomic v1.7.0
+	go.uber.org/atomic v1.8.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.17.0
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
