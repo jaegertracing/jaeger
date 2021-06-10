@@ -28,12 +28,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 )
 
 // Server runs HTTP, Mux and a grpc server
@@ -121,7 +123,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	}
 	api_v2.RegisterQueryServiceServer(server, handler)
 	metrics.RegisterMetricsQueryServiceServer(server, handler)
-
+	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
 	return server, nil
 }
 
@@ -138,6 +140,10 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
+	}
+
+	if err := apiv3.RegisterGRPCGateway(r, queryOpts.BasePath, queryOpts.GRPCHostPort); err != nil {
+		return nil, err
 	}
 
 	apiHandler.RegisterRoutes(r)
