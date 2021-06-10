@@ -110,9 +110,7 @@ func main() {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			// Ensure default parameter values are loaded correctly.
-			metricsReaderFactory.InitFromViper(v)
-			metricsQueryService, err := createMetricsQueryService(fc, metricsReaderFactory, logger)
+			metricsQueryService, err := createMetricsQueryService(fc, metricsReaderFactory, v, logger)
 			if err != nil {
 				logger.Fatal("Failed to create metrics query service", zap.Error(err))
 			}
@@ -192,7 +190,7 @@ func createMetricsFactory(fc metricsPlugin.FactoryConfig) (*metricsPlugin.Factor
 	return metricsReaderFactory, nil
 }
 
-func createMetricsQueryService(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, logger *zap.Logger) (*querysvc.MetricsQueryService, error) {
+func createMetricsQueryService(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (*querysvc.MetricsQueryService, error) {
 	if !metricsQueryEnabled(fc) {
 		return querysvc.NewMetricsQueryService(nil), nil
 	}
@@ -200,6 +198,8 @@ func createMetricsQueryService(fc metricsPlugin.FactoryConfig, factory *metricsP
 		return nil, fmt.Errorf("failed to init metrics factory: %w", err)
 	}
 
+	// Ensure default parameter values are loaded correctly.
+	factory.InitFromViper(v)
 	metricsReader, err := factory.CreateMetricsReader()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics reader: %w", err)

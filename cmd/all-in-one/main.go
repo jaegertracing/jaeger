@@ -117,9 +117,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			// Ensure default parameter values are loaded correctly.
-			metricsReaderFactory.InitFromViper(v)
-			metricsReader, err := createMetricsReader(fc, metricsReaderFactory, logger)
+			metricsReader, err := createMetricsReader(fc, metricsReaderFactory, v, logger)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -314,12 +312,15 @@ func createMetricsReaderFactory(fc metricsPlugin.FactoryConfig) (*metricsPlugin.
 	return metricsPlugin.NewFactory(fc)
 }
 
-func createMetricsReader(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, logger *zap.Logger) (metricsstore.Reader, error) {
+func createMetricsReader(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (metricsstore.Reader, error) {
 	if !metricsQueryEnabled(fc) {
 		return nil, nil
 	}
 	if err := factory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
+
+	// Ensure default parameter values are loaded correctly.
+	factory.InitFromViper(v)
 	return factory.CreateMetricsReader()
 }
