@@ -37,6 +37,7 @@ func NewMetricsQueryService(reader metricsstore.Reader) *MetricsQueryService {
 	}
 }
 
+// Enabled returns whether if the Metrics Query feature is enabled or not.
 func (mqs MetricsQueryService) Enabled() bool {
 	return mqs.metricsReader != nil
 }
