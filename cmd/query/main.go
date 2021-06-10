@@ -190,7 +190,7 @@ func createMetricsFactory(fc metricsPlugin.FactoryConfig) (*metricsPlugin.Factor
 	return metricsReaderFactory, nil
 }
 
-func createMetricsQueryService(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (*querysvc.MetricsQueryService, error) {
+func createMetricsQueryService(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
 	if !metricsQueryEnabled(fc) {
 		return querysvc.NewMetricsQueryService(nil), nil
 	}

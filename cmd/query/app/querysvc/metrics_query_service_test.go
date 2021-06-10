@@ -16,6 +16,7 @@ package querysvc
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -28,15 +29,17 @@ import (
 )
 
 type testMetricsQueryService struct {
-	queryService  *MetricsQueryService
+	queryService  MetricsQueryService
 	metricsReader *metricsmocks.Reader
 }
 
-func initializeTestMetricsQueryService() *testMetricsQueryService {
-	metricsReader := &metricsmocks.Reader{}
-
-	tqs := testMetricsQueryService{
-		metricsReader: metricsReader,
+func initializeTestMetricsQueryService(enabled bool) *testMetricsQueryService {
+	tqs := testMetricsQueryService{}
+	var metricsReader metricsstore.Reader
+	if enabled {
+		mock := &metricsmocks.Reader{}
+		metricsReader = mock
+		tqs.metricsReader = mock
 	}
 
 	tqs.queryService = NewMetricsQueryService(metricsReader)
@@ -45,7 +48,7 @@ func initializeTestMetricsQueryService() *testMetricsQueryService {
 
 // Test QueryService.GetLatencies()
 func TestGetLatencies(t *testing.T) {
-	tqs := initializeTestMetricsQueryService()
+	tqs := initializeTestMetricsQueryService(true)
 	expectedLatencies := &protometrics.MetricFamily{
 		Name:    "latencies",
 		Metrics: []*protometrics.Metric{},
@@ -59,16 +62,16 @@ func TestGetLatencies(t *testing.T) {
 }
 
 func TestGetLatenciesNilReader(t *testing.T) {
-	qs := NewMetricsQueryService(nil)
+	tqs := initializeTestMetricsQueryService(false)
 	qParams := &metricsstore.LatenciesQueryParameters{}
-	r, err := qs.GetLatencies(context.Background(), qParams)
+	r, err := tqs.queryService.GetLatencies(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
+	assert.True(t, errors.Is(err, ErrDisabled))
 }
 
 // Test QueryService.GetCallRates()
 func TestGetCallRates(t *testing.T) {
-	tqs := initializeTestMetricsQueryService()
+	tqs := initializeTestMetricsQueryService(true)
 	expectedCallRates := &protometrics.MetricFamily{
 		Name:    "call rates",
 		Metrics: []*protometrics.Metric{},
@@ -82,16 +85,16 @@ func TestGetCallRates(t *testing.T) {
 }
 
 func TestGetCallRatesNilReader(t *testing.T) {
-	qs := NewMetricsQueryService(nil)
+	tqs := initializeTestMetricsQueryService(false)
 	qParams := &metricsstore.CallRateQueryParameters{}
-	r, err := qs.GetCallRates(context.Background(), qParams)
+	r, err := tqs.queryService.GetCallRates(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
+	assert.True(t, errors.Is(err, ErrDisabled))
 }
 
 // Test QueryService.GetErrorRates()
 func TestGetErrorRates(t *testing.T) {
-	tqs := initializeTestMetricsQueryService()
+	tqs := initializeTestMetricsQueryService(true)
 	expectedErrorRates := &protometrics.MetricFamily{}
 	qParams := &metricsstore.ErrorRateQueryParameters{}
 	tqs.metricsReader.On("GetErrorRates", mock.Anything, qParams).Return(expectedErrorRates, nil).Times(1)
@@ -102,16 +105,16 @@ func TestGetErrorRates(t *testing.T) {
 }
 
 func TestGetErrorRatesNilReader(t *testing.T) {
-	qs := NewMetricsQueryService(nil)
+	tqs := initializeTestMetricsQueryService(false)
 	qParams := &metricsstore.ErrorRateQueryParameters{}
-	r, err := qs.GetErrorRates(context.Background(), qParams)
+	r, err := tqs.queryService.GetErrorRates(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
+	assert.True(t, errors.Is(err, ErrDisabled))
 }
 
 // Test QueryService.GetMinStepDurations()
 func TestGetMinStepDurations(t *testing.T) {
-	tqs := initializeTestMetricsQueryService()
+	tqs := initializeTestMetricsQueryService(true)
 	expectedMinStep := time.Second
 	qParams := &metricsstore.MinStepDurationQueryParameters{}
 	tqs.metricsReader.On("GetMinStepDuration", mock.Anything, qParams).Return(expectedMinStep, nil).Times(1)
@@ -122,9 +125,9 @@ func TestGetMinStepDurations(t *testing.T) {
 }
 
 func TestGetMinStepDurationsNilReader(t *testing.T) {
-	qs := NewMetricsQueryService(nil)
+	tqs := initializeTestMetricsQueryService(false)
 	qParams := &metricsstore.MinStepDurationQueryParameters{}
-	r, err := qs.GetMinStepDuration(context.Background(), qParams)
+	r, err := tqs.queryService.GetMinStepDuration(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
+	assert.True(t, errors.Is(err, ErrDisabled))
 }

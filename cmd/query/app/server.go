@@ -52,7 +52,7 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc *querysvc.MetricsQueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
+func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
 
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
@@ -94,7 +94,7 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 	return s.unavailableChannel
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc *querysvc.MetricsQueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
+func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.TLSGRPC.Enabled {
@@ -118,7 +118,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc *querysvc
 	return server, nil
 }
 
-func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc *querysvc.MetricsQueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, error) {
+func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, error) {
 	// TODO: Add HandlerOptions.MetricsQueryService
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
