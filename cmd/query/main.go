@@ -16,6 +16,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -37,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
+	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -49,6 +51,12 @@ func main() {
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
+
+	fc := metricsPlugin.FactoryConfigFromEnv()
+	metricsReaderFactory, err := createMetricsFactory(fc)
+	if err != nil {
+		log.Fatalf("Cannot initialize metrics factory: %v", err)
 	}
 
 	v := viper.New()
@@ -101,13 +109,19 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
+
+			// Ensure default parameter values are loaded correctly.
+			metricsReaderFactory.InitFromViper(v)
+			metricsQueryService, err := createMetricsQueryService(fc, metricsReaderFactory, logger)
+			if err != nil {
+				logger.Fatal("Failed to create metrics query service", zap.Error(err))
+			}
 			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
 				*queryServiceOptions)
-
-			server, err := app.NewServer(svc.Logger, queryService, queryOpts, tracer)
+			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tracer)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
@@ -137,16 +151,58 @@ func main() {
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.QueryAdminHTTP))
 
-	config.AddFlags(
-		v,
-		command,
+	inits := []func(*flag.FlagSet){
 		svc.AddFlags,
 		storageFactory.AddFlags,
 		app.AddFlags,
+	}
+
+	// Only display the metrics backing store's config if the metrics query feature is enabled.
+	if metricsQueryEnabled(fc) {
+		inits = append(inits, metricsReaderFactory.AddFlags)
+	}
+	config.AddFlags(
+		v,
+		command,
+		inits...,
 	)
 
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+}
+
+// metricsQueryEnabled returns whether if metrics querying capabilities are enabled.
+// To avoid introducing a breaking change, the Metrics Querying feature must be
+// explicitly opted-in by setting the METRICS_STORAGE_TYPE env var.
+// An unset METRICS_STORAGE_TYPE will disable this feature.
+func metricsQueryEnabled(fc metricsPlugin.FactoryConfig) bool {
+	return fc.MetricsStorageType != ""
+}
+
+func createMetricsFactory(fc metricsPlugin.FactoryConfig) (*metricsPlugin.Factory, error) {
+	if !metricsQueryEnabled(fc) {
+		return nil, nil
+	}
+	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
+	if err != nil {
+		return nil, err
+	}
+	return metricsReaderFactory, nil
+}
+
+func createMetricsQueryService(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, logger *zap.Logger) (*querysvc.MetricsQueryService, error) {
+	if !metricsQueryEnabled(fc) {
+		return querysvc.NewMetricsQueryService(nil), nil
+	}
+	if err := factory.Initialize(logger); err != nil {
+		return nil, fmt.Errorf("failed to init metrics factory: %w", err)
+	}
+
+	metricsReader, err := factory.CreateMetricsReader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics reader: %w", err)
+	}
+	return querysvc.NewMetricsQueryService(metricsReader), nil
 }

@@ -28,44 +28,47 @@ type MetricsQueryService struct {
 	metricsReader metricsstore.Reader
 }
 
-var errNilReader = errors.New("no reader defined for MetricsQueryService")
+var errMetricsQueryDisabled = errors.New("metrics querying is currently disabled")
 
 // NewMetricsQueryService returns a new MetricsQueryService.
-// A nil reader will result in a nil MetricsQueryService being returned.
 func NewMetricsQueryService(reader metricsstore.Reader) *MetricsQueryService {
 	return &MetricsQueryService{
 		metricsReader: reader,
 	}
 }
 
+func (mqs MetricsQueryService) Enabled() bool {
+	return mqs.metricsReader != nil
+}
+
 // GetLatencies is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	if mqs.metricsReader == nil {
-		return nil, errNilReader
+	if !mqs.Enabled() {
+		return nil, errMetricsQueryDisabled
 	}
 	return mqs.metricsReader.GetLatencies(ctx, params)
 }
 
 // GetCallRates is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	if mqs.metricsReader == nil {
-		return nil, errNilReader
+	if !mqs.Enabled() {
+		return nil, errMetricsQueryDisabled
 	}
 	return mqs.metricsReader.GetCallRates(ctx, params)
 }
 
 // GetErrorRates is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	if mqs.metricsReader == nil {
-		return nil, errNilReader
+	if !mqs.Enabled() {
+		return nil, errMetricsQueryDisabled
 	}
 	return mqs.metricsReader.GetErrorRates(ctx, params)
 }
 
 // GetMinStepDuration is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	if mqs.metricsReader == nil {
-		return 0, errNilReader
+	if !mqs.Enabled() {
+		return 0, errMetricsQueryDisabled
 	}
 	return mqs.metricsReader.GetMinStepDuration(ctx, params)
 }

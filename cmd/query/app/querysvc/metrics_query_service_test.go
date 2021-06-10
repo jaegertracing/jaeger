@@ -63,7 +63,7 @@ func TestGetLatenciesNilReader(t *testing.T) {
 	qParams := &metricsstore.LatenciesQueryParameters{}
 	r, err := qs.GetLatencies(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errNilReader.Error())
+	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
 }
 
 // Test QueryService.GetCallRates()
@@ -86,7 +86,7 @@ func TestGetCallRatesNilReader(t *testing.T) {
 	qParams := &metricsstore.CallRateQueryParameters{}
 	r, err := qs.GetCallRates(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errNilReader.Error())
+	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
 }
 
 // Test QueryService.GetErrorRates()
@@ -106,7 +106,7 @@ func TestGetErrorRatesNilReader(t *testing.T) {
 	qParams := &metricsstore.ErrorRateQueryParameters{}
 	r, err := qs.GetErrorRates(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errNilReader.Error())
+	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
 }
 
 // Test QueryService.GetMinStepDurations()
@@ -126,5 +126,5 @@ func TestGetMinStepDurationsNilReader(t *testing.T) {
 	qParams := &metricsstore.MinStepDurationQueryParameters{}
 	r, err := qs.GetMinStepDuration(context.Background(), qParams)
 	assert.Zero(t, r)
-	assert.EqualError(t, err, errNilReader.Error())
+	assert.EqualError(t, err, errMetricsQueryDisabled.Error())
 }
