@@ -53,8 +53,8 @@ func NewInfoMetrics(infoMetrics metrics.Factory) *InfoMetrics {
 	var info InfoMetrics
 
 	buildTags := map[string]string{
-		"revision": commitSHA,
-		"version": latestVersion,
+		"revision":   commitSHA,
+		"version":    latestVersion,
 		"build_date": date,
 	}
 	metrics.Init(&info, infoMetrics, buildTags)
