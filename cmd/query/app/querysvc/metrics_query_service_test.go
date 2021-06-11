@@ -16,7 +16,6 @@ package querysvc
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -29,7 +28,7 @@ import (
 )
 
 type testMetricsQueryService struct {
-	queryService  MetricsQueryService
+	queryService  *MetricsQueryService
 	metricsReader *metricsmocks.Reader
 }
 
@@ -61,15 +60,6 @@ func TestGetLatencies(t *testing.T) {
 	assert.Equal(t, expectedLatencies, actualLatencies)
 }
 
-func TestGetLatenciesNilReader(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(false)
-	qParams := &metricsstore.LatenciesQueryParameters{}
-	r, err := tqs.queryService.GetLatencies(context.Background(), qParams)
-	assert.Zero(t, r)
-	assert.True(t, errors.Is(err, ErrDisabled))
-	assert.EqualError(t, err, ErrDisabled.Error())
-}
-
 // Test QueryService.GetCallRates()
 func TestGetCallRates(t *testing.T) {
 	tqs := initializeTestMetricsQueryService(true)
@@ -85,15 +75,6 @@ func TestGetCallRates(t *testing.T) {
 	assert.Equal(t, expectedCallRates, actualCallRates)
 }
 
-func TestGetCallRatesNilReader(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(false)
-	qParams := &metricsstore.CallRateQueryParameters{}
-	r, err := tqs.queryService.GetCallRates(context.Background(), qParams)
-	assert.Zero(t, r)
-	assert.True(t, errors.Is(err, ErrDisabled))
-	assert.EqualError(t, err, ErrDisabled.Error())
-}
-
 // Test QueryService.GetErrorRates()
 func TestGetErrorRates(t *testing.T) {
 	tqs := initializeTestMetricsQueryService(true)
@@ -106,15 +87,6 @@ func TestGetErrorRates(t *testing.T) {
 	assert.Equal(t, expectedErrorRates, actualErrorRates)
 }
 
-func TestGetErrorRatesNilReader(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(false)
-	qParams := &metricsstore.ErrorRateQueryParameters{}
-	r, err := tqs.queryService.GetErrorRates(context.Background(), qParams)
-	assert.Zero(t, r)
-	assert.True(t, errors.Is(err, ErrDisabled))
-	assert.EqualError(t, err, ErrDisabled.Error())
-}
-
 // Test QueryService.GetMinStepDurations()
 func TestGetMinStepDurations(t *testing.T) {
 	tqs := initializeTestMetricsQueryService(true)
@@ -125,13 +97,4 @@ func TestGetMinStepDurations(t *testing.T) {
 	actualMinStep, err := tqs.queryService.GetMinStepDuration(context.Background(), qParams)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedMinStep, actualMinStep)
-}
-
-func TestGetMinStepDurationsNilReader(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(false)
-	qParams := &metricsstore.MinStepDurationQueryParameters{}
-	r, err := tqs.queryService.GetMinStepDuration(context.Background(), qParams)
-	assert.Zero(t, r)
-	assert.True(t, errors.Is(err, ErrDisabled))
-	assert.EqualError(t, err, ErrDisabled.Error())
 }

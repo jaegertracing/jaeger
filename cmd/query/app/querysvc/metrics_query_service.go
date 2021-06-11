@@ -22,75 +22,34 @@ import (
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
-type (
-	// MetricsQueryService provides a means of querying R.E.D metrics from an underlying metrics store.
-	MetricsQueryService interface {
-		GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error)
-		GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error)
-		GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error)
-		GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error)
-	}
-
-	// errMetricsQueryDisabled is the error returned by disabledMetricsQueryService.
-	errMetricsQueryDisabled struct{}
-
-	// metricsQueryService represents an "enabled" MetricsQueryService implementation.
-	metricsQueryService struct {
-		metricsReader metricsstore.Reader
-	}
-
-	// disabledMetricsQueryService represents a "disabled" MetricsQueryService implementation
-	// where METRICS_STORAGE_TYPE has not been set.
-	disabledMetricsQueryService struct{}
-)
-
-// ErrDisabled is the error returned by a "disabled" MetricsQueryService on all of its endpoints.
-var ErrDisabled = &errMetricsQueryDisabled{}
-
-func (m *errMetricsQueryDisabled) Error() string {
-	return "metrics querying is currently disabled"
+// MetricsQueryService provides a means of querying R.E.D metrics from an underlying metrics store.
+type MetricsQueryService struct {
+	metricsReader metricsstore.Reader
 }
 
 // NewMetricsQueryService returns a new MetricsQueryService.
-// A nil reader interface is a signal that the metrics query feature should be disabled,
-// returning a disabledMetricsQueryService instance.
-func NewMetricsQueryService(reader metricsstore.Reader) MetricsQueryService {
-	if reader == nil {
-		return &disabledMetricsQueryService{}
-	}
-	return &metricsQueryService{
+func NewMetricsQueryService(reader metricsstore.Reader) *MetricsQueryService {
+	return &MetricsQueryService{
 		metricsReader: reader,
 	}
 }
 
-func (mqs metricsQueryService) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+// GetLatencies is the queryService implementation of metricsstore.Reader.
+func (mqs MetricsQueryService) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
 	return mqs.metricsReader.GetLatencies(ctx, params)
 }
 
-func (mqs metricsQueryService) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+// GetCallRates is the queryService implementation of metricsstore.Reader.
+func (mqs MetricsQueryService) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	return mqs.metricsReader.GetCallRates(ctx, params)
 }
 
-func (mqs metricsQueryService) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+// GetErrorRates is the queryService implementation of metricsstore.Reader.
+func (mqs MetricsQueryService) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return mqs.metricsReader.GetErrorRates(ctx, params)
 }
 
-func (mqs metricsQueryService) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+// GetMinStepDuration is the queryService implementation of metricsstore.Reader.
+func (mqs MetricsQueryService) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return mqs.metricsReader.GetMinStepDuration(ctx, params)
-}
-
-func (mqs disabledMetricsQueryService) GetLatencies(_ context.Context, _ *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, ErrDisabled
-}
-
-func (mqs disabledMetricsQueryService) GetCallRates(_ context.Context, _ *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, ErrDisabled
-}
-
-func (mqs disabledMetricsQueryService) GetErrorRates(_ context.Context, _ *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, ErrDisabled
-}
-
-func (mqs disabledMetricsQueryService) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	return 0, ErrDisabled
 }

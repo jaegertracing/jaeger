@@ -16,7 +16,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -76,7 +75,7 @@ func main() {
 	}
 
 	fc := metricsPlugin.FactoryConfigFromEnv()
-	metricsReaderFactory, err := createMetricsReaderFactory(fc)
+	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
 	if err != nil {
 		log.Fatalf("Cannot initialize metrics store factory: %v", err)
 	}
@@ -117,7 +116,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsReader, err := createMetricsReader(fc, metricsReaderFactory, v, logger)
+			metricsReader, err := createMetricsReader(metricsReaderFactory, v, logger)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -200,7 +199,9 @@ by default uses only in-memory database.`,
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))
 
-	inits := []func(*flag.FlagSet){
+	config.AddFlags(
+		v,
+		command,
 		svc.AddFlags,
 		storageFactory.AddPipelineFlags,
 		agentApp.AddFlags,
@@ -209,16 +210,7 @@ by default uses only in-memory database.`,
 		collectorApp.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
-	}
-
-	// Only display the metrics backing store's config if the metrics query feature is enabled.
-	if metricsQueryEnabled(fc) {
-		inits = append(inits, metricsReaderFactory.AddFlags)
-	}
-	config.AddFlags(
-		v,
-		command,
-		inits...,
+		metricsReaderFactory.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
@@ -297,25 +289,7 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	return closer
 }
 
-// metricsQueryEnabled returns whether if metrics querying capabilities are enabled.
-// To avoid introducing a breaking change, the Metrics Querying feature must be
-// explicitly opted-in by setting the METRICS_STORAGE_TYPE env var.
-// An unset METRICS_STORAGE_TYPE will disable this feature.
-func metricsQueryEnabled(fc metricsPlugin.FactoryConfig) bool {
-	return fc.MetricsStorageType != ""
-}
-
-func createMetricsReaderFactory(fc metricsPlugin.FactoryConfig) (*metricsPlugin.Factory, error) {
-	if !metricsQueryEnabled(fc) {
-		return nil, nil
-	}
-	return metricsPlugin.NewFactory(fc)
-}
-
-func createMetricsReader(fc metricsPlugin.FactoryConfig, factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (metricsstore.Reader, error) {
-	if !metricsQueryEnabled(fc) {
-		return nil, nil
-	}
+func createMetricsReader(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (metricsstore.Reader, error) {
 	if err := factory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
