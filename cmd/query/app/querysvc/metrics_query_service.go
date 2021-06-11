@@ -34,8 +34,8 @@ type (
 	// errMetricsQueryDisabled is the error returned by disabledMetricsQueryService.
 	errMetricsQueryDisabled struct{}
 
-	// enabledMetricsQueryService represents an "enabled" MetricsQueryService implementation.
-	enabledMetricsQueryService struct {
+	// metricsQueryService represents an "enabled" MetricsQueryService implementation.
+	metricsQueryService struct {
 		metricsReader metricsstore.Reader
 	}
 
@@ -47,7 +47,6 @@ type (
 // ErrDisabled is the error returned by a "disabled" MetricsQueryService on all of its endpoints.
 var ErrDisabled = &errMetricsQueryDisabled{}
 
-// Error implements the error interface, returning the error message when metrics querying is disabled.
 func (m *errMetricsQueryDisabled) Error() string {
 	return "metrics querying is currently disabled"
 }
@@ -59,47 +58,39 @@ func NewMetricsQueryService(reader metricsstore.Reader) MetricsQueryService {
 	if reader == nil {
 		return &disabledMetricsQueryService{}
 	}
-	return &enabledMetricsQueryService{
+	return &metricsQueryService{
 		metricsReader: reader,
 	}
 }
 
-// GetLatencies is the queryService implementation of metricsstore.Reader.
-func (mqs enabledMetricsQueryService) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+func (mqs metricsQueryService) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
 	return mqs.metricsReader.GetLatencies(ctx, params)
 }
 
-// GetCallRates is the queryService implementation of metricsstore.Reader.
-func (mqs enabledMetricsQueryService) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+func (mqs metricsQueryService) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	return mqs.metricsReader.GetCallRates(ctx, params)
 }
 
-// GetErrorRates is the queryService implementation of metricsstore.Reader.
-func (mqs enabledMetricsQueryService) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+func (mqs metricsQueryService) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return mqs.metricsReader.GetErrorRates(ctx, params)
 }
 
-// GetMinStepDuration is the queryService implementation of metricsstore.Reader.
-func (mqs enabledMetricsQueryService) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (mqs metricsQueryService) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return mqs.metricsReader.GetMinStepDuration(ctx, params)
 }
 
-// GetLatencies is the queryService implementation of metricsstore.Reader.
 func (mqs disabledMetricsQueryService) GetLatencies(_ context.Context, _ *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrDisabled
 }
 
-// GetCallRates is the queryService implementation of metricsstore.Reader.
 func (mqs disabledMetricsQueryService) GetCallRates(_ context.Context, _ *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrDisabled
 }
 
-// GetErrorRates is the queryService implementation of metricsstore.Reader.
 func (mqs disabledMetricsQueryService) GetErrorRates(_ context.Context, _ *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrDisabled
 }
 
-// GetMinStepDuration is the queryService implementation of metricsstore.Reader.
 func (mqs disabledMetricsQueryService) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return 0, ErrDisabled
 }
