@@ -12,8 +12,11 @@ import (
 	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 	time "time"
 )
 
@@ -27,7 +30,7 @@ var _ = time.Kitchen
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // MetricsQueryBaseRequest is the base request parameter accompanying a MetricsQueryService RPC call.
 type MetricsQueryBaseRequest struct {
@@ -75,7 +78,7 @@ func (m *MetricsQueryBaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_MetricsQueryBaseRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +176,7 @@ func (m *GetLatenciesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_GetLatenciesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +231,7 @@ func (m *GetCallRatesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_GetCallRatesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +279,7 @@ func (m *GetErrorRatesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_GetErrorRatesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -322,7 +325,7 @@ func (m *GetMinStepDurationRequest) XXX_Marshal(b []byte, deterministic bool) ([
 		return xxx_messageInfo_GetMinStepDurationRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -362,7 +365,7 @@ func (m *GetMinStepDurationResponse) XXX_Marshal(b []byte, deterministic bool) (
 		return xxx_messageInfo_GetMinStepDurationResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -409,7 +412,7 @@ func (m *GetMetricsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_GetMetricsResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -575,6 +578,23 @@ type MetricsQueryServiceServer interface {
 	GetErrorRates(context.Context, *GetErrorRatesRequest) (*GetMetricsResponse, error)
 }
 
+// UnimplementedMetricsQueryServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedMetricsQueryServiceServer struct {
+}
+
+func (*UnimplementedMetricsQueryServiceServer) GetMinStepDuration(ctx context.Context, req *GetMinStepDurationRequest) (*GetMinStepDurationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMinStepDuration not implemented")
+}
+func (*UnimplementedMetricsQueryServiceServer) GetLatencies(ctx context.Context, req *GetLatenciesRequest) (*GetMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLatencies not implemented")
+}
+func (*UnimplementedMetricsQueryServiceServer) GetCallRates(ctx context.Context, req *GetCallRatesRequest) (*GetMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCallRates not implemented")
+}
+func (*UnimplementedMetricsQueryServiceServer) GetErrorRates(ctx context.Context, req *GetErrorRatesRequest) (*GetMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetErrorRates not implemented")
+}
+
 func RegisterMetricsQueryServiceServer(s *grpc.Server, srv MetricsQueryServiceServer) {
 	s.RegisterService(&_MetricsQueryService_serviceDesc, srv)
 }
@@ -679,7 +699,7 @@ var _MetricsQueryService_serviceDesc = grpc.ServiceDesc{
 func (m *MetricsQueryBaseRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -687,102 +707,103 @@ func (m *MetricsQueryBaseRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *MetricsQueryBaseRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MetricsQueryBaseRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ServiceNames) > 0 {
-		for _, s := range m.ServiceNames {
-			dAtA[i] = 0xa
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SpanKinds) > 0 {
+		dAtA2 := make([]byte, len(m.SpanKinds)*10)
+		var j1 int
+		for _, num := range m.SpanKinds {
+			for num >= 1<<7 {
+				dAtA2[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j1++
 			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
+			dAtA2[j1] = uint8(num)
+			j1++
 		}
+		i -= j1
+		copy(dAtA[i:], dAtA2[:j1])
+		i = encodeVarintMetricsquery(dAtA, i, uint64(j1))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if m.RatePer != nil {
+		n3, err3 := github_com_gogo_protobuf_types.StdDurationMarshalTo(*m.RatePer, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(*m.RatePer):])
+		if err3 != nil {
+			return 0, err3
+		}
+		i -= n3
+		i = encodeVarintMetricsquery(dAtA, i, uint64(n3))
+		i--
+		dAtA[i] = 0x32
+	}
+	if m.Step != nil {
+		n4, err4 := github_com_gogo_protobuf_types.StdDurationMarshalTo(*m.Step, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(*m.Step):])
+		if err4 != nil {
+			return 0, err4
+		}
+		i -= n4
+		i = encodeVarintMetricsquery(dAtA, i, uint64(n4))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.Lookback != nil {
+		n5, err5 := github_com_gogo_protobuf_types.StdDurationMarshalTo(*m.Lookback, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(*m.Lookback):])
+		if err5 != nil {
+			return 0, err5
+		}
+		i -= n5
+		i = encodeVarintMetricsquery(dAtA, i, uint64(n5))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.EndTime != nil {
+		n6, err6 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.EndTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.EndTime):])
+		if err6 != nil {
+			return 0, err6
+		}
+		i -= n6
+		i = encodeVarintMetricsquery(dAtA, i, uint64(n6))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if m.GroupByOperation {
-		dAtA[i] = 0x10
-		i++
+		i--
 		if m.GroupByOperation {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.EndTime != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(*m.EndTime)))
-		n1, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.EndTime, dAtA[i:])
-		if err != nil {
-			return 0, err
+	if len(m.ServiceNames) > 0 {
+		for iNdEx := len(m.ServiceNames) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ServiceNames[iNdEx])
+			copy(dAtA[i:], m.ServiceNames[iNdEx])
+			i = encodeVarintMetricsquery(dAtA, i, uint64(len(m.ServiceNames[iNdEx])))
+			i--
+			dAtA[i] = 0xa
 		}
-		i += n1
 	}
-	if m.Lookback != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdDuration(*m.Lookback)))
-		n2, err := github_com_gogo_protobuf_types.StdDurationMarshalTo(*m.Lookback, dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n2
-	}
-	if m.Step != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdDuration(*m.Step)))
-		n3, err := github_com_gogo_protobuf_types.StdDurationMarshalTo(*m.Step, dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n3
-	}
-	if m.RatePer != nil {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdDuration(*m.RatePer)))
-		n4, err := github_com_gogo_protobuf_types.StdDurationMarshalTo(*m.RatePer, dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n4
-	}
-	if len(m.SpanKinds) > 0 {
-		dAtA6 := make([]byte, len(m.SpanKinds)*10)
-		var j5 int
-		for _, num := range m.SpanKinds {
-			for num >= 1<<7 {
-				dAtA6[j5] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j5++
-			}
-			dAtA6[j5] = uint8(num)
-			j5++
-		}
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(j5))
-		i += copy(dAtA[i:], dAtA6[:j5])
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *GetLatenciesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -790,36 +811,44 @@ func (m *GetLatenciesRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetLatenciesRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetLatenciesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.BaseRequest != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(m.BaseRequest.Size()))
-		n7, err := m.BaseRequest.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n7
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Quantile != 0 {
-		dAtA[i] = 0x11
-		i++
+		i -= 8
 		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Quantile))))
-		i += 8
+		i--
+		dAtA[i] = 0x11
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.BaseRequest != nil {
+		{
+			size, err := m.BaseRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMetricsquery(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *GetCallRatesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -827,30 +856,38 @@ func (m *GetCallRatesRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetCallRatesRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetCallRatesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.BaseRequest != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(m.BaseRequest.Size()))
-		n8, err := m.BaseRequest.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n8
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.BaseRequest != nil {
+		{
+			size, err := m.BaseRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMetricsquery(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetErrorRatesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -858,30 +895,38 @@ func (m *GetErrorRatesRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetErrorRatesRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetErrorRatesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.BaseRequest != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintMetricsquery(dAtA, i, uint64(m.BaseRequest.Size()))
-		n9, err := m.BaseRequest.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n9
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.BaseRequest != nil {
+		{
+			size, err := m.BaseRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMetricsquery(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetMinStepDurationRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -889,20 +934,26 @@ func (m *GetMinStepDurationRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetMinStepDurationRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetMinStepDurationRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *GetMinStepDurationResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -910,28 +961,34 @@ func (m *GetMinStepDurationResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetMinStepDurationResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetMinStepDurationResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintMetricsquery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdDuration(m.MinStep)))
-	n10, err := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.MinStep, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n10
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	n10, err10 := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.MinStep, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdDuration(m.MinStep):])
+	if err10 != nil {
+		return 0, err10
+	}
+	i -= n10
+	i = encodeVarintMetricsquery(dAtA, i, uint64(n10))
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *GetMetricsResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -939,32 +996,42 @@ func (m *GetMetricsResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetMetricsResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetMetricsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintMetricsquery(dAtA, i, uint64(m.Metrics.Size()))
-	n11, err := m.Metrics.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n11
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Metrics.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMetricsquery(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintMetricsquery(dAtA []byte, offset int, v uint64) int {
+	offset -= sovMetricsquery(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *MetricsQueryBaseRequest) Size() (n int) {
 	if m == nil {
@@ -1102,14 +1169,7 @@ func (m *GetMetricsResponse) Size() (n int) {
 }
 
 func sovMetricsquery(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozMetricsquery(x uint64) (n int) {
 	return sovMetricsquery(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1414,10 +1474,7 @@ func (m *MetricsQueryBaseRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetricsquery
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetricsquery
 			}
 			if (iNdEx + skippy) > l {
@@ -1515,10 +1572,7 @@ func (m *GetLatenciesRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetricsquery
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetricsquery
 			}
 			if (iNdEx + skippy) > l {
@@ -1605,10 +1659,7 @@ func (m *GetCallRatesRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetricsquery
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetricsquery
 			}
 			if (iNdEx + skippy) > l {
@@ -1695,10 +1746,7 @@ func (m *GetErrorRatesRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetricsquery
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetricsquery
 			}
 			if (iNdEx + skippy) > l {
@@ -1749,10 +1797,7 @@ func (m *GetMinStepDurationRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetricsquery
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetricsquery
 			}
 			if (iNdEx + skippy) > l {
@@ -1836,10 +1881,7 @@ func (m *GetMinStepDurationResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetricsquery
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetricsquery
 			}
 			if (iNdEx + skippy) > l {
@@ -1923,10 +1965,7 @@ func (m *GetMetricsResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetricsquery
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetricsquery
 			}
 			if (iNdEx + skippy) > l {
@@ -1945,6 +1984,7 @@ func (m *GetMetricsResponse) Unmarshal(dAtA []byte) error {
 func skipMetricsquery(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -1976,10 +2016,8 @@ func skipMetricsquery(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -2000,55 +2038,30 @@ func skipMetricsquery(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthMetricsquery
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthMetricsquery
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowMetricsquery
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipMetricsquery(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthMetricsquery
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupMetricsquery
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthMetricsquery
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthMetricsquery = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowMetricsquery   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthMetricsquery        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowMetricsquery          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupMetricsquery = fmt.Errorf("proto: unexpected end of group")
 )
