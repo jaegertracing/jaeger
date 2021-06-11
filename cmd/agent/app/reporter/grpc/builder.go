@@ -18,10 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
-	"time"
-
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -30,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
+	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -82,7 +79,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
 		}
 		if len(b.CollectorHostPorts) > 1 {
-			r := manual.NewBuilderWithScheme(strconv.FormatInt(time.Now().UnixNano(), 36))
+			r := manual.NewBuilderWithScheme("jaeger_manual")
 			dialOptions = append(dialOptions, grpc.WithResolvers(r))
 			var resolvedAddrs []resolver.Address
 			for _, addr := range b.CollectorHostPorts {
