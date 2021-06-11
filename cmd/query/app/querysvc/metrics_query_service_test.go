@@ -32,22 +32,18 @@ type testMetricsQueryService struct {
 	metricsReader *metricsmocks.Reader
 }
 
-func initializeTestMetricsQueryService(enabled bool) *testMetricsQueryService {
-	tqs := testMetricsQueryService{}
-	var metricsReader metricsstore.Reader
-	if enabled {
-		mock := &metricsmocks.Reader{}
-		metricsReader = mock
-		tqs.metricsReader = mock
+func initializeTestMetricsQueryService() *testMetricsQueryService {
+	metricsReader := &metricsmocks.Reader{}
+	tqs := testMetricsQueryService{
+		metricsReader: metricsReader,
 	}
-
 	tqs.queryService = NewMetricsQueryService(metricsReader)
 	return &tqs
 }
 
 // Test QueryService.GetLatencies()
 func TestGetLatencies(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(true)
+	tqs := initializeTestMetricsQueryService()
 	expectedLatencies := &protometrics.MetricFamily{
 		Name:    "latencies",
 		Metrics: []*protometrics.Metric{},
@@ -62,7 +58,7 @@ func TestGetLatencies(t *testing.T) {
 
 // Test QueryService.GetCallRates()
 func TestGetCallRates(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(true)
+	tqs := initializeTestMetricsQueryService()
 	expectedCallRates := &protometrics.MetricFamily{
 		Name:    "call rates",
 		Metrics: []*protometrics.Metric{},
@@ -77,7 +73,7 @@ func TestGetCallRates(t *testing.T) {
 
 // Test QueryService.GetErrorRates()
 func TestGetErrorRates(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(true)
+	tqs := initializeTestMetricsQueryService()
 	expectedErrorRates := &protometrics.MetricFamily{}
 	qParams := &metricsstore.ErrorRateQueryParameters{}
 	tqs.metricsReader.On("GetErrorRates", mock.Anything, qParams).Return(expectedErrorRates, nil).Times(1)
@@ -89,7 +85,7 @@ func TestGetErrorRates(t *testing.T) {
 
 // Test QueryService.GetMinStepDurations()
 func TestGetMinStepDurations(t *testing.T) {
-	tqs := initializeTestMetricsQueryService(true)
+	tqs := initializeTestMetricsQueryService()
 	expectedMinStep := time.Second
 	qParams := &metricsstore.MinStepDurationQueryParameters{}
 	tqs.metricsReader.On("GetMinStepDuration", mock.Anything, qParams).Return(expectedMinStep, nil).Times(1)
