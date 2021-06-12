@@ -20,7 +20,6 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	disabledmetricsstore "github.com/jaegertracing/jaeger/plugin/metrics/disabled/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
@@ -45,5 +44,5 @@ func (f *Factory) Initialize(_ *zap.Logger) error {
 
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	return disabledmetricsstore.NewMetricsReader()
+	return NewMetricsReader()
 }

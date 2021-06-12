@@ -52,11 +52,11 @@ func TestUnsupportedMetricsStorageType(t *testing.T) {
 }
 
 func TestDisabledMetricsStorageType(t *testing.T) {
-	f, err := NewFactory(withConfig(DisabledStorageType))
+	f, err := NewFactory(withConfig(disabledStorageType))
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
-	assert.Equal(t, &disabled.Factory{}, f.factories[DisabledStorageType])
-	assert.Equal(t, DisabledStorageType, f.MetricsStorageType)
+	assert.Equal(t, &disabled.Factory{}, f.factories[disabledStorageType])
+	assert.Equal(t, disabledStorageType, f.MetricsStorageType)
 }
 
 func TestCreateMetricsReader(t *testing.T) {

@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	// DisabledStorageType is the storage type used when METRICS_STORAGE_TYPE is unset.
-	DisabledStorageType = ""
+	// disabledStorageType is the storage type used when METRICS_STORAGE_TYPE is unset.
+	disabledStorageType = ""
 
 	prometheusStorageType = "prometheus"
 )
@@ -65,7 +65,7 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, 
 	switch factoryType {
 	case prometheusStorageType:
 		return prometheus.NewFactory(), nil
-	case DisabledStorageType:
+	case disabledStorageType:
 		return disabled.NewFactory(), nil
 	}
 	return nil, fmt.Errorf("unknown metrics type %q. Valid types are %v", factoryType, AllStorageTypes)
