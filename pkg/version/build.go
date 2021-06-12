@@ -34,6 +34,11 @@ type Info struct {
 	BuildDate  string `json:"buildDate"`
 }
 
+// InfoMetrics hold metrics about build information
+type InfoMetrics struct {
+	BuildInfo metrics.Gauge `metric:"build_info"`
+}
+
 // Get creates and initialized Info object
 func Get() Info {
 	return Info{
@@ -43,13 +48,8 @@ func Get() Info {
 	}
 }
 
-// InfoMetrics hold metrics about build information
-type InfoMetrics struct {
-	BuildInfo metrics.Gauge `metric:"build_info"`
-}
-
 // NewInfoMetrics returns a InfoMetrics
-func NewInfoMetrics(infoMetrics metrics.Factory) *InfoMetrics {
+func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
 	var info InfoMetrics
 
 	buildTags := map[string]string{
@@ -57,7 +57,7 @@ func NewInfoMetrics(infoMetrics metrics.Factory) *InfoMetrics {
 		"version":    latestVersion,
 		"build_date": date,
 	}
-	metrics.Init(&info, infoMetrics, buildTags)
+	metrics.Init(&info, metricsFactory, buildTags)
 	info.BuildInfo.Update(1)
 
 	return &info
