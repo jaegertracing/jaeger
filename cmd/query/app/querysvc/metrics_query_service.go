@@ -16,22 +16,18 @@ package querysvc
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
-// MetricsQueryService contains the underlying reader required for querying the metrics store.
+// MetricsQueryService provides a means of querying R.E.D metrics from an underlying metrics store.
 type MetricsQueryService struct {
 	metricsReader metricsstore.Reader
 }
 
-var errNilReader = errors.New("no reader defined for MetricsQueryService")
-
 // NewMetricsQueryService returns a new MetricsQueryService.
-// A nil reader will result in a nil MetricsQueryService being returned.
 func NewMetricsQueryService(reader metricsstore.Reader) *MetricsQueryService {
 	return &MetricsQueryService{
 		metricsReader: reader,
@@ -40,32 +36,20 @@ func NewMetricsQueryService(reader metricsstore.Reader) *MetricsQueryService {
 
 // GetLatencies is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	if mqs.metricsReader == nil {
-		return nil, errNilReader
-	}
 	return mqs.metricsReader.GetLatencies(ctx, params)
 }
 
 // GetCallRates is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	if mqs.metricsReader == nil {
-		return nil, errNilReader
-	}
 	return mqs.metricsReader.GetCallRates(ctx, params)
 }
 
 // GetErrorRates is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	if mqs.metricsReader == nil {
-		return nil, errNilReader
-	}
 	return mqs.metricsReader.GetErrorRates(ctx, params)
 }
 
 // GetMinStepDuration is the queryService implementation of metricsstore.Reader.
 func (mqs MetricsQueryService) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	if mqs.metricsReader == nil {
-		return 0, errNilReader
-	}
 	return mqs.metricsReader.GetMinStepDuration(ctx, params)
 }
