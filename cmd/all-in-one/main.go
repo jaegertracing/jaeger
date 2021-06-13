@@ -50,7 +50,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -116,7 +115,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsReader, err := createMetricsReader(metricsReaderFactory, v, logger)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -171,7 +170,7 @@ by default uses only in-memory database.`,
 			// query
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
-				spanReader, dependencyReader, metricsReader,
+				spanReader, dependencyReader, metricsQueryService,
 				metricsFactory,
 			)
 
@@ -244,13 +243,12 @@ func startQuery(
 	queryOpts *querysvc.QueryServiceOptions,
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,
-	metricsReader metricsstore.Reader,
+	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	mqs := querysvc.NewMetricsQueryService(metricsReader)
-	server, err := queryApp.NewServer(svc.Logger, qs, mqs, qOpts, opentracing.GlobalTracer())
+	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, opentracing.GlobalTracer())
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
@@ -289,7 +287,7 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	return closer
 }
 
-func createMetricsReader(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (metricsstore.Reader, error) {
+func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
 	if err := factory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
