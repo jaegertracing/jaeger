@@ -64,7 +64,7 @@
         "flags":{
           "type":"integer"
         },
-      "logs":{
+        "logs":{
           "dynamic":false,
           "type": "object",
           "enabled":true,
@@ -103,11 +103,11 @@
                 }
               }
             },
-        "timestamp": {
-          "type": "long"
+            "timestamp": {
+              "type": "long"
+            }
           }
-        }
-      },
+        },
         "process":{
           "properties":{
             "serviceName":{
