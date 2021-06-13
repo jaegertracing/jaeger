@@ -163,7 +163,7 @@ func main() {
 	}
 }
 
-func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (*querysvc.MetricsQueryService, error) {
+func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
 	if err := factory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics factory: %w", err)
 	}
@@ -174,5 +174,5 @@ func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, l
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics reader: %w", err)
 	}
-	return querysvc.NewMetricsQueryService(metricsReader), nil
+	return metricsReader, nil
 }
