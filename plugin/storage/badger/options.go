@@ -44,6 +44,9 @@ type NamespaceConfig struct {
 	ReadOnly              bool          `mapstructure:"read_only"`
 }
 
+// TODO deprecated flag to be removed
+const truncateWarning = "(deprecated since v1.24.0, will be removed in release v1.26.0)"
+
 const (
 	defaultMaintenanceInterval   time.Duration = 5 * time.Minute
 	defaultMetricsUpdateInterval time.Duration = 10 * time.Second
@@ -136,7 +139,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixTruncate,
 		nsConfig.Truncate,
-		"If write-ahead-log should be truncated on restart. this will cause data loss.",
+		truncateWarning+" If write-ahead-log should be truncated on restart. This will cause data loss.",
 	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixReadOnly,
