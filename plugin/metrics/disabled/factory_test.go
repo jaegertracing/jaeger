@@ -12,11 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package querysvc
+package disabled
 
-import "github.com/jaegertracing/jaeger/storage/metricsstore"
+import (
+	"testing"
 
-// MetricsQueryService provides a means of querying R.E.D metrics from an underlying metrics store.
-type MetricsQueryService interface {
-	metricsstore.Reader
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/storage"
+)
+
+var _ storage.MetricsFactory = new(Factory)
+
+func TestPrometheusFactory(t *testing.T) {
+	f := NewFactory()
+	assert.NoError(t, f.Initialize(zap.NewNop()))
+
+	err := f.Initialize(nil)
+	require.NoError(t, err)
+
+	f.AddFlags(nil)
+	f.InitFromViper(nil)
+
+	reader, err := f.CreateMetricsReader()
+	assert.NoError(t, err)
+	assert.NotNil(t, reader)
 }

@@ -22,12 +22,16 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
 const (
+	// disabledStorageType is the storage type used when METRICS_STORAGE_TYPE is unset.
+	disabledStorageType = ""
+
 	prometheusStorageType = "prometheus"
 )
 
@@ -61,6 +65,8 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, 
 	switch factoryType {
 	case prometheusStorageType:
 		return prometheus.NewFactory(), nil
+	case disabledStorageType:
+		return disabled.NewFactory(), nil
 	}
 	return nil, fmt.Errorf("unknown metrics type %q. Valid types are %v", factoryType, AllStorageTypes)
 }
