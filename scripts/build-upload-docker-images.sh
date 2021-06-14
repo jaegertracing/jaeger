@@ -9,7 +9,7 @@ make build-binaries-linux
 make build-binaries-s390x
 
 platforms="linux/amd64,linux/s390x"
-base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg:1.0.0-alpine-3.13 --build-arg debug_image=golang:1.15-alpine "
+base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg_alpine:latest --build-arg debug_image=golang:1.15-alpine "
 
 # build/upload images for release version of Jaeger backend components
 for component in agent collector query ingester
@@ -30,7 +30,7 @@ done
 
 # build amd64 docker images
 platforms="linux/amd64"
-base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg:1.0.0-alpine-3.13 --build-arg debug_image=localhost:5000/debugimg:1.0.0-golang-1.15-alpine "
+base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg_alpine:latest --build-arg debug_image=localhost:5000/debugimg_alpine:latest "
 
 # build/upload images for debug version of Jaeger backend components
 for component in agent collector query ingester

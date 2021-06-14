@@ -1,9 +1,11 @@
 #!/bin/bash
 
+# Compute major/minor/etc image tags based on the current branch
+
 set -exu
 
-# Compute the tag
 BASE_BUILD_IMAGE=$1
+BRANCH=${BRANCH:?'expecting BRANCH env var'}
 
 ## if we are on a release tag, let's extract the version number
 ## the other possible value, currently, is 'master' (or another branch name)
