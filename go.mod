@@ -25,7 +25,6 @@ require (
 	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/mock v1.4.3 // indirect
 	github.com/golang/protobuf v1.5.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -43,9 +42,8 @@ require (
 	github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/prometheus/client_golang v1.5.1
-	github.com/prometheus/common v0.10.0
-	github.com/prometheus/procfs v0.1.3 // indirect
+	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/common v0.29.0
 	github.com/rs/cors v1.7.0
 	github.com/securego/gosec v0.0.0-20200203094520-d13bb6d2420c
 	github.com/soheilhy/cmux v0.1.5
@@ -62,7 +60,7 @@ require (
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/xdg-go/scram v1.0.2
 	go.mongodb.org/mongo-driver v1.5.2 // indirect
-	go.uber.org/atomic v1.7.0
+	go.uber.org/atomic v1.8.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.17.0
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616

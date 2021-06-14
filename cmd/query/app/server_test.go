@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -64,7 +64,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 	}
 
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
@@ -77,7 +77,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 		ClientCAPath: "invalid/path",
 	}
 
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
@@ -90,7 +90,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 		ClientCAPath: "invalid/path",
 	}
 
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
@@ -331,7 +331,7 @@ func TestServerHTTPTLS(t *testing.T) {
 			spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-			server, err := NewServer(flagsSvc.Logger, querySvc,
+			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 				serverOptions,
 				opentracing.NoopTracer{})
 			assert.Nil(t, err)
@@ -491,7 +491,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-			server, err := NewServer(flagsSvc.Logger, querySvc,
+			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 				serverOptions,
 				opentracing.NoopTracer{})
 			assert.Nil(t, err)
@@ -545,12 +545,12 @@ func TestServerGRPCTLS(t *testing.T) {
 
 }
 func TestServerBadHostPort(t *testing.T) {
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: "8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 
 	assert.NotNil(t, err)
-	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{},
+	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: "127.0.0.1:8081", GRPCHostPort: "9123", BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 
@@ -576,6 +576,7 @@ func TestServerInUseHostPort(t *testing.T) {
 			server, err := NewServer(
 				zap.NewNop(),
 				&querysvc.QueryService{},
+				nil,
 				&QueryOptions{
 					HTTPHostPort:           tc.httpHostPort,
 					GRPCHostPort:           tc.grpcHostPort,
@@ -608,8 +609,7 @@ func TestServerSinglePort(t *testing.T) {
 	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-
-	server, err := NewServer(flagsSvc.Logger, querySvc,
+	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 	assert.Nil(t, err)
@@ -659,7 +659,8 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort}, tracer)
+
+	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
@@ -686,7 +687,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	server.Close()
