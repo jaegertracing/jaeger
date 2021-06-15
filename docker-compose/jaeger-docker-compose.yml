@@ -10,6 +10,7 @@ services:
       environment:
         - JAEGER_AGENT_HOST=jaeger-agent
         - JAEGER_AGENT_PORT=6831
+        - JAEGER_SAMPLER_TYPE=remote
         - JAEGER_SAMPLING_ENDPOINT=http://jaeger-agent:5778/sampling
       depends_on:
         - jaeger-agent
