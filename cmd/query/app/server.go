@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
 
 // Server runs HTTP, Mux and a grpc server
@@ -110,10 +111,9 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 	server := grpc.NewServer(grpcOpts...)
 
-	handler := NewGRPCHandler(querySvc, logger, tracer)
-
-	// TODO: Register MetricsQueryService
+	handler := NewGRPCHandler(querySvc, metricsQuerySvc, logger, tracer, realClock{})
 	api_v2.RegisterQueryServiceServer(server, handler)
+	metrics.RegisterMetricsQueryServiceServer(server, handler)
 
 	return server, nil
 }
