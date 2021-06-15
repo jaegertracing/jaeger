@@ -79,3 +79,11 @@ func TestPublishOpts(t *testing.T) {
 		Value: f.options.Configuration.MaxTraces,
 	})
 }
+
+func TestCreateLockAndSamplingStore(t *testing.T) {
+	f := NewFactory()
+	lock, ss, err := f.CreateLockAndSamplingStore()
+	assert.Nil(t, lock)
+	assert.Nil(t, ss)
+	assert.Equal(t, err, storage.ErrLockAndSamplingStoreNotSupported)
+}

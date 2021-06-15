@@ -199,3 +199,11 @@ func TestInitFromOptions(t *testing.T) {
 	f.InitFromOptions(opts)
 	assert.Equal(t, &opts, f.Options)
 }
+
+func TestCreateLockAndSamplingStore(t *testing.T) {
+	f := NewFactory()
+	lock, ss, err := f.CreateLockAndSamplingStore()
+	assert.Nil(t, lock)
+	assert.Nil(t, ss)
+	assert.Equal(t, err, storage.ErrLockAndSamplingStoreNotSupported)
+}

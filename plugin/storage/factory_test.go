@@ -94,7 +94,7 @@ func TestClose(t *testing.T) {
 	err := fmt.Errorf("some error")
 	f := Factory{
 		factories: map[string]storage.Factory{
-			storageType: &errorCloseFactory{closeErr: err},
+			storageType: &errorFactory{closeErr: err},
 		},
 		FactoryConfig: FactoryConfig{SpanWriterTypes: []string{storageType}},
 	}
@@ -296,6 +296,13 @@ func TestCreateError(t *testing.T) {
 		assert.Nil(t, w)
 		assert.EqualError(t, err, expectedErr)
 	}
+
+	{
+		l, ss, err := f.CreateLockAndSamplingStore()
+		assert.Nil(t, l)
+		assert.Nil(t, ss)
+		assert.NoError(t, err) // no supporting backend is valid
+	}
 }
 
 type configurable struct {
@@ -392,33 +399,69 @@ func TestPublishOpts(t *testing.T) {
 	})
 }
 
-type errorCloseFactory struct {
-	closeErr error
+func TestCreateLockAndSamplingStore(t *testing.T) {
+	supports := &errorFactory{}
+	doesNotSupport := &errorFactory{
+		lockAndSamplingStore: storage.ErrLockAndSamplingStoreNotSupported,
+	}
+	breaks := &errorFactory{
+		lockAndSamplingStore: errors.New("wups"),
+	}
+
+	// test succeeds (supported or not)
+	f := Factory{
+		factories: map[string]storage.Factory{
+			"supports":         supports,
+			"does-not-support": doesNotSupport,
+		},
+	}
+
+	_, _, err := f.CreateLockAndSamplingStore()
+	assert.NoError(t, err)
+
+	delete(f.factories, "supports")
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.NoError(t, err)
+
+	// test breaks
+	f = Factory{
+		factories: map[string]storage.Factory{
+			"breaks":           breaks,
+			"does-not-support": doesNotSupport,
+		},
+	}
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.Error(t, err)
 }
 
-var _ storage.Factory = (*errorCloseFactory)(nil)
-var _ io.Closer = (*errorCloseFactory)(nil)
+type errorFactory struct {
+	closeErr             error
+	lockAndSamplingStore error
+}
 
-func (e errorCloseFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+var _ storage.Factory = (*errorFactory)(nil)
+var _ io.Closer = (*errorFactory)(nil)
+
+func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	panic("implement me")
+func (e errorFactory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
+	return nil, nil, e.lockAndSamplingStore
 }
 
-func (e errorCloseFactory) Close() error {
+func (e errorFactory) Close() error {
 	return e.closeErr
 }

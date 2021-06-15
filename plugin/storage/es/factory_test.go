@@ -221,3 +221,11 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
 }
+
+func TestCreateLockAndSamplingStore(t *testing.T) {
+	f := NewFactory()
+	lock, ss, err := f.CreateLockAndSamplingStore()
+	assert.Nil(t, lock)
+	assert.Nil(t, ss)
+	assert.Equal(t, err, storage.ErrLockAndSamplingStoreNotSupported)
+}

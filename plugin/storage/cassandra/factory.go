@@ -153,7 +153,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 }
 
 // CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
-func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) { // todo(jpe): test
+func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
 	hostname, err := os.Hostname() // todo(jpe): wire up --sampling.override-hostname in ./plugin/sampling/strategystore/adaptive/options.go?
 	if err != nil {
 		return nil, nil, err
