@@ -527,3 +527,38 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 
 	assert.EqualValues(t, 104857, p.queue.Capacity())
 }
+
+func TestAdditionalProcessors(t *testing.T) {
+	w := &fakeSpanWriter{}
+
+	// nil doesn't fail
+	p := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	res, err := p.ProcessSpans([]*model.Span{
+		{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	assert.NoError(t, err)
+	assert.Equal(t, []bool{true}, res)
+	assert.NoError(t, p.Close())
+
+	// additional processor is called
+	count := 0
+	f := func(s *model.Span) {
+		count++
+	}
+	p = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))
+	res, err = p.ProcessSpans([]*model.Span{
+		{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	assert.NoError(t, err)
+	assert.Equal(t, []bool{true}, res)
+	assert.NoError(t, p.Close())
+	assert.Equal(t, 1, count)
+}

@@ -85,7 +85,7 @@ func NewSpanProcessor(
 	return sp
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor { // todo(jpe): test additional
+func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
