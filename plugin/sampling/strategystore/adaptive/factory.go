@@ -66,13 +66,15 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger,
 }
 
 // CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
+func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
 	p, err := NewStrategyStore(*f.options, f.metricsFactory, f.logger, f.lock, f.store)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	p.Start()
-	return p, nil
+	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store) // todo(jpe): is CalculationInterval correct?
+	a.Start()                                                                    // todo(jpe): what calls stop?
+	return p, a, nil
 }
 
 // RequiresLockAndSamplingStore implements strategystore.Factory

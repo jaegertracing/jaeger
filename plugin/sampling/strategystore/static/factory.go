@@ -57,8 +57,13 @@ func (f *Factory) Initialize(_ metrics.Factory, logger *zap.Logger, _ distribute
 }
 
 // CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
-	return NewStrategyStore(*f.options, f.logger)
+func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
+	s, err := NewStrategyStore(*f.options, f.logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return s, nil, nil
 }
 
 // RequiresLockAndSamplingStore implements strategystore.Factory

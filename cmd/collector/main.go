@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -101,18 +102,23 @@ func main() {
 			if err := strategyStoreFactory.Initialize(metricsFactory, logger, lock, samplingStore); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
-			strategyStore, err := strategyStoreFactory.CreateStrategyStore()
+			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
 			if err != nil {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 			}
+			var additionalProcessors []app.ProcessSpan
+			if aggregator != nil {
+				additionalProcessors = append(additionalProcessors, adaptive.HandleRootSpan(aggregator, logger))
+			}
 
 			c := app.New(&app.CollectorParams{
-				ServiceName:    serviceName,
-				Logger:         logger,
-				MetricsFactory: metricsFactory,
-				SpanWriter:     spanWriter,
-				StrategyStore:  strategyStore,
-				HealthCheck:    svc.HC(),
+				ServiceName:          serviceName,
+				Logger:               logger,
+				MetricsFactory:       metricsFactory,
+				SpanWriter:           spanWriter,
+				StrategyStore:        strategyStore,
+				HealthCheck:          svc.HC(),
+				AdditionalProcessors: additionalProcessors,
 			})
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
 			if err := c.Start(collectorOpts); err != nil {

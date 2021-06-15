@@ -36,6 +36,7 @@ import (
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
+	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
@@ -48,6 +49,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -143,9 +145,13 @@ by default uses only in-memory database.`,
 			if err := strategyStoreFactory.Initialize(metricsFactory, logger, lock, samplingStore); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
-			strategyStore, err := strategyStoreFactory.CreateStrategyStore()
+			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
 			if err != nil {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
+			}
+			var additionalProcessors []app.ProcessSpan
+			if aggregator != nil {
+				additionalProcessors = append(additionalProcessors, adaptive.HandleRootSpan(aggregator, logger))
 			}
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
@@ -156,12 +162,13 @@ by default uses only in-memory database.`,
 
 			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{
-				ServiceName:    "jaeger-collector",
-				Logger:         logger,
-				MetricsFactory: metricsFactory,
-				SpanWriter:     spanWriter,
-				StrategyStore:  strategyStore,
-				HealthCheck:    svc.HC(),
+				ServiceName:          "jaeger-collector",
+				Logger:               logger,
+				MetricsFactory:       metricsFactory,
+				SpanWriter:           spanWriter,
+				StrategyStore:        strategyStore,
+				HealthCheck:          svc.HC(),
+				AdditionalProcessors: additionalProcessors,
 			})
 			if err := c.Start(cOpts); err != nil {
 				log.Fatal(err)

@@ -36,7 +36,7 @@ func TestFactory(t *testing.T) {
 	f.InitFromViper(v)
 
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), nil, nil))
-	_, err := f.CreateStrategyStore()
+	_, _, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
 }
 

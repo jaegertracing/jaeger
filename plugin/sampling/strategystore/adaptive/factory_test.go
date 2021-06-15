@@ -65,7 +65,7 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, "blerg", f.options.OverrideHostname)
 
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), &mockLock{}, &mockStore{}))
-	_, err := f.CreateStrategyStore()
+	_, _, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
 }
 

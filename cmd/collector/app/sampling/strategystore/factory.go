@@ -33,7 +33,7 @@ type Factory interface {
 	Initialize(metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) error
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
-	CreateStrategyStore() (StrategyStore, error)
+	CreateStrategyStore() (StrategyStore, Aggregator, error)
 
 	// RequiresLockAndSamplingStore indicates whether this strategy store requires a Lock and SamplingStore
 	RequiresLockAndSamplingStore() (bool, error)

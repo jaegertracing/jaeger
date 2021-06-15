@@ -76,13 +76,13 @@ func TestNewFactory(t *testing.T) {
 		f.factories[Kind(tc.strategyStoreType)] = mock
 
 		assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), lock, store))
-		_, err = f.CreateStrategyStore()
+		_, _, err = f.CreateStrategyStore()
 		require.NoError(t, err)
 
 		// force the mock to return errors
 		mock.retError = true
 		assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), lock, store), "error initializing store")
-		_, err = f.CreateStrategyStore()
+		_, _, err = f.CreateStrategyStore()
 		assert.EqualError(t, err, "error creating store")
 	}
 }
@@ -123,11 +123,11 @@ func (f *mockFactory) InitFromViper(v *viper.Viper) {
 	f.viper = v
 }
 
-func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, error) {
+func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, ss.Aggregator, error) {
 	if f.retError {
-		return nil, errors.New("error creating store")
+		return nil, nil, errors.New("error creating store")
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 func (f *mockFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) error {

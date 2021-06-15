@@ -35,14 +35,15 @@ import (
 // Collector returns the collector as a manageable unit of work
 type Collector struct {
 	// required to start a new collector
-	serviceName    string
-	logger         *zap.Logger
-	metricsFactory metrics.Factory
-	spanWriter     spanstore.Writer
-	strategyStore  strategystore.StrategyStore
-	hCheck         *healthcheck.HealthCheck
-	spanProcessor  processor.SpanProcessor
-	spanHandlers   *SpanHandlers
+	serviceName          string
+	logger               *zap.Logger
+	metricsFactory       metrics.Factory
+	spanWriter           spanstore.Writer
+	strategyStore        strategystore.StrategyStore
+	additionalProcessors []ProcessSpan
+	hCheck               *healthcheck.HealthCheck
+	spanProcessor        processor.SpanProcessor
+	spanHandlers         *SpanHandlers
 
 	// state, read only
 	hServer                  *http.Server
@@ -54,23 +55,25 @@ type Collector struct {
 
 // CollectorParams to construct a new Jaeger Collector.
 type CollectorParams struct {
-	ServiceName    string
-	Logger         *zap.Logger
-	MetricsFactory metrics.Factory
-	SpanWriter     spanstore.Writer
-	StrategyStore  strategystore.StrategyStore
-	HealthCheck    *healthcheck.HealthCheck
+	ServiceName          string
+	Logger               *zap.Logger
+	MetricsFactory       metrics.Factory
+	SpanWriter           spanstore.Writer
+	StrategyStore        strategystore.StrategyStore
+	AdditionalProcessors []ProcessSpan
+	HealthCheck          *healthcheck.HealthCheck
 }
 
 // New constructs a new collector component, ready to be started
 func New(params *CollectorParams) *Collector {
 	return &Collector{
-		serviceName:    params.ServiceName,
-		logger:         params.Logger,
-		metricsFactory: params.MetricsFactory,
-		spanWriter:     params.SpanWriter,
-		strategyStore:  params.StrategyStore,
-		hCheck:         params.HealthCheck,
+		serviceName:          params.ServiceName,
+		logger:               params.Logger,
+		metricsFactory:       params.MetricsFactory,
+		spanWriter:           params.SpanWriter,
+		strategyStore:        params.StrategyStore,
+		additionalProcessors: params.AdditionalProcessors,
+		hCheck:               params.HealthCheck,
 	}
 }
 
@@ -83,7 +86,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		MetricsFactory: c.metricsFactory,
 	}
 
-	c.spanProcessor = handlerBuilder.BuildSpanProcessor()
+	c.spanProcessor = handlerBuilder.BuildSpanProcessor(c.additionalProcessors...)
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{

@@ -99,10 +99,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger,
 }
 
 // CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
+func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
 	factory, ok := f.factories[f.StrategyStoreType]
 	if !ok {
-		return nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
+		return nil, nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
 	}
 	return factory.CreateStrategyStore()
 }

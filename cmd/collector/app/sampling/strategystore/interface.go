@@ -25,3 +25,15 @@ type StrategyStore interface {
 	// GetSamplingStrategy retrieves the sampling strategy for the specified service.
 	GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error)
 }
+
+// Aggregator defines an interface used to aggregate operation throughput.
+type Aggregator interface {
+	// RecordThroughput records throughput for an operation for aggregation.
+	RecordThroughput(service, operation, samplerType string, probability float64)
+
+	// Start starts aggregating operation throughput.
+	Start()
+
+	// Stop stops the aggregator from aggregating throughput.
+	Stop()
+}
