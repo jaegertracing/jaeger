@@ -106,6 +106,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 			}
+			defer aggregator.Stop()
 			var additionalProcessors []app.ProcessSpan
 			if aggregator != nil {
 				additionalProcessors = append(additionalProcessors, adaptive.HandleRootSpan(aggregator, logger))

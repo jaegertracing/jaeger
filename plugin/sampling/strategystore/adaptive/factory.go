@@ -72,8 +72,8 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategyst
 		return nil, nil, err
 	}
 	p.Start()
-	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store) // todo(jpe): is CalculationInterval correct?
-	a.Start()                                                                    // todo(jpe): what calls stop?
+	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store)
+	a.Start()
 	return p, a, nil
 }
 
