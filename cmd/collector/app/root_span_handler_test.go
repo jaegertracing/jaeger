@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package adaptive
+package app
 
 import (
 	"testing"
@@ -35,7 +35,7 @@ func (t *mockAggregator) Stop()  {}
 
 func TestHandleRootSpan(t *testing.T) {
 	aggregator := &mockAggregator{}
-	processor := HandleRootSpan(aggregator, zap.NewNop())
+	processor := handleRootSpan(aggregator, zap.NewNop())
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}

@@ -35,15 +35,15 @@ import (
 // Collector returns the collector as a manageable unit of work
 type Collector struct {
 	// required to start a new collector
-	serviceName          string
-	logger               *zap.Logger
-	metricsFactory       metrics.Factory
-	spanWriter           spanstore.Writer
-	strategyStore        strategystore.StrategyStore
-	additionalProcessors []ProcessSpan
-	hCheck               *healthcheck.HealthCheck
-	spanProcessor        processor.SpanProcessor
-	spanHandlers         *SpanHandlers
+	serviceName    string
+	logger         *zap.Logger
+	metricsFactory metrics.Factory
+	spanWriter     spanstore.Writer
+	strategyStore  strategystore.StrategyStore
+	aggregator     strategystore.Aggregator
+	hCheck         *healthcheck.HealthCheck
+	spanProcessor  processor.SpanProcessor
+	spanHandlers   *SpanHandlers
 
 	// state, read only
 	hServer                  *http.Server
@@ -55,25 +55,25 @@ type Collector struct {
 
 // CollectorParams to construct a new Jaeger Collector.
 type CollectorParams struct {
-	ServiceName          string
-	Logger               *zap.Logger
-	MetricsFactory       metrics.Factory
-	SpanWriter           spanstore.Writer
-	StrategyStore        strategystore.StrategyStore
-	AdditionalProcessors []ProcessSpan
-	HealthCheck          *healthcheck.HealthCheck
+	ServiceName    string
+	Logger         *zap.Logger
+	MetricsFactory metrics.Factory
+	SpanWriter     spanstore.Writer
+	StrategyStore  strategystore.StrategyStore
+	Aggregator     strategystore.Aggregator
+	HealthCheck    *healthcheck.HealthCheck
 }
 
 // New constructs a new collector component, ready to be started
 func New(params *CollectorParams) *Collector {
 	return &Collector{
-		serviceName:          params.ServiceName,
-		logger:               params.Logger,
-		metricsFactory:       params.MetricsFactory,
-		spanWriter:           params.SpanWriter,
-		strategyStore:        params.StrategyStore,
-		additionalProcessors: params.AdditionalProcessors,
-		hCheck:               params.HealthCheck,
+		serviceName:    params.ServiceName,
+		logger:         params.Logger,
+		metricsFactory: params.MetricsFactory,
+		spanWriter:     params.SpanWriter,
+		strategyStore:  params.StrategyStore,
+		aggregator:     params.Aggregator,
+		hCheck:         params.HealthCheck,
 	}
 }
 
@@ -86,7 +86,12 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		MetricsFactory: c.metricsFactory,
 	}
 
-	c.spanProcessor = handlerBuilder.BuildSpanProcessor(c.additionalProcessors...)
+	var additionalProcessors []ProcessSpan
+	if c.aggregator != nil {
+		additionalProcessors = append(additionalProcessors, handleRootSpan(c.aggregator, c.logger))
+	}
+
+	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
@@ -169,6 +174,11 @@ func (c *Collector) Close() error {
 
 	if err := c.spanProcessor.Close(); err != nil {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
+	}
+
+	// aggregator does not exist for all strategy stores. only Stop() if exists.
+	if c.aggregator != nil {
+		c.aggregator.Stop()
 	}
 
 	// watchers actually never return errors from Close
