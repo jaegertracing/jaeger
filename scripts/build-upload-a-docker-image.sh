@@ -9,13 +9,13 @@ local_test_only='N'
 platforms="linux/amd64"
 name_space="jaegertracing"
 
-while getopts "lc:b:d:f:p:t:" opt; do
+while getopts "lbc:d:f:p:t:" opt; do
 	case "${opt}" in
 	c)
 		component_name=${OPTARG}
 		;;
 	b)
-		base_debug_img_arg=${OPTARG}
+		base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg_alpine:latest --build-arg debug_image=localhost:5000/debugimg_alpine:latest "
 		;;
 	d)
 		dir_arg=${OPTARG}
@@ -67,4 +67,4 @@ docker buildx build --output "${PUSHTAG}" \
 	${IMAGE_TAGS} \
 	${dir_arg}
 
-echo "Finished building${upload_flag} jager-${component_name} =============="
+echo "Finished building${upload_flag} ${component_name} =============="

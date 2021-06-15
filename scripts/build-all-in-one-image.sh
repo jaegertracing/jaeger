@@ -40,19 +40,17 @@ make build-all-in-one GOOS=linux GOARCH=amd64
 make build-all-in-one GOOS=linux GOARCH=s390x
 platforms="linux/amd64,linux/s390x"
 repo=jaegertracing/all-in-one
-base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg_alpine:latest --build-arg debug_image=golang:1.15-alpine "
 #build all-in-one image locally for integration test
-bash scripts/build-upload-a-docker-image.sh -l -c all-in-one -b "${base_debug_img_arg}" -d cmd/all-in-one -p "${platforms}" -t release
+bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 run_integration_test localhost:5000/$repo
 #build all-in-one image and upload to dockerhub/quay.io
-bash scripts/build-upload-a-docker-image.sh -c all-in-one -b "${base_debug_img_arg}" -d cmd/all-in-one -p "${platforms}" -t release
+bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 
 make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
 repo=${repo}-debug
-base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg_alpine:latest --build-arg debug_image=localhost:5000/debugimg_alpine:latest "
 #build all-in-one-debug image locally for integration test
-bash scripts/build-upload-a-docker-image.sh -l -c all-in-one-debug -b "${base_debug_img_arg}" -d cmd/all-in-one -t debug
+bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one-debug -d cmd/all-in-one -t debug
 run_integration_test localhost:5000/$repo
 #build all-in-one-debug image and upload to dockerhub/quay.io
-bash scripts/build-upload-a-docker-image.sh -c all-in-one-debug -b "${base_debug_img_arg}" -d cmd/all-in-one -t debug
+bash scripts/build-upload-a-docker-image.sh -b -c all-in-one-debug -d cmd/all-in-one -t debug

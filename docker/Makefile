@@ -19,5 +19,5 @@ create-baseimg:
 create-debugimg:
 	docker buildx build -t $(DEBUG_IMAGE) --push \
 		--build-arg golang_image=$(GOLANG_IMAGE) \
-		--platform=linux/amd64 \
+		--platform=$(PLATFORMS) \
 		docker/debug

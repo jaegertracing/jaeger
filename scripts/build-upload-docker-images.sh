@@ -8,13 +8,13 @@ make create-baseimg-debugimg
 make build-binaries-linux
 make build-binaries-s390x
 
+# build multi-arch docker images
 platforms="linux/amd64,linux/s390x"
-base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg_alpine:latest --build-arg debug_image=golang:1.15-alpine "
 
 # build/upload images for release version of Jaeger backend components
 for component in agent collector query ingester
 do
-	bash scripts/build-upload-a-docker-image.sh -c "jaeger-${component}" -b "${base_debug_img_arg}" -d "cmd/${component}" -p "${platforms}" -t release
+	bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
 done
 
 # build/upload images for jaeger-es-index-cleaner and jaeger-es-rollover
@@ -29,14 +29,12 @@ done
 
 
 # build amd64 docker images
-platforms="linux/amd64"
-base_debug_img_arg="--build-arg base_image=localhost:5000/baseimg_alpine:latest --build-arg debug_image=localhost:5000/debugimg_alpine:latest "
 
 # build/upload images for debug version of Jaeger backend components
 for component in agent collector query ingester
 do
-	bash scripts/build-upload-a-docker-image.sh -c "jaeger-${component}-debug" -b "${base_debug_img_arg}" -d "cmd/${component}" -p "${platforms}" -t debug
+	bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
 done
 
 # build/upload images for jaeger-cassandra-schema
-bash scripts/build-upload-a-docker-image.sh -c jaeger-cassandra-schema -d plugin/storage/cassandra/ -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh -c jaeger-cassandra-schema -d plugin/storage/cassandra/
