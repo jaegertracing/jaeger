@@ -142,16 +142,18 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-type simulatedClock struct{}
-
-func (s simulatedClock) Now() time.Time {
-	return now
-}
-
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, clock clock) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	grpcServer := grpc.NewServer()
-	grpcHandler := NewGRPCHandler(q, mq, logger, tracer, clock)
+	grpcHandler := &GRPCHandler{
+		queryService:        q,
+		metricsQueryService: mq,
+		logger:              logger,
+		tracer:              tracer,
+		nowFn: func() time.Time {
+			return now
+		},
+	}
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 	metrics.RegisterMetricsQueryServiceServer(grpcServer, grpcHandler)
 
@@ -181,20 +183,12 @@ type testOption func(*testQueryService)
 type testQueryService struct {
 	// metricsQueryService is used when creating a new GRPCHandler.
 	metricsQueryService querysvc.MetricsQueryService
-
-	clock clock
 }
 
 func withMetricsQuery() testOption {
 	reader := &metricsmocks.Reader{}
 	return func(ts *testQueryService) {
 		ts.metricsQueryService = reader
-	}
-}
-
-func withClock(clock clock) testOption {
-	return func(ts *testQueryService) {
-		ts.clock = clock
 	}
 }
 
@@ -216,7 +210,6 @@ func initializeTestServerGRPCWithOptions(t *testing.T, options ...testOption) *g
 	tqs := &testQueryService{
 		// Disable metrics query by default.
 		metricsQueryService: disabledReader,
-		clock:               realClock{},
 	}
 	for _, opt := range options {
 		opt(tqs)
@@ -225,7 +218,7 @@ func initializeTestServerGRPCWithOptions(t *testing.T, options ...testOption) *g
 	logger := zap.NewNop()
 	tracer := opentracing.NoopTracer{}
 
-	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, tqs.clock)
+	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer)
 
 	return &grpcServer{
 		server:              server,
@@ -672,7 +665,7 @@ func TestGetMetricsUseDefaultParamsGRPC(t *testing.T) {
 		res, err := client.GetCallRates(context.Background(), request)
 		require.NoError(t, err)
 		assert.Equal(t, expectedMetrics, &res.Metrics)
-	}, withMetricsQuery(), withClock(simulatedClock{}))
+	}, withMetricsQuery())
 }
 
 func TestGetMetricsOverrideDefaultParamsGRPC(t *testing.T) {

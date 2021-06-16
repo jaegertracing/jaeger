@@ -15,19 +15,8 @@
 package app
 
 import (
-	"time"
-
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
-
-// clock is a wrapper around the time package to allow mocking of the current time.
-type clock interface {
-	Now() time.Time
-}
-
-type realClock struct{}
-
-func (realClock) Now() time.Time { return time.Now() }
 
 func getUniqueOperationNames(operations []spanstore.Operation) []string {
 	// only return unique operation names

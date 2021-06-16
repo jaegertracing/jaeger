@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
@@ -111,7 +112,13 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 	server := grpc.NewServer(grpcOpts...)
 
-	handler := NewGRPCHandler(querySvc, metricsQuerySvc, logger, tracer, realClock{})
+	handler := &GRPCHandler{
+		queryService:        querySvc,
+		metricsQueryService: metricsQuerySvc,
+		logger:              logger,
+		tracer:              tracer,
+		nowFn:               time.Now,
+	}
 	api_v2.RegisterQueryServiceServer(server, handler)
 	metrics.RegisterMetricsQueryServiceServer(server, handler)
 

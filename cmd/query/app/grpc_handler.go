@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
@@ -51,19 +52,7 @@ type GRPCHandler struct {
 	metricsQueryService querysvc.MetricsQueryService
 	logger              *zap.Logger
 	tracer              opentracing.Tracer
-	clock               clock
-}
-
-// NewGRPCHandler returns a GRPCHandler
-func NewGRPCHandler(queryService *querysvc.QueryService, metricsQueryService querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, clock clock) *GRPCHandler {
-	gH := &GRPCHandler{
-		queryService:        queryService,
-		metricsQueryService: metricsQueryService,
-		logger:              logger,
-		tracer:              tracer,
-		clock:               clock,
-	}
-	return gH
+	nowFn               func() time.Time
 }
 
 // GetTrace is the gRPC handler to fetch traces based on trace-id.
@@ -260,10 +249,10 @@ func (g *GRPCHandler) handleErr(msg string, err error) error {
 	g.logger.Error(msg, zap.Error(err))
 
 	// Avoid wrapping "expected" errors with an "Internal Server" error.
-	switch {
-	case errors.Is(err, disabled.ErrDisabled):
+	if errors.Is(err, disabled.ErrDisabled) {
 		return errGRPCMetricsQueryDisabled
-	case errors.Is(err, errMissingServiceNames), errors.Is(err, errMissingQuantile):
+	}
+	if _, ok := status.FromError(err); ok {
 		return err
 	}
 
@@ -281,7 +270,7 @@ func (g *GRPCHandler) newBaseQueryParameters(r *metrics.MetricsQueryBaseRequest)
 	bqp.ServiceNames = r.ServiceNames
 
 	// Initialize nullable params with defaults.
-	defaultEndTime := g.clock.Now()
+	defaultEndTime := g.nowFn()
 	bqp.EndTime = &defaultEndTime
 	bqp.Lookback = &defaultMetricsQueryLookbackDuration
 	bqp.RatePer = &defaultMetricsQueryRateDuration
