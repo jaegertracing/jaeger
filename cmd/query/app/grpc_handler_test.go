@@ -850,3 +850,10 @@ func TestGetMetricsInvalidParametersGRPC(t *testing.T) {
 		}
 	}, withMetricsQuery())
 }
+
+func TestMetricsQueryNilRequestGRPC(t *testing.T) {
+	grpcHandler := &GRPCHandler{}
+	bqp, err := grpcHandler.newBaseQueryParameters(nil)
+	assert.Empty(t, bqp)
+	assert.EqualError(t, err, errNilRequest.Error())
+}

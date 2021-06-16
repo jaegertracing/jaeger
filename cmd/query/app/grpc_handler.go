@@ -42,6 +42,7 @@ const (
 
 var (
 	errGRPCMetricsQueryDisabled = status.Error(codes.Unimplemented, "metrics querying is currently disabled")
+	errNilRequest               = status.Error(codes.InvalidArgument, "a nil argument is not allowed")
 	errMissingServiceNames      = status.Error(codes.InvalidArgument, "please provide at least one service name")
 	errMissingQuantile          = status.Error(codes.InvalidArgument, "please provide a quantile between (0, 1]")
 )
@@ -182,13 +183,13 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 
 // GetLatencies is the gRPC handler to fetch latency metrics.
 func (g *GRPCHandler) GetLatencies(ctx context.Context, r *metrics.GetLatenciesRequest) (*metrics.GetMetricsResponse, error) {
+	bqp, err := g.newBaseQueryParameters(r)
+	if err := g.handleErr("failed to build parameters", err); err != nil {
+		return nil, err
+	}
 	// Check for cases where clients do not provide the Quantile, which defaults to the float64's zero value.
 	if r.Quantile == 0 {
 		return nil, errMissingQuantile
-	}
-	bqp, err := g.newBaseQueryParameters(r.BaseRequest)
-	if err := g.handleErr("failed to build parameters", err); err != nil {
-		return nil, err
 	}
 	queryParams := metricsstore.LatenciesQueryParameters{
 		BaseQueryParameters: bqp,
@@ -203,7 +204,7 @@ func (g *GRPCHandler) GetLatencies(ctx context.Context, r *metrics.GetLatenciesR
 
 // GetCallRates is the gRPC handler to fetch call rate metrics.
 func (g *GRPCHandler) GetCallRates(ctx context.Context, r *metrics.GetCallRatesRequest) (*metrics.GetMetricsResponse, error) {
-	bqp, err := g.newBaseQueryParameters(r.BaseRequest)
+	bqp, err := g.newBaseQueryParameters(r)
 	if err := g.handleErr("failed to build parameters", err); err != nil {
 		return nil, err
 	}
@@ -219,7 +220,7 @@ func (g *GRPCHandler) GetCallRates(ctx context.Context, r *metrics.GetCallRatesR
 
 // GetErrorRates is the gRPC handler to fetch error rate metrics.
 func (g *GRPCHandler) GetErrorRates(ctx context.Context, r *metrics.GetErrorRatesRequest) (*metrics.GetMetricsResponse, error) {
-	bqp, err := g.newBaseQueryParameters(r.BaseRequest)
+	bqp, err := g.newBaseQueryParameters(r)
 	if err := g.handleErr("failed to build parameters", err); err != nil {
 		return nil, err
 	}
@@ -260,14 +261,26 @@ func (g *GRPCHandler) handleErr(msg string, err error) error {
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
-func (g *GRPCHandler) newBaseQueryParameters(r *metrics.MetricsQueryBaseRequest) (bqp metricsstore.BaseQueryParameters, err error) {
-	if r == nil || len(r.ServiceNames) == 0 {
+func (g *GRPCHandler) newBaseQueryParameters(r interface{}) (bqp metricsstore.BaseQueryParameters, err error) {
+	if r == nil {
+		return bqp, errNilRequest
+	}
+	var baseRequest *metrics.MetricsQueryBaseRequest
+	switch v := r.(type) {
+	case *metrics.GetLatenciesRequest:
+		baseRequest = v.BaseRequest
+	case *metrics.GetCallRatesRequest:
+		baseRequest = v.BaseRequest
+	case *metrics.GetErrorRatesRequest:
+		baseRequest = v.BaseRequest
+	}
+	if baseRequest == nil || len(baseRequest.ServiceNames) == 0 {
 		return bqp, errMissingServiceNames
 	}
 
 	// Copy non-nullable params.
-	bqp.GroupByOperation = r.GroupByOperation
-	bqp.ServiceNames = r.ServiceNames
+	bqp.GroupByOperation = baseRequest.GroupByOperation
+	bqp.ServiceNames = baseRequest.ServiceNames
 
 	// Initialize nullable params with defaults.
 	defaultEndTime := g.nowFn()
@@ -278,21 +291,21 @@ func (g *GRPCHandler) newBaseQueryParameters(r *metrics.MetricsQueryBaseRequest)
 	bqp.Step = &defaultMetricsQueryStepDuration
 
 	// ... and override defaults with any provided request params.
-	if r.EndTime != nil {
-		bqp.EndTime = r.EndTime
+	if baseRequest.EndTime != nil {
+		bqp.EndTime = baseRequest.EndTime
 	}
-	if r.Lookback != nil {
-		bqp.Lookback = r.Lookback
+	if baseRequest.Lookback != nil {
+		bqp.Lookback = baseRequest.Lookback
 	}
-	if r.Step != nil {
-		bqp.Step = r.Step
+	if baseRequest.Step != nil {
+		bqp.Step = baseRequest.Step
 	}
-	if r.RatePer != nil {
-		bqp.RatePer = r.RatePer
+	if baseRequest.RatePer != nil {
+		bqp.RatePer = baseRequest.RatePer
 	}
-	if len(r.SpanKinds) > 0 {
-		spanKinds := make([]string, len(r.SpanKinds))
-		for i, v := range r.SpanKinds {
+	if len(baseRequest.SpanKinds) > 0 {
+		spanKinds := make([]string, len(baseRequest.SpanKinds))
+		for i, v := range baseRequest.SpanKinds {
 			spanKinds[i] = v.String()
 		}
 		bqp.SpanKinds = spanKinds
