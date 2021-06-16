@@ -38,9 +38,21 @@ const (
 	minDurationParam = "minDuration"
 	maxDurationParam = "maxDuration"
 	serviceParam     = "service"
-	spanKindParam    = "spanKind"
-	endTimeParam     = "end"
 	prettyPrintParam = "prettyPrint"
+	endTimeParam     = "end"
+
+	// servicesParam refers to the path segment of the metrics query endpoint containing the list of comma-separated
+	// services to request metrics for.
+	// For example, for the metrics request URL `http://localhost:16686/api/metrics/calls/emailservice,frontend`
+	// the "call rate" metrics for the following services will be returned: "frontend" and "emailservice".
+	servicesParam = "services"
+
+	// spanKindsParam refers to the path segment of the metrics query endpoint containing the list of comma-separated
+	// span kinds to filter on for the metrics query.
+	// For example, for the metrics request URL `http://localhost:16686/api/metrics/calls/emailservice?spanKinds=SPAN_KIND_SERVER,SPAN_KIND_CLIENT`
+	// the "call rate" metrics for the "emailservice" service with span kind of either "server" or "client" will be returned.
+	// Note the use of the string representation of span kinds based on the OpenTelemetry proto data model.
+	spanKindsParam = "spanKinds"
 )
 
 var (

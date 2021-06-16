@@ -18,12 +18,15 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
@@ -34,15 +37,23 @@ import (
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
-	traceIDParam  = "traceID"
-	endTsParam    = "endTs"
-	lookbackParam = "lookback"
+	traceIDParam          = "traceID"
+	endTsParam            = "endTs"
+	lookbackParam         = "lookback"
+	stepParam             = "step"
+	rateParam             = "ratePer"
+	quantileParam         = "quantile"
+	groupByOperationParam = "groupByOperation"
 
-	defaultAPIPrefix = "api"
+	defaultAPIPrefix  = "api"
+	prettyPrintIndent = "    "
 )
 
 // HTTPHandler handles http requests
@@ -71,12 +82,13 @@ func NewRouter() *mux.Router {
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
-	queryService *querysvc.QueryService
-	queryParser  queryParser
-	basePath     string
-	apiPrefix    string
-	logger       *zap.Logger
-	tracer       opentracing.Tracer
+	queryService        *querysvc.QueryService
+	metricsQueryService querysvc.MetricsQueryService
+	queryParser         queryParser
+	basePath            string
+	apiPrefix           string
+	logger              *zap.Logger
+	tracer              opentracing.Tracer
 }
 
 // NewAPIHandler returns an APIHandler
@@ -115,6 +127,10 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	// TODO - remove this when UI catches up
 	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.latencies, "/metrics/latencies/{%s}", servicesParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.calls, "/metrics/calls/{%s}", servicesParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.errors, "/metrics/errors/{%s}", servicesParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
 }
 
 func (aH *APIHandler) handleFunc(
@@ -180,7 +196,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	spanKind := r.FormValue(spanKindParam)
+	spanKind := r.FormValue(spanKindsParam)
 	operations, err := aH.queryService.GetOperations(
 		r.Context(),
 		spanstore.OperationQueryParameters{ServiceName: service, SpanKind: spanKind},
@@ -259,29 +275,17 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 }
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
-	endTsMillis, err := strconv.ParseInt(r.FormValue(endTsParam), 10, 64)
-	if err != nil {
-		err = fmt.Errorf("unable to parse %s: %w", endTimeParam, err)
-		if aH.handleError(w, err, http.StatusBadRequest) {
-			return
-		}
+	endTs, ok := aH.parseTimeParam(w, r, endTsParam, nil)
+	if !ok {
+		return
 	}
-	var lookback time.Duration
-	if formValue := r.FormValue(lookbackParam); len(formValue) > 0 {
-		lookback, err = time.ParseDuration(formValue + "ms")
-		if err != nil {
-			err = fmt.Errorf("unable to parse %s: %w", lookbackParam, err)
-			if aH.handleError(w, err, http.StatusBadRequest) {
-				return
-			}
-		}
-	}
-	service := r.FormValue(serviceParam)
 
-	if lookback == 0 {
-		lookback = defaultDependencyLookbackDuration
+	lookback, ok := aH.parseDurationParam(w, r, lookbackParam, defaultDependencyLookbackDuration)
+	if !ok {
+		return
 	}
-	endTs := time.Unix(0, 0).Add(time.Duration(endTsMillis) * time.Millisecond)
+
+	service := r.FormValue(serviceParam)
 
 	dependencies, err := aH.queryService.GetDependencies(r.Context(), endTs, lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -293,6 +297,155 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 		Data: aH.deduplicateDependencies(filteredDependencies),
 	}
 	aH.writeJSON(w, r, &structuredRes)
+}
+
+func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
+	q, err := strconv.ParseFloat(r.FormValue(quantileParam), 64)
+	if aH.handleParseError(w, err, quantileParam) {
+		return
+	}
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetLatencies(ctx, &metricsstore.LatenciesQueryParameters{
+			BaseQueryParameters: baseParams,
+			Quantile:            q,
+		})
+	})
+}
+
+func (aH *APIHandler) calls(w http.ResponseWriter, r *http.Request) {
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetCallRates(ctx, &metricsstore.CallRateQueryParameters{
+			BaseQueryParameters: baseParams,
+		})
+	})
+}
+
+func (aH *APIHandler) errors(w http.ResponseWriter, r *http.Request) {
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetErrorRates(ctx, &metricsstore.ErrorRateQueryParameters{
+			BaseQueryParameters: baseParams,
+		})
+	})
+}
+
+func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
+	minStep, err := aH.metricsQueryService.GetMinStepDuration(r.Context(), &metricsstore.MinStepDurationQueryParameters{})
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	structuredRes := structuredResponse{
+		Data: minStep.Milliseconds(),
+	}
+	aH.writeJSON(w, r, &structuredRes)
+}
+
+func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics func(context.Context, metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error)) {
+	groupByOperation, ok := aH.parseBoolParam(w, r, groupByOperationParam)
+	if !ok {
+		return
+	}
+	defaultTime := time.Now()
+	endTs, ok := aH.parseTimeParam(w, r, endTsParam, &defaultTime)
+	if !ok {
+		return
+	}
+	lookback, ok := aH.parseDurationParam(w, r, lookbackParam, defaultMetricsQueryLookbackDuration)
+	if !ok {
+		return
+	}
+	step, ok := aH.parseDurationParam(w, r, stepParam, defaultMetricsQueryStepDuration)
+	if !ok {
+		return
+	}
+	rate, ok := aH.parseDurationParam(w, r, rateParam, defaultMetricsQueryRateDuration)
+	if !ok {
+		return
+	}
+	spanKinds, ok := aH.parseSpanKindParam(w, r, spanKindsParam, defaultMetricsSpanKinds)
+	if !ok {
+		return
+	}
+	serviceNamesParam := mux.Vars(r)[servicesParam]
+
+	requestParams := metricsstore.BaseQueryParameters{
+		ServiceNames:     strings.Split(serviceNamesParam, ","),
+		GroupByOperation: groupByOperation,
+		EndTime:          &endTs,
+		Lookback:         &lookback,
+		Step:             &step,
+		RatePer:          &rate,
+		SpanKinds:        spanKinds,
+	}
+
+	m, err := getMetrics(r.Context(), requestParams)
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	aH.writeJSON(w, r, m)
+}
+
+func (aH *APIHandler) parseBoolParam(w http.ResponseWriter, r *http.Request, paramName string) (bool, bool) {
+	parsedValue := false
+	ok := true
+	if formVal := r.FormValue(paramName); formVal != "" {
+		var err error
+		parsedValue, err = strconv.ParseBool(formVal)
+		ok = !aH.handleParseError(w, err, paramName)
+	}
+	return parsedValue, ok
+}
+
+func (aH *APIHandler) parseTimeParam(w http.ResponseWriter, r *http.Request, paramName string, defaultTime *time.Time) (t time.Time, ok bool) {
+	if formVal := r.FormValue(paramName); formVal != "" || defaultTime == nil {
+		tsMillis, err := strconv.ParseInt(formVal, 10, 64)
+		if aH.handleParseError(w, err, paramName) {
+			return t, false
+		}
+		t = time.Unix(0, 0).Add(time.Duration(tsMillis) * time.Millisecond)
+	} else {
+		t = *defaultTime
+	}
+	return t, true
+}
+
+func (aH *APIHandler) parseDurationParam(w http.ResponseWriter, r *http.Request, paramName string, defaultDuration time.Duration) (time.Duration, bool) {
+	d := defaultDuration
+	var err error
+	if formValue := r.FormValue(paramName); len(formValue) > 0 {
+		d, err = time.ParseDuration(formValue + "ms")
+		if aH.handleParseError(w, err, paramName) {
+			return 0, false
+		}
+	}
+	return d, true
+}
+
+// parseSpanKindParam parses the input comma-separated span kinds to filter for in the metrics query.
+// Valid input span kinds are the string representations from the OpenTelemetry model/proto/metrics/otelspankind.proto.
+// For example:
+// - "SPAN_KIND_SERVER"
+// - "SPAN_KIND_CLIENT"
+// - etc.
+func (aH *APIHandler) parseSpanKindParam(w http.ResponseWriter, r *http.Request, paramName string, defaultSpanKinds []string) ([]string, bool) {
+	formValue := r.FormValue(paramName)
+	if len(formValue) == 0 {
+		return defaultSpanKinds, true
+	}
+	spanKinds := strings.Split(formValue, ",")
+	if err := validateSpanKinds(spanKinds); aH.handleParseError(w, err, paramName) {
+		return defaultSpanKinds, false
+	}
+	return spanKinds, true
+}
+
+func validateSpanKinds(spanKinds []string) error {
+	for _, spanKind := range spanKinds {
+		if _, ok := metrics.SpanKind_value[spanKind]; !ok {
+			return fmt.Errorf("unsupported span kind: '%s'", spanKind)
+		}
+	}
+	return nil
 }
 
 func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
@@ -429,6 +582,9 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, disabled.ErrDisabled) {
+		statusCode = http.StatusNotImplemented
+	}
 	if statusCode == http.StatusInternalServerError {
 		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
 	}
@@ -445,20 +601,28 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	return true
 }
 
+func (aH *APIHandler) handleParseError(w http.ResponseWriter, err error, paramName string) (handled bool) {
+	if err == nil {
+		return false
+	}
+	err = fmt.Errorf("unable to parse param '%s': %w", paramName, err)
+	return aH.handleError(w, err, http.StatusBadRequest)
+}
+
 func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response interface{}) {
-	marshall := json.Marshal
-	if prettyPrint := r.FormValue(prettyPrintParam); prettyPrint != "" && prettyPrint != "false" {
-		marshall = func(v interface{}) ([]byte, error) {
-			return json.MarshalIndent(v, "", "    ")
-		}
+	prettyPrintValue := r.FormValue(prettyPrintParam)
+	prettyPrint := prettyPrintValue != "" && prettyPrintValue != "false"
+
+	var marshaler jsonMarshaler
+	switch response.(type) {
+	case proto.Message:
+		marshaler = newProtoJSONMarshaler(prettyPrint)
+	default:
+		marshaler = newStructJSONMarshaler(prettyPrint)
 	}
-	resp, err := marshall(response)
-	if err != nil {
-		aH.handleError(w, fmt.Errorf("failed marshalling HTTP response to JSON: %w", err), http.StatusInternalServerError)
-		return
-	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(resp); err != nil {
+	if err := marshaler.marshal(w, response); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
 	}
 }
