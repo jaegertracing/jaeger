@@ -155,7 +155,7 @@ func TestParseTraceQuery(t *testing.T) {
 					return timeNow
 				},
 			}
-			actualQuery, err := parser.parse(request)
+			actualQuery, err := parser.parseTraceQueryParams(request)
 			if test.errMsg == "" {
 				assert.NoError(t, err)
 				if !assert.Equal(t, test.expectedQuery, actualQuery) {

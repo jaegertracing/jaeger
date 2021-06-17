@@ -219,7 +219,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
-	tQuery, err := aH.queryParser.parse(r)
+	tQuery, err := aH.queryParser.parseTraceQueryParams(r)
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}

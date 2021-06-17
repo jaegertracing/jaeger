@@ -78,7 +78,7 @@ type traceQueryParameters struct {
 	traceIDs []model.TraceID
 }
 
-// parse takes a request and constructs a model of parameters
+// parseTraceQueryParams takes a request and constructs a model of parameters
 // Trace query syntax:
 //     query ::= param | param '&' query
 //     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
@@ -93,7 +93,7 @@ type traceQueryParameters struct {
 //     key := strValue
 //     keyValue := strValue ':' strValue
 //     tags :== 'tags=' jsonMap
-func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
+func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
 	operation := r.FormValue(operationParam)
 
