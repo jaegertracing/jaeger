@@ -646,31 +646,31 @@ func TestGetMetricsSuccess(t *testing.T) {
 	}{
 		{
 			name:                       "latencies",
-			urlPath:                    "/api/metrics/latencies/emailservice?quantile=0.95",
+			urlPath:                    "/api/metrics/latencies?services=emailservice&quantile=0.95",
 			mockedQueryMethod:          "GetLatencies",
 			mockedQueryMethodParamType: "*metricsstore.LatenciesQueryParameters",
 		},
 		{
 			name:                       "call rates",
-			urlPath:                    "/api/metrics/calls/emailservice",
+			urlPath:                    "/api/metrics/calls?services=emailservice",
 			mockedQueryMethod:          "GetCallRates",
 			mockedQueryMethodParamType: "*metricsstore.CallRateQueryParameters",
 		},
 		{
 			name:                       "error rates",
-			urlPath:                    "/api/metrics/errors/emailservice",
+			urlPath:                    "/api/metrics/errors?services=emailservice",
 			mockedQueryMethod:          "GetErrorRates",
 			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
 		},
 		{
 			name:                       "error rates with pretty print",
-			urlPath:                    "/api/metrics/errors/emailservice?prettyPrint=true",
+			urlPath:                    "/api/metrics/errors?services=emailservice&prettyPrint=true",
 			mockedQueryMethod:          "GetErrorRates",
 			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
 		},
 		{
 			name:                       "error rates with spanKinds",
-			urlPath:                    "/api/metrics/errors/emailservice?spanKinds=SPAN_KIND_CLIENT",
+			urlPath:                    "/api/metrics/errors?services=emailservice&spanKinds=SPAN_KIND_CLIENT",
 			mockedQueryMethod:          "GetErrorRates",
 			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
 		},
@@ -711,7 +711,7 @@ func TestMetricsReaderError(t *testing.T) {
 		wantErrorMessage           string
 	}{
 		{
-			urlPath:                    "/api/metrics/calls/emailservice",
+			urlPath:                    "/api/metrics/calls?services=emailservice",
 			mockedQueryMethod:          "GetCallRates",
 			mockedQueryMethodParamType: "*metricsstore.CallRateQueryParameters",
 			mockedResponse:             nil,
@@ -762,42 +762,42 @@ func TestParameterErrors(t *testing.T) {
 		{
 			name:             "missing services",
 			urlPath:          "/api/metrics/calls",
-			wantErrorMessage: `404 error from server: 404 page not found`,
+			wantErrorMessage: `unable to parse param 'services': please provide at least one service name`,
 		},
 		{
 			name:             "invalid group by operation",
-			urlPath:          "/api/metrics/calls/emailservice?groupByOperation=foo",
+			urlPath:          "/api/metrics/calls?services=emailservice&groupByOperation=foo",
 			wantErrorMessage: `unable to parse param 'groupByOperation': strconv.ParseBool: parsing \"foo\": invalid syntax`,
 		},
 		{
 			name:             "invalid span kinds",
-			urlPath:          "/api/metrics/calls/emailservice?spanKinds=foo",
+			urlPath:          "/api/metrics/calls?services=emailservice&spanKinds=foo",
 			wantErrorMessage: `unable to parse param 'spanKinds': unsupported span kind: 'foo'`,
 		},
 		{
 			name:             "invalid quantile parameter",
-			urlPath:          "/api/metrics/latencies/emailservice?quantile=foo",
+			urlPath:          "/api/metrics/latencies?services=emailservice&quantile=foo",
 			wantErrorMessage: `unable to parse param 'quantile': strconv.ParseFloat: parsing \"foo\": invalid syntax`,
 		},
 		{
 			name:             "invalid endTs parameter",
-			urlPath:          "/api/metrics/calls/emailservice?endTs=foo",
+			urlPath:          "/api/metrics/calls?services=emailservice&endTs=foo",
 			wantErrorMessage: `unable to parse param 'endTs': strconv.ParseInt: parsing \"foo\": invalid syntax`,
 		},
 		{
 			name:             "invalid lookback parameter",
-			urlPath:          "/api/metrics/calls/emailservice?lookback=foo",
-			wantErrorMessage: `unable to parse param 'lookback': time: invalid duration \"fooms\"`,
+			urlPath:          "/api/metrics/calls?services=emailservice&lookback=foo",
+			wantErrorMessage: `unable to parse param 'lookback': strconv.ParseInt: parsing \"foo\": invalid syntax`,
 		},
 		{
 			name:             "invalid step parameter",
-			urlPath:          "/api/metrics/calls/emailservice?step=foo",
-			wantErrorMessage: `unable to parse param 'step': time: invalid duration \"fooms\"`,
+			urlPath:          "/api/metrics/calls?services=emailservice&step=foo",
+			wantErrorMessage: `unable to parse param 'step': strconv.ParseInt: parsing \"foo\": invalid syntax`,
 		},
 		{
 			name:             "invalid ratePer parameter",
-			urlPath:          "/api/metrics/calls/emailservice?ratePer=foo",
-			wantErrorMessage: `unable to parse param 'ratePer': time: invalid duration \"fooms\"`,
+			urlPath:          "/api/metrics/calls?services=emailservice&ratePer=foo",
+			wantErrorMessage: `unable to parse param 'ratePer': strconv.ParseInt: parsing \"foo\": invalid syntax`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -829,7 +829,7 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	}{
 		{
 			name:             "metrics query disabled error returned when fetching latency metrics",
-			urlPath:          "/api/metrics/latencies/emailservice?quantile=0.95",
+			urlPath:          "/api/metrics/latencies?services=emailservice&quantile=0.95",
 			wantErrorMessage: "metrics querying is currently disabled",
 		},
 		{

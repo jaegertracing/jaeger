@@ -17,6 +17,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -24,6 +25,8 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -60,6 +63,8 @@ var (
 
 	// ErrServiceParameterRequired occurs when no service name is defined
 	ErrServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
+
+	msDuration = time.Millisecond
 )
 
 // queryParser handles the parsing of query parameters for traces
@@ -92,11 +97,11 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
 	operation := r.FormValue(operationParam)
 
-	startTime, err := p.parseTime(startTimeParam, r)
+	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond)
 	if err != nil {
 		return nil, err
 	}
-	endTime, err := p.parseTime(endTimeParam, r)
+	endTime, err := p.parseTime(r, endTimeParam, time.Microsecond)
 	if err != nil {
 		return nil, err
 	}
@@ -116,12 +121,12 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 		limit = int(limitParsed)
 	}
 
-	minDuration, err := p.parseDuration(minDurationParam, r)
+	minDuration, err := p.parseDuration(r, minDurationParam, nil, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	maxDuration, err := p.parseDuration(maxDurationParam, r)
+	maxDuration, err := p.parseDuration(r, maxDurationParam, nil, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -155,31 +160,125 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 	return traceQuery, nil
 }
 
-func (p *queryParser) parseTime(param string, r *http.Request) (time.Time, error) {
-	value := r.FormValue(param)
-	if value == "" {
-		if param == startTimeParam {
+func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
+	serviceNames := r.FormValue(servicesParam)
+	if serviceNames == "" {
+		return bqp, newParseError(errors.New("please provide at least one service name"), servicesParam)
+	}
+	bqp.ServiceNames = strings.Split(serviceNames, ",")
+
+	bqp.GroupByOperation, err = p.parseBool(r, groupByOperationParam)
+	if err != nil {
+		return bqp, err
+	}
+	bqp.SpanKinds, err = p.parseSpanKinds(r, spanKindsParam, defaultMetricsSpanKinds)
+	if err != nil {
+		return bqp, err
+	}
+	endTs, err := p.parseTime(r, endTsParam, msDuration)
+	if err != nil {
+		return bqp, err
+	}
+	lookback, err := p.parseDuration(r, lookbackParam, &msDuration, defaultMetricsQueryLookbackDuration)
+	if err != nil {
+		return bqp, err
+	}
+	step, err := p.parseDuration(r, stepParam, &msDuration, defaultMetricsQueryStepDuration)
+	if err != nil {
+		return bqp, err
+	}
+	ratePer, err := p.parseDuration(r, rateParam, &msDuration, defaultMetricsQueryRateDuration)
+	if err != nil {
+		return bqp, err
+	}
+	bqp.EndTime = &endTs
+	bqp.Lookback = &lookback
+	bqp.Step = &step
+	bqp.RatePer = &ratePer
+	return bqp, err
+}
+
+// parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
+// If the time parameter is empty, the current time will be returned.
+func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
+	formValue := r.FormValue(paramName)
+	if formValue == "" {
+		if paramName == startTimeParam {
 			return p.timeNow().Add(-1 * p.traceQueryLookbackDuration), nil
 		}
 		return p.timeNow(), nil
 	}
-	micros, err := strconv.ParseInt(value, 10, 64)
+	t, err := strconv.ParseInt(formValue, 10, 64)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, newParseError(err, paramName)
 	}
-	return time.Unix(0, 0).Add(time.Duration(micros) * time.Microsecond), nil
+	return time.Unix(0, 0).Add(time.Duration(t) * units), nil
 }
 
-func (p *queryParser) parseDuration(durationParam string, r *http.Request) (time.Duration, error) {
-	durationInput := r.FormValue(durationParam)
-	if len(durationInput) > 0 {
-		duration, err := time.ParseDuration(durationInput)
-		if err != nil {
-			return 0, fmt.Errorf("cannot not parse %s: %w", durationParam, err)
+// parseDuration parses the duration parameter of an HTTP request that can be represented as either:
+// - a duration string e.g.: "5ms"
+// - a number of units of time e.g.: "1000"
+// If the duration parameter is empty, the given defaultDuration will be returned.
+func (p *queryParser) parseDuration(r *http.Request, paramName string, units *time.Duration, defaultDuration time.Duration) (d time.Duration, err error) {
+	d = defaultDuration
+	formValue := r.FormValue(paramName)
+	switch {
+	case formValue == "":
+		return d, nil
+
+	// If no units are supplied, assume parsing of duration strings like 5ms.
+	case units == nil:
+		if d, err = time.ParseDuration(formValue); err == nil {
+			return d, nil
 		}
-		return duration, nil
+
+	// Otherwise, the duration is a number for the given duration units.
+	default:
+		var i int64
+		if i, err = strconv.ParseInt(formValue, 10, 64); err == nil {
+			return time.Duration(i) * (*units), nil
+		}
 	}
-	return 0, nil
+	return 0, newParseError(err, paramName)
+}
+
+func (p *queryParser) parseBool(r *http.Request, paramName string) (b bool, err error) {
+	formVal := r.FormValue(paramName)
+	if formVal == "" {
+		return false, nil
+	}
+	b, err = strconv.ParseBool(formVal)
+	if err != nil {
+		return b, newParseError(err, paramName)
+	}
+	return b, nil
+}
+
+// parseSpanKindParam parses the input comma-separated span kinds to filter for in the metrics query.
+// Valid input span kinds are the string representations from the OpenTelemetry model/proto/metrics/otelspankind.proto.
+// For example:
+// - "SPAN_KIND_SERVER"
+// - "SPAN_KIND_CLIENT"
+// - etc.
+func (p *queryParser) parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string) ([]string, error) {
+	formValue := r.FormValue(paramName)
+	if formValue == "" {
+		return defaultSpanKinds, nil
+	}
+	spanKinds := strings.Split(formValue, ",")
+	if err := validateSpanKinds(spanKinds); err != nil {
+		return defaultSpanKinds, newParseError(err, paramName)
+	}
+	return spanKinds, nil
+}
+
+func validateSpanKinds(spanKinds []string) error {
+	for _, spanKind := range spanKinds {
+		if _, ok := metrics.SpanKind_value[spanKind]; !ok {
+			return fmt.Errorf("unsupported span kind: '%s'", spanKind)
+		}
+	}
+	return nil
 }
 
 func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
@@ -214,4 +313,8 @@ func (p *queryParser) parseTags(simpleTags []string, jsonTags []string) (map[str
 		}
 	}
 	return retMe, nil
+}
+
+func newParseError(err error, paramName string) error {
+	return fmt.Errorf("unable to parse param '%s': %w", paramName, err)
 }

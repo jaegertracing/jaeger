@@ -44,8 +44,8 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=string", errParseInt, nil},
 		{"x?service=service&end=string", errParseInt, nil},
 		{"x?service=service&limit=string", errParseInt, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", `cannot not parse minDuration: time: missing unit in duration "?20"?$`, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", `cannot not parse maxDuration: time: missing unit in duration "?30"?$`, nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", `unable to parse param 'minDuration': time: missing unit in duration "?20"?$`, nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", `unable to parse param 'maxDuration': time: missing unit in duration "?30"?$`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `malformed 'tag' parameter, expecting key:value, received: k`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
@@ -170,4 +170,52 @@ func TestParseTraceQuery(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseBool(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  bool
+	}{
+		{"t", true},
+		{"true", true},
+		{"TRUE", true},
+		{"True", true},
+		{"T", true},
+		{"1", true},
+		{"f", false},
+		{"false", false},
+		{"FALSE", false},
+		{"False", false},
+		{"F", false},
+		{"0", false},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, "x?services=foo&groupByOperation="+tc.input, nil)
+			require.NoError(t, err)
+			timeNow := time.Now()
+			parser := &queryParser{
+				timeNow: func() time.Time {
+					return timeNow
+				},
+			}
+			mqp, err := parser.parseMetricsQueryParams(request)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, mqp.GroupByOperation)
+		})
+	}
+}
+
+func TestParseDuration(t *testing.T) {
+	request, err := http.NewRequest(http.MethodGet, "x?services=foo&step=1000", nil)
+	require.NoError(t, err)
+	timeNow := time.Now()
+	parser := &queryParser{
+		timeNow: func() time.Time {
+			return timeNow
+		},
+	}
+	mqp, err := parser.parseMetricsQueryParams(request)
+	require.NoError(t, err)
+	assert.Equal(t, time.Second, *mqp.Step)
 }
