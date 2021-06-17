@@ -42,9 +42,7 @@ const (
 	endTsParam    = "endTs"
 	lookbackParam = "lookback"
 
-	defaultDependencyLookbackDuration = time.Hour * 24
-	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
-	defaultAPIPrefix                  = "api"
+	defaultAPIPrefix = "api"
 )
 
 // HTTPHandler handles http requests
