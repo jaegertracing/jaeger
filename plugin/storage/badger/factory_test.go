@@ -200,7 +200,8 @@ func TestTruncateCodecov(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
-		"--badger.truncate",
+		"--badger.truncate=true",
+		"--badger.ephemeral=false",
 	})
 	f.InitFromViper(v)
 	mFactory := metricstest.NewFactory(0)
