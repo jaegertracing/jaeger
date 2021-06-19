@@ -191,7 +191,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	service := r.FormValue(serviceParam)
 	if service == "" {
-		if aH.handleError(w, ErrServiceParameterRequired, http.StatusBadRequest) {
+		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
 			return
 		}
 	}
@@ -274,20 +274,13 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 }
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
-	msUnits := time.Millisecond
-	endTs, err := aH.queryParser.parseTime(r, endTsParam, msUnits)
+	dqp, err := aH.queryParser.parseDependenciesQueryParams(r)
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
-
-	lookback, err := aH.queryParser.parseDuration(r, lookbackParam, &msUnits, defaultDependencyLookbackDuration)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
 	service := r.FormValue(serviceParam)
 
-	dependencies, err := aH.queryService.GetDependencies(r.Context(), endTs, lookback)
+	dependencies, err := aH.queryService.GetDependencies(r.Context(), dqp.endTs, dqp.lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
