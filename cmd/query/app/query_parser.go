@@ -66,7 +66,7 @@ var (
 )
 
 type (
-	// queryParser handles the parsing of query parameters for traces
+	// queryParser handles the parsing of query parameters for traces.
 	queryParser struct {
 		traceQueryLookbackDuration time.Duration
 		timeNow                    func() time.Time
@@ -106,7 +106,7 @@ func (dup durationUnitsParser) parseDuration(s string) (time.Duration, error) {
 	return time.Duration(i) * (dup.units), nil
 }
 
-// parseTraceQueryParams takes a request and constructs a model of parameters
+// parseTraceQueryParams takes a request and constructs a model of parameters.
 // Trace query syntax:
 //     query ::= param | param '&' query
 //     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
@@ -333,7 +333,7 @@ func (p *queryParser) parseTags(simpleTags []string, jsonTags []string) (map[str
 	for _, tags := range jsonTags {
 		var fromJSON map[string]string
 		if err := json.Unmarshal([]byte(tags), &fromJSON); err != nil {
-			return nil, fmt.Errorf("malformed 'tags' parameter, cannot unmarshal JSON: %s", err)
+			return nil, fmt.Errorf("malformed 'tags' parameter, cannot unmarshal JSON: %w", err)
 		}
 		for k, v := range fromJSON {
 			retMe[k] = v
