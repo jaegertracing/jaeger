@@ -43,19 +43,7 @@ const (
 	serviceParam     = "service"
 	prettyPrintParam = "prettyPrint"
 	endTimeParam     = "end"
-
-	// servicesParam refers to the query parameter name of the metrics query endpoint containing the list of comma-separated
-	// services to request metrics for.
-	// For example, for the metrics request URL `http://localhost:16686/api/metrics/calls?services=emailservice,frontend`
-	// the "call rate" metrics for the following services will be returned: "frontend" and "emailservice".
-	servicesParam = "services"
-
-	// spanKindsParam refers to the query parameter name of the metrics query endpoint containing the list of comma-separated
-	// span kinds to filter on for the metrics query.
-	// For example, for the metrics request URL `http://localhost:16686/api/metrics/calls?services=emailservice&spanKinds=SPAN_KIND_SERVER,SPAN_KIND_CLIENT`
-	// the "call rate" metrics for the "emailservice" service with span kind of either "server" or "client" will be returned.
-	// Note the use of the string representation of span kinds based on the OpenTelemetry proto data model.
-	spanKindsParam = "spanKinds"
+	spanKindParam    = "spanKind"
 )
 
 var (
@@ -107,6 +95,16 @@ func (dup durationUnitsParser) parseDuration(s string) (time.Duration, error) {
 }
 
 // parseTraceQueryParams takes a request and constructs a model of parameters.
+//
+// Why start/end parameters are expressed in microseconds:
+//     Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
+//     support for high accuracy in search query parameters is required.
+//
+// Why duration parameters are expressed as duration strings like "1ms":
+//     The search UI itself does not insist on exact units because it supports string like 1ms.
+//     We had a debate over whether units should be handled by the UI instead of the backend service,
+//     but here we are, since Go makes parsing 1ms very easy.
+//
 // Trace query syntax:
 //     query ::= param | param '&' query
 //     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
@@ -189,6 +187,11 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 	return traceQuery, nil
 }
 
+// parseDependenciesQueryParams takes a request and constructs a model of dependencies query parameters.
+//
+// The dependencies API does not operate on the latency space, instead its timestamps are just time range selections,
+// and the typical backend granularity of those is on the order of 15min or more. As such, microseconds aren't
+// useful in this domain and milliseconds are sufficient for both times and durations.
 func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp dependenciesQueryParameters, err error) {
 	dqp.endTs, err = p.parseTime(r, endTsParam, time.Millisecond)
 	if err != nil {
@@ -199,19 +202,40 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 	return dqp, err
 }
 
+// parseMetricsQueryParams takes a request and constructs a model of metrics query parameters.
+//
+// Why the API is designed using an end time (endTs) and lookback:
+//     The typical usage of the metrics APIs is to view the most recent metrics from now looking
+//     back a certain period of time, given the value of metrics generally degrade with time. As such, the API
+//     is also designed to mirror the user interface inputs.
+//
+// Why times are expressed as unix milliseconds:
+//     - The minimum step size for Prometheus-compliant metrics backends is 1ms,
+//       hence millisecond precision on times is sufficient.
+//     - The metrics API is designed with one primary client in mind, the Jaeger UI. As it is a React.js application,
+//       the maximum supported built-in time precision is milliseconds.
+//
+// Why durations are expressed as unix milliseconds:
+//     - Given the endTs time is expressed as milliseconds, it follows that lookback durations should use the
+//       same time units to compute the start time.
+//     - As above, the minimum step size for Prometheus-compliant metrics backends is 1ms.
+//     - Other durations are in milliseconds to maintain consistency of units with other parameters in the metrics APIs.
+//     - As the primary client for the metrics API is the Jaeger UI, it is programmatically simpler to supply the
+//       integer representation of durations in milliseconds rather than the human-readable representation such as "1ms".
 func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
 	dp := durationUnitsParser{units: time.Millisecond}
-	serviceNames := r.FormValue(servicesParam)
-	if serviceNames == "" {
-		return bqp, newParseError(errors.New("please provide at least one service name"), servicesParam)
+	query := r.URL.Query()
+	services, ok := query[serviceParam]
+	if !ok {
+		return bqp, newParseError(errors.New("please provide at least one service name"), serviceParam)
 	}
-	bqp.ServiceNames = strings.Split(serviceNames, ",")
+	bqp.ServiceNames = services
 
 	bqp.GroupByOperation, err = parseBool(r, groupByOperationParam)
 	if err != nil {
 		return bqp, err
 	}
-	bqp.SpanKinds, err = parseSpanKinds(r, spanKindsParam, defaultMetricsSpanKinds)
+	bqp.SpanKinds, err = parseSpanKinds(r, spanKindParam, defaultMetricsSpanKinds)
 	if err != nil {
 		return bqp, err
 	}
@@ -281,18 +305,18 @@ func parseBool(r *http.Request, paramName string) (b bool, err error) {
 	return b, nil
 }
 
-// parseSpanKindParam parses the input comma-separated span kinds to filter for in the metrics query.
+// parseSpanKindParam parses the input span kinds to filter for in the metrics query.
 // Valid input span kinds are the string representations from the OpenTelemetry model/proto/metrics/otelspankind.proto.
 // For example:
 // - "SPAN_KIND_SERVER"
 // - "SPAN_KIND_CLIENT"
 // - etc.
 func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string) ([]string, error) {
-	formValue := r.FormValue(paramName)
-	if formValue == "" {
+	query := r.URL.Query()
+	spanKinds, ok := query[paramName]
+	if !ok {
 		return defaultSpanKinds, nil
 	}
-	spanKinds := strings.Split(formValue, ",")
 	if err := validateSpanKinds(spanKinds); err != nil {
 		return defaultSpanKinds, newParseError(err, paramName)
 	}

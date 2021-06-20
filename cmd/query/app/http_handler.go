@@ -195,7 +195,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	spanKind := r.FormValue(spanKindsParam)
+	spanKind := r.FormValue(spanKindParam)
 	operations, err := aH.queryService.GetOperations(
 		r.Context(),
 		spanstore.OperationQueryParameters{ServiceName: service, SpanKind: spanKind},
