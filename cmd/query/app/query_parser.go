@@ -226,15 +226,18 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //       integer representations of durations in milliseconds rather than the human-readable representation such as "1ms".
 //
 // Metrics query syntax:
-//     query ::= { service } '&' (param | param '&' query)
-//     param ::=  groupByOperation | endTs | lookback | step | ratePer | { spanKind }
-//     service ::= 'service=' strValue (repeated for more than one service, e.g. 'service=foo&service=bar')
+//     query ::= services , [ '&' optionalParams ]
+//     optionalParams := param | param '&' optionalParams
+//     param ::=  groupByOperation | endTs | lookback | step | ratePer | spanKinds
+//     services ::= service | service '&' services
+//     service ::= 'service=' strValue
 //     groupByOperation ::= 'groupByOperation=' boolValue
 //     endTs ::= 'endTs=' intValue in unix milliseconds
 //     lookback ::= 'lookback=' intValue duration in milliseconds
 //     step ::= 'step=' intValue duration in milliseconds
 //     ratePer ::= 'ratePer=' intValue duration in milliseconds
-//     spanKind ::= 'spanKind=' spanKindType (repeated for more than one spanKind, e.g. 'spanKind=SPAN_KIND_SERVER&spanKind=SPAN_KIND_CLIENT')
+//     spanKinds ::= spanKind | spanKind '&' spanKinds
+//     spanKind ::= 'spanKind=' spanKindType
 //     spanKindType ::= "SPAN_KIND_INTERNAL" | "SPAN_KIND_SERVER" | "SPAN_KIND_CLIENT" | "SPAN_KIND_PRODUCER" | "SPAN_KIND_CONSUMER"
 func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
 	dp := durationUnitsParser{units: time.Millisecond}
