@@ -41,9 +41,9 @@ const (
 	minDurationParam = "minDuration"
 	maxDurationParam = "maxDuration"
 	serviceParam     = "service"
-	prettyPrintParam = "prettyPrint"
-	endTimeParam     = "end"
 	spanKindParam    = "spanKind"
+	endTimeParam     = "end"
+	prettyPrintParam = "prettyPrint"
 )
 
 var (
