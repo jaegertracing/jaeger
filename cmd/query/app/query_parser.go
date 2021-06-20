@@ -99,11 +99,13 @@ func (dup durationUnitsParser) parseDuration(s string) (time.Duration, error) {
 // Why start/end parameters are expressed in microseconds:
 //     Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
 //     support for high accuracy in search query parameters is required.
+//     Microsecond precision is a legacy artifact from zipkin origins where timestamps and durations
+//     are in microseconds (see: https://zipkin.io/pages/instrumenting.html).
 //
 // Why duration parameters are expressed as duration strings like "1ms":
 //     The search UI itself does not insist on exact units because it supports string like 1ms.
-//     We had a debate over whether units should be handled by the UI instead of the backend service,
-//     but here we are, since Go makes parsing 1ms very easy.
+//     Go makes parsing duration strings like "1ms" very easy, hence why parsing of such strings is
+//     deferred to the backend rather than Jaeger UI.
 //
 // Trace query syntax:
 //     query ::= param | param '&' query
@@ -206,14 +208,14 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //
 // Why the API is designed using an end time (endTs) and lookback:
 //     The typical usage of the metrics APIs is to view the most recent metrics from now looking
-//     back a certain period of time, given the value of metrics generally degrade with time. As such, the API
+//     back a certain period of time, given the value of metrics generally degrades with time. As such, the API
 //     is also designed to mirror the user interface inputs.
 //
 // Why times are expressed as unix milliseconds:
 //     - The minimum step size for Prometheus-compliant metrics backends is 1ms,
 //       hence millisecond precision on times is sufficient.
 //     - The metrics API is designed with one primary client in mind, the Jaeger UI. As it is a React.js application,
-//       the maximum supported built-in time precision is milliseconds.
+//       the maximum supported built-in time precision is milliseconds, making it a convenient precision to use for such a client.
 //
 // Why durations are expressed as unix milliseconds:
 //     - Given the endTs time is expressed as milliseconds, it follows that lookback durations should use the
@@ -221,7 +223,19 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //     - As above, the minimum step size for Prometheus-compliant metrics backends is 1ms.
 //     - Other durations are in milliseconds to maintain consistency of units with other parameters in the metrics APIs.
 //     - As the primary client for the metrics API is the Jaeger UI, it is programmatically simpler to supply the
-//       integer representation of durations in milliseconds rather than the human-readable representation such as "1ms".
+//       integer representations of durations in milliseconds rather than the human-readable representation such as "1ms".
+//
+// Metrics query syntax:
+//     query ::= { service } '&' (param | param '&' query)
+//     param ::=  groupByOperation | endTs | lookback | step | ratePer | { spanKind }
+//     service ::= 'service=' strValue (repeated for more than one service, e.g. 'service=foo&service=bar')
+//     groupByOperation ::= 'groupByOperation=' boolValue
+//     endTs ::= 'endTs=' intValue in unix milliseconds
+//     lookback ::= 'lookback=' intValue duration in milliseconds
+//     step ::= 'step=' intValue duration in milliseconds
+//     ratePer ::= 'ratePer=' intValue duration in milliseconds
+//     spanKind ::= 'spanKind=' spanKindType (repeated for more than one spanKind, e.g. 'spanKind=SPAN_KIND_SERVER&spanKind=SPAN_KIND_CLIENT')
+//     spanKindType ::= "SPAN_KIND_INTERNAL" | "SPAN_KIND_SERVER" | "SPAN_KIND_CLIENT" | "SPAN_KIND_PRODUCER" | "SPAN_KIND_CONSUMER"
 func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
 	dp := durationUnitsParser{units: time.Millisecond}
 	query := r.URL.Query()
