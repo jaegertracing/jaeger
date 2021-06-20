@@ -16,6 +16,7 @@ package tlscfg
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/spf13/viper"
 )
@@ -60,7 +61,7 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
+func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	var p Options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CAPath = v.GetString(c.Prefix + tlsCA)
@@ -68,15 +69,23 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ServerName = v.GetString(c.Prefix + tlsServerName)
 	p.SkipHostVerify = v.GetBool(c.Prefix + tlsSkipHostVerify)
-	return p
+	areTLSFlagsUsed := v.IsSet(c.Prefix+tlsCA) || v.IsSet(c.Prefix+tlsCert) || v.IsSet(c.Prefix+tlsKey) || v.IsSet(c.Prefix+tlsServerName)
+	if (!p.Enabled) && (p.SkipHostVerify && areTLSFlagsUsed) {
+		return p, fmt.Errorf("%s has been disable", c.Prefix+tlsEnabled)
+	}
+	return p, nil
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) Options {
+func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	var p Options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ClientCAPath = v.GetString(c.Prefix + tlsClientCA)
-	return p
+	areTLSFlagsUsed := v.IsSet(c.Prefix+tlsCA) || v.IsSet(c.Prefix+tlsCert) || v.IsSet(c.Prefix+tlsKey)
+	if !p.Enabled && areTLSFlagsUsed {
+		return p, fmt.Errorf("%s has been disable", c.Prefix+tlsEnabled)
+	}
+	return p, nil
 }

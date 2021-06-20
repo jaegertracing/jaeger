@@ -46,7 +46,8 @@ func TestBindFlags(t *testing.T) {
 
 		err := command.ParseFlags(test.cOpts)
 		require.NoError(t, err)
-		b := new(ConnBuilder).InitFromViper(v)
+		b, err := new(ConnBuilder).InitFromViper(v)
+		require.NoError(t, err)
 		assert.Equal(t, test.expected, b)
 	}
 }

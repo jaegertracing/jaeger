@@ -61,7 +61,10 @@ func main() {
 			version.NewInfoMetrics(mFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
-			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
+			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Failed to configure connection for grpc", zap.Error(err))
+			}
 			builders := map[reporter.Type]app.CollectorProxyBuilder{
 				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),
 			}

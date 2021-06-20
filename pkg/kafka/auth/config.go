@@ -93,7 +93,7 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		Prefix: configPrefix,
 	}
 
-	config.TLS = tlsClientConfig.InitFromViper(v)
+	config.TLS, _ = tlsClientConfig.InitFromViper(v)
 	if config.Authentication == tls {
 		config.TLS.Enabled = true
 	}

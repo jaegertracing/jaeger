@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -41,7 +42,8 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.additional-headers=whatever:thing",
 		"--query.max-clock-skew-adjustment=10s",
 	})
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
@@ -59,7 +61,8 @@ func TestQueryBuilderBadHeadersFlags(t *testing.T) {
 	command.ParseFlags([]string{
 		"--query.additional-headers=malformedheader",
 	})
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 	assert.Nil(t, qOpts.AdditionalHeaders)
 }
 
@@ -92,7 +95,8 @@ func TestStringSliceAsHeader(t *testing.T) {
 
 func TestBuildQueryServiceOptions(t *testing.T) {
 	v, _ := config.Viperize(AddFlags)
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
 	qSvcOpts := qOpts.BuildQueryServiceOptions(&mocks.Factory{}, zap.NewNop())
@@ -162,7 +166,8 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			v, command := config.Viperize(AddFlags)
 			command.ParseFlags(test.flagsArray)
-			qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			require.NoError(t, err)
 
 			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTPHostPort)
 			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPCHostPort)
