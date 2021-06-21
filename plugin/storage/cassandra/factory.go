@@ -66,7 +66,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper) {
+func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.primaryConfig = f.Options.GetPrimary()
 	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {

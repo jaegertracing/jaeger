@@ -78,7 +78,7 @@ func TestConfigurable(t *testing.T) {
 	v := viper.New()
 
 	f.AddFlags(fs)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, fs, mock.flagSet)
 	assert.Equal(t, v, mock.viper)
@@ -87,6 +87,7 @@ func TestConfigurable(t *testing.T) {
 type mockFactory struct {
 	flagSet  *flag.FlagSet
 	viper    *viper.Viper
+	logger   *zap.Logger
 	retError bool
 }
 
@@ -94,8 +95,9 @@ func (f *mockFactory) AddFlags(flagSet *flag.FlagSet) {
 	f.flagSet = flagSet
 }
 
-func (f *mockFactory) InitFromViper(v *viper.Viper) {
+func (f *mockFactory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.viper = v
+	f.logger = logger
 }
 
 func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, error) {

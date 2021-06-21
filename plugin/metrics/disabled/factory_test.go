@@ -34,7 +34,7 @@ func TestPrometheusFactory(t *testing.T) {
 	require.NoError(t, err)
 
 	f.AddFlags(nil)
-	f.InitFromViper(nil)
+	f.InitFromViper(nil, zap.NewNop())
 
 	reader, err := f.CreateMetricsReader()
 	assert.NoError(t, err)

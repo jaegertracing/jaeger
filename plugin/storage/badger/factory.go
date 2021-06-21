@@ -22,8 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgraph-io/badger"
-	"github.com/dgraph-io/badger/options"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -81,8 +80,8 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper) {
-	f.Options.InitFromViper(v)
+func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+	f.Options.InitFromViper(v, logger)
 }
 
 // InitFromOptions initializes Factory from supplied options
@@ -95,7 +94,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.logger = logger
 
 	opts := badger.DefaultOptions("")
-	opts.TableLoadingMode = options.MemoryMap
 
 	if f.Options.Primary.Ephemeral {
 		opts.SyncWrites = false
@@ -117,7 +115,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		opts.ValueDir = f.Options.Primary.ValueDirectory
 
 		// These options make no sense with ephemeral data
-		opts.Truncate = f.Options.Primary.Truncate
 		opts.ReadOnly = f.Options.Primary.ReadOnly
 	}
 

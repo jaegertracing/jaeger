@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"

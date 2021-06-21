@@ -35,7 +35,7 @@ func NewFactory() *Factory {
 func (f *Factory) AddFlags(_ *flag.FlagSet) {}
 
 // InitFromViper implements plugin.Configurable.
-func (f *Factory) InitFromViper(_ *viper.Viper) {}
+func (f *Factory) InitFromViper(_ *viper.Viper, _ *zap.Logger) {}
 
 // Initialize implements storage.MetricsFactory.
 func (f *Factory) Initialize(_ *zap.Logger) error {
