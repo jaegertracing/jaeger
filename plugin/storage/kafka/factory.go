@@ -52,7 +52,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper) {
+func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.options.InitFromViper(v)
 	f.Builder = &f.options.Config
 }
