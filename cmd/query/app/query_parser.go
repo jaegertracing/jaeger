@@ -51,6 +51,15 @@ var (
 
 	// errServiceParameterRequired occurs when no service name is defined.
 	errServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
+
+	jaegerToOtelSpanKind = map[string]string{
+		"unspecified": metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(),
+		"internal":    metrics.SpanKind_SPAN_KIND_INTERNAL.String(),
+		"server":      metrics.SpanKind_SPAN_KIND_SERVER.String(),
+		"client":      metrics.SpanKind_SPAN_KIND_CLIENT.String(),
+		"producer":    metrics.SpanKind_SPAN_KIND_PRODUCER.String(),
+		"consumer":    metrics.SpanKind_SPAN_KIND_CONSUMER.String(),
+	}
 )
 
 type (
@@ -70,28 +79,23 @@ type (
 		lookback time.Duration
 	}
 
-	durationParser interface {
-		parseDuration(string) (time.Duration, error)
-	}
-
-	// durationStringParser parses duration strings like "5ms".
-	durationStringParser struct{}
-
-	// durationUnitsParser parses integer durations represented as units of time such as "1000".
-	durationUnitsParser struct {
-		units time.Duration
-	}
+	durationParser = func(s string) (time.Duration, error)
 )
 
-func (dsp durationStringParser) parseDuration(s string) (time.Duration, error) {
-	return time.ParseDuration(s)
-}
-func (dup durationUnitsParser) parseDuration(s string) (time.Duration, error) {
-	i, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, err
+func newDurationStringParser() durationParser {
+	return func(s string) (time.Duration, error) {
+		return time.ParseDuration(s)
 	}
-	return time.Duration(i) * (dup.units), nil
+}
+
+func newDurationUnitsParser(units time.Duration) durationParser {
+	return func(s string) (time.Duration, error) {
+		i, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(i) * (units), nil
+	}
 }
 
 // parseTraceQueryParams takes a request and constructs a model of parameters.
@@ -122,7 +126,6 @@ func (dup durationUnitsParser) parseDuration(s string) (time.Duration, error) {
 //     keyValue := strValue ':' strValue
 //     tags :== 'tags=' jsonMap
 func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
-	dp := durationStringParser{}
 	service := r.FormValue(serviceParam)
 	operation := r.FormValue(operationParam)
 
@@ -150,12 +153,13 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		limit = int(limitParsed)
 	}
 
-	minDuration, err := parseDuration(r, minDurationParam, dp, 0)
+	parser := newDurationStringParser()
+	minDuration, err := parseDuration(r, minDurationParam, parser, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	maxDuration, err := parseDuration(r, maxDurationParam, dp, 0)
+	maxDuration, err := parseDuration(r, maxDurationParam, parser, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +204,7 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 		return dqp, err
 	}
 
-	dqp.lookback, err = parseDuration(r, lookbackParam, durationUnitsParser{units: time.Millisecond}, defaultDependencyLookbackDuration)
+	dqp.lookback, err = parseDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
 	return dqp, err
 }
 
@@ -238,9 +242,8 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //     ratePer ::= 'ratePer=' intValue duration in milliseconds
 //     spanKinds ::= spanKind | spanKind '&' spanKinds
 //     spanKind ::= 'spanKind=' spanKindType
-//     spanKindType ::= "SPAN_KIND_INTERNAL" | "SPAN_KIND_SERVER" | "SPAN_KIND_CLIENT" | "SPAN_KIND_PRODUCER" | "SPAN_KIND_CONSUMER"
+//     spanKindType ::= "unspecified" | "internal" | "server" | "client" | "producer" | "consumer"
 func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
-	dp := durationUnitsParser{units: time.Millisecond}
 	query := r.URL.Query()
 	services, ok := query[serviceParam]
 	if !ok {
@@ -260,15 +263,16 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 	if err != nil {
 		return bqp, err
 	}
-	lookback, err := parseDuration(r, lookbackParam, dp, defaultMetricsQueryLookbackDuration)
+	parser := newDurationUnitsParser(time.Millisecond)
+	lookback, err := parseDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
 	if err != nil {
 		return bqp, err
 	}
-	step, err := parseDuration(r, stepParam, dp, defaultMetricsQueryStepDuration)
+	step, err := parseDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
 	if err != nil {
 		return bqp, err
 	}
-	ratePer, err := parseDuration(r, rateParam, dp, defaultMetricsQueryRateDuration)
+	ratePer, err := parseDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
 	if err != nil {
 		return bqp, err
 	}
@@ -298,12 +302,12 @@ func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Du
 
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.
 // If the duration parameter is empty, the given defaultDuration will be returned.
-func parseDuration(r *http.Request, paramName string, dp durationParser, defaultDuration time.Duration) (time.Duration, error) {
+func parseDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
 	formValue := r.FormValue(paramName)
 	if formValue == "" {
 		return defaultDuration, nil
 	}
-	d, err := dp.parseDuration(formValue)
+	d, err := parse(formValue)
 	if err != nil {
 		return 0, newParseError(err, paramName)
 	}
@@ -323,30 +327,45 @@ func parseBool(r *http.Request, paramName string) (b bool, err error) {
 }
 
 // parseSpanKindParam parses the input span kinds to filter for in the metrics query.
-// Valid input span kinds are the string representations from the OpenTelemetry model/proto/metrics/otelspankind.proto.
-// For example:
+//
+// Valid input span kinds include:
+// - "unspecified": when no span kind specified in span.
+// - "internal": internal operation within an application, instead of application boundaries.
+// - "server": server-side handling span.
+// - "client": outbound service call span.
+// - "producer": producer sending a message to broker.
+// - "consumer": consumer consuming a message from a broker.
+//
+// The output span kinds are the string representations from the OpenTelemetry model/proto/metrics/otelspankind.proto.
+// That is, the following map to the above valid inputs:
+// - "SPAN_KIND_UNSPECIFIED"
+// - "SPAN_KIND_INTERNAL"
 // - "SPAN_KIND_SERVER"
 // - "SPAN_KIND_CLIENT"
-// - etc.
+// - "SPAN_KIND_PRODUCER"
+// - "SPAN_KIND_CONSUMER"
 func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string) ([]string, error) {
 	query := r.URL.Query()
-	spanKinds, ok := query[paramName]
+	jaegerSpanKinds, ok := query[paramName]
 	if !ok {
 		return defaultSpanKinds, nil
 	}
-	if err := validateSpanKinds(spanKinds); err != nil {
+	otelSpanKinds, err := mapSpanKinds(jaegerSpanKinds)
+	if err != nil {
 		return defaultSpanKinds, newParseError(err, paramName)
 	}
-	return spanKinds, nil
+	return otelSpanKinds, nil
 }
 
-func validateSpanKinds(spanKinds []string) error {
-	for _, spanKind := range spanKinds {
-		if _, ok := metrics.SpanKind_value[spanKind]; !ok {
-			return fmt.Errorf("unsupported span kind: '%s'", spanKind)
+func mapSpanKinds(spanKinds []string) ([]string, error) {
+	otelSpanKinds := make([]string, len(spanKinds))
+	var ok bool
+	for i, spanKind := range spanKinds {
+		if otelSpanKinds[i], ok = jaegerToOtelSpanKind[spanKind]; !ok {
+			return otelSpanKinds, fmt.Errorf("unsupported span kind: '%s'", spanKind)
 		}
 	}
-	return nil
+	return otelSpanKinds, nil
 }
 
 func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {

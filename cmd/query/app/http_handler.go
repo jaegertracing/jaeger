@@ -503,16 +503,16 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 	prettyPrintValue := r.FormValue(prettyPrintParam)
 	prettyPrint := prettyPrintValue != "" && prettyPrintValue != "false"
 
-	var marshaler jsonMarshaler
+	var marshal jsonMarshaler
 	switch response.(type) {
 	case proto.Message:
-		marshaler = newProtoJSONMarshaler(prettyPrint)
+		marshal = newProtoJSONMarshaler(prettyPrint)
 	default:
-		marshaler = newStructJSONMarshaler(prettyPrint)
+		marshal = newStructJSONMarshaler(prettyPrint)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := marshaler.marshal(w, response); err != nil {
+	if err := marshal(w, response); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
 	}
 }

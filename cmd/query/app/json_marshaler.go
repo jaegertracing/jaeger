@@ -23,31 +23,21 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-type jsonMarshaler interface {
-	marshal(writer io.Writer, response interface{}) error
-}
+type jsonMarshaler = func(writer io.Writer, response interface{}) error
 
-// protoJSONMarshaler is a protobuf-friendly JSON marshaler that knows how to handle protobuf-specific
+// newProtoJSONMarshaler returns a protobuf-friendly JSON marshaler that knows how to handle protobuf-specific
 // field types such as "oneof" as well as dealing with NaNs which are not supported by JSON.
-type protoJSONMarshaler struct {
-	marshaler *jsonpb.Marshaler
-}
-
-// structJSONMarshaler uses the built-in encoding/json package for marshaling basic structs to JSON.
-type structJSONMarshaler struct {
-	marshaler func(v interface{}) ([]byte, error)
-}
-
 func newProtoJSONMarshaler(prettyPrint bool) jsonMarshaler {
 	marshaler := new(jsonpb.Marshaler)
 	if prettyPrint {
 		marshaler.Indent = prettyPrintIndent
 	}
-	return &protoJSONMarshaler{
-		marshaler: marshaler,
+	return func(w io.Writer, response interface{}) error {
+		return marshaler.Marshal(w, response.(proto.Message))
 	}
 }
 
+// newStructJSONMarshaler returns a marshaler that uses the built-in encoding/json package for marshaling basic structs to JSON.
 func newStructJSONMarshaler(prettyPrint bool) jsonMarshaler {
 	marshaler := json.Marshal
 	if prettyPrint {
@@ -55,20 +45,12 @@ func newStructJSONMarshaler(prettyPrint bool) jsonMarshaler {
 			return json.MarshalIndent(v, "", prettyPrintIndent)
 		}
 	}
-	return &structJSONMarshaler{
-		marshaler: marshaler,
+	return func(w io.Writer, response interface{}) error {
+		resp, err := marshaler(response)
+		if err != nil {
+			return fmt.Errorf("failed marshalling HTTP response to JSON: %w", err)
+		}
+		_, err = w.Write(resp)
+		return err
 	}
-}
-
-func (pm *protoJSONMarshaler) marshal(w io.Writer, response interface{}) error {
-	return pm.marshaler.Marshal(w, response.(proto.Message))
-}
-
-func (sm *structJSONMarshaler) marshal(w io.Writer, response interface{}) error {
-	resp, err := sm.marshaler(response)
-	if err != nil {
-		return fmt.Errorf("failed marshalling HTTP response to JSON: %w", err)
-	}
-	_, err = w.Write(resp)
-	return err
 }

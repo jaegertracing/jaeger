@@ -673,7 +673,7 @@ func TestGetMetricsSuccess(t *testing.T) {
 		},
 		{
 			name:                       "error rates with spanKinds",
-			urlPath:                    "/api/metrics/errors?service=emailservice&spanKind=SPAN_KIND_CLIENT",
+			urlPath:                    "/api/metrics/errors?service=emailservice&spanKind=client",
 			mockedQueryMethod:          "GetErrorRates",
 			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
 		},

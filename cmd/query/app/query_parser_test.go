@@ -234,7 +234,8 @@ func TestParseRepeatedServices(t *testing.T) {
 }
 
 func TestParseRepeatedSpanKinds(t *testing.T) {
-	request, err := http.NewRequest(http.MethodGet, "x?service=foo&spanKind=SPAN_KIND_SERVER&spanKind=SPAN_KIND_CLIENT", nil)
+	q := "x?service=foo&spanKind=unspecified&spanKind=internal&spanKind=server&spanKind=client&spanKind=producer&spanKind=consumer"
+	request, err := http.NewRequest(http.MethodGet, q, nil)
 	require.NoError(t, err)
 	parser := &queryParser{
 		timeNow: func() time.Time {
@@ -243,7 +244,14 @@ func TestParseRepeatedSpanKinds(t *testing.T) {
 	}
 	mqp, err := parser.parseMetricsQueryParams(request)
 	require.NoError(t, err)
-	assert.Equal(t, []string{metrics.SpanKind_SPAN_KIND_SERVER.String(), metrics.SpanKind_SPAN_KIND_CLIENT.String()}, mqp.SpanKinds)
+	assert.Equal(t, []string{
+		metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(),
+		metrics.SpanKind_SPAN_KIND_INTERNAL.String(),
+		metrics.SpanKind_SPAN_KIND_SERVER.String(),
+		metrics.SpanKind_SPAN_KIND_CLIENT.String(),
+		metrics.SpanKind_SPAN_KIND_PRODUCER.String(),
+		metrics.SpanKind_SPAN_KIND_CONSUMER.String(),
+	}, mqp.SpanKinds)
 }
 
 func TestParameterErrors(t *testing.T) {
