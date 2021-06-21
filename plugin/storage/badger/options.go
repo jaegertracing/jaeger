@@ -41,7 +41,6 @@ type NamespaceConfig struct {
 	SyncWrites            bool          `mapstructure:"consistency"`
 	MaintenanceInterval   time.Duration `mapstructure:"maintenance_interval"`
 	MetricsUpdateInterval time.Duration `mapstructure:"metrics_update_interval"`
-	Truncate              bool          `mapstructure:"truncate"`
 	ReadOnly              bool          `mapstructure:"read_only"`
 }
 
@@ -139,7 +138,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixTruncate,
-		nsConfig.Truncate,
+		false,
 		truncateWarning+" If write-ahead-log should be truncated on restart. This will cause data loss.",
 	)
 	flagSet.Bool(
@@ -162,7 +161,6 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper, logger *zap.Logger) {
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
 	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
 	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
-	cfg.Truncate = v.GetBool(cfg.namespace + suffixTruncate)
 	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
 	if v.IsSet(cfg.namespace + suffixTruncate) {
 		logger.Warn("NOTE: Deprecated flag --badger.truncate passed " + truncateWarning)

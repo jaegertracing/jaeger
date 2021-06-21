@@ -53,7 +53,6 @@ func TestParseOptions(t *testing.T) {
 	assert.Equal(t, "/var/lib/badger", opts.GetPrimary().KeyDirectory)
 	assert.Equal(t, "/mnt/slow/badger", opts.GetPrimary().ValueDirectory)
 	assert.False(t, opts.GetPrimary().ReadOnly)
-	assert.False(t, opts.GetPrimary().Truncate)
 }
 
 func TestTruncateAndReadOnlyOptions(t *testing.T) {
@@ -66,5 +65,4 @@ func TestTruncateAndReadOnlyOptions(t *testing.T) {
 	opts.InitFromViper(v, zap.NewNop())
 
 	assert.True(t, opts.GetPrimary().ReadOnly)
-	assert.True(t, opts.GetPrimary().Truncate)
 }
