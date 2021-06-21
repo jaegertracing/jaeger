@@ -126,10 +126,10 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 }
 
 func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, error) {
-	// TODO: Add HandlerOptions.MetricsQueryService
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
+		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
 
 	apiHandler := NewAPIHandler(
