@@ -238,9 +238,7 @@ func TestParseRepeatedSpanKinds(t *testing.T) {
 	request, err := http.NewRequest(http.MethodGet, q, nil)
 	require.NoError(t, err)
 	parser := &queryParser{
-		timeNow: func() time.Time {
-			return time.Now()
-		},
+		timeNow: time.Now
 	}
 	mqp, err := parser.parseMetricsQueryParams(request)
 	require.NoError(t, err)

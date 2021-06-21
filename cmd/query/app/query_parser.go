@@ -357,11 +357,12 @@ func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string
 	return otelSpanKinds, nil
 }
 
-func mapSpanKinds(spanKinds []string) ([]string, error) {
+func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	otelSpanKinds := make([]string, len(spanKinds))
-	var ok bool
 	for i, spanKind := range spanKinds {
-		if otelSpanKinds[i], ok = jaegerToOtelSpanKind[spanKind]; !ok {
+		if v, ok := jaegerToOtelSpanKind[spanKind]; ok {
+		    otelSpanKinds[i] = v
+		} else {
 			return otelSpanKinds, fmt.Errorf("unsupported span kind: '%s'", spanKind)
 		}
 	}
