@@ -150,7 +150,7 @@ func (m *MetricsQueryBaseRequest) GetSpanKinds() []SpanKind {
 type GetLatenciesRequest struct {
 	BaseRequest *MetricsQueryBaseRequest `protobuf:"bytes,1,opt,name=baseRequest,proto3" json:"baseRequest,omitempty"`
 	// quantile is the quantile to compute from latency histogram metrics.
-	// Valid range: 0 - 1 (inclusive).
+	// Valid range: (0, 1]
 	//
 	// e.g. 0.99 will return the 99th percentile or P99 which is the worst latency
 	// observed from 99% of all spans for the given service (and operation).

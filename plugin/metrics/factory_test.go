@@ -23,20 +23,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 )
 
 var _ storage.MetricsFactory = new(Factory)
 
-func defaultCfg() FactoryConfig {
+func withConfig(storageType string) FactoryConfig {
 	return FactoryConfig{
-		MetricsStorageType: prometheusStorageType,
+		MetricsStorageType: storageType,
 	}
 }
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(defaultCfg())
+	f, err := NewFactory(withConfig(prometheusStorageType))
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[prometheusStorageType])
@@ -44,14 +45,22 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestUnsupportedMetricsStorageType(t *testing.T) {
-	f, err := NewFactory(FactoryConfig{MetricsStorageType: "foo"})
+	f, err := NewFactory(withConfig("foo"))
 	require.Error(t, err)
 	assert.Nil(t, f)
 	assert.EqualError(t, err, `unknown metrics type "foo". Valid types are [prometheus]`)
 }
 
+func TestDisabledMetricsStorageType(t *testing.T) {
+	f, err := NewFactory(withConfig(disabledStorageType))
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.Equal(t, &disabled.Factory{}, f.factories[disabledStorageType])
+	assert.Equal(t, disabledStorageType, f.MetricsStorageType)
+}
+
 func TestCreateMetricsReader(t *testing.T) {
-	f, err := NewFactory(defaultCfg())
+	f, err := NewFactory(withConfig(prometheusStorageType))
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
@@ -89,7 +98,7 @@ func TestConfigurable(t *testing.T) {
 	clearEnv(t)
 	defer clearEnv(t)
 
-	f, err := NewFactory(defaultCfg())
+	f, err := NewFactory(withConfig(prometheusStorageType))
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[prometheusStorageType])

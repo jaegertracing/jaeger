@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
@@ -41,7 +43,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	metricsmocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -85,7 +90,7 @@ type structuredTraceResponse struct {
 	Errors []structuredError `json:"errors"`
 }
 
-func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	return initializeTestServerWithOptions(
 		queryOptions,
 		append(
@@ -101,19 +106,23 @@ func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, 
 	)
 }
 
-func initializeTestServerWithOptions(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+func initializeTestServerWithOptions(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
 	r := NewRouter()
 	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
-	return httptest.NewServer(r), readStorage, dependencyStorage, handler
+	return &testServer{
+		server:           httptest.NewServer(r),
+		spanReader:       readStorage,
+		dependencyReader: dependencyStorage,
+		handler:          handler,
+	}
 }
 
-func initializeTestServer(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
-	https, sr, dr, _ := initializeTestServerWithHandler(querysvc.QueryServiceOptions{}, options...)
-	return https, sr, dr
+func initializeTestServer(options ...HandlerOption) *testServer {
+	return initializeTestServerWithHandler(querysvc.QueryServiceOptions{}, options...)
 }
 
 type testServer struct {
@@ -123,26 +132,20 @@ type testServer struct {
 	server           *httptest.Server
 }
 
-func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
-	server, spanReader, depReader, handler := initializeTestServerWithOptions(queryOptions, options...)
-	s := &testServer{
-		spanReader:       spanReader,
-		dependencyReader: depReader,
-		handler:          handler,
-		server:           server,
-	}
-	defer server.Close()
-	doTest(s)
+func withTestServer(doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
+	ts := initializeTestServerWithOptions(queryOptions, options...)
+	defer ts.server.Close()
+	doTest(ts)
 }
 
 func TestGetTraceSuccess(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces/123456`, &response)
+	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 0)
 }
@@ -224,7 +227,7 @@ func TestWriteJSON(t *testing.T) {
 		{
 			name:   "fail JSON marshal",
 			data:   struct{ Data float64 }{Data: math.Inf(1)},
-			output: "{\"data\":null,\"total\":0,\"limit\":0,\"offset\":0,\"errors\":[{\"code\":500,\"msg\":\"failed marshalling HTTP response to JSON: json: unsupported value: +Inf\"}]}\n",
+			output: `failed marshalling HTTP response to JSON: json: unsupported value: +Inf`,
 		},
 		{
 			name:         "fail http write",
@@ -256,7 +259,7 @@ func TestWriteJSON(t *testing.T) {
 			defer server.Close()
 
 			out := get(server.URL + testCase.param)
-			assert.Equal(t, testCase.output, out)
+			assert.Contains(t, out, testCase.output)
 		})
 	}
 }
@@ -299,14 +302,14 @@ func TestGetTrace(t *testing.T) {
 			jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
 			defer jaegerCloser.Close()
 
-			server, readMock, _ := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
-			defer server.Close()
+			ts := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
+			defer ts.server.Close()
 
-			readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
+			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
 				Return(makeMockTrace(t), nil).Once()
 
 			var response structuredResponse
-			err := getJSON(server.URL+`/api/traces/123456aBC`+testCase.suffix, &response) // trace ID in mixed lower/upper case
+			err := getJSON(ts.server.URL+`/api/traces/123456aBC`+testCase.suffix, &response) // trace ID in mixed lower/upper case
 			assert.NoError(t, err)
 			assert.Len(t, response.Errors, 0)
 
@@ -321,75 +324,75 @@ func TestGetTrace(t *testing.T) {
 }
 
 func TestGetTraceDBFailure(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, errStorage).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces/123456`, &response)
+	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
 	assert.Error(t, err)
 }
 
 func TestGetTraceNotFound(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces/123456`, &response)
+	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
 	assert.EqualError(t, err, parsedError(404, "trace not found"))
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
-	server, readMock, _, _ := initializeTestServerWithHandler(
+	ts := initializeTestServerWithHandler(
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
 			}),
 		},
 	)
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces/123456`, &response)
+	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 1)
 	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
 }
 
 func TestGetTraceBadTraceID(t *testing.T) {
-	server, _, _ := initializeTestServer()
-	defer server.Close()
+	ts := initializeTestServer()
+	defer ts.server.Close()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces/chumbawumba`, &response)
+	err := getJSON(ts.server.URL+`/api/traces/chumbawumba`, &response)
 	assert.Error(t, err)
 }
 
 func TestSearchSuccess(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 0)
 }
 
 func TestSearchByTraceIDSuccess(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 0)
 	assert.Len(t, response.Data, 2)
@@ -397,73 +400,73 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	server, readMock, _, _ := initializeTestServerWithOptions(querysvc.QueryServiceOptions{
+	ts := initializeTestServerWithOptions(querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
 	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 0)
 	assert.Len(t, response.Data, 2)
 }
 
 func TestSearchByTraceIDNotFound(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces?traceID=1`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 1)
 	assert.Equal(t, structuredError{Msg: "trace not found", TraceID: ui.TraceID("0000000000000001")}, response.Errors[0])
 }
 
 func TestSearchByTraceIDFailure(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
+	ts := initializeTestServer()
+	defer ts.server.Close()
 	whatsamattayou := "https://youtu.be/WrKFOCg13QQ"
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, fmt.Errorf(whatsamattayou)).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces?traceID=1`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
 	assert.EqualError(t, err, parsedError(500, whatsamattayou))
 }
 
 func TestSearchModelConversionFailure(t *testing.T) {
-	server, readMock, _, _ := initializeTestServerWithOptions(
+	ts := initializeTestServerWithOptions(
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
 			}),
 		},
 	)
-	defer server.Close()
-	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+	defer ts.server.Close()
+	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 1)
 	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
 }
 
 func TestSearchDBFailure(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return(nil, fmt.Errorf("whatsamattayou")).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
 	assert.EqualError(t, err, parsedError(500, "whatsamattayou"))
 }
 
@@ -487,24 +490,24 @@ func TestSearchFailures(t *testing.T) {
 }
 
 func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("Query", mock.AnythingOfType("spanstore.TraceQueryParameters")).
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("Query", mock.AnythingOfType("spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{}, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+urlStr, &response)
+	err := getJSON(ts.server.URL+urlStr, &response)
 	assert.EqualError(t, err, errMsg)
 }
 
 func TestGetServicesSuccess(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
+	ts := initializeTestServer()
+	defer ts.server.Close()
 	expectedServices := []string{"trifle", "bling"}
-	readMock.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
+	ts.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services", &response)
+	err := getJSON(ts.server.URL+"/api/services", &response)
 	assert.NoError(t, err)
 	actualServices := make([]string, len(expectedServices))
 	for i, s := range response.Data.([]interface{}) {
@@ -514,23 +517,26 @@ func TestGetServicesSuccess(t *testing.T) {
 }
 
 func TestGetServicesStorageFailure(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorage).Once()
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorage).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services", &response)
+	err := getJSON(ts.server.URL+"/api/services", &response)
 	assert.Error(t, err)
 }
 
 func TestGetOperationsSuccess(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
+	ts := initializeTestServer()
+	defer ts.server.Close()
 	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
-	readMock.On(
+	ts.spanReader.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
-		spanstore.OperationQueryParameters{ServiceName: "abc/trifle"},
+		spanstore.OperationQueryParameters{
+			ServiceName: "abc/trifle",
+			SpanKind:    "server",
+		},
 	).Return(expectedOperations, nil).Once()
 
 	var response struct {
@@ -541,7 +547,7 @@ func TestGetOperationsSuccess(t *testing.T) {
 		Errors     []structuredError `json:"errors"`
 	}
 
-	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
+	err := getJSON(ts.server.URL+"/api/operations?service=abc%2Ftrifle&spanKind=server", &response)
 	assert.NoError(t, err)
 	assert.Equal(t, len(expectedOperations), len(response.Operations))
 	for i, op := range response.Operations {
@@ -551,58 +557,255 @@ func TestGetOperationsSuccess(t *testing.T) {
 }
 
 func TestGetOperationsNoServiceName(t *testing.T) {
-	server, _, _ := initializeTestServer()
-	defer server.Close()
+	ts := initializeTestServer()
+	defer ts.server.Close()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/operations", &response)
+	err := getJSON(ts.server.URL+"/api/operations", &response)
 	assert.Error(t, err)
 }
 
 func TestGetOperationsStorageFailure(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On(
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
 		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(nil, errStorage).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
+	err := getJSON(ts.server.URL+"/api/operations?service=trifle", &response)
 	assert.Error(t, err)
 }
 
 func TestGetOperationsLegacySuccess(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
+	ts := initializeTestServer()
+	defer ts.server.Close()
 	expectedOperationNames := []string{"", "get"}
 	expectedOperations := []spanstore.Operation{
 		{Name: ""},
 		{Name: "get", SpanKind: "server"},
 		{Name: "get", SpanKind: "client"}}
 
-	readMock.On(
+	ts.spanReader.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
 		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
+	err := getJSON(ts.server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, expectedOperationNames, response.Data.([]interface{}))
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On(
+	ts := initializeTestServer()
+	defer ts.server.Close()
+	ts.spanReader.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
 		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(nil, errStorage).Once()
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services/trifle/operations", &response)
+	err := getJSON(ts.server.URL+"/api/services/trifle/operations", &response)
 	assert.Error(t, err)
+}
+
+func TestGetMetricsSuccess(t *testing.T) {
+	mr := &metricsmocks.Reader{}
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.MetricsQueryService(mr),
+	}
+	ts := initializeTestServer(apiHandlerOptions...)
+	defer ts.server.Close()
+	expectedLabel := &metrics.Label{
+		Name:  "service_name",
+		Value: "emailservice",
+	}
+	expectedMetricPoint := &metrics.MetricPoint{
+		Timestamp: &types.Timestamp{Seconds: time.Now().Unix()},
+		Value: &metrics.MetricPoint_GaugeValue{
+			GaugeValue: &metrics.GaugeValue{
+				Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 0.9},
+			},
+		},
+	}
+	expectedMetricsQueryResponse := &metrics.MetricFamily{
+		Name: "the metrics",
+		Type: metrics.MetricType_GAUGE,
+		Metrics: []*metrics.Metric{
+			{
+				Labels:       []*metrics.Label{expectedLabel},
+				MetricPoints: []*metrics.MetricPoint{expectedMetricPoint},
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		name                       string
+		urlPath                    string
+		mockedQueryMethod          string
+		mockedQueryMethodParamType string
+	}{
+		{
+			name:                       "latencies",
+			urlPath:                    "/api/metrics/latencies?service=emailservice&quantile=0.95",
+			mockedQueryMethod:          "GetLatencies",
+			mockedQueryMethodParamType: "*metricsstore.LatenciesQueryParameters",
+		},
+		{
+			name:                       "call rates",
+			urlPath:                    "/api/metrics/calls?service=emailservice",
+			mockedQueryMethod:          "GetCallRates",
+			mockedQueryMethodParamType: "*metricsstore.CallRateQueryParameters",
+		},
+		{
+			name:                       "error rates",
+			urlPath:                    "/api/metrics/errors?service=emailservice",
+			mockedQueryMethod:          "GetErrorRates",
+			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
+		},
+		{
+			name:                       "error rates with pretty print",
+			urlPath:                    "/api/metrics/errors?service=emailservice&prettyPrint=true",
+			mockedQueryMethod:          "GetErrorRates",
+			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
+		},
+		{
+			name:                       "error rates with spanKinds",
+			urlPath:                    "/api/metrics/errors?service=emailservice&spanKind=client",
+			mockedQueryMethod:          "GetErrorRates",
+			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Prepare
+			mr.On(
+				tc.mockedQueryMethod,
+				mock.AnythingOfType("*context.valueCtx"),
+				mock.AnythingOfType(tc.mockedQueryMethodParamType),
+			).Return(expectedMetricsQueryResponse, nil).Once()
+
+			// Test
+			var response metrics.MetricFamily
+			err := getJSON(ts.server.URL+tc.urlPath, &response)
+
+			// Verify
+			require.NoError(t, err)
+			assert.Equal(t, expectedMetricsQueryResponse, &response)
+		})
+	}
+}
+
+func TestMetricsReaderError(t *testing.T) {
+	metricsReader := &metricsmocks.Reader{}
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.MetricsQueryService(metricsReader),
+	}
+	ts := initializeTestServer(apiHandlerOptions...)
+	defer ts.server.Close()
+
+	for _, tc := range []struct {
+		name                       string
+		urlPath                    string
+		mockedQueryMethod          string
+		mockedQueryMethodParamType string
+		mockedResponse             interface{}
+		wantErrorMessage           string
+	}{
+		{
+			urlPath:                    "/api/metrics/calls?service=emailservice",
+			mockedQueryMethod:          "GetCallRates",
+			mockedQueryMethodParamType: "*metricsstore.CallRateQueryParameters",
+			mockedResponse:             nil,
+			wantErrorMessage:           "error fetching call rates",
+		},
+		{
+			urlPath:                    "/api/metrics/minstep",
+			mockedQueryMethod:          "GetMinStepDuration",
+			mockedQueryMethodParamType: "*metricsstore.MinStepDurationQueryParameters",
+			mockedResponse:             time.Duration(0),
+			wantErrorMessage:           "error fetching min step duration",
+		},
+	} {
+		t.Run(tc.wantErrorMessage, func(t *testing.T) {
+			// Prepare
+			metricsReader.On(
+				tc.mockedQueryMethod,
+				mock.AnythingOfType("*context.valueCtx"),
+				mock.AnythingOfType(tc.mockedQueryMethodParamType),
+			).Return(tc.mockedResponse, fmt.Errorf(tc.wantErrorMessage)).Once()
+
+			// Test
+			var response metrics.MetricFamily
+			err := getJSON(ts.server.URL+tc.urlPath, &response)
+
+			// Verify
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErrorMessage)
+		})
+	}
+}
+
+func TestMetricsQueryDisabled(t *testing.T) {
+	disabledReader, err := disabled.NewMetricsReader()
+	require.NoError(t, err)
+
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.MetricsQueryService(disabledReader),
+	}
+	ts := initializeTestServer(apiHandlerOptions...)
+	defer ts.server.Close()
+
+	for _, tc := range []struct {
+		name             string
+		urlPath          string
+		wantErrorMessage string
+	}{
+		{
+			name:             "metrics query disabled error returned when fetching latency metrics",
+			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
+			wantErrorMessage: "metrics querying is currently disabled",
+		},
+		{
+			name:             "metrics query disabled error returned when fetching min step duration",
+			urlPath:          "/api/metrics/minstep",
+			wantErrorMessage: "metrics querying is currently disabled",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Test
+			var response interface{}
+			err := getJSON(ts.server.URL+tc.urlPath, &response)
+
+			// Verify
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErrorMessage)
+		})
+	}
+}
+
+func TestGetMinStep(t *testing.T) {
+	metricsReader := &metricsmocks.Reader{}
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.MetricsQueryService(metricsReader),
+	}
+	ts := initializeTestServer(apiHandlerOptions...)
+	defer ts.server.Close()
+	// Prepare
+	metricsReader.On(
+		"GetMinStepDuration",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters"),
+	).Return(5*time.Millisecond, nil).Once()
+
+	// Test
+	var response structuredResponse
+	err := getJSON(ts.server.URL+"/api/metrics/minstep", &response)
+
+	// Verify
+	require.NoError(t, err)
+	assert.Equal(t, float64(5), response.Data)
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
@@ -652,6 +855,10 @@ func execJSON(req *http.Request, out interface{}) error {
 		return nil
 	}
 
+	if protoMessage, ok := out.(proto.Message); ok {
+		unmarshaler := new(jsonpb.Unmarshaler)
+		return unmarshaler.Unmarshal(resp.Body, protoMessage)
+	}
 	decoder := json.NewDecoder(resp.Body)
 	return decoder.Decode(out)
 }

@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
@@ -32,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
 
 // Server runs HTTP, Mux and a grpc server
@@ -52,7 +54,7 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
+func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
 
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
@@ -67,12 +69,12 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, options, logger, tracer)
+	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, logger, tracer)
 	if err != nil {
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(querySvc, options, tracer, logger)
+	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tracer, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +96,7 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 	return s.unavailableChannel
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
+func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.TLSGRPC.Enabled {
@@ -110,15 +112,24 @@ func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, lo
 
 	server := grpc.NewServer(grpcOpts...)
 
-	handler := NewGRPCHandler(querySvc, logger, tracer)
+	handler := &GRPCHandler{
+		queryService:        querySvc,
+		metricsQueryService: metricsQuerySvc,
+		logger:              logger,
+		tracer:              tracer,
+		nowFn:               time.Now,
+	}
 	api_v2.RegisterQueryServiceServer(server, handler)
+	metrics.RegisterMetricsQueryServiceServer(server, handler)
+
 	return server, nil
 }
 
-func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, error) {
+func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
+		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
 
 	apiHandler := NewAPIHandler(
