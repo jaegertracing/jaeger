@@ -46,7 +46,7 @@ type NamespaceConfig struct {
 }
 
 // TODO deprecated flag to be removed
-const truncateWarning = "(deprecated since v1.24.0, will be removed in release v1.26.0)"
+const truncateWarning = "(deprecated, will be removed after 2021-09-21 or in release v1.26.0, whichever is later)"
 
 const (
 	defaultMaintenanceInterval   time.Duration = 5 * time.Minute
@@ -164,8 +164,8 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper, logger *zap.Logger) {
 	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
 	cfg.Truncate = v.GetBool(cfg.namespace + suffixTruncate)
 	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
-	if cfg.Truncate {
-		logger.Warn("NOTE: Deprecated flag --badger.truncate enabled " + truncateWarning)
+	if v.IsSet(cfg.namespace + suffixTruncate) {
+		logger.Warn("NOTE: Deprecated flag --badger.truncate passed " + truncateWarning)
 	}
 }
 
