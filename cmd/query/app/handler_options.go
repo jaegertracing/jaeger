@@ -20,6 +20,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -63,5 +65,12 @@ func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration)
 func (handlerOptions) Tracer(tracer opentracing.Tracer) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.tracer = tracer
+	}
+}
+
+// MetricsQueryService creates a HandlerOption that initializes MetricsQueryService.
+func (handlerOptions) MetricsQueryService(mqs querysvc.MetricsQueryService) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.metricsQueryService = mqs
 	}
 }
