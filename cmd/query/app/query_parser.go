@@ -350,7 +350,7 @@ func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string
 	if !ok {
 		return defaultSpanKinds, nil
 	}
-	otelSpanKinds, err := mapSpanKinds(jaegerSpanKinds)
+	otelSpanKinds, err := mapSpanKindsToOpenTelemetry(jaegerSpanKinds)
 	if err != nil {
 		return defaultSpanKinds, newParseError(err, paramName)
 	}
@@ -361,7 +361,7 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	otelSpanKinds := make([]string, len(spanKinds))
 	for i, spanKind := range spanKinds {
 		if v, ok := jaegerToOtelSpanKind[spanKind]; ok {
-		    otelSpanKinds[i] = v
+			otelSpanKinds[i] = v
 		} else {
 			return otelSpanKinds, fmt.Errorf("unsupported span kind: '%s'", spanKind)
 		}
