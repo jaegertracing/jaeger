@@ -43,7 +43,7 @@ func TestInitializationErrors(t *testing.T) {
 		keyParam,
 		valueParam,
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.Error(t, err)
@@ -53,7 +53,7 @@ func TestForCodecov(t *testing.T) {
 	// These tests are testing our vendor packages and are intended to satisfy Codecov.
 	f := NewFactory()
 	v, _ := config.Viperize(f.AddFlags)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
@@ -85,7 +85,7 @@ func TestMaintenanceRun(t *testing.T) {
 	command.ParseFlags([]string{
 		"--badger.maintenance-interval=10ms",
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	// Safeguard
 	mFactory := metricstest.NewFactory(0)
 	_, gs := mFactory.Snapshot()
@@ -130,7 +130,7 @@ func TestMaintenanceCodecov(t *testing.T) {
 	command.ParseFlags([]string{
 		"--badger.maintenance-interval=10ms",
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	mFactory := metricstest.NewFactory(0)
 	f.Initialize(mFactory, zap.NewNop())
 	defer f.Close()
@@ -157,7 +157,7 @@ func TestBadgerMetrics(t *testing.T) {
 	command.ParseFlags([]string{
 		"--badger.metrics-update-interval=10ms",
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	mFactory := metricstest.NewFactory(0)
 	f.Initialize(mFactory, zap.NewNop())
 	assert.NotNil(t, f.metrics.badgerMetrics)
@@ -194,19 +194,4 @@ func TestInitFromOptions(t *testing.T) {
 	opts := Options{}
 	f.InitFromOptions(opts)
 	assert.Equal(t, &opts, f.Options)
-}
-
-func TestTruncateCodecov(t *testing.T) {
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{
-		"--badger.truncate=true",
-		"--badger.ephemeral=false",
-	})
-	f.InitFromViper(v)
-	mFactory := metricstest.NewFactory(0)
-	f.Initialize(mFactory, zap.NewNop())
-	defer f.Close()
-
-	assert.True(t, f.Options.Primary.Truncate)
 }

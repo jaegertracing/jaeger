@@ -59,7 +59,7 @@ func main() {
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "ingester"})
 
-			storageFactory.InitFromViper(v)
+			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 // Options store storage plugin related configs
@@ -149,11 +150,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 }
 
 // InitFromViper initializes Options with properties from viper
-func (opt *Options) InitFromViper(v *viper.Viper) {
-	initFromViper(&opt.Primary, v)
+func (opt *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+	initFromViper(&opt.Primary, v, logger)
 }
 
-func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
+func initFromViper(cfg *NamespaceConfig, v *viper.Viper, logger *zap.Logger) {
 	cfg.Ephemeral = v.GetBool(cfg.namespace + suffixEphemeral)
 	cfg.KeyDirectory = v.GetString(cfg.namespace + suffixKeyDirectory)
 	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)
@@ -163,6 +164,9 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
 	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
 	cfg.Truncate = v.GetBool(cfg.namespace + suffixTruncate)
 	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
+	if cfg.Truncate {
+		logger.Warn("NOTE: Deprecated flag --badger.truncate enabled " + truncateWarning)
+	}
 }
 
 // GetPrimary returns the primary namespace configuration

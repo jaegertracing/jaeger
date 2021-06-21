@@ -45,8 +45,8 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper) {
-	f.options = Options{}.InitFromViper(v)
+func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+	f.options = Options{}.InitFromViper(v, logger)
 }
 
 // Initialize implements strategystore.Factory

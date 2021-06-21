@@ -82,6 +82,7 @@ type configurable struct {
 	mocks.MetricsFactory
 	flagSet *flag.FlagSet
 	viper   *viper.Viper
+	logger  *zap.Logger
 }
 
 // AddFlags implements plugin.Configurable.
@@ -90,8 +91,9 @@ func (f *configurable) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable.
-func (f *configurable) InitFromViper(v *viper.Viper) {
+func (f *configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.viper = v
+	f.logger = logger
 }
 
 func TestConfigurable(t *testing.T) {
@@ -110,7 +112,7 @@ func TestConfigurable(t *testing.T) {
 	v := viper.New()
 
 	f.AddFlags(fs)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, fs, mock.flagSet)
 	assert.Equal(t, v, mock.viper)

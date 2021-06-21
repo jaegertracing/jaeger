@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
@@ -151,7 +152,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties from viper
-func (opts Options) InitFromViper(v *viper.Viper) Options {
+func (opts Options) InitFromViper(v *viper.Viper, logger *zap.Logger) Options {
 	opts.TargetSamplesPerSecond = v.GetFloat64(targetSamplesPerSecond)
 	opts.DeltaTolerance = v.GetFloat64(deltaTolerance)
 	opts.BucketsForCalculation = v.GetInt(bucketsForCalculation)

@@ -200,16 +200,16 @@ func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper) {
+func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	for _, factory := range f.factories {
 		if conf, ok := factory.(plugin.Configurable); ok {
-			conf.InitFromViper(v)
+			conf.InitFromViper(v, logger)
 		}
 	}
-	f.initDownsamplingFromViper(v)
+	f.initDownsamplingFromViper(v, logger)
 }
 
-func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
+func (f *Factory) initDownsamplingFromViper(v *viper.Viper, logger *zap.Logger) {
 	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
 	// and has no use for downsampling.  the default settings effectively disable downsampling
 	if !f.downsamplingFlagsAdded {
