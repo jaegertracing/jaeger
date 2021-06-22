@@ -34,7 +34,7 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 		"--badger.ephemeral=true",
 		"--badger.consistency=false",
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	defer f.Close()

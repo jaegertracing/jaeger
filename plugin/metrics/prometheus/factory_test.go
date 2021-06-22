@@ -62,7 +62,7 @@ func TestWithConfiguration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:1234")
 	assert.Equal(t, f.options.Primary.ConnectTimeout, 5*time.Second)
 }

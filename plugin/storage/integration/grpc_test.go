@@ -50,7 +50,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	if err != nil {
 		return err
 	}
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return err
 	}

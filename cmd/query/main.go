@@ -96,7 +96,7 @@ func main() {
 			queryOpts := new(app.QueryOptions).InitFromViper(v, logger)
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(spanstore.StoragePropagationKey, queryOpts.BearerTokenPropagation)
-			storageFactory.InitFromViper(v)
+			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
@@ -170,6 +170,6 @@ func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, l
 	}
 
 	// Ensure default parameter values are loaded correctly.
-	factory.InitFromViper(v)
+	factory.InitFromViper(v, logger)
 	return factory.CreateMetricsReader()
 }

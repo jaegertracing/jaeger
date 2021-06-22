@@ -50,7 +50,7 @@ func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, f.options.Configuration.MaxTraces, 100)
 }
 
@@ -65,7 +65,7 @@ func TestPublishOpts(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	baseMetrics := metricstest.NewFactory(time.Second)
 	forkFactory := metricstest.NewFactory(time.Second)
