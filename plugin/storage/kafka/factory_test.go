@@ -52,7 +52,7 @@ func TestKafkaFactory(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	f.Builder = &mockProducerBuilder{
 		err: errors.New("made-up error"),
@@ -93,7 +93,7 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 			v, command := config.Viperize(f.AddFlags)
 			err := command.ParseFlags([]string{"--kafka.producer.encoding=" + test.encoding})
 			require.NoError(t, err)
-			f.InitFromViper(v)
+			f.InitFromViper(v, zap.NewNop())
 
 			f.Builder = &mockProducerBuilder{t: t}
 			assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -106,7 +106,7 @@ func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--kafka.producer.encoding=bad-input"})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	f.Builder = &mockProducerBuilder{t: t}
 	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -145,7 +145,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 			err := command.ParseFlags(test.flags)
 			require.NoError(t, err)
 
-			f.InitFromViper(v)
+			f.InitFromViper(v, zap.NewNop())
 
 			parsedConfig := f.Builder.(*kafkaConfig.Configuration)
 			f.Builder = &mockProducerBuilder{t: t, Configuration: *parsedConfig}

@@ -34,8 +34,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	metricsmocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -118,27 +122,40 @@ var (
 		},
 		Warnings: []string{},
 	}
+
+	now = time.Now()
 )
 
 type grpcServer struct {
-	server            *grpc.Server
-	lisAddr           net.Addr
-	spanReader        *spanstoremocks.Reader
-	depReader         *depsmocks.Reader
-	archiveSpanReader *spanstoremocks.Reader
-	archiveSpanWriter *spanstoremocks.Writer
+	server              *grpc.Server
+	lisAddr             net.Addr
+	spanReader          *spanstoremocks.Reader
+	depReader           *depsmocks.Reader
+	metricsQueryService querysvc.MetricsQueryService
+	archiveSpanReader   *spanstoremocks.Reader
+	archiveSpanWriter   *spanstoremocks.Writer
 }
 
 type grpcClient struct {
 	api_v2.QueryServiceClient
+	metrics.MetricsQueryServiceClient
 	conn *grpc.ClientConn
 }
 
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	grpcServer := grpc.NewServer()
-	grpcHandler := NewGRPCHandler(q, logger, tracer)
+	grpcHandler := &GRPCHandler{
+		queryService:        q,
+		metricsQueryService: mq,
+		logger:              logger,
+		tracer:              tracer,
+		nowFn: func() time.Time {
+			return now
+		},
+	}
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
+	metrics.RegisterMetricsQueryServiceServer(grpcServer, grpcHandler)
 
 	go func() {
 		err := grpcServer.Serve(lis)
@@ -155,18 +172,34 @@ func newGRPCClient(t *testing.T, addr string) *grpcClient {
 	require.NoError(t, err)
 
 	return &grpcClient{
-		QueryServiceClient: api_v2.NewQueryServiceClient(conn),
-		conn:               conn,
+		QueryServiceClient:        api_v2.NewQueryServiceClient(conn),
+		MetricsQueryServiceClient: metrics.NewMetricsQueryServiceClient(conn),
+		conn:                      conn,
 	}
 }
 
-func initializeTestServerGRPCWithOptions(t *testing.T) *grpcServer {
+type testOption func(*testQueryService)
 
+type testQueryService struct {
+	// metricsQueryService is used when creating a new GRPCHandler.
+	metricsQueryService querysvc.MetricsQueryService
+}
+
+func withMetricsQuery() testOption {
+	reader := &metricsmocks.Reader{}
+	return func(ts *testQueryService) {
+		ts.metricsQueryService = reader
+	}
+}
+
+func initializeTestServerGRPCWithOptions(t *testing.T, options ...testOption) *grpcServer {
 	archiveSpanReader := &spanstoremocks.Reader{}
 	archiveSpanWriter := &spanstoremocks.Writer{}
 
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
+	disabledReader, err := disabled.NewMetricsReader()
+	require.NoError(t, err)
 
 	q := querysvc.NewQueryService(spanReader, dependencyReader,
 		querysvc.QueryServiceOptions{
@@ -174,23 +207,32 @@ func initializeTestServerGRPCWithOptions(t *testing.T) *grpcServer {
 			ArchiveSpanWriter: archiveSpanWriter,
 		})
 
+	tqs := &testQueryService{
+		// Disable metrics query by default.
+		metricsQueryService: disabledReader,
+	}
+	for _, opt := range options {
+		opt(tqs)
+	}
+
 	logger := zap.NewNop()
 	tracer := opentracing.NoopTracer{}
 
-	server, addr := newGRPCServer(t, q, logger, tracer)
+	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer)
 
 	return &grpcServer{
-		server:            server,
-		lisAddr:           addr,
-		spanReader:        spanReader,
-		depReader:         dependencyReader,
-		archiveSpanReader: archiveSpanReader,
-		archiveSpanWriter: archiveSpanWriter,
+		server:              server,
+		lisAddr:             addr,
+		spanReader:          spanReader,
+		depReader:           dependencyReader,
+		metricsQueryService: tqs.metricsQueryService,
+		archiveSpanReader:   archiveSpanReader,
+		archiveSpanWriter:   archiveSpanWriter,
 	}
 }
 
-func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient)) {
-	server := initializeTestServerGRPCWithOptions(t)
+func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
+	server := initializeTestServerGRPCWithOptions(t, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
@@ -510,4 +552,308 @@ func TestSendSpanChunksError(t *testing.T) {
 		return expectedErr
 	})
 	assert.EqualError(t, err, expectedErr.Error())
+}
+
+func TestGetMetricsSuccessGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		baseQueryParam := &metrics.MetricsQueryBaseRequest{
+			ServiceNames: []string{"foo"},
+		}
+		for _, tc := range []struct {
+			mockMethod    string
+			mockParamType string
+			testFn        func(client *grpcClient) (*metrics.GetMetricsResponse, error)
+		}{
+			{
+				mockMethod:    "GetLatencies",
+				mockParamType: "*metricsstore.LatenciesQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetLatencies(context.Background(), &metrics.GetLatenciesRequest{Quantile: 0.95, BaseRequest: baseQueryParam})
+				},
+			},
+			{
+				mockMethod:    "GetCallRates",
+				mockParamType: "*metricsstore.CallRateQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetCallRates(context.Background(), &metrics.GetCallRatesRequest{BaseRequest: baseQueryParam})
+				},
+			},
+			{
+				mockMethod:    "GetErrorRates",
+				mockParamType: "*metricsstore.ErrorRateQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetErrorRates(context.Background(), &metrics.GetErrorRatesRequest{BaseRequest: baseQueryParam})
+				},
+			},
+		} {
+			t.Run(tc.mockMethod, func(t *testing.T) {
+				expectedMetrics := &metrics.MetricFamily{Name: "foo"}
+				m := server.metricsQueryService.(*metricsmocks.Reader)
+				m.On(tc.mockMethod, mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType(tc.mockParamType)).
+					Return(expectedMetrics, nil).Once()
+
+				res, err := tc.testFn(client)
+				require.NoError(t, err)
+				assert.Equal(t, expectedMetrics, &res.Metrics)
+			})
+		}
+	}, withMetricsQuery())
+}
+
+func TestGetMetricsReaderDisabledGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		baseQueryParam := &metrics.MetricsQueryBaseRequest{
+			ServiceNames: []string{"foo"},
+		}
+		for _, tc := range []struct {
+			name   string
+			testFn func(client *grpcClient) (*metrics.GetMetricsResponse, error)
+		}{
+			{
+				name: "GetLatencies",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetLatencies(context.Background(), &metrics.GetLatenciesRequest{Quantile: 0.95, BaseRequest: baseQueryParam})
+				},
+			},
+			{
+				name: "GetCallRates",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetCallRates(context.Background(), &metrics.GetCallRatesRequest{BaseRequest: baseQueryParam})
+				},
+			},
+			{
+				name: "GetErrorRates",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetErrorRates(context.Background(), &metrics.GetErrorRatesRequest{BaseRequest: baseQueryParam})
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				res, err := tc.testFn(client)
+				require.Error(t, err)
+				assert.Nil(t, res)
+
+				assertGRPCError(t, err, codes.Unimplemented, "metrics querying is currently disabled")
+			})
+		}
+	})
+}
+
+func TestGetMetricsUseDefaultParamsGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		baseQueryParam := &metrics.MetricsQueryBaseRequest{
+			ServiceNames: []string{"foo"},
+		}
+		request := &metrics.GetCallRatesRequest{
+			BaseRequest: baseQueryParam,
+		}
+		expectedMetrics := &metrics.MetricFamily{Name: "foo"}
+		expectedParams := &metricsstore.CallRateQueryParameters{
+			BaseQueryParameters: metricsstore.BaseQueryParameters{
+				ServiceNames: []string{"foo"},
+				EndTime:      &now,
+				Lookback:     &defaultMetricsQueryLookbackDuration,
+				Step:         &defaultMetricsQueryStepDuration,
+				RatePer:      &defaultMetricsQueryRateDuration,
+				SpanKinds:    defaultMetricsSpanKinds,
+			},
+		}
+		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m.On("GetCallRates", mock.AnythingOfType("*context.valueCtx"), expectedParams).
+			Return(expectedMetrics, nil).Once()
+
+		res, err := client.GetCallRates(context.Background(), request)
+		require.NoError(t, err)
+		assert.Equal(t, expectedMetrics, &res.Metrics)
+	}, withMetricsQuery())
+}
+
+func TestGetMetricsOverrideDefaultParamsGRPC(t *testing.T) {
+	loc, _ := time.LoadLocation("UTC")
+	endTime := time.Now().In(loc)
+	lookback := time.Minute
+	step := time.Second
+	ratePer := time.Hour
+	spanKinds := []metrics.SpanKind{metrics.SpanKind_SPAN_KIND_CONSUMER}
+	expectedSpanKinds := []string{metrics.SpanKind_SPAN_KIND_CONSUMER.String()}
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		baseQueryParam := &metrics.MetricsQueryBaseRequest{
+			ServiceNames: []string{"foo"},
+			EndTime:      &endTime,
+			Lookback:     &lookback,
+			Step:         &step,
+			RatePer:      &ratePer,
+			SpanKinds:    spanKinds,
+		}
+		request := &metrics.GetCallRatesRequest{
+			BaseRequest: baseQueryParam,
+		}
+		expectedMetrics := &metrics.MetricFamily{Name: "foo"}
+		expectedParams := &metricsstore.CallRateQueryParameters{
+			BaseQueryParameters: metricsstore.BaseQueryParameters{
+				ServiceNames: baseQueryParam.ServiceNames,
+				EndTime:      &endTime,
+				Lookback:     &lookback,
+				Step:         &step,
+				RatePer:      &ratePer,
+				SpanKinds:    expectedSpanKinds,
+			},
+		}
+		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m.On("GetCallRates", mock.AnythingOfType("*context.valueCtx"), expectedParams).
+			Return(expectedMetrics, nil).Once()
+
+		res, err := client.GetCallRates(context.Background(), request)
+		require.NoError(t, err)
+		assert.Equal(t, expectedMetrics, &res.Metrics)
+	}, withMetricsQuery())
+}
+
+func TestGetMetricsFailureGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		baseQueryParam := &metrics.MetricsQueryBaseRequest{
+			ServiceNames: []string{"foo"},
+		}
+		for _, tc := range []struct {
+			mockMethod    string
+			mockParamType string
+			testFn        func(client *grpcClient) (*metrics.GetMetricsResponse, error)
+			wantErr       string
+		}{
+			{
+				mockMethod:    "GetLatencies",
+				mockParamType: "*metricsstore.LatenciesQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetLatencies(context.Background(), &metrics.GetLatenciesRequest{Quantile: 0.95, BaseRequest: baseQueryParam})
+				},
+				wantErr: "failed to fetch latencies: storage error",
+			},
+			{
+				mockMethod:    "GetCallRates",
+				mockParamType: "*metricsstore.CallRateQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetCallRates(context.Background(), &metrics.GetCallRatesRequest{BaseRequest: baseQueryParam})
+				},
+				wantErr: "failed to fetch call rates: storage error",
+			},
+			{
+				mockMethod:    "GetErrorRates",
+				mockParamType: "*metricsstore.ErrorRateQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetErrorRates(context.Background(), &metrics.GetErrorRatesRequest{BaseRequest: baseQueryParam})
+				},
+				wantErr: "failed to fetch error rates: storage error",
+			},
+		} {
+			t.Run(tc.mockMethod, func(t *testing.T) {
+				m := server.metricsQueryService.(*metricsmocks.Reader)
+				m.On(tc.mockMethod, mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType(tc.mockParamType)).
+					Return(nil, errStorageGRPC).Once()
+
+				res, err := tc.testFn(client)
+				require.Nil(t, res)
+				require.Error(t, err)
+
+				assertGRPCError(t, err, codes.Internal, tc.wantErr)
+			})
+		}
+	}, withMetricsQuery())
+}
+
+func TestGetMinStepDurationSuccessGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m.On("GetMinStepDuration", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters")).
+			Return(time.Hour, nil).Once()
+
+		res, err := client.GetMinStepDuration(context.Background(), &metrics.GetMinStepDurationRequest{})
+		require.NoError(t, err)
+		require.Equal(t, time.Hour, res.MinStep)
+	}, withMetricsQuery())
+}
+
+func TestGetMinStepDurationFailureGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m.On("GetMinStepDuration", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters")).
+			Return(time.Duration(0), errStorageGRPC).Once()
+
+		res, err := client.GetMinStepDuration(context.Background(), &metrics.GetMinStepDurationRequest{})
+		require.Nil(t, res)
+		require.Error(t, err)
+
+		assertGRPCError(t, err, codes.Internal, "failed to fetch min step duration: storage error")
+	}, withMetricsQuery())
+}
+
+func TestGetMetricsInvalidParametersGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		for _, tc := range []struct {
+			name          string
+			mockMethod    string
+			mockParamType string
+			testFn        func(client *grpcClient) (*metrics.GetMetricsResponse, error)
+			wantErr       string
+		}{
+			{
+				name:          "GetLatencies missing service names",
+				mockMethod:    "GetLatencies",
+				mockParamType: "*metricsstore.LatenciesQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetLatencies(context.Background(), &metrics.GetLatenciesRequest{Quantile: 0.95})
+				},
+				wantErr: "please provide at least one service name",
+			},
+			{
+				name:          "GetLatencies missing quantile",
+				mockMethod:    "GetLatencies",
+				mockParamType: "*metricsstore.LatenciesQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetLatencies(context.Background(), &metrics.GetLatenciesRequest{
+						BaseRequest: &metrics.MetricsQueryBaseRequest{
+							ServiceNames: []string{"foo"},
+						},
+					})
+				},
+				wantErr: "please provide a quantile between (0, 1]",
+			},
+			{
+				name:          "GetCallRates missing service names",
+				mockMethod:    "GetCallRates",
+				mockParamType: "*metricsstore.CallRateQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetCallRates(context.Background(), &metrics.GetCallRatesRequest{}) // Test
+				},
+				wantErr: "please provide at least one service name",
+			},
+			{
+				name:          "GetErrorRates nil request",
+				mockMethod:    "GetErrorRates",
+				mockParamType: "*metricsstore.ErrorRateQueryParameters",
+				testFn: func(client *grpcClient) (*metrics.GetMetricsResponse, error) {
+					return client.GetErrorRates(context.Background(), &metrics.GetErrorRatesRequest{})
+				},
+				wantErr: "please provide at least one service name",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				m := server.metricsQueryService.(*metricsmocks.Reader)
+				m.On(tc.mockMethod, mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType(tc.mockParamType)).
+					Times(0)
+
+				res, err := tc.testFn(client)
+				require.Nil(t, res)
+				require.Error(t, err)
+
+				assertGRPCError(t, err, codes.InvalidArgument, tc.wantErr)
+			})
+		}
+	}, withMetricsQuery())
+}
+
+func TestMetricsQueryNilRequestGRPC(t *testing.T) {
+	grpcHandler := &GRPCHandler{}
+	bqp, err := grpcHandler.newBaseQueryParameters(nil)
+	assert.Empty(t, bqp)
+	assert.EqualError(t, err, errNilRequest.Error())
 }

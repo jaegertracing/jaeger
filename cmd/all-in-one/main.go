@@ -103,7 +103,7 @@ by default uses only in-memory database.`,
 
 			tracerCloser := initTracer(rootMetricsFactory, svc.Logger)
 
-			storageFactory.InitFromViper(v)
+			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
@@ -139,7 +139,7 @@ by default uses only in-memory database.`,
 				}
 			}
 
-			strategyStoreFactory.InitFromViper(v)
+			strategyStoreFactory.InitFromViper(v, logger)
 			if err := strategyStoreFactory.Initialize(metricsFactory, logger, lock, samplingStore); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
@@ -313,6 +313,6 @@ func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, l
 	}
 
 	// Ensure default parameter values are loaded correctly.
-	factory.InitFromViper(v)
+	factory.InitFromViper(v, logger)
 	return factory.CreateMetricsReader()
 }

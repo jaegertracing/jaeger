@@ -96,7 +96,7 @@ func (mp *mockPlugin) DependencyReader() dependencystore.Reader {
 func TestGRPCStorageFactory(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	// after InitFromViper, f.builder points to a real plugin builder that will fail in unit tests,
 	// so we override it with a mock.
@@ -136,7 +136,7 @@ func TestGRPCStorageFactory(t *testing.T) {
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	capabilities := new(mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
@@ -166,7 +166,7 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	capabilities := new(mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
@@ -196,7 +196,7 @@ func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	capabilities := new(mocks.PluginCapabilities)
 	customError := errors.New("made-up error")
@@ -224,7 +224,7 @@ func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
 func TestGRPCStorageFactory_CapabilitiesNil(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	f.builder = &mockPluginBuilder{
 		plugin: &mockPlugin{
@@ -252,7 +252,7 @@ func TestWithConfiguration(t *testing.T) {
 		"--grpc-storage-plugin.configuration-file=config.json",
 	})
 	assert.NoError(t, err)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, f.options.Configuration.PluginBinary, "noop-grpc-plugin")
 	assert.Equal(t, f.options.Configuration.PluginConfigurationFile, "config.json")
 	assert.Equal(t, f.options.Configuration.PluginLogLevel, "debug")

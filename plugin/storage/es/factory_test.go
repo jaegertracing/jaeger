@@ -58,7 +58,7 @@ func TestElasticsearchFactory(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.

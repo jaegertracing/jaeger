@@ -12,31 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package disabled
+// Contains default parameter values used by handlers when optional request parameters are missing.
+
+package app
 
 import (
-	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
 
-var _ storage.MetricsFactory = new(Factory)
-
-func TestPrometheusFactory(t *testing.T) {
-	f := NewFactory()
-	assert.NoError(t, f.Initialize(zap.NewNop()))
-
-	err := f.Initialize(nil)
-	require.NoError(t, err)
-
-	f.AddFlags(nil)
-	f.InitFromViper(nil, zap.NewNop())
-
-	reader, err := f.CreateMetricsReader()
-	assert.NoError(t, err)
-	assert.NotNil(t, reader)
-}
+var (
+	defaultDependencyLookbackDuration   = time.Hour * 24
+	defaultTraceQueryLookbackDuration   = time.Hour * 24 * 2
+	defaultMetricsQueryLookbackDuration = time.Hour
+	defaultMetricsQueryStepDuration     = 5 * time.Second
+	defaultMetricsQueryRateDuration     = 10 * time.Minute
+	defaultMetricsSpanKinds             = []string{metrics.SpanKind_SPAN_KIND_SERVER.String()}
+)

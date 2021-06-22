@@ -1,6 +1,16 @@
 Changes by Version
 ==================
 
+Unreleased
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
+* Upgrade Badger from v1.6.2 to v3.2103.0 ([#3096](https://github.com/jaegertracing/jaeger/pull/3096), [@Ashmita152](https://github.com/Ashmita152)):
+  * Deprecated `--badger.truncate` flag.
+  * All badger related expvar prefix has changed from `badger` to `badger_v3`.
+
 1.23.0 (2021-06-04)
 -------------------
 ### Backend Changes
