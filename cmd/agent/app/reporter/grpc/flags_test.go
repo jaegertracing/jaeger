@@ -51,3 +51,21 @@ func TestBindFlags(t *testing.T) {
 		assert.Equal(t, test.expected, b)
 	}
 }
+
+func TestBindTLSFlagFailure(t *testing.T) {
+	v := viper.New()
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.ParseFlags([]string{
+		"--reporter.grpc-server.host-port=127.0.0.1:1234",
+	})
+	v.Set("reporter.grpc.tls.enabled", "false")
+	v.Set("reporter.grpc.tls.cert", "abc")
+	v.Set("reporter.grpc.tls.ca", "def")
+	v.Set("reporter.grpc.tls.key", "xyz")
+	v.Set("reporter.grpc.tls.server-name", "xyz")
+	v.Set("reporter.grpc.tls.skip-host-verify", "true")
+	_, err := new(ConnBuilder).InitFromViper(v)
+	require.Error(t, err, "collector.grpc.tls.enabled has been disable")
+}

@@ -234,7 +234,7 @@ func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
 	}
 }
 
-func (cfg *namespaceConfig) initFromViper(v *viper.Viper) error {
+func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	var tlsFlagsConfig = tlsFlagsConfig(cfg.namespace)
 	if cfg.namespace != primaryStorageConfig {
 		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
@@ -254,12 +254,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) error {
 	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
-	if tls, err := tlsFlagsConfig.InitFromViper(v); err == nil {
-		cfg.TLS = tls
-	} else {
-		return err
-	}
-	return nil
+	cfg.TLS, _ = tlsFlagsConfig.InitFromViper(v)
 }
 
 // GetPrimary returns primary configuration.

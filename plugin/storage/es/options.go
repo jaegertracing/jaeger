@@ -290,7 +290,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	}
 }
 
-func initFromViper(cfg *namespaceConfig, v *viper.Viper) error {
+func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
@@ -337,12 +337,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) error {
 	// Dependencies calculation should be daily, and this index size is very small
 	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
 
-	if tls, err := cfg.getTLSFlagsConfig().InitFromViper(v); err == nil {
-		cfg.TLS = tls
-	} else {
-		return err
-	}
-	return nil
+	cfg.TLS, _ = cfg.getTLSFlagsConfig().InitFromViper(v)
 }
 
 // GetPrimary returns primary configuration.

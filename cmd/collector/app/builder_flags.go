@@ -98,12 +98,12 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) (*CollectorOptions,
 	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
-	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err != nil {
+	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
 		cOpts.TLSGRPC = tlsGrpc
 	} else {
 		return cOpts, err
 	}
-	if tlsHTTP, err := tlsGRPCFlagsConfig.InitFromViper(v); err != nil {
+	if tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v); err == nil {
 		cOpts.TLSHTTP = tlsHTTP
 	} else {
 		return cOpts, err

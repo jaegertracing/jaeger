@@ -104,7 +104,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	} else {
 		return qOpts, err
 	}
-	if tlsHTTP, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
+	if tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v); err == nil {
 		qOpts.TLSHTTP = tlsHTTP
 	} else {
 		return qOpts, err
