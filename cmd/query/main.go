@@ -70,6 +70,7 @@ func main() {
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
+			version.NewInfoMetrics(metricsFactory)
 
 			traceCfg := &jaegerClientConfig.Configuration{
 				ServiceName: "jaeger-query",

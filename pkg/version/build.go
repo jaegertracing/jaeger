@@ -14,6 +14,8 @@
 
 package version
 
+import "github.com/uber/jaeger-lib/metrics"
+
 var (
 	// commitFromGit is a constant representing the source version that
 	// generated this build. It should be set during build via -ldflags.
@@ -32,6 +34,11 @@ type Info struct {
 	BuildDate  string `json:"buildDate"`
 }
 
+// InfoMetrics hold metrics about build information
+type InfoMetrics struct {
+	BuildInfo metrics.Gauge `metric:"build_info"`
+}
+
 // Get creates and initialized Info object
 func Get() Info {
 	return Info{
@@ -39,4 +46,19 @@ func Get() Info {
 		GitVersion: latestVersion,
 		BuildDate:  date,
 	}
+}
+
+// NewInfoMetrics returns a InfoMetrics
+func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
+	var info InfoMetrics
+
+	buildTags := map[string]string{
+		"revision":   commitSHA,
+		"version":    latestVersion,
+		"build_date": date,
+	}
+	metrics.Init(&info, metricsFactory, buildTags)
+	info.BuildInfo.Update(1)
+
+	return &info
 }
