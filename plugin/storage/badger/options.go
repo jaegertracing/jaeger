@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 // Options store storage plugin related configs
@@ -40,9 +41,11 @@ type NamespaceConfig struct {
 	SyncWrites            bool          `mapstructure:"consistency"`
 	MaintenanceInterval   time.Duration `mapstructure:"maintenance_interval"`
 	MetricsUpdateInterval time.Duration `mapstructure:"metrics_update_interval"`
-	Truncate              bool          `mapstructure:"truncate"`
 	ReadOnly              bool          `mapstructure:"read_only"`
 }
+
+// TODO deprecated flag to be removed
+const truncateWarning = "(deprecated, will be removed after 2021-09-21 or in release v1.26.0, whichever is later)"
 
 const (
 	defaultMaintenanceInterval   time.Duration = 5 * time.Minute
@@ -135,8 +138,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixTruncate,
-		nsConfig.Truncate,
-		"If write-ahead-log should be truncated on restart. this will cause data loss.",
+		false,
+		truncateWarning+" If write-ahead-log should be truncated on restart. This will cause data loss.",
 	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixReadOnly,
@@ -146,11 +149,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 }
 
 // InitFromViper initializes Options with properties from viper
-func (opt *Options) InitFromViper(v *viper.Viper) {
-	initFromViper(&opt.Primary, v)
+func (opt *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+	initFromViper(&opt.Primary, v, logger)
 }
 
-func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
+func initFromViper(cfg *NamespaceConfig, v *viper.Viper, logger *zap.Logger) {
 	cfg.Ephemeral = v.GetBool(cfg.namespace + suffixEphemeral)
 	cfg.KeyDirectory = v.GetString(cfg.namespace + suffixKeyDirectory)
 	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)
@@ -158,8 +161,10 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
 	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
 	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
-	cfg.Truncate = v.GetBool(cfg.namespace + suffixTruncate)
 	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
+	if v.IsSet(cfg.namespace + suffixTruncate) {
+		logger.Warn("NOTE: Deprecated flag --badger.truncate passed " + truncateWarning)
+	}
 }
 
 // GetPrimary returns the primary namespace configuration

@@ -58,7 +58,7 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(flags []string)
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags(flags)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return nil, err
 	}
