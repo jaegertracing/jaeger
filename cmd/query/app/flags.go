@@ -48,15 +48,11 @@ const (
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "query.grpc",
-	ShowEnabled:  true,
-	ShowClientCA: true,
+	Prefix: "query.grpc",
 }
 
 var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "query.http",
-	ShowEnabled:  true,
-	ShowClientCA: true,
+	Prefix: "query.http",
 }
 
 // QueryOptions holds configuration for query service
