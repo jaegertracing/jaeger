@@ -20,16 +20,16 @@ while getopts "lbc:d:f:p:t:" opt; do
 	d)
 		dir_arg=${OPTARG}
 		;;
-    f)
+	f)
 		docker_file_arg=${OPTARG}
 		;;
-    p)
+	p)
 		platforms=${OPTARG}
 		;;
 	t)
 		target_arg=${OPTARG}
 		;;
-    l)
+	l)
 		local_test_only='Y'
 		;;
 	esac
@@ -53,7 +53,7 @@ else
 	    echo "build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
 	    bash scripts/docker-login.sh
 	    PUSHTAG="type=image, push=true"
-        upload_flag=" and uploading"
+	    upload_flag=" and uploading"
     else
 	    echo 'skip docker images upload, only allowed for tagged releases or master (latest tag)'
 	    PUSHTAG="type=image, push=false"
