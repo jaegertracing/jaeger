@@ -38,15 +38,11 @@ const (
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "collector.grpc",
-	ShowEnabled:  true,
-	ShowClientCA: true,
+	Prefix: "collector.grpc",
 }
 
 var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "collector.http",
-	ShowEnabled:  true,
-	ShowClientCA: true,
+	Prefix: "collector.http",
 }
 
 // CollectorOptions holds configuration for collector

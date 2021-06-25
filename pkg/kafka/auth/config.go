@@ -90,9 +90,7 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 
 	var tlsClientConfig = tlscfg.ClientFlagsConfig{
-		Prefix:         configPrefix,
-		ShowEnabled:    true,
-		ShowServerName: true,
+		Prefix: configPrefix,
 	}
 
 	config.TLS = tlsClientConfig.InitFromViper(v)
