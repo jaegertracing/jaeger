@@ -15,27 +15,22 @@
 package adaptive
 
 import (
-	"os"
-
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 // NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
 func NewStrategyStore(options Options, metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) (*Processor, error) {
-	hostname := options.OverrideHostname
-	if len(hostname) == 0 {
-		var err error
-		hostname, err = os.Hostname()
-		if err != nil {
-			return nil, err
-		}
-		logger.Info("Adaptive sampling hostname retrieved from os.Hostname()", zap.String("hostname", hostname))
+	hostname, err := hostname.AsIdentifier()
+	if err != nil {
+		return nil, err
 	}
+	logger.Info("Retrieved unique hostname from the OS for use in adaptive sampling", zap.String("hostname", hostname))
 
 	participant := leaderelection.NewElectionParticipant(lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
 		FollowerLeaseRefreshInterval: options.FollowerLeaseRefreshInterval,

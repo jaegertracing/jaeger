@@ -46,7 +46,6 @@ func TestFactory(t *testing.T) {
 		"--sampling.min-samples-per-second=1",
 		"--sampling.leader-lease-refresh-interval=1s",
 		"--sampling.follower-lease-refresh-interval=2s",
-		"--sampling.override-hostname=blerg",
 	})
 
 	f.InitFromViper(v, zap.NewNop())
@@ -62,7 +61,6 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, 1.0, f.options.MinSamplesPerSecond)
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
-	assert.Equal(t, "blerg", f.options.OverrideHostname)
 
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), &mockLock{}, &mockStore{}))
 	_, _, err := f.CreateStrategyStore()

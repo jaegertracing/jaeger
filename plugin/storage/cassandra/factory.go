@@ -19,7 +19,6 @@ import (
 	"errors"
 	"flag"
 	"io"
-	"os"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -28,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/pkg/hostname"
 	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
 	cSamplingStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/samplingstore"
@@ -154,10 +154,11 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 
 // CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
 func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	hostname, err := os.Hostname() // todo(jpe): wire up --sampling.override-hostname in ./plugin/sampling/strategystore/adaptive/options.go?
+	hostname, err := hostname.AsIdentifier()
 	if err != nil {
 		return nil, nil, err
 	}
+	f.logger.Info("Retrieved unique hostname from the OS for use in the distributed lock", zap.String("hostname", hostname))
 
 	store := cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger)
 	lock := cLock.NewLock(f.primarySession, hostname)
