@@ -4,6 +4,7 @@ FROM $golang_image AS build
 ARG TARGETARCH
 ENV GOPATH /go
 RUN apk add --update --no-cache ca-certificates make git
+#Once go-delve adds support for s390x (see PR #2948), remove this entire conditional.
 RUN if [[ "$TARGETARCH" != "s390x" ]] ; then \
         go get github.com/go-delve/delve/cmd/dlv && \
         cd /go/src/github.com/go-delve/delve && \
