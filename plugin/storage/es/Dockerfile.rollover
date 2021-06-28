@@ -8,5 +8,5 @@ COPY ./mappings/* /mappings/
 COPY esRollover.py /es-rollover/
 COPY esmapping-generator /usr/bin/
 
-USER nobody
+USER 65534
 ENTRYPOINT ["python3", "/es-rollover/esRollover.py"]
