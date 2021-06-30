@@ -32,39 +32,14 @@ A Release Manager is the person responsible for ensuring that a new version of J
 
 In order to ensure that knowledge about releasing Jaeger is spread among maintainers, we rotate the role of Release Manager among maintainers.
 
-Here are the release managers from past and future versions:
+Here are the release managers for future versions with the tentative release dates. The release dates are the first Wednesday of the month, and we might skip a release if not enough changes happened since the previous release. In such case, the next tentative release date is the first Wednesday of the subsequent month.
 
-| Version   | Release Manager  |
-|-----------|------------------|
-| 1.8.0     | @pavolloffay     |
-| 1.8.1     | @pavolloffay     |
-| 1.8.2     | @pavolloffay     |
-| 1.9.0     | @pavolloffay     |
-| 1.10.0    | @pavolloffay     |
-| 1.10.1    | @black-adder     |
-| 1.11.0    | @pavolloffay     |
-| 1.12.0    | @pavolloffay     |
-| 1.13.0    | @pavolloffay     |
-| 1.13.1    | @pavolloffay     |
-| 1.14.0    | @pavolloffay     |
-| 1.15.0    | @yurishkuro      |
-| 1.15.1    | @yurishkuro      |
-| 1.16.0    | @pavolloffay     |
-| 1.17.0    | @yurishkuro      |
-| 1.17.1    | @pavolloffay     |
-| 1.18.0    | @pavolloffay     |
-| 1.18.1    | @jpkrohling      |
-| 1.19.0    | @objectiser      |
-| 1.19.1    | @yurishkuro      |
-| 1.19.2    | @objectiser      |
-| 1.20.0    | @objectiser      |
-| 1.21.0    | @joe-elliott     |
-| 1.22.0    | @albertteoh      |
-| 1.23.0    | @jpkrohling      |
-| 1.24.0    | @pavolloffay     |
-| 1.25.0    | @vprithvi        |
-| 1.26.0    | @yurishkuro      |
-| 1.27.0    | @objectiser      |
-| 1.28.0    | @joe-elliott     |
-| 1.29.0    | @albertteoh      |
-| 1.30.0    | @jpkrohling      |
+| Version   | Release Manager  | Tentative release date |
+|-----------|------------------|------------------------|
+| 1.24.0    | @pavolloffay     |  7 July      2021      |
+| 1.25.0    | @vprithvi        |  4 August    2021      |
+| 1.26.0    | @yurishkuro      |  1 September 2021      |
+| 1.27.0    | @objectiser      |  6 October   2021      |
+| 1.28.0    | @joe-elliott     |  3 November  2021      |
+| 1.29.0    | @albertteoh      |  1 December  2021      | 
+| 1.30.0    | @jpkrohling      |  5 January   2022      |
