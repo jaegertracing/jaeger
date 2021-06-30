@@ -28,7 +28,7 @@ Maintenance branches should follow naming convention: `release-major.minor` (e.g
 
 ## Release managers
 
-A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes and will address any problems that might happen during the release, making sure that the documentation above is correct.
+A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes, including to the related components such as UI, IDL, and jaeger-lib and will address any problems that might happen during the release, making sure that the documentation above is correct.
 
 In order to ensure that knowledge about releasing Jaeger is spread among maintainers, we rotate the role of Release Manager among maintainers.
 
