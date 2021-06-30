@@ -25,3 +25,46 @@
 6. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
 Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-1.8`).
+
+## Release managers
+
+A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes and will address any problems that might happen during the release, making sure that the documentation above is correct.
+
+In order to ensure that knowledge about releasing Jaeger is spread among maintainers, we rotate the role of Release Manager among maintainers.
+
+Here are the release managers from past and future versions:
+
+| Version   | Release Manager  |
+|-----------|------------------|
+| 1.8.0     | @pavolloffay     |
+| 1.8.1     | @pavolloffay     |
+| 1.8.2     | @pavolloffay     |
+| 1.9.0     | @pavolloffay     |
+| 1.10.0    | @pavolloffay     |
+| 1.10.1    | @black-adder     |
+| 1.11.0    | @pavolloffay     |
+| 1.12.0    | @pavolloffay     |
+| 1.13.0    | @pavolloffay     |
+| 1.13.1    | @pavolloffay     |
+| 1.14.0    | @pavolloffay     |
+| 1.15.0    | @yurishkuro      |
+| 1.15.1    | @yurishkuro      |
+| 1.16.0    | @pavolloffay     |
+| 1.17.0    | @yurishkuro      |
+| 1.17.1    | @pavolloffay     |
+| 1.18.0    | @pavolloffay     |
+| 1.18.1    | @jpkrohling      |
+| 1.19.0    | @objectiser      |
+| 1.19.1    | @yurishkuro      |
+| 1.19.2    | @objectiser      |
+| 1.20.0    | @objectiser      |
+| 1.21.0    | @joe-elliott     |
+| 1.22.0    | @albertteoh      |
+| 1.23.0    | @jpkrohling      |
+| 1.24.0    | @pavolloffay     |
+| 1.25.0    | @vprithvi        |
+| 1.26.0    | @yurishkuro      |
+| 1.27.0    | @objectiser      |
+| 1.28.0    | @joe-elliott     |
+| 1.29.0    | @albertteoh      |
+| 1.30.0    | @jpkrohling      |
