@@ -8,6 +8,12 @@ on:
 jobs:
   publish-release:
     runs-on: ubuntu-latest
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+          
     steps:
     - uses: actions/checkout@v2.3.4
       with:
@@ -49,13 +55,14 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
       if: steps.package-binaries.outcome == 'success'
 
-    - name: Build docker images
-      id: build-images
-      run: make docker
+    - uses: docker/setup-qemu-action@v1
 
-    - name: Upload docker images
-      run: bash scripts/upload-all-docker-images.sh
-      if: steps.build-images.outcome == 'success'
+    - uses: docker/setup-buildx-action@v1
+      with:
+        driver-opts: network=host
+  
+    - name: Build and upload all docker images
+      run: bash scripts/build-upload-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
