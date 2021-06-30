@@ -5,7 +5,7 @@ GOLANG_IMAGE := golang:1.15-alpine
 
 BASE_IMAGE := localhost:5000/baseimg_alpine:latest
 DEBUG_IMAGE := localhost:5000/debugimg_alpine:latest
-PLATFORMS := linux/amd64,linux/s390x
+PLATFORMS := linux/amd64,linux/s390x,linux/arm64
 
 create-baseimg-debugimg: create-baseimg create-debugimg
 
