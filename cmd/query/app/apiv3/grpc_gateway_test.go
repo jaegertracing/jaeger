@@ -180,7 +180,7 @@ func TestGRPCGateway_TLS(t *testing.T) {
 	assert.Equal(t, uint64ToTraceID(traceID.High, traceID.Low), spansResponse.GetResourceSpans()[0].GetInstrumentationLibrarySpans()[0].GetSpans()[0].GetTraceId())
 }
 
-// see https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
+// For more details why this is needed see https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
 type envelope struct {
 	Result json.RawMessage `json:"result"`
 }
