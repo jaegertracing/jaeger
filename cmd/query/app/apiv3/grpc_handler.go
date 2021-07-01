@@ -18,6 +18,8 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/types"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
@@ -52,6 +54,10 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 // FindTraces implements api_v3.QueryServiceServer's FindTraces
 func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.QueryService_FindTracesServer) error {
 	query := request.GetQuery()
+	if query == nil {
+		return status.Errorf(codes.InvalidArgument, "missing query")
+	}
+
 	queryParams := &spanstore.TraceQueryParameters{
 		ServiceName:   query.GetServiceName(),
 		OperationName: query.GetOperationName(),

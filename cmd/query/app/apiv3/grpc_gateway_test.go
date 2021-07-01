@@ -16,6 +16,7 @@ package apiv3
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -64,6 +65,7 @@ func TestGRPCGateway(t *testing.T) {
 		err := server.Serve(lis)
 		require.NoError(t, err)
 	}()
+	defer server.GracefulStop()
 
 	router := &mux.Router{}
 	err := RegisterGRPCGateway(router, "", lis.Addr().String())
@@ -71,11 +73,14 @@ func TestGRPCGateway(t *testing.T) {
 
 	httpLis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
+	httpServer := &http.Server{
+		Handler: router,
+	}
 	go func() {
-		err = http.Serve(httpLis, router)
-		require.NoError(t, err)
-		defer httpLis.Close()
+		err = httpServer.Serve(httpLis)
+		require.Equal(t, http.ErrServerClosed, err)
 	}()
+	defer httpServer.Shutdown(context.Background())
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1)), nil)
 	req.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(req)
@@ -92,6 +97,7 @@ func TestGRPCGateway(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(spansResponse.GetResourceSpans()))
 	assert.Equal(t, uint64ToTraceID(traceID.High, traceID.Low), spansResponse.GetResourceSpans()[0].GetInstrumentationLibrarySpans()[0].GetSpans()[0].GetTraceId())
+
 }
 
 // see https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
