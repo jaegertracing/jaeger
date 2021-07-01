@@ -90,7 +90,7 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 		}
 		queryParams.DurationMin = durationMin
 	}
-	if query.GetStartTimeMax() != nil {
+	if query.GetDurationMax() != nil {
 		durationMax, err := types.DurationFromProto(query.GetDurationMax())
 		if err != nil {
 			return err
