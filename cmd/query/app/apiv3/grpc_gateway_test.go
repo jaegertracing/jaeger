@@ -29,10 +29,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" //force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -68,7 +70,7 @@ func TestGRPCGateway(t *testing.T) {
 	defer server.GracefulStop()
 
 	router := &mux.Router{}
-	err := RegisterGRPCGateway(router, "", lis.Addr().String())
+	err := RegisterGRPCGateway(zap.NewNop(), router, "", lis.Addr().String(), tlscfg.Options{})
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")

@@ -142,7 +142,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 	}
 
-	if err := apiv3.RegisterGRPCGateway(r, queryOpts.BasePath, queryOpts.GRPCHostPort); err != nil {
+	if err := apiv3.RegisterGRPCGateway(logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, queryOpts.TLSGRPC); err != nil {
 		return nil, err
 	}
 
