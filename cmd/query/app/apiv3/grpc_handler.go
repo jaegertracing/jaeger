@@ -16,6 +16,7 @@ package apiv3
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
@@ -56,6 +57,10 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 	query := request.GetQuery()
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
+	}
+	if query.GetStartTimeMin() == nil ||
+		query.GetStartTimeMax() == nil {
+		return fmt.Errorf("start time min and max are required parameters")
 	}
 
 	queryParams := &spanstore.TraceQueryParameters{

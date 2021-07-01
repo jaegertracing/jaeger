@@ -192,7 +192,12 @@ func TestFindTraces_storage_error(t *testing.T) {
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
 	responseStream, err := client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
-		Query: &api_v3.TraceQueryParameters{},
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin:  &types.Timestamp{},
+			StartTimeMax:  &types.Timestamp{},
+			DurationMin:   &types.Duration{},
+			DurationMax:   &types.Duration{},
+		},
 	})
 	require.NoError(t, err)
 	recv, err := responseStream.Recv()
