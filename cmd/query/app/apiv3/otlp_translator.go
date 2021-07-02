@@ -307,7 +307,7 @@ func getStatusCodeValFromTag(tag model.KeyValue) (int, error) {
 		}
 		codeVal = int64(i)
 	default:
-		return 0, fmt.Errorf("invalid status code attribute type: %s", tag.GetKey())
+		return 0, fmt.Errorf("invalid status code attribute type: %q", tag.GetKey())
 	}
 	if codeVal > math.MaxInt32 || codeVal < math.MinInt32 {
 		return 0, fmt.Errorf("invalid status code value: %d", codeVal)
