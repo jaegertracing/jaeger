@@ -35,6 +35,14 @@ mailing list containing the following information:
 
 Two other maintainers need to second the nomination. If no one objects in 5 working days (U.S.), the nomination is accepted.  If anyone objects or wants more information, the maintainers discuss and usually come to a consensus (within the 5 working days). If issues can't be resolved, there's a simple majority vote among current maintainers.
 
+## Maintainer duties
+
+Maintainers are required to participate in the project, by joining discussions, submitting and reviewing pull requests, answering user questions, among others.
+
+Besides that, we have one concrete activity in which maintainers have to engage from time to time: releasing new versions of Jaeger. This process ideally takes only a couple of hours, but requires coordination on different fronts. Even though the process is well documented, it is not without eventual glitches, so, each release needs a "Release Manager". How it works is described in the [RELEASE.md](RELEASE.md) file.
+
+Maintainers are also encouraged to speak about Jaeger at conferences, especially KubeCon+CloudNativeCon which happens twice a year. This event has a "maintainer track", in which maintainers can give an introduction and/or a deep dive about their projects. The Jaeger project has always participated since it became part of the CNCF.
+
 ## Changes in Maintainership
 
 We do not expect anyone to make a permanent commitment to be a Jaeger maintainer forever. After all, circumstances change,
