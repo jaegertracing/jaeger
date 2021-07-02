@@ -29,7 +29,7 @@ import (
 )
 
 // RegisterGRPCGateway registers api_v3 endpoints into provided mux.
-func RegisterGRPCGateway(logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options) error {
+func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options) error {
 	jsonpb := &runtime.JSONPb{}
 	grpcGatewayMux := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, jsonpb),
@@ -47,5 +47,5 @@ func RegisterGRPCGateway(logger *zap.Logger, r *mux.Router, basePath string, grp
 	} else {
 		dialOpts = append(dialOpts, grpc.WithInsecure())
 	}
-	return api_v3.RegisterQueryServiceHandlerFromEndpoint(context.Background(), grpcGatewayMux, grpcEndpoint, dialOpts)
+	return api_v3.RegisterQueryServiceHandlerFromEndpoint(ctx, grpcGatewayMux, grpcEndpoint, dialOpts)
 }

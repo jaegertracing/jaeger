@@ -45,6 +45,9 @@ import (
 var testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata/"
 
 func testGRPCGateway(t *testing.T, serverTLS tlscfg.Options, clientTLS tlscfg.Options) {
+	defer serverTLS.Close()
+	defer clientTLS.Close()
+
 	r := &spanstoremocks.Reader{}
 	traceID := model.NewTraceID(150, 160)
 	r.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
@@ -77,10 +80,12 @@ func testGRPCGateway(t *testing.T, serverTLS tlscfg.Options, clientTLS tlscfg.Op
 		err := grpcServer.Serve(lis)
 		require.NoError(t, err)
 	}()
-	defer grpcServer.GracefulStop()
+	defer grpcServer.Stop()
 
 	router := &mux.Router{}
-	err := RegisterGRPCGateway(zap.NewNop(), router, "", lis.Addr().String(), clientTLS)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, "", lis.Addr().String(), clientTLS)
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")
