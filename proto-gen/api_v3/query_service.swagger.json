@@ -97,7 +97,7 @@
           },
           {
             "name": "query.start_time_min",
-            "description": "Span min start time.",
+            "description": "Span min start time in. REST API uses RFC-3339ns format. Required.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -105,7 +105,7 @@
           },
           {
             "name": "query.start_time_max",
-            "description": "Span max start time.",
+            "description": "Span max start time. REST API uses RFC-3339ns format. Required.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -113,14 +113,14 @@
           },
           {
             "name": "query.duration_min",
-            "description": "Span min duration.",
+            "description": "Span min duration. REST API uses Golang's time format e.g. 10s.",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "query.duration_max",
-            "description": "Span max duration.",
+            "description": "Span max duration. REST API uses Golang's time format e.g. 10s.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -350,20 +350,20 @@
         "start_time_min": {
           "type": "string",
           "format": "date-time",
-          "description": "Span min start time."
+          "description": "Span min start time in. REST API uses RFC-3339ns format. Required."
         },
         "start_time_max": {
           "type": "string",
           "format": "date-time",
-          "description": "Span max start time."
+          "description": "Span max start time. REST API uses RFC-3339ns format. Required."
         },
         "duration_min": {
           "type": "string",
-          "description": "Span min duration."
+          "description": "Span min duration. REST API uses Golang's time format e.g. 10s."
         },
         "duration_max": {
           "type": "string",
-          "description": "Span max duration."
+          "description": "Span max duration. REST API uses Golang's time format e.g. 10s."
         },
         "num_traces": {
           "type": "integer",

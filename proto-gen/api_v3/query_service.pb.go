@@ -119,13 +119,13 @@ type TraceQueryParameters struct {
 	// Attributes are matched against Span and Resource attributes.
 	// At least one span in a trace must match all specified attributes.
 	Attributes map[string]string `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Span min start time.
+	// Span min start time in. REST API uses RFC-3339ns format. Required.
 	StartTimeMin *types.Timestamp `protobuf:"bytes,4,opt,name=start_time_min,json=startTimeMin,proto3" json:"start_time_min,omitempty"`
-	// Span max start time.
+	// Span max start time. REST API uses RFC-3339ns format. Required.
 	StartTimeMax *types.Timestamp `protobuf:"bytes,5,opt,name=start_time_max,json=startTimeMax,proto3" json:"start_time_max,omitempty"`
-	// Span min duration.
+	// Span min duration. REST API uses Golang's time format e.g. 10s.
 	DurationMin *types.Duration `protobuf:"bytes,6,opt,name=duration_min,json=durationMin,proto3" json:"duration_min,omitempty"`
-	// Span max duration.
+	// Span max duration. REST API uses Golang's time format e.g. 10s.
 	DurationMax *types.Duration `protobuf:"bytes,7,opt,name=duration_max,json=durationMax,proto3" json:"duration_max,omitempty"`
 	// Maximum number of traces in the response.
 	NumTraces            int32    `protobuf:"varint,8,opt,name=num_traces,json=numTraces,proto3" json:"num_traces,omitempty"`
