@@ -39,7 +39,6 @@ Here are the release managers for future versions with the tentative release dat
 | 1.24.0    | @pavolloffay     |  7 July      2021      |
 | 1.25.0    | @vprithvi        |  4 August    2021      |
 | 1.26.0    | @yurishkuro      |  1 September 2021      |
-| 1.27.0    | @objectiser      |  6 October   2021      |
-| 1.28.0    | @joe-elliott     |  3 November  2021      |
-| 1.29.0    | @albertteoh      |  1 December  2021      | 
-| 1.30.0    | @jpkrohling      |  5 January   2022      |
+| 1.27.0    | @joe-elliott     |  6 October   2021      |
+| 1.28.0    | @albertteoh      |  3 November  2021      |
+| 1.29.0    | @jpkrohling      |  1 December  2021      | 
