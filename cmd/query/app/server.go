@@ -147,6 +147,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	if err := apiv3.RegisterGRPCGateway(ctx, logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, queryOpts.TLSGRPC); err != nil {
+		cancelFunc() // make go vet happy
 		return nil, nil, err
 	}
 
