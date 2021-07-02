@@ -195,6 +195,12 @@ func TestTranslateTags(t *testing.T) {
 		model.Float64("float", 15.6),
 		model.Binary("binary", []byte("bytes")),
 		model.String("ignore", "str"),
+		{
+			Key:    "foo",
+			VType:  999, // unknown type
+			VStr:   "val",
+			VInt64: 1,
+		},
 	}
 	otlpKeyValues := jTagsToOTLP(tags, map[string]bool{"ignore": true})
 	assert.Equal(t, []*commonv1.KeyValue{
@@ -217,6 +223,10 @@ func TestTranslateTags(t *testing.T) {
 		{
 			Key:   "binary",
 			Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BytesValue{BytesValue: []byte("bytes")}},
+		},
+		{
+			Key:   "foo",
+			Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "key:\"foo\" v_type:999 v_str:\"val\" v_int64:1 "}},
 		},
 	}, otlpKeyValues)
 }

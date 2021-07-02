@@ -175,6 +175,36 @@ func TestFindTraces(t *testing.T) {
 	assert.Equal(t, 1, len(recv.GetResourceSpans()))
 }
 
+func TestFindTraces_query_nil(t *testing.T) {
+	q := querysvc.NewQueryService(&spanstoremocks.Reader{}, &dependencyStoreMocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := &Handler{QueryService: q}
+	server, addr := newGrpcServer(t, h)
+	defer server.Stop()
+
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+	client := api_v3.NewQueryServiceClient(conn)
+	responseStream, err := client.FindTraces(context.Background(), &api_v3.FindTracesRequest{})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing query")
+	assert.Nil(t, recv)
+
+	responseStream, err = client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: nil,
+			StartTimeMax: nil,
+		},
+	})
+	require.NoError(t, err)
+	recv, err = responseStream.Recv()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start time min and max are required parameters")
+	assert.Nil(t, recv)
+}
+
 func TestFindTraces_storage_error(t *testing.T) {
 	r := &spanstoremocks.Reader{}
 	r.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(
