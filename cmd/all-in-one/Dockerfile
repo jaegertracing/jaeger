@@ -2,7 +2,7 @@ ARG base_image
 ARG debug_image
 
 FROM $base_image AS release
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 # Agent zipkin.thrift compact
 EXPOSE 5775/udp
