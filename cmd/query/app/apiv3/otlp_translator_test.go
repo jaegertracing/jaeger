@@ -187,6 +187,10 @@ func TestTranslateSpanKind(t *testing.T) {
 	}
 }
 
+func TestTranslateTProcess_nil(t *testing.T) {
+	assert.Nil(t, jProcessToInternalResource(nil))
+}
+
 func TestTranslateTags(t *testing.T) {
 	tags := []model.KeyValue{
 		model.String("str", "str"),

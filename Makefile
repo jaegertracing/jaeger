@@ -576,10 +576,6 @@ proto: init-submodules proto-prepare-otel
 		$(PROTO_INCLUDES) \
  		--grpc-gateway_out=logtostderr=true,grpc_api_configuration=idl/proto/api_v3/query_service_http.yaml,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
 		idl/proto/api_v3/query_service.proto
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--swagger_out=disable_default_errors=true,logtostderr=true,grpc_api_configuration=idl/proto/api_v3/query_service_http.yaml:$(PWD)/proto-gen/api_v3 \
-		idl/proto/api_v3/query_service.proto
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 .PHONY: proto-prepare-otel
