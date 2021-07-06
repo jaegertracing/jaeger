@@ -178,7 +178,7 @@ func (c *Collector) Close() error {
 
 	// aggregator does not exist for all strategy stores. only Stop() if exists.
 	if c.aggregator != nil {
-		c.aggregator.Stop()
+		c.aggregator.Close()
 	}
 
 	// watchers actually never return errors from Close

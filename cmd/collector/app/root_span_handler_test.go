@@ -30,8 +30,8 @@ type mockAggregator struct {
 func (t *mockAggregator) RecordThroughput(service, operation, samplerType string, probability float64) {
 	t.callCount++
 }
-func (t *mockAggregator) Start() {}
-func (t *mockAggregator) Stop()  {}
+func (t *mockAggregator) Start()       {}
+func (t *mockAggregator) Close() error { return nil }
 
 func TestHandleRootSpan(t *testing.T) {
 	aggregator := &mockAggregator{}

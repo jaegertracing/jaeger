@@ -16,6 +16,7 @@ package strategystore
 
 import (
 	"context"
+	"io"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -28,12 +29,12 @@ type StrategyStore interface {
 
 // Aggregator defines an interface used to aggregate operation throughput.
 type Aggregator interface {
+	// Close() from io.Closer stops the aggregator from aggregating throughput.
+	io.Closer
+
 	// RecordThroughput records throughput for an operation for aggregation.
 	RecordThroughput(service, operation, samplerType string, probability float64)
 
 	// Start starts aggregating operation throughput.
 	Start()
-
-	// Stop stops the aggregator from aggregating throughput.
-	Stop()
 }

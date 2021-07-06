@@ -115,6 +115,7 @@ func (a *aggregator) Start() {
 	go a.runAggregationLoop()
 }
 
-func (a *aggregator) Stop() {
+func (a *aggregator) Close() error {
 	close(a.stop)
+	return nil
 }
