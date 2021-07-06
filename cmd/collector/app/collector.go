@@ -176,9 +176,11 @@ func (c *Collector) Close() error {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
 	}
 
-	// aggregator does not exist for all strategy stores. only Stop() if exists.
+	// aggregator does not exist for all strategy stores. only Close() if exists.
 	if c.aggregator != nil {
-		c.aggregator.Close()
+		if err := c.aggregator.Close(); err != nil {
+			c.logger.Error("failed to close aggregator.", zap.Error(err))
+		}
 	}
 
 	// watchers actually never return errors from Close
