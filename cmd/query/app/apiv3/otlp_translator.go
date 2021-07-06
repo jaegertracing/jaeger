@@ -72,8 +72,8 @@ type instrumentationLibrary struct {
 // helper type used as a map key
 type resource struct {
 	serviceName string
-	// concatenated string tags to make sure services with the same name but different versions
-	// are held have distinct resource object.
+	// concatenated and hashed string tags
+	// to make sure services are uniquely grouped
 	tagsHash uint32
 	resource *resourcev1.Resource
 }
