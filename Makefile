@@ -269,9 +269,6 @@ build-collector build-collector-debug:
 build-ingester build-ingester-debug:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 
-.PHONY: docker
-docker: build-binaries-linux docker-images-only
-
 .PHONY: build-binaries-linux
 build-binaries-linux:
 	GOOS=linux GOARCH=amd64 $(MAKE) build-platform-binaries
@@ -308,7 +305,8 @@ build-platform-binaries: build-agent \
 	build-all-in-one \
 	build-examples \
 	build-tracegen \
-	build-anonymizer
+	build-anonymizer \
+	build-esmapping-generator
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
@@ -319,9 +317,10 @@ docker-images-cassandra:
 	@echo "Finished building jaeger-cassandra-schema =============="
 
 .PHONY: docker-images-elastic
-docker-images-elastic: build-esmapping-generator-linux
+docker-images-elastic: 
+	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-esmapping-generator
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-es-indices-clean =============="
 
 docker-images-jaeger-backend: TARGET = release
@@ -358,21 +357,13 @@ docker-images-only: docker-images-cassandra \
 	docker-images-tracegen \
 	docker-images-anonymizer
 
-.PHONY: docker-push
-docker-push:
-	@while [ -z "$$CONFIRM" ]; do \
-		read -r -p "Do you really want to push images to repository \"${DOCKER_NAMESPACE}\"? [y/N] " CONFIRM; \
-	done ; \
-	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
-		echo "Exiting." ; exit 1 ; \
-	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen anonymizer; do \
-		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
-	done
+.PHONY: build-crossdock-binary
+build-crossdock-binary:
+	$(GOBUILD) -o ./crossdock/crossdock-$(GOOS)-$(GOARCH) ./crossdock/main.go
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
+	GOOS=linux $(MAKE) build-crossdock-binary
 
 include crossdock/rules.mk
 
@@ -385,7 +376,7 @@ build-crossdock-ui-placeholder:
 
 .PHONY: build-crossdock
 build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
+	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} --build-arg TARGETARCH=$(GOARCH) crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
 .PHONY: build-and-run-crossdock

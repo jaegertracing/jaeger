@@ -34,36 +34,24 @@ run_integration_test() {
   docker kill $CID
 }
 
-upload_to_docker() {
-  # Only push the docker image to dockerhub/quay.io for master/release branch
-  if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "upload $1 to dockerhub/quay.io"
-    REPO=$1
-    bash scripts/upload-to-registry.sh $REPO
-  else
-    echo 'skip docker images upload for PR'
-  fi
-}
-
-make build-all-in-one GOOS=linux GOARCH=$GOARCH
 make create-baseimg-debugimg
+
+make build-all-in-one GOOS=linux GOARCH=amd64
+make build-all-in-one GOOS=linux GOARCH=s390x
+make build-all-in-one GOOS=linux GOARCH=arm64
+platforms="linux/amd64,linux/s390x,linux/arm64"
 repo=jaegertracing/all-in-one
-docker build -f cmd/all-in-one/Dockerfile \
-        --target release \
-        --tag $repo:latest cmd/all-in-one \
-        --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
-        --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
-        --build-arg TARGETARCH=$GOARCH
-run_integration_test $repo
-upload_to_docker $repo
+#build all-in-one image locally for integration test
+bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
+run_integration_test localhost:5000/$repo
+#build all-in-one image and upload to dockerhub/quay.io
+bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
+
 
 make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
-repo=jaegertracing/all-in-one-debug
-docker build -f cmd/all-in-one/Dockerfile \
-        --target debug \
-        --tag $repo:latest cmd/all-in-one \
-        --build-arg base_image=localhost/baseimg:1.0.0-alpine-3.12 \
-        --build-arg debug_image=localhost/debugimg:1.0.0-golang-1.15-alpine \
-        --build-arg TARGETARCH=$GOARCH
-run_integration_test $repo
-upload_to_docker $repo
+repo=${repo}-debug
+#build all-in-one-debug image locally for integration test
+bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one-debug -d cmd/all-in-one -t debug
+run_integration_test localhost:5000/$repo
+#build all-in-one-debug image and upload to dockerhub/quay.io
+bash scripts/build-upload-a-docker-image.sh -b -c all-in-one-debug -d cmd/all-in-one -t debug

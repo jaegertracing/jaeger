@@ -75,6 +75,7 @@ func main() {
 			metricsFactory := fork.New("internal",
 				jexpvar.NewFactory(10), // backend for internal opts
 				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
+			version.NewInfoMetrics(metricsFactory)
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {

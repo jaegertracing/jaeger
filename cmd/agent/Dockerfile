@@ -2,7 +2,7 @@ ARG base_image
 ARG debug_image
 
 FROM $base_image AS release
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 ARG USER_UID=10001
 COPY agent-linux-$TARGETARCH /go/bin/agent-linux
 EXPOSE 5775/udp 6831/udp 6832/udp 5778/tcp
