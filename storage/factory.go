@@ -61,7 +61,7 @@ var (
 	ErrArchiveStorageNotSupported = errors.New("archive storage not supported")
 
 	// ErrLockAndSamplingStoreNotSupported can be returned by the StorageFactory when the sampling storage is not supported by the backend.
-	ErrLockAndSamplingStoreNotSupported = errors.New("archive storage not supported")
+	ErrLockAndSamplingStoreNotSupported = errors.New("lock/sampling storage not supported")
 )
 
 // ArchiveFactory is an additional interface that can be implemented by a factory to support trace archiving.
