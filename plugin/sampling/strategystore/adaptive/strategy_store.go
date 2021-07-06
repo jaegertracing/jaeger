@@ -30,7 +30,7 @@ func NewStrategyStore(options Options, metricsFactory metrics.Factory, logger *z
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Retrieved unique hostname from the OS for use in adaptive sampling", zap.String("hostname", hostname))
+	logger.Info("Using unique participantName in adaptive sampling", zap.String("participantName", hostname))
 
 	participant := leaderelection.NewElectionParticipant(lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
 		FollowerLeaseRefreshInterval: options.FollowerLeaseRefreshInterval,

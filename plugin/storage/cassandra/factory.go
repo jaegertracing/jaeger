@@ -158,7 +158,7 @@ func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingst
 	if err != nil {
 		return nil, nil, err
 	}
-	f.logger.Info("Retrieved unique hostname from the OS for use in the distributed lock", zap.String("hostname", hostname))
+	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostname))
 
 	store := cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger)
 	lock := cLock.NewLock(f.primarySession, hostname)
