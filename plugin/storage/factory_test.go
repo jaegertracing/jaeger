@@ -35,11 +35,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
+	ssmocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -402,7 +404,10 @@ func TestPublishOpts(t *testing.T) {
 }
 
 func TestCreateLockAndSamplingStore(t *testing.T) {
-	supports := &errorFactory{}
+	supports := &errorFactory{
+		lock:  &lmocks.Lock{},
+		store: &ssmocks.Store{},
+	}
 	doesNotSupport := &errorFactory{
 		lockAndSamplingStore: storage.ErrLockAndSamplingStoreNotSupported,
 	}
@@ -410,7 +415,7 @@ func TestCreateLockAndSamplingStore(t *testing.T) {
 		lockAndSamplingStore: errors.New("wups"),
 	}
 
-	// test succeeds (supported or not)
+	// test succeeds
 	f := Factory{
 		factories: map[string]storage.Factory{
 			"supports":         supports,
@@ -418,12 +423,18 @@ func TestCreateLockAndSamplingStore(t *testing.T) {
 		},
 	}
 
-	_, _, err := f.CreateLockAndSamplingStore()
+	// finds factory that supports
+	lock, samplingStore, err := f.CreateLockAndSamplingStore()
 	assert.NoError(t, err)
+	assert.Equal(t, supports.lock, lock)
+	assert.Equal(t, supports.store, samplingStore)
 
+	// does not find factory that supports
 	delete(f.factories, "supports")
-	_, _, err = f.CreateLockAndSamplingStore()
+	lock, samplingStore, err = f.CreateLockAndSamplingStore()
 	assert.NoError(t, err)
+	assert.Nil(t, lock)
+	assert.Nil(t, samplingStore)
 
 	// test breaks
 	f = Factory{
@@ -439,6 +450,9 @@ func TestCreateLockAndSamplingStore(t *testing.T) {
 type errorFactory struct {
 	closeErr             error
 	lockAndSamplingStore error
+
+	lock  distributedlock.Lock
+	store samplingstore.Store
 }
 
 var _ storage.Factory = (*errorFactory)(nil)
@@ -461,7 +475,7 @@ func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 func (e errorFactory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	return nil, nil, e.lockAndSamplingStore
+	return e.lock, e.store, e.lockAndSamplingStore
 }
 
 func (e errorFactory) Close() error {
