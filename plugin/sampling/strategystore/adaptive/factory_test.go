@@ -62,7 +62,7 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), &mockLock{}, &mockStore{}))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, &mockLock{}, &mockStore{}, zap.NewNop()))
 	_, _, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
 }

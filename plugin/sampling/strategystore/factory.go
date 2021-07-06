@@ -89,9 +89,9 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, lock distributedlock.Lock, store samplingstore.Store, logger *zap.Logger) error {
 	for _, factory := range f.factories {
-		if err := factory.Initialize(metricsFactory, logger, lock, store); err != nil {
+		if err := factory.Initialize(metricsFactory, lock, store, logger); err != nil {
 			return err
 		}
 	}

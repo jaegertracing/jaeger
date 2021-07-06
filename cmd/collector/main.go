@@ -99,7 +99,7 @@ func main() {
 				}
 			}
 			strategyStoreFactory.InitFromViper(v, logger)
-			if err := strategyStoreFactory.Initialize(metricsFactory, logger, lock, samplingStore); err != nil {
+			if err := strategyStoreFactory.Initialize(metricsFactory, lock, samplingStore, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
 			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
