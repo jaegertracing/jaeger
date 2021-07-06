@@ -1,8 +1,8 @@
 package hostname
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
 	"os"
 )
 
