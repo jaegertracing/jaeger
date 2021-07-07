@@ -7,9 +7,37 @@ Unreleased
 
 #### Breaking Changes
 
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+1.24.0 (2021-07-07)
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
 * Upgrade Badger from v1.6.2 to v3.2103.0 ([#3096](https://github.com/jaegertracing/jaeger/pull/3096), [@Ashmita152](https://github.com/Ashmita152)):
   * Deprecated `--badger.truncate` flag.
   * All badger related expvar prefix has changed from `badger` to `badger_v3`.
+
+#### New Features
+
+* Add docker images for linux/arm64 ([#3124](https://github.com/jaegertracing/jaeger/pull/3124), [@GaruGaru](https://github.com/GaruGaru)):
+* Add s390x support on multiarch docker images ([#2948](https://github.com/jaegertracing/jaeger/pull/2948), [@kun-lu20](https://github.com/kun-lu20)):
+* Add TLS support for Prometheus reader ([#3096](https://github.com/jaegertracing/jaeger/pull/3096), [@albertteoh](https://github.com/albertteoh)):
+
+##### [Monitor tab for service health metrics](https://github.com/jaegertracing/jaeger/issues/2954)
+
+* Add HTTP handler for metrics querying [#3095](https://github.com/jaegertracing/jaeger/pull/3095), [@albertteoh](https://github.com/albertteoh)):
+* Add MetricsQueryService grcp handler [#3091](https://github.com/jaegertracing/jaeger/pull/3091), [@albertteoh](https://github.com/albertteoh)):
+* Hook up MetricsQueryService to main funcs ([#3079](https://github.com/jaegertracing/jaeger/pull/3079), [@albertteoh](https://github.com/albertteoh)):
+* Add metrics query capability to query service ([#3061](https://github.com/jaegertracing/jaeger/pull/3061), [@albertteoh](https://github.com/albertteoh)):
+
+#### Bug fixes, Minor Improvements
+
+* Add build info metrics to Jaeger components ([#3087](https://github.com/jaegertracing/jaeger/pull/3087), [@Ashmita152](https://github.com/Ashmita152)):
+* Upgrade gRPC to 1.38.x ([#3096](https://github.com/jaegertracing/jaeger/pull/3096), [@pavolloffay](https://github.com/pavolloffay)):
 
 1.23.0 (2021-06-04)
 -------------------
