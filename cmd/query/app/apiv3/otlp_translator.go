@@ -29,19 +29,19 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
 	resourcev1 "github.com/jaegertracing/jaeger/proto-gen/otel/resource/v1"
-	v1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
+	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 )
 
 // OpenTelemetry collector implements translator from Jaeger model to pdata (wrapper around OTLP).
 // However, it cannot be used because the imported OTLP in the translator is in the collector's private package.
-func jaegerSpansToOTLP(spans []*model.Span) []*v1.ResourceSpans {
-	spansByLibrary := make(map[resource]map[instrumentationLibrary]*v1.InstrumentationLibrarySpans)
+func jaegerSpansToOTLP(spans []*model.Span) []*tracev1.ResourceSpans {
+	spansByLibrary := make(map[resource]map[instrumentationLibrary]*tracev1.InstrumentationLibrarySpans)
 	for _, s := range spans {
 		otlpSpan, res, library := jSpanToOTLP(s)
 		resourceSpans, ok := spansByLibrary[res]
 		if !ok {
-			resourceSpans = map[instrumentationLibrary]*v1.InstrumentationLibrarySpans{}
-			resourceSpans[library] = &v1.InstrumentationLibrarySpans{
+			resourceSpans = map[instrumentationLibrary]*tracev1.InstrumentationLibrarySpans{}
+			resourceSpans[library] = &tracev1.InstrumentationLibrarySpans{
 				InstrumentationLibrary: &commonv1.InstrumentationLibrary{
 					Name:    library.name,
 					Version: library.version,
@@ -52,9 +52,9 @@ func jaegerSpansToOTLP(spans []*model.Span) []*v1.ResourceSpans {
 		resourceSpans[library].Spans = append(resourceSpans[library].GetSpans(), otlpSpan)
 	}
 
-	var rss []*v1.ResourceSpans
+	var rss []*tracev1.ResourceSpans
 	for res, libMap := range spansByLibrary {
-		rs := &v1.ResourceSpans{
+		rs := &tracev1.ResourceSpans{
 			Resource: res.resource,
 		}
 		for _, v := range libMap {
@@ -78,19 +78,16 @@ type resource struct {
 	resource *resourcev1.Resource
 }
 
-func jSpanToOTLP(jSpan *model.Span) (*v1.Span, resource, instrumentationLibrary) {
+func jSpanToOTLP(jSpan *model.Span) (*tracev1.Span, resource, instrumentationLibrary) {
 	tags := model.KeyValues(jSpan.GetTags())
 	status, ignoreKeys := getSpanStatus(tags)
-	if ignoreKeys == nil {
-		ignoreKeys = map[string]bool{}
-	}
 
 	traceState := getTraceStateFromAttrs(tags)
 	if traceState != "" {
 		ignoreKeys[tracetranslator.TagW3CTraceState] = true
 	}
 
-	s := &v1.Span{
+	s := &tracev1.Span{
 		TraceId:           uint64ToTraceID(jSpan.TraceID.High, jSpan.TraceID.Low),
 		SpanId:            uint64ToSpanID(uint64(jSpan.SpanID)),
 		ParentSpanId:      uint64ToSpanID(uint64(jSpan.ParentSpanID())),
@@ -101,6 +98,7 @@ func jSpanToOTLP(jSpan *model.Span) (*v1.Span, resource, instrumentationLibrary)
 		Events:            jLogsToOTLP(jSpan.GetLogs()),
 		Links:             jReferencesToOTLP(jSpan.GetReferences(), jSpan.ParentSpanID()),
 		Status:            status,
+		Kind:              tracev1.Span_SPAN_KIND_INTERNAL,
 	}
 	if kind, found := jSpan.GetSpanKind(); found {
 		s.Kind = jSpanKindToInternal(kind)
@@ -211,8 +209,8 @@ func jTagsToOTLP(tags []model.KeyValue, ignoreKeys map[string]bool) []*commonv1.
 	return kvs
 }
 
-func jLogsToOTLP(logs []model.Log) []*v1.Span_Event {
-	events := make([]*v1.Span_Event, len(logs))
+func jLogsToOTLP(logs []model.Log) []*tracev1.Span_Event {
+	events := make([]*tracev1.Span_Event, len(logs))
 	for i, l := range logs {
 
 		var name string
@@ -223,7 +221,7 @@ func jLogsToOTLP(logs []model.Log) []*v1.Span_Event {
 			ignoreKeys[tracetranslator.TagMessage] = true
 		}
 
-		events[i] = &v1.Span_Event{
+		events[i] = &tracev1.Span_Event{
 			TimeUnixNano: uint64(l.GetTimestamp().UnixNano()),
 			Name:         name,
 			Attributes:   jTagsToOTLP(l.GetFields(), ignoreKeys),
@@ -232,16 +230,16 @@ func jLogsToOTLP(logs []model.Log) []*v1.Span_Event {
 	return events
 }
 
-func jReferencesToOTLP(refs []model.SpanRef, excludeParentID model.SpanID) []*v1.Span_Link {
+func jReferencesToOTLP(refs []model.SpanRef, excludeParentID model.SpanID) []*tracev1.Span_Link {
 	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == model.ChildOf {
 		return nil
 	}
-	var links []*v1.Span_Link
+	var links []*tracev1.Span_Link
 	for _, r := range refs {
 		if r.SpanID == excludeParentID && r.GetRefType() == model.ChildOf {
 			continue
 		}
-		links = append(links, &v1.Span_Link{
+		links = append(links, &tracev1.Span_Link{
 			TraceId: uint64ToTraceID(r.TraceID.High, r.TraceID.Low),
 			SpanId:  uint64ToSpanID(uint64(r.SpanID)),
 		})
@@ -250,22 +248,22 @@ func jReferencesToOTLP(refs []model.SpanRef, excludeParentID model.SpanID) []*v1
 	return links
 }
 
-func getSpanStatus(tags []model.KeyValue) (*v1.Status, map[string]bool) {
-	statusCode := v1.Status_STATUS_CODE_UNSET
+func getSpanStatus(tags []model.KeyValue) (*tracev1.Status, map[string]bool) {
+	statusCode := tracev1.Status_STATUS_CODE_UNSET
 	statusMessage := ""
 	statusExists := false
 
 	ignoreKeys := map[string]bool{}
 	kvs := model.KeyValues(tags)
 	if _, ok := kvs.FindByKey(tracetranslator.TagError); ok {
-		statusCode = v1.Status_STATUS_CODE_ERROR
+		statusCode = tracev1.Status_STATUS_CODE_ERROR
 		statusExists = true
 		ignoreKeys[tracetranslator.TagError] = true
 	}
 	if tag, ok := kvs.FindByKey(tracetranslator.TagStatusCode); ok {
 		statusExists = true
 		if code, err := getStatusCodeValFromTag(tag); err == nil {
-			statusCode = v1.Status_StatusCode(code)
+			statusCode = tracev1.Status_StatusCode(code)
 			ignoreKeys[tracetranslator.TagStatusCode] = true
 		}
 		if tag, ok := kvs.FindByKey(tracetranslator.TagStatusMsg); ok {
@@ -276,8 +274,8 @@ func getSpanStatus(tags []model.KeyValue) (*v1.Status, map[string]bool) {
 		statusExists = true
 		if code, err := getStatusCodeFromHTTPStatusTag(tag); err == nil {
 			// Do not set status code in case it was set to Unset.
-			if v1.Status_StatusCode(code) != v1.Status_STATUS_CODE_UNSET {
-				statusCode = v1.Status_StatusCode(code)
+			if tracev1.Status_StatusCode(code) != tracev1.Status_STATUS_CODE_UNSET {
+				statusCode = tracev1.Status_StatusCode(code)
 			}
 
 			if tag, ok := kvs.FindByKey(tracetranslator.TagHTTPStatusMsg); ok {
@@ -287,12 +285,12 @@ func getSpanStatus(tags []model.KeyValue) (*v1.Status, map[string]bool) {
 	}
 
 	if statusExists {
-		return &v1.Status{
+		return &tracev1.Status{
 			Code:    statusCode,
 			Message: statusMessage,
 		}, ignoreKeys
 	}
-	return nil, nil
+	return nil, ignoreKeys
 }
 
 func getStatusCodeValFromTag(tag model.KeyValue) (int, error) {
@@ -307,7 +305,7 @@ func getStatusCodeValFromTag(tag model.KeyValue) (int, error) {
 		}
 		codeVal = int64(i)
 	default:
-		return 0, fmt.Errorf("invalid status code attribute type: %q", tag.GetKey())
+		return 0, fmt.Errorf("invalid status code attribute type: %q, key: %q", tag.GetKey(), tag.GetKey())
 	}
 	if codeVal > math.MaxInt32 || codeVal < math.MinInt32 {
 		return 0, fmt.Errorf("invalid status code value: %d", codeVal)
@@ -318,26 +316,26 @@ func getStatusCodeValFromTag(tag model.KeyValue) (int, error) {
 func getStatusCodeFromHTTPStatusTag(tag model.KeyValue) (int, error) {
 	statusCode, err := getStatusCodeValFromTag(tag)
 	if err != nil {
-		return int(v1.Status_STATUS_CODE_OK), err
+		return int(tracev1.Status_STATUS_CODE_OK), err
 	}
 
 	return int(tracetranslator.StatusCodeFromHTTP(statusCode)), nil
 }
 
-func jSpanKindToInternal(spanKind string) v1.Span_SpanKind {
+func jSpanKindToInternal(spanKind string) tracev1.Span_SpanKind {
 	switch spanKind {
 	case "client":
-		return v1.Span_SPAN_KIND_CLIENT
+		return tracev1.Span_SPAN_KIND_CLIENT
 	case "server":
-		return v1.Span_SPAN_KIND_SERVER
+		return tracev1.Span_SPAN_KIND_SERVER
 	case "producer":
-		return v1.Span_SPAN_KIND_PRODUCER
+		return tracev1.Span_SPAN_KIND_PRODUCER
 	case "consumer":
-		return v1.Span_SPAN_KIND_CONSUMER
+		return tracev1.Span_SPAN_KIND_CONSUMER
 	case "internal":
-		return v1.Span_SPAN_KIND_INTERNAL
+		return tracev1.Span_SPAN_KIND_INTERNAL
 	}
-	return v1.Span_SPAN_KIND_UNSPECIFIED
+	return tracev1.Span_SPAN_KIND_UNSPECIFIED
 }
 
 func getTraceStateFromAttrs(attrs []model.KeyValue) string {
