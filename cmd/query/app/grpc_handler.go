@@ -56,6 +56,8 @@ type GRPCHandler struct {
 	nowFn               func() time.Time
 }
 
+var _ api_v2.QueryServiceServer = (*GRPCHandler)(nil)
+
 // GetTrace is the gRPC handler to fetch traces based on trace-id.
 func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QueryService_GetTraceServer) error {
 	trace, err := g.queryService.GetTrace(stream.Context(), r.TraceID)
