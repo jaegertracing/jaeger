@@ -856,8 +856,8 @@ func TestErrors(t *testing.T) {
 
 	// start errors
 	mockEP := &epmocks.ElectionParticipant{}
-	mockEP.On("Start").Return(errors.New("?"))
-	mockEP.On("Close").Return(errors.New("!"))
+	mockEP.On("Start").Return(errors.New("bad"))
+	mockEP.On("Close").Return(errors.New("also bad"))
 	mockEP.On("IsLeader").Return(false)
 
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
@@ -867,7 +867,7 @@ func TestErrors(t *testing.T) {
 	// close errors
 	mockEP = &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
-	mockEP.On("Close").Return(errors.New("!"))
+	mockEP.On("Close").Return(errors.New("still bad"))
 	mockEP.On("IsLeader").Return(false)
 
 	p, err = newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
