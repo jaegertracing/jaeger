@@ -34,7 +34,11 @@ func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router,
 	grpcGatewayMux := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, jsonpb),
 	)
-	r.PathPrefix("/v3/").Handler(http.StripPrefix(basePath, grpcGatewayMux))
+	var handler http.Handler = grpcGatewayMux
+	if basePath != "/" {
+		handler = http.StripPrefix(basePath, grpcGatewayMux)
+	}
+	r.PathPrefix("/v3/").Handler(handler)
 
 	var dialOpts []grpc.DialOption
 	if grpcTLS.Enabled {
