@@ -841,6 +841,8 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 func TestErrors(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage)
+	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
+		Return(nil, nil)
 
 	cfg := Options{
 		TargetSamplesPerSecond:       1.0,
