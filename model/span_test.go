@@ -483,6 +483,14 @@ func TestGetSamplerParams(t *testing.T) {
 			expectedType:  "",
 			expectedParam: 0,
 		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "not_a_type"),
+				model.String("sampler.param", "not_a_number"),
+			},
+			expectedType:  "",
+			expectedParam: 0,
+		},
 	}
 
 	for i, test := range tests {

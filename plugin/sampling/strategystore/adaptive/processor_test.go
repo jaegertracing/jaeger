@@ -837,3 +837,41 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.probabilities = probabilities
 	p.qps = qps
 }
+
+func TestErrors(t *testing.T) {
+	mockStorage := &smocks.Store{}
+	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage)
+
+	cfg := Options{
+		TargetSamplesPerSecond:       1.0,
+		DeltaTolerance:               0.1,
+		InitialSamplingProbability:   0.001,
+		CalculationInterval:          time.Millisecond * 5,
+		AggregationBuckets:           2,
+		Delay:                        time.Millisecond * 5,
+		LeaderLeaseRefreshInterval:   time.Millisecond,
+		FollowerLeaseRefreshInterval: time.Second,
+		BucketsForCalculation:        10,
+	}
+
+	// start errors
+	mockEP := &epmocks.ElectionParticipant{}
+	mockEP.On("Start").Return(errors.New("?"))
+	mockEP.On("Close").Return(errors.New("!"))
+	mockEP.On("IsLeader").Return(false)
+
+	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	assert.Error(t, p.Start())
+
+	// close errors
+	mockEP = &epmocks.ElectionParticipant{}
+	mockEP.On("Start").Return(nil)
+	mockEP.On("Close").Return(errors.New("!"))
+	mockEP.On("IsLeader").Return(false)
+
+	p, err = newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	assert.NoError(t, p.Start())
+	assert.Error(t, p.Close())
+}

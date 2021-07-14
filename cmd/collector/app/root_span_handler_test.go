@@ -24,14 +24,18 @@ import (
 )
 
 type mockAggregator struct {
-	callCount int
+	callCount  int
+	closeCount int
 }
 
 func (t *mockAggregator) RecordThroughput(service, operation, samplerType string, probability float64) {
 	t.callCount++
 }
-func (t *mockAggregator) Start()       {}
-func (t *mockAggregator) Close() error { return nil }
+func (t *mockAggregator) Start() {}
+func (t *mockAggregator) Close() error {
+	t.closeCount++
+	return nil
+}
 
 func TestHandleRootSpan(t *testing.T) {
 	aggregator := &mockAggregator{}

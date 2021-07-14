@@ -18,21 +18,35 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
+	"sync"
 )
 
+type hostname struct {
+	once     sync.Once
+	err      error
+	hostname string
+}
+
+var h hostname
+
 // AsIdentifier uses the hostname of the os and postfixes a short random string to guarantee uniqueness
-// The returned value is appropriate to use as a convenient unique identifier.
+// The returned value is appropriate to use as a convenient unique identifier and will always be equal
+// when called from within the same process.
 func AsIdentifier() (string, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return "", err
-	}
+	h.once.Do(func() {
+		h.hostname, h.err = os.Hostname()
+		if h.err != nil {
+			return
+		}
 
-	buff := make([]byte, 8)
-	_, err = rand.Read(buff)
-	if err != nil {
-		return "", err
-	}
+		buff := make([]byte, 8)
+		_, h.err = rand.Read(buff)
+		if h.err != nil {
+			return
+		}
 
-	return hostname + "-" + fmt.Sprintf("%2x", buff), nil
+		h.hostname = h.hostname + "-" + fmt.Sprintf("%2x", buff)
+	})
+
+	return h.hostname, h.err
 }
