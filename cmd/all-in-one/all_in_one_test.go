@@ -25,10 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
@@ -44,6 +46,8 @@ const (
 	getServicesURL         = queryURL + "/api/services"
 	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
 	getSamplingStrategyURL = agentURL + "/sampling?service=whatever"
+
+	getServicesAPIV3URL = queryURL + "/v3/services"
 )
 
 var (
@@ -60,6 +64,7 @@ func TestAllInOne(t *testing.T) {
 	createTrace(t)
 	getAPITrace(t)
 	getSamplingStrategy(t)
+	getServicesAPIV3(t)
 }
 
 func createTrace(t *testing.T) {
@@ -130,4 +135,18 @@ func healthCheck() error {
 		time.Sleep(time.Second)
 	}
 	return fmt.Errorf("query service is not ready")
+}
+
+func getServicesAPIV3(t *testing.T) {
+	req, err := http.NewRequest("GET", getServicesAPIV3URL, nil)
+	require.NoError(t, err)
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	var servicesResponse api_v3.GetServicesResponse
+	jsonpb := runtime.JSONPb{}
+	err = jsonpb.Unmarshal(body, &servicesResponse)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"jaeger-query"}, servicesResponse.GetServices())
 }

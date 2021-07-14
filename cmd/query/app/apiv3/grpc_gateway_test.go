@@ -44,7 +44,7 @@ import (
 
 var testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata/"
 
-func testGRPCGateway(t *testing.T, serverTLS tlscfg.Options, clientTLS tlscfg.Options) {
+func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, clientTLS tlscfg.Options) {
 	defer serverTLS.Close()
 	defer clientTLS.Close()
 
@@ -83,9 +83,10 @@ func testGRPCGateway(t *testing.T, serverTLS tlscfg.Options, clientTLS tlscfg.Op
 	defer grpcServer.Stop()
 
 	router := &mux.Router{}
+	router = router.PathPrefix(basePath).Subrouter()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, "", lis.Addr().String(), clientTLS)
+	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS)
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")
@@ -98,7 +99,7 @@ func testGRPCGateway(t *testing.T, serverTLS tlscfg.Options, clientTLS tlscfg.Op
 		require.Equal(t, http.ErrServerClosed, err)
 	}()
 	defer httpServer.Shutdown(context.Background())
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1)), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
 	req.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(req)
 	buf := bytes.Buffer{}
@@ -117,10 +118,10 @@ func testGRPCGateway(t *testing.T, serverTLS tlscfg.Options, clientTLS tlscfg.Op
 }
 
 func TestGRPCGateway(t *testing.T) {
-	testGRPCGateway(t, tlscfg.Options{}, tlscfg.Options{})
+	testGRPCGateway(t, "/", tlscfg.Options{}, tlscfg.Options{})
 }
 
-func TestGRPCGateway_TLS(t *testing.T) {
+func TestGRPCGateway_TLS_with_base_path(t *testing.T) {
 	serverTLS := tlscfg.Options{
 		Enabled:  true,
 		CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
@@ -134,7 +135,7 @@ func TestGRPCGateway_TLS(t *testing.T) {
 		KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 		ServerName: "example.com",
 	}
-	testGRPCGateway(t, serverTLS, clientTLS)
+	testGRPCGateway(t, "/jaeger", serverTLS, clientTLS)
 }
 
 // For more details why this is needed see https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
