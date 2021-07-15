@@ -89,11 +89,11 @@ func TestBadConfigFail(t *testing.T) {
 	}
 }
 
-func TestRequiresLockAndSamplingStore(t *testing.T) {
+func TestNilLockAndSamplingFails(t *testing.T) {
 	f := NewFactory()
-	required, err := f.RequiresLockAndSamplingStore()
-	assert.True(t, required)
-	assert.NoError(t, err)
+	assert.Error(t, f.Initialize(metrics.NullFactory, nil, &mockStore{}, zap.NewNop()))
+	assert.Error(t, f.Initialize(metrics.NullFactory, &mockLock{}, nil, zap.NewNop()))
+	assert.Error(t, f.Initialize(metrics.NullFactory, nil, nil, zap.NewNop()))
 }
 
 type mockStore struct{}

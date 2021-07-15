@@ -106,12 +106,3 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategyst
 	}
 	return factory.CreateStrategyStore()
 }
-
-// RequiresLockAndSamplingStore implements strategystore.Factory
-func (f *Factory) RequiresLockAndSamplingStore() (bool, error) {
-	factory, ok := f.factories[f.StrategyStoreType]
-	if !ok {
-		return false, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
-	}
-	return factory.RequiresLockAndSamplingStore()
-}

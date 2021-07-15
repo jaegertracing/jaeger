@@ -15,6 +15,7 @@
 package adaptive
 
 import (
+	"errors"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -58,6 +59,10 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 
 // Initialize implements strategystore.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, lock distributedlock.Lock, store samplingstore.Store, logger *zap.Logger) error {
+	if lock == nil || store == nil {
+		return errors.New("lock or SamplingStore nil. Please configure a backend that supports adaptive sampling")
+	}
+
 	f.logger = logger
 	f.metricsFactory = metricsFactory
 	f.lock = lock
@@ -75,9 +80,4 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategyst
 	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store)
 	a.Start()
 	return p, a, nil
-}
-
-// RequiresLockAndSamplingStore implements strategystore.Factory
-func (f *Factory) RequiresLockAndSamplingStore() (bool, error) {
-	return true, nil
 }

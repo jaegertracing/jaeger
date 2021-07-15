@@ -34,7 +34,4 @@ type Factory interface {
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
 	CreateStrategyStore() (StrategyStore, Aggregator, error)
-
-	// RequiresLockAndSamplingStore indicates whether this strategy store requires a Lock and SamplingStore
-	RequiresLockAndSamplingStore() (bool, error)
 }

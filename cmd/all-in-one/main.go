@@ -44,14 +44,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -127,17 +125,9 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
 
-			requireLockAndSamplingStore, err := strategyStoreFactory.RequiresLockAndSamplingStore()
+			lock, samplingStore, err := storageFactory.CreateLockAndSamplingStore()
 			if err != nil {
-				logger.Fatal("Failed to determine if lock and sampling store is required.", zap.Error(err))
-			}
-			var lock distributedlock.Lock
-			var samplingStore samplingstore.Store
-			if requireLockAndSamplingStore {
-				lock, samplingStore, err = storageFactory.CreateLockAndSamplingStore()
-				if err != nil {
-					logger.Fatal("Failed to create lock and sampling store for adaptive sampling", zap.Error(err))
-				}
+				logger.Fatal("Failed to create lock and sampling store for adaptive sampling", zap.Error(err))
 			}
 
 			strategyStoreFactory.InitFromViper(v, logger)

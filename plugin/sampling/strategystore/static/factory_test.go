@@ -39,10 +39,3 @@ func TestFactory(t *testing.T) {
 	_, _, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
 }
-
-func TestRequiresLockAndSamplingStore(t *testing.T) {
-	f := NewFactory()
-	required, err := f.RequiresLockAndSamplingStore()
-	assert.False(t, required)
-	assert.NoError(t, err)
-}
