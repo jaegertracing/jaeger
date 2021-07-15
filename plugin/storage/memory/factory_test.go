@@ -44,6 +44,8 @@ func TestMemoryStorageFactory(t *testing.T) {
 	depReader, err := f.CreateDependencyReader()
 	assert.NoError(t, err)
 	assert.Equal(t, f.store, depReader)
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
 }
 
 func TestWithConfiguration(t *testing.T) {
@@ -76,4 +78,12 @@ func TestPublishOpts(t *testing.T) {
 		Name:  "internal." + limit,
 		Value: f.options.Configuration.MaxTraces,
 	})
+}
+
+func TestCreateLockAndSamplingStore(t *testing.T) {
+	f := NewFactory()
+	lock, ss, err := f.CreateLockAndSamplingStore()
+	assert.Nil(t, lock)
+	assert.Nil(t, ss)
+	assert.Equal(t, err, storage.ErrLockAndSamplingStoreNotSupported)
 }

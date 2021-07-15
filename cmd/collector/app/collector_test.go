@@ -25,6 +25,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -97,4 +99,61 @@ func TestCollector_PublishOpts(t *testing.T) {
 		Name:  "internal.collector.queue-size",
 		Value: 42,
 	})
+}
+
+func TestAggregator(t *testing.T) {
+	// prepare
+	hc := healthcheck.New()
+	logger := zap.NewNop()
+	baseMetrics := metricstest.NewFactory(time.Hour)
+	spanWriter := &fakeSpanWriter{}
+	strategyStore := &mockStrategyStore{}
+	agg := &mockAggregator{}
+
+	c := New(&CollectorParams{
+		ServiceName:    "collector",
+		Logger:         logger,
+		MetricsFactory: baseMetrics,
+		SpanWriter:     spanWriter,
+		StrategyStore:  strategyStore,
+		HealthCheck:    hc,
+		Aggregator:     agg,
+	})
+	collectorOpts := &CollectorOptions{
+		QueueSize:  10,
+		NumWorkers: 10,
+	}
+
+	// test
+	c.Start(collectorOpts)
+
+	// assert that aggregator was added to the collector
+	_, err := c.spanProcessor.ProcessSpans([]*model.Span{
+		{
+			OperationName: "y",
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+			Tags: []model.KeyValue{
+				{
+					Key:  "sampler.type",
+					VStr: "probabilistic",
+				},
+				{
+					Key:  "sampler.param",
+					VStr: "1",
+				},
+			},
+		},
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	assert.NoError(t, err)
+
+	// verify
+	assert.NoError(t, c.Close())
+
+	// assert that aggregator was used
+	assert.Equal(t, 1, agg.callCount)
+
+	// assert that aggregator close was called
+	assert.Equal(t, 1, agg.closeCount)
 }

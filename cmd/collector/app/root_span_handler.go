@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package adaptive
+package app
 
 import (
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// HandleRootSpan returns a function that records throughput for root spans
-func HandleRootSpan(aggregator Aggregator, logger *zap.Logger) app.ProcessSpan {
+// handleRootSpan returns a function that records throughput for root spans
+func handleRootSpan(aggregator strategystore.Aggregator, logger *zap.Logger) ProcessSpan {
 	return func(span *model.Span) {
 		// TODO simply checking parentId to determine if a span is a root span is not sufficient. However,
 		// we can be sure that only a root span will have sampler tags.
@@ -33,7 +33,7 @@ func HandleRootSpan(aggregator Aggregator, logger *zap.Logger) app.ProcessSpan {
 		if service == "" || span.OperationName == "" {
 			return
 		}
-		samplerType, samplerParam := GetSamplerParams(span, logger)
+		samplerType, samplerParam := span.GetSamplerParams(logger)
 		if samplerType == "" {
 			return
 		}

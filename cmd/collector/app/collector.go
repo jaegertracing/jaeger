@@ -40,6 +40,7 @@ type Collector struct {
 	metricsFactory metrics.Factory
 	spanWriter     spanstore.Writer
 	strategyStore  strategystore.StrategyStore
+	aggregator     strategystore.Aggregator
 	hCheck         *healthcheck.HealthCheck
 	spanProcessor  processor.SpanProcessor
 	spanHandlers   *SpanHandlers
@@ -59,6 +60,7 @@ type CollectorParams struct {
 	MetricsFactory metrics.Factory
 	SpanWriter     spanstore.Writer
 	StrategyStore  strategystore.StrategyStore
+	Aggregator     strategystore.Aggregator
 	HealthCheck    *healthcheck.HealthCheck
 }
 
@@ -70,6 +72,7 @@ func New(params *CollectorParams) *Collector {
 		metricsFactory: params.MetricsFactory,
 		spanWriter:     params.SpanWriter,
 		strategyStore:  params.StrategyStore,
+		aggregator:     params.Aggregator,
 		hCheck:         params.HealthCheck,
 	}
 }
@@ -83,7 +86,12 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		MetricsFactory: c.metricsFactory,
 	}
 
-	c.spanProcessor = handlerBuilder.BuildSpanProcessor()
+	var additionalProcessors []ProcessSpan
+	if c.aggregator != nil {
+		additionalProcessors = append(additionalProcessors, handleRootSpan(c.aggregator, c.logger))
+	}
+
+	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
@@ -166,6 +174,13 @@ func (c *Collector) Close() error {
 
 	if err := c.spanProcessor.Close(); err != nil {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
+	}
+
+	// aggregator does not exist for all strategy stores. only Close() if exists.
+	if c.aggregator != nil {
+		if err := c.aggregator.Close(); err != nil {
+			c.logger.Error("failed to close aggregator.", zap.Error(err))
+		}
 	}
 
 	// watchers actually never return errors from Close

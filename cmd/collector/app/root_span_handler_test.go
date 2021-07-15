@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package adaptive
+package app
 
 import (
 	"testing"
@@ -24,18 +24,22 @@ import (
 )
 
 type mockAggregator struct {
-	callCount int
+	callCount  int
+	closeCount int
 }
 
 func (t *mockAggregator) RecordThroughput(service, operation, samplerType string, probability float64) {
 	t.callCount++
 }
 func (t *mockAggregator) Start() {}
-func (t *mockAggregator) Stop()  {}
+func (t *mockAggregator) Close() error {
+	t.closeCount++
+	return nil
+}
 
 func TestHandleRootSpan(t *testing.T) {
 	aggregator := &mockAggregator{}
-	processor := HandleRootSpan(aggregator, zap.NewNop())
+	processor := handleRootSpan(aggregator, zap.NewNop())
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}

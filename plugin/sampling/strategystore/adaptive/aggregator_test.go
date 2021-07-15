@@ -46,7 +46,7 @@ func TestAggregator(t *testing.T) {
 	a.RecordThroughput("A", "GET", lowerbound, 0.001)
 
 	a.Start()
-	defer a.Stop()
+	defer a.Close()
 	for i := 0; i < 10000; i++ {
 		counters, _ := metricsFactory.Snapshot()
 		if _, ok := counters["sampling_operations"]; ok {

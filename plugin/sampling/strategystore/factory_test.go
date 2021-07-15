@@ -18,7 +18,9 @@ package strategystore
 import (
 	"errors"
 	"flag"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -26,53 +28,88 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
+
+func clearEnv() {
+	os.Setenv(SamplingTypeEnvVar, "static")
+}
 
 var _ ss.Factory = new(Factory)
 var _ plugin.Configurable = new(Factory)
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(FactoryConfig{StrategyStoreType: staticStrategyStoreType})
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[staticStrategyStoreType])
-	assert.Equal(t, staticStrategyStoreType, f.StrategyStoreType)
+	tests := []struct {
+		strategyStoreType string
+		expectError       bool
+	}{
+		{
+			strategyStoreType: "static",
+		},
+		{
+			strategyStoreType: "adaptive",
+		},
+		{
+			strategyStoreType: "nonsense",
+			expectError:       true,
+		},
+	}
 
-	mock := new(mockFactory)
-	f.factories[staticStrategyStoreType] = mock
+	lock := &mockLock{}
+	store := &mockStore{}
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	_, err = f.CreateStrategyStore()
-	assert.NoError(t, err)
+	for _, tc := range tests {
+		f, err := NewFactory(FactoryConfig{StrategyStoreType: Kind(tc.strategyStoreType)})
+		if tc.expectError {
+			assert.Error(t, err)
+			continue
+		}
+		assert.NotEmpty(t, f.factories)
+		assert.NotEmpty(t, f.factories[Kind(tc.strategyStoreType)])
+		assert.Equal(t, Kind(tc.strategyStoreType), f.StrategyStoreType)
 
-	// force the mock to return errors
-	mock.retError = true
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "error initializing store")
-	_, err = f.CreateStrategyStore()
-	assert.EqualError(t, err, "error creating store")
+		mock := new(mockFactory)
+		f.factories[Kind(tc.strategyStoreType)] = mock
 
-	f.StrategyStoreType = "nonsense"
-	_, err = f.CreateStrategyStore()
-	assert.EqualError(t, err, "no nonsense strategy store registered")
+		assert.NoError(t, f.Initialize(metrics.NullFactory, lock, store, zap.NewNop()))
+		_, _, err = f.CreateStrategyStore()
+		require.NoError(t, err)
+		r, err := f.RequiresLockAndSamplingStore()
+		require.NoError(t, err)
+		require.False(t, r) // mock returns false
 
-	_, err = NewFactory(FactoryConfig{StrategyStoreType: "nonsense"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown sampling strategy store type")
+		// force the mock to return errors
+		mock.retError = true
+		assert.EqualError(t, f.Initialize(metrics.NullFactory, lock, store, zap.NewNop()), "error initializing store")
+		_, _, err = f.CreateStrategyStore()
+		assert.EqualError(t, err, "error creating store")
+		_, err = f.RequiresLockAndSamplingStore()
+		assert.EqualError(t, err, "error calling require lock and sampling store")
+
+		// request something that doesn't exist
+		f.StrategyStoreType = "doesntexist"
+		_, _, err = f.CreateStrategyStore()
+		assert.EqualError(t, err, "no doesntexist strategy store registered")
+		_, err = f.RequiresLockAndSamplingStore()
+		assert.EqualError(t, err, "no doesntexist strategy store registered")
+	}
 }
 
 func TestConfigurable(t *testing.T) {
 	clearEnv()
 	defer clearEnv()
 
-	f, err := NewFactory(FactoryConfig{StrategyStoreType: staticStrategyStoreType})
+	f, err := NewFactory(FactoryConfig{StrategyStoreType: "static"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[staticStrategyStoreType])
+	assert.NotEmpty(t, f.factories["static"])
 
 	mock := new(mockFactory)
-	f.factories[staticStrategyStoreType] = mock
+	f.factories["static"] = mock
 
 	fs := new(flag.FlagSet)
 	v := viper.New()
@@ -100,16 +137,51 @@ func (f *mockFactory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.logger = logger
 }
 
-func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, error) {
+func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, ss.Aggregator, error) {
 	if f.retError {
-		return nil, errors.New("error creating store")
+		return nil, nil, errors.New("error creating store")
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
-func (f *mockFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *mockFactory) Initialize(metricsFactory metrics.Factory, lock distributedlock.Lock, store samplingstore.Store, logger *zap.Logger) error {
 	if f.retError {
 		return errors.New("error initializing store")
 	}
 	return nil
+}
+
+func (f *mockFactory) RequiresLockAndSamplingStore() (bool, error) {
+	if f.retError {
+		return false, errors.New("error calling require lock and sampling store")
+	}
+	return false, nil
+}
+
+type mockStore struct{}
+
+func (m *mockStore) InsertThroughput(throughput []*model.Throughput) error {
+	return nil
+}
+func (m *mockStore) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
+	return nil
+}
+func (m *mockStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+	return nil, nil
+}
+func (m *mockStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error) {
+	return nil, nil
+}
+func (m *mockStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
+	return nil, nil
+}
+
+type mockLock struct{}
+
+func (m *mockLock) Acquire(resource string, ttl time.Duration) (acquired bool, err error) {
+	return true, nil
+}
+
+func (m *mockLock) Forfeit(resource string) (forfeited bool, err error) {
+	return true, nil
 }

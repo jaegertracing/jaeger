@@ -66,9 +66,10 @@ type queueItem struct {
 // NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans
 func NewSpanProcessor(
 	spanWriter spanstore.Writer,
+	additional []ProcessSpan,
 	opts ...Option,
 ) processor.SpanProcessor {
-	sp := newSpanProcessor(spanWriter, opts...)
+	sp := newSpanProcessor(spanWriter, additional, opts...)
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item interface{}) {
 		value := item.(*queueItem)
@@ -84,7 +85,7 @@ func NewSpanProcessor(
 	return sp
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcessor {
+func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
@@ -121,6 +122,8 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 			zap.Uint("queue-size-warmup", options.dynQueueSizeWarmup))
 		processSpanFuncs = append(processSpanFuncs, sp.countSpan)
 	}
+
+	processSpanFuncs = append(processSpanFuncs, additional...)
 
 	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
 	return &sp

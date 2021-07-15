@@ -22,6 +22,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -61,7 +62,64 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	_, err := f.CreateStrategyStore()
+	assert.NoError(t, f.Initialize(metrics.NullFactory, &mockLock{}, &mockStore{}, zap.NewNop()))
+	_, _, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
+}
+
+func TestBadConfigFail(t *testing.T) {
+	tests := []string{
+		"--sampling.aggregation-buckets=0",
+		"--sampling.calculation-interval=0",
+		"--sampling.buckets-for-calculation=0",
+	}
+
+	for _, tc := range tests {
+		f := NewFactory()
+		v, command := config.Viperize(f.AddFlags)
+		command.ParseFlags([]string{
+			tc,
+		})
+
+		f.InitFromViper(v, zap.NewNop())
+
+		assert.NoError(t, f.Initialize(metrics.NullFactory, &mockLock{}, &mockStore{}, zap.NewNop()))
+		_, _, err := f.CreateStrategyStore()
+		assert.Error(t, err)
+	}
+}
+
+func TestRequiresLockAndSamplingStore(t *testing.T) {
+	f := NewFactory()
+	required, err := f.RequiresLockAndSamplingStore()
+	assert.True(t, required)
+	assert.NoError(t, err)
+}
+
+type mockStore struct{}
+
+func (m *mockStore) InsertThroughput(throughput []*model.Throughput) error {
+	return nil
+}
+func (m *mockStore) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
+	return nil
+}
+func (m *mockStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+	return nil, nil
+}
+func (m *mockStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error) {
+	return nil, nil
+}
+func (m *mockStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
+	return nil, nil
+}
+
+type mockLock struct{}
+
+func (m *mockLock) Acquire(resource string, ttl time.Duration) (acquired bool, err error) {
+	return true, nil
+}
+
+func (m *mockLock) Forfeit(resource string) (forfeited bool, err error) {
+	return true, nil
 }

@@ -73,6 +73,9 @@ func TestKafkaFactory(t *testing.T) {
 	_, err = f.CreateDependencyReader()
 	assert.Error(t, err)
 
+	_, _, err = f.CreateLockAndSamplingStore()
+	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
+
 	assert.NoError(t, f.Close())
 }
 
@@ -167,4 +170,12 @@ func TestInitFromOptions(t *testing.T) {
 	f.InitFromOptions(o)
 	assert.Equal(t, o, f.options)
 	assert.Equal(t, &o.Config, f.Builder)
+}
+
+func TestCreateLockAndSamplingStore(t *testing.T) {
+	f := NewFactory()
+	lock, ss, err := f.CreateLockAndSamplingStore()
+	assert.Nil(t, lock)
+	assert.Nil(t, ss)
+	assert.Equal(t, err, storage.ErrLockAndSamplingStoreNotSupported)
 }

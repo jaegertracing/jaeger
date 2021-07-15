@@ -22,24 +22,13 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 const (
 	maxProbabilities = 10
 )
-
-// Aggregator defines an interface used to aggregate operation throughput.
-type Aggregator interface {
-	// RecordThroughput records throughput for an operation for aggregation.
-	RecordThroughput(service, operation, samplerType string, probability float64)
-
-	// Start starts aggregating operation throughput.
-	Start()
-
-	// Stop stops the aggregator from aggregating throughput.
-	Stop()
-}
 
 type aggregator struct {
 	sync.Mutex
@@ -54,7 +43,7 @@ type aggregator struct {
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
 // about the number of operations seen over the aggregationInterval.
-func NewAggregator(metricsFactory metrics.Factory, interval time.Duration, storage samplingstore.Store) Aggregator {
+func NewAggregator(metricsFactory metrics.Factory, interval time.Duration, storage samplingstore.Store) strategystore.Aggregator {
 	return &aggregator{
 		operationsCounter:   metricsFactory.Counter(metrics.Options{Name: "sampling_operations"}),
 		servicesCounter:     metricsFactory.Counter(metrics.Options{Name: "sampling_services"}),
@@ -126,6 +115,7 @@ func (a *aggregator) Start() {
 	go a.runAggregationLoop()
 }
 
-func (a *aggregator) Stop() {
+func (a *aggregator) Close() error {
 	close(a.stop)
+	return nil
 }

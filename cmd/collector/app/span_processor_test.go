@@ -84,6 +84,7 @@ func TestBySvcMetrics(t *testing.T) {
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
 		sp := newSpanProcessor(
 			&fakeSpanWriter{},
+			nil,
 			Options.ServiceMetrics(serviceMetrics),
 			Options.HostMetrics(hostMetrics),
 			Options.Logger(logger),
@@ -219,7 +220,7 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 
 func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, Options.QueueSize(1)).(*spanProcessor)
+	p := NewSpanProcessor(w, nil, Options.QueueSize(1)).(*spanProcessor)
 
 	res, err := p.ProcessSpans([]*model.Span{
 		{
@@ -241,6 +242,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	mb := metricstest.NewFactory(time.Hour)
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 	p := NewSpanProcessor(w,
+		nil,
 		Options.Logger(logger),
 		Options.ServiceMetrics(serviceMetrics),
 		Options.QueueSize(1),
@@ -283,6 +285,7 @@ func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error 
 func TestSpanProcessorBusy(t *testing.T) {
 	w := &blockingWriter{}
 	p := NewSpanProcessor(w,
+		nil,
 		Options.NumWorkers(1),
 		Options.QueueSize(1),
 		Options.ReportBusy(true),
@@ -321,7 +324,7 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
+	p := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
 	defer assert.NoError(t, p.Close())
 
 	p.saveSpan(&model.Span{})
@@ -340,7 +343,7 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 	}
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
+	p := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
 
 	defer assert.NoError(t, p.Close())
 	span := &model.Span{
@@ -385,7 +388,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	m := mb.Namespace(metrics.NSOptions{})
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, Options.HostMetrics(m), Options.DynQueueSizeMemory(1000)).(*spanProcessor)
+	p := NewSpanProcessor(w, nil, Options.HostMetrics(m), Options.DynQueueSizeMemory(1000)).(*spanProcessor)
 	p.background(10*time.Millisecond, p.updateGauges)
 
 	p.processSpan(&model.Span{})
@@ -482,7 +485,7 @@ func TestUpdateDynQueueSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &fakeSpanWriter{}
-			p := newSpanProcessor(w, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			p := newSpanProcessor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
 			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
 
 			p.spansProcessed = atomic.NewUint64(tt.spansProcessed)
@@ -496,14 +499,14 @@ func TestUpdateDynQueueSize(t *testing.T) {
 
 func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := newSpanProcessor(w, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	p := newSpanProcessor(w, nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
 	assert.NotPanics(t, p.updateQueueSize)
 }
 
 func TestStartDynQueueSizeUpdater(t *testing.T) {
 	w := &fakeSpanWriter{}
 	oneGiB := uint(1024 * 1024 * 1024)
-	p := newSpanProcessor(w, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	p := newSpanProcessor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
 	assert.EqualValues(t, 100, p.queue.Capacity())
 
 	p.spansProcessed = atomic.NewUint64(1000)
@@ -523,4 +526,39 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 	}
 
 	assert.EqualValues(t, 104857, p.queue.Capacity())
+}
+
+func TestAdditionalProcessors(t *testing.T) {
+	w := &fakeSpanWriter{}
+
+	// nil doesn't fail
+	p := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	res, err := p.ProcessSpans([]*model.Span{
+		{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	assert.NoError(t, err)
+	assert.Equal(t, []bool{true}, res)
+	assert.NoError(t, p.Close())
+
+	// additional processor is called
+	count := 0
+	f := func(s *model.Span) {
+		count++
+	}
+	p = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))
+	res, err = p.ProcessSpans([]*model.Span{
+		{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	assert.NoError(t, err)
+	assert.Equal(t, []bool{true}, res)
+	assert.NoError(t, p.Close())
+	assert.Equal(t, 1, count)
 }

@@ -43,6 +43,10 @@ Unreleased
 -------------------
 ### Backend Changes
 
+#### New Features
+
+* Add support for adaptive sampling with a Cassandra backend. ([#2966](https://github.com/jaegertracing/jaeger/pull/2966), [@joe-elliott](https://github.com/joe-elliott)):
+
 #### Breaking Changes
 
 * Remove unused `--es-archive.max-span-age` flag ([#2865](https://github.com/jaegertracing/jaeger/pull/2865), [@albertteoh](https://github.com/albertteoh)):
