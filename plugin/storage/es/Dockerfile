@@ -6,4 +6,5 @@ RUN pip install urllib3==1.24.3
 RUN pip install elasticsearch elasticsearch-curator
 COPY esCleaner.py /es-index-cleaner/
 
+USER 65534
 ENTRYPOINT ["python3", "/es-index-cleaner/esCleaner.py"]
