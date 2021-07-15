@@ -21,6 +21,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 
 	"go.uber.org/zap"
 )
@@ -34,6 +35,7 @@ type Options struct {
 	ServerName     string       `mapstructure:"server_name"` // only for client-side TLS config
 	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
 	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
+	Ciphers        string       `mapstructure:"ciphers"`
 	certWatcher    *certWatcher `mapstructure:"-"`
 }
 
@@ -51,6 +53,14 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		RootCAs:            certPool,
 		ServerName:         p.ServerName,
 		InsecureSkipVerify: p.SkipHostVerify,
+	}
+	if len(p.Ciphers) > 0 {
+		cs := make([]uint16, 1)
+		value, err := strconv.ParseUint(p.Ciphers, 16, 16)
+		if err == nil {
+			cs[0] = uint16(value)
+			tlsCfg.CipherSuites = cs
+		}
 	}
 	if p.ClientCAPath != "" {
 		certPool := x509.NewCertPool()
