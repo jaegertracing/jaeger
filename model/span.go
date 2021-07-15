@@ -143,7 +143,7 @@ func (s *Span) GetSamplerParams(logger *zap.Logger) (string, float64) {
 	if !ok {
 		return "", 0
 	}
-	samplerParam, err := getParam(tag)
+	samplerParam, err := samplerParamToFloat(tag)
 	if err != nil {
 		logger.
 			With(zap.String("traceID", s.TraceID.String())).
@@ -196,7 +196,7 @@ func (f Flags) checkFlags(bit Flags) bool {
 	return f&bit == bit
 }
 
-func getParam(samplerParamTag KeyValue) (float64, error) {
+func samplerParamToFloat(samplerParamTag KeyValue) (float64, error) {
 	// The param could be represented as a string, an int, or a float
 	switch samplerParamTag.VType {
 	case Float64Type:
