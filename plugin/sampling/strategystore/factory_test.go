@@ -78,12 +78,24 @@ func TestNewFactory(t *testing.T) {
 		assert.NoError(t, f.Initialize(metrics.NullFactory, lock, store, zap.NewNop()))
 		_, _, err = f.CreateStrategyStore()
 		require.NoError(t, err)
+		r, err := f.RequiresLockAndSamplingStore()
+		require.NoError(t, err)
+		require.False(t, r) // mock returns false
 
 		// force the mock to return errors
 		mock.retError = true
 		assert.EqualError(t, f.Initialize(metrics.NullFactory, lock, store, zap.NewNop()), "error initializing store")
 		_, _, err = f.CreateStrategyStore()
 		assert.EqualError(t, err, "error creating store")
+		_, err = f.RequiresLockAndSamplingStore()
+		assert.EqualError(t, err, "error calling require lock and sampling store")
+
+		// request something that doesn't exist
+		f.StrategyStoreType = "doesntexist"
+		_, _, err = f.CreateStrategyStore()
+		assert.EqualError(t, err, "no doesntexist strategy store registered")
+		_, err = f.RequiresLockAndSamplingStore()
+		assert.EqualError(t, err, "no doesntexist strategy store registered")
 	}
 }
 
@@ -141,7 +153,7 @@ func (f *mockFactory) Initialize(metricsFactory metrics.Factory, lock distribute
 
 func (f *mockFactory) RequiresLockAndSamplingStore() (bool, error) {
 	if f.retError {
-		return false, errors.New("error creating store")
+		return false, errors.New("error calling require lock and sampling store")
 	}
 	return false, nil
 }

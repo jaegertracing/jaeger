@@ -67,6 +67,28 @@ func TestFactory(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestBadConfigFail(t *testing.T) {
+	tests := []string{
+		"--sampling.aggregation-buckets=0",
+		"--sampling.calculation-interval=0",
+		"--sampling.buckets-for-calculation=0",
+	}
+
+	for _, tc := range tests {
+		f := NewFactory()
+		v, command := config.Viperize(f.AddFlags)
+		command.ParseFlags([]string{
+			tc,
+		})
+
+		f.InitFromViper(v, zap.NewNop())
+
+		assert.NoError(t, f.Initialize(metrics.NullFactory, &mockLock{}, &mockStore{}, zap.NewNop()))
+		_, _, err := f.CreateStrategyStore()
+		assert.Error(t, err)
+	}
+}
+
 func TestRequiresLockAndSamplingStore(t *testing.T) {
 	f := NewFactory()
 	required, err := f.RequiresLockAndSamplingStore()
