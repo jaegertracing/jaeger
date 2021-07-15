@@ -12,32 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kafka
+package nats
 
 import (
 	"errors"
 	"flag"
-	"io"
+	"github.com/nats-io/nats.go"
 
-	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
+	"github.com/jaegertracing/jaeger/pkg/nats/producer"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
-// Factory implements storage.Factory and creates write-only storage components backed by kafka.
+// Factory implements storage.Factory and creates write-only storage components backed by NATS.
 type Factory struct {
 	options Options
 
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 
-	producer   sarama.AsyncProducer
-	marshaller Marshaller
+	producer   *nats.Conn
+	marshaller kafka.Marshaller
 	producer.Builder
 }
 
@@ -52,57 +52,44 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.options.InitFromViper(v)
-	f.Builder = &f.options.Config
-}
-
-// InitFromOptions initializes factory from options.
-func (f *Factory) InitFromOptions(o Options) {
-	f.options = o
-	f.Builder = &f.options.Config
+	f.Builder = &f.options.config
 }
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	logger.Info("Kafka factory",
+	logger.Info("NATS factory",
 		zap.Any("producer builder", f.Builder),
-		zap.Any("topic", f.options.Topic))
-	p, err := f.NewProducer(logger)
+		zap.Any("subject", f.options.subject))
+	p, err := f.NewProducer()
 	if err != nil {
 		return err
 	}
 	f.producer = p
-	switch f.options.Encoding {
+	switch f.options.encoding {
 	case EncodingProto:
-		f.marshaller = NewProtobufMarshaller()
+		f.marshaller = kafka.NewProtobufMarshaller()
 	case EncodingJSON:
-		f.marshaller = NewJSONMarshaller()
+		f.marshaller = kafka.NewJSONMarshaller()
 	default:
-		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
+		return errors.New("NATS encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
 	}
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return nil, errors.New("kafka storage is write-only")
+	return nil, errors.New("NATS storage is write-only")
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.metricsFactory, f.logger), nil
+	return NewSpanWriter(f.producer, f.marshaller, f.options.subject, f.metricsFactory, f.logger), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return nil, errors.New("kafka storage is write-only")
-}
-
-var _ io.Closer = (*Factory)(nil)
-
-// Close closes the resources held by the factory
-func (f *Factory) Close() error {
-	return f.options.Config.TLS.Close()
+	return nil, errors.New("NATS storage is write-only")
 }
