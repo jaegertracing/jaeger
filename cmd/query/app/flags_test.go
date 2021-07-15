@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -41,7 +42,8 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.additional-headers=whatever:thing",
 		"--query.max-clock-skew-adjustment=10s",
 	})
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
@@ -59,7 +61,8 @@ func TestQueryBuilderBadHeadersFlags(t *testing.T) {
 	command.ParseFlags([]string{
 		"--query.additional-headers=malformedheader",
 	})
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 	assert.Nil(t, qOpts.AdditionalHeaders)
 }
 
@@ -92,7 +95,8 @@ func TestStringSliceAsHeader(t *testing.T) {
 
 func TestBuildQueryServiceOptions(t *testing.T) {
 	v, _ := config.Viperize(AddFlags)
-	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
 	qSvcOpts := qOpts.BuildQueryServiceOptions(&mocks.Factory{}, zap.NewNop())
@@ -162,11 +166,84 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			v, command := config.Viperize(AddFlags)
 			command.ParseFlags(test.flagsArray)
-			qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			require.NoError(t, err)
 
 			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTPHostPort)
 			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPCHostPort)
 
+		})
+	}
+}
+
+func TestQueryOptionsPortAllocationFromFailedGRPCFlags(t *testing.T) {
+	var flagPortCases = []struct {
+		name                 string
+		flagsArray           []string
+		expectedHTTPHostPort string
+		expectedGRPCHostPort string
+		verifyCommonPort     bool
+		expectedHostPort     string
+	}{
+		{
+			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
+			// The server with TLS enabled with equal HTTP & GRPC host-ports, is still an acceptable flag configuration
+			name: "Common equal host-port specified, TLS enabled in atleast one server",
+			flagsArray: []string{
+				"--query.grpc.tls.enabled=false",
+				"--query.http-server.host-port=127.0.0.1:8081",
+				"--query.grpc-server.host-port=127.0.0.1:8081",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8081",
+			expectedGRPCHostPort: "127.0.0.1:8081",
+		},
+	}
+	for _, test := range flagPortCases {
+		t.Run(test.name, func(t *testing.T) {
+			v, command := config.Viperize(AddFlags)
+			command.ParseFlags(test.flagsArray)
+			v.Set("query.grpc.tls.enabled", "false")
+			v.Set("query.grpc.tls.cert", "abc")
+			v.Set("query.grpc.tls.ca", "def")
+			v.Set("query.grpc.tls.key", "xyz")
+			_, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			require.Error(t, err, "query.grpc.tls.enabled has been disable")
+		})
+	}
+}
+
+func TestQueryOptionsPortAllocationFromFailedHTTPFlags(t *testing.T) {
+	var flagPortCases = []struct {
+		name                 string
+		flagsArray           []string
+		expectedHTTPHostPort string
+		expectedGRPCHostPort string
+		verifyCommonPort     bool
+		expectedHostPort     string
+	}{
+		{
+			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
+			// The server with TLS enabled with equal HTTP & GRPC host-ports, is still an acceptable flag configuration
+			name: "Common equal host-port specified, TLS enabled in atleast one server",
+			flagsArray: []string{
+				"--query.http.tls.enabled=false",
+				"--query.http-server.host-port=127.0.0.1:8081",
+				"--query.grpc-server.host-port=127.0.0.1:8081",
+			},
+			expectedHTTPHostPort: "127.0.0.1:8081",
+			expectedGRPCHostPort: "127.0.0.1:8081",
+		},
+	}
+	for _, test := range flagPortCases {
+		t.Run(test.name, func(t *testing.T) {
+			v, command := config.Viperize(AddFlags)
+			command.ParseFlags(test.flagsArray)
+			v.Set("query.http.tls.enabled", "false")
+			v.Set("query.http.tls.cert", "abc")
+			v.Set("query.http.tls.ca", "def")
+			v.Set("query.http.tls.key", "xyz")
+			_, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			require.Error(t, err, "query.http.tls.enabled has been disable")
 		})
 	}
 }

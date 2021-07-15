@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -50,4 +51,34 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	assert.Equal(t, ":5678", c.CollectorHTTPHostPort)
 	assert.Equal(t, "127.0.0.1:1234", c.CollectorGRPCHostPort)
 	assert.Equal(t, "0.0.0.0:3456", c.CollectorZipkinHTTPHostPort)
+}
+
+func TestCollectorOptionsWithFailedHTTPFlags(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.http-server.host-port=:5678",
+		"--collector.grpc-server.host-port=127.0.0.1:1234",
+	})
+	v.Set("collector.http.tls.enabled", "false")
+	v.Set("collector.http.tls.cert", "abc")
+	v.Set("collector.http.tls.ca", "def")
+	v.Set("collector.http.tls.key", "xyz")
+	_, err := c.InitFromViper(v)
+	require.Error(t, err, "query.http.tls.enabled has been disable")
+}
+
+func TestCollectorOptionsWithFailedGRPCFlags(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.http-server.host-port=:5678",
+		"--collector.grpc-server.host-port=127.0.0.1:1234",
+	})
+	v.Set("collector.grpc.tls.enabled", "false")
+	v.Set("collector.grpc.tls.cert", "abc")
+	v.Set("collector.grpc.tls.ca", "def")
+	v.Set("collector.grpc.tls.key", "xyz")
+	_, err := c.InitFromViper(v)
+	require.Error(t, err, "query.grpc.tls.enabled has been disable")
 }

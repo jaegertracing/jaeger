@@ -68,11 +68,16 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes the options struct with values from Viper.
-func (opt *Options) InitFromViper(v *viper.Viper) {
+func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg := &opt.Primary
 	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
-	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
+	if tls, err := cfg.getTLSFlagsConfig().InitFromViper(v); err == nil {
+		cfg.TLS = tls
+	} else {
+		return err
+	}
+	return nil
 }
 
 func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
