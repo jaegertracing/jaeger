@@ -420,19 +420,18 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 	rm -rf thrift-gen/*/*-remote thrift-gen/*/*.bak
 
 idl/thrift/jaeger.thrift:
-	$(MAKE) idl-submodule
+	$(MAKE) init-submodules
 
-.PHONY: idl-submodule
-idl-submodule:
-	git submodule init
-	git submodule update
+.PHONY: init-submodules
+init-submodules:
+	git submodule update --init --recursive
 
 .PHONY: thrift-image
 thrift-image:
 	$(THRIFT) -version
 
 .PHONY: generate-zipkin-swagger
-generate-zipkin-swagger: idl-submodule
+generate-zipkin-swagger: init-submodules
 	$(SWAGGER) generate server -f ./idl/swagger/zipkin2-api.yaml -t $(SWAGGER_GEN_DIR) -O PostSpans --exclude-main
 	rm $(SWAGGER_GEN_DIR)/restapi/operations/post_spans_urlbuilder.go $(SWAGGER_GEN_DIR)/restapi/server.go $(SWAGGER_GEN_DIR)/restapi/configure_zipkin.go $(SWAGGER_GEN_DIR)/models/trace.go $(SWAGGER_GEN_DIR)/models/list_of_traces.go $(SWAGGER_GEN_DIR)/models/dependency_link.go
 
@@ -449,10 +448,13 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
+PROTO_INTERMEDIATE_DIR = proto-gen/.patched-otel-proto
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
+	-Iidl/proto/api_v3 \
 	-Imodel/proto/metrics \
+	-I$(PROTO_INTERMEDIATE_DIR) \
 	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -464,9 +466,8 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
 	| sed 's/ //g')
 
-
 .PHONY: proto
-proto:
+proto: init-submodules proto-prepare-otel
 	# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance
@@ -542,6 +543,57 @@ proto:
 		-Iidl/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
+		$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
+		$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
+		$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+
+	# Target  proto-prepare-otel modifies OTEL proto to use import path jaeger.proto.*
+	# The modification is needed because OTEL collector already uses opentelemetry.proto.*
+	# and two complied protobuf types cannot have the same import path. The root cause is that the compiled OTLP
+	# in the collector is in private package, hence it cannot be used in Jaeger.
+	# The following statements revert changes in OTEL proto and only modify go package.
+	# This way the service will use opentelemetry.proto.trace.v1.ResourceSpans but in reality at runtime
+	# it uses jaeger.proto.trace.v1.ResourceSpans which is the same type in a different package which
+	# prevents panic of two equal proto types.
+	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
+	cp -R idl/opentelemetry-proto/* $(PROTO_INTERMEDIATE_DIR)
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+github.com/open-telemetry/opentelemetry-proto/gen/go+github.com/jaegertracing/jaeger/proto-gen/otel+g'
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
+		idl/proto/api_v3/query_service.proto
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+ 		--grpc-gateway_out=logtostderr=true,grpc_api_configuration=idl/proto/api_v3/query_service_http.yaml,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
+		idl/proto/api_v3/query_service.proto
+	rm -rf $(PROTO_INTERMEDIATE_DIR)
+
+.PHONY: proto-prepare-otel
+proto-prepare-otel:
+	@echo --
+	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
+	@echo --
+	mkdir -p $(PROTO_INTERMEDIATE_DIR)
+	cp -R idl/opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
+
+	@echo --
+	@echo -- Editing proto
+	@echo --
+	@# Change:
+	@# go import from github.com/open-telemetry/opentelemetry-proto/gen/go/* to github.com/jaegertracing/jaeger/proto-gen/otel/*
+	@# proto package from opentelemetry.proto.* to jaeger.proto.*
+	@# remove import opentelemetry/proto
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i -f otel_proto_patch.sed
 
 .PHONY: proto-hotrod
 proto-hotrod:
