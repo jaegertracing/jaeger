@@ -65,29 +65,46 @@
           "type":"integer"
         },
         "logs":{
-          "type":"nested",
           "dynamic":false,
-          "properties":{
-            "timestamp":{
-              "type":"long"
-            },
+          "type": "object",
+          "enabled":true,
+          "properties": {
             "fields":{
-              "type":"nested",
               "dynamic":false,
-              "properties":{
-                "key":{
-                  "type":"keyword",
-                  "ignore_above":256
+              "type": "object",
+              "enabled":true,
+              "properties": {
+                "type": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "ignore_above": 256,
+                      "type": "keyword"
+                    }
+                  }
                 },
-                "value":{
-                  "type":"keyword",
-                  "ignore_above":256
+                "value": {
+                  "type":"text",
+                  "fields": {
+                    "keyword": {
+                      "ignore_above": 256,
+                      "type": "keyword"
+                    }
+                  }
                 },
-                "tagType":{
-                  "type":"keyword",
-                  "ignore_above":256
+                "key": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "ignore_above": 256,
+                      "type": "keyword"
+                    }
+                  }
                 }
               }
+            },
+            "timestamp": {
+              "type": "long"
             }
           }
         },
