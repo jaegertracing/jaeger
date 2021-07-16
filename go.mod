@@ -6,7 +6,9 @@ require (
 	github.com/Shopify/sarama v1.29.1
 	github.com/apache/thrift v0.14.2
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
+	github.com/coreos/etcd v3.3.13+incompatible // indirect
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
+	github.com/dgraph-io/badger v1.6.2 // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9
@@ -48,7 +50,7 @@ require (
 	github.com/vektra/mockery v0.0.0-20181123154057-e78b021dcbb5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/xdg-go/scram v1.0.2
-	go.opentelemetry.io/collector v0.28.0
+	go.opentelemetry.io/collector v0.30.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.18.1
@@ -57,6 +59,7 @@ require (
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1
 	google.golang.org/grpc v1.39.0
 	google.golang.org/protobuf v1.27.1
+	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	honnef.co/go/tools v0.2.0
 )
