@@ -38,8 +38,9 @@ make create-baseimg-debugimg
 
 make build-all-in-one GOOS=linux GOARCH=amd64
 make build-all-in-one GOOS=linux GOARCH=s390x
+make build-all-in-one GOOS=linux GOARCH=ppc64le
 make build-all-in-one GOOS=linux GOARCH=arm64
-platforms="linux/amd64,linux/s390x,linux/arm64"
+platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 repo=jaegertracing/all-in-one
 #build all-in-one image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
