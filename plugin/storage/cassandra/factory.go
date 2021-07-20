@@ -152,18 +152,20 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...), nil
 }
 
-// CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
-func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
+// CreateLock implements storage.SamplingStoreFactory
+func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	hostname, err := hostname.AsIdentifier()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostname))
 
-	store := cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger)
-	lock := cLock.NewLock(f.primarySession, hostname)
+	return cLock.NewLock(f.primarySession, hostname), nil
+}
 
-	return lock, store, nil
+// CreateSamplingStore implements storage.SamplingStoreFactory
+func (f *Factory) CreateSamplingStore() (samplingstore.Store, error) {
+	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {

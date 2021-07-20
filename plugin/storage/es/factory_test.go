@@ -87,9 +87,6 @@ func TestElasticsearchFactory(t *testing.T) {
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
 	assert.NoError(t, f.Close())
-
-	_, _, err = f.CreateLockAndSamplingStore()
-	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
@@ -220,12 +217,4 @@ func TestInitFromOptions(t *testing.T) {
 	f.InitFromOptions(o)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
-}
-
-func TestCreateLockAndSamplingStore(t *testing.T) {
-	f := NewFactory()
-	lock, ss, err := f.CreateLockAndSamplingStore()
-	assert.Nil(t, lock)
-	assert.Nil(t, ss)
-	assert.Equal(t, err, storage.ErrLockAndSamplingStoreNotSupported)
 }

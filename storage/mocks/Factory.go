@@ -19,10 +19,8 @@ import (
 	metrics "github.com/uber/jaeger-lib/metrics"
 	zap "go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	storage "github.com/jaegertracing/jaeger/storage"
 	dependencystore "github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -98,11 +96,6 @@ func (_m *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	}
 
 	return r0, r1
-}
-
-// CreateLockAndSamplingStore is not supproted
-func (_m *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	return nil, nil, storage.ErrLockAndSamplingStoreNotSupported
 }
 
 // Initialize provides a mock function with given fields: metricsFactory, logger

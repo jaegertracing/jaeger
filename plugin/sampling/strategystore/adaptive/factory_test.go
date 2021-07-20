@@ -19,13 +19,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
+	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
 
 var _ ss.Factory = new(Factory)
@@ -62,7 +67,7 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, &mockLock{}, &mockStore{}, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
 	_, _, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
 }
@@ -83,43 +88,30 @@ func TestBadConfigFail(t *testing.T) {
 
 		f.InitFromViper(v, zap.NewNop())
 
-		assert.NoError(t, f.Initialize(metrics.NullFactory, &mockLock{}, &mockStore{}, zap.NewNop()))
+		assert.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
 		_, _, err := f.CreateStrategyStore()
 		assert.Error(t, err)
 	}
 }
 
-func TestNilLockAndSamplingFails(t *testing.T) {
+func TestNilSamplingStoreFactoryFails(t *testing.T) {
 	f := NewFactory()
-	assert.Error(t, f.Initialize(metrics.NullFactory, nil, &mockStore{}, zap.NewNop()))
-	assert.Error(t, f.Initialize(metrics.NullFactory, &mockLock{}, nil, zap.NewNop()))
-	assert.Error(t, f.Initialize(metrics.NullFactory, nil, nil, zap.NewNop()))
+	assert.Error(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
 }
 
-type mockStore struct{}
+type mockSamplingStoreFactory struct{}
 
-func (m *mockStore) InsertThroughput(throughput []*model.Throughput) error {
-	return nil
-}
-func (m *mockStore) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
-	return nil
-}
-func (m *mockStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
-	return nil, nil
-}
-func (m *mockStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error) {
-	return nil, nil
-}
-func (m *mockStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
-	return nil, nil
-}
+func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
+	mockLock := &lmocks.Lock{}
+	mockLock.On("Acquire", mock.Anything, mock.Anything).Return(true, nil)
 
-type mockLock struct{}
-
-func (m *mockLock) Acquire(resource string, ttl time.Duration) (acquired bool, err error) {
-	return true, nil
+	return mockLock, nil
 }
+func (m *mockSamplingStoreFactory) CreateSamplingStore() (samplingstore.Store, error) {
+	mockStorage := &smocks.Store{}
+	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
+		Return([]*model.Throughput{}, nil)
 
-func (m *mockLock) Forfeit(resource string) (forfeited bool, err error) {
-	return true, nil
+	return mockStorage, nil
 }

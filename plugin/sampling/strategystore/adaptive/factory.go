@@ -24,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
@@ -58,15 +59,22 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, lock distributedlock.Lock, store samplingstore.Store, logger *zap.Logger) error {
-	if lock == nil || store == nil {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
+	if ssFactory == nil {
 		return errors.New("lock or SamplingStore nil. Please configure a backend that supports adaptive sampling")
 	}
 
+	var err error
 	f.logger = logger
 	f.metricsFactory = metricsFactory
-	f.lock = lock
-	f.store = store
+	f.lock, err = ssFactory.CreateLock()
+	if err != nil {
+		return err
+	}
+	f.store, err = ssFactory.CreateSamplingStore()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

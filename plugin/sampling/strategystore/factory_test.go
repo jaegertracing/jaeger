@@ -20,7 +20,6 @@ import (
 	"flag"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -28,10 +27,10 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
@@ -59,8 +58,7 @@ func TestNewFactory(t *testing.T) {
 		},
 	}
 
-	lock := &mockLock{}
-	store := &mockStore{}
+	mockSSFactory := &mockSamplingStoreFactory{}
 
 	for _, tc := range tests {
 		f, err := NewFactory(FactoryConfig{StrategyStoreType: Kind(tc.strategyStoreType)})
@@ -75,13 +73,13 @@ func TestNewFactory(t *testing.T) {
 		mock := new(mockFactory)
 		f.factories[Kind(tc.strategyStoreType)] = mock
 
-		assert.NoError(t, f.Initialize(metrics.NullFactory, lock, store, zap.NewNop()))
+		assert.NoError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()))
 		_, _, err = f.CreateStrategyStore()
 		require.NoError(t, err)
 
 		// force the mock to return errors
 		mock.retError = true
-		assert.EqualError(t, f.Initialize(metrics.NullFactory, lock, store, zap.NewNop()), "error initializing store")
+		assert.EqualError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
 		_, _, err = f.CreateStrategyStore()
 		assert.EqualError(t, err, "error creating store")
 
@@ -137,37 +135,18 @@ func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, ss.Aggregator, er
 	return nil, nil, nil
 }
 
-func (f *mockFactory) Initialize(metricsFactory metrics.Factory, lock distributedlock.Lock, store samplingstore.Store, logger *zap.Logger) error {
+func (f *mockFactory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	if f.retError {
 		return errors.New("error initializing store")
 	}
 	return nil
 }
 
-type mockStore struct{}
+type mockSamplingStoreFactory struct{}
 
-func (m *mockStore) InsertThroughput(throughput []*model.Throughput) error {
-	return nil
-}
-func (m *mockStore) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
-	return nil
-}
-func (m *mockStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return nil, nil
 }
-func (m *mockStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error) {
+func (m *mockSamplingStoreFactory) CreateSamplingStore() (samplingstore.Store, error) {
 	return nil, nil
-}
-func (m *mockStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
-	return nil, nil
-}
-
-type mockLock struct{}
-
-func (m *mockLock) Acquire(resource string, ttl time.Duration) (acquired bool, err error) {
-	return true, nil
-}
-
-func (m *mockLock) Forfeit(resource string) (forfeited bool, err error) {
-	return true, nil
 }

@@ -125,13 +125,13 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
 
-			lock, samplingStore, err := storageFactory.CreateLockAndSamplingStore()
+			ssFactory, err := storageFactory.CreateSamplingStoreFactory()
 			if err != nil {
-				logger.Fatal("Failed to create lock and sampling store for adaptive sampling", zap.Error(err))
+				logger.Fatal("Failed to create sampling store factory", zap.Error(err))
 			}
 
 			strategyStoreFactory.InitFromViper(v, logger)
-			if err := strategyStoreFactory.Initialize(metricsFactory, lock, samplingStore, logger); err != nil {
+			if err := strategyStoreFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
 			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()

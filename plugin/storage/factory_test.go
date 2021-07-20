@@ -35,13 +35,11 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
-	ssmocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -298,13 +296,6 @@ func TestCreateError(t *testing.T) {
 		assert.Nil(t, w)
 		assert.EqualError(t, err, expectedErr)
 	}
-
-	{
-		l, ss, err := f.CreateLockAndSamplingStore()
-		assert.Nil(t, l)
-		assert.Nil(t, ss)
-		assert.NoError(t, err) // no supporting backend is valid
-	}
 }
 
 type configurable struct {
@@ -403,50 +394,6 @@ func TestPublishOpts(t *testing.T) {
 	})
 }
 
-func TestCreateLockAndSamplingStore(t *testing.T) {
-	supports := &errorFactory{
-		lock:  &lmocks.Lock{},
-		store: &ssmocks.Store{},
-	}
-	doesNotSupport := &errorFactory{
-		lockAndSamplingStore: storage.ErrLockAndSamplingStoreNotSupported,
-	}
-	breaks := &errorFactory{
-		lockAndSamplingStore: errors.New("wups"),
-	}
-
-	// test succeeds
-	f := Factory{
-		factories: map[string]storage.Factory{
-			"supports":         supports,
-			"does-not-support": doesNotSupport,
-		},
-	}
-
-	// finds factory that supports
-	lock, samplingStore, err := f.CreateLockAndSamplingStore()
-	assert.NoError(t, err)
-	assert.Equal(t, supports.lock, lock)
-	assert.Equal(t, supports.store, samplingStore)
-
-	// does not find factory that supports
-	delete(f.factories, "supports")
-	lock, samplingStore, err = f.CreateLockAndSamplingStore()
-	assert.NoError(t, err)
-	assert.Nil(t, lock)
-	assert.Nil(t, samplingStore)
-
-	// test breaks
-	f = Factory{
-		factories: map[string]storage.Factory{
-			"breaks":           breaks,
-			"does-not-support": doesNotSupport,
-		},
-	}
-	_, _, err = f.CreateLockAndSamplingStore()
-	assert.Error(t, err)
-}
-
 type errorFactory struct {
 	closeErr             error
 	lockAndSamplingStore error
@@ -472,10 +419,6 @@ func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 
 func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("implement me")
-}
-
-func (e errorFactory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	return e.lock, e.store, e.lockAndSamplingStore
 }
 
 func (e errorFactory) Close() error {

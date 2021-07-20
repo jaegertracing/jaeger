@@ -129,8 +129,6 @@ func TestGRPCStorageFactory(t *testing.T) {
 	depReader, err := f.CreateDependencyReader()
 	assert.NoError(t, err)
 	assert.Equal(t, f.store.DependencyReader(), depReader)
-	_, _, err = f.CreateLockAndSamplingStore()
-	assert.Equal(t, storage.ErrLockAndSamplingStoreNotSupported, err)
 }
 
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {
@@ -268,12 +266,4 @@ func TestInitFromOptions(t *testing.T) {
 	f.InitFromOptions(o)
 	assert.Equal(t, o, f.options)
 	assert.Equal(t, &o.Configuration, f.builder)
-}
-
-func TestCreateLockAndSamplingStore(t *testing.T) {
-	f := NewFactory()
-	lock, ss, err := f.CreateLockAndSamplingStore()
-	assert.Nil(t, lock)
-	assert.Nil(t, ss)
-	assert.Equal(t, err, storage.ErrLockAndSamplingStoreNotSupported)
 }

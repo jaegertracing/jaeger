@@ -24,7 +24,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
@@ -35,7 +34,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -161,21 +159,17 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 }
 
 // CreateLockAndSamplingStore creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
-func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStoreFactory() (storage.SamplingStoreFactory, error) {
 	for _, factory := range f.factories {
-		lock, store, err := factory.CreateLockAndSamplingStore()
-		if err != nil && err != storage.ErrLockAndSamplingStoreNotSupported {
-			return nil, nil, err
-		}
-		// returns the first backend that can support adaptive sampling
-		if lock != nil && store != nil {
-			return lock, store, nil
+		ss, ok := factory.(storage.SamplingStoreFactory)
+		if ok {
+			return ss, nil
 		}
 	}
 
 	// returning nothing is valid here. it's quite possible that the user has no backend that can support adaptive sampling
 	// this is fine as long as adaptive sampling is also not configured
-	return nil, nil, nil
+	return nil, nil
 }
 
 // CreateDependencyReader implements storage.Factory

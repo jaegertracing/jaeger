@@ -27,12 +27,9 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -165,11 +162,6 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	sr, _ := f.CreateSpanReader() // err is always nil
 	return depStore.NewDependencyStore(sr), nil
-}
-
-// CreateLockAndSamplingStore implements storage.ArchiveFactory. It is not supported by this storage plugin.
-func (f *Factory) CreateLockAndSamplingStore() (distributedlock.Lock, samplingstore.Store, error) {
-	return nil, nil, storage.ErrLockAndSamplingStoreNotSupported
 }
 
 // Close Implements io.Closer and closes the underlying storage
