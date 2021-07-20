@@ -15,6 +15,7 @@
 package adaptive
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -94,20 +95,39 @@ func TestBadConfigFail(t *testing.T) {
 	}
 }
 
-func TestNilSamplingStoreFactoryFails(t *testing.T) {
+func TestSamplingStoreFactoryFails(t *testing.T) {
 	f := NewFactory()
+
+	// nil fails
 	assert.Error(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
+
+	// fail if lock fails
+	assert.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{lockFailsWith: errors.New("fail")}, zap.NewNop()))
+
+	// fail if store fails
+	assert.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{storeFailsWith: errors.New("fail")}, zap.NewNop()))
 }
 
-type mockSamplingStoreFactory struct{}
+type mockSamplingStoreFactory struct {
+	lockFailsWith  error
+	storeFailsWith error
+}
 
 func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
+	if m.lockFailsWith != nil {
+		return nil, m.lockFailsWith
+	}
+
 	mockLock := &lmocks.Lock{}
 	mockLock.On("Acquire", mock.Anything, mock.Anything).Return(true, nil)
 
 	return mockLock, nil
 }
 func (m *mockSamplingStoreFactory) CreateSamplingStore() (samplingstore.Store, error) {
+	if m.storeFailsWith != nil {
+		return nil, m.storeFailsWith
+	}
+
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).

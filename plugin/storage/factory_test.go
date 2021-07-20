@@ -296,6 +296,22 @@ func TestCreateError(t *testing.T) {
 	}
 }
 
+func CreateSamplingStoreFactory(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+
+	ssFactory, err := f.CreateSamplingStoreFactory()
+	assert.Equal(t, f.factories[cassandraStorageType], ssFactory)
+	assert.NoError(t, err)
+
+	delete(f.factories, cassandraStorageType)
+	ssFactory, err = f.CreateSamplingStoreFactory()
+	assert.Nil(t, ssFactory)
+	assert.NoError(t, err)
+}
+
 type configurable struct {
 	mocks.Factory
 	flagSet *flag.FlagSet
