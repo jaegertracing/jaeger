@@ -34,12 +34,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -395,11 +393,7 @@ func TestPublishOpts(t *testing.T) {
 }
 
 type errorFactory struct {
-	closeErr             error
-	lockAndSamplingStore error
-
-	lock  distributedlock.Lock
-	store samplingstore.Store
+	closeErr error
 }
 
 var _ storage.Factory = (*errorFactory)(nil)
