@@ -35,10 +35,11 @@ type FactoryConfig struct {
 func FactoryConfigFromEnv() (*FactoryConfig, error) {
 	strategyStoreType := os.Getenv(SamplingTypeEnvVar)
 	if strategyStoreType == "" {
-		strategyStoreType = "static"
+		strategyStoreType = samplingTypeStatic
 	}
-	if strategyStoreType != "adaptive" && strategyStoreType != "static" {
-		return nil, fmt.Errorf("invalid sampling type: %s", strategyStoreType)
+
+	if strategyStoreType != samplingTypeAdaptive && strategyStoreType != samplingTypeStatic {
+		return nil, fmt.Errorf("invalid sampling type: %s. . Valid types are %v", strategyStoreType, allSamplingTypes)
 	}
 	return &FactoryConfig{
 		StrategyStoreType: Kind(strategyStoreType),
