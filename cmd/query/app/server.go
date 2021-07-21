@@ -80,7 +80,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 		return nil, err
 	}
 
-	httpServer, cancelFunc, err := createHTTPServer(querySvc, metricsQuerySvc, options, tracer, logger)
+	httpServer, closeGRPCGateway, err := createHTTPServer(querySvc, metricsQuerySvc, options, tracer, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 		httpServer:         httpServer,
 		separatePorts:      grpcPort != httpPort,
 		unavailableChannel: make(chan healthcheck.Status),
-		grpcGatewayCancel:  cancelFunc,
+		grpcGatewayCancel:  closeGRPCGateway,
 	}, nil
 }
 
@@ -147,9 +147,9 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
+	ctx, closeGRPCGateway := context.WithCancel(context.Background())
 	if err := apiv3.RegisterGRPCGateway(ctx, logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, queryOpts.TLSGRPC); err != nil {
+		defer closeGRPCGateway()
 		return nil, nil, err
 	}
 
@@ -172,13 +172,13 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	if queryOpts.TLSHTTP.Enabled {
 		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
 		if err != nil {
-			cancelFunc()
+			closeGRPCGateway()
 			return nil, nil, err
 		}
 		server.TLSConfig = tlsCfg
 
 	}
-	return server, cancelFunc, nil
+	return server, closeGRPCGateway, nil
 }
 
 // initListener initialises listeners of the server
