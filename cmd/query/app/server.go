@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -50,6 +51,7 @@ type Server struct {
 	conn               net.Listener
 	grpcConn           net.Listener
 	httpConn           net.Listener
+	cmuxServer         cmux.CMux
 	grpcServer         *grpc.Server
 	httpServer         *http.Server
 	separatePorts      bool
@@ -224,7 +226,6 @@ func (s *Server) initListener() (cmux.CMux, error) {
 	s.httpConn = cmuxServer.Match(cmux.Any())
 
 	return cmuxServer, nil
-
 }
 
 // Start http, GRPC and cmux servers concurrently
@@ -233,6 +234,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
+	s.cmuxServer = cmuxServer
 
 	var tcpPort int
 	if !s.separatePorts {
@@ -285,7 +287,8 @@ func (s *Server) Start() error {
 			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
 			err := cmuxServer.Serve()
-			if err != nil && err != cmux.ErrServerClosed {
+			// TODO: find a way to avoid string comparison. Even though cmux has ErrServerClosed, it's not returned here.
+			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
 			s.unavailableChannel <- healthcheck.Unavailable
@@ -306,6 +309,7 @@ func (s *Server) Close() error {
 		s.httpConn.Close()
 		s.grpcConn.Close()
 	} else {
+		s.cmuxServer.Close()
 		s.conn.Close()
 	}
 	return nil
