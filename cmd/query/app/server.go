@@ -162,7 +162,8 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 	server := &http.Server{
-		Handler: recoveryHandler(handler),
+		Handler:  recoveryHandler(handler),
+		ErrorLog: zap.NewStdLog(logger),
 	}
 
 	if queryOpts.TLSHTTP.Enabled {

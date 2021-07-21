@@ -56,7 +56,10 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 		return nil, err
 	}
 
-	server := &http.Server{Addr: params.HostPort}
+	server := &http.Server{
+		Addr:     params.HostPort,
+		ErrorLog: zap.NewStdLog(params.Logger),
+	}
 	serveZipkin(server, listener, params)
 
 	return server, nil
