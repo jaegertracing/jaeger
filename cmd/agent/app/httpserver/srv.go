@@ -21,6 +21,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
@@ -36,9 +37,10 @@ func NewHTTPServer(hostPort string, manager configmanager.ClientConfigManager, m
 	})
 	r := mux.NewRouter()
 	handler.RegisterRoutes(r)
+	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
 	return &http.Server{
 		Addr:     hostPort,
 		Handler:  r,
-		ErrorLog: zap.NewStdLog(logger),
+		ErrorLog: errorLog,
 	}
 }

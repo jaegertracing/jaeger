@@ -21,6 +21,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -46,9 +47,10 @@ type HTTPServerParams struct {
 func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http host-port", params.HostPort))
 
+	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
 	server := &http.Server{
 		Addr:     params.HostPort,
-		ErrorLog: zap.NewStdLog(params.Logger),
+		ErrorLog: errorLog,
 	}
 	if params.TLSConfig.Enabled {
 		tlsCfg, err := params.TLSConfig.Config(params.Logger) // This checks if the certificates are correctly provided

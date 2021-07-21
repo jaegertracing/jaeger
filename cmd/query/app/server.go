@@ -26,6 +26,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -161,9 +162,10 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
+	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
 	server := &http.Server{
 		Handler:  recoveryHandler(handler),
-		ErrorLog: zap.NewStdLog(logger),
+		ErrorLog: errorLog,
 	}
 
 	if queryOpts.TLSHTTP.Enabled {
