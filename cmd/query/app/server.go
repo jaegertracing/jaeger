@@ -19,7 +19,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -147,8 +146,8 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
 	if err := apiv3.RegisterGRPCGateway(ctx, logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, queryOpts.TLSGRPC); err != nil {
-		cancelFunc() // make go vet happy
 		return nil, nil, err
 	}
 
@@ -286,8 +285,7 @@ func (s *Server) Start() error {
 			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
 			err := cmuxServer.Serve()
-			// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged
-			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+			if err != nil && err != cmux.ErrServerClosed {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
 			s.unavailableChannel <- healthcheck.Unavailable
