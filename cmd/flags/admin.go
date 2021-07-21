@@ -107,7 +107,11 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
-	s.server = &http.Server{Handler: recoveryHandler(s.mux)}
+	s.server = &http.Server{
+		Handler:  recoveryHandler(s.mux),
+		ErrorLog: zap.NewStdLog(s.logger),
+	}
+
 	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.adminHostPort))
 	go func() {
 		switch err := s.server.Serve(l); err {
