@@ -4,10 +4,11 @@ set -euxf -o pipefail
 
 make build-examples GOOS=linux GOARCH=amd64
 make build-examples GOOS=linux GOARCH=s390x
+make build-examples GOOS=linux GOARCH=ppc64le
 make build-examples GOOS=linux GOARCH=arm64
 
 REPO=jaegertracing/example-hotrod
-platforms="linux/amd64,linux/s390x,linux/arm64"
+platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 #build image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${platforms}"
 
