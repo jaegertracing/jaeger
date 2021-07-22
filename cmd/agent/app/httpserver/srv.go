@@ -20,6 +20,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
@@ -27,7 +29,7 @@ import (
 
 // NewHTTPServer creates a new server that hosts an HTTP/JSON endpoint for clients
 // to query for sampling strategies and baggage restrictions.
-func NewHTTPServer(hostPort string, manager configmanager.ClientConfigManager, mFactory metrics.Factory) *http.Server {
+func NewHTTPServer(hostPort string, manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
 	handler := clientcfghttp.NewHTTPHandler(clientcfghttp.HTTPHandlerParams{
 		ConfigManager:          manager,
 		MetricsFactory:         mFactory,
@@ -35,5 +37,10 @@ func NewHTTPServer(hostPort string, manager configmanager.ClientConfigManager, m
 	})
 	r := mux.NewRouter()
 	handler.RegisterRoutes(r)
-	return &http.Server{Addr: hostPort, Handler: r}
+	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
+	return &http.Server{
+		Addr:     hostPort,
+		Handler:  r,
+		ErrorLog: errorLog,
+	}
 }

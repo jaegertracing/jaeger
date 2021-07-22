@@ -19,9 +19,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestHTTPServer(t *testing.T) {
-	s := NewHTTPServer(":1", nil, nil)
+	s := NewHTTPServer(":1", nil, nil, zap.NewNop())
 	assert.NotNil(t, s)
 }
