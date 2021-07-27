@@ -66,7 +66,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 		return h, nil
 	}
 
-	loadFn := samplingStrategyLoader(options.StrategiesFile, logger)
+	loadFn := h.samplingStrategyLoader(options.StrategiesFile)
 	strategies, err := loadStrategies(loadFn)
 	if err != nil {
 		return nil, err
@@ -95,8 +95,8 @@ func (h *strategyStore) Close() {
 	h.cancelFunc()
 }
 
-func downloadSamplingStrategies(url string, logger *zap.Logger) ([]byte, error) {
-	logger.Info("Downloading sampling strategies", zap.String("url", url))
+func (h *strategyStore) downloadSamplingStrategies(url string) ([]byte, error) {
+	h.logger.Info("Downloading sampling strategies", zap.String("url", url))
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download sampling strategies: %w", err)
@@ -127,15 +127,15 @@ func isURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func samplingStrategyLoader(strategiesFile string, logger *zap.Logger) strategyLoader {
+func (h *strategyStore) samplingStrategyLoader(strategiesFile string) strategyLoader {
 	if isURL(strategiesFile) {
 		return func() ([]byte, error) {
-			return downloadSamplingStrategies(strategiesFile, logger)
+			return h.downloadSamplingStrategies(strategiesFile)
 		}
 	}
 
 	return func() ([]byte, error) {
-		logger.Info("Loading sampling strategies", zap.String("filename", strategiesFile))
+		h.logger.Info("Loading sampling strategies", zap.String("filename", strategiesFile))
 		currBytes, err := ioutil.ReadFile(filepath.Clean(strategiesFile))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read strategies file %s: %w", strategiesFile, err)
