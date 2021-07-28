@@ -129,10 +129,17 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
+	maxSpanAge := p.MaxSpanAge
+	// If rollover is enabled set lookback far into the past
+	// In rollover only read alias is used to query the data so looking far into the past should
+	// not affect performance.
+	if p.UseReadWriteAliases {
+		maxSpanAge = time.Hour * 24 * 365 * 100
+	}
 	return &SpanReader{
 		client:                        p.Client,
 		logger:                        p.Logger,
-		maxSpanAge:                    p.MaxSpanAge,
+		maxSpanAge:                    maxSpanAge,
 		serviceOperationStorage:       NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:               indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:            indexNames(p.IndexPrefix, serviceIndex),
