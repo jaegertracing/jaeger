@@ -4,12 +4,10 @@ Development and demo environment for Aggregated Trace Metrics.
 
 This environment consists four backend components:
 
-- MicroSim: a program to simulate traces.
-- Jaeger All-in-one: the full Jaeger stack in a single docker image.
-- OpenTelemetry Collector: vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data.
-- Prometheus: a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
-
-![ATMDev (1)](https://user-images.githubusercontent.com/26584478/127763664-5d364239-5e13-4829-b5ee-2265b9b96e93.png)
+- [MicroSim](https://github.com/yurishkuro/microsim): a program to simulate traces.
+- [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single docker image.
+- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics processor documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor).
+- [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
 
 # Getting Started
 
