@@ -1,6 +1,8 @@
-# Aggregated Trace Metrics Development Environment
+# Aggregated Trace Metrics Development/Demo Environment
 
-Development and demo environment for Aggregated Trace Metrics.
+Aggregated Trace Metrics (ATM) is an opt-in feature introduced to Jaeger that provides Request, Error and Duration (RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs. For more details on this feature, please refer to the [tracking Issue](https://github.com/jaegertracing/jaeger/issues/2954) documenting the proposal and status.
+
+The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack required to visualize RED metrics from simulated traces (or their own), much like Jaeger All-in-one.
 
 This environment consists four backend components:
 
@@ -8,6 +10,8 @@ This environment consists four backend components:
 - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single docker image.
 - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics processor documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor).
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
+
+The following diagram illustrates the relationship between these components:
 
 ![ATMDev (1)](https://user-images.githubusercontent.com/26584478/127763924-4ae2ce88-8fc2-4def-90c2-55358a433905.png)
 
