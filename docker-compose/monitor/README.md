@@ -9,6 +9,8 @@ This environment consists four backend components:
 - OpenTelemetry Collector: vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data.
 - Prometheus: a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
 
+![ATMDev (1)](https://user-images.githubusercontent.com/26584478/127763664-5d364239-5e13-4829-b5ee-2265b9b96e93.png)
+
 # Getting Started
 
 ## Bring up/down the dev environment
