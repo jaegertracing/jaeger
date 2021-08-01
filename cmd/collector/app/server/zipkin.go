@@ -23,6 +23,7 @@ import (
 	"github.com/rs/cors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
@@ -56,7 +57,11 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 		return nil, err
 	}
 
-	server := &http.Server{Addr: params.HostPort}
+	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
+	server := &http.Server{
+		Addr:     params.HostPort,
+		ErrorLog: errorLog,
+	}
 	serveZipkin(server, listener, params)
 
 	return server, nil
