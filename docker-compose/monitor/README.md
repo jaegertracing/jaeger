@@ -7,7 +7,7 @@ The motivation for providing this environment is to allow developers to either t
 This environment consists four backend components:
 
 - [MicroSim](https://github.com/yurishkuro/microsim): a program to simulate traces.
-- [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single docker image.
+- [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single container image.
 - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics processor documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor).
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
 
@@ -28,7 +28,7 @@ Fetch call rates for both the driver and frontend services, grouped by operation
 looking back 1 second with a sliding rate-calculation window of 1m and step size of 1 millisecond
 
 ```bash
-curl http://localhost:16686/api/metrics/calls\?service\=driver\&service\=frontend\&groupByOperation\=true\&endTs\="$(date +%s)"000\&lookback\=1000\&step\=100\&ratePer\=60000 | jq .
+curl "http://localhost:16686/api/metrics/calls?service=driver&service=frontend&groupByOperation=true&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000" | jq .
 ```
 
 
@@ -37,19 +37,19 @@ Fetch P95 latencies for both the driver and frontend services from now,
 looking back 1 second with a sliding rate-calculation window of 1m and step size of 1 millisecond, where the span kind is either "server" or "client".
 
 ```bash
-curl http://localhost:16686/api/metrics/latencies\?service\=driver\&service\=frontend\&quantile\=0.95\&endTs\="$(date +%s)"000\&lookback\=1000\&step\=100\&ratePer\=60000\&spanKind\=server\&spanKind\=client | jq .
+curl "http://localhost:16686/api/metrics/latencies?service=driver&service=frontend&quantile=0.95&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000&spanKind=server&spanKind=client" | jq .
 ```
 
 ## Example 3
 Fetch error rates for both driver and frontend services using default parameters.
 ```bash
-curl http://localhost:16686/api/metrics/errors\?service\=driver\&service\=frontend | jq .
+curl "http://localhost:16686/api/metrics/errors?service=driver&service=frontend" | jq .
 ```
 
 ## Example 4
 Fetch the minimum step size supported by the underlying metrics store.
 ```bash
-curl http://localhost:16686/api/metrics/minstep | jq .
+curl "http://localhost:16686/api/metrics/minstep" | jq .
 ```
 
 # HTTP API
