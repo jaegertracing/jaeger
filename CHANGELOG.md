@@ -13,8 +13,6 @@ Changes by Version
 * Define `http.Server.ErrorLog` to forward logs to Zap ([#3157](https://github.com/jaegertracing/jaeger/pull/3157), [@yurishkuro](https://github.com/yurishkuro))
 * Add ATM dev environment docker-compose and API doc ([#3171](https://github.com/jaegertracing/jaeger/pull/3171), [@albertteoh](https://github.com/albertteoh))
 * Log the source of sampling strategies ([#3166](https://github.com/jaegertracing/jaeger/pull/3166), [@yurishkuro](https://github.com/yurishkuro))
-* Clean up extra spaces ([#3132](https://github.com/jaegertracing/jaeger/pull/3132), [@jayonlau](https://github.com/jayonlau))
-* Fix package naming ([#3143](https://github.com/jaegertracing/jaeger/pull/3143), [@yurishkuro](https://github.com/yurishkuro))
 * Pin elasticsearch-py to older version without elastic.co product check ([#3180](https://github.com/jaegertracing/jaeger/pull/3180), [@pavolloffay](https://github.com/pavolloffay))
 
 1.24.0 (2021-07-07)
