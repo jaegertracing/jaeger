@@ -16,6 +16,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -44,6 +45,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
+	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
@@ -71,6 +73,12 @@ func main() {
 		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
 	}
 
+	fc := metricsPlugin.FactoryConfigFromEnv()
+	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
+	if err != nil {
+		log.Fatalf("Cannot initialize metrics store factory: %v", err)
+	}
+
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-all-in-one",
@@ -86,10 +94,11 @@ by default uses only in-memory database.`,
 			metricsFactory := fork.New("internal",
 				jexpvar.NewFactory(10), // backend for internal opts
 				rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
+			version.NewInfoMetrics(metricsFactory)
 
 			tracerCloser := initTracer(rootMetricsFactory, svc.Logger)
 
-			storageFactory.InitFromViper(v)
+			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
@@ -107,7 +116,12 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			strategyStoreFactory.InitFromViper(v)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger)
+			if err != nil {
+				logger.Fatal("Failed to create metrics reader", zap.Error(err))
+			}
+
+			strategyStoreFactory.InitFromViper(v, logger)
 			if err := strategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
@@ -157,8 +171,8 @@ by default uses only in-memory database.`,
 			// query
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
-				spanReader, dependencyReader,
-				rootMetricsFactory, metricsFactory,
+				spanReader, dependencyReader, metricsQueryService,
+				metricsFactory,
 			)
 
 			svc.RunAndThen(func() {
@@ -196,6 +210,7 @@ by default uses only in-memory database.`,
 		collectorApp.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
+		metricsReaderFactory.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
@@ -229,12 +244,12 @@ func startQuery(
 	queryOpts *querysvc.QueryServiceOptions,
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,
-	rootFactory metrics.Factory,
+	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	server, err := queryApp.NewServer(svc.Logger, qs, qOpts, opentracing.GlobalTracer())
+	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, opentracing.GlobalTracer())
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
@@ -271,4 +286,14 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	}
 	opentracing.SetGlobalTracer(tracer)
 	return closer
+}
+
+func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
+	if err := factory.Initialize(logger); err != nil {
+		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
+	}
+
+	// Ensure default parameter values are loaded correctly.
+	factory.InitFromViper(v, logger)
+	return factory.CreateMetricsReader()
 }

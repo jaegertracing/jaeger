@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Question via Jaeger Community Support (online chat)
-    url: https://cloud-native.slack.com/archives/CGG7NFUJ3
-    about: Please ask and answer questions here for faster response.
-  - name: Question via GitHub Discussions (similar to Stack Overflow)
-    url: https://github.com/jaegertracing/jaeger/discussions
-    about: Please ask and answer questions here for async response.

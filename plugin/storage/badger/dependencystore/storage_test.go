@@ -45,7 +45,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 		"--badger.ephemeral=true",
 		"--badger.consistency=false",
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(tb, err)

@@ -158,7 +158,6 @@ Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
 * [@albertteoh](https://github.com/albertteoh)
 * [@joe-elliott](https://github.com/joe-elliott)
 * [@jpkrohling](https://github.com/jpkrohling)
-* [@objectiser](https://github.com/objectiser)
 * [@pavolloffay](https://github.com/pavolloffay)
 * [@vprithvi](https://github.com/vprithvi)
 * [@yurishkuro](https://github.com/yurishkuro)
@@ -170,6 +169,7 @@ Some repositories under [jaegertracing](https://github.com/jaegertracing) org ha
 We are grateful to our former maintainers for their contributions to the Jaeger project.
 
 * [@black-adder](https://github.com/black-adder)
+* [@objectiser](https://github.com/objectiser)
 * [@tiffon](https://github.com/tiffon)
 
 ## Project Status Bi-Weekly Meeting

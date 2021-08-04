@@ -19,6 +19,7 @@ import (
 	"time"
 
 	assert "github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -27,7 +28,7 @@ func TestDefaultOptionsParsing(t *testing.T) {
 	opts := NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{})
-	opts.InitFromViper(v)
+	opts.InitFromViper(v, zap.NewNop())
 
 	assert.True(t, opts.GetPrimary().Ephemeral)
 	assert.False(t, opts.GetPrimary().SyncWrites)
@@ -44,7 +45,7 @@ func TestParseOptions(t *testing.T) {
 		"--badger.directory-value=/mnt/slow/badger",
 		"--badger.span-store-ttl=168h",
 	})
-	opts.InitFromViper(v)
+	opts.InitFromViper(v, zap.NewNop())
 
 	assert.False(t, opts.GetPrimary().Ephemeral)
 	assert.True(t, opts.GetPrimary().SyncWrites)
@@ -52,7 +53,6 @@ func TestParseOptions(t *testing.T) {
 	assert.Equal(t, "/var/lib/badger", opts.GetPrimary().KeyDirectory)
 	assert.Equal(t, "/mnt/slow/badger", opts.GetPrimary().ValueDirectory)
 	assert.False(t, opts.GetPrimary().ReadOnly)
-	assert.False(t, opts.GetPrimary().Truncate)
 }
 
 func TestTruncateAndReadOnlyOptions(t *testing.T) {
@@ -62,8 +62,7 @@ func TestTruncateAndReadOnlyOptions(t *testing.T) {
 		"--badger.truncate=true",
 		"--badger.read-only=true",
 	})
-	opts.InitFromViper(v)
+	opts.InitFromViper(v, zap.NewNop())
 
 	assert.True(t, opts.GetPrimary().ReadOnly)
-	assert.True(t, opts.GetPrimary().Truncate)
 }

@@ -32,7 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/ports"
-	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
+	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 )
 
 const (
@@ -111,7 +111,7 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 	if err != nil {
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
-	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
+	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, logger)
 	b.publishOpts(mFactory)
 
 	return NewAgent(processors, server, logger), nil
@@ -152,7 +152,7 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 		var handler processors.AgentProcessor
 		switch cfg.Model {
 		case jaegerModel, zipkinModel:
-			handler = zipkinThrift.NewAgentProcessor(rep)
+			handler = agentThrift.NewAgentProcessor(rep)
 		default:
 			return nil, fmt.Errorf("cannot find agent processor for data model %v", cfg.Model)
 		}
@@ -170,11 +170,11 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 }
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory) *http.Server {
+func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
 	if c.HostPort == "" {
 		c.HostPort = defaultHTTPServerHostPort
 	}
-	return httpserver.NewHTTPServer(c.HostPort, manager, mFactory)
+	return httpserver.NewHTTPServer(c.HostPort, manager, mFactory, logger)
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration

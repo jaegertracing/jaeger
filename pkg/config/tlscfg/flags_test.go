@@ -47,9 +47,7 @@ func TestClientFlags(t *testing.T) {
 			command := cobra.Command{}
 			flagSet := &flag.FlagSet{}
 			flagCfg := ClientFlagsConfig{
-				Prefix:         "prefix",
-				ShowEnabled:    true,
-				ShowServerName: true,
+				Prefix: "prefix",
 			}
 			flagCfg.AddFlags(flagSet)
 			command.PersistentFlags().AddGoFlagSet(flagSet)
@@ -94,9 +92,7 @@ func TestServerFlags(t *testing.T) {
 			command := cobra.Command{}
 			flagSet := &flag.FlagSet{}
 			flagCfg := ServerFlagsConfig{
-				Prefix:       "prefix",
-				ShowEnabled:  true,
-				ShowClientCA: true,
+				Prefix: "prefix",
 			}
 			flagCfg.AddFlags(flagSet)
 			command.PersistentFlags().AddGoFlagSet(flagSet)

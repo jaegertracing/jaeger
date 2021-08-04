@@ -25,3 +25,20 @@
 6. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
 Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-1.8`).
+
+## Release managers
+
+A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes, including to the related components such as UI, IDL, and jaeger-lib and will address any problems that might happen during the release, making sure that the documentation above is correct.
+
+In order to ensure that knowledge about releasing Jaeger is spread among maintainers, we rotate the role of Release Manager among maintainers.
+
+Here are the release managers for future versions with the tentative release dates. The release dates are the first Wednesday of the month, and we might skip a release if not enough changes happened since the previous release. In such case, the next tentative release date is the first Wednesday of the subsequent month.
+
+| Version   | Release Manager  | Tentative release date |
+|-----------|------------------|------------------------|
+| 1.24.0    | @pavolloffay     |  7 July      2021      |
+| 1.25.0    | @vprithvi        |  4 August    2021      |
+| 1.26.0    | @yurishkuro      |  1 September 2021      |
+| 1.27.0    | @joe-elliott     |  6 October   2021      |
+| 1.28.0    | @albertteoh      |  3 November  2021      |
+| 1.29.0    | @jpkrohling      |  1 December  2021      | 

@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"

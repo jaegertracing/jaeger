@@ -80,7 +80,8 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
 		}
 		if len(b.CollectorHostPorts) > 1 {
-			r, _ := manual.GenerateAndRegisterManualResolver()
+			r := manual.NewBuilderWithScheme("jaeger_manual")
+			dialOptions = append(dialOptions, grpc.WithResolvers(r))
 			var resolvedAddrs []resolver.Address
 			for _, addr := range b.CollectorHostPorts {
 				resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})

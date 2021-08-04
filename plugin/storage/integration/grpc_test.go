@@ -44,11 +44,13 @@ func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	err := command.ParseFlags([]string{
 		"--grpc-storage-plugin.binary",
 		s.pluginBinaryPath,
+		"--grpc-storage-plugin.log-level",
+		"debug",
 	})
 	if err != nil {
 		return err
 	}
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return err
 	}
