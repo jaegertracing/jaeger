@@ -341,13 +341,13 @@ func RegisterQueryServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 }
 
 var (
-	pattern_QueryService_GetTrace_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v3", "traces", "trace_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_QueryService_GetTrace_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v3", "traces", "trace_id"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_QueryService_FindTraces_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v3", "traces"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_QueryService_FindTraces_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"api", "v3", "traces"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_QueryService_GetServices_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v3", "services"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_QueryService_GetServices_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"api", "v3", "services"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_QueryService_GetOperations_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v3", "operations"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_QueryService_GetOperations_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"api", "v3", "operations"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (
