@@ -99,7 +99,7 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 		require.Equal(t, http.ErrServerClosed, err)
 	}()
 	defer httpServer.Shutdown(context.Background())
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
 	req.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(req)
 	buf := bytes.Buffer{}
