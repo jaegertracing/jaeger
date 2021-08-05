@@ -60,6 +60,8 @@ const (
 	tagValueField          = "value"
 
 	defaultNumTraces = 100
+
+	rolloverMaxSpanAge = time.Hour * 24 * 365 * 100
 )
 
 var (
@@ -130,11 +132,10 @@ type SpanReaderParams struct {
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	maxSpanAge := p.MaxSpanAge
-	// If rollover is enabled set lookback far into the past
-	// In rollover only read alias is used to query the data so looking far into the past should
-	// not affect performance.
+	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
+	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
-		maxSpanAge = time.Hour * 24 * 365 * 100
+		maxSpanAge = rolloverMaxSpanAge
 	}
 	return &SpanReader{
 		client:                        p.Client,
