@@ -156,6 +156,7 @@ func TestNewSpanReader(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := NewSpanReader(test.params)
 			require.NotNil(t, reader)
+			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
 		})
 	}
 }
