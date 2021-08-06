@@ -1,7 +1,7 @@
 VERSION := 1.0.0
 ROOT_IMAGE ?= alpine:3.13
 CERT_IMAGE := $(ROOT_IMAGE)
-GOLANG_IMAGE := golang:1.15-alpine
+GOLANG_IMAGE := golang:1.16-alpine
 
 BASE_IMAGE := localhost:5000/baseimg_alpine:latest
 DEBUG_IMAGE := localhost:5000/debugimg_alpine:latest

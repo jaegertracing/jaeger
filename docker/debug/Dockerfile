@@ -9,9 +9,7 @@ RUN apk add --update --no-cache ca-certificates make git
 RUN if [[ "$TARGETARCH" == "s390x"  ||  "$TARGETARCH" == "ppc64le" ]] ; then \
 	touch /go/bin/dlv; \
     else \
-        go get github.com/go-delve/delve/cmd/dlv && \
-        cd /go/src/github.com/go-delve/delve && \
-        make install; \
+        go install github.com/go-delve/delve/cmd/dlv@latest; \
     fi
 
 FROM $golang_image
