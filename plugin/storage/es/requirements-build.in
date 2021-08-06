@@ -1,0 +1,7 @@
+setuptools==50.3.0
+setuptools-scm[toml]==4.1.2
+wheel==0.35.1
+pip==20.2.3
+toml==0.10.2
+PyYAML==5.4
+Cython==0.29.23
