@@ -74,6 +74,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.tags-as-fields.config-file=./file.txt",
 		"--es.tags-as-fields.dot-replacement=!",
 		"--es.use-ilm=true",
+		"--es.send-get-body-as=POST",
 	})
 	require.NoError(t, err)
 	opts.InitFromViper(v)
@@ -109,6 +110,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "2006.01.02", aux.IndexDateLayoutServices)
 	assert.Equal(t, "2006.01.02.15", aux.IndexDateLayoutSpans)
 	assert.True(t, primary.UseILM)
+	assert.Equal(t, "POST", aux.SendGetBodyAs)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {
