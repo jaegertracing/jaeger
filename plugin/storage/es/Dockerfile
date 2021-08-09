@@ -1,4 +1,4 @@
-FROM python:3-alpine3.14
+FROM python:3-alpine3.11
 
 COPY requirements-build.txt requirements-build.txt
 COPY requirements.txt requirements.txt

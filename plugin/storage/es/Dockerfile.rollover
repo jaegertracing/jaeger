@@ -1,4 +1,4 @@
-FROM python:3-alpine3.14
+FROM python:3-alpine3.11
 ARG TARGETARCH
 
 COPY requirements-build.txt requirements-build.txt
