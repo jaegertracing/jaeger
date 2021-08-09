@@ -10,7 +10,7 @@ that deletes older indices automatically. The [Elastic Curator](https://www.elas
 can also be used instead to do a similar job.
 
 ### Using `./esCleaner.py`
-The script is using `python3`. All dependencies can be installed with: `python3 -m pip install elasticsearch elasticsearch-curator`.
+The script is using `python3`. All dependencies can be installed with: `python3 -m pip install -r requirements.txt`.
 
 Parameters:
  * Environment variable TIMEOUT that sets the timeout in seconds for indices deletion (default: 120)
@@ -60,3 +60,19 @@ This script requires Docker to be running.
 Integration test framework for storage lie under `../integration`. 
 Add to `../integration/fixtures/traces/*.json` and `../integration/fixtures/queries.json` to add more
 trace cases.
+
+## Build files
+
+This repository contains certain files tracking the dependencies of the Python scripts used here, namely:
+
+- `requirements-build.in`: Source `requirements-build.txt`, specifying the build-time dependencies
+- `requirements-build.txt`: Generated file with all the build-time dependencies
+- `requirements.in`: Source `requirements.txt`, specifying the high-level runtime dependencies
+- `requirements.txt`: Generated file with all the dependencies, including the transitive ones
+
+The source files can be used with [`pip-compile`](https://github.com/jazzband/pip-tools), which will then generate the final files:
+
+```console
+pip-compile --allow-unsafe --output-file=requirements-build.txt requirements-build.in
+pip-compile --allow-unsafe --output-file=requirements.txt requirements.in
+```
