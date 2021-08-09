@@ -1,1 +1,3 @@
+# Temporary fix for https://github.com/jaegertracing/jaeger/issues/3179
+# this brings elasticsearch==7.13.4 transitively
 elasticsearch-curator==5.8.4

@@ -1,11 +1,11 @@
-FROM python:3-alpine3.11
+FROM python:3-alpine3.14
 
-# Temporary fix for https://github.com/jaegertracing/jaeger/issues/1494
-RUN pip install urllib3==1.24.3
-# Temporary fix for https://github.com/jaegertracing/jaeger/issues/3179
-RUN pip install elasticsearch==7.13.0
+COPY requirements-build.txt requirements-build.txt
+COPY requirements.txt requirements.txt
 
-RUN pip install elasticsearch elasticsearch-curator
+RUN pip install -r requirements-build.txt
+RUN pip install -r requirements.txt
+
 COPY esCleaner.py /es-index-cleaner/
 
 ENTRYPOINT ["python3", "/es-index-cleaner/esCleaner.py"]
