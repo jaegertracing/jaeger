@@ -3,20 +3,19 @@
 set -euxf -o pipefail
 
 usage() {
-  echo $"Usage: $0 <es_version>"
+  echo $"Usage: $0 <es_image>"
   exit 1
 }
 
 check_arg() {
-  if [ ! $# -eq 1 ]; then
-    echo "ERROR: need exactly one argument"
+  if [ ! $# -eq 2 ]; then
+    echo "ERROR: need exactly two arguments"
     usage
   fi
 }
 
 setup_es() {
-  local tag=$1
-  local image=docker.elastic.co/elasticsearch/elasticsearch
+  local image=$1
   local params=(
     --rm
     --detach
@@ -26,7 +25,7 @@ setup_es() {
     --env "xpack.security.enabled=false"
     --env "xpack.monitoring.enabled=false"
   )
-  local cid=$(docker run ${params[@]} ${image}:${tag})
+  local cid=$(docker run ${params[@]} ${image})
   echo ${cid}
 }
 

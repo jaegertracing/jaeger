@@ -196,6 +196,13 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 		if err != nil {
 			return nil, err
 		}
+		// OpenSearch is based on ES 7.x
+		if strings.ContainsAny(pingResult.TagLine, "OpenSearch") {
+			if pingResult.Version.Number[0] == 1 {
+				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
+				esVersion = 7
+			}
+		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
 		c.Version = uint(esVersion)
 	}
