@@ -24,6 +24,7 @@ setup_es() {
     --env "transport.host=127.0.0.1"
     --env "xpack.security.enabled=false"
     --env "xpack.monitoring.enabled=false"
+    --env "plugins.security.disabled=true"
   )
   local cid=$(docker run ${params[@]} ${image})
   echo ${cid}
