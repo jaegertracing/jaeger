@@ -8,8 +8,8 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments"
+  if [ ! $# -eq 1 ]; then
+    echo "ERROR: need exactly one argument"
     usage
   fi
 }
