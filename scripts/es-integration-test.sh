@@ -3,19 +3,20 @@
 set -euxf -o pipefail
 
 usage() {
-  echo $"Usage: $0 <es_image>"
+  echo $"Usage: $0 <elasticsearch|opensearch> <version>"
   exit 1
 }
 
 check_arg() {
-  if [ ! $# -eq 1 ]; then
-    echo "ERROR: need exactly one argument"
+  if [ ! $# -eq 2 ]; then
+    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image>"
     usage
   fi
 }
 
 setup_es() {
-  local image=$1
+  local tag=$1
+  local image=docker.elastic.co/elasticsearch/elasticsearch
   local params=(
     --rm
     --detach
@@ -24,9 +25,23 @@ setup_es() {
     --env "transport.host=127.0.0.1"
     --env "xpack.security.enabled=false"
     --env "xpack.monitoring.enabled=false"
+  )
+  local cid=$(docker run ${params[@]} ${image}:${tag})
+  echo ${cid}
+}
+
+setup_opensearch() {
+  local image=opensearchproject/opensearch
+  local tag=$1
+  local params=(
+    --rm
+    --detach
+    --publish 9200:9200
+    --env "http.host=0.0.0.0"
+    --env "transport.host=127.0.0.1"
     --env "plugins.security.disabled=true"
   )
-  local cid=$(docker run ${params[@]} ${image})
+  local cid=$(docker run ${params[@]} ${image}:${tag})
   echo ${cid}
 }
 
@@ -57,8 +72,17 @@ build_query() {
 }
 
 run_integration_test() {
-  local es_version=$1
-  local cid=$(setup_es ${es_version})
+  local distro=$1
+  local version=$2
+  local cid
+  if [ ${distro} = "elasticsearch" ]; then
+    cid=$(setup_es ${version})
+  elif [ ${distro} == "opensearch" ]; then
+      cid=$(setup_opensearch ${version})
+  else
+    echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
+    usage
+  fi
   STORAGE=elasticsearch make storage-integration-test
   make index-cleaner-integration-test
   make index-rollover-integration-test
@@ -77,8 +101,8 @@ run_token_propagation_test() {
 main() {
   check_arg "$@"
 
-  echo "Executing integration test for elasticsearch $1"
-  run_integration_test "$1"
+  echo "Executing integration test for $1 $2"
+  run_integration_test "$1" "$2"
   echo "Executing token propagation test"
   run_token_propagation_test
 }
