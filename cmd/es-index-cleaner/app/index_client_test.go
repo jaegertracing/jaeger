@@ -103,13 +103,13 @@ func TestClientGetIndices(t *testing.T) {
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "failed to query Jaeger indices: ",
+			errContains:  "failed to query indices: request failed, status code: 400",
 		},
 		{
 			name:         "unmarshall error",
 			responseCode: http.StatusOK,
 			response:     "AAA",
-			errContains:  `failed to unmarshall response: "invalid character 'A' looking for beginning of value`,
+			errContains:  `failed to query indices and unmarshall response body: "AAA"`,
 		},
 	}
 	for _, test := range tests {
@@ -156,7 +156,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "deleting indices failed: ",
+			errContains:  "ailed to delete indices: jaeger-span",
 		},
 	}
 	for _, test := range tests {

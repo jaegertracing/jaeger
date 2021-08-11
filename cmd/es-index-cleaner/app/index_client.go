@@ -33,7 +33,7 @@ type Index struct {
 	Aliases map[string]bool
 }
 
-// IndicesClient is a client used to manipulate with indices.
+// IndicesClient is a client used to manipulate indices.
 type IndicesClient struct {
 	// Http client.
 	Client *http.Client
@@ -60,22 +60,18 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 		return nil, err
 	}
 	i.setAuthorization(r)
-	response, err := i.Client.Do(r)
+	res, err := i.Client.Do(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query Jaeger indices: %q", err)
+		return nil, fmt.Errorf("failed to query indices: %w", err)
 	}
 
-	if response.StatusCode != 200 {
-		body, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("failed to query Jaeger indices: %s", string(body))
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to query indices: %w", handleFailedRequest(res))
 	}
 
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query indices and read response body: %w", err)
 	}
 
 	type indexInfo struct {
@@ -84,7 +80,7 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 	}
 	var indicesInfo map[string]indexInfo
 	if err = json.Unmarshal(body, &indicesInfo); err != nil {
-		return nil, fmt.Errorf("failed to unmarshall response: %q", err)
+		return nil, fmt.Errorf("failed to query indices and unmarshall response body: %q: %w", body, err)
 	}
 
 	var indices []Index
@@ -119,22 +115,26 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 	}
 	i.setAuthorization(r)
 
-	response, err := i.Client.Do(r)
+	res, err := i.Client.Do(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete indices: %w", err)
 	}
-	if response.StatusCode != 200 {
-		var body string
-		if response.Body != nil {
-			bodyBytes, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				return fmt.Errorf("deleting indices failed: %q", err)
-			}
-			body = string(bodyBytes)
-		}
-		return fmt.Errorf("deleting indices failed: %s", body)
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to delete indices: %s, %w", concatIndices, handleFailedRequest(res))
 	}
 	return nil
+}
+
+func handleFailedRequest(res *http.Response) error {
+	var body string
+	if res.Body != nil {
+		bodyBytes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("request failed and failed to read response body, status code: %d, %w", res.StatusCode, err)
+		}
+		body = string(bodyBytes)
+	}
+	return fmt.Errorf("request failed, status code: %d, body: %s", res.StatusCode, body)
 }
 
 func (i *IndicesClient) setAuthorization(r *http.Request) {

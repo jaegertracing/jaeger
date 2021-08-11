@@ -31,7 +31,6 @@ func TestIndexFilter_prefix(t *testing.T) {
 
 func testIndexFilter(t *testing.T, prefix string) {
 	time20200807 := time.Date(2020, time.August, 06, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
-	//firstDay := tomorrowMidnight.Add(-time.Hour*24*time.Duration(numOfDays))
 	indices := []Index{
 		{
 			Index:        prefix + "jaeger-span-2020-08-06",
@@ -151,7 +150,7 @@ func testIndexFilter(t *testing.T, prefix string) {
 		expected []Index
 	}{
 		{
-			name: "normal indices, remove older 2 days",
+			name: "normal indices, remove older than 2 days",
 			filter: &IndexFilter{
 				IndexPrefix:          prefix,
 				IndexDateSeparator:   "-",
@@ -188,7 +187,7 @@ func testIndexFilter(t *testing.T, prefix string) {
 			},
 		},
 		{
-			name: "normal indices, remove older 0 days",
+			name: "normal indices, remove older 0 days - it should remove all indices",
 			filter: &IndexFilter{
 				IndexPrefix:          prefix,
 				IndexDateSeparator:   "-",

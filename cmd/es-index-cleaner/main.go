@@ -32,22 +32,22 @@ import (
 )
 
 func main() {
-	logger, _ := zap.NewDevelopment()
+	logger, _ := zap.NewProduction()
 	v := viper.New()
 	cfg := &app.Config{}
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 
 	var command = &cobra.Command{
 		Use:   "jaeger-es-index-cleaner NUM_OF_DAYS http://HOSTNAME:PORT",
-		Short: "Jaeger es-index-cleaner removes Jaeger index",
-		Long:  "Jaeger es-index-cleaner removes Jaeger indexes",
+		Short: "Jaeger es-index-cleaner removes Jaeger indices",
+		Long:  "Jaeger es-index-cleaner removes Jaeger indices",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
 				return fmt.Errorf("wrong number of arguments")
 			}
 			numOfDays, err := strconv.Atoi(args[0])
 			if err != nil {
-				return fmt.Errorf("could not parse NUM_OF_DAYS argument: %q", err)
+				return fmt.Errorf("could not parse NUM_OF_DAYS argument: %w", err)
 			}
 
 			cfg.InitFromViper(v)
