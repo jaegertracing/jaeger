@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +68,12 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
 	if err != nil {
 		return 0, err
+	}
+	// OpenSearch is based on ES 7.x
+	if strings.Contains(pingResult.TagLine, "OpenSearch") {
+		if pingResult.Version.Number[0] == '1' {
+			esVersion = 7
+		}
 	}
 	return uint(esVersion), nil
 }

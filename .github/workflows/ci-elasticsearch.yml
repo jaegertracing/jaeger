@@ -14,10 +14,16 @@ jobs:
         version:
         - major: 5.x
           image: 5.6.16
+          distribution: elasticsearch
         - major: 6.x
           image: 6.8.18
+          distribution: elasticsearch
         - major: 7.x
           image: 7.14.0
+          distribution: elasticsearch
+        - major: OpenSearch 1.x
+          image: 1.0.0
+          distribution: opensearch
     name: elasticsearch ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v2.3.4
@@ -36,4 +42,4 @@ jobs:
       run: make install-ci
 
     - name: Run elasticsearch integration tests
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.image }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
