@@ -229,19 +229,21 @@ func testIndexFilter(t *testing.T, prefix string) {
 			},
 		},
 		{
-			name: "archive indices, remove older 2 days",
+			name: "archive indices, remove older 1 days - archive works only for rollover",
 			filter: &IndexFilter{
 				IndexPrefix:          prefix,
 				IndexDateSeparator:   "-",
 				Archive:              true,
 				Rollover:             false,
-				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(2)),
+				DeleteBeforeThisDate: time20200807.Add(-time.Hour * 24 * time.Duration(1)),
 			},
 			expected: []Index{
 				{
-					Index:        prefix + "jaeger-span-archive",
-					CreationTime: time.Date(2020, time.August, 0, 15, 0, 0, 0, time.UTC),
-					Aliases:      map[string]bool{},
+					Index:        prefix + "jaeger-span-archive-000001",
+					CreationTime: time.Date(2020, time.August, 5, 15, 0, 0, 0, time.UTC),
+					Aliases: map[string]bool{
+						prefix + "jaeger-span-archive-read": true,
+					},
 				},
 			},
 		},

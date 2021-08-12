@@ -42,18 +42,13 @@ func (i *IndexFilter) Filter(indices []Index) []Index {
 
 func (i *IndexFilter) filter(indices []Index) []Index {
 	var reg *regexp.Regexp
-	if !i.Rollover && !i.Archive {
-		// daily indices
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
-	} else if !i.Rollover && i.Archive {
-		// daily archive
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-span-archive", i.IndexPrefix))
-	} else if i.Rollover && !i.Archive {
-		// rollover
+	if i.Archive {
+		// archive works only for rollover
+		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-span-archive-\\d{6}", i.IndexPrefix))
+	} else if i.Rollover {
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service)-\\d{6}", i.IndexPrefix))
 	} else {
-		// rollover archive
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-span-archive-\\d{6}", i.IndexPrefix))
+		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
 	}
 
 	var filtered []Index
