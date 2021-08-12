@@ -328,7 +328,7 @@ docker-images-jaeger-backend-debug: TARGET = debug
 docker-images-jaeger-backend-debug: SUFFIX = -debug
 
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
-docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
+docker-images-jaeger-backend docker-images-jaeger-backend-debug:
 	for component in agent collector query ingester ; do \
 		docker build --target $(TARGET) \
 			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
