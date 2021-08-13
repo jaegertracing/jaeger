@@ -21,10 +21,10 @@ jobs:
         - major: 7.x
           image: 7.14.0
           distribution: elasticsearch
-        - major: OpenSearch 1.x
+        - major: 1.x
           image: 1.0.0
           distribution: opensearch
-    name: elasticsearch ${{ matrix.version.major }}
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v2.3.4
       with:
