@@ -56,7 +56,7 @@ func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
-		"--collector.grpc-max-receive-message-length=8388608",
+		"--collector.grpc.max-receive-message-length=8388608",
 	})
 	c.InitFromViper(v)
 

@@ -35,7 +35,7 @@ const (
 	collectorZipkinAllowedHeaders        = "collector.zipkin.allowed-headers"
 	collectorZipkinAllowedOrigins        = "collector.zipkin.allowed-origins"
 	collectorZipkinHTTPHostPort          = "collector.zipkin.host-port"
-	collectorGRPCMaxReceiveMessageLength = "collector.grpc-max-receive-message-length"
+	collectorGRPCMaxReceiveMessageLength = "collector.grpc.max-receive-message-length"
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
