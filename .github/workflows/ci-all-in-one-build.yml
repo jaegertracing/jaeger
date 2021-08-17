@@ -34,8 +34,6 @@ jobs:
     
     - uses: docker/setup-qemu-action@v1
 
-    - run: make prepare-docker-buildx
-
     - name: Build, test, and publish all-in-one image
       run: bash scripts/build-all-in-one-image.sh
       env:

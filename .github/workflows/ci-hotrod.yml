@@ -30,8 +30,6 @@ jobs:
     
     - uses: docker/setup-qemu-action@v1
 
-    - run: make prepare-docker-buildx
-
     - name: Build, test, and publish hotrod image
       run: bash scripts/hotrod-integration-test.sh
       env:

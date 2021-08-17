@@ -36,8 +36,6 @@ jobs:
     
     - uses: docker/setup-qemu-action@v1
 
-    - run: make prepare-docker-buildx
-
     - name: Build, test, and publish ${{ matrix.steps.name }} image
       run: ${{ matrix.steps.cmd }}
       env:
