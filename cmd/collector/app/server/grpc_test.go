@@ -94,7 +94,7 @@ func TestSpanCollector(t *testing.T) {
 	require.NotNil(t, response)
 }
 
-func TestSpanCollectorTLS(t *testing.T) {
+func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
 		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
@@ -102,27 +102,14 @@ func TestSpanCollectorTLS(t *testing.T) {
 		Logger:                  logger,
 		MaxReceiveMessageLength: 8 * 1024 * 1024,
 		TLSConfig: tlscfg.Options{
-			Enabled:  true,
-			CertPath: testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			Enabled:      true,
+			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+			KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 		},
 	}
 
-	server := grpc.NewServer()
+	server, err := StartGRPCServer(params)
+	require.NoError(t, err)
 	defer server.Stop()
-
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer listener.Close()
-
-	serveGRPC(server, listener, params)
-
-	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
-	require.NoError(t, err)
-	defer conn.Close()
-
-	c := api_v2.NewCollectorServiceClient(conn)
-	response, err := c.PostSpans(context.Background(), &api_v2.PostSpansRequest{})
-	require.NoError(t, err)
-	require.NotNil(t, response)
 }
