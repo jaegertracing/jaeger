@@ -53,7 +53,7 @@ jobs:
     - uses: docker/setup-qemu-action@v1
 
     - run: make prepare-docker-buildx
-  
+
     - name: Build and upload all docker images
       run: bash scripts/build-upload-docker-images.sh
       env:

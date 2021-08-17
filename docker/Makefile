@@ -24,8 +24,8 @@ create-debugimg:
 
 .PHONY: prepare-docker-buildx
 prepare-docker-buildx:
-	 docker buildx create --use --name=jaeger-build --buildkitd-flags="--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host" --driver-opt="network=host"
-	 docker run --rm -d -p 5000:5000 --name registry registry:2
+	docker buildx create --use --name=jaeger-build --buildkitd-flags="--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host" --driver-opt="network=host"
+	docker run --rm -d -p 5000:5000 --name registry registry:2
 
 .PHONY: clean-docker-buildx
 clean-docker-buildx:
