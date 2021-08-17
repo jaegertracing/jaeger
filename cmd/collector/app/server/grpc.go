@@ -31,17 +31,21 @@ import (
 
 // GRPCServerParams to construct a new Jaeger Collector gRPC Server
 type GRPCServerParams struct {
-	TLSConfig     tlscfg.Options
-	HostPort      string
-	Handler       *handler.GRPCHandler
-	SamplingStore strategystore.StrategyStore
-	Logger        *zap.Logger
-	OnError       func(error)
+	TLSConfig               tlscfg.Options
+	HostPort                string
+	Handler                 *handler.GRPCHandler
+	SamplingStore           strategystore.StrategyStore
+	Logger                  *zap.Logger
+	OnError                 func(error)
+	MaxReceiveMessageLength int
 }
 
 // StartGRPCServer based on the given parameters
 func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
+	var grpcOpts []grpc.ServerOption
+
+	grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
 
 	if params.TLSConfig.Enabled {
 		// user requested a server with TLS, setup creds
@@ -51,10 +55,12 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 		}
 
 		creds := credentials.NewTLS(tlsCfg)
-		server = grpc.NewServer(grpc.Creds(creds))
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+
+		server = grpc.NewServer(grpcOpts...)
 	} else {
 		// server without TLS
-		server = grpc.NewServer()
+		server = grpc.NewServer(grpcOpts...)
 	}
 
 	listener, err := net.Listen("tcp", params.HostPort)
