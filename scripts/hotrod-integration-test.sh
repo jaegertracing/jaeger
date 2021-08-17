@@ -9,6 +9,7 @@ make build-examples GOOS=linux GOARCH=arm64
 
 REPO=jaegertracing/example-hotrod
 platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+make prepare-docker-buildx
 #build image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${platforms}"
 
