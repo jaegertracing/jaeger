@@ -21,3 +21,13 @@ create-debugimg:
 		--build-arg golang_image=$(GOLANG_IMAGE) \
 		--platform=$(PLATFORMS) \
 		docker/debug
+
+.PHONY: prepare-docker-buildx
+prepare-docker-buildx:
+	 docker buildx create --use --name=jaeger-build --buildkitd-flags="--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host" --driver-opt="network=host"
+	 docker run --rm -d -p 5000:5000 --name registry registry:2
+
+.PHONY: clean-docker-buildx
+clean-docker-buildx:
+	docker buildx rm jaeger-build
+	docker rm -f registry
