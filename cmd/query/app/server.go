@@ -26,6 +26,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -50,6 +51,7 @@ type Server struct {
 	conn               net.Listener
 	grpcConn           net.Listener
 	httpConn           net.Listener
+	cmuxServer         cmux.CMux
 	grpcServer         *grpc.Server
 	httpServer         *http.Server
 	separatePorts      bool
@@ -78,7 +80,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 		return nil, err
 	}
 
-	httpServer, cancelFunc, err := createHTTPServer(querySvc, metricsQuerySvc, options, tracer, logger)
+	httpServer, closeGRPCGateway, err := createHTTPServer(querySvc, metricsQuerySvc, options, tracer, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +94,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 		httpServer:         httpServer,
 		separatePorts:      grpcPort != httpPort,
 		unavailableChannel: make(chan healthcheck.Status),
-		grpcGatewayCancel:  cancelFunc,
+		grpcGatewayCancel:  closeGRPCGateway,
 	}, nil
 }
 
@@ -145,9 +147,9 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, closeGRPCGateway := context.WithCancel(context.Background())
 	if err := apiv3.RegisterGRPCGateway(ctx, logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, queryOpts.TLSGRPC); err != nil {
-		cancelFunc() // make go vet happy
+		closeGRPCGateway()
 		return nil, nil, err
 	}
 
@@ -161,20 +163,22 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
+	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
 	server := &http.Server{
-		Handler: recoveryHandler(handler),
+		Handler:  recoveryHandler(handler),
+		ErrorLog: errorLog,
 	}
 
 	if queryOpts.TLSHTTP.Enabled {
 		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
 		if err != nil {
-			cancelFunc()
+			closeGRPCGateway()
 			return nil, nil, err
 		}
 		server.TLSConfig = tlsCfg
 
 	}
-	return server, cancelFunc, nil
+	return server, closeGRPCGateway, nil
 }
 
 // initListener initialises listeners of the server
@@ -222,7 +226,6 @@ func (s *Server) initListener() (cmux.CMux, error) {
 	s.httpConn = cmuxServer.Match(cmux.Any())
 
 	return cmuxServer, nil
-
 }
 
 // Start http, GRPC and cmux servers concurrently
@@ -231,6 +234,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
+	s.cmuxServer = cmuxServer
 
 	var tcpPort int
 	if !s.separatePorts {
@@ -283,7 +287,7 @@ func (s *Server) Start() error {
 			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
 			err := cmuxServer.Serve()
-			// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged
+			// TODO: find a way to avoid string comparison. Even though cmux has ErrServerClosed, it's not returned here.
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
@@ -305,6 +309,7 @@ func (s *Server) Close() error {
 		s.httpConn.Close()
 		s.grpcConn.Close()
 	} else {
+		s.cmuxServer.Close()
 		s.conn.Close()
 	}
 	return nil

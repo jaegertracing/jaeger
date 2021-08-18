@@ -51,3 +51,14 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:1234", c.CollectorGRPCHostPort)
 	assert.Equal(t, "0.0.0.0:3456", c.CollectorZipkinHTTPHostPort)
 }
+
+func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.grpc-server.max-message-size=8388608",
+	})
+	c.InitFromViper(v)
+
+	assert.Equal(t, 8388608, c.CollectorGRPCMaxReceiveMessageLength)
+}

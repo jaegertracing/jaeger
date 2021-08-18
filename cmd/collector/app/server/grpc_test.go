@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -91,4 +92,24 @@ func TestSpanCollector(t *testing.T) {
 	response, err := c.PostSpans(context.Background(), &api_v2.PostSpansRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, response)
+}
+
+func TestCollectorStartWithTLS(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	params := &GRPCServerParams{
+		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
+		SamplingStore:           &mockSamplingStore{},
+		Logger:                  logger,
+		MaxReceiveMessageLength: 8 * 1024 * 1024,
+		TLSConfig: tlscfg.Options{
+			Enabled:      true,
+			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+			KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+		},
+	}
+
+	server, err := StartGRPCServer(params)
+	require.NoError(t, err)
+	defer server.Stop()
 }

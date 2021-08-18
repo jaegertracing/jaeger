@@ -75,6 +75,7 @@ type Configuration struct {
 	UseILM                         bool           `mapstructure:"use_ilm"`
 	Version                        uint           `mapstructure:"version"`
 	LogLevel                       string         `mapstructure:"log_level"`
+	SendGetBodyAs                  string         `mapstructure:"send_get_body_as"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -116,6 +117,7 @@ type ClientBuilder interface {
 	TagKeysAsFields() ([]string, error)
 	GetUseILM() bool
 	GetLogLevel() string
+	GetSendGetBodyAs() string
 }
 
 // NewClient creates a new ElasticSearch client
@@ -194,6 +196,13 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 		if err != nil {
 			return nil, err
 		}
+		// OpenSearch is based on ES 7.x
+		if strings.Contains(pingResult.TagLine, "OpenSearch") {
+			if pingResult.Version.Number[0] == '1' {
+				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
+				esVersion = 7
+			}
+		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
 		c.Version = uint(esVersion)
 	}
@@ -256,6 +265,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.LogLevel == "" {
 		c.LogLevel = source.LogLevel
+	}
+	if c.SendGetBodyAs == "" {
+		c.SendGetBodyAs = source.SendGetBodyAs
 	}
 }
 
@@ -356,6 +368,11 @@ func (c *Configuration) GetLogLevel() string {
 	return c.LogLevel
 }
 
+// GetSendGetBodyAs returns the SendGetBodyAs the ES client should use.
+func (c *Configuration) GetSendGetBodyAs() string {
+	return c.SendGetBodyAs
+}
+
 // GetTokenFilePath returns file path containing the bearer token
 func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
@@ -418,6 +435,10 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+
+	if c.SendGetBodyAs != "" {
+		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
+	}
 
 	options, err := addLoggerOptions(options, c.LogLevel)
 	if err != nil {
