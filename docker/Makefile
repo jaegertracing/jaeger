@@ -3,9 +3,9 @@ ROOT_IMAGE ?= alpine:3.13
 CERT_IMAGE := $(ROOT_IMAGE)
 GOLANG_IMAGE := golang:1.16-alpine
 
-BASE_IMAGE ?= localhost:5000/baseimg_alpine:latest
-DEBUG_IMAGE ?= localhost:5000/debugimg_alpine:latest
-PLATFORMS ?= linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
+BASE_IMAGE := localhost:5000/baseimg_alpine:latest
+DEBUG_IMAGE := localhost:5000/debugimg_alpine:latest
+PLATFORMS := linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
 
 create-baseimg-debugimg: create-baseimg create-debugimg
 

@@ -9,11 +9,6 @@ on:
 jobs:
   elasticsearch:
     runs-on: ubuntu-latest
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
     strategy:
       matrix:
         version:
@@ -48,12 +43,5 @@ jobs:
 
     - uses: docker/setup-qemu-action@v1
 
-    - uses: docker/setup-buildx-action@v1
-      with:
-        driver-opts: network=host
-
     - name: Run elasticsearch integration tests
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
