@@ -320,13 +320,11 @@ docker-images-cassandra:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
 
-docker-images-elastic: TARGET = release
-
 .PHONY: docker-images-elastic
 docker-images-elastic: create-baseimg
 	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-esmapping-generator
 	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-es-index-cleaner
-	docker build --target $(TARGET) -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE)  --build-arg TARGETARCH=$(GOARCH) cmd/es-index-cleaner
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-index-cleaner
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-es-indices-clean =============="
 
