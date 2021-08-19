@@ -41,5 +41,7 @@ jobs:
     - name: Install tools
       run: make install-ci
 
+    - uses: docker/setup-qemu-action@v1
+
     - name: Run elasticsearch integration tests
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}

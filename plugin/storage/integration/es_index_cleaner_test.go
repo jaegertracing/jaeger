@@ -114,10 +114,10 @@ func TestIndexCleaner(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s_no_prefix", test.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars), func(t *testing.T) {
 			runIndexCleanerTest(t, client, "", test.expectedIndices, test.envVars)
 		})
-		t.Run(fmt.Sprintf("%s_prefix", test.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s_prefix, %s", test.name, test.envVars), func(t *testing.T) {
 			runIndexCleanerTest(t, client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix))
 		})
 	}
