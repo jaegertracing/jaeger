@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger
 
-go 1.16
+go 1.17
 
 require (
 	github.com/Shopify/sarama v1.29.1
