@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build index_cleaner
-// +build index_cleaner
 
 package integration
 

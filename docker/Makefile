@@ -1,6 +1,7 @@
 VERSION := 1.0.0
 ROOT_IMAGE ?= alpine:3.13
 CERT_IMAGE := $(ROOT_IMAGE)
+# TODO: Change back to golang:1.17-alpine once https://github.com/docker-library/golang/issues/383 is resolved.
 GOLANG_IMAGE := golang:1.17-alpine3.13
 
 BASE_IMAGE := localhost:5000/baseimg_alpine:latest

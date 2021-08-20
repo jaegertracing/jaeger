@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build !ui
-// +build !ui
 
 package ui
 
