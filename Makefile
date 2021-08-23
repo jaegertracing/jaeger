@@ -115,7 +115,6 @@ grpc-plugin-storage-integration-test:
 .PHONY: test-compile-es-scripts
 test-compile-es-scripts:
 	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
-	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
@@ -216,6 +215,10 @@ build-esmapping-generator:
 build-esmapping-generator-linux:
 	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/main.go
 
+.PHONY: build-es-index-cleaner
+build-es-index-cleaner:
+	$(GOBUILD) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/main.go
+
 .PHONY: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
@@ -269,9 +272,6 @@ build-collector build-collector-debug:
 build-ingester build-ingester-debug:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 
-.PHONY: docker
-docker: build-binaries-linux docker-images-only
-
 .PHONY: build-binaries-linux
 build-binaries-linux:
 	GOOS=linux GOARCH=amd64 $(MAKE) build-platform-binaries
@@ -308,7 +308,9 @@ build-platform-binaries: build-agent \
 	build-all-in-one \
 	build-examples \
 	build-tracegen \
-	build-anonymizer
+	build-anonymizer \
+	build-esmapping-generator \
+	build-es-index-cleaner
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
@@ -319,9 +321,11 @@ docker-images-cassandra:
 	@echo "Finished building jaeger-cassandra-schema =============="
 
 .PHONY: docker-images-elastic
-docker-images-elastic: build-esmapping-generator-linux
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
+docker-images-elastic: create-baseimg
+	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-esmapping-generator
+	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-es-index-cleaner
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-index-cleaner
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-es-indices-clean =============="
 
 docker-images-jaeger-backend: TARGET = release
@@ -358,21 +362,13 @@ docker-images-only: docker-images-cassandra \
 	docker-images-tracegen \
 	docker-images-anonymizer
 
-.PHONY: docker-push
-docker-push:
-	@while [ -z "$$CONFIRM" ]; do \
-		read -r -p "Do you really want to push images to repository \"${DOCKER_NAMESPACE}\"? [y/N] " CONFIRM; \
-	done ; \
-	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
-		echo "Exiting." ; exit 1 ; \
-	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen anonymizer; do \
-		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
-	done
+.PHONY: build-crossdock-binary
+build-crossdock-binary:
+	$(GOBUILD) -o ./crossdock/crossdock-$(GOOS)-$(GOARCH) ./crossdock/main.go
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
+	GOOS=linux $(MAKE) build-crossdock-binary
 
 include crossdock/rules.mk
 
@@ -385,7 +381,7 @@ build-crossdock-ui-placeholder:
 
 .PHONY: build-crossdock
 build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
+	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} --build-arg TARGETARCH=$(GOARCH) crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
 .PHONY: build-and-run-crossdock
@@ -429,19 +425,18 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 	rm -rf thrift-gen/*/*-remote thrift-gen/*/*.bak
 
 idl/thrift/jaeger.thrift:
-	$(MAKE) idl-submodule
+	$(MAKE) init-submodules
 
-.PHONY: idl-submodule
-idl-submodule:
-	git submodule init
-	git submodule update
+.PHONY: init-submodules
+init-submodules:
+	git submodule update --init --recursive
 
 .PHONY: thrift-image
 thrift-image:
 	$(THRIFT) -version
 
 .PHONY: generate-zipkin-swagger
-generate-zipkin-swagger: idl-submodule
+generate-zipkin-swagger: init-submodules
 	$(SWAGGER) generate server -f ./idl/swagger/zipkin2-api.yaml -t $(SWAGGER_GEN_DIR) -O PostSpans --exclude-main
 	rm $(SWAGGER_GEN_DIR)/restapi/operations/post_spans_urlbuilder.go $(SWAGGER_GEN_DIR)/restapi/server.go $(SWAGGER_GEN_DIR)/restapi/configure_zipkin.go $(SWAGGER_GEN_DIR)/models/trace.go $(SWAGGER_GEN_DIR)/models/list_of_traces.go $(SWAGGER_GEN_DIR)/models/dependency_link.go
 
@@ -458,10 +453,13 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
+PROTO_INTERMEDIATE_DIR = proto-gen/.patched-otel-proto
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
+	-Iidl/proto/api_v3 \
 	-Imodel/proto/metrics \
+	-I$(PROTO_INTERMEDIATE_DIR) \
 	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -473,9 +471,8 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
 	| sed 's/ //g')
 
-
 .PHONY: proto
-proto:
+proto: init-submodules proto-prepare-otel
 	# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance
@@ -551,6 +548,57 @@ proto:
 		-Iidl/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
+		$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
+		$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
+		$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+
+	# Target  proto-prepare-otel modifies OTEL proto to use import path jaeger.proto.*
+	# The modification is needed because OTEL collector already uses opentelemetry.proto.*
+	# and two complied protobuf types cannot have the same import path. The root cause is that the compiled OTLP
+	# in the collector is in private package, hence it cannot be used in Jaeger.
+	# The following statements revert changes in OTEL proto and only modify go package.
+	# This way the service will use opentelemetry.proto.trace.v1.ResourceSpans but in reality at runtime
+	# it uses jaeger.proto.trace.v1.ResourceSpans which is the same type in a different package which
+	# prevents panic of two equal proto types.
+	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
+	cp -R idl/opentelemetry-proto/* $(PROTO_INTERMEDIATE_DIR)
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+github.com/open-telemetry/opentelemetry-proto/gen/go+github.com/jaegertracing/jaeger/proto-gen/otel+g'
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
+		idl/proto/api_v3/query_service.proto
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+ 		--grpc-gateway_out=logtostderr=true,grpc_api_configuration=idl/proto/api_v3/query_service_http.yaml,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
+		idl/proto/api_v3/query_service.proto
+	rm -rf $(PROTO_INTERMEDIATE_DIR)
+
+.PHONY: proto-prepare-otel
+proto-prepare-otel:
+	@echo --
+	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
+	@echo --
+	mkdir -p $(PROTO_INTERMEDIATE_DIR)
+	cp -R idl/opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
+
+	@echo --
+	@echo -- Editing proto
+	@echo --
+	@# Change:
+	@# go import from github.com/open-telemetry/opentelemetry-proto/gen/go/* to github.com/jaegertracing/jaeger/proto-gen/otel/*
+	@# proto package from opentelemetry.proto.* to jaeger.proto.*
+	@# remove import opentelemetry/proto
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i -f otel_proto_patch.sed
 
 .PHONY: proto-hotrod
 proto-hotrod:

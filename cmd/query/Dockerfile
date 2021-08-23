@@ -2,7 +2,7 @@ ARG base_image
 ARG debug_image
 
 FROM $base_image AS release
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 COPY query-linux-$TARGETARCH /go/bin/query-linux
 EXPOSE 16686/tcp
 ENTRYPOINT ["/go/bin/query-linux"]

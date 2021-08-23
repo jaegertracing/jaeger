@@ -1,20 +1,34 @@
 VERSION := 1.0.0
 ROOT_IMAGE ?= alpine:3.13
-CERT_IMAGE := alpine:3.13
-GOLANG_IMAGE := golang:1.15-alpine
+CERT_IMAGE := $(ROOT_IMAGE)
+# TODO: Change back to golang:1.17-alpine once https://github.com/docker-library/golang/issues/383 is resolved.
+GOLANG_IMAGE := golang:1.17-alpine3.13
 
-BASE_IMAGE := localhost/baseimg:$(VERSION)-$(shell echo $(ROOT_IMAGE) | tr : -)
-DEBUG_IMAGE := localhost/debugimg:$(VERSION)-$(shell echo $(GOLANG_IMAGE) | tr : -)
+BASE_IMAGE := localhost:5000/baseimg_alpine:latest
+DEBUG_IMAGE := localhost:5000/debugimg_alpine:latest
+PLATFORMS := linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
 
 create-baseimg-debugimg: create-baseimg create-debugimg
 
-create-baseimg:
-	docker build -t $(BASE_IMAGE) \
+create-baseimg: prepare-docker-buildx
+	docker buildx build -t $(BASE_IMAGE) --push \
 		--build-arg root_image=$(ROOT_IMAGE) \
 		--build-arg cert_image=$(CERT_IMAGE) \
+		--platform=$(PLATFORMS) \
 		docker/base
 
-create-debugimg:
-	docker build -t $(DEBUG_IMAGE) \
+create-debugimg: prepare-docker-buildx
+	docker buildx build -t $(DEBUG_IMAGE) --push \
 		--build-arg golang_image=$(GOLANG_IMAGE) \
+		--platform=$(PLATFORMS) \
 		docker/debug
+
+.PHONY: prepare-docker-buildx
+prepare-docker-buildx:
+	docker buildx inspect jaeger-build > /dev/null || docker buildx create --use --name=jaeger-build --buildkitd-flags="--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host" --driver-opt="network=host"
+	docker inspect registry > /dev/null || docker run --rm -d -p 5000:5000 --name registry registry:2
+
+.PHONY: clean-docker-buildx
+clean-docker-buildx:
+	docker buildx rm jaeger-build
+	docker rm -f registry

@@ -69,8 +69,9 @@ func main() {
 			metricsFactory := fork.New("internal",
 				jexpvar.NewFactory(10), // backend for internal opts
 				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
+			version.NewInfoMetrics(metricsFactory)
 
-			storageFactory.InitFromViper(v)
+			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
@@ -79,7 +80,7 @@ func main() {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
 
-			strategyStoreFactory.InitFromViper(v)
+			strategyStoreFactory.InitFromViper(v, logger)
 			if err := strategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}

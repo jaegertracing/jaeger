@@ -18,12 +18,14 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
@@ -34,17 +36,23 @@ import (
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
-	traceIDParam  = "traceID"
-	endTsParam    = "endTs"
-	lookbackParam = "lookback"
+	traceIDParam          = "traceID"
+	endTsParam            = "endTs"
+	lookbackParam         = "lookback"
+	stepParam             = "step"
+	rateParam             = "ratePer"
+	quantileParam         = "quantile"
+	groupByOperationParam = "groupByOperation"
 
-	defaultDependencyLookbackDuration = time.Hour * 24
-	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
-	defaultAPIPrefix                  = "api"
+	defaultAPIPrefix  = "api"
+	prettyPrintIndent = "    "
 )
 
 // HTTPHandler handles http requests
@@ -73,12 +81,13 @@ func NewRouter() *mux.Router {
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
-	queryService *querysvc.QueryService
-	queryParser  queryParser
-	basePath     string
-	apiPrefix    string
-	logger       *zap.Logger
-	tracer       opentracing.Tracer
+	queryService        *querysvc.QueryService
+	metricsQueryService querysvc.MetricsQueryService
+	queryParser         queryParser
+	basePath            string
+	apiPrefix           string
+	logger              *zap.Logger
+	tracer              opentracing.Tracer
 }
 
 // NewAPIHandler returns an APIHandler
@@ -117,6 +126,10 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	// TODO - remove this when UI catches up
 	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.latencies, "/metrics/latencies").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
 }
 
 func (aH *APIHandler) handleFunc(
@@ -178,7 +191,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	service := r.FormValue(serviceParam)
 	if service == "" {
-		if aH.handleError(w, ErrServiceParameterRequired, http.StatusBadRequest) {
+		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
 			return
 		}
 	}
@@ -206,7 +219,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
-	tQuery, err := aH.queryParser.parse(r)
+	tQuery, err := aH.queryParser.parseTraceQueryParams(r)
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
@@ -261,31 +274,13 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 }
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
-	endTsMillis, err := strconv.ParseInt(r.FormValue(endTsParam), 10, 64)
-	if err != nil {
-		err = fmt.Errorf("unable to parse %s: %w", endTimeParam, err)
-		if aH.handleError(w, err, http.StatusBadRequest) {
-			return
-		}
-	}
-	var lookback time.Duration
-	if formValue := r.FormValue(lookbackParam); len(formValue) > 0 {
-		lookback, err = time.ParseDuration(formValue + "ms")
-		if err != nil {
-			err = fmt.Errorf("unable to parse %s: %w", lookbackParam, err)
-			if aH.handleError(w, err, http.StatusBadRequest) {
-				return
-			}
-		}
+	dqp, err := aH.queryParser.parseDependenciesQueryParams(r)
+	if aH.handleError(w, err, http.StatusBadRequest) {
+		return
 	}
 	service := r.FormValue(serviceParam)
 
-	if lookback == 0 {
-		lookback = defaultDependencyLookbackDuration
-	}
-	endTs := time.Unix(0, 0).Add(time.Duration(endTsMillis) * time.Millisecond)
-
-	dependencies, err := aH.queryService.GetDependencies(r.Context(), endTs, lookback)
+	dependencies, err := aH.queryService.GetDependencies(r.Context(), dqp.endTs, dqp.lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -295,6 +290,60 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 		Data: aH.deduplicateDependencies(filteredDependencies),
 	}
 	aH.writeJSON(w, r, &structuredRes)
+}
+
+func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
+	q, err := strconv.ParseFloat(r.FormValue(quantileParam), 64)
+	if err != nil {
+		aH.handleError(w, newParseError(err, quantileParam), http.StatusBadRequest)
+		return
+	}
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetLatencies(ctx, &metricsstore.LatenciesQueryParameters{
+			BaseQueryParameters: baseParams,
+			Quantile:            q,
+		})
+	})
+}
+
+func (aH *APIHandler) calls(w http.ResponseWriter, r *http.Request) {
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetCallRates(ctx, &metricsstore.CallRateQueryParameters{
+			BaseQueryParameters: baseParams,
+		})
+	})
+}
+
+func (aH *APIHandler) errors(w http.ResponseWriter, r *http.Request) {
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetErrorRates(ctx, &metricsstore.ErrorRateQueryParameters{
+			BaseQueryParameters: baseParams,
+		})
+	})
+}
+
+func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
+	minStep, err := aH.metricsQueryService.GetMinStepDuration(r.Context(), &metricsstore.MinStepDurationQueryParameters{})
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	structuredRes := structuredResponse{
+		Data: minStep.Milliseconds(),
+	}
+	aH.writeJSON(w, r, &structuredRes)
+}
+
+func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics func(context.Context, metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error)) {
+	requestParams, err := aH.queryParser.parseMetricsQueryParams(r)
+	if aH.handleError(w, err, http.StatusBadRequest) {
+		return
+	}
+	m, err := getMetrics(r.Context(), requestParams)
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	aH.writeJSON(w, r, m)
 }
 
 func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
@@ -431,6 +480,9 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, disabled.ErrDisabled) {
+		statusCode = http.StatusNotImplemented
+	}
 	if statusCode == http.StatusInternalServerError {
 		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
 	}
@@ -448,19 +500,19 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 }
 
 func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response interface{}) {
-	marshall := json.Marshal
-	if prettyPrint := r.FormValue(prettyPrintParam); prettyPrint != "" && prettyPrint != "false" {
-		marshall = func(v interface{}) ([]byte, error) {
-			return json.MarshalIndent(v, "", "    ")
-		}
+	prettyPrintValue := r.FormValue(prettyPrintParam)
+	prettyPrint := prettyPrintValue != "" && prettyPrintValue != "false"
+
+	var marshal jsonMarshaler
+	switch response.(type) {
+	case proto.Message:
+		marshal = newProtoJSONMarshaler(prettyPrint)
+	default:
+		marshal = newStructJSONMarshaler(prettyPrint)
 	}
-	resp, err := marshall(response)
-	if err != nil {
-		aH.handleError(w, fmt.Errorf("failed marshalling HTTP response to JSON: %w", err), http.StatusInternalServerError)
-		return
-	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(resp); err != nil {
+	if err := marshal(w, response); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
 	}
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
+	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -51,6 +52,12 @@ func main() {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
 
+	fc := metricsPlugin.FactoryConfigFromEnv()
+	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
+	if err != nil {
+		log.Fatalf("Cannot initialize metrics factory: %v", err)
+	}
+
 	v := viper.New()
 	var command = &cobra.Command{
 		Use:   "jaeger-query",
@@ -63,6 +70,7 @@ func main() {
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
+			version.NewInfoMetrics(metricsFactory)
 
 			traceCfg := &jaegerClientConfig.Configuration{
 				ServiceName: "jaeger-query",
@@ -88,7 +96,7 @@ func main() {
 			queryOpts := new(app.QueryOptions).InitFromViper(v, logger)
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(spanstore.StoragePropagationKey, queryOpts.BearerTokenPropagation)
-			storageFactory.InitFromViper(v)
+			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
@@ -101,13 +109,17 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
+
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger)
+			if err != nil {
+				logger.Fatal("Failed to create metrics query service", zap.Error(err))
+			}
 			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
 				*queryServiceOptions)
-
-			server, err := app.NewServer(svc.Logger, queryService, queryOpts, tracer)
+			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tracer)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
@@ -143,10 +155,21 @@ func main() {
 		svc.AddFlags,
 		storageFactory.AddFlags,
 		app.AddFlags,
+		metricsReaderFactory.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+}
+
+func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
+	if err := factory.Initialize(logger); err != nil {
+		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
+	}
+
+	// Ensure default parameter values are loaded correctly.
+	factory.InitFromViper(v, logger)
+	return factory.CreateMetricsReader()
 }

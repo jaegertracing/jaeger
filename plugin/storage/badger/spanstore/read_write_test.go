@@ -398,7 +398,7 @@ func TestPersist(t *testing.T) {
 			keyParam,
 			valueParam,
 		})
-		f.InitFromViper(v)
+		f.InitFromViper(v, zap.NewNop())
 
 		err = f.Initialize(metrics.NullFactory, zap.NewNop())
 		assert.NoError(t, err)
@@ -457,7 +457,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 		"--badger.ephemeral=true",
 		"--badger.consistency=false",
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(tb, err)
@@ -628,7 +628,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 		valueParam,
 	})
 
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	err = f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(err)

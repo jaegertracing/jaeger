@@ -2,7 +2,7 @@ ARG base_image
 ARG debug_image
 
 FROM $base_image AS release
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 COPY collector-linux-$TARGETARCH /go/bin/collector-linux
 EXPOSE 14250/tcp
 ENTRYPOINT ["/go/bin/collector-linux"]

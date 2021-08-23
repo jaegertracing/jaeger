@@ -239,7 +239,11 @@ def get_request_session(username, password, tls, ca, cert, key, skipHostVerify):
 def get_version(client):
     esVersion = os.getenv('ES_VERSION')
     if esVersion is None or esVersion == '':
-        esVersion = client.info()['version']['number'][0]
+        pingResult = client.info()
+        if "OpenSearch" in pingResult['tagline'] and pingResult['version']['number'][0] == '1':
+            print('Detected openSearch Version {}'.format(pingResult['version']))
+            return 7
+        esVersion = pingResult['version']['number'][0]
         print('Detected ElasticSearch Version {}'.format(esVersion))
         esVersion = int(esVersion)
     return esVersion

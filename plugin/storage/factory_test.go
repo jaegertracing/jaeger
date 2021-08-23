@@ -300,6 +300,7 @@ type configurable struct {
 	mocks.Factory
 	flagSet *flag.FlagSet
 	viper   *viper.Viper
+	logger  *zap.Logger
 }
 
 // AddFlags implements plugin.Configurable
@@ -308,8 +309,9 @@ func (f *configurable) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *configurable) InitFromViper(v *viper.Viper) {
+func (f *configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.viper = v
+	f.logger = logger
 }
 
 func TestConfigurable(t *testing.T) {
@@ -328,7 +330,7 @@ func TestConfigurable(t *testing.T) {
 	v := viper.New()
 
 	f.AddFlags(fs)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, fs, mock.flagSet)
 	assert.Equal(t, v, mock.viper)
@@ -341,7 +343,7 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 		"--downsampling.ratio=1.5",
 		"--downsampling.hashsalt=jaeger"})
 	assert.NoError(t, err)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 1.0)
 	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, "jaeger")
@@ -349,7 +351,7 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	err = command.ParseFlags([]string{
 		"--downsampling.ratio=0.5"})
 	assert.NoError(t, err)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
 }
 
@@ -358,7 +360,7 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{})
 	assert.NoError(t, err)
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, defaultDownsamplingRatio)
 	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, defaultDownsamplingHashSalt)

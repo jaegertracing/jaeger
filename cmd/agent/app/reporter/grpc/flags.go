@@ -32,9 +32,7 @@ const (
 )
 
 var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
-	Prefix:         gRPCPrefix,
-	ShowEnabled:    true,
-	ShowServerName: true,
+	Prefix: gRPCPrefix,
 }
 
 // AddFlags adds flags for Options.

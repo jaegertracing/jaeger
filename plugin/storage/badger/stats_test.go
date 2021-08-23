@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build !linux
+//go:build !linux
 
 package badger
 
@@ -34,7 +34,7 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 		"--badger.ephemeral=true",
 		"--badger.consistency=false",
 	})
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	defer f.Close()

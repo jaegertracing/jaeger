@@ -26,27 +26,24 @@ import (
 )
 
 const (
-	collectorDynQueueSizeMemory   = "collector.queue-size-memory"
-	collectorGRPCHostPort         = "collector.grpc-server.host-port"
-	collectorHTTPHostPort         = "collector.http-server.host-port"
-	collectorNumWorkers           = "collector.num-workers"
-	collectorQueueSize            = "collector.queue-size"
-	collectorTags                 = "collector.tags"
-	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
-	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
-	collectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
+	collectorDynQueueSizeMemory          = "collector.queue-size-memory"
+	collectorGRPCHostPort                = "collector.grpc-server.host-port"
+	collectorHTTPHostPort                = "collector.http-server.host-port"
+	collectorNumWorkers                  = "collector.num-workers"
+	collectorQueueSize                   = "collector.queue-size"
+	collectorTags                        = "collector.tags"
+	collectorZipkinAllowedHeaders        = "collector.zipkin.allowed-headers"
+	collectorZipkinAllowedOrigins        = "collector.zipkin.allowed-origins"
+	collectorZipkinHTTPHostPort          = "collector.zipkin.host-port"
+	collectorGRPCMaxReceiveMessageLength = "collector.grpc-server.max-message-size"
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "collector.grpc",
-	ShowEnabled:  true,
-	ShowClientCA: true,
+	Prefix: "collector.grpc",
 }
 
 var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "collector.http",
-	ShowEnabled:  true,
-	ShowClientCA: true,
+	Prefix: "collector.http",
 }
 
 // CollectorOptions holds configuration for collector
@@ -73,12 +70,15 @@ type CollectorOptions struct {
 	CollectorZipkinAllowedOrigins string
 	// CollectorZipkinAllowedHeaders is a list of headers that the Zipkin collector service allowes the client to use with cross-domain requests
 	CollectorZipkinAllowedHeaders string
+	// CollectorGRPCMaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
+	CollectorGRPCMaxReceiveMessageLength int
 }
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
 	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
+	flags.Int(collectorGRPCMaxReceiveMessageLength, DefaultGRPCMaxReceiveMessageLength, "The maximum receivable message size for the collector's GRPC server")
 	flags.String(collectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the collector's GRPC server")
 	flags.String(collectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the collector's HTTP server")
 	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
@@ -104,6 +104,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
 	cOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
+	cOpts.CollectorGRPCMaxReceiveMessageLength = v.GetInt(collectorGRPCMaxReceiveMessageLength)
 
 	return cOpts
 }

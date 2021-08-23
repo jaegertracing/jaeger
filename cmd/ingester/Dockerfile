@@ -2,7 +2,7 @@ ARG base_image
 ARG debug_image
 
 FROM $base_image AS release
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 COPY ingester-linux-$TARGETARCH /go/bin/ingester-linux
 EXPOSE 14270/tcp 14271/tcp
 ENTRYPOINT ["/go/bin/ingester-linux"]

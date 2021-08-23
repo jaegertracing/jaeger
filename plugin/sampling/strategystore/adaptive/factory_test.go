@@ -47,7 +47,7 @@ func TestFactory(t *testing.T) {
 		"--sampling.follower-lease-refresh-interval=2s",
 	})
 
-	f.InitFromViper(v)
+	f.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, 5.0, f.options.TargetSamplesPerSecond)
 	assert.Equal(t, 0.25, f.options.DeltaTolerance)

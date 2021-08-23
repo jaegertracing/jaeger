@@ -20,9 +20,9 @@ jobs:
 
     - uses: actions/setup-go@v2
       with:
-        go-version: ^1.16
+        go-version: ^1.17
 
-    - uses: actions/setup-node@v2.1.5
+    - uses: actions/setup-node@v2.4.0
       with:
         node-version: '10'
 
@@ -31,6 +31,8 @@ jobs:
 
     - name: Install tools
       run: make install-ci
+    
+    - uses: docker/setup-qemu-action@v1
 
     - name: Build, test, and publish all-in-one image
       run: bash scripts/build-all-in-one-image.sh

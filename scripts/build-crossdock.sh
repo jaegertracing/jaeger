@@ -10,12 +10,15 @@ make build-and-run-crossdock
 # Only push images to dockerhub/quay.io for master branch
 if [[ "$BRANCH" == "master" ]]; then
   echo 'upload images to dockerhub/quay.io'
+  REPO=jaegertracing/test-driver
+  IMAGE_TAGS=$(bash scripts/compute-tags.sh $REPO)
+  IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${REPO}:${COMMIT} --tag quay.io/${REPO}:${COMMIT}"
+  bash scripts/docker-login.sh
+  docker buildx build --push \
+    --progress=plain \
+    --platform=linux/amd64 \
+    ${IMAGE_TAGS} \
+    crossdock/
 else
   echo 'skip docker images upload for PR'
-  exit 0
 fi
-
-# docker image has been build when running the crossdock
-REPO=jaegertracing/test-driver
-docker tag $REPO:latest $REPO:$COMMIT
-bash scripts/upload-to-registry.sh $REPO

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build index_cleaner
+//go:build index_cleaner
 
 package integration
 
@@ -114,10 +114,10 @@ func TestIndexCleaner(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s_no_prefix", test.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars), func(t *testing.T) {
 			runIndexCleanerTest(t, client, "", test.expectedIndices, test.envVars)
 		})
-		t.Run(fmt.Sprintf("%s_prefix", test.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s_prefix, %s", test.name, test.envVars), func(t *testing.T) {
 			runIndexCleanerTest(t, client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix))
 		})
 	}

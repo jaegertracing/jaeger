@@ -58,6 +58,7 @@ func main() {
 			mFactory := fork.New("internal",
 				jexpvar.NewFactory(10), // backend for internal opts
 				baseFactory)
+			version.NewInfoMetrics(mFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)

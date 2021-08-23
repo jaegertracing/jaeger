@@ -109,9 +109,7 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	addKerberosFlags(configPrefix, flagSet)
 
 	tlsClientConfig := tlscfg.ClientFlagsConfig{
-		Prefix:         configPrefix,
-		ShowEnabled:    true,
-		ShowServerName: true,
+		Prefix: configPrefix,
 	}
 	tlsClientConfig.AddFlags(flagSet)
 
