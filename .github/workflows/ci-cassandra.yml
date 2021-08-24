@@ -15,11 +15,11 @@ jobs:
         - distribution: cassandra
           major: 3.x
           image: 3.11
-          schema: v001 v002 v003
+          schema: v003
         - distribution: cassandra
           major: 4.x
           image: 4.0
-          schema: v004 v004 v004
+          schema: v004
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v2.3.4
@@ -31,18 +31,8 @@ jobs:
     - name: Run cassandra integration tests
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.schema }}
     services:
-      cassandra1:
+      cassandra:
         image: ${{ matrix.version.distribution }}:${{ matrix.version.image }}
         ports:
           - 9042:9042
           - 9160:9160
-      cassandra2:
-        image: ${{ matrix.version.distribution }}:${{ matrix.version.image }}
-        ports:
-          - 9043:9042
-          - 9161:9160
-      cassandra3:
-        image: ${{ matrix.version.distribution }}:${{ matrix.version.image }}
-        ports:
-          - 9044:9042
-          - 9162:9160
