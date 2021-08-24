@@ -21,7 +21,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
-# ALL_PKGS is used with 'golint'
+# ALL_PKGS is used with 'nocover'
 ALL_PKGS := $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
 UNAME := $(shell uname -m)
@@ -35,12 +35,7 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
-GOLINT=golint
-GOVET=go vet
 GOFMT=gofmt
-FMT_LOG=.fmt.log
-LINT_LOG=.lint.log
-IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
@@ -82,7 +77,7 @@ go-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html lint.log fmt.log \
+	rm -rf cover.out .cover/ cover.html \
 		jaeger-ui/packages/jaeger-ui/build
 
 .PHONY: test
@@ -131,7 +126,6 @@ index-rollover-integration-test: docker-images-elastic
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover $(STORAGE_PKGS) | $(COLORIZE)"
 
-
 .PHONY: token-propagation-integration-test
 token-propagation-integration-test:
 	go clean -testcache
@@ -162,39 +156,9 @@ fmt:
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
-.PHONY: lint-gosec
-lint-gosec:
-	time gosec -quiet -exclude=G104,G107 ./...
-
-.PHONY: lint-staticcheck
-lint-staticcheck:
-	@cat /dev/null > $(LINT_LOG)
-	time staticcheck ./... \
-		| grep -v \
-			-e model/model.pb.go \
-			-e proto-gen \
-			-e _test.pb.go \
-			-e thrift-gen/ \
-			-e swagger-gen/ \
-		>> $(LINT_LOG) || true
-	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
-
 .PHONY: lint
-lint: lint-staticcheck lint-gosec
-	$(GOVET) ./...
-	$(MAKE) go-lint
-	@echo Running go fmt on ALL_SRC ...
-	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
-	./scripts/updateLicenses.sh >> $(FMT_LOG)
-	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
-	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
-
-.PHONY: go-lint
-go-lint:
-	@cat /dev/null > $(LINT_LOG)
-	@echo Running go lint...
-	@$(GOLINT) $(ALL_PKGS) | grep -v _nolint.go >> $(LINT_LOG) || true;
-	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
+lint:
+	golangci-lint run
 
 .PHONY: build-examples
 build-examples:
@@ -395,16 +359,13 @@ changelog:
 .PHONY: install-tools
 install-tools:
 	go install github.com/wadey/gocovmerge
-	go install golang.org/x/lint/golint
 	go install github.com/mjibson/esc
-	go install github.com/securego/gosec/cmd/gosec
-	go install honnef.co/go/tools/cmd/staticcheck
 
 .PHONY: install-ci
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples lint cover
+test-ci: build-examples cover
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image

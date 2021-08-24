@@ -53,7 +53,7 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(i
 
 		// block further processing until startLock is released
 		startLock.Lock()
-		//lint:ignore SA2001 empty section is ok
+		//nolint:staticcheck // empty section is ok
 		startLock.Unlock()
 	})
 
