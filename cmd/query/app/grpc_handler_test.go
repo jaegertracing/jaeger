@@ -277,7 +277,7 @@ func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 		assert.NoError(t, err)
 
 		spanResChunk, err := res.Recv()
-		assert.Equal(t, errUninitializedTraceID, err)
+		assert.ErrorIs(t, err, errUninitializedTraceID)
 		assert.Nil(t, spanResChunk)
 	})
 }
@@ -362,7 +362,7 @@ func TestArchiveTraceEmptyTraceFailureGRPC(t *testing.T) {
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: model.TraceID{},
 		})
-		assert.Equal(t, errUninitializedTraceID, err)
+		assert.ErrorIs(t, err, errUninitializedTraceID)
 	})
 
 }
