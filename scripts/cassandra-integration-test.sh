@@ -1,12 +1,66 @@
 #!/bin/bash
 
-set -ex
+set -euxf -o pipefail
 
-# Build the schema container and run it rather than using the existing container in Docker Hub since that
-# requires this current build to succeed before this test can use it; chicken and egg problem.
-docker build -t jaeger-cassandra-schema-integration-test plugin/storage/cassandra/
-docker run -e CQLSH_HOST=localhost -e CQLSH_PORT=9042 -e TEMPLATE=/cassandra-schema/$1.cql.tmpl --network=host jaeger-cassandra-schema-integration-test
+usage() {
+  echo $"Usage: $0 <cassandra_version> <schema_version>"
+  exit 1
+}
 
-# Run the test.
-export STORAGE=cassandra
-make storage-integration-test
+check_arg() {
+  if [ ! $# -eq 2 ]; then
+    echo "ERROR: need exactly two arguments, <cassandra_version> <schema_version>"
+    usage
+  fi
+}
+
+setup_cassandra() {
+  local tag=$1
+  local image=cassandra
+  local params=(
+    --rm
+    --detach
+    --publish 9042:9042
+    --publish 9160:9160
+  )
+  local cid=$(docker run ${params[@]} ${image}:${tag})
+  echo ${cid}
+}
+
+teardown_cassandra() {
+  local cid=$1
+  docker kill ${cid}
+}
+
+apply_schema() {
+  local image=cassandra-schema
+  local schema_dir=plugin/storage/cassandra/
+  local schema_version=$1
+  local params=(
+    --rm
+    --env CQLSH_HOST=localhost
+    --env CQLSH_PORT=9042
+    --env TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl
+    --network host
+  )
+  docker build -t ${image} ${schema_dir}
+  docker run ${params[@]} ${image}
+}
+
+run_integration_test() {
+  local version=$1
+  local schema_version=$2
+  local cid=$(setup_cassandra ${version})
+  apply_schema "$2"
+  STORAGE=cassandra make storage-integration-test
+  teardown_cassandra ${cid}
+}
+
+main() {
+  check_arg "$@"
+
+  echo "Executing integration test for $1 with schema $2.cql.tmpl"
+  run_integration_test "$1" "$2"
+}
+
+main "$@"

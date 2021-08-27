@@ -29,10 +29,4 @@ jobs:
         go-version: ^1.17
 
     - name: Run cassandra integration tests
-      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.schema }}
-    services:
-      cassandra:
-        image: ${{ matrix.version.distribution }}:${{ matrix.version.image }}
-        ports:
-          - 9042:9042
-          - 9160:9160
+      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }}
