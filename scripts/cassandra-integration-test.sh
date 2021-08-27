@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euxf -o pipefail
+set -uxf -o pipefail
 
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
@@ -30,6 +30,7 @@ setup_cassandra() {
 teardown_cassandra() {
   local cid=$1
   docker kill ${cid}
+  exit ${exit_status}
 }
 
 apply_schema() {
@@ -53,7 +54,8 @@ run_integration_test() {
   local cid=$(setup_cassandra ${version})
   apply_schema "$2"
   STORAGE=cassandra make storage-integration-test
-  teardown_cassandra ${cid}
+  exit_status=$?
+  trap 'teardown_cassandra ${cid}' EXIT
 }
 
 main() {
