@@ -36,7 +36,7 @@ services:
         - jaeger-collector
 
     cassandra:
-      image: cassandra:3.9
+      image: cassandra:4.0
 
     cassandra-schema:
       image: jaegertracing/jaeger-cassandra-schema
