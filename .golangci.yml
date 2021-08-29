@@ -1,7 +1,6 @@
 run:
   timeout: 10m
   skip-dirs:
-    # Generated code.
     - swagger-gen
     - pkg/cassandra/mocks
     - storage/mocks
