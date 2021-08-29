@@ -264,6 +264,23 @@ func assertGRPCError(t *testing.T, err error, code codes.Code, msg string) {
 	assert.Equal(t, code, s.Code())
 	assert.Contains(t, s.Message(), msg)
 }
+func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).Once()
+
+		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+			TraceID: model.TraceID{},
+		})
+
+		assert.NoError(t, err)
+
+		spanResChunk, err := res.Recv()
+		assert.ErrorIs(t, err, errUninitializedTraceID)
+		assert.Nil(t, spanResChunk)
+	})
+}
 
 func TestGetTraceDBFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
@@ -302,6 +319,13 @@ func TestGetTraceNotFoundGRPC(t *testing.T) {
 	})
 }
 
+// test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
+func TestGetTraceNilRequestOnHandlerGRPC(t *testing.T) {
+	grpcHandler := &GRPCHandler{}
+	err := grpcHandler.GetTrace(nil, nil)
+	assert.EqualError(t, err, errNilRequest.Error())
+}
+
 func TestArchiveTraceSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -332,6 +356,24 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 	})
 }
 
+func TestArchiveTraceEmptyTraceFailureGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+
+		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
+			TraceID: model.TraceID{},
+		})
+		assert.ErrorIs(t, err, errUninitializedTraceID)
+	})
+
+}
+
+// test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
+func TestArchiveTraceNilRequestOnHandlerGRPC(t *testing.T) {
+	grpcHandler := &GRPCHandler{}
+	_, err := grpcHandler.ArchiveTrace(context.Background(), nil)
+	assert.EqualError(t, err, errNilRequest.Error())
+}
+
 func TestArchiveTraceFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
@@ -348,7 +390,7 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 	})
 }
 
-func TestSearchSuccessGRPC(t *testing.T) {
+func TestFindTracesSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 			Return([]*model.Trace{mockTraceGRPC}, nil).Once()
@@ -376,7 +418,7 @@ func TestSearchSuccessGRPC(t *testing.T) {
 	})
 }
 
-func TestSearchSuccess_SpanStreamingGRPC(t *testing.T) {
+func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
 		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
@@ -405,7 +447,7 @@ func TestSearchSuccess_SpanStreamingGRPC(t *testing.T) {
 	})
 }
 
-func TestSearchInvalid_GRPC(t *testing.T) {
+func TestFindTracesMissingQuery_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
 			Query: nil,
@@ -418,7 +460,7 @@ func TestSearchInvalid_GRPC(t *testing.T) {
 	})
 }
 
-func TestSearchFailure_GRPC(t *testing.T) {
+func TestFindTracesFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		mockErrorGRPC := fmt.Errorf("whatsamattayou")
 
@@ -442,6 +484,13 @@ func TestSearchFailure_GRPC(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, spanResChunk)
 	})
+}
+
+// test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
+func TestFindTracesNilRequestOnHandlerGRPC(t *testing.T) {
+	grpcHandler := &GRPCHandler{}
+	err := grpcHandler.FindTraces(nil, nil)
+	assert.EqualError(t, err, errNilRequest.Error())
 }
 
 func TestGetServicesSuccessGRPC(t *testing.T) {
@@ -507,6 +556,13 @@ func TestGetOperationsFailureGRPC(t *testing.T) {
 	})
 }
 
+// test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
+func TestGetOperationsNilRequestOnHandlerGRPC(t *testing.T) {
+	grpcHandler := &GRPCHandler{}
+	_, err := grpcHandler.GetOperations(context.Background(), nil)
+	assert.EqualError(t, err, errNilRequest.Error())
+}
+
 func TestGetDependenciesSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
@@ -537,6 +593,37 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 
 		assertGRPCError(t, err, codes.Internal, "failed to fetch dependencies")
 	})
+}
+
+func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
+
+	timeInputs := []struct {
+		startTime time.Time
+		endTime   time.Time
+	}{
+		{time.Time{}, time.Time{}},
+		{time.Now(), time.Time{}},
+		{time.Time{}, time.Now()},
+	}
+
+	for _, input := range timeInputs {
+		withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+
+			_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
+				StartTime: input.startTime,
+				EndTime:   input.endTime,
+			})
+
+			assert.Error(t, err)
+		})
+	}
+}
+
+// test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
+func TestGetDependenciesNilRequestOnHandlerGRPC(t *testing.T) {
+	grpcHandler := &GRPCHandler{}
+	_, err := grpcHandler.GetDependencies(context.Background(), nil)
+	assert.EqualError(t, err, errNilRequest.Error())
 }
 
 func TestSendSpanChunksError(t *testing.T) {

@@ -87,11 +87,12 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		HostPort:      builderOpts.CollectorGRPCHostPort,
-		Handler:       c.spanHandlers.GRPCHandler,
-		TLSConfig:     builderOpts.TLSGRPC,
-		SamplingStore: c.strategyStore,
-		Logger:        c.logger,
+		HostPort:                builderOpts.CollectorGRPCHostPort,
+		Handler:                 c.spanHandlers.GRPCHandler,
+		TLSConfig:               builderOpts.TLSGRPC,
+		SamplingStore:           c.strategyStore,
+		Logger:                  c.logger,
+		MaxReceiveMessageLength: builderOpts.CollectorGRPCMaxReceiveMessageLength,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC collector %w", err)

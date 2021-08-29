@@ -1,15 +1,19 @@
 Changes by Version
 ==================
 
-Unreleased
+1.25.0 (2021-08-04)
 -------------------
-### Backend Changes
-
-#### Breaking Changes
-
 #### New Features
+* Add query service with OTLP ([#3086](https://github.com/jaegertracing/jaeger/pull/3086), [@pavolloffay](https://github.com/pavolloffay))
+* Add ppc64le support on multiarch docker images ([#3160](https://github.com/jaegertracing/jaeger/pull/3160), [@krishvoor](https://github.com/krishvoor))
 
 #### Bug fixes, Minor Improvements
+* Fix base path in grpc gateway for api_v3 ([#3139](https://github.com/jaegertracing/jaeger/pull/3139), [@pavolloffay](https://github.com/pavolloffay))
+* Add /api prefix for /v3 API ([#3178](https://github.com/jaegertracing/jaeger/pull/3178), [@pavolloffay](https://github.com/pavolloffay))
+* Define `http.Server.ErrorLog` to forward logs to Zap ([#3157](https://github.com/jaegertracing/jaeger/pull/3157), [@yurishkuro](https://github.com/yurishkuro))
+* Add ATM dev environment docker-compose and API doc ([#3171](https://github.com/jaegertracing/jaeger/pull/3171), [@albertteoh](https://github.com/albertteoh))
+* Log the source of sampling strategies ([#3166](https://github.com/jaegertracing/jaeger/pull/3166), [@yurishkuro](https://github.com/yurishkuro))
+* Pin elasticsearch-py to older version without elastic.co product check ([#3180](https://github.com/jaegertracing/jaeger/pull/3180), [@pavolloffay](https://github.com/pavolloffay))
 
 1.24.0 (2021-07-07)
 -------------------

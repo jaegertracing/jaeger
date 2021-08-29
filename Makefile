@@ -110,7 +110,6 @@ grpc-plugin-storage-integration-test:
 .PHONY: test-compile-es-scripts
 test-compile-es-scripts:
 	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
-	docker run --rm -v ${PWD}:/tmp/jaeger python:3-alpine3.11 /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
@@ -179,6 +178,10 @@ build-esmapping-generator:
 .PHONY: build-esmapping-generator-linux
 build-esmapping-generator-linux:
 	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/main.go
+
+.PHONY: build-es-index-cleaner
+build-es-index-cleaner:
+	$(GOBUILD) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/main.go
 
 .PHONY: docker-hotrod
 docker-hotrod:
@@ -270,7 +273,8 @@ build-platform-binaries: build-agent \
 	build-examples \
 	build-tracegen \
 	build-anonymizer \
-	build-esmapping-generator
+	build-esmapping-generator \
+	build-es-index-cleaner
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
@@ -281,9 +285,10 @@ docker-images-cassandra:
 	@echo "Finished building jaeger-cassandra-schema =============="
 
 .PHONY: docker-images-elastic
-docker-images-elastic: 
+docker-images-elastic: create-baseimg
 	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-esmapping-generator
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
+	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-es-index-cleaner
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-index-cleaner
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-es-indices-clean =============="
 

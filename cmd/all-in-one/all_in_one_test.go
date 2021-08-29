@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build integration
+//go:build integration
 
 package main
 
@@ -47,7 +47,7 @@ const (
 	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
 	getSamplingStrategyURL = agentURL + "/sampling?service=whatever"
 
-	getServicesAPIV3URL = queryURL + "/v3/services"
+	getServicesAPIV3URL = queryURL + "/api/v3/services"
 )
 
 var (
