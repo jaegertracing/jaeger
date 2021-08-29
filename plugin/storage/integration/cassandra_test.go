@@ -84,20 +84,6 @@ func (s *CassandraStorageIntegration) initializeCassandra() error {
 	return nil
 }
 
-func (s *CassandraStorageIntegration) initializeCassandraDependenciesV2() error {
-	f, err := s.initializeCassandraFactory([]string{
-		"--cassandra.keyspace=jaeger_v1_dc1",
-		"--cassandra.port=9043",
-	})
-	if err != nil {
-		return err
-	}
-	if err = s.initializeDependencyReaderAndWriter(f); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(f *cassandra.Factory) error {
 	var (
 		err error
@@ -144,10 +130,7 @@ func TestCassandraStorage(t *testing.T) {
 		t.Skip("Integration test against Cassandra skipped; set STORAGE env var to cassandra to run this")
 	}
 	s1 := newCassandraStorageIntegration()
-	s2 := newCassandraStorageIntegration()
 	require.NoError(t, s1.initializeCassandra())
-	require.NoError(t, s2.initializeCassandraDependenciesV2())
 	// TODO: Support all other tests.
 	t.Run("GetDependencies", s1.testCassandraGetDependencies)
-	t.Run("GetDependenciesV2", s2.testCassandraGetDependencies)
 }
