@@ -36,7 +36,7 @@ GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOFMT=gofmt
-LIC_LOG=.fmt.log
+LIC_LOG=.lic.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
@@ -78,7 +78,7 @@ go-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html \
+	rm -rf cover.out .cover/ cover.html .lic.log \
 		jaeger-ui/packages/jaeger-ui/build
 
 .PHONY: test
