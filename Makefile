@@ -36,6 +36,7 @@ GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOFMT=gofmt
+LIC_LOG=.fmt.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
@@ -157,7 +158,9 @@ fmt:
 
 .PHONY: lint
 lint:
-	golangci-lint run
+	golangci-lint -v run
+	./scripts/updateLicenses.sh > $(LIC_LOG)
+	@[ ! -s "$(LIC_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(LIC_LOG) && false)
 
 .PHONY: build-examples
 build-examples:
@@ -365,12 +368,13 @@ changelog:
 install-tools:
 	go install github.com/wadey/gocovmerge
 	go install github.com/mjibson/esc
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.0
 
 .PHONY: install-ci
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples cover
+test-ci: build-examples lint cover
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image

@@ -22,12 +22,6 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v2
-      with:
-        version: v1.42
-        args: --verbose
-
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v2.0.3
       with:
