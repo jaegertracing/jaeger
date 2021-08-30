@@ -21,9 +21,30 @@ function usage {
 trace_ttl=${TRACE_TTL:-172800}
 dependencies_ttl=${DEPENDENCIES_TTL:-0}
 
+# Extract cassandra version
+#
+# $ cqlsh -e "show version"
+# [cqlsh 5.0.1 | Cassandra 3.11.11 | CQL spec 3.4.4 | Native protocol v4]
+#
+cas_version=$(cqlsh -e "show version" \
+    | awk -F "|" '{print $2}' \
+    | awk -F " " '{print $2}' \
+    | awk -F "." '{print $1}' \
+)
+
 template=$1
 if [[ "$template" == "" ]]; then
-    template=$(ls $(dirname $0)/*cql.tmpl | sort | tail -1)
+    case "$cas_version" in
+        3)
+            template=$(dirname $0)/v003.cql.tmpl
+            ;;
+        4)
+            template=$(dirname $0)/v004.cql.tmpl
+            ;;
+        *)
+            template=$(ls $(dirname $0)/*cql.tmpl | sort | tail -1)
+            ;;
+    esac
 fi
 
 if [[ "$MODE" == "" ]]; then

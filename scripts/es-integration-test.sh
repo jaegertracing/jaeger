@@ -78,7 +78,7 @@ run_integration_test() {
   if [ ${distro} = "elasticsearch" ]; then
     cid=$(setup_es ${version})
   elif [ ${distro} == "opensearch" ]; then
-      cid=$(setup_opensearch ${version})
+    cid=$(setup_opensearch ${version})
   else
     echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
     usage
