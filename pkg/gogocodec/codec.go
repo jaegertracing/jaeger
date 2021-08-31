@@ -19,8 +19,8 @@ import (
 	"strings"
 
 	gogoproto "github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc/encoding"
-	"google.golang.org/protobuf/proto"
 )
 
 const jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
