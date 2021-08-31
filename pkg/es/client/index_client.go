@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package client
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -33,15 +32,16 @@ type Index struct {
 	Aliases map[string]bool
 }
 
+type Alias struct {
+	Index        string
+	Name         string
+	IsWriteIndex bool
+}
+
 // IndicesClient is a client used to manipulate indices.
 type IndicesClient struct {
-	// Http client.
-	Client *http.Client
-	// ES server endpoint.
-	Endpoint string
-	// ES master_timeout parameter.
+	Client
 	MasterTimeoutSeconds int
-	BasicAuth            string
 }
 
 // GetJaegerIndices queries all Jaeger indices including the archive and rollover.
@@ -55,23 +55,10 @@ type IndicesClient struct {
 //         indices: jaeger-span-archive-000001
 func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 	prefix += "jaeger-*"
-	r, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s?flat_settings=true&filter_path=*.aliases,*.settings", i.Endpoint, prefix), nil)
-	if err != nil {
-		return nil, err
-	}
-	i.setAuthorization(r)
-	res, err := i.Client.Do(r)
+
+	body, err := i.getRequest(fmt.Sprintf("%s?flat_settings=true&filter_path=*.aliases,*.settings", prefix))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query indices: %w", err)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to query indices: %w", handleFailedRequest(res))
-	}
-
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query indices and read response body: %w", err)
 	}
 
 	type indexInfo struct {
@@ -109,36 +96,58 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 		concatIndices += ","
 	}
 
-	r, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/%s?master_timeout=%ds", i.Endpoint, concatIndices, i.MasterTimeoutSeconds), nil)
-	if err != nil {
-		return err
-	}
-	i.setAuthorization(r)
+	err := i.deleteRequest(fmt.Sprintf("%s?master_timeout=%ds", concatIndices, i.MasterTimeoutSeconds), nil)
 
-	res, err := i.Client.Do(r)
 	if err != nil {
 		return fmt.Errorf("failed to delete indices: %w", err)
 	}
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to delete indices: %s, %w", concatIndices, handleFailedRequest(res))
-	}
+
 	return nil
 }
 
-func handleFailedRequest(res *http.Response) error {
-	var body string
-	if res.Body != nil {
-		bodyBytes, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return fmt.Errorf("request failed and failed to read response body, status code: %d, %w", res.StatusCode, err)
-		}
-		body = string(bodyBytes)
-	}
-	return fmt.Errorf("request failed, status code: %d, body: %s", res.StatusCode, body)
+func (i *IndicesClient) Create(index string) error {
+	return i.putRequest(index, nil)
 }
 
-func (i *IndicesClient) setAuthorization(r *http.Request) {
-	if i.BasicAuth != "" {
-		r.Header.Add("Authorization", fmt.Sprintf("Basic %s", i.BasicAuth))
+func (i *IndicesClient) CreateAlias(aliases []Alias) error {
+	actions := []map[string]interface{}{}
+
+	for _, alias := range aliases {
+		options := map[string]interface{}{
+			"index": alias.Index,
+			"alias": alias.Name,
+		}
+		if alias.IsWriteIndex {
+			options["is_write_index"] = true
+		}
+		actions = append(actions, map[string]interface{}{
+			"add": options,
+		})
 	}
+
+	body := map[string]interface{}{
+		"actions": actions,
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	return i.postRequest("_aliases", bodyBytes)
+}
+
+func (c IndicesClient) CreateTemplate(template, name string) error {
+	b := []byte(template)
+	return c.putRequest(fmt.Sprintf("_template/%s", name), b)
+}
+
+func (c IndicesClient) ILMPolicyExists(template string) error {
+	_, err := c.getRequest(fmt.Sprintf("_template/%s", template))
+	if respError, isResponseErr := err.(ResponseError); isResponseErr {
+		if respError.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", template)
+		}
+	}
+	return err
 }

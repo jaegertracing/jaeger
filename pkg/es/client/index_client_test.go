@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package client
 
 import (
 	"net/http"
@@ -121,8 +121,10 @@ func TestClientGetIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client:   testServer.Client(),
-				Endpoint: testServer.URL,
+				Client: Client{
+					Client:   testServer.Client(),
+					Endpoint: testServer.URL,
+				},
 			}
 
 			indices, err := c.GetJaegerIndices("")
@@ -156,7 +158,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "ailed to delete indices: jaeger-span",
+			errContains:  "failed to delete indices: jaeger-span",
 		},
 	}
 	for _, test := range tests {
@@ -171,9 +173,11 @@ func TestClientDeleteIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client:    testServer.Client(),
-				Endpoint:  testServer.URL,
-				BasicAuth: "foobar",
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
 			}
 
 			err := c.DeleteIndices([]Index{
@@ -192,7 +196,9 @@ func TestClientDeleteIndices(t *testing.T) {
 
 func TestClientRequestError(t *testing.T) {
 	c := &IndicesClient{
-		Endpoint: "%",
+		Client: Client{
+			Endpoint: "%",
+		},
 	}
 	err := c.DeleteIndices([]Index{})
 	require.Error(t, err)
@@ -203,8 +209,10 @@ func TestClientRequestError(t *testing.T) {
 
 func TestClientDoError(t *testing.T) {
 	c := &IndicesClient{
-		Endpoint: "localhost:1",
-		Client:   &http.Client{},
+		Client: Client{
+			Client:   &http.Client{},
+			Endpoint: "localhost:1",
+		},
 	}
 	err := c.DeleteIndices([]Index{})
 	require.Error(t, err)
