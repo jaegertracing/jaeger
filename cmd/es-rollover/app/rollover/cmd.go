@@ -34,7 +34,7 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 	cfg := &Config{}
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 	command := &cobra.Command{
-		Use:   "rollover",
+		Use:   "rollover http://HOSTNAME:PORT",
 		Short: "rollover to new write index",
 		Long:  "rollover to new write index",
 		RunE: func(cmd *cobra.Command, args []string) error {

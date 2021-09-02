@@ -39,7 +39,7 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 	cfg := &Config{}
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 	command := &cobra.Command{
-		Use:   "init",
+		Use:   "init http://HOSTNAME:PORT",
 		Short: "creates indices and aliases",
 		Long:  "creates indices and aliases",
 		RunE: func(cmd *cobra.Command, args []string) error {

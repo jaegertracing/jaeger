@@ -32,7 +32,7 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 	cfg := &Config{}
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 	command := &cobra.Command{
-		Use:   "lookback",
+		Use:   "lookback http://HOSTNAME:PORT",
 		Short: "removes old indices from read alias",
 		Long:  "removes old indices from read alias",
 		RunE: func(cmd *cobra.Command, args []string) error {
