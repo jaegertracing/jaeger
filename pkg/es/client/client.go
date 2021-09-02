@@ -114,10 +114,14 @@ func (c *Client) deleteRequest(endpoint string, body []byte) error {
 
 func (c *Client) postRequest(endpoint string, body []byte) error {
 	var reader *bytes.Buffer
+	var r *http.Request
+	var err error
 	if body != nil {
 		reader = bytes.NewBuffer(body)
+		r, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), reader)
+	} else {
+		r, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), nil)
 	}
-	r, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), reader)
 	if err != nil {
 		return err
 	}

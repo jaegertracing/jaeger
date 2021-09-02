@@ -151,3 +151,17 @@ func (c IndicesClient) ILMPolicyExists(template string) error {
 	}
 	return err
 }
+
+func (c IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
+	if len(conditions) > 0 {
+		body := map[string]interface{}{
+			"conditions": conditions,
+		}
+		bodyBytes, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		return c.postRequest(fmt.Sprintf("%s/_rollover/", rolloverTarget), bodyBytes)
+	}
+	return c.postRequest(fmt.Sprintf("%s/_rollover/", rolloverTarget), nil)
+}

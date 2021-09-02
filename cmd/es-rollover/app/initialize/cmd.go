@@ -33,9 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
-const rolloverIndexFormat = "%s-000001"
-const writeAliasFormat = "%s-write"
-const readAliasFormat = "%s-read"
 const ilmVersionSupport = 7
 
 func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
@@ -102,11 +99,6 @@ type InitCommand struct {
 	IndicesClient client.IndicesClient
 }
 
-type IndexSet struct {
-	rolloverIndex string
-	template      string
-}
-
 func (c InitCommand) getMapping(version uint, templateName string) (string, error) {
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
@@ -118,28 +110,6 @@ func (c InitCommand) getMapping(version uint, templateName string) (string, erro
 		EsVersion:       version,
 	}
 	return mappingBuilder.GetMapping(templateName)
-}
-
-func (c InitCommand) rolloverIndices() []IndexSet {
-	if c.Config.Archive {
-		return []IndexSet{
-			{
-				rolloverIndex: strings.TrimLeft(fmt.Sprintf("%s-jaeger-span-archive", c.Config.IndexPrefix), "-"),
-				template:      "jaeger-span",
-			},
-		}
-	} else {
-		return []IndexSet{
-			{
-				rolloverIndex: strings.TrimLeft(fmt.Sprintf("%s-jaeger-span", c.Config.IndexPrefix), "-"),
-				template:      "jaeger-span",
-			},
-			{
-				rolloverIndex: strings.TrimLeft(fmt.Sprintf("%s-jaeger-service", c.Config.IndexPrefix), "-"),
-				template:      "jaeger-service",
-			},
-		}
-	}
 }
 
 func (c InitCommand) Do() error {
@@ -156,7 +126,7 @@ func (c InitCommand) Do() error {
 			return fmt.Errorf("ILM is supported only for ES version 7+")
 		}
 	}
-	rolloverIndices := c.rolloverIndices()
+	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := c.action(version, indexName); err != nil {
 			return err
@@ -166,17 +136,17 @@ func (c InitCommand) Do() error {
 	return nil
 }
 
-func (c InitCommand) action(version uint, indexset IndexSet) error {
-	mapping, err := c.getMapping(version, indexset.template)
+func (c InitCommand) action(version uint, indexset app.IndexSet) error {
+	mapping, err := c.getMapping(version, indexset.Template)
 	if err != nil {
 		return err
 	}
 
-	err = c.IndicesClient.CreateTemplate(mapping, indexset.template)
+	err = c.IndicesClient.CreateTemplate(mapping, indexset.Template)
 	if err != nil {
 		return err
 	}
-	index := fmt.Sprintf(rolloverIndexFormat, indexset.rolloverIndex)
+	index := indexset.InitialRolloverIndex()
 
 	err = c.IndicesClient.Create(index)
 	if esErr, ok := err.(client.ResponseError); ok {
@@ -200,8 +170,8 @@ func (c InitCommand) action(version uint, indexset IndexSet) error {
 		Indices: jaegerIndices,
 	}
 
-	readAlias := fmt.Sprintf(readAliasFormat, indexset.rolloverIndex)
-	writeAlias := fmt.Sprintf(writeAliasFormat, indexset.rolloverIndex)
+	readAlias := indexset.ReadAliasName()
+	writeAlias := indexset.WriteAliasName()
 
 	aliases := []client.Alias{}
 

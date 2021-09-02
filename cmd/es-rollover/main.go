@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/initialize"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 )
 
 func main() {
@@ -36,6 +37,7 @@ func main() {
 
 	// Configure init command
 	rootCmd.AddCommand(initialize.Command(v, logger))
+	rootCmd.AddCommand(rollover.Command(v, logger))
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalln(err)

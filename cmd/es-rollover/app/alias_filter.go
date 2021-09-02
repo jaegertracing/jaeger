@@ -21,11 +21,11 @@ type AliasFilter struct {
 }
 
 func (af AliasFilter) HasAliasEmpty(aliasName string) bool {
-	aliases := af.filterByAlias([]string{aliasName})
+	aliases := af.FilterByAlias([]string{aliasName})
 	return len(aliases) == 0
 }
 
-func (af AliasFilter) filterByAlias(aliases []string) []client.Index {
+func (af AliasFilter) FilterByAlias(aliases []string) []client.Index {
 	var results []client.Index
 	for _, alias := range aliases {
 		for _, index := range af.Indices {
