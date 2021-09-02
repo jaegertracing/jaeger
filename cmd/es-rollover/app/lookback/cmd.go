@@ -12,31 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rollover
+package lookback
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 	cfg := &Config{}
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 	command := &cobra.Command{
-		Use:   "rollover",
-		Short: "rollover to new write index",
-		Long:  "rollover to new write index",
+		Use:   "lookback",
+		Short: "removes old indices from read alias",
+		Long:  "removes old indices from read alias",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return fmt.Errorf("wrong number of arguments")
@@ -68,11 +66,11 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 				MasterTimeoutSeconds: cfg.Timeout,
 			}
 
-			rolloverAction := RolloverAction{
+			initCommand := LookBackAction{
 				IndicesClient: indicesClient,
 				Config:        *cfg,
 			}
-			return rolloverAction.Do()
+			return initCommand.Do()
 		},
 	}
 	config.AddFlags(
@@ -84,12 +82,12 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 	return command
 }
 
-type RolloverAction struct {
+type LookBackAction struct {
 	Config
 	IndicesClient client.IndicesClient
 }
 
-func (a *RolloverAction) Do() error {
+func (a *LookBackAction) Do() error {
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := a.action(indexName); err != nil {
@@ -99,35 +97,66 @@ func (a *RolloverAction) Do() error {
 	return nil
 }
 
-func (a *RolloverAction) action(indexSet app.IndexSet) error {
-	conditionsMap := map[string]interface{}{}
-	if len(a.Conditions) > 0 {
-		err := json.Unmarshal([]byte(a.Config.Conditions), &conditionsMap)
-		if err != nil {
-			return err
-		}
-	}
+func (a *LookBackAction) action(indexSet app.IndexSet) error {
 
-	writeAlias := indexSet.WriteAliasName()
-	readAlias := indexSet.ReadAliasName()
-	err := a.IndicesClient.Rollover(writeAlias, conditionsMap)
-	if err != nil {
-		return err
-	}
 	jaegerIndicex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}
-	aliasFilter := app.AliasFilter{
+	readAliasFilter := app.AliasFilter{
 		Indices: jaegerIndicex,
 	}
-	indicesWithWriteAlias := aliasFilter.FilterByAlias([]string{writeAlias})
-	aliases := make([]client.Alias, 0, len(indicesWithWriteAlias))
-	for _, index := range indicesWithWriteAlias {
+
+	readAliasName := indexSet.ReadAliasName()
+	readAliasIndices := readAliasFilter.FilterByAlias([]string{readAliasName})
+
+	excludeWriteFilter := app.AliasFilter{
+		Indices: readAliasIndices,
+	}
+	indices := excludeWriteFilter.FilterByAliasExclude([]string{indexSet.WriteAliasName()})
+
+	dateFilter := app.AliasFilter{
+		Indices: indices,
+	}
+	finalIndices := dateFilter.FilterByDate(getTimeReference(time.Now(), a.Unit, a.UnitCount))
+	if len(finalIndices) == 0 {
+		return fmt.Errorf("no indices to remove from alias %s", readAliasName)
+	}
+
+	aliases := make([]client.Alias, 0, len(finalIndices))
+
+	for _, index := range finalIndices {
 		aliases = append(aliases, client.Alias{
 			Index: index.Index,
-			Name:  readAlias,
+			Name:  readAliasName,
 		})
 	}
-	return a.IndicesClient.CreateAlias(aliases)
+	return a.IndicesClient.DeleteAlias(aliases)
+
+}
+
+func getTimeReference(now time.Time, units string, unitCount int) time.Time {
+	switch units {
+	case "minutes":
+		return now.Truncate(time.Minute).Add(time.Minute).Add(-time.Duration(unitCount) * time.Minute)
+	case "hours":
+		return now.Truncate(time.Minute).Add(time.Hour).Add(-time.Duration(unitCount) * time.Hour)
+	case "days":
+		year, month, day := time.Now().Date()
+		return time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(0, 0, -1*unitCount)
+	case "weeks":
+		diff := int(now.Weekday()) - int(time.Saturday)
+		year, month, day := time.Now().Date()
+		weekEnd := time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(0, 0, diff)
+		return weekEnd.Add(-time.Hour * 24 * 7 * time.Duration(unitCount))
+	case "months":
+		year, month, day := time.Now().Date()
+		return time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(0, -1*unitCount, 0)
+	case "years":
+		year, month, day := time.Now().Date()
+		return time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(1*unitCount, 0, 0)
+	}
+
+	return now.Add(-time.Duration(unitCount) * time.Second)
+
 }

@@ -14,7 +14,11 @@
 
 package app
 
-import "github.com/jaegertracing/jaeger/pkg/es/client"
+import (
+	"time"
+
+	"github.com/jaegertracing/jaeger/pkg/es/client"
+)
 
 type AliasFilter struct {
 	Indices []client.Index
@@ -26,14 +30,39 @@ func (af AliasFilter) HasAliasEmpty(aliasName string) bool {
 }
 
 func (af AliasFilter) FilterByAlias(aliases []string) []client.Index {
+	return af.filterByAliasWithOptions(aliases, false)
+}
+
+func (af AliasFilter) FilterByAliasExclude(aliases []string) []client.Index {
+	return af.filterByAliasWithOptions(aliases, true)
+}
+
+func (af AliasFilter) filterByAliasWithOptions(aliases []string, exclude bool) []client.Index {
 	var results []client.Index
 	for _, alias := range aliases {
 		for _, index := range af.Indices {
 			hasAlias := index.Aliases[alias]
-			if hasAlias {
-				results = append(results, index)
+			if !exclude {
+				if hasAlias {
+					results = append(results, index)
+				}
+			} else {
+				if !hasAlias {
+					results = append(results, index)
+				}
 			}
+
 		}
 	}
 	return results
+}
+
+func (i *AliasFilter) FilterByDate(DeleteBeforeThisDate time.Time) []client.Index {
+	var filtered []client.Index
+	for _, in := range i.Indices {
+		if in.CreationTime.Before(DeleteBeforeThisDate) {
+			filtered = append(filtered, in)
+		}
+	}
+	return filtered
 }

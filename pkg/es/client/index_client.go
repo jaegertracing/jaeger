@@ -110,6 +110,14 @@ func (i *IndicesClient) Create(index string) error {
 }
 
 func (i *IndicesClient) CreateAlias(aliases []Alias) error {
+	return i.aliasAction("add", aliases)
+}
+
+func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
+	return i.aliasAction("remove", aliases)
+}
+
+func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	actions := []map[string]interface{}{}
 
 	for _, alias := range aliases {
@@ -121,7 +129,7 @@ func (i *IndicesClient) CreateAlias(aliases []Alias) error {
 			options["is_write_index"] = true
 		}
 		actions = append(actions, map[string]interface{}{
-			"add": options,
+			action: options,
 		})
 	}
 
@@ -133,7 +141,6 @@ func (i *IndicesClient) CreateAlias(aliases []Alias) error {
 	if err != nil {
 		return err
 	}
-
 	return i.postRequest("_aliases", bodyBytes)
 }
 
