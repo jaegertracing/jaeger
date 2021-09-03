@@ -12,35 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package filter
 
 import (
-	"time"
-
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
-type AliasFilter struct {
-	Indices []client.Index
-}
-
-func (af AliasFilter) HasAliasEmpty(aliasName string) bool {
-	aliases := af.FilterByAlias([]string{aliasName})
+func HasAliasEmpty(indices []client.Index, aliasName string) bool {
+	aliases := ByAlias(indices, []string{aliasName})
 	return len(aliases) == 0
 }
 
-func (af AliasFilter) FilterByAlias(aliases []string) []client.Index {
-	return af.filterByAliasWithOptions(aliases, false)
+func ByAlias(indices []client.Index, aliases []string) []client.Index {
+	return filterByAliasWithOptions(indices, aliases, false)
 }
 
-func (af AliasFilter) FilterByAliasExclude(aliases []string) []client.Index {
-	return af.filterByAliasWithOptions(aliases, true)
+func ByAliasExclude(indices []client.Index, aliases []string) []client.Index {
+	return filterByAliasWithOptions(indices, aliases, true)
 }
 
-func (af AliasFilter) filterByAliasWithOptions(aliases []string, exclude bool) []client.Index {
+func filterByAliasWithOptions(indices []client.Index, aliases []string, exclude bool) []client.Index {
 	var results []client.Index
 	for _, alias := range aliases {
-		for _, index := range af.Indices {
+		for _, index := range indices {
 			hasAlias := index.Aliases[alias]
 			if !exclude {
 				if hasAlias {
@@ -55,14 +49,4 @@ func (af AliasFilter) filterByAliasWithOptions(aliases []string, exclude bool) [
 		}
 	}
 	return results
-}
-
-func (i *AliasFilter) FilterByDate(DeleteBeforeThisDate time.Time) []client.Index {
-	var filtered []client.Index
-	for _, in := range i.Indices {
-		if in.CreationTime.Before(DeleteBeforeThisDate) {
-			filtered = append(filtered, in)
-		}
-	}
-	return filtered
 }

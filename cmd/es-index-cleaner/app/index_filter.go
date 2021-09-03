@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/pkg/es/filter"
 )
 
 // IndexFilter holds configuration for index filtering.
@@ -39,7 +40,7 @@ type IndexFilter struct {
 // Filter filters indices.
 func (i *IndexFilter) Filter(indices []client.Index) []client.Index {
 	indices = i.filter(indices)
-	return i.filterByDate(indices)
+	return filter.ByDate(indices, i.DeleteBeforeThisDate)
 }
 
 func (i *IndexFilter) filter(indices []client.Index) []client.Index {
@@ -60,16 +61,6 @@ func (i *IndexFilter) filter(indices []client.Index) []client.Index {
 			if in.Aliases[i.IndexPrefix+"jaeger-span-write"] || in.Aliases[i.IndexPrefix+"jaeger-service-write"] || in.Aliases[i.IndexPrefix+"jaeger-span-archive-write"] {
 				continue
 			}
-			filtered = append(filtered, in)
-		}
-	}
-	return filtered
-}
-
-func (i *IndexFilter) filterByDate(indices []client.Index) []client.Index {
-	var filtered []client.Index
-	for _, in := range indices {
-		if in.CreationTime.Before(i.DeleteBeforeThisDate) {
 			filtered = append(filtered, in)
 		}
 	}

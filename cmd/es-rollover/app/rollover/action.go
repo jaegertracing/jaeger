@@ -19,6 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/pkg/es/filter"
 )
 
 type Action struct {
@@ -55,10 +56,8 @@ func (a *Action) action(indexSet app.IndexOptions) error {
 	if err != nil {
 		return err
 	}
-	aliasFilter := app.AliasFilter{
-		Indices: jaegerIndicex,
-	}
-	indicesWithWriteAlias := aliasFilter.FilterByAlias([]string{writeAlias})
+
+	indicesWithWriteAlias := filter.ByAlias(jaegerIndicex, []string{writeAlias})
 	aliases := make([]client.Alias, 0, len(indicesWithWriteAlias))
 	for _, index := range indicesWithWriteAlias {
 		aliases = append(aliases, client.Alias{

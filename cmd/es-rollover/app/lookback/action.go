@@ -20,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/pkg/es/filter"
 )
 
 type Action struct {
@@ -43,22 +44,11 @@ func (a *Action) action(indexSet app.IndexOptions) error {
 	if err != nil {
 		return err
 	}
-	readAliasFilter := app.AliasFilter{
-		Indices: jaegerIndicex,
-	}
 
 	readAliasName := indexSet.ReadAliasName()
-	readAliasIndices := readAliasFilter.FilterByAlias([]string{readAliasName})
-
-	excludeWriteFilter := app.AliasFilter{
-		Indices: readAliasIndices,
-	}
-	indices := excludeWriteFilter.FilterByAliasExclude([]string{indexSet.WriteAliasName()})
-
-	dateFilter := app.AliasFilter{
-		Indices: indices,
-	}
-	finalIndices := dateFilter.FilterByDate(getTimeReference(time.Now(), a.Unit, a.UnitCount))
+	readAliasIndices := filter.ByAlias(jaegerIndicex, []string{readAliasName})
+	excludedWriteIndex := filter.ByAliasExclude(readAliasIndices, []string{indexSet.WriteAliasName()})
+	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(time.Now(), a.Unit, a.UnitCount))
 	if len(finalIndices) == 0 {
 		return fmt.Errorf("no indices to remove from alias %s", readAliasName)
 	}

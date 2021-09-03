@@ -23,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/pkg/es/filter"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
@@ -101,16 +102,12 @@ func (c Action) action(version uint, indexset app.IndexOptions) error {
 		return err
 	}
 
-	aliasFilter := app.AliasFilter{
-		Indices: jaegerIndices,
-	}
-
 	readAlias := indexset.ReadAliasName()
 	writeAlias := indexset.WriteAliasName()
 
 	aliases := []client.Alias{}
 
-	if aliasFilter.HasAliasEmpty(readAlias) {
+	if filter.HasAliasEmpty(jaegerIndices, readAlias) {
 		aliases = append(aliases, client.Alias{
 			Index:        index,
 			Name:         readAlias,
@@ -118,7 +115,7 @@ func (c Action) action(version uint, indexset app.IndexOptions) error {
 		})
 	}
 
-	if aliasFilter.HasAliasEmpty(writeAlias) {
+	if filter.HasAliasEmpty(jaegerIndices, writeAlias) {
 		aliases = append(aliases, client.Alias{
 			Index:        index,
 			Name:         writeAlias,

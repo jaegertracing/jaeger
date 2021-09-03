@@ -21,14 +21,13 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
-	"github.com/jaegertracing/jaeger/pkg/es/client"
-
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	initialize "github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
+	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
 func main() {
