@@ -58,7 +58,7 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 			esClient := client.Client{
 				Endpoint:  args[0],
 				Client:    httpClient,
-				BasicAuth: app.BasicAuth(cfg.Username, cfg.Password),
+				BasicAuth: client.BasicAuth(cfg.Username, cfg.Password),
 			}
 
 			indicesClient := client.IndicesClient{
@@ -97,7 +97,7 @@ func (a *LookBackAction) Do() error {
 	return nil
 }
 
-func (a *LookBackAction) action(indexSet app.IndexSet) error {
+func (a *LookBackAction) action(indexSet app.IndexOptions) error {
 
 	jaegerIndicex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
 	if err != nil {

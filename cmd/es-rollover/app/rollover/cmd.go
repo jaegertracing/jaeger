@@ -60,7 +60,7 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 			esClient := client.Client{
 				Endpoint:  args[0],
 				Client:    httpClient,
-				BasicAuth: app.BasicAuth(cfg.Username, cfg.Password),
+				BasicAuth: client.BasicAuth(cfg.Username, cfg.Password),
 			}
 
 			indicesClient := client.IndicesClient{
@@ -99,7 +99,7 @@ func (a *RolloverAction) Do() error {
 	return nil
 }
 
-func (a *RolloverAction) action(indexSet app.IndexSet) error {
+func (a *RolloverAction) action(indexSet app.IndexOptions) error {
 	conditionsMap := map[string]interface{}{}
 	if len(a.Conditions) > 0 {
 		err := json.Unmarshal([]byte(a.Config.Conditions), &conditionsMap)

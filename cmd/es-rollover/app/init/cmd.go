@@ -65,7 +65,7 @@ func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 			esClient := client.Client{
 				Endpoint:  args[0],
 				Client:    httpClient,
-				BasicAuth: app.BasicAuth(cfg.Username, cfg.Password),
+				BasicAuth: client.BasicAuth(cfg.Username, cfg.Password),
 			}
 
 			indicesClient := client.IndicesClient{
@@ -136,13 +136,13 @@ func (c InitCommand) Do() error {
 	return nil
 }
 
-func (c InitCommand) action(version uint, indexset app.IndexSet) error {
-	mapping, err := c.getMapping(version, indexset.Template)
+func (c InitCommand) action(version uint, indexset app.IndexOptions) error {
+	mapping, err := c.getMapping(version, indexset.TemplateName)
 	if err != nil {
 		return err
 	}
 
-	err = c.IndicesClient.CreateTemplate(mapping, indexset.Template)
+	err = c.IndicesClient.CreateTemplate(mapping, indexset.TemplateName)
 	if err != nil {
 		return err
 	}

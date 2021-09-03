@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/initialize"
+	initialize "github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 )
@@ -32,8 +32,8 @@ func main() {
 
 	var rootCmd = &cobra.Command{
 		Use:   "jaeger-es-rollover ACTION http://HOSTNAME:PORT",
-		Short: "Jaeger es-rollover removes Jaeger indices",
-		Long:  "Jaeger es-rollover removes Jaeger indices",
+		Short: "Jaeger es-rollover manages Jaeger indices",
+		Long:  "Jaeger es-rollover manages Jaeger indices",
 	}
 
 	// Configure init command

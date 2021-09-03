@@ -27,7 +27,6 @@ const (
 	password      = "es.password"
 	useILM        = "es.use-ilm"
 	ilmPolicyName = "es.ilm-policy-name"
-	tlsEnable     = "es.tls"
 	timeout       = "timeout"
 )
 
@@ -49,7 +48,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(password, "", "The password required by storage")
 	flags.Bool(useILM, false, "Use ILM to manage jaeger indices")
 	flags.String(ilmPolicyName, "", "The name of the ILM policy to use if ILM is active")
-	flags.Bool(tlsEnable, false, "Enable TLS")
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 
 }
@@ -59,7 +57,6 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Archive = v.GetBool(archive)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)
-	c.TLSEnabled = v.GetBool(tlsEnable)
 	c.ILMPolicyName = v.GetString(ilmPolicyName)
 	c.UseILM = v.GetBool(useILM)
 	c.Timeout = v.GetInt(timeout)
