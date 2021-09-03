@@ -44,11 +44,13 @@ func main() {
 
 	// Init command
 	initCfg := &initialize.Config{}
+
 	initCommand := &cobra.Command{
 		Use:   "init http://HOSTNAME:PORT",
 		Short: "creates indices and aliases",
 		Long:  "creates indices and aliases",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			initCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
 				Viper:    v,
@@ -74,11 +76,13 @@ func main() {
 
 	// Rollover command
 	rolloverCfg := &rollover.Config{}
+
 	rolloverCommand := &cobra.Command{
 		Use:   "rollover http://HOSTNAME:PORT",
 		Short: "rollover to new write index",
 		Long:  "rollover to new write index",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			rolloverCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
 				Viper:    v,
@@ -105,6 +109,7 @@ func main() {
 		Short: "removes old indices from read alias",
 		Long:  "removes old indices from read alias",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			lookbackCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
 				Viper:    v,
