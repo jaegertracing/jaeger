@@ -16,78 +16,18 @@ package lookback
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
 )
 
-func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
-	cfg := &Config{}
-	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
-	command := &cobra.Command{
-		Use:   "lookback http://HOSTNAME:PORT",
-		Short: "removes old indices from read alias",
-		Long:  "removes old indices from read alias",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("wrong number of arguments")
-			}
-
-			cfg.InitFromViper(v)
-			tlsOpts := tlsFlags.InitFromViper(v)
-			tlsCfg, err := tlsOpts.Config(logger)
-			if err != nil {
-				return err
-			}
-			defer tlsOpts.Close()
-
-			httpClient := &http.Client{
-				Timeout: time.Duration(cfg.Timeout) * time.Second,
-				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					TLSClientConfig: tlsCfg,
-				},
-			}
-			esClient := client.Client{
-				Endpoint:  args[0],
-				Client:    httpClient,
-				BasicAuth: client.BasicAuth(cfg.Username, cfg.Password),
-			}
-
-			indicesClient := client.IndicesClient{
-				Client:               esClient,
-				MasterTimeoutSeconds: cfg.Timeout,
-			}
-
-			initCommand := LookBackAction{
-				IndicesClient: indicesClient,
-				Config:        *cfg,
-			}
-			return initCommand.Do()
-		},
-	}
-	config.AddFlags(
-		v,
-		command,
-		cfg.AddFlags,
-		tlsFlags.AddFlags,
-	)
-	return command
-}
-
-type LookBackAction struct {
+type Action struct {
 	Config
 	IndicesClient client.IndicesClient
 }
 
-func (a *LookBackAction) Do() error {
+func (a *Action) Do() error {
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := a.action(indexName); err != nil {
@@ -97,7 +37,7 @@ func (a *LookBackAction) Do() error {
 	return nil
 }
 
-func (a *LookBackAction) action(indexSet app.IndexOptions) error {
+func (a *Action) action(indexSet app.IndexOptions) error {
 
 	jaegerIndicex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
 	if err != nil {

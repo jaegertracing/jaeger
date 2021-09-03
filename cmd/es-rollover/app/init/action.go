@@ -19,15 +19,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
@@ -35,71 +28,13 @@ import (
 
 const ilmVersionSupport = 7
 
-func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
-	cfg := &Config{}
-	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
-	command := &cobra.Command{
-		Use:   "init http://HOSTNAME:PORT",
-		Short: "creates indices and aliases",
-		Long:  "creates indices and aliases",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("wrong number of arguments")
-			}
-
-			cfg.InitFromViper(v)
-			tlsOpts := tlsFlags.InitFromViper(v)
-			tlsCfg, err := tlsOpts.Config(logger)
-			if err != nil {
-				return err
-			}
-			defer tlsOpts.Close()
-
-			httpClient := &http.Client{
-				Timeout: time.Duration(cfg.Timeout) * time.Second,
-				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					TLSClientConfig: tlsCfg,
-				},
-			}
-			esClient := client.Client{
-				Endpoint:  args[0],
-				Client:    httpClient,
-				BasicAuth: client.BasicAuth(cfg.Username, cfg.Password),
-			}
-
-			indicesClient := client.IndicesClient{
-				Client:               esClient,
-				MasterTimeoutSeconds: cfg.Timeout,
-			}
-			clusterClient := client.ClusterClient{
-				Client: esClient,
-			}
-
-			initCommand := InitCommand{
-				IndicesClient: indicesClient,
-				ClusterClient: clusterClient,
-				Config:        *cfg,
-			}
-			return initCommand.Do()
-		},
-	}
-	config.AddFlags(
-		v,
-		command,
-		cfg.AddFlags,
-		tlsFlags.AddFlags,
-	)
-	return command
-}
-
-type InitCommand struct {
+type Action struct {
 	Config        Config
 	ClusterClient client.ClusterClient
 	IndicesClient client.IndicesClient
 }
 
-func (c InitCommand) getMapping(version uint, templateName string) (string, error) {
+func (c Action) getMapping(version uint, templateName string) (string, error) {
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
 		Shards:          c.Config.Shards,
@@ -112,7 +47,7 @@ func (c InitCommand) getMapping(version uint, templateName string) (string, erro
 	return mappingBuilder.GetMapping(templateName)
 }
 
-func (c InitCommand) Do() error {
+func (c Action) Do() error {
 	version, err := c.ClusterClient.Version()
 	if err != nil {
 		return err
@@ -136,7 +71,7 @@ func (c InitCommand) Do() error {
 	return nil
 }
 
-func (c InitCommand) action(version uint, indexset app.IndexOptions) error {
+func (c Action) action(version uint, indexset app.IndexOptions) error {
 	mapping, err := c.getMapping(version, indexset.TemplateName)
 	if err != nil {
 		return err
