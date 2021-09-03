@@ -16,6 +16,7 @@ package client
 
 import "encoding/base64"
 
+// BasicAuth encode username and password to be used with basic authentication header
 func BasicAuth(username, password string) string {
 	if username == "" || password == "" {
 		return ""

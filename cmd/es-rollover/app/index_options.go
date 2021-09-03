@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package app
 
 import (
@@ -22,41 +23,46 @@ const writeAliasFormat = "%s-write"
 const readAliasFormat = "%s-read"
 const rolloverIndexFormat = "%s-000001"
 
-type IndexOptions struct {
+// IndexOption holds the information for the indices to rollover
+type IndexOption struct {
 	Prefix       string
 	TemplateName string
 }
 
-func RolloverIndices(archive bool, prefix string) []IndexOptions {
+// RolloverIndices return an array of indices to rollover
+func RolloverIndices(archive bool, prefix string) []IndexOption {
 	if archive {
-		return []IndexOptions{
+		return []IndexOption{
 			{
 				Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-span-archive", prefix), "-"),
 				TemplateName: "jaeger-span",
 			},
 		}
-	} else {
-		return []IndexOptions{
-			{
-				Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-span", prefix), "-"),
-				TemplateName: "jaeger-span",
-			},
-			{
-				Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-service", prefix), "-"),
-				TemplateName: "jaeger-service",
-			},
-		}
 	}
+	return []IndexOption{
+		{
+			Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-span", prefix), "-"),
+			TemplateName: "jaeger-span",
+		},
+		{
+			Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-service", prefix), "-"),
+			TemplateName: "jaeger-service",
+		},
+	}
+
 }
 
-func (i *IndexOptions) ReadAliasName() string {
+// ReadAliasName returns read alias name of the index
+func (i *IndexOption) ReadAliasName() string {
 	return fmt.Sprintf(readAliasFormat, i.Prefix)
 }
 
-func (i *IndexOptions) WriteAliasName() string {
+// WriteAliasName returns write alias name of the index
+func (i *IndexOption) WriteAliasName() string {
 	return fmt.Sprintf(writeAliasFormat, i.Prefix)
 }
 
-func (i *IndexOptions) InitialRolloverIndex() string {
+// InitialRolloverIndex returns the initial index rollover name
+func (i *IndexOption) InitialRolloverIndex() string {
 	return fmt.Sprintf(rolloverIndexFormat, i.Prefix)
 }

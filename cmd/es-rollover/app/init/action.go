@@ -29,6 +29,7 @@ import (
 
 const ilmVersionSupport = 7
 
+// Action holds the configuration and clients for init action
 type Action struct {
 	Config        Config
 	ClusterClient client.ClusterClient
@@ -48,6 +49,7 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 	return mappingBuilder.GetMapping(templateName)
 }
 
+// Do the init action
 func (c Action) Do() error {
 	version, err := c.ClusterClient.Version()
 	if err != nil {
@@ -72,7 +74,7 @@ func (c Action) Do() error {
 	return nil
 }
 
-func (c Action) action(version uint, indexset app.IndexOptions) error {
+func (c Action) action(version uint, indexset app.IndexOption) error {
 	mapping, err := c.getMapping(version, indexset.TemplateName)
 	if err != nil {
 		return err

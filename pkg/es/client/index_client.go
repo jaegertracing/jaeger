@@ -32,9 +32,13 @@ type Index struct {
 	Aliases map[string]bool
 }
 
+// Alias represents ES alias.
 type Alias struct {
-	Index        string
-	Name         string
+	// Index name.
+	Index string
+	// Alias name.
+	Name string
+	// IsWritedIndex option
 	IsWriteIndex bool
 }
 
@@ -111,6 +115,7 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 	return nil
 }
 
+// Create an ES index
 func (i *IndicesClient) Create(index string) error {
 	_, err := i.request(elasticRequest{
 		endpoint: index,
@@ -119,10 +124,12 @@ func (i *IndicesClient) Create(index string) error {
 	return err
 }
 
+// CreateAlias an ES specific set of index aliases
 func (i *IndicesClient) CreateAlias(aliases []Alias) error {
 	return i.aliasAction("add", aliases)
 }
 
+// DeleteAlias an ES specific set of index aliases
 func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
 	return i.aliasAction("remove", aliases)
 }
@@ -160,6 +167,7 @@ func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	return err
 }
 
+// CreateTemplate an ES index template
 func (i IndicesClient) CreateTemplate(template, name string) error {
 	_, err := i.request(elasticRequest{
 		endpoint: fmt.Sprintf("_template/%s", name),
@@ -170,6 +178,7 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 	return err
 }
 
+// ILMPolicyExists verify if a ILM policy exists
 func (i IndicesClient) ILMPolicyExists(name string) error {
 	_, err := i.request(elasticRequest{
 		endpoint: fmt.Sprintf("_template/%s", name),
@@ -183,6 +192,7 @@ func (i IndicesClient) ILMPolicyExists(name string) error {
 	return err
 }
 
+// Rollover create a rollover for certain index/alias
 func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
 	esReq := elasticRequest{
 		endpoint: fmt.Sprintf("%s/_rollover/", rolloverTarget),

@@ -18,15 +18,18 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
+// HasAliasEmpty check if the some of indices has a certain alias name
 func HasAliasEmpty(indices []client.Index, aliasName string) bool {
 	aliases := ByAlias(indices, []string{aliasName})
 	return len(aliases) == 0
 }
 
+// ByAlias filter indices that have an alias in the array of alias
 func ByAlias(indices []client.Index, aliases []string) []client.Index {
 	return filterByAliasWithOptions(indices, aliases, false)
 }
 
+// ByAliasExclude filter indices that doesn't have an alias in the array of alias
 func ByAliasExclude(indices []client.Index, aliases []string) []client.Index {
 	return filterByAliasWithOptions(indices, aliases, true)
 }

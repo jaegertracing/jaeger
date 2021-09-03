@@ -22,11 +22,13 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/filter"
 )
 
+// Action holds the configuration and clients for rollover action
 type Action struct {
 	Config
 	IndicesClient client.IndicesClient
 }
 
+// Do the rollover action
 func (a *Action) Do() error {
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
@@ -37,7 +39,7 @@ func (a *Action) Do() error {
 	return nil
 }
 
-func (a *Action) action(indexSet app.IndexOptions) error {
+func (a *Action) action(indexSet app.IndexOption) error {
 	conditionsMap := map[string]interface{}{}
 	if len(a.Conditions) > 0 {
 		err := json.Unmarshal([]byte(a.Config.Conditions), &conditionsMap)

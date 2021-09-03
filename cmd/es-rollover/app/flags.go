@@ -30,6 +30,7 @@ const (
 	timeout       = "timeout"
 )
 
+// Config holds the global configurations for the es rollover, common to all actions
 type Config struct {
 	IndexPrefix   string
 	Archive       bool
@@ -41,6 +42,7 @@ type Config struct {
 	Timeout       int
 }
 
+// AddFlags adds flags
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(indexPrefix, "", "Index prefix")
 	flags.Bool(archive, false, "Handle archive indices")
@@ -52,6 +54,7 @@ func AddFlags(flags *flag.FlagSet) {
 
 }
 
+// InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
 	c.IndexPrefix = v.GetString(indexPrefix)
 	c.Archive = v.GetBool(archive)

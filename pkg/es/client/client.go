@@ -21,17 +21,22 @@ import (
 	"net/http"
 )
 
+// ResponseError holds information about a request error
 type ResponseError struct {
-	Err        error
+	// Error returned by the http client
+	Err error
+	// StatusCode is the http code returned by the server (if any)
 	StatusCode int
-	Body       []byte
+	// Body is the bytes readed in the response (if any)
+	Body []byte
 }
 
+// Error returns the error string of the Err field
 func (r ResponseError) Error() string {
 	return r.Err.Error()
 }
 
-func NewResponseError(err error, code int, body []byte) ResponseError {
+func newResponseError(err error, code int, body []byte) ResponseError {
 	return ResponseError{
 		Err:        err,
 		StatusCode: code,
@@ -39,6 +44,7 @@ func NewResponseError(err error, code int, body []byte) ResponseError {
 	}
 }
 
+// Client is a generic client to make requests to ES
 type Client struct {
 	// Http client.
 	Client *http.Client
@@ -96,11 +102,11 @@ func (c *Client) handleFailedRequest(res *http.Response) error {
 	if res.Body != nil {
 		bodyBytes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			return NewResponseError(fmt.Errorf("request failed and failed to read response body, status code: %d, %w", res.StatusCode, err), res.StatusCode, nil)
+			return newResponseError(fmt.Errorf("request failed and failed to read response body, status code: %d, %w", res.StatusCode, err), res.StatusCode, nil)
 		}
 		body := string(bodyBytes)
-		return NewResponseError(fmt.Errorf("request failed, status code: %d, body: %s", res.StatusCode, body), res.StatusCode, bodyBytes)
+		return newResponseError(fmt.Errorf("request failed, status code: %d, body: %s", res.StatusCode, body), res.StatusCode, bodyBytes)
 
 	}
-	return NewResponseError(fmt.Errorf("request failed, status code: %d", res.StatusCode), res.StatusCode, nil)
+	return newResponseError(fmt.Errorf("request failed, status code: %d", res.StatusCode), res.StatusCode, nil)
 }

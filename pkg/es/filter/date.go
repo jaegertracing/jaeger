@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
+// ByDate filter indices by creationTime, return indices that were created before certain date.
 func ByDate(indices []client.Index, DeleteBeforeThisDate time.Time) []client.Index {
 	var filtered []client.Index
 	for _, in := range indices {

@@ -42,26 +42,30 @@ func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client
 	}
 }
 
+// Action is an interface that each action (init, rollover and lookback) of the es-rollover should implement
 type Action interface {
 	Do() error
 }
 
+// ActionExecuteOptions are the options passed to the execute action function
 type ActionExecuteOptions struct {
 	Args     []string
 	Viper    *viper.Viper
 	Logger   *zap.Logger
 	Config   Config
-	TlsFlags tlscfg.ClientFlagsConfig
+	TLSFlags tlscfg.ClientFlagsConfig
 }
 
+// ActionCreatorFunction type is the function type in charge of create the action to be executed
 type ActionCreatorFunction func(client.Client) Action
 
+// ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
 	if len(opts.Args) != 1 {
 		return fmt.Errorf("wrong number of arguments")
 	}
 
-	tlsOpts := opts.TlsFlags.InitFromViper(opts.Viper)
+	tlsOpts := opts.TLSFlags.InitFromViper(opts.Viper)
 	tlsCfg, err := tlsOpts.Config(opts.Logger)
 	if err != nil {
 		return err

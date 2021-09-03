@@ -22,10 +22,12 @@ import (
 	"strings"
 )
 
+// ClusterClient is a client used to get ES cluster information
 type ClusterClient struct {
 	Client
 }
 
+// Version returns the major version of the ES cluster
 func (c *ClusterClient) Version() (uint, error) {
 	type clusterInfo struct {
 		Version map[string]interface{} `json:"version"`

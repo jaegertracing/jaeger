@@ -56,7 +56,7 @@ func main() {
 				Viper:    v,
 				Logger:   logger,
 				Config:   initCfg.Config,
-				TlsFlags: tlsFlags,
+				TLSFlags: tlsFlags,
 			}, func(c client.Client) app.Action {
 				indicesClient := client.IndicesClient{
 					Client:               c,
@@ -88,7 +88,7 @@ func main() {
 				Viper:    v,
 				Logger:   logger,
 				Config:   initCfg.Config,
-				TlsFlags: tlsFlags,
+				TLSFlags: tlsFlags,
 			}, func(c client.Client) app.Action {
 				indicesClient := client.IndicesClient{
 					Client:               c,
@@ -115,7 +115,7 @@ func main() {
 				Viper:    v,
 				Logger:   logger,
 				Config:   initCfg.Config,
-				TlsFlags: tlsFlags,
+				TLSFlags: tlsFlags,
 			}, func(c client.Client) app.Action {
 				indicesClient := client.IndicesClient{
 					Client:               c,
