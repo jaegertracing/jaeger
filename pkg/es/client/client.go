@@ -48,16 +48,32 @@ type Client struct {
 	BasicAuth string
 }
 
-func (c *Client) getRequest(endpoint string) ([]byte, error) {
-	r, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), nil)
+type elasticRequest struct {
+	endpoint string
+	body     []byte
+	method   string
+}
+
+func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
+	var reader *bytes.Buffer
+	var r *http.Request
+	var err error
+	if len(esRequest.body) > 0 {
+		reader = bytes.NewBuffer(esRequest.body)
+		r, err = http.NewRequest(esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), reader)
+	} else {
+		r, err = http.NewRequest(esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), nil)
+	}
 	if err != nil {
 		return []byte{}, err
 	}
 	c.setAuthorization(r)
+	r.Header.Add("Content-Type", "application/json")
 	res, err := c.Client.Do(r)
 	if err != nil {
 		return []byte{}, err
 	}
+
 	if res.StatusCode != http.StatusOK {
 		return []byte{}, c.handleFailedRequest(res)
 	}
@@ -66,75 +82,8 @@ func (c *Client) getRequest(endpoint string) ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
+
 	return body, nil
-}
-
-func (c *Client) putRequest(endpoint string, body []byte) error {
-	var reader *bytes.Buffer
-	var r *http.Request
-	var err error
-	if body != nil {
-		reader = bytes.NewBuffer(body)
-		r, err = http.NewRequest(http.MethodPut, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), reader)
-	} else {
-		r, err = http.NewRequest(http.MethodPut, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), nil)
-
-	}
-	if err != nil {
-		return err
-	}
-	c.setAuthorization(r)
-	r.Header.Add("Content-Type", "application/json")
-	res, err := c.Client.Do(r)
-	if err != nil {
-		return err
-	}
-	if res.StatusCode != http.StatusOK {
-		return c.handleFailedRequest(res)
-	}
-	return nil
-}
-
-func (c *Client) deleteRequest(endpoint string, body []byte) error {
-	r, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), nil)
-	if err != nil {
-		return err
-	}
-	c.setAuthorization(r)
-	r.Header.Add("Content-Type", "application/json")
-	res, err := c.Client.Do(r)
-	if err != nil {
-		return err
-	}
-	if res.StatusCode != http.StatusOK {
-		return c.handleFailedRequest(res)
-	}
-	return nil
-}
-
-func (c *Client) postRequest(endpoint string, body []byte) error {
-	var reader *bytes.Buffer
-	var r *http.Request
-	var err error
-	if body != nil {
-		reader = bytes.NewBuffer(body)
-		r, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), reader)
-	} else {
-		r, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/%s", c.Endpoint, endpoint), nil)
-	}
-	if err != nil {
-		return err
-	}
-	c.setAuthorization(r)
-	r.Header.Add("Content-Type", "application/json")
-	res, err := c.Client.Do(r)
-	if err != nil {
-		return err
-	}
-	if res.StatusCode != http.StatusOK {
-		return c.handleFailedRequest(res)
-	}
-	return nil
 }
 
 func (c *Client) setAuthorization(r *http.Request) {

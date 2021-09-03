@@ -17,6 +17,7 @@ package client
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -30,7 +31,11 @@ func (c *ClusterClient) Version() (uint, error) {
 		Version map[string]interface{} `json:"version"`
 		TagLine string                 `json:"tagline"`
 	}
-	body, err := c.getRequest("/")
+	body, err := c.request(elasticRequest{
+		endpoint: "/",
+		method:   http.MethodGet,
+	})
+
 	if err != nil {
 		return 0, err
 	}

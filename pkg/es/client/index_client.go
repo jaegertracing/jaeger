@@ -56,7 +56,11 @@ type IndicesClient struct {
 func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 	prefix += "jaeger-*"
 
-	body, err := i.getRequest(fmt.Sprintf("%s?flat_settings=true&filter_path=*.aliases,*.settings", prefix))
+	body, err := i.request(elasticRequest{
+		endpoint: fmt.Sprintf("%s?flat_settings=true&filter_path=*.aliases,*.settings", prefix),
+		method:   http.MethodGet,
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to query indices: %w", err)
 	}
@@ -95,8 +99,10 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 		concatIndices += i.Index
 		concatIndices += ","
 	}
-
-	err := i.deleteRequest(fmt.Sprintf("%s?master_timeout=%ds", concatIndices, i.MasterTimeoutSeconds), nil)
+	_, err := i.request(elasticRequest{
+		endpoint: fmt.Sprintf("%s?master_timeout=%ds", concatIndices, i.MasterTimeoutSeconds),
+		method:   http.MethodDelete,
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to delete indices: %w", err)
@@ -106,7 +112,11 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 }
 
 func (i *IndicesClient) Create(index string) error {
-	return i.putRequest(index, nil)
+	_, err := i.request(elasticRequest{
+		endpoint: index,
+		method:   http.MethodPut,
+	})
+	return err
 }
 
 func (i *IndicesClient) CreateAlias(aliases []Alias) error {
@@ -141,25 +151,42 @@ func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	if err != nil {
 		return err
 	}
-	return i.postRequest("_aliases", bodyBytes)
+	_, err = i.request(elasticRequest{
+		endpoint: "_aliases",
+		method:   http.MethodPost,
+		body:     bodyBytes,
+	})
+
+	return err
 }
 
-func (c IndicesClient) CreateTemplate(template, name string) error {
-	b := []byte(template)
-	return c.putRequest(fmt.Sprintf("_template/%s", name), b)
+func (i IndicesClient) CreateTemplate(template, name string) error {
+	_, err := i.request(elasticRequest{
+		endpoint: fmt.Sprintf("_template/%s", name),
+		method:   http.MethodPut,
+		body:     []byte(template),
+	})
+
+	return err
 }
 
-func (c IndicesClient) ILMPolicyExists(template string) error {
-	_, err := c.getRequest(fmt.Sprintf("_template/%s", template))
+func (i IndicesClient) ILMPolicyExists(name string) error {
+	_, err := i.request(elasticRequest{
+		endpoint: fmt.Sprintf("_template/%s", name),
+		method:   http.MethodGet,
+	})
 	if respError, isResponseErr := err.(ResponseError); isResponseErr {
 		if respError.StatusCode == http.StatusNotFound {
-			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", template)
+			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", name)
 		}
 	}
 	return err
 }
 
-func (c IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
+func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
+	esReq := elasticRequest{
+		endpoint: fmt.Sprintf("%s/_rollover/", rolloverTarget),
+	}
 	if len(conditions) > 0 {
 		body := map[string]interface{}{
 			"conditions": conditions,
@@ -168,7 +195,8 @@ func (c IndicesClient) Rollover(rolloverTarget string, conditions map[string]int
 		if err != nil {
 			return err
 		}
-		return c.postRequest(fmt.Sprintf("%s/_rollover/", rolloverTarget), bodyBytes)
+		esReq.body = bodyBytes
 	}
-	return c.postRequest(fmt.Sprintf("%s/_rollover/", rolloverTarget), nil)
+	_, err := i.request(esReq)
+	return err
 }
