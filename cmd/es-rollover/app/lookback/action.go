@@ -33,15 +33,14 @@ type Action struct {
 func (a *Action) Do() error {
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
-		if err := a.action(indexName); err != nil {
+		if err := a.lookback(indexName); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (a *Action) action(indexSet app.IndexOption) error {
-
+func (a *Action) lookback(indexSet app.IndexOption) error {
 	jaegerIndicex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
 	if err != nil {
 		return err

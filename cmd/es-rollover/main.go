@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	initialize "github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -43,7 +43,7 @@ func main() {
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 
 	// Init command
-	initCfg := &initialize.Config{}
+	initCfg := &init.Config{}
 
 	initCommand := &cobra.Command{
 		Use:   "init http://HOSTNAME:PORT",
@@ -65,7 +65,7 @@ func main() {
 				clusterClient := client.ClusterClient{
 					Client: c,
 				}
-				return &initialize.Action{
+				return &init.Action{
 					IndicesClient: indicesClient,
 					ClusterClient: clusterClient,
 					Config:        *initCfg,

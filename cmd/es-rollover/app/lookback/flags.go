@@ -42,7 +42,6 @@ func (c *Config) AddFlags(flags *flag.FlagSet) {
 	// Non common flags
 	flags.String(unit, unit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
 	flags.Int(unitCount, defaultUnitCount, "count of UNITs")
-
 }
 
 // InitFromViper initializes config from viper.Viper.

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package initialize
+package init
 
 import (
 	"encoding/json"
@@ -66,7 +66,7 @@ func (c Action) Do() error {
 	}
 	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
-		if err := c.action(version, indexName); err != nil {
+		if err := c.init(version, indexName); err != nil {
 			return err
 		}
 	}
@@ -74,7 +74,7 @@ func (c Action) Do() error {
 	return nil
 }
 
-func (c Action) action(version uint, indexset app.IndexOption) error {
+func (c Action) init(version uint, indexset app.IndexOption) error {
 	mapping, err := c.getMapping(version, indexset.TemplateName)
 	if err != nil {
 		return err
