@@ -16,7 +16,6 @@ package app
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -60,10 +59,6 @@ type ActionCreatorFunction func(client.Client, Config) Action
 
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
-	if len(opts.Args) != 1 {
-		return fmt.Errorf("wrong number of arguments")
-	}
-
 	tlsOpts := opts.TLSFlags.InitFromViper(opts.Viper)
 	cfg := Config{}
 	cfg.InitFromViper(opts.Viper)

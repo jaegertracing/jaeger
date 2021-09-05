@@ -46,9 +46,10 @@ func main() {
 	// Init command
 	initCfg := &initialize.Config{}
 	initCommand := &cobra.Command{
-		Use:   "init http://HOSTNAME:PORT",
+		Use:   "init [ELASTICSEARCH_HOST]",
 		Short: "creates indices and aliases",
 		Long:  "creates indices and aliases",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
@@ -78,9 +79,10 @@ func main() {
 	rolloverCfg := &rollover.Config{}
 
 	rolloverCommand := &cobra.Command{
-		Use:   "rollover http://HOSTNAME:PORT",
+		Use:   "rollover [ELASTICSEARCH_HOST]",
 		Short: "rollover to new write index",
 		Long:  "rollover to new write index",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rolloverCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
@@ -106,9 +108,10 @@ func main() {
 
 	lookbackCfg := lookback.Config{}
 	lookbackCommand := &cobra.Command{
-		Use:   "lookback http://HOSTNAME:PORT",
+		Use:   "lookback [ELASTICSEARCH_HOST]",
 		Short: "removes old indices from read alias",
 		Long:  "removes old indices from read alias",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			lookbackCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
