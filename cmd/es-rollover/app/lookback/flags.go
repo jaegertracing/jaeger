@@ -38,7 +38,7 @@ type Config struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c *Config) AddFlags(flags *flag.FlagSet) {
-	flags.String(unit, unit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
+	flags.String(unit, defaultUnit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
 	flags.Int(unitCount, defaultUnitCount, "count of UNITs")
 }
 
