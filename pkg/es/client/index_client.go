@@ -178,20 +178,6 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 	return err
 }
 
-// ILMPolicyExists verify if a ILM policy exists
-func (i IndicesClient) ILMPolicyExists(name string) error {
-	_, err := i.request(elasticRequest{
-		endpoint: fmt.Sprintf("_template/%s", name),
-		method:   http.MethodGet,
-	})
-	if respError, isResponseErr := err.(ResponseError); isResponseErr {
-		if respError.StatusCode == http.StatusNotFound {
-			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", name)
-		}
-	}
-	return err
-}
-
 // Rollover create a rollover for certain index/alias
 func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
 	esReq := elasticRequest{

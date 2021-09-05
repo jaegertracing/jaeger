@@ -66,9 +66,13 @@ func main() {
 				clusterClient := client.ClusterClient{
 					Client: c,
 				}
+				ilmClient := client.ILMClient{
+					Client: c,
+				}
 				return &initialize.Action{
 					IndicesClient: indicesClient,
 					ClusterClient: clusterClient,
+					ILMClient:     ilmClient,
 					Config:        *initCfg,
 				}
 			})

@@ -34,6 +34,7 @@ type Action struct {
 	Config        Config
 	ClusterClient client.ClusterClient
 	IndicesClient client.IndicesClient
+	ILMClient     client.ILMClient
 }
 
 func (c Action) getMapping(version uint, templateName string) (string, error) {
@@ -57,7 +58,7 @@ func (c Action) Do() error {
 	}
 	if c.Config.UseILM {
 		if version == ilmVersionSupport {
-			if err := c.IndicesClient.ILMPolicyExists(c.Config.ILMPolicyName); err != nil {
+			if err := c.ILMClient.Exists(c.Config.ILMPolicyName); err != nil {
 				return err
 			}
 		} else {
