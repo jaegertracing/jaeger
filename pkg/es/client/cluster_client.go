@@ -16,7 +16,7 @@ package client
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,14 +45,16 @@ func (c *ClusterClient) Version() (uint, error) {
 	if err = json.Unmarshal(body, &info); err != nil {
 		return 0, err
 	}
-	versionNumber, isString := info.Version["number"].(string)
+
+	versionField := info.Version["number"]
+	versionNumber, isString := versionField.(string)
 	if !isString {
-		return 0, errors.New("invalid version number")
+		return 0, fmt.Errorf("invalid version format: %w", versionField)
 	}
 	version := strings.Split(versionNumber, ".")
 	major, err := strconv.ParseUint(version[0], 10, 64)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("invalid version format: %s", version[0])
 	}
 	if strings.Contains(info.TagLine, "OpenSearch") && major == 1 {
 		return 7, nil

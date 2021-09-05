@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -120,23 +121,58 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 	return nil
 }
 
-// Create an ES index
-func (i *IndicesClient) Create(index string) error {
+// CreateIndex an ES index
+func (i *IndicesClient) CreateIndex(index string) error {
 	_, err := i.request(elasticRequest{
 		endpoint: index,
 		method:   http.MethodPut,
 	})
-	return err
+	if err != nil {
+		if responseError, isResponseError := err.(ResponseError); isResponseError {
+			if responseError.StatusCode != http.StatusOK {
+				return fmt.Errorf("failed to create index: %s, %w", index, responseError.Err)
+			}
+		}
+		return fmt.Errorf("failed to create index: %w", err)
+	}
+
+	return nil
 }
 
 // CreateAlias an ES specific set of index aliases
 func (i *IndicesClient) CreateAlias(aliases []Alias) error {
-	return i.aliasAction("add", aliases)
+	err := i.aliasAction("add", aliases)
+	if err != nil {
+		if responseError, isResponseError := err.(ResponseError); isResponseError {
+			if responseError.StatusCode != http.StatusOK {
+				return fmt.Errorf("failed to create aliases: %s, %w", i.aliasesString(aliases), responseError.Err)
+			}
+		}
+		return fmt.Errorf("failed to create aliases: %w", err)
+	}
+	return nil
 }
 
 // DeleteAlias an ES specific set of index aliases
 func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
-	return i.aliasAction("remove", aliases)
+	err := i.aliasAction("remove", aliases)
+	if err != nil {
+		if responseError, isResponseError := err.(ResponseError); isResponseError {
+			if responseError.StatusCode != http.StatusOK {
+				return fmt.Errorf("failed to delete aliases: %s, %w", i.aliasesString(aliases), responseError.Err)
+			}
+		}
+		return fmt.Errorf("failed to delete aliases: %w", err)
+	}
+	return nil
+}
+
+func (i *IndicesClient) aliasesString(aliases []Alias) string {
+	concatAliases := ""
+	for _, alias := range aliases {
+		concatAliases += fmt.Sprintf("[index: %s, alias: %s],", alias.Index, alias.Name)
+	}
+	return strings.Trim(concatAliases, ",")
 }
 
 func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
@@ -179,14 +215,22 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 		method:   http.MethodPut,
 		body:     []byte(template),
 	})
-
-	return err
+	if err != nil {
+		if responseError, isResponseError := err.(ResponseError); isResponseError {
+			if responseError.StatusCode != http.StatusOK {
+				return fmt.Errorf("failed to create template: %s, %w", name, responseError.Err)
+			}
+		}
+		return fmt.Errorf("failed to create template: %w", err)
+	}
+	return nil
 }
 
 // Rollover create a rollover for certain index/alias
 func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
 	esReq := elasticRequest{
 		endpoint: fmt.Sprintf("%s/_rollover/", rolloverTarget),
+		method:   http.MethodPost,
 	}
 	if len(conditions) > 0 {
 		body := map[string]interface{}{
@@ -199,5 +243,13 @@ func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]int
 		esReq.body = bodyBytes
 	}
 	_, err := i.request(esReq)
-	return err
+	if err != nil {
+		if responseError, isResponseError := err.(ResponseError); isResponseError {
+			if responseError.StatusCode != http.StatusOK {
+				return fmt.Errorf("failed to create rollover target: %s, %w", rolloverTarget, responseError.Err)
+			}
+		}
+		return fmt.Errorf("failed to create rollover: %w", err)
+	}
+	return nil
 }

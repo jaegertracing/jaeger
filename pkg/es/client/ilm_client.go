@@ -26,15 +26,19 @@ type ILMClient struct {
 }
 
 // Exists verify if a ILM policy exists
-func (i ILMClient) Exists(name string) error {
+func (i ILMClient) Exists(name string) (bool, error) {
 	_, err := i.request(elasticRequest{
 		endpoint: fmt.Sprintf("_ilm/policy/%s", name),
 		method:   http.MethodGet,
 	})
 	if respError, isResponseErr := err.(ResponseError); isResponseErr {
 		if respError.StatusCode == http.StatusNotFound {
-			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", name)
+			return false, nil
 		}
 	}
-	return err
+	if err != nil {
+		return false, fmt.Errorf("failed to get ILM policy: %s, %w", name, err)
+	}
+	return true, nil
+
 }

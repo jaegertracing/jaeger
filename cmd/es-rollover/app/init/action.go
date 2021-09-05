@@ -58,8 +58,12 @@ func (c Action) Do() error {
 	}
 	if c.Config.UseILM {
 		if version == ilmVersionSupport {
-			if err := c.ILMClient.Exists(c.Config.ILMPolicyName); err != nil {
+			policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
+			if err != nil {
 				return err
+			}
+			if !policyExist {
+				return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", c.Config.ILMPolicyName)
 			}
 		} else {
 			return fmt.Errorf("ILM is supported only for ES version 7+")
@@ -87,7 +91,7 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 	}
 	index := indexset.InitialRolloverIndex()
 
-	err = c.IndicesClient.Create(index)
+	err = c.IndicesClient.CreateIndex(index)
 	if esErr, ok := err.(client.ResponseError); ok {
 		if esErr.StatusCode == http.StatusBadRequest && esErr.Body != nil {
 			jsonError := map[string]interface{}{}

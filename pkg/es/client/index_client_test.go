@@ -15,6 +15,7 @@
 package client
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -166,6 +167,7 @@ func TestClientDeleteIndices(t *testing.T) {
 
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.Contains(req.URL.String(), "jaeger-span"))
+				assert.Equal(t, http.MethodDelete, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
@@ -219,4 +221,275 @@ func TestClientDoError(t *testing.T) {
 	indices, err := c.GetJaegerIndices("")
 	require.Error(t, err)
 	assert.Nil(t, indices)
+}
+
+func TestClientCreateIndex(t *testing.T) {
+	indexName := "jaeger-span"
+	tests := []struct {
+		name         string
+		responseCode int
+		response     string
+		errContains  string
+	}{
+		{
+			name:         "success",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "client error",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to create index: jaeger-span",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span"))
+				assert.Equal(t, http.MethodPut, req.Method)
+				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				res.WriteHeader(test.responseCode)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+
+			c := &IndicesClient{
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
+			}
+			err := c.CreateIndex(indexName)
+			if test.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.errContains)
+			}
+		})
+	}
+}
+
+func TestClientCreateAliases(t *testing.T) {
+	aliases := []Alias{
+		{
+			Index: "jaeger-span",
+			Name:  "jaeger-span-read",
+		},
+		{
+			Index:        "jaeger-span",
+			Name:         "jaeger-span-write",
+			IsWriteIndex: true,
+		},
+	}
+	expectedRequestBody := `{"actions":[{"add":{"alias":"jaeger-span-read","index":"jaeger-span"}},{"add":{"alias":"jaeger-span-write","index":"jaeger-span","is_write_index":true}}]}`
+	tests := []struct {
+		name         string
+		responseCode int
+		response     string
+		errContains  string
+	}{
+		{
+			name:         "success",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "client error",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to create aliases: [index: jaeger-span, alias: jaeger-span-read],[index: jaeger-span, alias: jaeger-span-write]",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
+				assert.Equal(t, http.MethodPost, req.Method)
+				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				body, err := ioutil.ReadAll(req.Body)
+				require.NoError(t, err)
+				assert.Equal(t, expectedRequestBody, string(body))
+				res.WriteHeader(test.responseCode)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+
+			c := &IndicesClient{
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
+			}
+			err := c.CreateAlias(aliases)
+			if test.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.errContains)
+			}
+		})
+	}
+}
+
+func TestClientDeleteAliases(t *testing.T) {
+	aliases := []Alias{
+		{
+			Index: "jaeger-span",
+			Name:  "jaeger-span-read",
+		},
+		{
+			Index:        "jaeger-span",
+			Name:         "jaeger-span-write",
+			IsWriteIndex: true,
+		},
+	}
+	expectedRequestBody := `{"actions":[{"remove":{"alias":"jaeger-span-read","index":"jaeger-span"}},{"remove":{"alias":"jaeger-span-write","index":"jaeger-span","is_write_index":true}}]}`
+	tests := []struct {
+		name         string
+		responseCode int
+		response     string
+		errContains  string
+	}{
+		{
+			name:         "success",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "client error",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to delete aliases: [index: jaeger-span, alias: jaeger-span-read],[index: jaeger-span, alias: jaeger-span-write]",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
+				assert.Equal(t, http.MethodPost, req.Method)
+				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				body, err := ioutil.ReadAll(req.Body)
+				require.NoError(t, err)
+				assert.Equal(t, expectedRequestBody, string(body))
+				res.WriteHeader(test.responseCode)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+
+			c := &IndicesClient{
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
+			}
+			err := c.DeleteAlias(aliases)
+			if test.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.errContains)
+			}
+		})
+	}
+}
+
+func TestClientCreateTemplate(t *testing.T) {
+	templateName := "jaeger-template"
+	templateContent := "template content"
+	tests := []struct {
+		name         string
+		responseCode int
+		response     string
+		errContains  string
+	}{
+		{
+			name:         "success",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "client error",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to create template: jaeger-template",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
+				assert.Equal(t, http.MethodPut, req.Method)
+				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				body, err := ioutil.ReadAll(req.Body)
+				require.NoError(t, err)
+				assert.Equal(t, templateContent, string(body))
+
+				res.WriteHeader(test.responseCode)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+
+			c := &IndicesClient{
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
+			}
+			err := c.CreateTemplate(templateContent, templateName)
+			if test.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.errContains)
+			}
+		})
+	}
+}
+
+func TestRollover(t *testing.T) {
+	expectedRequestBody := "{\"conditions\":{\"max_age\":\"2d\"}}"
+	mapConditions := map[string]interface{}{
+		"max_age": "2d",
+	}
+
+	tests := []struct {
+		name         string
+		responseCode int
+		response     string
+		errContains  string
+	}{
+		{
+			name:         "success",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "client error",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to create rollover target: jaeger-span",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span/_rollover/"))
+				assert.Equal(t, http.MethodPost, req.Method)
+				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				body, err := ioutil.ReadAll(req.Body)
+				require.NoError(t, err)
+				assert.Equal(t, expectedRequestBody, string(body))
+
+				res.WriteHeader(test.responseCode)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+
+			c := &IndicesClient{
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
+			}
+			err := c.Rollover("jaeger-span", mapConditions)
+			if test.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.errContains)
+			}
+		})
+	}
 }
