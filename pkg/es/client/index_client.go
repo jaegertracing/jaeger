@@ -109,6 +109,11 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 	})
 
 	if err != nil {
+		if responseError, isResponseError := err.(ResponseError); isResponseError {
+			if responseError.StatusCode != http.StatusOK {
+				return fmt.Errorf("failed to delete indices: %s, %w", concatIndices, responseError.Err)
+			}
+		}
 		return fmt.Errorf("failed to delete indices: %w", err)
 	}
 
