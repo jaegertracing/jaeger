@@ -52,12 +52,11 @@ type ActionExecuteOptions struct {
 	Args     []string
 	Viper    *viper.Viper
 	Logger   *zap.Logger
-	Config   Config
 	TLSFlags tlscfg.ClientFlagsConfig
 }
 
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
-type ActionCreatorFunction func(client.Client) Action
+type ActionCreatorFunction func(client.Client, Config) Action
 
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
@@ -66,13 +65,15 @@ func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction
 	}
 
 	tlsOpts := opts.TLSFlags.InitFromViper(opts.Viper)
+	cfg := Config{}
+	cfg.InitFromViper(opts.Viper)
 	tlsCfg, err := tlsOpts.Config(opts.Logger)
 	if err != nil {
 		return err
 	}
 	defer tlsOpts.Close()
 
-	esClient := newESClient(opts.Args[0], &opts.Config, tlsCfg)
-	action := createAction(esClient)
+	esClient := newESClient(opts.Args[0], &cfg, tlsCfg)
+	action := createAction(esClient, cfg)
 	return action.Do()
 }

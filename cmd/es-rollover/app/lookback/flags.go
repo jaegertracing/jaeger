@@ -38,15 +38,12 @@ type Config struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c *Config) AddFlags(flags *flag.FlagSet) {
-	app.AddFlags(flags)
-	// Non common flags
 	flags.String(unit, unit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
 	flags.Int(unitCount, defaultUnitCount, "count of UNITs")
 }
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Config.InitFromViper(v)
 	c.Unit = v.GetString(unit)
 	c.UnitCount = v.GetInt(unitCount)
 

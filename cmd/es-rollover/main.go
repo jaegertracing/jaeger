@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -22,7 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
+	initialize "github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -43,21 +44,20 @@ func main() {
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 
 	// Init command
-	initCfg := &init.Config{}
-
+	initCfg := &initialize.Config{}
 	initCommand := &cobra.Command{
 		Use:   "init http://HOSTNAME:PORT",
 		Short: "creates indices and aliases",
 		Long:  "creates indices and aliases",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			initCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
 				Viper:    v,
 				Logger:   logger,
-				Config:   initCfg.Config,
 				TLSFlags: tlsFlags,
-			}, func(c client.Client) app.Action {
+			}, func(c client.Client, cfg app.Config) app.Action {
+				initCfg.Config = cfg
+				initCfg.InitFromViper(v)
 				indicesClient := client.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: initCfg.Timeout,
@@ -65,7 +65,7 @@ func main() {
 				clusterClient := client.ClusterClient{
 					Client: c,
 				}
-				return &init.Action{
+				return &initialize.Action{
 					IndicesClient: indicesClient,
 					ClusterClient: clusterClient,
 					Config:        *initCfg,
@@ -87,9 +87,10 @@ func main() {
 				Args:     args,
 				Viper:    v,
 				Logger:   logger,
-				Config:   initCfg.Config,
 				TLSFlags: tlsFlags,
-			}, func(c client.Client) app.Action {
+			}, func(c client.Client, cfg app.Config) app.Action {
+				rolloverCfg.Config = cfg
+				rolloverCfg.InitFromViper(v)
 				indicesClient := client.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: rolloverCfg.Timeout,
@@ -114,12 +115,13 @@ func main() {
 				Args:     args,
 				Viper:    v,
 				Logger:   logger,
-				Config:   initCfg.Config,
 				TLSFlags: tlsFlags,
-			}, func(c client.Client) app.Action {
+			}, func(c client.Client, cfg app.Config) app.Action {
+				lookbackCfg.Config = cfg
+				lookbackCfg.InitFromViper(v)
 				indicesClient := client.IndicesClient{
 					Client:               c,
-					MasterTimeoutSeconds: rolloverCfg.Timeout,
+					MasterTimeoutSeconds: lookbackCfg.Timeout,
 				}
 
 				return &lookback.Action{
@@ -130,32 +132,29 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(initCommand)
-	config.AddFlags(
-		v,
-		initCommand,
-		initCfg.AddFlags,
-		tlsFlags.AddFlags,
-	)
-
-	rootCmd.AddCommand(rolloverCommand)
-	config.AddFlags(
-		v,
-		rolloverCommand,
-		rolloverCfg.AddFlags,
-		tlsFlags.AddFlags,
-	)
-
-	rootCmd.AddCommand(lookbackCommand)
-
-	config.AddFlags(
-		v,
-		lookbackCommand,
-		lookbackCfg.AddFlags,
-		tlsFlags.AddFlags,
-	)
+	addRootFlags(v, &tlsFlags, rootCmd)
+	addSubCommand(v, rootCmd, initCommand, initCfg.AddFlags)
+	addSubCommand(v, rootCmd, rolloverCommand, rolloverCfg.AddFlags)
+	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func addSubCommand(v *viper.Viper, rootCmd, cmd *cobra.Command, addFlags func(*flag.FlagSet)) {
+	rootCmd.AddCommand(cmd)
+	config.AddFlags(
+		v,
+		cmd,
+		addFlags,
+	)
+}
+
+func addRootFlags(v *viper.Viper, tlsFlags *tlscfg.ClientFlagsConfig, rootCmd *cobra.Command) {
+	flagSet := new(flag.FlagSet)
+	app.AddFlags(flagSet)
+	tlsFlags.AddFlags(flagSet)
+	rootCmd.PersistentFlags().AddGoFlagSet(flagSet)
+	v.BindPFlags(rootCmd.Flags())
 }

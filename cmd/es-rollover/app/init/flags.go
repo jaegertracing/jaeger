@@ -36,8 +36,6 @@ type Config struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c *Config) AddFlags(flags *flag.FlagSet) {
-	app.AddFlags(flags)
-	// Non common flags
 	flags.Int(shards, 5, "Number of shards")
 	flags.Int(replicas, 1, "Number of replicas")
 
@@ -45,7 +43,6 @@ func (c *Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Config.InitFromViper(v)
 	c.Shards = v.GetInt64(shards)
 	c.Replicas = v.GetInt64(replicas)
 }
