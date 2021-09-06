@@ -35,18 +35,18 @@ func RolloverIndices(archive bool, prefix string) []IndexOption {
 		return []IndexOption{
 			{
 				Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-span-archive", prefix), "-"),
-				TemplateName: "jaeger-span",
+				TemplateName: strings.TrimLeft(fmt.Sprintf("%s-jaeger-span", prefix), "-"),
 			},
 		}
 	}
 	return []IndexOption{
 		{
 			Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-span", prefix), "-"),
-			TemplateName: "jaeger-span",
+			TemplateName: strings.TrimLeft(fmt.Sprintf("%s-jaeger-span", prefix), "-"),
 		},
 		{
 			Prefix:       strings.TrimLeft(fmt.Sprintf("%s-jaeger-service", prefix), "-"),
-			TemplateName: "jaeger-service",
+			TemplateName: strings.TrimLeft(fmt.Sprintf("%s-jaeger-service", prefix), "-"),
 		},
 	}
 
