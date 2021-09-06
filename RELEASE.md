@@ -2,7 +2,7 @@
 
 1. Create a PR "Preparing release X.Y.Z" against master or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
     * A new section with the header `<X.Y.Z> (YYYY-MM-DD)`
-    * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users. To obtain the list of all changes run `make changelog`.
+    * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users. To obtain the list of all changes run `make changelog` or use `scripts/release-notes.py`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
     * If the submodules have new releases, please also upgrade the submodule versions then commit, for example:
         ```
@@ -13,7 +13,7 @@
         ```
 2. Add all merged pull requests to the milestone for the release and create a new milestone for a next release e.g. `Release 1.16`.
 3. After the PR is merged, create a release on Github:
-    * Title "Release X.Y.Z" 
+    * Title "Release X.Y.Z"
     * Tag `vX.Y.Z` (note the `v` prefix) and choose appropriate branch
     * Copy the new CHANGELOG.md section into the release notes
 4. The release tag will trigger a build of the docker images. Since forks don't have jaegertracingbot dockerhub token, they can never publish images to jaegertracing organisation.
@@ -36,9 +36,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version   | Release Manager  | Tentative release date |
 |-----------|------------------|------------------------|
-| 1.24.0    | @pavolloffay     |  7 July      2021      |
-| 1.25.0    | @vprithvi        |  4 August    2021      |
 | 1.26.0    | @yurishkuro      |  1 September 2021      |
 | 1.27.0    | @joe-elliott     |  6 October   2021      |
 | 1.28.0    | @albertteoh      |  3 November  2021      |
-| 1.29.0    | @jpkrohling      |  1 December  2021      | 
+| 1.29.0    | @jpkrohling      |  1 December  2021      |
+| 1.30.0    | @pavolloffay     |  5 January   2022      |
+| 1.31.0    | @vprithvi        |  2 February  2022      |

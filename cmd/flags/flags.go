@@ -58,6 +58,9 @@ func ParseJaegerTags(jaegerTags string) map[string]string {
 	tags := make(map[string]string)
 	for _, p := range tagPairs {
 		kv := strings.SplitN(p, "=", 2)
+		if len(kv) != 2 {
+			panic(fmt.Sprintf("invalid Jaeger tag pair %q, expected key=value", p))
+		}
 		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 
 		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {

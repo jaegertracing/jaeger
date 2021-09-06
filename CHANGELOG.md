@@ -1,6 +1,29 @@
 Changes by Version
 ==================
 
+1.26.0 (2021-09-06)
+-------------------
+### Backend Changes
+#### New Features
+* Add cassandra v4 support ([@Ashmita152](https://github.com/Ashmita152) in [#3225](https://github.com/jaegertracing/jaeger/pull/3225))
+* Add es-index-cleaner golang implementation ([@pavolloffay](https://github.com/pavolloffay) in [#3204](https://github.com/jaegertracing/jaeger/pull/3204))
+* Add CLI Option for gRPC Max Receive Message Size ([@js8080](https://github.com/js8080) in [#3214](https://github.com/jaegertracing/jaeger/pull/3214) and [#3192](https://github.com/jaegertracing/jaeger/pull/3192))
+* Automatically detect OpenSearch version ([@pavolloffay](https://github.com/pavolloffay) in [#3198](https://github.com/jaegertracing/jaeger/pull/3198))
+* Add SendGetBodyAs on elasticsearch ([@NatMarchand](https://github.com/NatMarchand) in [#3193](https://github.com/jaegertracing/jaeger/pull/3193))
+* Set lookback in ES rollover to distant past ([@pavolloffay](https://github.com/pavolloffay) in [#3169](https://github.com/jaegertracing/jaeger/pull/3169))
+
+#### Bug fixes, Minor Improvements
+* Check for invalid --agent.tags ([@esnible](https://github.com/esnible) in [#3246](https://github.com/jaegertracing/jaeger/pull/3246))
+* Replace old linters with golangci-lint ([@albertteoh](https://github.com/albertteoh) in [#3237](https://github.com/jaegertracing/jaeger/pull/3237))
+* Fix panic on empty findTraces query ([@akuzni2](https://github.com/akuzni2) in [#3232](https://github.com/jaegertracing/jaeger/pull/3232))
+* Upgrade to Go v1.17 ([@Ashmita152](https://github.com/Ashmita152) in [#3220](https://github.com/jaegertracing/jaeger/pull/3220))
+* Add docker buildx make target ([@pavolloffay](https://github.com/pavolloffay) in [#3213](https://github.com/jaegertracing/jaeger/pull/3213))
+* Fix the name for elasticsearch integration tests ([@Ashmita152](https://github.com/Ashmita152) in [#3208](https://github.com/jaegertracing/jaeger/pull/3208))
+* Upgrade ES images in integration tests ([@pavolloffay](https://github.com/pavolloffay) in [#3185](https://github.com/jaegertracing/jaeger/pull/3185))
+
+### UI Changes
+* UI pinned to version 1.16.0 - https://github.com/jaegertracing/jaeger-ui/releases/tag/v1.16.0
+
 1.25.0 (2021-08-04)
 -------------------
 #### New Features
@@ -113,7 +136,7 @@ Changes by Version
 * Remove incorrectly scoped downsample flags from the query service ([#2782](https://github.com/jaegertracing/jaeger/pull/2782), [@joe-elliott](https://github.com/joe-elliott))
     * `--downsampling.hashsalt` removed from jaeger-query
     * `--downsampling.ratio` removed from jaeger-query
-    
+
 #### New Features
 
 * Add TLS Support for gRPC and HTTP endpoints of the Query and Collector servers ([#2337](https://github.com/jaegertracing/jaeger/pull/2337), [#2772](https://github.com/jaegertracing/jaeger/pull/2772), [#2798](https://github.com/jaegertracing/jaeger/pull/2798), [@rjs211](https://github.com/rjs211))

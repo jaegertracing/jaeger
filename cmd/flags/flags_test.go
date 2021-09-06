@@ -50,3 +50,12 @@ func TestParseJaegerTags(t *testing.T) {
 
 	assert.Equal(t, expectedTags, ParseJaegerTags(jaegerTags))
 }
+
+func TestParseJaegerTagsPanic(t *testing.T) {
+	assert.PanicsWithValue(t,
+		"invalid Jaeger tag pair \"no-equals-sign\", expected key=value",
+		func() {
+			ParseJaegerTags("no-equals-sign")
+		},
+	)
+}

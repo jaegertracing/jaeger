@@ -9,12 +9,24 @@ on:
 jobs:
   cassandra:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version:
+        - distribution: cassandra
+          major: 3.x
+          image: 3.11
+          schema: v003
+        - distribution: cassandra
+          major: 4.x
+          image: 4.0
+          schema: v004
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v2.3.4
 
     - uses: actions/setup-go@v2
       with:
-        go-version: ^1.16
+        go-version: ^1.17
 
     - name: Run cassandra integration tests
-      run: bash scripts/cassandra-integration-test.sh
+      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }}

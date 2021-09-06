@@ -20,7 +20,7 @@ do
 done
 
 # build/upload images for jaeger-es-index-cleaner and jaeger-es-rollover
-bash scripts/build-upload-a-docker-image.sh -c jaeger-es-index-cleaner -d plugin/storage/es -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
 bash scripts/build-upload-a-docker-image.sh -c jaeger-es-rollover -d plugin/storage/es -f Dockerfile.rollover -p "${platforms}"
 
 # build/upload images for jaeger-tracegen and jaeger-anonymizer
