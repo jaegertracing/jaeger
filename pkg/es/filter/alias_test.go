@@ -16,7 +16,6 @@ package filter
 
 import (
 	"testing"
-	"time"
 
 	"github.com/crossdock/crossdock-go/assert"
 
@@ -96,15 +95,13 @@ func TestByAliasExclude(t *testing.T) {
 	filtered := ByAliasExclude(indices, []string{"jaeger-span-read", "jaeger-span-other"})
 	expected := []client.Index{
 		{
-			Index:        "jaeger-span-0005",
-			CreationTime: time.Date(2021, 10, 10, 0, 0, 0, 0, time.Local),
+			Index: "jaeger-span-0005",
 			Aliases: map[string]bool{
 				"custom-alias": true,
 			},
 		},
 		{
-			Index:        "jaeger-span-0006",
-			CreationTime: time.Date(2021, 10, 10, 0, 0, 0, 0, time.Local),
+			Index: "jaeger-span-0006",
 		},
 	}
 	assert.Equal(t, expected, filtered)
