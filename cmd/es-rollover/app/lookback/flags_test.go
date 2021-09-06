@@ -12,41 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package lookback
 
 import (
+	"flag"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestBasicAuth(t *testing.T) {
-	tests := []struct {
-		name           string
-		username       string
-		password       string
-		expectedResult string
-	}{
-		{
-			name:           "user and password",
-			username:       "admin",
-			password:       "qwerty123456",
-			expectedResult: "YWRtaW46cXdlcnR5MTIzNDU2",
-		},
-		{
-			name:           "username empty",
-			username:       "",
-			password:       "qwerty123456",
-			expectedResult: "",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result := BasicAuth(test.username, test.password)
-			assert.Equal(t, test.expectedResult, result)
+func TestBindFlags(t *testing.T) {
+	v := viper.New()
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	c.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
 
-		})
+	err := command.ParseFlags([]string{
+		"--unit=days",
+		"--unit-count=16",
+	})
+	require.NoError(t, err)
 
-	}
-
+	c.InitFromViper(v)
+	assert.Equal(t, "days", c.Unit)
+	assert.Equal(t, 16, c.UnitCount)
 }

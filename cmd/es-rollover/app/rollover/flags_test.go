@@ -12,41 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package rollover
 
 import (
+	"flag"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestBasicAuth(t *testing.T) {
-	tests := []struct {
-		name           string
-		username       string
-		password       string
-		expectedResult string
-	}{
-		{
-			name:           "user and password",
-			username:       "admin",
-			password:       "qwerty123456",
-			expectedResult: "YWRtaW46cXdlcnR5MTIzNDU2",
-		},
-		{
-			name:           "username empty",
-			username:       "",
-			password:       "qwerty123456",
-			expectedResult: "",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result := BasicAuth(test.username, test.password)
-			assert.Equal(t, test.expectedResult, result)
+func TestBindFlags(t *testing.T) {
+	v := viper.New()
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	c.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
 
-		})
+	err := command.ParseFlags([]string{
+		"--conditions={\"max_age\": \"20000d\"}",
+	})
+	require.NoError(t, err)
 
-	}
-
+	c.InitFromViper(v)
+	assert.Equal(t, "{\"max_age\": \"20000d\"}", c.Conditions)
 }
