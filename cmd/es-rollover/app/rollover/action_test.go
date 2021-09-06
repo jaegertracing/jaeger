@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/crossdock/crossdock-go/assert"
+
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"

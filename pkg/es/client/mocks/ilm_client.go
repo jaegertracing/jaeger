@@ -12,22 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package mocks
 
-type IndexAPI interface {
-	GetJaegerIndices(prefix string) ([]Index, error)
-	DeleteIndices(indices []Index) error
-	CreateIndex(index string) error
-	CreateAlias(aliases []Alias) error
-	DeleteAlias(aliases []Alias) error
-	CreateTemplate(template, name string) error
-	Rollover(rolloverTarget string, conditions map[string]interface{}) error
+import "github.com/stretchr/testify/mock"
+
+type MockILMAPI struct {
+	mock.Mock
 }
 
-type ClusterAPI interface {
-	Version() (uint, error)
-}
-
-type IndexManagementLifecycleAPI interface {
-	Exists(name string) (bool, error)
+func (c *MockILMAPI) Exists(name string) (bool, error) {
+	ret := c.Called(name)
+	return ret.Get(0).(bool), ret.Error(1)
 }

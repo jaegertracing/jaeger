@@ -79,6 +79,32 @@ func (c Action) Do() error {
 	return nil
 }
 
+func createIndexIfNotExist(c client.IndexAPI, index string) error {
+	err := c.CreateIndex(index)
+	if err != nil {
+		if esErr, ok := err.(client.ResponseError); ok {
+			if esErr.StatusCode != http.StatusBadRequest || esErr.Body == nil {
+				return esErr.Err
+			}
+			// check for the reason of the error
+			jsonError := map[string]interface{}{}
+			err := json.Unmarshal(esErr.Body, &jsonError)
+			if err != nil {
+				// return unmarshal error
+				return err
+			}
+			errorMap := jsonError["error"].(map[string]interface{})
+			// check for reason, ignore already exist error
+			if strings.Contains("resource_already_exists_exception", errorMap["type"].(string)) {
+				return nil
+			}
+		}
+		// Return any other error unrelated to the response
+		return err
+	}
+	return nil
+}
+
 func (c Action) init(version uint, indexset app.IndexOption) error {
 	mapping, err := c.getMapping(version, indexset.TemplateName)
 	if err != nil {
@@ -89,22 +115,11 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 	if err != nil {
 		return err
 	}
-	index := indexset.InitialRolloverIndex()
 
-	err = c.IndicesClient.CreateIndex(index)
-	if esErr, ok := err.(client.ResponseError); ok {
-		if esErr.StatusCode == http.StatusBadRequest && esErr.Body != nil {
-			jsonError := map[string]interface{}{}
-			err := json.Unmarshal(esErr.Body, &jsonError)
-			if err != nil {
-				return err
-			}
-			errorMap := jsonError["error"].(map[string]interface{})
-			// Ignore already exist error
-			if !strings.Contains("resource_already_exists_exception", errorMap["type"].(string)) {
-				return err
-			}
-		}
+	index := indexset.InitialRolloverIndex()
+	err = createIndexIfNotExist(c.IndicesClient, index)
+	if err != nil {
+		return err
 	}
 
 	jaegerIndices, err := c.IndicesClient.GetJaegerIndices(c.Config.IndexPrefix)
