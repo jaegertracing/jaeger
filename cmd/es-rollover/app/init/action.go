@@ -95,7 +95,10 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 	if esErr, ok := err.(client.ResponseError); ok {
 		if esErr.StatusCode == http.StatusBadRequest && esErr.Body != nil {
 			jsonError := map[string]interface{}{}
-			json.Unmarshal(esErr.Body, &jsonError)
+			err := json.Unmarshal(esErr.Body, &jsonError)
+			if err != nil {
+				return err
+			}
 			errorMap := jsonError["error"].(map[string]interface{})
 			// Ignore already exist error
 			if !strings.Contains("resource_already_exists_exception", errorMap["type"].(string)) {
@@ -114,7 +117,7 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 
 	aliases := []client.Alias{}
 
-	if filter.HasAliasEmpty(jaegerIndices, readAlias) {
+	if !filter.AliasExists(jaegerIndices, readAlias) {
 		aliases = append(aliases, client.Alias{
 			Index:        index,
 			Name:         readAlias,
@@ -122,7 +125,7 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 		})
 	}
 
-	if filter.HasAliasEmpty(jaegerIndices, writeAlias) {
+	if !filter.AliasExists(jaegerIndices, writeAlias) {
 		aliases = append(aliases, client.Alias{
 			Index:        index,
 			Name:         writeAlias,
