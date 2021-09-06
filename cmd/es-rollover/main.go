@@ -59,14 +59,14 @@ func main() {
 			}, func(c client.Client, cfg app.Config) app.Action {
 				initCfg.Config = cfg
 				initCfg.InitFromViper(v)
-				indicesClient := client.IndicesClient{
+				indicesClient := &client.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: initCfg.Timeout,
 				}
-				clusterClient := client.ClusterClient{
+				clusterClient := &client.ClusterClient{
 					Client: c,
 				}
-				ilmClient := client.ILMClient{
+				ilmClient := &client.ILMClient{
 					Client: c,
 				}
 				return &initialize.Action{
@@ -97,7 +97,7 @@ func main() {
 			}, func(c client.Client, cfg app.Config) app.Action {
 				rolloverCfg.Config = cfg
 				rolloverCfg.InitFromViper(v)
-				indicesClient := client.IndicesClient{
+				indicesClient := &client.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: rolloverCfg.Timeout,
 				}
@@ -126,7 +126,7 @@ func main() {
 			}, func(c client.Client, cfg app.Config) app.Action {
 				lookbackCfg.Config = cfg
 				lookbackCfg.InitFromViper(v)
-				indicesClient := client.IndicesClient{
+				indicesClient := &client.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: lookbackCfg.Timeout,
 				}

@@ -25,7 +25,7 @@ import (
 // Action holds the configuration and clients for rollover action
 type Action struct {
 	Config
-	IndicesClient client.IndicesClient
+	IndicesClient client.IndexAPI
 }
 
 // Do the rollover action

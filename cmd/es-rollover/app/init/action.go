@@ -32,9 +32,9 @@ const ilmVersionSupport = 7
 // Action holds the configuration and clients for init action
 type Action struct {
 	Config        Config
-	ClusterClient client.ClusterClient
-	IndicesClient client.IndicesClient
-	ILMClient     client.ILMClient
+	ClusterClient client.ClusterAPI
+	IndicesClient client.IndexAPI
+	ILMClient     client.IndexManagementLifecycleAPI
 }
 
 func (c Action) getMapping(version uint, templateName string) (string, error) {

@@ -26,7 +26,7 @@ import (
 // Action holds the configuration and clients for lookback action
 type Action struct {
 	Config
-	IndicesClient client.IndicesClient
+	IndicesClient client.IndexAPI
 }
 
 // Do the lookback action
