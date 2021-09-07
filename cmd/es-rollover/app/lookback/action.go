@@ -23,6 +23,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/filter"
 )
 
+var timeNow func() time.Time = time.Now
+
 // Action holds the configuration and clients for lookback action
 type Action struct {
 	Config
@@ -49,7 +51,7 @@ func (a *Action) lookback(indexSet app.IndexOption) error {
 	readAliasName := indexSet.ReadAliasName()
 	readAliasIndices := filter.ByAlias(jaegerIndicex, []string{readAliasName})
 	excludedWriteIndex := filter.ByAliasExclude(readAliasIndices, []string{indexSet.WriteAliasName()})
-	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(time.Now(), a.Unit, a.UnitCount))
+	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(timeNow(), a.Unit, a.UnitCount))
 	if len(finalIndices) == 0 {
 		return fmt.Errorf("no indices to remove from alias %s", readAliasName)
 	}
@@ -63,31 +65,5 @@ func (a *Action) lookback(indexSet app.IndexOption) error {
 		})
 	}
 	return a.IndicesClient.DeleteAlias(aliases)
-
-}
-
-func getTimeReference(now time.Time, units string, unitCount int) time.Time {
-	switch units {
-	case "minutes":
-		return now.Truncate(time.Minute).Add(time.Minute).Add(-time.Duration(unitCount) * time.Minute)
-	case "hours":
-		return now.Truncate(time.Minute).Add(time.Hour).Add(-time.Duration(unitCount) * time.Hour)
-	case "days":
-		year, month, day := time.Now().Date()
-		return time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(0, 0, -1*unitCount)
-	case "weeks":
-		diff := int(now.Weekday()) - int(time.Saturday)
-		year, month, day := time.Now().Date()
-		weekEnd := time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(0, 0, diff)
-		return weekEnd.Add(-time.Hour * 24 * 7 * time.Duration(unitCount))
-	case "months":
-		year, month, day := time.Now().Date()
-		return time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(0, -1*unitCount, 0)
-	case "years":
-		year, month, day := time.Now().Date()
-		return time.Date(year, month, day, 0, 0, 0, 0, now.Location()).AddDate(1*unitCount, 0, 0)
-	}
-
-	return now.Add(-time.Duration(unitCount) * time.Second)
 
 }
