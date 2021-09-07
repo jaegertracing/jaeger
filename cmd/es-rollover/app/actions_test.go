@@ -78,7 +78,7 @@ func TestExecuteAction(t *testing.T) {
 			configError:           true,
 		},
 	}
-	logger, _ := zap.NewProduction()
+	logger := zap.NewNop()
 	args := []string{
 		"https://localhost:9300",
 	}

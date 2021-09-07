@@ -109,5 +109,4 @@ func TestRolloverAction(t *testing.T) {
 			indexClient.AssertExpectations(t)
 		})
 	}
-
 }

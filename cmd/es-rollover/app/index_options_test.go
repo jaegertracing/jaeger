@@ -116,5 +116,4 @@ func TestRolloverIndices(t *testing.T) {
 			}
 		})
 	}
-
 }

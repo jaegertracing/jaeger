@@ -51,5 +51,4 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "admin", c.Username)
 	assert.Equal(t, "qwerty123", c.Password)
 	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
-
 }

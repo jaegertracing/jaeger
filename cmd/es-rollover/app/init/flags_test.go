@@ -40,6 +40,6 @@ func TestBindFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
-	assert.Equal(t, int64(8), c.Shards)
-	assert.Equal(t, int64(16), c.Replicas)
+	assert.Equal(t, 8, c.Shards)
+	assert.Equal(t, 16, c.Replicas)
 }

@@ -30,8 +30,8 @@ const (
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	Shards   int64
-	Replicas int64
+	Shards   int
+	Replicas int
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
@@ -43,6 +43,6 @@ func (c *Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Shards = v.GetInt64(shards)
-	c.Replicas = v.GetInt64(replicas)
+	c.Shards = v.GetInt(shards)
+	c.Replicas = v.GetInt(replicas)
 }

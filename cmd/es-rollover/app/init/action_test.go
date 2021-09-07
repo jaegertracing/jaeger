@@ -85,7 +85,6 @@ func TestIndexCreateIfNotExist(t *testing.T) {
 			}
 		})
 	}
-
 }
 func TestRolloverAction(t *testing.T) {
 	tests := []struct {

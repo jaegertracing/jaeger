@@ -49,7 +49,6 @@ func RolloverIndices(archive bool, prefix string) []IndexOption {
 			TemplateName: strings.TrimLeft(fmt.Sprintf("%s-jaeger-service", prefix), "-"),
 		},
 	}
-
 }
 
 // ReadAliasName returns read alias name of the index

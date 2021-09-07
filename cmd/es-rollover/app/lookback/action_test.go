@@ -67,9 +67,11 @@ func TestLookBackAction(t *testing.T) {
 			CreationTime: nowTime,
 		},
 	}
+
 	timeNow = func() time.Time {
 		return nowTime
 	}
+
 	tests := []struct {
 		name                  string
 		setupCallExpectations func(indexClient *mocks.MockIndexAPI)

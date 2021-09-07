@@ -40,8 +40,8 @@ type Action struct {
 func (c Action) getMapping(version uint, templateName string) (string, error) {
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
-		Shards:          c.Config.Shards,
-		Replicas:        c.Config.Replicas,
+		Shards:          int64(c.Config.Shards),
+		Replicas:        int64(c.Config.Replicas),
 		IndexPrefix:     c.Config.IndexPrefix,
 		UseILM:          c.Config.UseILM,
 		ILMPolicyName:   c.Config.ILMPolicyName,
