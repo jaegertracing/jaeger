@@ -298,6 +298,25 @@ func TestGRPCClientWriteSpan(t *testing.T) {
 	})
 }
 
+func TestGRPCClientCloseWriter(t *testing.T) {
+	withGRPCClient(func(r *grpcClientTest) {
+		r.spanWriter.On("Close", mock.Anything, &storage_v1.CloseWriterRequest{}).Return(&storage_v1.CloseWriterResponse{}, nil)
+
+		err := r.client.Close()
+		assert.NoError(t, err)
+	})
+}
+
+func TestGRPCClientCloseNotSupported(t *testing.T) {
+	withGRPCClient(func(r *grpcClientTest) {
+		r.spanWriter.On("Close", mock.Anything, &storage_v1.CloseWriterRequest{}).Return(
+			nil, status.Errorf(codes.Unimplemented, "method not implemented"))
+
+		err := r.client.Close()
+		assert.NoError(t, err)
+	})
+}
+
 func TestGRPCClientGetDependencies(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
 		lookback := time.Duration(1 * time.Second)
