@@ -163,5 +163,5 @@ func addRootFlags(v *viper.Viper, tlsFlags *tlscfg.ClientFlagsConfig, rootCmd *c
 	app.AddFlags(flagSet)
 	tlsFlags.AddFlags(flagSet)
 	rootCmd.PersistentFlags().AddGoFlagSet(flagSet)
-	v.BindPFlags(rootCmd.Flags())
+	v.BindPFlags(rootCmd.PersistentFlags())
 }
