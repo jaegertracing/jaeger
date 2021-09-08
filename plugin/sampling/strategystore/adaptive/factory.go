@@ -15,6 +15,7 @@
 package adaptive
 
 import (
+	"errors"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -22,20 +23,28 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 // Factory implements strategystore.Factory for an adaptive strategy store.
 type Factory struct {
-	options        Options
+	options        *Options
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
+	lock           distributedlock.Lock
+	store          samplingstore.Store
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
+		options:        &Options{},
 		logger:         zap.NewNop(),
 		metricsFactory: metrics.NullFactory,
+		lock:           nil,
+		store:          nil,
 	}
 }
 
@@ -46,18 +55,37 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	f.options = Options{}.InitFromViper(v)
+	f.options.InitFromViper(v)
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
+	if ssFactory == nil {
+		return errors.New("lock or SamplingStore nil. Please configure a backend that supports adaptive sampling")
+	}
+
+	var err error
 	f.logger = logger
 	f.metricsFactory = metricsFactory
+	f.lock, err = ssFactory.CreateLock()
+	if err != nil {
+		return err
+	}
+	f.store, err = ssFactory.CreateSamplingStore()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
-	// TODO
-	return nil, nil
+func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
+	p, err := NewStrategyStore(*f.options, f.metricsFactory, f.logger, f.lock, f.store)
+	if err != nil {
+		return nil, nil, err
+	}
+	p.Start()
+	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store)
+	a.Start()
+	return p, a, nil
 }

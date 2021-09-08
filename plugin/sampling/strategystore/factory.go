@@ -24,29 +24,35 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+	"github.com/jaegertracing/jaeger/storage"
 )
+
+// Kind is a datatype holding the type of strategy store.
+type Kind string
 
 const (
-	staticStrategyStoreType = "static"
+	samplingTypeAdaptive = "adaptive"
+	samplingTypeStatic   = "static"
 )
 
-var allSamplingTypes = []string{staticStrategyStoreType} // TODO support adaptive
+var allSamplingTypes = []Kind{samplingTypeStatic, samplingTypeAdaptive}
 
 // Factory implements strategystore.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
 	FactoryConfig
 
-	factories map[string]strategystore.Factory
+	factories map[Kind]strategystore.Factory
 }
 
 // NewFactory creates the meta-factory.
 func NewFactory(config FactoryConfig) (*Factory, error) {
 	f := &Factory{FactoryConfig: config}
-	uniqueTypes := map[string]struct{}{
+	uniqueTypes := map[Kind]struct{}{
 		f.StrategyStoreType: {},
 	}
-	f.factories = make(map[string]strategystore.Factory)
+	f.factories = make(map[Kind]strategystore.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
@@ -57,10 +63,12 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (f *Factory) getFactoryOfType(factoryType string) (strategystore.Factory, error) {
+func (f *Factory) getFactoryOfType(factoryType Kind) (strategystore.Factory, error) {
 	switch factoryType {
-	case staticStrategyStoreType:
+	case samplingTypeStatic:
 		return static.NewFactory(), nil
+	case samplingTypeAdaptive:
+		return adaptive.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("unknown sampling strategy store type %s. Valid types are %v", factoryType, allSamplingTypes)
 	}
@@ -85,9 +93,9 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	for _, factory := range f.factories {
-		if err := factory.Initialize(metricsFactory, logger); err != nil {
+		if err := factory.Initialize(metricsFactory, ssFactory, logger); err != nil {
 			return err
 		}
 	}
@@ -95,10 +103,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 }
 
 // CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
+func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
 	factory, ok := f.factories[f.StrategyStoreType]
 	if !ok {
-		return nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
+		return nil, nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
 	}
 	return factory.CreateStrategyStore()
 }

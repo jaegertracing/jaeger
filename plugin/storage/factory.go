@@ -158,6 +158,20 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	}), nil
 }
 
+// CreateSamplingStoreFactory creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
+func (f *Factory) CreateSamplingStoreFactory() (storage.SamplingStoreFactory, error) {
+	for _, factory := range f.factories {
+		ss, ok := factory.(storage.SamplingStoreFactory)
+		if ok {
+			return ss, nil
+		}
+	}
+
+	// returning nothing is valid here. it's quite possible that the user has no backend that can support adaptive sampling
+	// this is fine as long as adaptive sampling is also not configured
+	return nil, nil
+}
+
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	factory, ok := f.factories[f.DependenciesStorageType]

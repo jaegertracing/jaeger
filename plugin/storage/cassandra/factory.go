@@ -26,11 +26,16 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/pkg/hostname"
+	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
+	cSamplingStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/samplingstore"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -145,6 +150,22 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, err
 	}
 	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...), nil
+}
+
+// CreateLock implements storage.SamplingStoreFactory
+func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+	hostname, err := hostname.AsIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostname))
+
+	return cLock.NewLock(f.primarySession, hostname), nil
+}
+
+// CreateSamplingStore implements storage.SamplingStoreFactory
+func (f *Factory) CreateSamplingStore() (samplingstore.Store, error) {
+	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {

@@ -1,6 +1,13 @@
 Changes by Version
 ==================
 
+next release
+-------------------
+### Backend Changes
+#### New Features
+* Add support for adaptive sampling with a Cassandra backend. ([#2966](https://github.com/jaegertracing/jaeger/pull/2966), [@joe-elliott](https://github.com/joe-elliott))
+
+
 1.26.0 (2021-09-06)
 -------------------
 ### Backend Changes
@@ -69,6 +76,8 @@ Changes by Version
 1.23.0 (2021-06-04)
 -------------------
 ### Backend Changes
+
+#### New Features
 
 #### Breaking Changes
 

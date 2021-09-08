@@ -92,7 +92,7 @@ func TestClose(t *testing.T) {
 	err := fmt.Errorf("some error")
 	f := Factory{
 		factories: map[string]storage.Factory{
-			storageType: &errorCloseFactory{closeErr: err},
+			storageType: &errorFactory{closeErr: err},
 		},
 		FactoryConfig: FactoryConfig{SpanWriterTypes: []string{storageType}},
 	}
@@ -296,6 +296,22 @@ func TestCreateError(t *testing.T) {
 	}
 }
 
+func CreateSamplingStoreFactory(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+
+	ssFactory, err := f.CreateSamplingStoreFactory()
+	assert.Equal(t, f.factories[cassandraStorageType], ssFactory)
+	assert.NoError(t, err)
+
+	delete(f.factories, cassandraStorageType)
+	ssFactory, err = f.CreateSamplingStoreFactory()
+	assert.Nil(t, ssFactory)
+	assert.NoError(t, err)
+}
+
 type configurable struct {
 	mocks.Factory
 	flagSet *flag.FlagSet
@@ -392,29 +408,29 @@ func TestPublishOpts(t *testing.T) {
 	})
 }
 
-type errorCloseFactory struct {
+type errorFactory struct {
 	closeErr error
 }
 
-var _ storage.Factory = (*errorCloseFactory)(nil)
-var _ io.Closer = (*errorCloseFactory)(nil)
+var _ storage.Factory = (*errorFactory)(nil)
+var _ io.Closer = (*errorFactory)(nil)
 
-func (e errorCloseFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) Close() error {
+func (e errorFactory) Close() error {
 	return e.closeErr
 }

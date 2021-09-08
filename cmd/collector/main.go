@@ -50,7 +50,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
-	strategyStoreFactory, err := ss.NewFactory(ss.FactoryConfigFromEnv())
+	strategyStoreFactoryConfig, err := ss.FactoryConfigFromEnv()
+	if err != nil {
+		log.Fatalf("Cannot initialize sampling strategy store factory config: %v", err)
+	}
+	strategyStoreFactory, err := ss.NewFactory(*strategyStoreFactoryConfig)
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
 	}
@@ -80,21 +84,26 @@ func main() {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
 
+			ssFactory, err := storageFactory.CreateSamplingStoreFactory()
+			if err != nil {
+				logger.Fatal("Failed to create sampling store factory", zap.Error(err))
+			}
+
 			strategyStoreFactory.InitFromViper(v, logger)
-			if err := strategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
+			if err := strategyStoreFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
-			strategyStore, err := strategyStoreFactory.CreateStrategyStore()
+			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
 			if err != nil {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 			}
-
 			c := app.New(&app.CollectorParams{
 				ServiceName:    serviceName,
 				Logger:         logger,
 				MetricsFactory: metricsFactory,
 				SpanWriter:     spanWriter,
 				StrategyStore:  strategyStore,
+				Aggregator:     aggregator,
 				HealthCheck:    svc.HC(),
 			})
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)

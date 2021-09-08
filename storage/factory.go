@@ -21,8 +21,10 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	metricsstore "github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -45,6 +47,15 @@ type Factory interface {
 
 	// CreateDependencyReader creates a dependencystore.Reader.
 	CreateDependencyReader() (dependencystore.Reader, error)
+}
+
+// SamplingStoreFactory defines an interface that is capable of returning the necessary backends for
+// adaptive sampling.
+type SamplingStoreFactory interface {
+	// CreateLock creates a distributed lock.
+	CreateLock() (distributedlock.Lock, error)
+	// CreateSamplingStore creates a sampling store.
+	CreateSamplingStore() (samplingstore.Store, error)
 }
 
 var (

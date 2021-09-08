@@ -18,8 +18,11 @@ package model
 import (
 	"encoding/gob"
 	"io"
+	"strconv"
 
 	"github.com/opentracing/opentracing-go/ext"
+	"github.com/uber/jaeger-client-go"
+	"go.uber.org/zap"
 )
 
 const (
@@ -118,6 +121,39 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 	s.References = MaybeAddParentSpanID(s.TraceID, newParentID, s.References)
 }
 
+// GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
+func (s *Span) GetSamplerParams(logger *zap.Logger) (string, float64) {
+	tag, ok := KeyValues(s.Tags).FindByKey(jaeger.SamplerTypeTagKey)
+	if !ok {
+		return "", 0
+	}
+	if tag.VType != StringType {
+		logger.
+			With(zap.String("traceID", s.TraceID.String())).
+			With(zap.String("spanID", s.SpanID.String())).
+			Warn("sampler.type tag is not a string", zap.Any("tag", tag))
+		return "", 0
+	}
+	samplerType := tag.AsString()
+	if samplerType != jaeger.SamplerTypeProbabilistic && samplerType != jaeger.SamplerTypeLowerBound &&
+		samplerType != jaeger.SamplerTypeRateLimiting {
+		return "", 0
+	}
+	tag, ok = KeyValues(s.Tags).FindByKey(jaeger.SamplerParamTagKey)
+	if !ok {
+		return "", 0
+	}
+	samplerParam, err := samplerParamToFloat(tag)
+	if err != nil {
+		logger.
+			With(zap.String("traceID", s.TraceID.String())).
+			With(zap.String("spanID", s.SpanID.String())).
+			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
+		return "", 0
+	}
+	return samplerType, samplerParam
+}
+
 // ------- Flags -------
 
 // SetSampled sets the Flags as sampled
@@ -158,4 +194,16 @@ func (f Flags) IsFirehoseEnabled() bool {
 
 func (f Flags) checkFlags(bit Flags) bool {
 	return f&bit == bit
+}
+
+func samplerParamToFloat(samplerParamTag KeyValue) (float64, error) {
+	// The param could be represented as a string, an int, or a float
+	switch samplerParamTag.VType {
+	case Float64Type:
+		return samplerParamTag.Float64(), nil
+	case Int64Type:
+		return float64(samplerParamTag.Int64()), nil
+	default:
+		return strconv.ParseFloat(samplerParamTag.AsString(), 64)
+	}
 }
