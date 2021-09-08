@@ -110,6 +110,23 @@ func TestPostSpans(t *testing.T) {
 	}
 }
 
+func TestGRPCCompressionEnabled(t *testing.T) {
+	processor := &mockSpanProcessor{}
+	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		handler := NewGRPCHandler(zap.NewNop(), processor)
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
+	defer server.Stop()
+
+	client, conn := newClient(t, addr)
+	defer conn.Close()
+
+	// Do not use string constant imported from grpc, since we are actually testing that package is imported by the handler.
+	_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{},
+		grpc.UseCompressor("gzip"))
+	require.NoError(t, err)
+}
+
 func TestPostSpansWithError(t *testing.T) {
 	expectedError := errors.New("test-error")
 	processor := &mockSpanProcessor{expectedError: expectedError}

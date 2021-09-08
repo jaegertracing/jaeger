@@ -58,6 +58,14 @@ message WriteSpanResponse {
 
 }
 
+// empty; extensible in the future
+message CloseWriterRequest {
+}
+
+// empty; extensible in the future
+message CloseWriterResponse {
+}
+
 message GetTraceRequest {
     bytes trace_id = 1 [
       (gogoproto.nullable) = false,
@@ -135,6 +143,7 @@ message FindTraceIDsResponse {
 service SpanWriterPlugin {
     // spanstore/Writer
     rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
+    rpc Close(CloseWriterRequest) returns (CloseWriterResponse);
 }
 
 service SpanReaderPlugin {
