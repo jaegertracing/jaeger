@@ -112,7 +112,7 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 	if err != nil {
 		if responseError, isResponseError := err.(ResponseError); isResponseError {
 			if responseError.StatusCode != http.StatusOK {
-				return fmt.Errorf("failed to delete indices: %s, %w", concatIndices, responseError.Err)
+				return responseError.PrefixMessage(fmt.Sprintf("failed to delete indices: %s", concatIndices))
 			}
 		}
 		return fmt.Errorf("failed to delete indices: %w", err)
@@ -130,7 +130,7 @@ func (i *IndicesClient) CreateIndex(index string) error {
 	if err != nil {
 		if responseError, isResponseError := err.(ResponseError); isResponseError {
 			if responseError.StatusCode != http.StatusOK {
-				return fmt.Errorf("failed to create index: %s, %w", index, responseError.Err)
+				return responseError.PrefixMessage(fmt.Sprintf("failed to create index: %s", index))
 			}
 		}
 		return fmt.Errorf("failed to create index: %w", err)
@@ -145,7 +145,7 @@ func (i *IndicesClient) CreateAlias(aliases []Alias) error {
 	if err != nil {
 		if responseError, isResponseError := err.(ResponseError); isResponseError {
 			if responseError.StatusCode != http.StatusOK {
-				return fmt.Errorf("failed to create aliases: %s, %w", i.aliasesString(aliases), responseError.Err)
+				return responseError.PrefixMessage(fmt.Sprintf("failed to create aliases: %s", i.aliasesString(aliases)))
 			}
 		}
 		return fmt.Errorf("failed to create aliases: %w", err)
@@ -159,7 +159,7 @@ func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
 	if err != nil {
 		if responseError, isResponseError := err.(ResponseError); isResponseError {
 			if responseError.StatusCode != http.StatusOK {
-				return fmt.Errorf("failed to delete aliases: %s, %w", i.aliasesString(aliases), responseError.Err)
+				return responseError.PrefixMessage(fmt.Sprintf("failed to delete aliases: %s", i.aliasesString(aliases)))
 			}
 		}
 		return fmt.Errorf("failed to delete aliases: %w", err)
@@ -218,7 +218,7 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 	if err != nil {
 		if responseError, isResponseError := err.(ResponseError); isResponseError {
 			if responseError.StatusCode != http.StatusOK {
-				return fmt.Errorf("failed to create template: %s, %w", name, responseError.Err)
+				return responseError.PrefixMessage(fmt.Sprintf("failed to create template: %s", name))
 			}
 		}
 		return fmt.Errorf("failed to create template: %w", err)
@@ -246,7 +246,7 @@ func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]int
 	if err != nil {
 		if responseError, isResponseError := err.(ResponseError); isResponseError {
 			if responseError.StatusCode != http.StatusOK {
-				return fmt.Errorf("failed to create rollover target: %s, %w", rolloverTarget, responseError.Err)
+				return responseError.PrefixMessage(fmt.Sprintf("failed to create rollover target: %s", rolloverTarget))
 			}
 		}
 		return fmt.Errorf("failed to create rollover: %w", err)

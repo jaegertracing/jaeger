@@ -36,6 +36,14 @@ func (r ResponseError) Error() string {
 	return r.Err.Error()
 }
 
+func (r ResponseError) PrefixMessage(message string) ResponseError {
+	return ResponseError{
+		Err:        fmt.Errorf("%s, %w", message, r.Err),
+		StatusCode: r.StatusCode,
+		Body:       r.Body,
+	}
+}
+
 func newResponseError(err error, code int, body []byte) ResponseError {
 	return ResponseError{
 		Err:        err,
