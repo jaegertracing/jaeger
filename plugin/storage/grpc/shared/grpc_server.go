@@ -17,6 +17,7 @@ package shared
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -52,6 +53,18 @@ func (s *grpcServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanReque
 		return nil, err
 	}
 	return &storage_v1.WriteSpanResponse{}, nil
+}
+
+func (s *grpcServer) Close(ctx context.Context, r *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
+	if closer, ok := s.Impl.SpanWriter().(io.Closer); ok {
+		if err := closer.Close(); err != nil {
+			return nil, err
+		}
+
+		return &storage_v1.CloseWriterResponse{}, nil
+	} else {
+		return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
+	}
 }
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID

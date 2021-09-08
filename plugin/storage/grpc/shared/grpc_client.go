@@ -222,7 +222,17 @@ func (c *grpcClient) WriteSpan(ctx context.Context, span *model.Span) error {
 	_, err := c.writerClient.WriteSpan(ctx, &storage_v1.WriteSpanRequest{
 		Span: span,
 	})
+
 	if err != nil {
+		return fmt.Errorf("plugin error: %w", err)
+	}
+
+	return nil
+}
+
+func (c *grpcClient) Close() error {
+	_, err := c.writerClient.Close(context.Background(), &storage_v1.CloseWriterRequest{})
+	if err != nil && status.Code(err) != codes.Unimplemented {
 		return fmt.Errorf("plugin error: %w", err)
 	}
 
