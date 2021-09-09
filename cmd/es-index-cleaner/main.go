@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
 func main() {
@@ -65,11 +66,13 @@ func main() {
 					TLSClientConfig: tlsCfg,
 				},
 			}
-			i := app.IndicesClient{
-				Client:               c,
-				Endpoint:             args[1],
+			i := client.IndicesClient{
+				Client: client.Client{
+					Endpoint:  args[1],
+					Client:    c,
+					BasicAuth: basicAuth(cfg.Username, cfg.Password),
+				},
 				MasterTimeoutSeconds: cfg.MasterNodeTimeoutSeconds,
-				BasicAuth:            basicAuth(cfg.Username, cfg.Password),
 			}
 
 			indices, err := i.GetJaegerIndices(cfg.IndexPrefix)
