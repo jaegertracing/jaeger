@@ -78,7 +78,6 @@ func TestLookBackAction(t *testing.T) {
 		config                Config
 		expectedErr           error
 	}{
-
 		{
 			name: "success",
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {

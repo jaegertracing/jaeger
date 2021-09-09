@@ -38,7 +38,6 @@ type Config struct {
 func (c *Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(shards, 5, "Number of shards")
 	flags.Int(replicas, 1, "Number of replicas")
-
 }
 
 // InitFromViper initializes config from viper.Viper.

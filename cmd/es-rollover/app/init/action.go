@@ -75,7 +75,6 @@ func (c Action) Do() error {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -129,7 +128,6 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 
 	readAlias := indexset.ReadAliasName()
 	writeAlias := indexset.WriteAliasName()
-
 	aliases := []client.Alias{}
 
 	if !filter.AliasExists(jaegerIndices, readAlias) {
@@ -154,6 +152,5 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 			return err
 		}
 	}
-
 	return nil
 }

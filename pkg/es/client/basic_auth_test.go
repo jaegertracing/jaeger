@@ -46,7 +46,5 @@ func TestBasicAuth(t *testing.T) {
 			assert.Equal(t, test.expectedResult, result)
 
 		})
-
 	}
-
 }

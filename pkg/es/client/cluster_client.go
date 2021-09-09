@@ -22,6 +22,8 @@ import (
 	"strings"
 )
 
+var _ ClusterAPI = (*ClusterClient)(nil)
+
 // ClusterClient is a client used to get ES cluster information
 type ClusterClient struct {
 	Client

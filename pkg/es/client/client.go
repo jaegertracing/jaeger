@@ -36,7 +36,7 @@ func (r ResponseError) Error() string {
 	return r.Err.Error()
 }
 
-func (r ResponseError) PrefixMessage(message string) ResponseError {
+func (r ResponseError) prefixMessage(message string) ResponseError {
 	return ResponseError{
 		Err:        fmt.Errorf("%s, %w", message, r.Err),
 		StatusCode: r.StatusCode,
@@ -96,7 +96,6 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-
 	return body, nil
 }
 
@@ -114,7 +113,6 @@ func (c *Client) handleFailedRequest(res *http.Response) error {
 		}
 		body := string(bodyBytes)
 		return newResponseError(fmt.Errorf("request failed, status code: %d, body: %s", res.StatusCode, body), res.StatusCode, bodyBytes)
-
 	}
 	return newResponseError(fmt.Errorf("request failed, status code: %d", res.StatusCode), res.StatusCode, nil)
 }

@@ -112,7 +112,6 @@ func TestRolloverIndices(t *testing.T) {
 				assert.Equal(t, test.expected[i].readAliasName, r.ReadAliasName())
 				assert.Equal(t, test.expected[i].writeAliasName, r.WriteAliasName())
 				assert.Equal(t, test.expected[i].initialRolloverIndex, r.InitialRolloverIndex())
-
 			}
 		})
 	}

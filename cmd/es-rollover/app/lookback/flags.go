@@ -46,5 +46,4 @@ func (c *Config) AddFlags(flags *flag.FlagSet) {
 func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Unit = v.GetString(unit)
 	c.UnitCount = v.GetInt(unitCount)
-
 }

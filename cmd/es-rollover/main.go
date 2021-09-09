@@ -46,7 +46,7 @@ func main() {
 	// Init command
 	initCfg := &initialize.Config{}
 	initCommand := &cobra.Command{
-		Use:   "init [ELASTICSEARCH_HOST]",
+		Use:   "init http://HOSTNAME:PORT",
 		Short: "creates indices and aliases",
 		Long:  "creates indices and aliases",
 		Args:  cobra.ExactArgs(1),
@@ -83,7 +83,7 @@ func main() {
 	rolloverCfg := &rollover.Config{}
 
 	rolloverCommand := &cobra.Command{
-		Use:   "rollover [ELASTICSEARCH_HOST]",
+		Use:   "rollover http://HOSTNAME:PORT",
 		Short: "rollover to new write index",
 		Long:  "rollover to new write index",
 		Args:  cobra.ExactArgs(1),
@@ -112,7 +112,7 @@ func main() {
 
 	lookbackCfg := lookback.Config{}
 	lookbackCommand := &cobra.Command{
-		Use:   "lookback [ELASTICSEARCH_HOST]",
+		Use:   "lookback http://HOSTNAME:PORT",
 		Short: "removes old indices from read alias",
 		Long:  "removes old indices from read alias",
 		Args:  cobra.ExactArgs(1),
@@ -130,7 +130,6 @@ func main() {
 					Client:               c,
 					MasterTimeoutSeconds: lookbackCfg.Timeout,
 				}
-
 				return &lookback.Action{
 					IndicesClient: indicesClient,
 					Config:        lookbackCfg,

@@ -54,12 +54,12 @@ func (a *Action) rollover(indexSet app.IndexOption) error {
 	if err != nil {
 		return err
 	}
-	jaegerIndicex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
+	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}
 
-	indicesWithWriteAlias := filter.ByAlias(jaegerIndicex, []string{writeAlias})
+	indicesWithWriteAlias := filter.ByAlias(jaegerIndex, []string{writeAlias})
 	aliases := make([]client.Alias, 0, len(indicesWithWriteAlias))
 	for _, index := range indicesWithWriteAlias {
 		aliases = append(aliases, client.Alias{

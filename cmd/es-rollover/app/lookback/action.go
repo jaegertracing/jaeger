@@ -43,15 +43,16 @@ func (a *Action) Do() error {
 }
 
 func (a *Action) lookback(indexSet app.IndexOption) error {
-	jaegerIndicex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
+	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}
 
 	readAliasName := indexSet.ReadAliasName()
-	readAliasIndices := filter.ByAlias(jaegerIndicex, []string{readAliasName})
+	readAliasIndices := filter.ByAlias(jaegerIndex, []string{readAliasName})
 	excludedWriteIndex := filter.ByAliasExclude(readAliasIndices, []string{indexSet.WriteAliasName()})
 	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(timeNow(), a.Unit, a.UnitCount))
+
 	if len(finalIndices) == 0 {
 		return fmt.Errorf("no indices to remove from alias %s", readAliasName)
 	}
@@ -64,6 +65,6 @@ func (a *Action) lookback(indexSet app.IndexOption) error {
 			Name:  readAliasName,
 		})
 	}
-	return a.IndicesClient.DeleteAlias(aliases)
 
+	return a.IndicesClient.DeleteAlias(aliases)
 }

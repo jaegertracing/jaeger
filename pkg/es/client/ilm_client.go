@@ -19,6 +19,8 @@ import (
 	"net/http"
 )
 
+var _ IndexManagementLifecycleAPI = (*ILMClient)(nil)
+
 // ILMClient is a client used to manipulate Index lifecycle management policies.
 type ILMClient struct {
 	Client
@@ -31,14 +33,15 @@ func (i ILMClient) Exists(name string) (bool, error) {
 		endpoint: fmt.Sprintf("_ilm/policy/%s", name),
 		method:   http.MethodGet,
 	})
+
 	if respError, isResponseErr := err.(ResponseError); isResponseErr {
 		if respError.StatusCode == http.StatusNotFound {
 			return false, nil
 		}
 	}
+
 	if err != nil {
 		return false, fmt.Errorf("failed to get ILM policy: %s, %w", name, err)
 	}
 	return true, nil
-
 }

@@ -90,5 +90,4 @@ func TestByDate(t *testing.T) {
 
 	result := ByDate(indices, beforeDateFilter)
 	assert.Equal(t, expectedIndices, result)
-
 }
