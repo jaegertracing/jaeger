@@ -138,7 +138,7 @@ func main() {
 		},
 	}
 
-	addRootFlags(v, &tlsFlags, rootCmd)
+	addPersistentFlags(v, rootCmd, tlsFlags.AddFlags, app.AddFlags)
 	addSubCommand(v, rootCmd, initCommand, initCfg.AddFlags)
 	addSubCommand(v, rootCmd, rolloverCommand, rolloverCfg.AddFlags)
 	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)
@@ -157,10 +157,11 @@ func addSubCommand(v *viper.Viper, rootCmd, cmd *cobra.Command, addFlags func(*f
 	)
 }
 
-func addRootFlags(v *viper.Viper, tlsFlags *tlscfg.ClientFlagsConfig, rootCmd *cobra.Command) {
+func addPersistentFlags(v *viper.Viper, rootCmd *cobra.Command, inits ...func(*flag.FlagSet)) {
 	flagSet := new(flag.FlagSet)
-	app.AddFlags(flagSet)
-	tlsFlags.AddFlags(flagSet)
+	for i := range inits {
+		inits[i](flagSet)
+	}
 	rootCmd.PersistentFlags().AddGoFlagSet(flagSet)
 	v.BindPFlags(rootCmd.PersistentFlags())
 }
