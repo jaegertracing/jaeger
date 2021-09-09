@@ -20,8 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/translator/conventions/v1.5.0"
-	tracetranslator "go.opentelemetry.io/collector/translator/trace"
+	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
 
 	"github.com/jaegertracing/jaeger/model"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
@@ -66,12 +65,12 @@ func TestTranslateSpan(t *testing.T) {
 		Tags: []model.KeyValue{
 			model.String("k1", "v1"),
 			model.Bool("k2", true),
-			model.String(conventions.InstrumentationLibraryName, "servlet"),
-			model.String(conventions.InstrumentationLibraryVersion, "3.0"),
-			model.String(tracetranslator.TagSpanKind, "client"),
-			model.Int64(tracetranslator.TagStatusCode, 1),
-			model.String(tracetranslator.TagStatusMsg, "msg"),
-			model.String(tracetranslator.TagW3CTraceState, "invalid"),
+			model.String(semconv.InstrumentationLibraryName, "servlet"),
+			model.String(semconv.InstrumentationLibraryVersion, "3.0"),
+			model.String(tagSpanKind, "client"),
+			model.Int64(tagStatusCode, 1),
+			model.String(tagStatusMsg, "msg"),
+			model.String(tagW3CTraceState, "invalid"),
 		},
 		Logs: []model.Log{
 			{
@@ -97,7 +96,7 @@ func TestTranslateSpan(t *testing.T) {
 			Attributes: []*commonv1.KeyValue{
 				{Key: "pv1", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: 150}}},
 				{Key: "version", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "1.3.4"}}},
-				{Key: conventions.AttributeServiceName, Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "p1"}}},
+				{Key: semconv.AttributeServiceName, Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "p1"}}},
 			},
 		},
 		InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -244,55 +243,55 @@ func TestTranslateSpanStatus(t *testing.T) {
 	}{
 		{
 			name:       "error tag",
-			tags:       []model.KeyValue{model.String(tracetranslator.TagError, "true")},
+			tags:       []model.KeyValue{model.String(tagError, "true")},
 			status:     &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
-			ignoreKeys: map[string]bool{tracetranslator.TagError: true},
+			ignoreKeys: map[string]bool{tagError: true},
 		},
 		{
 			name:       "status tag int type",
-			tags:       []model.KeyValue{model.Int64(tracetranslator.TagStatusCode, 1), model.String(tracetranslator.TagStatusMsg, "foobar")},
+			tags:       []model.KeyValue{model.Int64(tagStatusCode, 1), model.String(tagStatusMsg, "foobar")},
 			status:     &v1.Status{Message: "foobar", Code: v1.Status_STATUS_CODE_OK},
-			ignoreKeys: map[string]bool{tracetranslator.TagStatusCode: true, tracetranslator.TagStatusMsg: true},
+			ignoreKeys: map[string]bool{tagStatusCode: true, tagStatusMsg: true},
 		},
 		{
 			name:       "status tag int type overflow",
-			tags:       []model.KeyValue{model.Int64(tracetranslator.TagStatusCode, math.MaxInt64), model.String(tracetranslator.TagStatusMsg, "foobar")},
+			tags:       []model.KeyValue{model.Int64(tagStatusCode, math.MaxInt64), model.String(tagStatusMsg, "foobar")},
 			status:     &v1.Status{Message: "foobar", Code: v1.Status_STATUS_CODE_UNSET},
-			ignoreKeys: map[string]bool{tracetranslator.TagStatusMsg: true},
+			ignoreKeys: map[string]bool{tagStatusMsg: true},
 		},
 		{
 			name:       "status tag string type",
-			tags:       []model.KeyValue{model.String(tracetranslator.TagStatusCode, "1"), model.String(tracetranslator.TagStatusMsg, "foobar")},
+			tags:       []model.KeyValue{model.String(tagStatusCode, "1"), model.String(tagStatusMsg, "foobar")},
 			status:     &v1.Status{Message: "foobar", Code: v1.Status_STATUS_CODE_OK},
-			ignoreKeys: map[string]bool{tracetranslator.TagStatusCode: true, tracetranslator.TagStatusMsg: true},
+			ignoreKeys: map[string]bool{tagStatusCode: true, tagStatusMsg: true},
 		},
 		{
 			name:       "status tag string type error",
-			tags:       []model.KeyValue{model.String(tracetranslator.TagStatusCode, "one"), model.String(tracetranslator.TagStatusMsg, "foobar")},
+			tags:       []model.KeyValue{model.String(tagStatusCode, "one"), model.String(tagStatusMsg, "foobar")},
 			status:     &v1.Status{Message: "foobar", Code: v1.Status_STATUS_CODE_UNSET},
-			ignoreKeys: map[string]bool{tracetranslator.TagStatusMsg: true},
+			ignoreKeys: map[string]bool{tagStatusMsg: true},
 		},
 		{
 			name:       "status tag bool type",
-			tags:       []model.KeyValue{model.Bool(tracetranslator.TagStatusCode, true), model.String(tracetranslator.TagStatusMsg, "foobar")},
+			tags:       []model.KeyValue{model.Bool(tagStatusCode, true), model.String(tagStatusMsg, "foobar")},
 			status:     &v1.Status{Message: "foobar", Code: v1.Status_STATUS_CODE_UNSET},
-			ignoreKeys: map[string]bool{tracetranslator.TagStatusMsg: true},
+			ignoreKeys: map[string]bool{tagStatusMsg: true},
 		},
 		{
 			name:       "HTTP status tag",
-			tags:       []model.KeyValue{model.Int64(conventions.AttributeHTTPStatusCode, 200), model.String(tracetranslator.TagHTTPStatusMsg, "all_fine")},
+			tags:       []model.KeyValue{model.Int64(semconv.AttributeHTTPStatusCode, 200), model.String(tagHTTPStatusMsg, "all_fine")},
 			status:     &v1.Status{Message: "all_fine", Code: v1.Status_STATUS_CODE_UNSET},
 			ignoreKeys: map[string]bool{},
 		},
 		{
 			name:       "HTTP status tag error",
-			tags:       []model.KeyValue{model.Int64(conventions.AttributeHTTPStatusCode, 500), model.String(tracetranslator.TagHTTPStatusMsg, "some_err")},
+			tags:       []model.KeyValue{model.Int64(semconv.AttributeHTTPStatusCode, 500), model.String(tagHTTPStatusMsg, "some_err")},
 			status:     &v1.Status{Message: "some_err", Code: v1.Status_STATUS_CODE_ERROR},
 			ignoreKeys: map[string]bool{},
 		},
 		{
 			name:       "HTTP status tag error wrong tag type",
-			tags:       []model.KeyValue{model.Bool(conventions.AttributeHTTPStatusCode, true), model.String(tracetranslator.TagHTTPStatusMsg, "some_err")},
+			tags:       []model.KeyValue{model.Bool(semconv.AttributeHTTPStatusCode, true), model.String(tagHTTPStatusMsg, "some_err")},
 			status:     &v1.Status{Code: v1.Status_STATUS_CODE_UNSET},
 			ignoreKeys: map[string]bool{},
 		},

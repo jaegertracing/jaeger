@@ -23,13 +23,24 @@ import (
 	"strconv"
 	"strings"
 
-	conventions "go.opentelemetry.io/collector/translator/conventions/v1.5.0"
-	tracetranslator "go.opentelemetry.io/collector/translator/trace"
+	"go.opentelemetry.io/collector/model/pdata"
+	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
 
 	"github.com/jaegertracing/jaeger/model"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
 	resourcev1 "github.com/jaegertracing/jaeger/proto-gen/otel/resource/v1"
 	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
+)
+
+const (
+	tagStatusCode = "status.code"
+	tagStatusMsg  = "status.message"
+
+	tagSpanKind      = "span.kind"
+	tagError         = "error"
+	tagMessage       = "message"
+	tagHTTPStatusMsg = "http.status_message"
+	tagW3CTraceState = "w3c.tracestate"
 )
 
 // OpenTelemetry collector implements translator from Jaeger model to pdata (wrapper around OTLP).
@@ -84,7 +95,7 @@ func jSpanToOTLP(jSpan *model.Span) (*tracev1.Span, resource, instrumentationLib
 
 	traceState := getTraceStateFromAttrs(tags)
 	if traceState != "" {
-		ignoreKeys[tracetranslator.TagW3CTraceState] = true
+		ignoreKeys[tagW3CTraceState] = true
 	}
 
 	s := &tracev1.Span{
@@ -102,16 +113,16 @@ func jSpanToOTLP(jSpan *model.Span) (*tracev1.Span, resource, instrumentationLib
 	}
 	if kind, found := jSpan.GetSpanKind(); found {
 		s.Kind = jSpanKindToInternal(kind)
-		ignoreKeys[tracetranslator.TagSpanKind] = true
+		ignoreKeys[tagSpanKind] = true
 	}
 
 	il := instrumentationLibrary{}
-	if libraryName, ok := tags.FindByKey(conventions.InstrumentationLibraryName); ok {
+	if libraryName, ok := tags.FindByKey(semconv.InstrumentationLibraryName); ok {
 		il.name = libraryName.GetVStr()
-		ignoreKeys[conventions.InstrumentationLibraryName] = true
-		if libraryVersion, ok := tags.FindByKey(conventions.InstrumentationLibraryVersion); ok {
+		ignoreKeys[semconv.InstrumentationLibraryName] = true
+		if libraryVersion, ok := tags.FindByKey(semconv.InstrumentationLibraryVersion); ok {
 			il.version = libraryVersion.GetVStr()
-			ignoreKeys[conventions.InstrumentationLibraryVersion] = true
+			ignoreKeys[semconv.InstrumentationLibraryVersion] = true
 		}
 	}
 	// convert to attributes at the end once not needed attrs are removed
@@ -160,7 +171,7 @@ func jProcessToInternalResource(process *model.Process) *resourcev1.Resource {
 	}
 	tags := process.GetTags()
 	if process.GetServiceName() != "" {
-		tags = append(tags, model.String(conventions.AttributeServiceName, process.GetServiceName()))
+		tags = append(tags, model.String(semconv.AttributeServiceName, process.GetServiceName()))
 	}
 	return &resourcev1.Resource{
 		Attributes: jTagsToOTLP(tags, nil),
@@ -215,10 +226,10 @@ func jLogsToOTLP(logs []model.Log) []*tracev1.Span_Event {
 
 		var name string
 		var ignoreKeys map[string]bool
-		if messageTag, ok := model.KeyValues(l.GetFields()).FindByKey(tracetranslator.TagMessage); ok {
+		if messageTag, ok := model.KeyValues(l.GetFields()).FindByKey(tagMessage); ok {
 			name = messageTag.GetVStr()
 			ignoreKeys = map[string]bool{}
-			ignoreKeys[tracetranslator.TagMessage] = true
+			ignoreKeys[tagMessage] = true
 		}
 
 		events[i] = &tracev1.Span_Event{
@@ -255,22 +266,22 @@ func getSpanStatus(tags []model.KeyValue) (*tracev1.Status, map[string]bool) {
 
 	ignoreKeys := map[string]bool{}
 	kvs := model.KeyValues(tags)
-	if _, ok := kvs.FindByKey(tracetranslator.TagError); ok {
+	if _, ok := kvs.FindByKey(tagError); ok {
 		statusCode = tracev1.Status_STATUS_CODE_ERROR
 		statusExists = true
-		ignoreKeys[tracetranslator.TagError] = true
+		ignoreKeys[tagError] = true
 	}
-	if tag, ok := kvs.FindByKey(tracetranslator.TagStatusCode); ok {
+	if tag, ok := kvs.FindByKey(tagStatusCode); ok {
 		statusExists = true
 		if code, err := getStatusCodeValFromTag(tag); err == nil {
 			statusCode = tracev1.Status_StatusCode(code)
-			ignoreKeys[tracetranslator.TagStatusCode] = true
+			ignoreKeys[tagStatusCode] = true
 		}
-		if tag, ok := kvs.FindByKey(tracetranslator.TagStatusMsg); ok {
+		if tag, ok := kvs.FindByKey(tagStatusMsg); ok {
 			statusMessage = tag.GetVStr()
-			ignoreKeys[tracetranslator.TagStatusMsg] = true
+			ignoreKeys[tagStatusMsg] = true
 		}
-	} else if tag, ok := kvs.FindByKey(conventions.AttributeHTTPStatusCode); ok {
+	} else if tag, ok := kvs.FindByKey(semconv.AttributeHTTPStatusCode); ok {
 		statusExists = true
 		if code, err := getStatusCodeFromHTTPStatusTag(tag); err == nil {
 			// Do not set status code in case it was set to Unset.
@@ -278,7 +289,7 @@ func getSpanStatus(tags []model.KeyValue) (*tracev1.Status, map[string]bool) {
 				statusCode = tracev1.Status_StatusCode(code)
 			}
 
-			if tag, ok := kvs.FindByKey(tracetranslator.TagHTTPStatusMsg); ok {
+			if tag, ok := kvs.FindByKey(tagHTTPStatusMsg); ok {
 				statusMessage = tag.GetVStr()
 			}
 		}
@@ -319,7 +330,7 @@ func getStatusCodeFromHTTPStatusTag(tag model.KeyValue) (int, error) {
 		return int(tracev1.Status_STATUS_CODE_OK), err
 	}
 
-	return int(tracetranslator.StatusCodeFromHTTP(statusCode)), nil
+	return int(statusCodeFromHTTP(statusCode)), nil
 }
 
 func jSpanKindToInternal(spanKind string) tracev1.Span_SpanKind {
@@ -341,7 +352,7 @@ func jSpanKindToInternal(spanKind string) tracev1.Span_SpanKind {
 func getTraceStateFromAttrs(attrs []model.KeyValue) string {
 	traceState := ""
 	for _, attr := range attrs {
-		if attr.GetKey() == tracetranslator.TagW3CTraceState {
+		if attr.GetKey() == tagW3CTraceState {
 			return attr.GetVStr()
 		}
 	}
@@ -359,4 +370,13 @@ func uint64ToTraceID(high, low uint64) []byte {
 	binary.BigEndian.PutUint64(traceID[:8], high)
 	binary.BigEndian.PutUint64(traceID[8:], low)
 	return traceID[:]
+}
+
+// statusCodeFromHTTP takes an HTTP status code and return the appropriate OpenTelemetry status code
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/http.md#status
+func statusCodeFromHTTP(httpStatusCode int) pdata.StatusCode {
+	if httpStatusCode >= 100 && httpStatusCode < 399 {
+		return pdata.StatusCodeUnset
+	}
+	return pdata.StatusCodeError
 }

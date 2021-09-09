@@ -48,7 +48,7 @@ require (
 	github.com/vektra/mockery v0.0.0-20181123154057-e78b021dcbb5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/xdg-go/scram v1.0.2
-	go.opentelemetry.io/collector v0.33.0
+	go.opentelemetry.io/collector v0.34.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.19.1
@@ -133,7 +133,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.2 // indirect
 	go.mongodb.org/mongo-driver v1.5.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/collector/model v0.33.0 // indirect
+	go.opentelemetry.io/collector/model v0.35.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e // indirect
 	golang.org/x/mod v0.4.2 // indirect
