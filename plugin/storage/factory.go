@@ -39,14 +39,16 @@ import (
 
 const (
 	cassandraStorageType     = "cassandra"
+	opensearchStorageType    = "opensearch"
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
 	grpcPluginStorageType    = "grpc-plugin"
 	badgerStorageType        = "badger"
-	downsamplingRatio        = "downsampling.ratio"
-	downsamplingHashSalt     = "downsampling.hashsalt"
-	spanStorageType          = "span-storage-type"
+
+	downsamplingRatio    = "downsampling.ratio"
+	downsamplingHashSalt = "downsampling.hashsalt"
+	spanStorageType      = "span-storage-type"
 
 	// defaultDownsamplingRatio is the default downsampling ratio.
 	defaultDownsamplingRatio = 1.0
@@ -55,7 +57,7 @@ const (
 )
 
 // AllStorageTypes defines all available storage backends
-var AllStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
+var AllStorageTypes = []string{cassandraStorageType, opensearchStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
@@ -90,7 +92,7 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 	switch factoryType {
 	case cassandraStorageType:
 		return cassandra.NewFactory(), nil
-	case elasticsearchStorageType:
+	case elasticsearchStorageType, opensearchStorageType:
 		return es.NewFactory(), nil
 	case memoryStorageType:
 		return memory.NewFactory(), nil
