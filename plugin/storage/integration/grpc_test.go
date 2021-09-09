@@ -34,6 +34,7 @@ type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
 	logger           *zap.Logger
 	pluginBinaryPath string
+	pluginConfigPath string
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize() error {
@@ -41,12 +42,19 @@ func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 
 	f := grpc.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	err := command.ParseFlags([]string{
+	flags := []string{
 		"--grpc-storage-plugin.binary",
 		s.pluginBinaryPath,
 		"--grpc-storage-plugin.log-level",
 		"debug",
-	})
+	}
+	if s.pluginConfigPath != "" {
+		flags = append(flags,
+			"--grpc-storage-plugin.configuration-file",
+			s.pluginConfigPath,
+		)
+	}
+	err := command.ParseFlags(flags)
 	if err != nil {
 		return err
 	}
@@ -81,13 +89,18 @@ func TestGRPCStorage(t *testing.T) {
 	if os.Getenv("STORAGE") != "grpc-plugin" {
 		t.Skip("Integration test against grpc skipped; set STORAGE env var to grpc-plugin to run this")
 	}
-	path := os.Getenv("PLUGIN_BINARY_PATH")
-	if path == "" {
+	binaryPath := os.Getenv("PLUGIN_BINARY_PATH")
+	if binaryPath == "" {
 		t.Logf("PLUGIN_BINARY_PATH env var not set, using %s", defaultPluginBinaryPath)
-		path = defaultPluginBinaryPath
+		binaryPath = defaultPluginBinaryPath
+	}
+	configPath := os.Getenv("PLUGIN_CONFIG_PATH")
+	if configPath == "" {
+		t.Log("PLUGIN_CONFIG_PATH env var not set")
 	}
 	s := &GRPCStorageIntegrationTestSuite{
-		pluginBinaryPath: path,
+		pluginBinaryPath: binaryPath,
+		pluginConfigPath: configPath,
 	}
 	require.NoError(t, s.initialize())
 	s.IntegrationTestAll(t)
