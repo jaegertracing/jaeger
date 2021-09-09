@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.opentelemetry.io/collector/translator/conventions"
+	conventions "go.opentelemetry.io/collector/translator/conventions/v1.5.0"
 	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 
 	"github.com/jaegertracing/jaeger/model"
