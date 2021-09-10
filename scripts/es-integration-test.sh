@@ -46,6 +46,8 @@ setup_opensearch() {
 }
 
 setup_query() {
+  local distro=$1
+  local os=$(go env GOOS)
   local arch=$(go env GOARCH)
   local params=(
     --es.tls.enabled=false
@@ -53,7 +55,7 @@ setup_query() {
     --es.server-urls=http://127.0.0.1:9200
     --query.bearer-token-propagation=true
   )
-  SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux-${arch} ${params[@]}
+  SPAN_STORAGE_TYPE=${distro} ./cmd/query/query-${os}-${arch} ${params[@]}
 }
 
 teardown_es() {
@@ -68,7 +70,7 @@ teardown_query() {
 
 build_query() {
   make build-crossdock-ui-placeholder
-  GOOS=linux make build-query
+  make build-query
 }
 
 run_integration_test() {
@@ -83,16 +85,17 @@ run_integration_test() {
     echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
     usage
   fi
-  STORAGE=elasticsearch make storage-integration-test
+  STORAGE=${distro} make storage-integration-test
   make index-cleaner-integration-test
   make index-rollover-integration-test
   teardown_es ${cid}
 }
 
 run_token_propagation_test() {
+  local distro=$1
   build_query
   make test-compile-es-scripts
-  setup_query &
+  setup_query ${distro} &
   local pid=$!
   make token-propagation-integration-test
   teardown_query ${pid}
@@ -104,7 +107,7 @@ main() {
   echo "Executing integration test for $1 $2"
   run_integration_test "$1" "$2"
   echo "Executing token propagation test"
-  run_token_propagation_test
+  run_token_propagation_test "$1"
 }
 
 main "$@"

@@ -44,6 +44,7 @@ type FactoryConfig struct {
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
 // DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
 //   * `cassandra` - built-in
+//   * `opensearch` - built-in
 //   * `elasticsearch` - built-in
 //   * `memory` - built-in
 //   * `kafka` - built-in
