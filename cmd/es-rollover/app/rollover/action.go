@@ -67,8 +67,8 @@ func (a *Action) rollover(indexSet app.IndexOption) error {
 			Name:  readAlias,
 		})
 	}
-	if len(aliases) > 0 {
-		return a.IndicesClient.CreateAlias(aliases)
+	if len(aliases) == 0 {
+		return nil
 	}
-	return nil
+	return a.IndicesClient.CreateAlias(aliases)
 }
