@@ -21,7 +21,7 @@ done
 
 # build/upload images for jaeger-es-index-cleaner and jaeger-es-rollover
 bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
-bash scripts/build-upload-a-docker-image.sh -c jaeger-es-rollover -d plugin/storage/es -f Dockerfile.rollover -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-rollover -d cmd/es-rollover  -p "${platforms}" -t release
 
 # build/upload images for jaeger-tracegen and jaeger-anonymizer
 for component in tracegen anonymizer
