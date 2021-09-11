@@ -142,7 +142,7 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 		aliases = append(aliases, client.Alias{
 			Index:        index,
 			Name:         writeAlias,
-			IsWriteIndex: true,
+			IsWriteIndex: c.Config.UseILM,
 		})
 	}
 

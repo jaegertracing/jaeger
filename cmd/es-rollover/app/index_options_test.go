@@ -61,7 +61,7 @@ func TestRolloverIndices(t *testing.T) {
 			expected: []expectedValues{
 				{
 					prefix:               "mytenant-jaeger-span-archive",
-					templateName:         "mytenant-jaeger-span",
+					templateName:         "jaeger-span",
 					readAliasName:        "mytenant-jaeger-span-archive-read",
 					writeAliasName:       "mytenant-jaeger-span-archive-write",
 					initialRolloverIndex: "mytenant-jaeger-span-archive-000001",
@@ -87,14 +87,14 @@ func TestRolloverIndices(t *testing.T) {
 			expected: []expectedValues{
 				{
 					prefix:               "mytenant-jaeger-span",
-					templateName:         "mytenant-jaeger-span",
+					templateName:         "jaeger-span",
 					readAliasName:        "mytenant-jaeger-span-read",
 					writeAliasName:       "mytenant-jaeger-span-write",
 					initialRolloverIndex: "mytenant-jaeger-span-000001",
 				},
 				{
 					prefix:               "mytenant-jaeger-service",
-					templateName:         "mytenant-jaeger-service",
+					templateName:         "jaeger-service",
 					readAliasName:        "mytenant-jaeger-service-read",
 					writeAliasName:       "mytenant-jaeger-service-write",
 					initialRolloverIndex: "mytenant-jaeger-service-000001",
