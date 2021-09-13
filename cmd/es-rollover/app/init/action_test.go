@@ -189,7 +189,7 @@ func TestRolloverAction(t *testing.T) {
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
 				indexClient.On("CreateAlias", []client.Alias{
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
-					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: true},
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: false},
 				}).Return(errors.New("error creating aliases"))
 			},
 			expectedErr: errors.New("error creating aliases"),
@@ -209,7 +209,7 @@ func TestRolloverAction(t *testing.T) {
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
 				indexClient.On("CreateAlias", []client.Alias{
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
-					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: true},
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: false},
 				}).Return(nil)
 
 			},
@@ -218,6 +218,29 @@ func TestRolloverAction(t *testing.T) {
 				Config: app.Config{
 					Archive: true,
 					UseILM:  false,
+				},
+			},
+		},
+		{
+			name: "create rollover index with ilm",
+			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+				clusterClient.On("Version").Return(uint(7), nil)
+				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
+				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
+				ilmClient.On("Exists", "jaeger-ilm").Return(true, nil)
+				indexClient.On("CreateAlias", []client.Alias{
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: true},
+				}).Return(nil)
+
+			},
+			expectedErr: nil,
+			config: Config{
+				Config: app.Config{
+					Archive:       true,
+					UseILM:        true,
+					ILMPolicyName: "jaeger-ilm",
 				},
 			},
 		},

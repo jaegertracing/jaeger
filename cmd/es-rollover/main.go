@@ -16,7 +16,7 @@ package main
 
 import (
 	"flag"
-	"log"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -46,10 +46,11 @@ func main() {
 	// Init command
 	initCfg := &initialize.Config{}
 	initCommand := &cobra.Command{
-		Use:   "init http://HOSTNAME:PORT",
-		Short: "creates indices and aliases",
-		Long:  "creates indices and aliases",
-		Args:  cobra.ExactArgs(1),
+		Use:          "init http://HOSTNAME:PORT",
+		Short:        "creates indices and aliases",
+		Long:         "creates indices and aliases",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
@@ -144,7 +145,7 @@ func main() {
 	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)
 
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatalln(err)
+		os.Exit(1)
 	}
 }
 

@@ -94,7 +94,6 @@ run_integration_test() {
 run_token_propagation_test() {
   local distro=$1
   build_query
-  make test-compile-es-scripts
   setup_query ${distro} &
   local pid=$!
   make token-propagation-integration-test

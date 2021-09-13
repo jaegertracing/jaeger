@@ -24,6 +24,8 @@ cmd/collector/collector
 cmd/collector/collector-*
 cmd/ingester/ingester
 cmd/ingester/ingester-*
+cmd/es-index-cleaner/es-index-cleaner-*
+cmd/es-rollover/es-rollover-*
 cmd/query/query
 cmd/query/query-*
 cmd/tracegen/tracegen

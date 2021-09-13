@@ -104,18 +104,18 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 	return nil
 }
 
-func (c Action) init(version uint, indexset app.IndexOption) error {
-	mapping, err := c.getMapping(version, indexset.TemplateName)
+func (c Action) init(version uint, indexopt app.IndexOption) error {
+	mapping, err := c.getMapping(version, indexopt.Mapping)
 	if err != nil {
 		return err
 	}
 
-	err = c.IndicesClient.CreateTemplate(mapping, indexset.TemplateName)
+	err = c.IndicesClient.CreateTemplate(mapping, indexopt.TemplateName())
 	if err != nil {
 		return err
 	}
 
-	index := indexset.InitialRolloverIndex()
+	index := indexopt.InitialRolloverIndex()
 	err = createIndexIfNotExist(c.IndicesClient, index)
 	if err != nil {
 		return err
@@ -126,8 +126,8 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 		return err
 	}
 
-	readAlias := indexset.ReadAliasName()
-	writeAlias := indexset.WriteAliasName()
+	readAlias := indexopt.ReadAliasName()
+	writeAlias := indexopt.WriteAliasName()
 	aliases := []client.Alias{}
 
 	if !filter.AliasExists(jaegerIndices, readAlias) {
@@ -142,7 +142,7 @@ func (c Action) init(version uint, indexset app.IndexOption) error {
 		aliases = append(aliases, client.Alias{
 			Index:        index,
 			Name:         writeAlias,
-			IsWriteIndex: true,
+			IsWriteIndex: c.Config.UseILM,
 		})
 	}
 
