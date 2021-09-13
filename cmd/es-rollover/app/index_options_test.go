@@ -22,7 +22,7 @@ import (
 
 func TestRolloverIndices(t *testing.T) {
 	type expectedValues struct {
-		prefix               string
+		mapping              string
 		templateName         string
 		readAliasName        string
 		writeAliasName       string
@@ -39,15 +39,15 @@ func TestRolloverIndices(t *testing.T) {
 			name: "Empty prefix",
 			expected: []expectedValues{
 				{
-					prefix:               "jaeger-span",
 					templateName:         "jaeger-span",
+					mapping:              "jaeger-span",
 					readAliasName:        "jaeger-span-read",
 					writeAliasName:       "jaeger-span-write",
 					initialRolloverIndex: "jaeger-span-000001",
 				},
 				{
-					prefix:               "jaeger-service",
 					templateName:         "jaeger-service",
+					mapping:              "jaeger-service",
 					readAliasName:        "jaeger-service-read",
 					writeAliasName:       "jaeger-service-write",
 					initialRolloverIndex: "jaeger-service-000001",
@@ -60,8 +60,8 @@ func TestRolloverIndices(t *testing.T) {
 			prefix:  "mytenant",
 			expected: []expectedValues{
 				{
-					prefix:               "mytenant-jaeger-span-archive",
-					templateName:         "jaeger-span",
+					templateName:         "mytenant-jaeger-span",
+					mapping:              "jaeger-span",
 					readAliasName:        "mytenant-jaeger-span-archive-read",
 					writeAliasName:       "mytenant-jaeger-span-archive-write",
 					initialRolloverIndex: "mytenant-jaeger-span-archive-000001",
@@ -73,7 +73,7 @@ func TestRolloverIndices(t *testing.T) {
 			archive: true,
 			expected: []expectedValues{
 				{
-					prefix:               "jaeger-span-archive",
+					mapping:              "jaeger-span",
 					templateName:         "jaeger-span",
 					readAliasName:        "jaeger-span-archive-read",
 					writeAliasName:       "jaeger-span-archive-write",
@@ -86,15 +86,15 @@ func TestRolloverIndices(t *testing.T) {
 			prefix: "mytenant",
 			expected: []expectedValues{
 				{
-					prefix:               "mytenant-jaeger-span",
-					templateName:         "jaeger-span",
+					mapping:              "jaeger-span",
+					templateName:         "mytenant-jaeger-span",
 					readAliasName:        "mytenant-jaeger-span-read",
 					writeAliasName:       "mytenant-jaeger-span-write",
 					initialRolloverIndex: "mytenant-jaeger-span-000001",
 				},
 				{
-					prefix:               "mytenant-jaeger-service",
-					templateName:         "jaeger-service",
+					mapping:              "jaeger-service",
+					templateName:         "mytenant-jaeger-service",
 					readAliasName:        "mytenant-jaeger-service-read",
 					writeAliasName:       "mytenant-jaeger-service-write",
 					initialRolloverIndex: "mytenant-jaeger-service-000001",
@@ -107,8 +107,8 @@ func TestRolloverIndices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result := RolloverIndices(test.archive, test.prefix)
 			for i, r := range result {
-				assert.Equal(t, test.expected[i].prefix, r.Prefix)
-				assert.Equal(t, test.expected[i].templateName, r.TemplateName)
+				assert.Equal(t, test.expected[i].templateName, r.TemplateName())
+				assert.Equal(t, test.expected[i].mapping, r.Mapping)
 				assert.Equal(t, test.expected[i].readAliasName, r.ReadAliasName())
 				assert.Equal(t, test.expected[i].writeAliasName, r.WriteAliasName())
 				assert.Equal(t, test.expected[i].initialRolloverIndex, r.InitialRolloverIndex())
