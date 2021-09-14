@@ -15,7 +15,6 @@
 package app
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -55,7 +54,8 @@ func TestIndexClean(t *testing.T) {
 			Aliases:      nil,
 		},
 	})
-	fmt.Println(indices)
+	assert.Equal(t, 1, len(indices))
+	assert.Equal(t, "jaeger-jaeger-dependencies-2021-09-10", indices[0].Index)
 }
 
 func testIndexFilter(t *testing.T, prefix string) {
