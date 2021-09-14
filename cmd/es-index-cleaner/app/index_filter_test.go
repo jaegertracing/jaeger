@@ -15,10 +15,12 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
@@ -29,6 +31,31 @@ func TestIndexFilter(t *testing.T) {
 
 func TestIndexFilter_prefix(t *testing.T) {
 	testIndexFilter(t, "tenant1-")
+}
+
+func TestIndexClean(t *testing.T) {
+	time20200911, err := time.Parse(time.RFC3339, "2021-09-11T00:00:00Z")
+	require.NoError(t, err)
+
+	f := &IndexFilter{
+		IndexPrefix:          "jaeger-",
+		IndexDateSeparator:   "-",
+		Archive:              false,
+		Rollover:             false,
+		DeleteBeforeThisDate: time20200911,
+	}
+
+	iTime, err := time.Parse(time.RFC3339, "2021-09-10T00:31:05.536Z")
+	require.NoError(t, err)
+
+	indices := f.filter([]client.Index{
+		{
+			Index:        "jaeger-jaeger-dependencies-2021-09-10",
+			CreationTime: iTime,
+			Aliases:      nil,
+		},
+	})
+	fmt.Println(indices)
 }
 
 func testIndexFilter(t *testing.T, prefix string) {
