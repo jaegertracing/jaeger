@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //go:build token_propagation
+// +build token_propagation
 
 package integration
 

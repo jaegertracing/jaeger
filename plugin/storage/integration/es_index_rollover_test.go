@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //go:build index_rollover
+// +build index_rollover
 
 package integration
 
