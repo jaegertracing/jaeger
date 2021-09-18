@@ -39,23 +39,24 @@ const (
 )
 
 type spanProcessor struct {
-	queue              *queue.BoundedQueue
-	queueResizeMu      sync.Mutex
-	metrics            *SpanProcessorMetrics
-	preProcessSpans    ProcessSpans
-	filterSpan         FilterSpan             // filter is called before the sanitizer but after preProcessSpans
-	sanitizer          sanitizer.SanitizeSpan // sanitizer is called before processSpan
-	processSpan        ProcessSpan
-	logger             *zap.Logger
-	spanWriter         spanstore.Writer
-	reportBusy         bool
-	numWorkers         int
-	collectorTags      map[string]string
-	dynQueueSizeWarmup uint
-	dynQueueSizeMemory uint
-	bytesProcessed     *atomic.Uint64
-	spansProcessed     *atomic.Uint64
-	stopCh             chan struct{}
+	queue               *queue.BoundedQueue
+	queueResizeMu       sync.Mutex
+	metrics             *SpanProcessorMetrics
+	preProcessSpans     ProcessSpans
+	filterSpan          FilterSpan             // filter is called before the sanitizer but after preProcessSpans
+	sanitizer           sanitizer.SanitizeSpan // sanitizer is called before processSpan
+	processSpan         ProcessSpan
+	logger              *zap.Logger
+	spanWriter          spanstore.Writer
+	reportBusy          bool
+	numWorkers          int
+	collectorTags       map[string]string
+	dynQueueSizeWarmup  uint
+	dynQueueSizeMemory  uint
+	bytesProcessed      *atomic.Uint64
+	spansProcessed      *atomic.Uint64
+	stopCh              chan struct{}
+	useOnTagKeyConflict string
 }
 
 type queueItem struct {
@@ -97,21 +98,22 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
 	sp := spanProcessor{
-		queue:              boundedQueue,
-		metrics:            handlerMetrics,
-		logger:             options.logger,
-		preProcessSpans:    options.preProcessSpans,
-		filterSpan:         options.spanFilter,
-		sanitizer:          options.sanitizer,
-		reportBusy:         options.reportBusy,
-		numWorkers:         options.numWorkers,
-		spanWriter:         spanWriter,
-		collectorTags:      options.collectorTags,
-		stopCh:             make(chan struct{}),
-		dynQueueSizeMemory: options.dynQueueSizeMemory,
-		dynQueueSizeWarmup: options.dynQueueSizeWarmup,
-		bytesProcessed:     atomic.NewUint64(0),
-		spansProcessed:     atomic.NewUint64(0),
+		queue:               boundedQueue,
+		metrics:             handlerMetrics,
+		logger:              options.logger,
+		preProcessSpans:     options.preProcessSpans,
+		filterSpan:          options.spanFilter,
+		sanitizer:           options.sanitizer,
+		reportBusy:          options.reportBusy,
+		numWorkers:          options.numWorkers,
+		spanWriter:          spanWriter,
+		collectorTags:       options.collectorTags,
+		stopCh:              make(chan struct{}),
+		dynQueueSizeMemory:  options.dynQueueSizeMemory,
+		dynQueueSizeWarmup:  options.dynQueueSizeWarmup,
+		bytesProcessed:      atomic.NewUint64(0),
+		spansProcessed:      atomic.NewUint64(0),
+		useOnTagKeyConflict: options.useOnTagKeyConflict,
 	}
 
 	processSpanFuncs := []ProcessSpan{options.preSave, sp.saveSpan}
@@ -180,23 +182,46 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
+func (sp *spanProcessor) dedupTags(span *model.Span) {
+	// Copy the collector tags to keep track of which of these need to be appended.
+	cTags := make(map[string]string, len(sp.collectorTags))
+	for k, v := range sp.collectorTags {
+		cTags[k] = v
+	}
+	var procTags []model.KeyValue
+	for _, sTag := range span.Process.Tags {
+		appendSpanTag := true
+		// If there's a tag key conflict.
+		if cTagVal, ok := sp.collectorTags[sTag.Key]; ok {
+			switch sp.useOnTagKeyConflict {
+			case "both":
+				// If both key and value are conflicting, there's no need to add the collector's tag.
+				if cTagVal == sTag.AsString() {
+					delete(cTags, sTag.Key)
+				}
+			case "collector":
+				appendSpanTag = false
+			case "span":
+				// If we choose the span's tag, then remove this conflicting tag from the collector tags.
+				delete(cTags, sTag.Key)
+			}
+		}
+		if appendSpanTag {
+			procTags = append(procTags, sTag)
+		}
+	}
+	// Append the remaining collector tags.
+	for k, v := range cTags {
+		procTags = append(procTags, model.String(k, v))
+	}
+	span.Process.Tags = procTags
+}
+
 func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	if len(sp.collectorTags) == 0 {
 		return
 	}
-	dedupKey := make(map[string]struct{})
-	for _, tag := range span.Process.Tags {
-		if value, ok := sp.collectorTags[tag.Key]; ok && value == tag.AsString() {
-			sp.logger.Debug("ignore collector process tags", zap.String("key", tag.Key), zap.String("value", value))
-			dedupKey[tag.Key] = struct{}{}
-		}
-	}
-	// ignore collector tags if has the same key-value in spans
-	for k, v := range sp.collectorTags {
-		if _, ok := dedupKey[k]; !ok {
-			span.Process.Tags = append(span.Process.Tags, model.String(k, v))
-		}
-	}
+	sp.dedupTags(span)
 	typedTags := model.KeyValues(span.Process.Tags)
 	typedTags.Sort()
 }

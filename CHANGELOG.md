@@ -6,7 +6,7 @@ next release
 ### Backend Changes
 #### New Features
 * Add support for adaptive sampling with a Cassandra backend. ([#2966](https://github.com/jaegertracing/jaeger/pull/2966), [@joe-elliott](https://github.com/joe-elliott))
-
+* Add flag --collector.use-on-tag-key-conflict to specify how the collector will handle duplicate tag keys. ([#3273](https://github.com/jaegertracing/jaeger/pull/3273), [@Ashmita152](https://github.com/Ashmita152)))
 
 1.26.0 (2021-09-06)
 -------------------

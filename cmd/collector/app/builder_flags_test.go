@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -30,7 +31,7 @@ func TestCollectorOptionsWithFlags_CheckHostPort(t *testing.T) {
 		"--collector.grpc-server.host-port=1234",
 		"--collector.zipkin.host-port=3456",
 	})
-	c.InitFromViper(v)
+	c.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, ":5678", c.CollectorHTTPHostPort)
 	assert.Equal(t, ":1234", c.CollectorGRPCHostPort)
@@ -45,7 +46,7 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 		"--collector.grpc-server.host-port=127.0.0.1:1234",
 		"--collector.zipkin.host-port=0.0.0.0:3456",
 	})
-	c.InitFromViper(v)
+	c.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, ":5678", c.CollectorHTTPHostPort)
 	assert.Equal(t, "127.0.0.1:1234", c.CollectorGRPCHostPort)
@@ -58,7 +59,18 @@ func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 	command.ParseFlags([]string{
 		"--collector.grpc-server.max-message-size=8388608",
 	})
-	c.InitFromViper(v)
+	c.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, 8388608, c.CollectorGRPCMaxReceiveMessageLength)
+}
+
+func TestCollectorOptionsWithFlags_UseOnTagKeyConflictAsInvalid(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.use-on-tag-key-conflict=invalid",
+	})
+	c.InitFromViper(v, zap.NewNop())
+
+	assert.Equal(t, "both", c.CollectorUseOnTagKeyConflict)
 }

@@ -31,24 +31,27 @@ const (
 	DefaultQueueSize = 2000
 	// DefaultGRPCMaxReceiveMessageLength is the default max receivable message size for the gRPC Collector
 	DefaultGRPCMaxReceiveMessageLength = 4 * 1024 * 1024
+	// DefaultUseOnTagKeyConflict specifies how the collector will handle duplicate tag keys.
+	DefaultUseOnTagKeyConflict = "both"
 )
 
 type options struct {
-	logger             *zap.Logger
-	serviceMetrics     metrics.Factory
-	hostMetrics        metrics.Factory
-	preProcessSpans    ProcessSpans
-	sanitizer          sanitizer.SanitizeSpan
-	preSave            ProcessSpan
-	spanFilter         FilterSpan
-	numWorkers         int
-	blockingSubmit     bool
-	queueSize          int
-	dynQueueSizeWarmup uint
-	dynQueueSizeMemory uint
-	reportBusy         bool
-	extraFormatTypes   []processor.SpanFormat
-	collectorTags      map[string]string
+	logger              *zap.Logger
+	serviceMetrics      metrics.Factory
+	hostMetrics         metrics.Factory
+	preProcessSpans     ProcessSpans
+	sanitizer           sanitizer.SanitizeSpan
+	preSave             ProcessSpan
+	spanFilter          FilterSpan
+	numWorkers          int
+	blockingSubmit      bool
+	queueSize           int
+	dynQueueSizeWarmup  uint
+	dynQueueSizeMemory  uint
+	reportBusy          bool
+	extraFormatTypes    []processor.SpanFormat
+	collectorTags       map[string]string
+	useOnTagKeyConflict string
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -162,6 +165,13 @@ func (options) CollectorTags(extraTags map[string]string) Option {
 	}
 }
 
+// DefaultUseOnTagKeyConflict creates an Option that initializes the useOnTagKeyConflict string
+func (options) UseOnTagKeyConflict(useOnTagKeyConflict string) Option {
+	return func(b *options) {
+		b.useOnTagKeyConflict = useOnTagKeyConflict
+	}
+}
+
 func (o options) apply(opts ...Option) options {
 	ret := options{}
 	for _, opt := range opts {
@@ -190,6 +200,9 @@ func (o options) apply(opts ...Option) options {
 	}
 	if ret.numWorkers == 0 {
 		ret.numWorkers = DefaultNumWorkers
+	}
+	if ret.useOnTagKeyConflict == "" {
+		ret.useOnTagKeyConflict = DefaultUseOnTagKeyConflict
 	}
 	return ret
 }

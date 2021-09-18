@@ -32,7 +32,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	v, command := config.Viperize(flags.AddFlags, AddFlags)
 
 	require.NoError(t, command.ParseFlags([]string{}))
-	cOpts := new(CollectorOptions).InitFromViper(v)
+	cOpts := new(CollectorOptions).InitFromViper(v, zap.NewNop())
 
 	spanWriter := memory.NewStore()
 

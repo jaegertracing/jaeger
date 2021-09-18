@@ -142,7 +142,7 @@ by default uses only in-memory database.`,
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
-			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
+			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v, logger)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 
 			// collector

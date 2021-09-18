@@ -356,6 +356,10 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 				Key:  "node",
 				VStr: "k8s-test-node-01",
 			},
+			{
+				Key:  "service",
+				VStr: "foobar",
+			},
 		}),
 	}
 	p.addCollectorTags(span)
@@ -376,6 +380,170 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 			{
 				Key:  "node",
 				VStr: "k8s-test-node-01",
+			},
+			{
+				Key:  "service",
+				VStr: "foobar",
+			},
+		}),
+	}
+
+	assert.Equal(t, expected.Process, span.Process)
+}
+
+func TestSpanProcessorWithCollectorTagsWithUseOnTagKeyConflictAsBoth(t *testing.T) {
+	testCollectorTags := map[string]string{
+		"extra": "tag",
+		"env":   "prod",
+		"node":  "172.22.18.161",
+	}
+
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags), Options.UseOnTagKeyConflict("both")).(*spanProcessor)
+
+	defer assert.NoError(t, p.Close())
+	span := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "node",
+				VStr: "k8s-test-node-01",
+			},
+			{
+				Key:  "service",
+				VStr: "foobar",
+			},
+		}),
+	}
+	p.addCollectorTags(span)
+	expected := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "extra",
+				VStr: "tag",
+			},
+			{
+				Key:  "node",
+				VStr: "172.22.18.161",
+			},
+			{
+				Key:  "node",
+				VStr: "k8s-test-node-01",
+			},
+			{
+				Key:  "service",
+				VStr: "foobar",
+			},
+		}),
+	}
+
+	assert.Equal(t, expected.Process, span.Process)
+}
+
+func TestSpanProcessorWithCollectorTagsWithUseOnTagKeyConflictAsSpan(t *testing.T) {
+	testCollectorTags := map[string]string{
+		"extra": "tag",
+		"env":   "prod",
+		"node":  "172.22.18.161",
+	}
+
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags), Options.UseOnTagKeyConflict("span")).(*spanProcessor)
+
+	defer assert.NoError(t, p.Close())
+	span := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "node",
+				VStr: "k8s-test-node-01",
+			},
+			{
+				Key:  "service",
+				VStr: "foobar",
+			},
+		}),
+	}
+	p.addCollectorTags(span)
+	expected := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "extra",
+				VStr: "tag",
+			},
+			{
+				Key:  "node",
+				VStr: "k8s-test-node-01",
+			},
+			{
+				Key:  "service",
+				VStr: "foobar",
+			},
+		}),
+	}
+
+	assert.Equal(t, expected.Process, span.Process)
+}
+
+func TestSpanProcessorWithCollectorTagsWithUseOnTagKeyConflictAsCollector(t *testing.T) {
+	testCollectorTags := map[string]string{
+		"extra": "tag",
+		"env":   "prod",
+		"node":  "172.22.18.161",
+	}
+
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags), Options.UseOnTagKeyConflict("collector")).(*spanProcessor)
+
+	defer assert.NoError(t, p.Close())
+	span := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "node",
+				VStr: "k8s-test-node-01",
+			},
+			{
+				Key:  "service",
+				VStr: "foobar",
+			},
+		}),
+	}
+	p.addCollectorTags(span)
+	expected := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{
+			{
+				Key:  "env",
+				VStr: "prod",
+			},
+			{
+				Key:  "extra",
+				VStr: "tag",
+			},
+			{
+				Key:  "node",
+				VStr: "172.22.18.161",
+			},
+			{
+				Key:  "service",
+				VStr: "foobar",
 			},
 		}),
 	}

@@ -19,6 +19,7 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -36,6 +37,7 @@ const (
 	collectorZipkinAllowedOrigins        = "collector.zipkin.allowed-origins"
 	collectorZipkinHTTPHostPort          = "collector.zipkin.host-port"
 	collectorGRPCMaxReceiveMessageLength = "collector.grpc-server.max-message-size"
+	collectorUseOnTagKeyConflict         = "collector.use-on-tag-key-conflict"
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -72,6 +74,8 @@ type CollectorOptions struct {
 	CollectorZipkinAllowedHeaders string
 	// CollectorGRPCMaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
 	CollectorGRPCMaxReceiveMessageLength int
+	// CollectorUseOnTagKeyConflict specifies how the collector will handle duplicate tag keys.
+	CollectorUseOnTagKeyConflict string
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -85,6 +89,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
+	flags.String(collectorUseOnTagKeyConflict, "both", "Specifies how the collector will handle duplicate tag keys. (values: span, collector, both)")
 	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 
 	tlsGRPCFlagsConfig.AddFlags(flags)
@@ -92,7 +97,7 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
-func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
+func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *CollectorOptions {
 	cOpts.CollectorGRPCHostPort = ports.FormatHostPort(v.GetString(collectorGRPCHostPort))
 	cOpts.CollectorHTTPHostPort = ports.FormatHostPort(v.GetString(collectorHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
@@ -105,6 +110,12 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
 	cOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 	cOpts.CollectorGRPCMaxReceiveMessageLength = v.GetInt(collectorGRPCMaxReceiveMessageLength)
-
+	switch v.GetString(collectorUseOnTagKeyConflict) {
+	case "both", "collector", "span":
+		cOpts.CollectorUseOnTagKeyConflict = v.GetString(collectorUseOnTagKeyConflict)
+	default:
+		logger.Error("Invalid value of --collector.use-on-tag-key-conflict, allowed values: both, collector, span. Using default value: both")
+		cOpts.CollectorUseOnTagKeyConflict = DefaultUseOnTagKeyConflict
+	}
 	return cOpts
 }
