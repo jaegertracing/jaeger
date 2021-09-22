@@ -110,12 +110,14 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	cOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
 	cOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 	cOpts.CollectorGRPCMaxReceiveMessageLength = v.GetInt(collectorGRPCMaxReceiveMessageLength)
-	switch v.GetString(collectorUseOnTagKeyConflict) {
+	useOnTagKeyConflict := v.GetString(collectorUseOnTagKeyConflict)
+	switch useOnTagKeyConflict {
 	case "both", "collector", "span":
-		cOpts.CollectorUseOnTagKeyConflict = v.GetString(collectorUseOnTagKeyConflict)
+		cOpts.CollectorUseOnTagKeyConflict = useOnTagKeyConflict
 	default:
-		logger.Error("Invalid value of --collector.use-on-tag-key-conflict, allowed values: both, collector, span. Using default value: both")
-		cOpts.CollectorUseOnTagKeyConflict = DefaultUseOnTagKeyConflict
+		logger.Fatal("Invalid configuration. Allowed values: both, collector, span",
+			zap.String("key", collectorUseOnTagKeyConflict),
+			zap.String("value", useOnTagKeyConflict))
 	}
 	return cOpts
 }
