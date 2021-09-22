@@ -165,7 +165,7 @@ func (options) CollectorTags(extraTags map[string]string) Option {
 	}
 }
 
-// DefaultUseOnTagKeyConflict creates an Option that initializes the useOnTagKeyConflict string
+// UseOnTagKeyConflict creates an Option that initializes the useOnTagKeyConflict string.
 func (options) UseOnTagKeyConflict(useOnTagKeyConflict string) Option {
 	return func(b *options) {
 		b.useOnTagKeyConflict = useOnTagKeyConflict
