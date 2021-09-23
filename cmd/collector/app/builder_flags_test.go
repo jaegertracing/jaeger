@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -65,12 +66,15 @@ func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 }
 
 func TestCollectorOptionsWithFlags_UseOnTagKeyConflictAsInvalid(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			assert.Contains(t, r, "Invalid configuration. Allowed values: both, collector, span")
+		}
+	}()
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
 		"--collector.use-on-tag-key-conflict=invalid",
 	})
-	c.InitFromViper(v, zap.NewNop())
-
-	assert.Equal(t, "both", c.CollectorUseOnTagKeyConflict)
+	c.InitFromViper(v, zap.NewNop().WithOptions(zap.OnFatal(zapcore.WriteThenPanic)))
 }
