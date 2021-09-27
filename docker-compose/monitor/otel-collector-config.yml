@@ -16,7 +16,8 @@ exporters:
 
   jaeger:
     endpoint: "jaeger:14250"
-    insecure: true
+    tls:
+      insecure: true
 
 processors:
   batch:
