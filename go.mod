@@ -35,7 +35,7 @@ require (
 	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.11.0
-	github.com/prometheus/common v0.31.0
+	github.com/prometheus/common v0.31.1
 	github.com/rs/cors v1.8.0
 	github.com/securego/gosec v0.0.0-20200203094520-d13bb6d2420c
 	github.com/soheilhy/cmux v0.1.5
