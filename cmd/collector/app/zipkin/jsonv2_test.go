@@ -16,7 +16,7 @@ package zipkin
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/go-openapi/swag"
@@ -147,7 +147,7 @@ func TestErrSpans(t *testing.T) {
 }
 
 func loadJSON(t *testing.T, fileName string, i interface{}) {
-	b, err := ioutil.ReadFile(fileName)
+	b, err := os.ReadFile(fileName)
 	require.NoError(t, err)
 	err = swag.ReadJSON(b, i)
 	require.NoError(t, err, "Failed to parse json fixture file %s", fileName)

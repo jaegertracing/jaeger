@@ -19,8 +19,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -212,7 +213,7 @@ func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 		return nil, fmt.Errorf("cannot open index.html: %w", err)
 	}
 	defer indexFile.Close()
-	indexBytes, err := ioutil.ReadAll(indexFile)
+	indexBytes, err := io.ReadAll(indexFile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read from index.html: %w", err)
 	}
@@ -223,7 +224,7 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	if uiConfig == "" {
 		return nil, nil
 	}
-	bytesConfig, err := ioutil.ReadFile(filepath.Clean(uiConfig))
+	bytesConfig, err := os.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}

@@ -15,7 +15,7 @@
 package client
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -305,7 +305,7 @@ func TestClientCreateAliases(t *testing.T) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := ioutil.ReadAll(req.Body)
+				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
 				res.WriteHeader(test.responseCode)
@@ -365,7 +365,7 @@ func TestClientDeleteAliases(t *testing.T) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := ioutil.ReadAll(req.Body)
+				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
 				res.WriteHeader(test.responseCode)
@@ -415,7 +415,7 @@ func TestClientCreateTemplate(t *testing.T) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
 				assert.Equal(t, http.MethodPut, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := ioutil.ReadAll(req.Body)
+				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				assert.Equal(t, templateContent, string(body))
 
@@ -469,7 +469,7 @@ func TestRollover(t *testing.T) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span/_rollover/"))
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := ioutil.ReadAll(req.Body)
+				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
 

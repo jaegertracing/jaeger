@@ -15,7 +15,7 @@
 package docs
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
@@ -43,7 +43,7 @@ func TestOutputFormats(t *testing.T) {
 		cmd.ParseFlags([]string{test.flag})
 		err := cmd.Execute()
 		if err == nil {
-			f, err := ioutil.ReadFile(test.file)
+			f, err := os.ReadFile(test.file)
 			require.NoError(t, err)
 			assert.True(t, strings.Contains(string(f), "documentation"))
 		} else {
@@ -62,7 +62,7 @@ func TestDocsForParent(t *testing.T) {
 	parent.AddCommand(docs)
 	err := docs.RunE(docs, []string{})
 	require.NoError(t, err)
-	f, err := ioutil.ReadFile("root_command.md")
+	f, err := os.ReadFile("root_command.md")
 	require.NoError(t, err)
 	assert.True(t, strings.Contains(string(f), "some description"))
 }

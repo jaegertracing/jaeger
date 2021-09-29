@@ -17,7 +17,6 @@ package badger
 import (
 	"expvar"
 	"flag"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -98,7 +97,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if f.Options.Primary.Ephemeral {
 		opts.SyncWrites = false
 		// Error from TempDir is ignored to satisfy Codecov
-		dir, _ := ioutil.TempDir("", "badger")
+		dir, _ := os.MkdirTemp("", "badger")
 		f.tmpDir = dir
 		opts.Dir = f.tmpDir
 		opts.ValueDir = f.tmpDir

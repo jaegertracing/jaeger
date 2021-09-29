@@ -21,7 +21,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -92,7 +92,7 @@ func getAPITrace(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 
 		err = json.Unmarshal(body, &queryResponse)
 		require.NoError(t, err)
@@ -115,7 +115,7 @@ func getSamplingStrategy(t *testing.T) {
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	err = json.Unmarshal(body, &queryResponse)
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func getServicesAPIV3(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	var servicesResponse api_v3.GetServicesResponse
 	jsonpb := runtime.JSONPb{}

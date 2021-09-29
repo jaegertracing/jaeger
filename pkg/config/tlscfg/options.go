@@ -19,7 +19,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"go.uber.org/zap"
@@ -101,7 +101,7 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 }
 
 func addCertToPool(caPath string, certPool *x509.CertPool) error {
-	caPEM, err := ioutil.ReadFile(filepath.Clean(caPath))
+	caPEM, err := os.ReadFile(filepath.Clean(caPath))
 	if err != nil {
 		return fmt.Errorf("failed to load CA %s: %w", caPath, err)
 	}

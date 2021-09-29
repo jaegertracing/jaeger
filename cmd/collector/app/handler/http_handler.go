@@ -18,7 +18,7 @@ package handler
 import (
 	"fmt"
 	"html"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 
@@ -62,7 +62,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 
 // SaveSpan submits the span provided in the request body to the JaegerBatchesHandler
 func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := ioutil.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusInternalServerError)

@@ -19,7 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -112,7 +112,7 @@ func loadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
 	} else {
 		in = fmt.Sprintf("fixtures/domain_%02d.json", i)
 	}
-	inStr, err := ioutil.ReadFile(in)
+	inStr, err := os.ReadFile(in)
 	require.NoError(t, err)
 	var out string
 	if processEmbedded {
@@ -120,7 +120,7 @@ func loadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
 	} else {
 		out = fmt.Sprintf("fixtures/ui_%02d.json", i)
 	}
-	outStr, err := ioutil.ReadFile(out)
+	outStr, err := os.ReadFile(out)
 	require.NoError(t, err)
 	return inStr, outStr
 }
@@ -139,7 +139,7 @@ func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object interface{
 	require.NoError(t, enc.Encode(object))
 
 	if !assert.Equal(t, string(expectedStr), buf.String()) {
-		err := ioutil.WriteFile(outFile+"-actual.json", buf.Bytes(), 0644)
+		err := os.WriteFile(outFile+"-actual.json", buf.Bytes(), 0644)
 		assert.NoError(t, err)
 	}
 }

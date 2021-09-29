@@ -17,7 +17,7 @@ package status
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -42,7 +42,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 				return err
 			}
 			defer resp.Body.Close()
-			body, _ := ioutil.ReadAll(resp.Body)
+			body, _ := io.ReadAll(resp.Body)
 			fmt.Println(string(body))
 			if resp.StatusCode != http.StatusOK {
 				return fmt.Errorf("abnormal value of http status code: %v", resp.StatusCode)

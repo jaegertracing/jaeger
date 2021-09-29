@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -300,7 +300,7 @@ func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
 
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	// #nosec
-	inStr, err := ioutil.ReadFile(path)
+	inStr, err := os.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
@@ -315,7 +315,7 @@ func LoadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtur
 
 func loadAndParseJSON(t *testing.T, path string, object interface{}) {
 	// #nosec
-	inStr, err := ioutil.ReadFile(path)
+	inStr, err := os.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = json.Unmarshal(correctTime(inStr), object)
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
