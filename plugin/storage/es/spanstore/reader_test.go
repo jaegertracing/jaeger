@@ -149,7 +149,7 @@ func TestNewSpanReader(t *testing.T) {
 				MaxSpanAge:          time.Hour * 72,
 				UseReadWriteAliases: true,
 			},
-			maxSpanAge: time.Hour * 24 * 365 * 100,
+			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
 	}
 	for _, test := range tests {
