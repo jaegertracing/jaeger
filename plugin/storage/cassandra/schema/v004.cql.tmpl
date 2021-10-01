@@ -195,3 +195,28 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.dependencies_v2 (
         'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'
     }
     AND default_time_to_live = ${dependencies_ttl};
+
+-- adaptive sampling tables
+-- ./plugin/storage/cassandra/samplingstore/storage.go
+CREATE TABLE IF NOT EXISTS ${keyspace}.operation_throughput (
+    bucket        int,
+    ts            timeuuid,
+    throughput    text,
+    PRIMARY KEY(bucket, ts)
+) WITH CLUSTERING ORDER BY (ts desc);
+
+CREATE TABLE IF NOT EXISTS ${keyspace}.sampling_probabilities (
+    bucket        int,
+    ts            timeuuid,
+    hostname      text,
+    probabilities text,
+    PRIMARY KEY(bucket, ts)
+) WITH CLUSTERING ORDER BY (ts desc);
+
+-- distributed lock
+-- ./plugin/pkg/distributedlock/cassandra/lock.go
+CREATE TABLE IF NOT EXISTS ${keyspace}.leases (
+    name text,
+    owner text,
+    PRIMARY KEY (name)
+);
