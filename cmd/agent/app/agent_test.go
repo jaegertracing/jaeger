@@ -17,7 +17,7 @@ package app
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -66,7 +66,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 		}
 		resp, err := http.Get(url)
 		require.NoError(t, err)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, "collector error: no peers available\n", string(body))
 	})
@@ -77,7 +77,7 @@ func TestAgentMetricsEndpoint(t *testing.T) {
 		url := fmt.Sprintf("http://%s/metrics", httpAddr)
 		resp, err := http.Get(url)
 		require.NoError(t, err)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), "# HELP")
 	})

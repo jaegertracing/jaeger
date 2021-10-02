@@ -17,7 +17,7 @@ package metricsstore
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -362,7 +362,7 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 			return
 		}
 
-		body, _ := ioutil.ReadAll(r.Body)
+		body, _ := io.ReadAll(r.Body)
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))

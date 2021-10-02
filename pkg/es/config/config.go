@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -549,7 +548,7 @@ func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error)
 }
 
 func loadToken(path string) (string, error) {
-	b, err := ioutil.ReadFile(filepath.Clean(path))
+	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err
 	}

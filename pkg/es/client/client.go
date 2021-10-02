@@ -17,7 +17,7 @@ package client
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -92,7 +92,7 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 		return []byte{}, c.handleFailedRequest(res)
 	}
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -107,7 +107,7 @@ func (c *Client) setAuthorization(r *http.Request) {
 
 func (c *Client) handleFailedRequest(res *http.Response) error {
 	if res.Body != nil {
-		bodyBytes, err := ioutil.ReadAll(res.Body)
+		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
 			return newResponseError(fmt.Errorf("request failed and failed to read response body, status code: %d, %w", res.StatusCode, err), res.StatusCode, nil)
 		}

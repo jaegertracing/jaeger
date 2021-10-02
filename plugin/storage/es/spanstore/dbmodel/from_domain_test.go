@@ -20,7 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -55,10 +55,10 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 // Loads and returns domain model and JSON model fixtures with given number i.
 func loadFixtures(t *testing.T, i int) ([]byte, []byte) {
 	in := fmt.Sprintf("fixtures/domain_%02d.json", i)
-	inStr, err := ioutil.ReadFile(in)
+	inStr, err := os.ReadFile(in)
 	require.NoError(t, err)
 	out := fmt.Sprintf("fixtures/es_%02d.json", i)
-	outStr, err := ioutil.ReadFile(out)
+	outStr, err := os.ReadFile(out)
 	require.NoError(t, err)
 	return inStr, outStr
 }
@@ -72,7 +72,7 @@ func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object interface{
 	require.NoError(t, enc.Encode(object))
 
 	if !assert.Equal(t, string(expectedStr), buf.String()) {
-		err := ioutil.WriteFile(outFile+"-actual.json", buf.Bytes(), 0644)
+		err := os.WriteFile(outFile+"-actual.json", buf.Bytes(), 0644)
 		assert.NoError(t, err)
 	}
 }

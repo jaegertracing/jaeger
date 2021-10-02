@@ -17,7 +17,6 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,19 +42,19 @@ const (
 
 func TestReload(t *testing.T) {
 	// copy certs to temp so we can modify them
-	certFile, err := ioutil.TempFile("", "cert.crt")
+	certFile, err := os.CreateTemp("", "cert.crt")
 	require.NoError(t, err)
 	defer os.Remove(certFile.Name())
-	certData, err := ioutil.ReadFile(serverCert)
+	certData, err := os.ReadFile(serverCert)
 	require.NoError(t, err)
 	_, err = certFile.Write(certData)
 	require.NoError(t, err)
 	certFile.Close()
 
-	keyFile, err := ioutil.TempFile("", "key.crt")
+	keyFile, err := os.CreateTemp("", "key.crt")
 	require.NoError(t, err)
 	defer os.Remove(keyFile.Name())
-	keyData, err := ioutil.ReadFile(serverKey)
+	keyData, err := os.ReadFile(serverKey)
 	require.NoError(t, err)
 	_, err = keyFile.Write(keyData)
 	require.NoError(t, err)
@@ -82,7 +81,7 @@ func TestReload(t *testing.T) {
 	assert.Equal(t, &cert, watcher.certificate())
 
 	// Write the client's public key.
-	certData, err = ioutil.ReadFile(clientCert)
+	certData, err = os.ReadFile(clientCert)
 	require.NoError(t, err)
 	err = syncWrite(certFile.Name(), certData, 0644)
 	require.NoError(t, err)
@@ -99,7 +98,7 @@ func TestReload(t *testing.T) {
 		"Unable to locate 'Failed to load certificate' in log. All logs: %v", logObserver.All())
 
 	// Write the client's private key.
-	keyData, err = ioutil.ReadFile(clientKey)
+	keyData, err = os.ReadFile(clientKey)
 	require.NoError(t, err)
 	err = syncWrite(keyFile.Name(), keyData, 0644)
 	require.NoError(t, err)
@@ -123,19 +122,19 @@ func TestReload(t *testing.T) {
 
 func TestReload_ca_certs(t *testing.T) {
 	// copy certs to temp so we can modify them
-	caFile, err := ioutil.TempFile("", "cert.crt")
+	caFile, err := os.CreateTemp("", "cert.crt")
 	require.NoError(t, err)
 	defer os.Remove(caFile.Name())
-	caData, err := ioutil.ReadFile(caCert)
+	caData, err := os.ReadFile(caCert)
 	require.NoError(t, err)
 	_, err = caFile.Write(caData)
 	require.NoError(t, err)
 	caFile.Close()
 
-	clientCaFile, err := ioutil.TempFile("", "key.crt")
+	clientCaFile, err := os.CreateTemp("", "key.crt")
 	require.NoError(t, err)
 	defer os.Remove(clientCaFile.Name())
-	clientCaData, err := ioutil.ReadFile(caCert)
+	clientCaData, err := os.ReadFile(caCert)
 	require.NoError(t, err)
 	_, err = clientCaFile.Write(clientCaData)
 	require.NoError(t, err)
@@ -156,11 +155,11 @@ func TestReload_ca_certs(t *testing.T) {
 	go watcher.watchChangesLoop(certPool, certPool)
 
 	// update the content with client certs
-	caData, err = ioutil.ReadFile(caCert)
+	caData, err = os.ReadFile(caCert)
 	require.NoError(t, err)
 	err = syncWrite(caFile.Name(), caData, 0644)
 	require.NoError(t, err)
-	clientCaData, err = ioutil.ReadFile(caCert)
+	clientCaData, err = os.ReadFile(caCert)
 	require.NoError(t, err)
 	err = syncWrite(clientCaFile.Name(), clientCaData, 0644)
 	require.NoError(t, err)
@@ -179,19 +178,19 @@ func TestReload_ca_certs(t *testing.T) {
 
 func TestReload_err_cert_update(t *testing.T) {
 	// copy certs to temp so we can modify them
-	certFile, err := ioutil.TempFile("", "cert.crt")
+	certFile, err := os.CreateTemp("", "cert.crt")
 	require.NoError(t, err)
 	defer os.Remove(certFile.Name())
-	certData, err := ioutil.ReadFile(serverCert)
+	certData, err := os.ReadFile(serverCert)
 	require.NoError(t, err)
 	_, err = certFile.Write(certData)
 	require.NoError(t, err)
 	certFile.Close()
 
-	keyFile, err := ioutil.TempFile("", "key.crt")
+	keyFile, err := os.CreateTemp("", "key.crt")
 	require.NoError(t, err)
 	defer os.Remove(keyFile.Name())
-	keyData, err := ioutil.ReadFile(serverKey)
+	keyData, err := os.ReadFile(serverKey)
 	require.NoError(t, err)
 	_, err = keyFile.Write(keyData)
 	require.NoError(t, err)
@@ -218,11 +217,11 @@ func TestReload_err_cert_update(t *testing.T) {
 	assert.Equal(t, &serverCert, watcher.certificate())
 
 	// update the content with client certs
-	certData, err = ioutil.ReadFile(badCaCert)
+	certData, err = os.ReadFile(badCaCert)
 	require.NoError(t, err)
 	err = syncWrite(certFile.Name(), certData, 0644)
 	require.NoError(t, err)
-	keyData, err = ioutil.ReadFile(clientKey)
+	keyData, err = os.ReadFile(clientKey)
 	require.NoError(t, err)
 	err = syncWrite(keyFile.Name(), keyData, 0644)
 	require.NoError(t, err)
@@ -287,19 +286,19 @@ func TestAddCertsToWatch_err(t *testing.T) {
 }
 
 func TestAddCertsToWatch_remove_ca(t *testing.T) {
-	caFile, err := ioutil.TempFile("", "ca.crt")
+	caFile, err := os.CreateTemp("", "ca.crt")
 	require.NoError(t, err)
 	defer os.Remove(caFile.Name())
-	caData, err := ioutil.ReadFile(caCert)
+	caData, err := os.ReadFile(caCert)
 	require.NoError(t, err)
 	_, err = caFile.Write(caData)
 	require.NoError(t, err)
 	caFile.Close()
 
-	clientCaFile, err := ioutil.TempFile("", "clientCa.crt")
+	clientCaFile, err := os.CreateTemp("", "clientCa.crt")
 	require.NoError(t, err)
 	defer os.Remove(clientCaFile.Name())
-	clientCaData, err := ioutil.ReadFile(caCert)
+	clientCaData, err := os.ReadFile(caCert)
 	require.NoError(t, err)
 	_, err = clientCaFile.Write(clientCaData)
 	require.NoError(t, err)

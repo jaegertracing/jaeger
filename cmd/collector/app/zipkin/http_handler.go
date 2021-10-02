@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net/http"
 	"strings"
@@ -77,7 +76,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 		bRead = gz
 	}
 
-	bodyBytes, err := ioutil.ReadAll(bRead)
+	bodyBytes, err := io.ReadAll(bRead)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
 		return
@@ -127,7 +126,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 		bRead = gz
 	}
 
-	bodyBytes, err := ioutil.ReadAll(bRead)
+	bodyBytes, err := io.ReadAll(bRead)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
 		return

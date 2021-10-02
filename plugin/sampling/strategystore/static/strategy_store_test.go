@@ -17,7 +17,6 @@ package static
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -333,7 +332,7 @@ func TestDeepCopy(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyWithFile(t *testing.T) {
-	tempFile, _ := ioutil.TempFile("", "for_go_test_*.json")
+	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
 	defer func() {
 		require.NoError(t, os.Remove(tempFile.Name()))
@@ -341,9 +340,9 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 
 	// copy known fixture content into temp file which we can later overwrite
 	srcFile, dstFile := "fixtures/strategies.json", tempFile.Name()
-	srcBytes, err := ioutil.ReadFile(srcFile)
+	srcBytes, err := os.ReadFile(srcFile)
 	require.NoError(t, err)
-	require.NoError(t, ioutil.WriteFile(dstFile, srcBytes, 0644))
+	require.NoError(t, os.WriteFile(dstFile, srcBytes, 0644))
 
 	ss, err := NewStrategyStore(Options{
 		StrategiesFile: dstFile,
@@ -364,7 +363,7 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 
 	// update file with new probability of 0.9
 	newStr := strings.Replace(string(srcBytes), "0.8", "0.9", 1)
-	require.NoError(t, ioutil.WriteFile(dstFile, []byte(newStr), 0644))
+	require.NoError(t, os.WriteFile(dstFile, []byte(newStr), 0644))
 
 	// wait for reload timer
 	for i := 0; i < 1000; i++ { // wait up to 1sec
@@ -413,7 +412,7 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyErrors(t *testing.T) {
-	tempFile, _ := ioutil.TempFile("", "for_go_test_*.json")
+	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
 	defer func() {
 		_ = os.Remove(tempFile.Name())
@@ -435,7 +434,7 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to re-load sampling strategies").All(), 1)
 
 	// check bad file content
-	require.NoError(t, ioutil.WriteFile(tempFile.Name(), []byte("bad value"), 0644))
+	require.NoError(t, os.WriteFile(tempFile.Name(), []byte("bad value"), 0644))
 	assert.Equal(t, "blah", store.reloadSamplingStrategy(store.samplingStrategyLoader(tempFile.Name()), "blah"))
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 1)
 

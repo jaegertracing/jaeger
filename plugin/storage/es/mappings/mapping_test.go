@@ -17,7 +17,7 @@ package mappings
 import (
 	"embed"
 	"errors"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 	"text/template"
@@ -87,7 +87,7 @@ func TestMappingBuilder_loadMapping(t *testing.T) {
 		mapping := loadMapping(test.name)
 		f, err := os.Open("./" + test.name)
 		require.NoError(t, err)
-		b, err := ioutil.ReadAll(f)
+		b, err := io.ReadAll(f)
 		require.NoError(t, err)
 		assert.Equal(t, string(b), mapping)
 		_, err = template.New("mapping").Parse(mapping)

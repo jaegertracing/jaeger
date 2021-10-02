@@ -20,9 +20,9 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -136,7 +136,7 @@ func (h *strategyStore) samplingStrategyLoader(strategiesFile string) strategyLo
 
 	return func() ([]byte, error) {
 		h.logger.Info("Loading sampling strategies", zap.String("filename", strategiesFile))
-		currBytes, err := ioutil.ReadFile(filepath.Clean(strategiesFile))
+		currBytes, err := os.ReadFile(filepath.Clean(strategiesFile))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read strategies file %s: %w", strategiesFile, err)
 		}

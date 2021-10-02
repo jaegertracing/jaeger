@@ -17,7 +17,6 @@ package spanstore_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -376,7 +375,7 @@ func TestMenuSeeks(t *testing.T) {
 }
 
 func TestPersist(t *testing.T) {
-	dir, err := ioutil.TempDir("", "badgerTest")
+	dir, err := os.MkdirTemp("", "badgerTest")
 	assert.NoError(t, err)
 	defer os.RemoveAll(dir)
 

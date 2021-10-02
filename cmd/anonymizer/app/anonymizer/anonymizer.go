@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -81,7 +80,7 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 		options: options,
 	}
 	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
-		dat, err := ioutil.ReadFile(filepath.Clean(mappingFile))
+		dat, err := os.ReadFile(filepath.Clean(mappingFile))
 		if err != nil {
 			logger.Fatal("Cannot load previous mapping", zap.Error(err))
 		}
@@ -108,7 +107,7 @@ func (a *Anonymizer) SaveMapping() {
 		a.logger.Error("Failed to marshal mapping file", zap.Error(err))
 		return
 	}
-	if err := ioutil.WriteFile(filepath.Clean(a.mappingFile), dat, os.ModePerm); err != nil {
+	if err := os.WriteFile(filepath.Clean(a.mappingFile), dat, os.ModePerm); err != nil {
 		a.logger.Error("Failed to write mapping file", zap.Error(err))
 		return
 	}

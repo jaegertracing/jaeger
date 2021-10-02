@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -1111,7 +1111,7 @@ func TestSpanReader_buildOperationNameQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildTagQuery(t *testing.T) {
-	inStr, err := ioutil.ReadFile("fixtures/query_01.json")
+	inStr, err := os.ReadFile("fixtures/query_01.json")
 	require.NoError(t, err)
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat.foo", "spook")
@@ -1126,7 +1126,7 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildTagRegexQuery(t *testing.T) {
-	inStr, err := ioutil.ReadFile("fixtures/query_02.json")
+	inStr, err := os.ReadFile("fixtures/query_02.json")
 	require.NoError(t, err)
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat.foo", "spo.*")
@@ -1141,7 +1141,7 @@ func TestSpanReader_buildTagRegexQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildTagRegexEscapedQuery(t *testing.T) {
-	inStr, err := ioutil.ReadFile("fixtures/query_03.json")
+	inStr, err := os.ReadFile("fixtures/query_03.json")
 	require.NoError(t, err)
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat.foo", "spo\\*")
