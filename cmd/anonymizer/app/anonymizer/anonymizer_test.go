@@ -15,10 +15,13 @@
 package anonymizer
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -71,6 +74,62 @@ var span2 = &model.Span{
 	},
 	Duration:  time.Second * 5,
 	StartTime: time.Unix(300, 0),
+}
+
+func TestNew(t *testing.T) {
+	nopLogger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	file, err := os.CreateTemp(tempDir, "mapping.json")
+	assert.NoError(t, err)
+
+	_, err = file.Write([]byte(`
+{
+    "services": {
+		"api": "hashed_api"
+	},
+	"operations": {
+		"[api]:delete": "hashed_api_delete"
+	}
+}
+`))
+	assert.NoError(t, err)
+
+	anonymizer := New(file.Name(), Options{}, nopLogger)
+	assert.NotNil(t, anonymizer)
+}
+
+func TestAnonymizer_SaveMapping(t *testing.T) {
+	nopLogger := zap.NewNop()
+	mapping := mapping{
+		Services:   make(map[string]string),
+		Operations: make(map[string]string),
+	}
+
+	tests := []struct {
+		name        string
+		mappingFile string
+	}{
+		{
+			name:        "fail to write mapping file",
+			mappingFile: "",
+		},
+		{
+			name:        "save mapping file successfully",
+			mappingFile: filepath.Join(t.TempDir(), "mapping.json"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			anonymizer := Anonymizer{
+				logger:      nopLogger,
+				mapping:     mapping,
+				mappingFile: tt.mappingFile,
+			}
+			anonymizer.SaveMapping()
+		})
+	}
 }
 
 func TestAnonymizer_FilterStandardTags(t *testing.T) {
