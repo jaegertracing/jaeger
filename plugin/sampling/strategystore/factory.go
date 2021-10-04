@@ -34,10 +34,10 @@ type Kind string
 
 const (
 	samplingTypeAdaptive = "adaptive"
-	samplingTypeStatic   = "static"
+	samplingTypeFile     = "file"
 )
 
-var allSamplingTypes = []Kind{samplingTypeStatic, samplingTypeAdaptive}
+var AllSamplingTypes = []string{samplingTypeFile, samplingTypeAdaptive}
 
 // Factory implements strategystore.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
@@ -65,12 +65,12 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 
 func (f *Factory) getFactoryOfType(factoryType Kind) (strategystore.Factory, error) {
 	switch factoryType {
-	case samplingTypeStatic:
+	case samplingTypeFile:
 		return static.NewFactory(), nil
 	case samplingTypeAdaptive:
 		return adaptive.NewFactory(), nil
 	default:
-		return nil, fmt.Errorf("unknown sampling strategy store type %s. Valid types are %v", factoryType, allSamplingTypes)
+		return nil, fmt.Errorf("unknown sampling strategy store type %s. Valid types are %v", factoryType, AllSamplingTypes)
 	}
 }
 
