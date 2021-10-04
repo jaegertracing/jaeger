@@ -53,17 +53,24 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		err := os.Setenv(SamplingTypeEnvVar, tc.env)
-		require.NoError(t, err)
+		// for each test case test both the old and new env vars
+		for _, envVar := range []string{SamplingTypeEnvVar, deprecatedSamplingTypeEnvVar} {
+			// clear env
+			os.Setenv(SamplingTypeEnvVar, "")
+			os.Setenv(deprecatedSamplingTypeEnvVar, "")
 
-		f, err := FactoryConfigFromEnv(io.Discard)
-		if tc.expectsError {
-			assert.Error(t, err)
-			continue
+			err := os.Setenv(envVar, tc.env)
+			require.NoError(t, err)
+
+			f, err := FactoryConfigFromEnv(io.Discard)
+			if tc.expectsError {
+				assert.Error(t, err)
+				continue
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedType, f.StrategyStoreType)
 		}
-
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedType, f.StrategyStoreType)
 	}
 }
 
