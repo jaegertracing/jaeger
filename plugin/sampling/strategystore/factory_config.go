@@ -41,14 +41,8 @@ type FactoryConfig struct {
 func FactoryConfigFromEnv(log io.Writer) (*FactoryConfig, error) {
 	strategyStoreType := getStrategyStoreTypeFromEnv(log)
 	if strategyStoreType != samplingTypeAdaptive &&
-		strategyStoreType != samplingTypeFile &&
-		strategyStoreType != deprecatedSamplingTypeStatic {
+		strategyStoreType != samplingTypeFile {
 		return nil, fmt.Errorf("invalid sampling type: %s. Valid types are %v", strategyStoreType, AllSamplingTypes)
-	}
-
-	if strategyStoreType == deprecatedSamplingTypeStatic {
-		fmt.Fprintf(log, "WARNING: Using deprecated '%s' value for %s. Please switch to '%s'.\n", strategyStoreType, SamplingTypeEnvVar, samplingTypeFile)
-		strategyStoreType = samplingTypeFile
 	}
 
 	return &FactoryConfig{
@@ -63,10 +57,14 @@ func getStrategyStoreTypeFromEnv(log io.Writer) string {
 		return strategyStoreType
 	}
 
-	// accept the old env var but warn
+	// accept the old env var and value but warn
 	strategyStoreType = os.Getenv(deprecatedSamplingTypeEnvVar)
 	if strategyStoreType != "" {
 		fmt.Fprintf(log, "WARNING: Using deprecated '%s' env var. Please switch to '%s'.\n", deprecatedSamplingTypeEnvVar, SamplingTypeEnvVar)
+		if strategyStoreType == deprecatedSamplingTypeStatic {
+			fmt.Fprintf(log, "WARNING: Using deprecated '%s' value for %s. Please switch to '%s'.\n", strategyStoreType, SamplingTypeEnvVar, samplingTypeFile)
+			strategyStoreType = samplingTypeFile
+		}
 		return strategyStoreType
 	}
 

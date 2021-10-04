@@ -27,50 +27,78 @@ import (
 func TestFactoryConfigFromEnv(t *testing.T) {
 	tests := []struct {
 		env          string
+		envVar       string
 		expectedType Kind
 		expectsError bool
 	}{
+		// default
 		{
+			expectedType: Kind("file"),
+		},
+		// file on both env vars
+		{
+			env:          "file",
+			envVar:       deprecatedSamplingTypeEnvVar,
 			expectedType: Kind("file"),
 		},
 		{
 			env:          "file",
+			envVar:       SamplingTypeEnvVar,
+			expectedType: Kind("file"),
+		},
+		// static works on the deprecated env var, but fails on the new
+		{
+			env:          "static",
+			envVar:       deprecatedSamplingTypeEnvVar,
 			expectedType: Kind("file"),
 		},
 		{
-			// static is deprecated and maps to file. functionality has not changed
 			env:          "static",
-			expectedType: Kind("file"),
+			envVar:       SamplingTypeEnvVar,
+			expectsError: true,
 		},
+		// adaptive on both env vars
 		{
 			env:          "adaptive",
+			envVar:       deprecatedSamplingTypeEnvVar,
 			expectedType: Kind("adaptive"),
 		},
 		{
+			env:          "adaptive",
+			envVar:       SamplingTypeEnvVar,
+			expectedType: Kind("adaptive"),
+		},
+		// unexpected string on both env vars
+		{
 			env:          "??",
+			envVar:       deprecatedSamplingTypeEnvVar,
+			expectsError: true,
+		},
+		{
+			env:          "??",
+			envVar:       SamplingTypeEnvVar,
 			expectsError: true,
 		},
 	}
 
 	for _, tc := range tests {
-		// for each test case test both the old and new env vars
-		for _, envVar := range []string{SamplingTypeEnvVar, deprecatedSamplingTypeEnvVar} {
-			// clear env
-			os.Setenv(SamplingTypeEnvVar, "")
-			os.Setenv(deprecatedSamplingTypeEnvVar, "")
+		// clear env
+		os.Setenv(SamplingTypeEnvVar, "")
+		os.Setenv(deprecatedSamplingTypeEnvVar, "")
 
-			err := os.Setenv(envVar, tc.env)
+		if len(tc.envVar) != 0 {
+			err := os.Setenv(tc.envVar, tc.env)
 			require.NoError(t, err)
-
-			f, err := FactoryConfigFromEnv(io.Discard)
-			if tc.expectsError {
-				assert.Error(t, err)
-				continue
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedType, f.StrategyStoreType)
 		}
+
+		f, err := FactoryConfigFromEnv(io.Discard)
+		if tc.expectsError {
+			assert.Error(t, err)
+			continue
+		}
+
+		require.NoError(t, err)
+		assert.Equal(t, tc.expectedType, f.StrategyStoreType)
 	}
 }
 
@@ -99,6 +127,11 @@ func TestGetStrategyStoreTypeFromEnv(t *testing.T) {
 		{
 			deprecatedEnvValue: "blerg",
 			expected:           "blerg",
+		},
+		// static is switched to file
+		{
+			deprecatedEnvValue: "static",
+			expected:           "file",
 		},
 	}
 
