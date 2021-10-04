@@ -47,7 +47,7 @@ func TestNewFactory(t *testing.T) {
 		expectError       bool
 	}{
 		{
-			strategyStoreType: "static",
+			strategyStoreType: "file",
 		},
 		{
 			strategyStoreType: "adaptive",
@@ -94,13 +94,13 @@ func TestConfigurable(t *testing.T) {
 	clearEnv()
 	defer clearEnv()
 
-	f, err := NewFactory(FactoryConfig{StrategyStoreType: "static"})
+	f, err := NewFactory(FactoryConfig{StrategyStoreType: "file"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories["static"])
+	assert.NotEmpty(t, f.factories["file"])
 
 	mock := new(mockFactory)
-	f.factories["static"] = mock
+	f.factories["file"] = mock
 
 	fs := new(flag.FlagSet)
 	v := viper.New()

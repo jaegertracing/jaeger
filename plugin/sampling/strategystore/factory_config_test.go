@@ -30,11 +30,11 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 		expectsError bool
 	}{
 		{
-			expectedType: Kind("static"),
+			expectedType: Kind("file"),
 		},
 		{
-			env:          "static",
-			expectedType: Kind("static"),
+			env:          "file",
+			expectedType: Kind("file"),
 		},
 		{
 			env:          "adaptive",
