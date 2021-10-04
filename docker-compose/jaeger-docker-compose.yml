@@ -24,7 +24,7 @@ services:
         - "--sampling.initial-sampling-probability=.5"
         - "--sampling.target-samples-per-second=.01"
       environment: 
-        - SAMPLING_TYPE=adaptive
+        - SAMPLING_CONFIG_TYPE=adaptive
       ports:
         - "14269:14269"
         - "14268:14268"

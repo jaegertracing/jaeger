@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
@@ -43,6 +44,11 @@ Multiple backends can be specified as comma-separated list, e.g. "cassandra,elas
 it is not a replacement for a proper storage backend, and only used as a buffer for spans
 when Jaeger is deployed in the collector+ingester configuration.
 `
+
+	samplingTypeDescription = `The method [%s] used for determining the sampling rates served
+to clients configured with remote sampling enabled. "file" uses a periodically reloaded file and
+"adaptive" dynamically adjusts sampling rates based on current traffic.
+`
 )
 
 // Command creates `env` command
@@ -60,6 +66,14 @@ func Command() *cobra.Command {
 		storage.DependencyStorageTypeEnvVar,
 		"${SPAN_STORAGE_TYPE}",
 		"The type of backend used for service dependencies storage.",
+	)
+	fs.String(
+		strategystore.SamplingTypeEnvVar,
+		"file",
+		fmt.Sprintf(
+			strings.ReplaceAll(samplingTypeDescription, "\n", " "),
+			strings.Join(strategystore.AllSamplingTypes, ", "),
+		),
 	)
 	long := fmt.Sprintf(longTemplate, strings.Replace(fs.FlagUsagesWrapped(0), "      --", "\n", -1))
 	return &cobra.Command{

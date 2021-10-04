@@ -21,7 +21,7 @@ import (
 
 const (
 	// SamplingTypeEnvVar is the name of the env var that defines the type of sampling strategy store used.
-	SamplingTypeEnvVar = "SAMPLING_TYPE"
+	SamplingTypeEnvVar = "SAMPLING_CONFIG_TYPE"
 )
 
 // FactoryConfig tells the Factory what sampling type it needs to create.
@@ -29,8 +29,8 @@ type FactoryConfig struct {
 	StrategyStoreType Kind
 }
 
-// FactoryConfigFromEnv reads the desired sampling type from the SAMPLING_TYPE environment variable. Allowed values:
-//   * `static` - built-in
+// FactoryConfigFromEnv reads the desired sampling type from the SAMPLING_CONFIG_TYPE environment variable. Allowed values:
+//   * `file` - built-in
 //   * `adaptive` - built-in
 func FactoryConfigFromEnv() (*FactoryConfig, error) {
 	strategyStoreType := os.Getenv(SamplingTypeEnvVar)
@@ -39,7 +39,7 @@ func FactoryConfigFromEnv() (*FactoryConfig, error) {
 	}
 
 	if strategyStoreType != samplingTypeAdaptive && strategyStoreType != samplingTypeStatic {
-		return nil, fmt.Errorf("invalid sampling type: %s. . Valid types are %v", strategyStoreType, allSamplingTypes)
+		return nil, fmt.Errorf("invalid sampling type: %s. . Valid types are %v", strategyStoreType, AllSamplingTypes)
 	}
 	return &FactoryConfig{
 		StrategyStoreType: Kind(strategyStoreType),
