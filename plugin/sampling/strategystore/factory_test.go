@@ -53,6 +53,12 @@ func TestNewFactory(t *testing.T) {
 			strategyStoreType: "adaptive",
 		},
 		{
+			// expliclitly test that the deprecated value is refused in NewFactory(). it should be translated correctly in factory_config.go
+			// and no other code should need to be aware of the old name.
+			strategyStoreType: "static",
+			expectError:       true,
+		},
+		{
 			strategyStoreType: "nonsense",
 			expectError:       true,
 		},
