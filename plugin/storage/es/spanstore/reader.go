@@ -61,7 +61,7 @@ const (
 
 	defaultNumTraces = 100
 
-	rolloverMaxSpanAge = time.Hour * 24 * 365 * 100
+	rolloverMaxSpanAge = time.Hour * 24 * 365 * 50
 )
 
 var (
