@@ -13,7 +13,7 @@ next release
 * Add 'opensearch' as a supported value for SPAN_STORAGE_TYPE ([#3255](https://github.com/jaegertracing/jaeger/pull/3255), [@yurishkuro](https://github.com/yurishkuro))
 
 #### New Features
-* Add support for adaptive sampling with a Cassandra backend. ([#2966](https://github.com/jaegertracing/jaeger/pull/2966), [@joe-elliott](https://github.com/joe-elliott))
+* Add support for adaptive sampling with a Cassandra backend. ([#2966](https://github.com/jaegertracing/jaeger/pull/2966), [@joe-elliott](https://github.com/joe-elliott), [@Ashmita152](https://github.com/Ashmita152))
 
 #### Bug fixes, Minor Improvements
 * Support graceful shutdown in grpc plugin ([#3249](https://github.com/jaegertracing/jaeger/pull/3249), [@slon](https://github.com/slon))
