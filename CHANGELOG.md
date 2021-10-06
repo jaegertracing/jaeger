@@ -5,7 +5,30 @@ next release
 -------------------
 ### Backend Changes
 #### New Features
-* Add support for adaptive sampling with a Cassandra backend. ([#2966](https://github.com/jaegertracing/jaeger/pull/2966), [@joe-elliott](https://github.com/joe-elliott))
+
+1.27.0 (2021-10-06)
+-------------------
+### Backend Changes
+* Migrate elasticsearch rollover to go ([#3242](https://github.com/jaegertracing/jaeger/pull/3242), [@rubenvp8510](https://github.com/rubenvp8510))
+* Add 'opensearch' as a supported value for SPAN_STORAGE_TYPE ([#3255](https://github.com/jaegertracing/jaeger/pull/3255), [@yurishkuro](https://github.com/yurishkuro))
+
+#### New Features
+* Add support for adaptive sampling with a Cassandra backend. ([#2966](https://github.com/jaegertracing/jaeger/pull/2966), [@joe-elliott](https://github.com/joe-elliott), [@Ashmita152](https://github.com/Ashmita152))
+
+#### Bug fixes, Minor Improvements
+* Support graceful shutdown in grpc plugin ([#3249](https://github.com/jaegertracing/jaeger/pull/3249), [@slon](https://github.com/slon))
+* Enable gzip compression for collector grpc endpoint. ([#3236](https://github.com/jaegertracing/jaeger/pull/3236), [@slon](https://github.com/slon))
+* Use UTC in es-index-cleaner ([#3261](https://github.com/jaegertracing/jaeger/pull/3261), [@pavolloffay](https://github.com/pavolloffay))
+* Upgrade to alpine-3.14 ([#3304](https://github.com/jaegertracing/jaeger/pull/3304), [@nontw](https://github.com/nontw))
+* refactor: move from io/ioutil to io and os package ([#3294](https://github.com/jaegertracing/jaeger/pull/3294), [@Juneezee](https://github.com/Juneezee))
+* Changed sampling type env var and updated collector help text ([#3302](https://github.com/jaegertracing/jaeger/pull/3302), [@joe-elliott](https://github.com/joe-elliott))
+* Close #3270: Prevent rollover lookback from passing the Unix epoch ([#3299](https://github.com/jaegertracing/jaeger/pull/3299), [@ctreatma](https://github.com/ctreatma))
+* Fixing otel configuration in docker compose ([#3286](https://github.com/jaegertracing/jaeger/pull/3286), [@Ashmita152](https://github.com/Ashmita152))
+* Added ability to pass config file to grpc plugin in integration tests ([#3253](https://github.com/jaegertracing/jaeger/pull/3253), [@EinKrebs](https://github.com/EinKrebs))
+
+### UI Changes
+
+* UI pinned to version 1.17.0. The changelog is available here [v1.17.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1170-oct-6-2021)
 
 
 1.26.0 (2021-09-06)

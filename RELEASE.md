@@ -11,6 +11,8 @@
         git fetch
         git checkout {new_version} //e.g. v1.5.0
         ```
+      * Even if a submodule does not have a new release, it should be checked to see if there were any changes warranting cutting a new release and then including it.
+    * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
 2. Add all merged pull requests to the milestone for the release and create a new milestone for a next release e.g. `Release 1.16`.
 3. After the PR is merged, create a release on Github:
     * Title "Release X.Y.Z"
@@ -36,9 +38,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version   | Release Manager  | Tentative release date |
 |-----------|------------------|------------------------|
-| 1.26.0    | @yurishkuro      |  1 September 2021      |
-| 1.27.0    | @joe-elliott     |  6 October   2021      |
 | 1.28.0    | @albertteoh      |  3 November  2021      |
 | 1.29.0    | @jpkrohling      |  1 December  2021      |
 | 1.30.0    | @pavolloffay     |  5 January   2022      |
 | 1.31.0    | @vprithvi        |  2 February  2022      |
+| 1.32.0    | @yurishkuro      |  2 March     2022      |
+| 1.33.0    | @joe-elliott     |  6 April     2022      |
