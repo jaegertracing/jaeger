@@ -11,6 +11,7 @@
         git fetch
         git checkout {new_version} //e.g. v1.5.0
         ```
+      * Even if a submodule does not have a new release, it should be checked to see if there were any changes warranting cutting a new release and then including it.
     * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
 2. Add all merged pull requests to the milestone for the release and create a new milestone for a next release e.g. `Release 1.16`.
 3. After the PR is merged, create a release on Github:
