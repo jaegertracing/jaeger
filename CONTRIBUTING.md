@@ -15,6 +15,7 @@ We gratefully welcome improvements to documentation as well as to code.
 
 ### Pre-requisites
 * Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH
+* Install [Yarn](https://yarnpkg.com/) for running local build with the UI
 
 This library uses Go modules to manage dependencies.
 
