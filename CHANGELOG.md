@@ -26,6 +26,11 @@ next release
 * Fixing otel configuration in docker compose ([#3286](https://github.com/jaegertracing/jaeger/pull/3286), [@Ashmita152](https://github.com/Ashmita152))
 * Added ability to pass config file to grpc plugin in integration tests ([#3253](https://github.com/jaegertracing/jaeger/pull/3253), [@EinKrebs](https://github.com/EinKrebs))
 
+### UI Changes
+
+* UI pinned to version 1.17.0. The changelog is available here [v1.17.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1170-oct-6-2021)
+
+
 1.26.0 (2021-09-06)
 -------------------
 ### Backend Changes
