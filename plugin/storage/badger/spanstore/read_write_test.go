@@ -20,6 +20,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"testing"
 	"time"
@@ -614,7 +615,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 
-	dir := "/mnt/ssd/badger/testRun"
+	dir := filepath.Join(tb.TempDir(), "badger-testRun")
 	err := os.MkdirAll(dir, 0700)
 	assert.NoError(err)
 	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)

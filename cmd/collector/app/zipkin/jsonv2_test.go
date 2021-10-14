@@ -15,7 +15,6 @@
 package zipkin
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -23,6 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/swagger-gen/models"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -54,7 +55,6 @@ func TestLCFromLocalEndpoint(t *testing.T) {
 	var spans models.ListOfSpans
 	loadJSON(t, "fixtures/zipkin_02.json", &spans)
 	tSpans, err := spansV2ToThrift(spans)
-	fmt.Println(tSpans[0])
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var ts int64 = 1
@@ -65,6 +65,54 @@ func TestLCFromLocalEndpoint(t *testing.T) {
 				AnnotationType: zipkincore.AnnotationType_STRING},
 		}}
 	assert.Equal(t, tSpan, tSpans[0])
+}
+
+func TestMissingKafkaEndpoint(t *testing.T) {
+	var spans models.ListOfSpans
+	loadJSON(t, "fixtures/zipkin_03.json", &spans)
+	tSpans, err := spansV2ToThrift(spans)
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(tSpans))
+	var ts int64 = 1597704629675602
+	var d int64 = 9550570
+	var parentId int64 = 0xc26551047c72d19
+	var endpoint1 = zipkincore.Endpoint{ServiceName: "schemas-service"}
+	var endpoint2 = zipkincore.Endpoint{ServiceName: "schemas-service"}
+	var endpoint3 = zipkincore.Endpoint{ServiceName: "kafka"}
+
+	tSpan := &zipkincore.Span{ID: 0x188bb8428fc7e477, TraceID: 0x091f00370361e578, ParentID: &parentId,
+		Name: "send", Duration: &d, Timestamp: &ts,
+		Annotations: []*zipkincore.Annotation{
+			{
+				Host:      &endpoint1,
+				Timestamp: ts,
+				Value:     zipkincore.MESSAGE_SEND,
+			},
+		},
+		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
+			{
+				Host:           &endpoint2,
+				Key:            "kafka.topic",
+				Value:          []byte("schema-changed"),
+				AnnotationType: zipkincore.AnnotationType_STRING},
+			{
+
+				Key:            zipkincore.MESSAGE_ADDR,
+				Host:           &endpoint3,
+				AnnotationType: zipkincore.AnnotationType_BOOL,
+			},
+		},
+	}
+	assert.Equal(t, tSpan, tSpans[0])
+
+	tTags := []model.KeyValue{
+		{Key: "kafka.topic", VStr: "schema-changed"},
+		{Key: "peer.service", VStr: "kafka"},
+	}
+	var jaegerspan []*model.Span
+	jaegerspan, err = zipkin.ToDomainSpan(tSpans[0])
+	require.NoError(t, err)
+	assert.Equal(t, tTags, jaegerspan[0].GetTags())
 }
 
 func TestKindToThrift(t *testing.T) {
