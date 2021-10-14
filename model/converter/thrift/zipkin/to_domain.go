@@ -288,7 +288,7 @@ func (td toDomain) getTags(binAnnotations []*zipkincore.BinaryAnnotation, tagInc
 			value := string(annotation.Value)
 			tag := model.String(string(ext.Component), value)
 			retMe = append(retMe, tag)
-		case zipkincore.SERVER_ADDR, zipkincore.CLIENT_ADDR:
+		case zipkincore.SERVER_ADDR, zipkincore.CLIENT_ADDR, zipkincore.MESSAGE_ADDR:
 			retMe = td.getPeerTags(annotation.Host, retMe)
 		default:
 			tag, err := td.transformBinaryAnnotation(annotation)

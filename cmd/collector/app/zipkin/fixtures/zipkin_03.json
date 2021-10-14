@@ -1,0 +1,23 @@
+[
+  {
+    "traceId": "091f00370361e578",
+    "parentId": "c26551047c72d19",
+    "id": "188bb8428fc7e477",
+    "kind": "PRODUCER",
+    "name": "send",
+    "timestamp": 1597704629675602,
+    "duration": 9550570,
+    "localEndpoint":
+    {
+        "serviceName": "schemas-service"
+    },
+    "remoteEndpoint":
+    {
+        "serviceName": "kafka"
+    },
+    "tags":
+    {
+        "kafka.topic": "schema-changed"
+    }
+  }
+]
