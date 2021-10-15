@@ -94,7 +94,7 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 			}
 			errorMap := jsonError["error"].(map[string]interface{})
 			// check for reason, ignore already exist error
-			if strings.Contains("resource_already_exists_exception", errorMap["type"].(string)) {
+			if strings.Contains(errorMap["type"].(string), "resource_already_exists_exception") {
 				return nil
 			}
 		}
