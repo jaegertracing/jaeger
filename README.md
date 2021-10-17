@@ -73,7 +73,7 @@ traces with tens of thousands of spans (e.g. we tried a trace with 80,000 spans)
 Jaeger backend is distributed as a collection of Docker images. The binaries support various configuration methods,
 including command line options, environment variables, and configuration files in multiple formats (yaml, toml, etc.)
 Deployment to Kubernetes clusters is assisted by [Kubernetes templates](https://github.com/jaegertracing/jaeger-kubernetes)
-and a [Helm chart](https://github.com/kubernetes/charts/tree/master/incubator/jaeger).
+and a [Helm chart](https://github.com/jaegertracing/helm-charts).
 
 ### Observability
 
