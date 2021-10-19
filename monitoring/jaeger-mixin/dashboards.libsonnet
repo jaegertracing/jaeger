@@ -35,12 +35,12 @@ local g = (import 'grafana-builder/grafana.libsonnet') + {
         g.row('Services')
         .addPanel(
           g.panel('span creation rate') +
-          g.qpsPanelErrTotal('jaeger_reporter_spans{result=~"dropped|err"}', 'jaeger_reporter_spans') +
+          g.qpsPanelErrTotal('jaeger_tracer_reporter_spans_total{result=~"dropped|err"}', 'jaeger_tracer_reporter_spans_total') +
           g.stack
         )
         .addPanel(
           g.panel('% spans dropped') +
-          g.queryPanel('sum(rate(jaeger_reporter_spans{result=~"dropped|err"}[1m])) by (namespace) / sum(rate(jaeger_reporter_spans[1m])) by (namespace)', '{{namespace}}') +
+          g.queryPanel('sum(rate(jaeger_tracer_reporter_spans_total{result=~"dropped|err"}[1m])) by (namespace) / sum(rate(jaeger_tracer_reporter_spans_total[1m])) by (namespace)', '{{namespace}}') +
           { yaxes: g.yaxes({ format: 'percentunit', max: 1 }) } +
           g.stack
         )
