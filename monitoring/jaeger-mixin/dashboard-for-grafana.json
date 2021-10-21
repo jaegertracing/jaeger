@@ -48,7 +48,7 @@
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_reporter_spans{result=~\"dropped|err\"}[1m]))",
+                     "expr": "sum(rate(jaeger_tracer_reporter_spans_total{result=~\"dropped|err\"}[1m]))",
                      "format": "time_series",
                      "intervalFactor": 2,
                      "legendFormat": "error",
@@ -56,7 +56,7 @@
                      "step": 10
                   },
                   {
-                     "expr": "sum(rate(jaeger_reporter_spans[1m])) - sum(rate(jaeger_reporter_spans{result=~\"dropped|err\"}[1m]))",
+                     "expr": "sum(rate(jaeger_tracer_reporter_spans_total[1m])) - sum(rate(jaeger_tracer_reporter_spans_total{result=~\"dropped|err\"}[1m]))",
                      "format": "time_series",
                      "intervalFactor": 2,
                      "legendFormat": "success",
@@ -132,7 +132,7 @@
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_reporter_spans{result=~\"dropped|err\"}[1m])) by (namespace) / sum(rate(jaeger_reporter_spans[1m])) by (namespace)",
+                     "expr": "sum(rate(jaeger_tracer_reporter_spans_total{result=~\"dropped|err\"}[1m])) by (namespace) / sum(rate(jaeger_tracer_reporter_spans_total[1m])) by (namespace)",
                      "format": "time_series",
                      "intervalFactor": 2,
                      "legendFormat": "{{namespace}}",
