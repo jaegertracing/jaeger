@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2021 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +18,7 @@ import "time"
 
 type lock struct{}
 
-// Acquire always returns true for memory storage
+// Acquire always returns true for memory storage because it's a single-node
 func (l *lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	return true, nil
 }
