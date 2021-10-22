@@ -69,7 +69,7 @@ local kp =
 { ['alertmanager-' + name + '.json']: kp.alertmanager[name] for name in std.objectFields(kp.alertmanager) } +
 { ['prometheus-' + name + '.json']: kp.prometheus[name] for name in std.objectFields(kp.prometheus) } +
 { ['prometheus-adapter-' + name + '.json']: kp.prometheusAdapter[name] for name in std.objectFields(kp.prometheusAdapter) } +
-{ ['grafana-' + name + '.json']: kp.grafana[name] for name in std.objectFields(kp.grafana) }
+{ ['grafana-' + name + '.json']: kp.grafana[name] for name in std.objectFields(kp.grafana) } +
 { ['my-application-' + name + '.json']: kp.exampleApplication[name] for name in std.objectFields(kp.exampleApplication) }
 ```
 
