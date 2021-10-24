@@ -153,6 +153,6 @@ type mockSamplingStoreFactory struct{}
 func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return nil, nil
 }
-func (m *mockSamplingStoreFactory) CreateSamplingStore() (samplingstore.Store, error) {
+func (m *mockSamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return nil, nil
 }

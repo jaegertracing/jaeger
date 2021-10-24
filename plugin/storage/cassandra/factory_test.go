@@ -103,7 +103,7 @@ func TestCassandraFactory(t *testing.T) {
 	_, err = f.CreateLock()
 	assert.NoError(t, err)
 
-	_, err = f.CreateSamplingStore()
+	_, err = f.CreateSamplingStore(0)
 	assert.NoError(t, err)
 
 	assert.NoError(t, f.Close())

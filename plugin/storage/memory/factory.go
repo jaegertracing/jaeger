@@ -82,8 +82,8 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore() (samplingstore.Store, error) {
-	return NewSamplingStore(), nil
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return NewSamplingStore(maxBuckets), nil
 }
 
 // CreateLock implements storage.SamplingStoreFactory
