@@ -115,21 +115,6 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	return s.stringToProbabilities(probabilitiesStr), nil
 }
 
-// GetProbabilitiesAndQPS implements samplingstore.Reader#GetProbabilitiesAndQPS.
-func (s *SamplingStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error) {
-	iter := s.session.Query(getProbabilities, gocql.UUIDFromTime(start), gocql.UUIDFromTime(end)).Iter()
-	hostProbabilitiesAndQPS := make(map[string][]model.ServiceOperationData)
-	var probabilitiesAndQPSStr, host string
-	for iter.Scan(&probabilitiesAndQPSStr, &host) {
-		hostProbabilitiesAndQPS[host] = append(hostProbabilitiesAndQPS[host], s.stringToProbabilitiesAndQPS(probabilitiesAndQPSStr))
-	}
-	if err := iter.Close(); err != nil {
-		err = fmt.Errorf("error reading probabilities and qps from storage: %w", err)
-		return nil, err
-	}
-	return hostProbabilitiesAndQPS, nil
-}
-
 // This is random enough for storage purposes
 func generateRandomBucket() int64 {
 	return time.Now().UnixNano() % 10
