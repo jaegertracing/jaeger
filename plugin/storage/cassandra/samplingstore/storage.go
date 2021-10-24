@@ -38,11 +38,9 @@ const (
 	constBucket    = 1
 	constBucketStr = `1`
 
-	insertThroughput    = `INSERT INTO operation_throughput(bucket, ts, throughput) VALUES (?, ?, ?)`
-	getThroughput       = `SELECT throughput FROM operation_throughput WHERE bucket IN ` + buckets + ` AND ts > ? AND ts <= ?`
-	insertProbabilities = `INSERT INTO sampling_probabilities(bucket, ts, hostname, probabilities) VALUES (?, ?, ?, ?)`
-	getProbabilities    = `SELECT probabilities, hostname FROM sampling_probabilities WHERE bucket = ` + constBucketStr +
-		` AND ts > ? AND ts <= ?`
+	insertThroughput       = `INSERT INTO operation_throughput(bucket, ts, throughput) VALUES (?, ?, ?)`
+	getThroughput          = `SELECT throughput FROM operation_throughput WHERE bucket IN ` + buckets + ` AND ts > ? AND ts <= ?`
+	insertProbabilities    = `INSERT INTO sampling_probabilities(bucket, ts, hostname, probabilities) VALUES (?, ?, ?, ?)`
 	getLatestProbabilities = `SELECT probabilities FROM sampling_probabilities WHERE bucket = ` + constBucketStr + ` LIMIT 1`
 )
 
