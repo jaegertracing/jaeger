@@ -32,9 +32,6 @@ type Store interface {
 	// GetThroughput retrieves aggregated throughput for operations within a time range.
 	GetThroughput(start, end time.Time) ([]*model.Throughput, error)
 
-	// GetProbabilitiesAndQPS retrieves the sampling probabilities and measured qps per host within a time range.
-	GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error)
-
 	// GetLatestProbabilities retrieves the latest sampling probabilities.
 	GetLatestProbabilities() (model.ServiceOperationProbabilities, error)
 }

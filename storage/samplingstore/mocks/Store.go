@@ -72,27 +72,6 @@ func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Through
 
 	return r0, r1
 }
-func (_m *Store) GetProbabilitiesAndQPS(start time.Time, end time.Time) (map[string][]model.ServiceOperationData, error) {
-	ret := _m.Called(start, end)
-
-	var r0 map[string][]model.ServiceOperationData
-	if rf, ok := ret.Get(0).(func(time.Time, time.Time) map[string][]model.ServiceOperationData); ok {
-		r0 = rf(start, end)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(map[string][]model.ServiceOperationData)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(time.Time, time.Time) error); ok {
-		r1 = rf(start, end)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
 func (_m *Store) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ret := _m.Called()
 
