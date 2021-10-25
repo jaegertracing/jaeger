@@ -22,7 +22,9 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -77,6 +79,16 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.store, nil
+}
+
+// CreateSamplingStore implements storage.SamplingStoreFactory
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return NewSamplingStore(maxBuckets), nil
+}
+
+// CreateLock implements storage.SamplingStoreFactory
+func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+	return &lock{}, nil
 }
 
 func (f *Factory) publishOpts() {

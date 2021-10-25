@@ -164,7 +164,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore() (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
 }
 

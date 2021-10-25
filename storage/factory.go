@@ -55,7 +55,7 @@ type SamplingStoreFactory interface {
 	// CreateLock creates a distributed lock.
 	CreateLock() (distributedlock.Lock, error)
 	// CreateSamplingStore creates a sampling store.
-	CreateSamplingStore() (samplingstore.Store, error)
+	CreateSamplingStore(maxBuckets int) (samplingstore.Store, error)
 }
 
 var (
