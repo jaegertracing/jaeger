@@ -23,14 +23,14 @@ import (
 
 func TestAcquire(t *testing.T) {
 	l := &lock{}
-	acuired, err := l.Acquire("resource", time.Duration(1))
-	assert.True(t, acuired)
+	ok, err := l.Acquire("resource", time.Duration(1))
+	assert.True(t, ok)
 	assert.NoError(t, err)
 }
 
 func TestForfeit(t *testing.T) {
 	l := &lock{}
-	acuired, err := l.Forfeit("resource")
-	assert.True(t, acuired)
+	ok, err := l.Forfeit("resource")
+	assert.True(t, ok)
 	assert.NoError(t, err)
 }

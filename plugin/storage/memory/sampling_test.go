@@ -28,14 +28,13 @@ func withPopulatedSamplingStore(f func(samplingStore *SamplingStore)) {
 	now := time.Now()
 	millisAfter := now.Add(time.Millisecond * time.Duration(100))
 	secondsAfter := now.Add(time.Second * time.Duration(2))
-	throughputs := []*memoryThroughput{
+	throughputs := []*Throughput{
 		{[]*model.Throughput{{Service: "svc-1", Operation: "op-1", Count: 1}}, now},
 		{[]*model.Throughput{{Service: "svc-1", Operation: "op-2", Count: 1}}, millisAfter},
 		{[]*model.Throughput{{Service: "svc-2", Operation: "op-3", Count: 1}}, secondsAfter},
 	}
-	pQPS := []*memoryServiceOperationProbabilitiesAndQPS{
-		{hostname: "guntur38ab8928", probabilities: model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, qps: model.ServiceOperationQPS{"svc-1": {"op-1": 10.0}}, time: now},
-	}
+	pQPS := &ServiceOperationProbabilitiesAndQPS{
+		hostname: "guntur38ab8928", probabilities: model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, qps: model.ServiceOperationQPS{"svc-1": {"op-1": 10.0}}, time: now}
 	samplingStore := &SamplingStore{throughputs: throughputs, probabilitiesAndQPS: pQPS}
 	f(samplingStore)
 }
@@ -81,10 +80,10 @@ func TestGetThroughput(t *testing.T) {
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
 	withMemorySamplingStore(func(samplingStore *SamplingStore) {
 		assert.NoError(t, samplingStore.InsertProbabilitiesAndQPS("dell11eg843d", model.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, model.ServiceOperationQPS{"new-srv": {"op": 4}}))
-		assert.Equal(t, 1, len(samplingStore.probabilitiesAndQPS))
+		assert.NotEmpty(t, 1, samplingStore.probabilitiesAndQPS)
 		// Only latest one is kept in memory
 		assert.NoError(t, samplingStore.InsertProbabilitiesAndQPS("lncol73", model.ServiceOperationProbabilities{"my-app": {"hello": 0.3}}, model.ServiceOperationQPS{"new-srv": {"op": 7}}))
-		assert.Equal(t, 1, len(samplingStore.probabilitiesAndQPS))
+		assert.Equal(t, 0.3, samplingStore.probabilitiesAndQPS.probabilities["my-app"]["hello"])
 	})
 }
 
@@ -104,16 +103,5 @@ func TestGetLatestProbability(t *testing.T) {
 		assert.NoError(t, samplingStore.InsertProbabilitiesAndQPS("utfhyolf", model.ServiceOperationProbabilities{"another-service": {"hello": 0.009}}, model.ServiceOperationQPS{"new-srv": {"op": 5}}))
 		ret, _ = samplingStore.GetLatestProbabilities()
 		assert.NotEqual(t, ret, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}})
-	})
-}
-
-func TestGetProbabilitiesAndQPS(t *testing.T) {
-	withPopulatedSamplingStore(func(samplingStore *SamplingStore) {
-		start := time.Now().Add(time.Second * time.Duration(-1))
-		ret, err := samplingStore.GetProbabilitiesAndQPS(start, time.Now())
-		assert.NoError(t, err)
-		assert.NotEmpty(t, ret)
-		assert.Len(t, ret, 1)
-		assert.Equal(t, &model.ProbabilityAndQPS{Probability: 0.01, QPS: 10.0}, ret["guntur38ab8928"][0]["svc-1"]["op-1"])
 	})
 }

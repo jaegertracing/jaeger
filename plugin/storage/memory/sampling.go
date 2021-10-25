@@ -24,17 +24,17 @@ import (
 // SamplingStroe is an in-memory store for sampling data
 type SamplingStore struct {
 	sync.RWMutex
-	throughputs         []*memoryThroughput
-	probabilitiesAndQPS []*memoryServiceOperationProbabilitiesAndQPS
+	throughputs         []*Throughput
+	probabilitiesAndQPS *ServiceOperationProbabilitiesAndQPS
 	maxBuckets          int
 }
 
-type memoryThroughput struct {
+type Throughput struct {
 	throughput []*model.Throughput
 	time       time.Time
 }
 
-type memoryServiceOperationProbabilitiesAndQPS struct {
+type ServiceOperationProbabilitiesAndQPS struct {
 	hostname      string
 	probabilities model.ServiceOperationProbabilities
 	qps           model.ServiceOperationQPS
@@ -43,7 +43,7 @@ type memoryServiceOperationProbabilitiesAndQPS struct {
 
 // NewSamplingStore creates an in-memory sampling store.
 func NewSamplingStore(maxBuckets int) *SamplingStore {
-	return &SamplingStore{probabilitiesAndQPS: make([]*memoryServiceOperationProbabilitiesAndQPS, 1), maxBuckets: maxBuckets}
+	return &SamplingStore{maxBuckets: maxBuckets}
 }
 
 // InsertThroughput implements samplingstore.Store#InsertThroughput.
@@ -51,7 +51,7 @@ func (ss *SamplingStore) InsertThroughput(throughput []*model.Throughput) error 
 	ss.Lock()
 	defer ss.Unlock()
 	now := time.Now()
-	ss.preprendThroughput(&memoryThroughput{throughput, now})
+	ss.preprendThroughput(&Throughput{throughput, now})
 	return nil
 }
 
@@ -76,7 +76,7 @@ func (ss *SamplingStore) InsertProbabilitiesAndQPS(
 ) error {
 	ss.Lock()
 	defer ss.Unlock()
-	ss.probabilitiesAndQPS[0] = &memoryServiceOperationProbabilitiesAndQPS{hostname, probabilities, qps, time.Now()}
+	ss.probabilitiesAndQPS = &ServiceOperationProbabilitiesAndQPS{hostname, probabilities, qps, time.Now()}
 	return nil
 }
 
@@ -84,40 +84,14 @@ func (ss *SamplingStore) InsertProbabilitiesAndQPS(
 func (ss *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ss.Lock()
 	defer ss.Unlock()
-	if latest := ss.probabilitiesAndQPS[0]; latest != nil {
-		return latest.probabilities, nil
+	if ss.probabilitiesAndQPS != nil {
+		return ss.probabilitiesAndQPS.probabilities, nil
 	}
 	return model.ServiceOperationProbabilities{}, nil
 }
 
-// GetProbabilitiesAndQPS implements samplingstore.Store#GetProbabilitiesAndQPS.
-func (ss *SamplingStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error) {
-	ss.Lock()
-	defer ss.Unlock()
-	ret := make(map[string][]model.ServiceOperationData)
-	for _, i := range ss.probabilitiesAndQPS {
-		if i.time.After(start) && (i.time.Before(end) || i.time.Equal(end)) {
-			probabilitiesAndQPS := make(model.ServiceOperationData)
-			for svc, opProbabilities := range i.probabilities {
-				if _, ok := probabilitiesAndQPS[svc]; !ok {
-					probabilitiesAndQPS[svc] = make(map[string]*model.ProbabilityAndQPS)
-				}
-				for op, probability := range opProbabilities {
-					opQPS := 0.0
-					if _, ok := i.qps[svc]; ok {
-						opQPS = i.qps[svc][op]
-					}
-					probabilitiesAndQPS[svc][op] = &model.ProbabilityAndQPS{Probability: probability, QPS: opQPS}
-				}
-			}
-			ret[i.hostname] = append(ret[i.hostname], probabilitiesAndQPS)
-		}
-	}
-	return ret, nil
-}
-
-func (ss *SamplingStore) preprendThroughput(throughput *memoryThroughput) {
-	ss.throughputs = append([]*memoryThroughput{throughput}, ss.throughputs...)
+func (ss *SamplingStore) preprendThroughput(throughput *Throughput) {
+	ss.throughputs = append([]*Throughput{throughput}, ss.throughputs...)
 	if len(ss.throughputs) > ss.maxBuckets {
 		ss.throughputs = ss.throughputs[0:ss.maxBuckets]
 	}
