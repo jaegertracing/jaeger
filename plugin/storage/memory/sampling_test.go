@@ -28,12 +28,12 @@ func withPopulatedSamplingStore(f func(samplingStore *SamplingStore)) {
 	now := time.Now()
 	millisAfter := now.Add(time.Millisecond * time.Duration(100))
 	secondsAfter := now.Add(time.Second * time.Duration(2))
-	throughputs := []*Throughput{
+	throughputs := []*storedThroughput{
 		{[]*model.Throughput{{Service: "svc-1", Operation: "op-1", Count: 1}}, now},
 		{[]*model.Throughput{{Service: "svc-1", Operation: "op-2", Count: 1}}, millisAfter},
 		{[]*model.Throughput{{Service: "svc-2", Operation: "op-3", Count: 1}}, secondsAfter},
 	}
-	pQPS := &ServiceOperationProbabilitiesAndQPS{
+	pQPS := &storedServiceOperationProbabilitiesAndQPS{
 		hostname: "guntur38ab8928", probabilities: model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, qps: model.ServiceOperationQPS{"svc-1": {"op-1": 10.0}}, time: now}
 	samplingStore := &SamplingStore{throughputs: throughputs, probabilitiesAndQPS: pQPS}
 	f(samplingStore)

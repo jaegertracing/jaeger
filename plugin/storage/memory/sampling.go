@@ -24,17 +24,17 @@ import (
 // SamplingStroe is an in-memory store for sampling data
 type SamplingStore struct {
 	sync.RWMutex
-	throughputs         []*Throughput
-	probabilitiesAndQPS *ServiceOperationProbabilitiesAndQPS
+	throughputs         []*storedThroughput
+	probabilitiesAndQPS *storedServiceOperationProbabilitiesAndQPS
 	maxBuckets          int
 }
 
-type Throughput struct {
+type storedThroughput struct {
 	throughput []*model.Throughput
 	time       time.Time
 }
 
-type ServiceOperationProbabilitiesAndQPS struct {
+type storedServiceOperationProbabilitiesAndQPS struct {
 	hostname      string
 	probabilities model.ServiceOperationProbabilities
 	qps           model.ServiceOperationQPS
@@ -51,7 +51,7 @@ func (ss *SamplingStore) InsertThroughput(throughput []*model.Throughput) error 
 	ss.Lock()
 	defer ss.Unlock()
 	now := time.Now()
-	ss.preprendThroughput(&Throughput{throughput, now})
+	ss.preprendThroughput(&storedThroughput{throughput, now})
 	return nil
 }
 
@@ -76,7 +76,7 @@ func (ss *SamplingStore) InsertProbabilitiesAndQPS(
 ) error {
 	ss.Lock()
 	defer ss.Unlock()
-	ss.probabilitiesAndQPS = &ServiceOperationProbabilitiesAndQPS{hostname, probabilities, qps, time.Now()}
+	ss.probabilitiesAndQPS = &storedServiceOperationProbabilitiesAndQPS{hostname, probabilities, qps, time.Now()}
 	return nil
 }
 
@@ -90,8 +90,8 @@ func (ss *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabi
 	return model.ServiceOperationProbabilities{}, nil
 }
 
-func (ss *SamplingStore) preprendThroughput(throughput *Throughput) {
-	ss.throughputs = append([]*Throughput{throughput}, ss.throughputs...)
+func (ss *SamplingStore) preprendThroughput(throughput *storedThroughput) {
+	ss.throughputs = append([]*storedThroughput{throughput}, ss.throughputs...)
 	if len(ss.throughputs) > ss.maxBuckets {
 		ss.throughputs = ss.throughputs[0:ss.maxBuckets]
 	}
