@@ -35,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -253,7 +254,7 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
 	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
-	return &http.Transport{
+	httpTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   c.ConnectTimeout,
@@ -261,5 +262,22 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     ctlsConfig,
+	}
+	return &tokenAuthTransport{
+		wrapped: httpTransport,
 	}, nil
+}
+
+// tokenAuthTransport wraps an instance of http.Transport for the purpose of
+// propagating an Authorization token from inbound to outbound HTTP requests.
+type tokenAuthTransport struct {
+	wrapped *http.Transport
+}
+
+// RoundTrip implements the http.RoundTripper interface, injecting the outbound
+// Authorization header with the token provided in the inbound request.
+func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	headerToken, _ := spanstore.GetBearerToken(r.Context())
+	r.Header.Set("Authorization", "Bearer "+headerToken)
+	return tr.wrapped.RoundTrip(r)
 }

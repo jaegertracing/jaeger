@@ -35,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type (
@@ -331,12 +332,33 @@ func TestGetRoundTripper(t *testing.T) {
 				},
 			}, logger)
 			require.NoError(t, err)
-			assert.IsType(t, &http.Transport{}, rt)
+			assert.IsType(t, &tokenAuthTransport{}, rt)
 			if tc.tlsEnabled {
-				assert.NotNil(t, rt.(*http.Transport).TLSClientConfig)
+				assert.NotNil(t, rt.(*tokenAuthTransport).wrapped.TLSClientConfig)
 			} else {
-				assert.Nil(t, rt.(*http.Transport).TLSClientConfig)
+				assert.Nil(t, rt.(*tokenAuthTransport).wrapped.TLSClientConfig)
 			}
+
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, "Bearer foo", r.Header.Get("Authorization"))
+					},
+				),
+			)
+			defer server.Close()
+
+			req, err := http.NewRequestWithContext(
+				spanstore.ContextWithBearerToken(context.Background(), "foo"),
+				http.MethodGet,
+				server.URL,
+				nil,
+			)
+			require.NoError(t, err)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
 }
