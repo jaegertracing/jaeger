@@ -36,11 +36,12 @@ type Consumer interface {
 // channels, with a special Reaper goroutine that wakes up when the queue is full and consumers
 // the items from the top of the queue until its size drops back to maxSize
 type BoundedQueue struct {
+	mtx           sync.RWMutex
 	workers       int
 	stopWG        sync.WaitGroup
 	size          *uatomic.Uint32
 	capacity      *uatomic.Uint32
-	stopped       *uatomic.Uint32
+	stopped       chan struct{}
 	items         *chan interface{}
 	onDroppedItem func(item interface{})
 	factory       func() Consumer
@@ -56,7 +57,7 @@ func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *Bounde
 		items:         &queue,
 		stopCh:        make(chan struct{}),
 		capacity:      uatomic.NewUint32(uint32(capacity)),
-		stopped:       uatomic.NewUint32(0),
+		stopped:       make(chan struct{}),
 		size:          uatomic.NewUint32(0),
 	}
 }
@@ -114,9 +115,13 @@ func (q *BoundedQueue) StartConsumers(num int, callback func(item interface{})) 
 
 // Produce is used by the producer to submit new item to the queue. Returns false in case of queue overflow.
 func (q *BoundedQueue) Produce(item interface{}) bool {
-	if q.stopped.Load() != 0 {
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
+	select {
+	case <-q.stopped:
 		q.onDroppedItem(item)
 		return false
+	default:
 	}
 
 	// we might have two concurrent backing queues at the moment
@@ -132,23 +137,26 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 	select {
 	case *q.items <- item:
 		return true
+	case <-q.stopped:
+		break
 	default:
-		// should not happen, as overflows should have been captured earlier
-		q.size.Sub(1)
-		if q.onDroppedItem != nil {
-			q.onDroppedItem(item)
-		}
-		return false
 	}
+	q.size.Sub(1)
+	if q.onDroppedItem != nil {
+		q.onDroppedItem(item)
+	}
+	return false
 }
 
 // Stop stops all consumers, as well as the length reporter if started,
 // and releases the items channel. It blocks until all consumers have stopped.
 func (q *BoundedQueue) Stop() {
-	q.stopped.Store(1) // disable producer
+	close(q.stopped)
 	close(q.stopCh)
 	q.stopWG.Wait()
+	q.mtx.Lock()
 	close(*q.items)
+	q.mtx.Unlock()
 }
 
 // Size returns the current size of the queue
