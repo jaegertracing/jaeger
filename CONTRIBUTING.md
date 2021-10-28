@@ -133,11 +133,6 @@ import (
 We strive to maintain as high code coverage as possible. The current repository limit is set at 95%,
 with some exclusions discussed below.
 
-### Combining code coverage
-
-We use [cover.sh](./scripts/cover.sh) script to run tests and combine code coverage from all packages
-(see also [issue # 797](https://github.com/jaegertracing/jaeger/issues/797)).
-
 ### Packages with no tests
 
 Since `go test` command does not generate
