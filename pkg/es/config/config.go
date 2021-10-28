@@ -34,10 +34,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapgrpc"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
@@ -538,7 +538,7 @@ type tokenAuthTransport struct {
 func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	token := tr.token
 	if tr.allowOverrideFromCtx {
-		headerToken, _ := spanstore.GetBearerToken(r.Context())
+		headerToken, _ := bearertoken.GetBearerToken(r.Context())
 		if headerToken != "" {
 			token = headerToken
 		}

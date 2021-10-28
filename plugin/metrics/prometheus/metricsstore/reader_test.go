@@ -31,11 +31,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type (
@@ -349,7 +349,7 @@ func TestGetRoundTripper(t *testing.T) {
 			defer server.Close()
 
 			req, err := http.NewRequestWithContext(
-				spanstore.ContextWithBearerToken(context.Background(), "foo"),
+				bearertoken.ContextWithBearerToken(context.Background(), "foo"),
 				http.MethodGet,
 				server.URL,
 				nil,

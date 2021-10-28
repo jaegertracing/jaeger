@@ -12,18 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package bearertoken
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-func bearerTokenPropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
+type contextKey string
+
+// Key is the string literal used internally in the implementation of this context.
+const Key = "bearer.token"
+const bearerToken = contextKey(Key)
+
+// StoragePropagationKey is a key for viper configuration to pass this option to storage plugins.
+const StoragePropagationKey = "storage.propagate.token"
+
+// ContextWithBearerToken set bearer token in context.
+func ContextWithBearerToken(ctx context.Context, token string) context.Context {
+	if token == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, bearerToken, token)
+}
+
+// GetBearerToken from context, or empty string if there is no token.
+func GetBearerToken(ctx context.Context) (string, bool) {
+	val, ok := ctx.Value(bearerToken).(string)
+	return val, ok
+}
+
+// PropagationHandler returns a http.Handler containing the logic to extract
+// the Authorization token from the http.Request and inserts it into the http.Request
+// context for easier access to the request token via GetBearerToken for bearer token
+// propagation use cases.
+func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		authHeaderValue := r.Header.Get("Authorization")
@@ -40,15 +66,14 @@ func bearerTokenPropagationHandler(logger *zap.Logger, h http.Handler) http.Hand
 					token = headerValue[1]
 				}
 			} else if len(headerValue) == 1 {
-				// Tread all value as a token
+				// Treat the entire value as a token.
 				token = authHeaderValue
 			} else {
 				logger.Warn("Invalid authorization header value, skipping token propagation")
 			}
-			h.ServeHTTP(w, r.WithContext(spanstore.ContextWithBearerToken(ctx, token)))
+			h.ServeHTTP(w, r.WithContext(ContextWithBearerToken(ctx, token)))
 		} else {
 			h.ServeHTTP(w, r.WithContext(ctx))
 		}
 	})
-
 }

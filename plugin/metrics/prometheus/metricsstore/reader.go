@@ -31,11 +31,11 @@ import (
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -277,7 +277,7 @@ type tokenAuthTransport struct {
 // RoundTrip implements the http.RoundTripper interface, injecting the outbound
 // Authorization header with the token provided in the inbound request.
 func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	headerToken, _ := spanstore.GetBearerToken(r.Context())
+	headerToken, _ := bearertoken.GetBearerToken(r.Context())
 	r.Header.Set("Authorization", "Bearer "+headerToken)
 	return tr.wrapped.RoundTrip(r)
 }
