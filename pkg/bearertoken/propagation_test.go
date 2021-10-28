@@ -35,7 +35,7 @@ func Test_GetBearerToken(t *testing.T) {
 	assert.Equal(t, contextToken, token)
 }
 
-func Test_bearerTokenPropagationHandler(t *testing.T) {
+func Test_PropagationHandler(t *testing.T) {
 	httpClient := &http.Client{
 		Timeout: 2 * time.Second,
 	}
