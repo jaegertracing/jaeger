@@ -84,7 +84,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration,grpc_plugin_storage_integration ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
@@ -96,18 +96,6 @@ storage-integration-test: go-gen
 	# even though the code remains the same.
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
-
-.PHONY: mem-and-badger-storage-integration-test
-mem-and-badger-storage-integration-test: badger-storage-integration-test grpc-plugin-storage-integration-test
-
-.PHONY: badger-storage-integration-test
-badger-storage-integration-test:
-	STORAGE=badger $(MAKE) storage-integration-test
-
-.PHONY: grpc-plugin-storage-integration-test
-grpc-plugin-storage-integration-test:
-	(cd examples/memstore-plugin/ && go build .)
-	STORAGE=grpc-plugin $(MAKE) storage-integration-test
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
