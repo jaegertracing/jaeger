@@ -34,7 +34,7 @@ endif
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
-GOTEST=go test -v $(RACE)
+GOTEST=go test -v $(RACE) -shuffle=on
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
