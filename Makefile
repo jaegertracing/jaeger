@@ -84,7 +84,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration,grpc_plugin_storage_integration ./... | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration,grpc_plugin_storage_integration,memory_storage_integration ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
