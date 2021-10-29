@@ -263,8 +263,8 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     ctlsConfig,
 	}
-	return bearertoken.NewTransport(
-		httpTransport,
-		bearertoken.WithAllowOverrideFromCtx(true),
-	), nil
+	return bearertoken.RoundTripper{
+		Transport:       httpTransport,
+		OverrideFromCtx: true,
+	}, nil
 }
