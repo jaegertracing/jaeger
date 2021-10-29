@@ -25,5 +25,4 @@ import (
 	_ "github.com/securego/gosec/cmd/gosec"
 	_ "github.com/vektra/mockery/cmd/mockery"
 	_ "github.com/wadey/gocovmerge"
-	_ "golang.org/x/lint/golint"
 )
