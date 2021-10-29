@@ -332,12 +332,6 @@ func TestGetRoundTripper(t *testing.T) {
 				},
 			}, logger)
 			require.NoError(t, err)
-			assert.IsType(t, &tokenAuthTransport{}, rt)
-			if tc.tlsEnabled {
-				assert.NotNil(t, rt.(*tokenAuthTransport).wrapped.TLSClientConfig)
-			} else {
-				assert.Nil(t, rt.(*tokenAuthTransport).wrapped.TLSClientConfig)
-			}
 
 			server := httptest.NewServer(
 				http.HandlerFunc(

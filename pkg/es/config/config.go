@@ -519,32 +519,13 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		token = tokenFromFile
 	}
 	if token != "" || c.AllowTokenFromContext {
-		transport = &tokenAuthTransport{
-			token:                token,
-			allowOverrideFromCtx: c.AllowTokenFromContext,
-			wrapped:              httpTransport,
-		}
+		transport = bearertoken.NewTransport(
+			httpTransport,
+			bearertoken.WithAllowOverrideFromCtx(c.AllowTokenFromContext),
+			bearertoken.WithToken(token),
+		)
 	}
 	return transport, nil
-}
-
-// TokenAuthTransport
-type tokenAuthTransport struct {
-	token                string
-	allowOverrideFromCtx bool
-	wrapped              *http.Transport
-}
-
-func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	token := tr.token
-	if tr.allowOverrideFromCtx {
-		headerToken, _ := bearertoken.GetBearerToken(r.Context())
-		if headerToken != "" {
-			token = headerToken
-		}
-	}
-	r.Header.Set("Authorization", "Bearer "+token)
-	return tr.wrapped.RoundTrip(r)
 }
 
 func loadToken(path string) (string, error) {

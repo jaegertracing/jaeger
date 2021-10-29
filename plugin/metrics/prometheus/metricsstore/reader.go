@@ -24,6 +24,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
+
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
@@ -31,7 +33,6 @@ import (
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -263,21 +264,8 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     ctlsConfig,
 	}
-	return &tokenAuthTransport{
-		wrapped: httpTransport,
-	}, nil
-}
-
-// tokenAuthTransport wraps an instance of http.Transport for the purpose of
-// propagating an Authorization token from inbound to outbound HTTP requests.
-type tokenAuthTransport struct {
-	wrapped *http.Transport
-}
-
-// RoundTrip implements the http.RoundTripper interface, injecting the outbound
-// Authorization header with the token provided in the inbound request.
-func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	headerToken, _ := bearertoken.GetBearerToken(r.Context())
-	r.Header.Set("Authorization", "Bearer "+headerToken)
-	return tr.wrapped.RoundTrip(r)
+	return bearertoken.NewTransport(
+		httpTransport,
+		bearertoken.WithAllowOverrideFromCtx(true),
+	), nil
 }
