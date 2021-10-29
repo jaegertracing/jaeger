@@ -8,7 +8,7 @@ import (
 )
 
 func Test_GetBearerToken(t *testing.T) {
-	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
+	const token = "blah"
 	ctx := context.Background()
 	ctx = ContextWithBearerToken(ctx, token)
 	contextToken, ok := GetBearerToken(ctx)
