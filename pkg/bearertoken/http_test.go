@@ -31,7 +31,7 @@ func Test_PropagationHandler(t *testing.T) {
 	}
 
 	logger := zap.NewNop()
-	bearerToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
+	const bearerToken = "blah"
 
 	validTokenHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
