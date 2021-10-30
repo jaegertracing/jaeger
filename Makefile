@@ -34,7 +34,7 @@ endif
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
-GOTEST=go test -v $(RACE)
+GOTEST=go test -v $(RACE) -tags=badger_storage_integration,grpc_plugin_storage_integration,memory_storage_integration
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
@@ -84,7 +84,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration,grpc_plugin_storage_integration,memory_storage_integration ./... | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
