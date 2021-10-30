@@ -97,10 +97,14 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
-.PHONY: grpc-and-badger-storage-integration-test
-grpc-and-badger-storage-integration-test:
+.PHONY: badger-storage-integration-test
+badger-storage-integration-test:
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration $(STORAGE_PKGS) | $(COLORIZE)"
+
+.PHONY: grpc-storage-integration-test
+grpc-storage-integration-test:
 	(cd examples/memstore-plugin/ && go build .)
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration,grpc_storage_integration $(STORAGE_PKGS) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=grpc_storage_integration $(STORAGE_PKGS) | $(COLORIZE)"
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
