@@ -11,11 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//go:build badger_storage_integration
+// +build badger_storage_integration
 
 package integration
 
 import (
-	"os"
 	"testing"
 
 	assert "github.com/stretchr/testify/require"
@@ -80,9 +81,6 @@ func (s *BadgerIntegrationStorage) refresh() error {
 }
 
 func TestBadgerStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "badger" {
-		t.Skip("Integration test against Badger skipped; set STORAGE env var to badger to run this")
-	}
 	s := &BadgerIntegrationStorage{}
 	assert.NoError(t, s.initialize())
 	s.IntegrationTestAll(t)
