@@ -84,7 +84,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=cheap_storage_integration ./... | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
@@ -129,7 +129,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -tags=cheap_storage_integration -timeout 5m -coverprofile cover.out ./...
+	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
