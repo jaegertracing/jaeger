@@ -12,6 +12,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//go:build grpc_storage_integration
+// +build grpc_storage_integration
 
 package integration
 
@@ -86,9 +88,6 @@ func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
 }
 
 func TestGRPCStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "grpc-plugin" {
-		t.Skip("Integration test against grpc skipped; set STORAGE env var to grpc-plugin to run this")
-	}
 	binaryPath := os.Getenv("PLUGIN_BINARY_PATH")
 	if binaryPath == "" {
 		t.Logf("PLUGIN_BINARY_PATH env var not set, using %s", defaultPluginBinaryPath)

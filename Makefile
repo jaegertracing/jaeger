@@ -84,7 +84,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
@@ -97,17 +97,14 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
-.PHONY: mem-and-badger-storage-integration-test
-mem-and-badger-storage-integration-test: badger-storage-integration-test grpc-plugin-storage-integration-test
-
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:
-	STORAGE=badger $(MAKE) storage-integration-test
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration $(STORAGE_PKGS) | $(COLORIZE)"
 
-.PHONY: grpc-plugin-storage-integration-test
-grpc-plugin-storage-integration-test:
+.PHONY: grpc-storage-integration-test
+grpc-storage-integration-test:
 	(cd examples/memstore-plugin/ && go build .)
-	STORAGE=grpc-plugin $(MAKE) storage-integration-test
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=grpc_storage_integration $(STORAGE_PKGS) | $(COLORIZE)"
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
@@ -136,7 +133,7 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -timeout 5m -coverprofile cover.out ./...
+	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./...
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html

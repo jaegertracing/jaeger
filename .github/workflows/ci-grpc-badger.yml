@@ -1,0 +1,25 @@
+name: CIT gRPC And Badger
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  grpc-and-badger:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2.3.5
+
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ^1.17
+
+    - name: Run Badger storage integration tests
+      run: make badger-storage-integration-test
+
+    - name: Run gRPC storage integration tests
+      run: make grpc-storage-integration-test
+
+# TODO add code coverage reporting
