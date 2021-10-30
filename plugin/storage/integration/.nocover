@@ -1,0 +1,1 @@
+This package is a test-only package for integration tests. The files `integration.go` and `trace_compare.go` bundle test-utilities and therefore should not be considered for coverability reports (quite in the same way `*_test.go` files are not eligible too).
