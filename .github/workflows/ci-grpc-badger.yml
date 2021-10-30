@@ -16,5 +16,5 @@ jobs:
       with:
         go-version: ^1.17
 
-    - name: Run grpc and badger integration tests
+    - name: Run grpc and badger storage integration tests
       run: make grpc-and-badger-storage-integration-test
