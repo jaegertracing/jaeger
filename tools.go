@@ -19,10 +19,8 @@ package jaeger
 
 // https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 import (
-	_ "honnef.co/go/tools/cmd/staticcheck"
-
+	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/mjibson/esc"
-	_ "github.com/securego/gosec/cmd/gosec"
 	_ "github.com/vektra/mockery/cmd/mockery"
 	_ "github.com/wadey/gocovmerge"
 )
