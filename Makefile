@@ -97,6 +97,11 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONY: grpc-and-badger-storage-integration-test
+grpc-and-badger-storage-integration-test:
+	(cd examples/memstore-plugin/ && go build .)
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=grpc_badger_storage_integration ./... | $(COLORIZE)"
+
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
 	# Expire test results for storage integration tests since the environment might change
