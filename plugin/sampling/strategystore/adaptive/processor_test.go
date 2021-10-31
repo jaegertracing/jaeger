@@ -84,6 +84,13 @@ func testCalculator() calculationstrategy.ProbabilityCalculator {
 	})
 }
 
+func TestAggregateThroughputInputsImmutability(t *testing.T) {
+	p := &Processor{}
+	in := testThroughputs()
+	_ = p.aggregateThroughput(in)
+	assert.Equal(t, in, testThroughputs())
+}
+
 func TestAggregateThroughput(t *testing.T) {
 	p := &Processor{}
 	aggregatedThroughput := p.aggregateThroughput(testThroughputs())
