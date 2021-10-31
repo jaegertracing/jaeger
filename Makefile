@@ -369,8 +369,6 @@ changelog:
 install-tools:
 	# versioned in [go.mod tools.go] TODO: consider upgrading to v2
 	go install github.com/vektra/mockery
-	# versioned in [go.mod tools.go] TODO: project no longer maintained
-	go install github.com/wadey/gocovmerge
 	go install github.com/mjibson/esc@v0.2.0
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.1
 

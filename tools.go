@@ -20,5 +20,4 @@ package jaeger
 // https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 import (
 	_ "github.com/vektra/mockery/cmd/mockery"
-	_ "github.com/wadey/gocovmerge"
 )
