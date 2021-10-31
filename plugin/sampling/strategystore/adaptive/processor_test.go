@@ -79,8 +79,15 @@ var (
 )
 
 func TestAggregateThroughput(t *testing.T) {
+	testThroughput := []*model.Throughput{
+		{Service: "svcA", Operation: "GET", Count: 4, Probabilities: map[string]struct{}{"0.1": {}}},
+		{Service: "svcA", Operation: "GET", Count: 4, Probabilities: map[string]struct{}{"0.2": {}}},
+		{Service: "svcA", Operation: "PUT", Count: 5, Probabilities: map[string]struct{}{"0.1": {}}},
+		{Service: "svcB", Operation: "GET", Count: 3, Probabilities: map[string]struct{}{"0.1": {}}},
+	}
+
 	p := &Processor{}
-	aggregatedThroughput := p.aggregateThroughput(testThroughputs)
+	aggregatedThroughput := p.aggregateThroughput(testThroughput)
 	require.Len(t, aggregatedThroughput, 2)
 
 	throughput, ok := aggregatedThroughput["svcA"]
@@ -442,7 +449,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	t.Skip("Skipped realistic calculation loop test")
 	logger := zap.NewNop()
 	// NB: This is an extremely long test since it uses near realistic (1/6th scale) processor config values
-	testThroughputs = []*model.Throughput{
+	testThroughput := []*model.Throughput{
 		{Service: "svcA", Operation: "GET", Count: 10},
 		{Service: "svcA", Operation: "POST", Count: 9},
 		{Service: "svcA", Operation: "PUT", Count: 5},
@@ -450,7 +457,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	}
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
-		Return(testThroughputs, nil)
+		Return(testThroughput, nil)
 	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
 	mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.AnythingOfType("model.ServiceOperationProbabilities"),
 		mock.AnythingOfType("model.ServiceOperationQPS")).Return(nil)
