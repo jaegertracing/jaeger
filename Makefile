@@ -408,13 +408,13 @@ generate-zipkin-swagger: init-submodules
 
 .PHONY: install-mockery
 install-mockery:
-	go install github.com/vektra/mockery/.../
+	go install github.com/vektra/mockery/v2@v2.9.4
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery
-	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
-	$(MOCKERY) -all -dir ./storage/spanstore/ -output ./storage/spanstore/mocks
-	$(MOCKERY) -all -dir ./proto-gen/storage_v1/ -output ./proto-gen/storage_v1/mocks
+	$(MOCKERY) --all --dir ./pkg/es/ --output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
+	$(MOCKERY) --all --dir ./storage/spanstore/ --output ./storage/spanstore/mocks
+	$(MOCKERY) --all --dir ./proto-gen/storage_v1/ --output ./proto-gen/storage_v1/mocks
 
 .PHONY: echo-version
 echo-version:

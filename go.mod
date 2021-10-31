@@ -45,7 +45,6 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
-	github.com/vektra/mockery v0.0.0-20181123154057-e78b021dcbb5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/xdg-go/scram v1.0.2
 	go.opentelemetry.io/collector/model v0.37.0
