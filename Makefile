@@ -367,8 +367,8 @@ changelog:
 
 .PHONY: install-tools
 install-tools:
-	go install github.com/wadey/gocovmerge
-	go install github.com/mjibson/esc
+	go install github.com/vektra/mockery/v2@v2.9.4
+	go install github.com/mjibson/esc@v0.2.0
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.0
 
 .PHONY: install-ci
@@ -406,12 +406,8 @@ generate-zipkin-swagger: init-submodules
 	$(SWAGGER) generate server -f ./idl/swagger/zipkin2-api.yaml -t $(SWAGGER_GEN_DIR) -O PostSpans --exclude-main
 	rm $(SWAGGER_GEN_DIR)/restapi/operations/post_spans_urlbuilder.go $(SWAGGER_GEN_DIR)/restapi/server.go $(SWAGGER_GEN_DIR)/restapi/configure_zipkin.go $(SWAGGER_GEN_DIR)/models/trace.go $(SWAGGER_GEN_DIR)/models/list_of_traces.go $(SWAGGER_GEN_DIR)/models/dependency_link.go
 
-.PHONY: install-mockery
-install-mockery:
-	go install github.com/vektra/mockery/v2@v2.9.4
-
 .PHONY: generate-mocks
-generate-mocks: install-mockery
+generate-mocks: install-tools
 	$(MOCKERY) --all --dir ./pkg/es/ --output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
 	$(MOCKERY) --all --dir ./storage/spanstore/ --output ./storage/spanstore/mocks
 	$(MOCKERY) --all --dir ./proto-gen/storage_v1/ --output ./proto-gen/storage_v1/mocks
