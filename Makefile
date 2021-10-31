@@ -367,10 +367,9 @@ changelog:
 
 .PHONY: install-tools
 install-tools:
-	# versioned in [go.mod tools.go] TODO: consider upgrading to v2
-	go install github.com/vektra/mockery
+	go install github.com/vektra/mockery/v2@v2.9.4
 	go install github.com/mjibson/esc@v0.2.0
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.1
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.0
 
 .PHONY: install-ci
 install-ci: install-tools
@@ -409,9 +408,9 @@ generate-zipkin-swagger: init-submodules
 
 .PHONY: generate-mocks
 generate-mocks: install-tools
-	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
-	$(MOCKERY) -all -dir ./storage/spanstore/ -output ./storage/spanstore/mocks
-	$(MOCKERY) -all -dir ./proto-gen/storage_v1/ -output ./proto-gen/storage_v1/mocks
+	$(MOCKERY) --all --dir ./pkg/es/ --output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
+	$(MOCKERY) --all --dir ./storage/spanstore/ --output ./storage/spanstore/mocks
+	$(MOCKERY) --all --dir ./proto-gen/storage_v1/ --output ./proto-gen/storage_v1/mocks
 
 .PHONY: echo-version
 echo-version:
