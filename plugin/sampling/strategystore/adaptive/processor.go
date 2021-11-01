@@ -310,10 +310,24 @@ func (p *Processor) aggregateThroughput(throughputs []*model.Throughput) service
 			t.Count += throughput.Count
 			t.Probabilities = merge(t.Probabilities, throughput.Probabilities)
 		} else {
-			aggregatedThroughput[service][operation] = throughput
+			copyThroughput := model.Throughput{
+				Service:       throughput.Service,
+				Operation:     throughput.Operation,
+				Count:         throughput.Count,
+				Probabilities: copySet(throughput.Probabilities),
+			}
+			aggregatedThroughput[service][operation] = &copyThroughput
 		}
 	}
 	return aggregatedThroughput
+}
+
+func copySet(in map[string]struct{}) map[string]struct{} {
+	out := make(map[string]struct{}, len(in))
+	for key := range in {
+		out[key] = struct{}{}
+	}
+	return out
 }
 
 func (p *Processor) initializeThroughput(endTime time.Time) {

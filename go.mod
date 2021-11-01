@@ -11,8 +11,8 @@ require (
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-openapi/errors v0.20.1
-	github.com/go-openapi/loads v0.20.2
-	github.com/go-openapi/runtime v0.20.0
+	github.com/go-openapi/loads v0.21.0
+	github.com/go-openapi/runtime v0.21.0
 	github.com/go-openapi/spec v0.20.4
 	github.com/go-openapi/strfmt v0.21.0
 	github.com/go-openapi/swag v0.19.15

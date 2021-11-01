@@ -35,15 +35,17 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-var (
-	testThroughputs = []*model.Throughput{
+func testThroughputs() []*model.Throughput {
+	return []*model.Throughput{
 		{Service: "svcA", Operation: "GET", Count: 4, Probabilities: map[string]struct{}{"0.1": {}}},
 		{Service: "svcA", Operation: "GET", Count: 4, Probabilities: map[string]struct{}{"0.2": {}}},
 		{Service: "svcA", Operation: "PUT", Count: 5, Probabilities: map[string]struct{}{"0.1": {}}},
 		{Service: "svcB", Operation: "GET", Count: 3, Probabilities: map[string]struct{}{"0.1": {}}},
 	}
+}
 
-	testThroughputBuckets = []*throughputBucket{
+func testThroughputBuckets() []*throughputBucket {
+	return []*throughputBucket{
 		{
 			throughput: serviceOperationThroughput{
 				"svcA": map[string]*model.Throughput{
@@ -69,18 +71,29 @@ var (
 			interval: 60 * time.Second,
 		},
 	}
+}
 
-	errTestStorage = errors.New("storage error")
+func errTestStorage() error {
+	return errors.New("storage error")
+}
 
-	testCalculator = calculationstrategy.CalculateFunc(func(targetQPS, qps, oldProbability float64) float64 {
+func testCalculator() calculationstrategy.ProbabilityCalculator {
+	return calculationstrategy.CalculateFunc(func(targetQPS, qps, oldProbability float64) float64 {
 		factor := targetQPS / qps
 		return oldProbability * factor
 	})
-)
+}
+
+func TestAggregateThroughputInputsImmutability(t *testing.T) {
+	p := &Processor{}
+	in := testThroughputs()
+	_ = p.aggregateThroughput(in)
+	assert.Equal(t, in, testThroughputs())
+}
 
 func TestAggregateThroughput(t *testing.T) {
 	p := &Processor{}
-	aggregatedThroughput := p.aggregateThroughput(testThroughputs)
+	aggregatedThroughput := p.aggregateThroughput(testThroughputs())
 	require.Len(t, aggregatedThroughput, 2)
 
 	throughput, ok := aggregatedThroughput["svcA"]
@@ -110,7 +123,7 @@ func TestAggregateThroughput(t *testing.T) {
 func TestInitializeThroughput(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
-		Return(testThroughputs, nil)
+		Return(testThroughputs(), nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*18), time.Time{}.Add(time.Minute*19)).
 		Return([]*model.Throughput{{Service: "svcA", Operation: "GET", Count: 7}}, nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*17), time.Time{}.Add(time.Minute*18)).
@@ -130,7 +143,7 @@ func TestInitializeThroughput(t *testing.T) {
 func TestInitializeThroughputFailure(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
-		Return(nil, errTestStorage)
+		Return(nil, errTestStorage())
 	p := &Processor{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
@@ -146,7 +159,7 @@ func TestCalculateQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS(t *testing.T) {
-	p := &Processor{throughputs: testThroughputBuckets, Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
+	p := &Processor{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -194,7 +207,7 @@ func TestGenerateOperationQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
-	p := &Processor{throughputs: testThroughputBuckets, Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
+	p := &Processor{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -258,7 +271,7 @@ func TestCalculateProbability(t *testing.T) {
 	p := &Processor{
 		Options:               cfg,
 		probabilities:         probabilities,
-		probabilityCalculator: testCalculator,
+		probabilityCalculator: testCalculator(),
 		throughputs:           throughputs,
 		serviceCache:          []SamplingCache{{"svcA": {}, "svcB": {}}},
 	}
@@ -302,8 +315,8 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 			InitialSamplingProbability: 0.001,
 			BucketsForCalculation:      10,
 		},
-		throughputs: testThroughputBuckets, probabilities: prevProbabilities, qps: qps,
-		weightVectorCache: NewWeightVectorCache(), probabilityCalculator: testCalculator,
+		throughputs: testThroughputBuckets(), probabilities: prevProbabilities, qps: qps,
+		weightVectorCache: NewWeightVectorCache(), probabilityCalculator: testCalculator(),
 		operationsCalculatedGauge: mets.Gauge(metrics.Options{Name: "test"}),
 	}
 	probabilities, qps := p.calculateProbabilitiesAndQPS()
@@ -324,10 +337,10 @@ func TestRunCalculationLoop(t *testing.T) {
 	logger := zap.NewNop()
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
-		Return(testThroughputs, nil)
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage)
+		Return(testThroughputs(), nil)
+	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage)
+		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -366,7 +379,7 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	logger, logBuffer := testutils.NewLogger()
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
-		Return(nil, errTestStorage)
+		Return(nil, errTestStorage())
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -442,7 +455,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	t.Skip("Skipped realistic calculation loop test")
 	logger := zap.NewNop()
 	// NB: This is an extremely long test since it uses near realistic (1/6th scale) processor config values
-	testThroughputs = []*model.Throughput{
+	testThroughputs := []*model.Throughput{
 		{Service: "svcA", Operation: "GET", Count: 10},
 		{Service: "svcA", Operation: "POST", Count: 9},
 		{Service: "svcA", Operation: "PUT", Count: 5},
@@ -840,7 +853,7 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 
 func TestErrors(t *testing.T) {
 	mockStorage := &smocks.Store{}
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage)
+	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(nil, nil)
 
