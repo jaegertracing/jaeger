@@ -22,9 +22,8 @@ import (
 )
 
 // PropagationHandler returns a http.Handler containing the logic to extract
-// the Authorization token from the http.Request and inserts it into the http.Request
-// context for easier access to the request token via GetBearerToken for bearer token
-// propagation use cases.
+// the Bearer token from the Authorization header of the http.Request and insert it into request.Context
+// for propagation. The token can be accessed via GetBearerToken.
 func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

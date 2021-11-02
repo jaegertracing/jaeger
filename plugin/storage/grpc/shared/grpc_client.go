@@ -31,6 +31,9 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+// BearerTokenKey is the key name for the bearer token context value.
+const BearerTokenKey = "bearer.token"
+
 var (
 	_ StoragePlugin        = (*grpcClient)(nil)
 	_ ArchiveStoragePlugin = (*grpcClient)(nil)
@@ -74,7 +77,7 @@ func upgradeContextWithBearerToken(ctx context.Context) context.Context {
 		if !ok {
 			md = metadata.New(nil)
 		}
-		md.Set(bearertoken.Key, bearerToken)
+		md.Set(BearerTokenKey, bearerToken)
 		return metadata.NewOutgoingContext(ctx, md)
 	}
 	return ctx

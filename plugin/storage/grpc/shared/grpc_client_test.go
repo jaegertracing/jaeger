@@ -113,7 +113,7 @@ func TestContextUpgradeWithToken(t *testing.T) {
 	upgradedToken := upgradeContextWithBearerToken(ctx)
 	md, ok := metadata.FromOutgoingContext(upgradedToken)
 	assert.Truef(t, ok, "Expected metadata in context")
-	bearerTokenFromMetadata := md.Get(bearertoken.Key)
+	bearerTokenFromMetadata := md.Get(BearerTokenKey)
 	assert.Equal(t, []string{testBearerToken}, bearerTokenFromMetadata)
 }
 

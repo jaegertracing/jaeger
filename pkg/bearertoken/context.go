@@ -16,17 +16,12 @@ package bearertoken
 
 import "context"
 
-type contextKeyType string
+type contextKeyType int
 
-const (
-	// Key is the key name for the bearer token context value.
-	Key = "bearer.token"
+const contextKey = iota
 
-	// StoragePropagationKey is a key for viper configuration to pass this option to storage plugins.
-	StoragePropagationKey = "storage.propagate.token"
-
-	contextKey = contextKeyType(Key)
-)
+// StoragePropagationKey is a key for viper configuration to pass this option to storage plugins.
+const StoragePropagationKey = "storage.propagate.token"
 
 // ContextWithBearerToken set bearer token in context.
 func ContextWithBearerToken(ctx context.Context, token string) context.Context {
