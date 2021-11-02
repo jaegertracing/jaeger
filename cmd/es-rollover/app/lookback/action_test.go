@@ -116,7 +116,7 @@ func TestLookBackAction(t *testing.T) {
 			expectedErr: errors.New("get indices error"),
 		},
 		{
-			name: "empty indices error",
+			name: "empty indices",
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
 			},
@@ -128,7 +128,7 @@ func TestLookBackAction(t *testing.T) {
 					UseILM:  true,
 				},
 			},
-			expectedErr: errors.New("no indices to remove from alias jaeger-span-archive-read"),
+			expectedErr: nil,
 		},
 	}
 
