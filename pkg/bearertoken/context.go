@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2021 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,30 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package spanstore
+package bearertoken
 
 import "context"
 
-type contextKey string
+type contextKeyType int
 
-// BearerTokenKey is the string literal used internally in the implementation of this context.
-const BearerTokenKey = "bearer.token"
-const bearerToken = contextKey(BearerTokenKey)
+const contextKey = contextKeyType(iota)
 
 // StoragePropagationKey is a key for viper configuration to pass this option to storage plugins.
 const StoragePropagationKey = "storage.propagate.token"
 
-// ContextWithBearerToken set bearer token in context
+// ContextWithBearerToken set bearer token in context.
 func ContextWithBearerToken(ctx context.Context, token string) context.Context {
 	if token == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, bearerToken, token)
-
+	return context.WithValue(ctx, contextKey, token)
 }
 
-// GetBearerToken from context, or empty string if there is no token
+// GetBearerToken from context, or empty string if there is no token.
 func GetBearerToken(ctx context.Context) (string, bool) {
-	val, ok := ctx.Value(bearerToken).(string)
+	val, ok := ctx.Value(contextKey).(string)
 	return val, ok
 }

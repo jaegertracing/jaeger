@@ -22,9 +22,9 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -328,7 +328,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
-	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
+	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
