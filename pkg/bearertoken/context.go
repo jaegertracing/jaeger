@@ -18,7 +18,7 @@ import "context"
 
 type contextKeyType int
 
-const contextKey = iota
+const contextKey = contextKeyType(iota)
 
 // StoragePropagationKey is a key for viper configuration to pass this option to storage plugins.
 const StoragePropagationKey = "storage.propagate.token"
