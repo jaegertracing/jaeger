@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package bearertoken
 
 import (
 	"net/http"
 	"strings"
 
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-func bearerTokenPropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
+// PropagationHandler returns a http.Handler containing the logic to extract
+// the Bearer token from the Authorization header of the http.Request and insert it into request.Context
+// for propagation. The token can be accessed via GetBearerToken.
+func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		authHeaderValue := r.Header.Get("Authorization")
@@ -40,15 +41,14 @@ func bearerTokenPropagationHandler(logger *zap.Logger, h http.Handler) http.Hand
 					token = headerValue[1]
 				}
 			} else if len(headerValue) == 1 {
-				// Tread all value as a token
+				// Treat the entire value as a token.
 				token = authHeaderValue
 			} else {
 				logger.Warn("Invalid authorization header value, skipping token propagation")
 			}
-			h.ServeHTTP(w, r.WithContext(spanstore.ContextWithBearerToken(ctx, token)))
+			h.ServeHTTP(w, r.WithContext(ContextWithBearerToken(ctx, token)))
 		} else {
 			h.ServeHTTP(w, r.WithContext(ctx))
 		}
 	})
-
 }

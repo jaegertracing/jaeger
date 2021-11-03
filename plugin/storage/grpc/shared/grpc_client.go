@@ -25,10 +25,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
+
+// BearerTokenKey is the key name for the bearer token context value.
+const BearerTokenKey = "bearer.token"
 
 var (
 	_ StoragePlugin        = (*grpcClient)(nil)
@@ -67,13 +71,13 @@ func composeContextUpgradeFuncs(funcs ...ContextUpgradeFunc) ContextUpgradeFunc 
 // in the request metadata, if the original context has bearer token attached.
 // Otherwise returns original context.
 func upgradeContextWithBearerToken(ctx context.Context) context.Context {
-	bearerToken, hasToken := spanstore.GetBearerToken(ctx)
+	bearerToken, hasToken := bearertoken.GetBearerToken(ctx)
 	if hasToken {
 		md, ok := metadata.FromOutgoingContext(ctx)
 		if !ok {
 			md = metadata.New(nil)
 		}
-		md.Set(spanstore.BearerTokenKey, bearerToken)
+		md.Set(BearerTokenKey, bearerToken)
 		return metadata.NewOutgoingContext(ctx, md)
 	}
 	return ctx

@@ -12,41 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package bearertoken
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-func Test_bearTokenPropagationHandler(t *testing.T) {
+func Test_PropagationHandler(t *testing.T) {
+	httpClient := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
 	logger := zap.NewNop()
-	bearerToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
+	const bearerToken = "blah"
 
 	validTokenHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			token, ok := spanstore.GetBearerToken(ctx)
+			token, ok := GetBearerToken(ctx)
 			assert.Equal(t, token, bearerToken)
 			assert.True(t, ok)
 			stop.Done()
-		})
+		}
 	}
 
 	emptyHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			token, _ := spanstore.GetBearerToken(ctx)
+			token, _ := GetBearerToken(ctx)
 			assert.Empty(t, token, bearerToken)
 			stop.Done()
-		})
+		}
 	}
 
 	testCases := []struct {
@@ -68,7 +71,7 @@ func Test_bearTokenPropagationHandler(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			stop := sync.WaitGroup{}
 			stop.Add(1)
-			r := bearerTokenPropagationHandler(logger, testCase.handler(&stop))
+			r := PropagationHandler(logger, testCase.handler(&stop))
 			server := httptest.NewServer(r)
 			defer server.Close()
 			req, err := http.NewRequest("GET", server.URL, nil)
@@ -81,5 +84,4 @@ func Test_bearTokenPropagationHandler(t *testing.T) {
 			stop.Wait()
 		})
 	}
-
 }
