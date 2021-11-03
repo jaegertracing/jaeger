@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2021 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package spanstore
+package bearertoken
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 )
 
 func Test_GetBearerToken(t *testing.T) {
-	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
+	const token = "blah"
 	ctx := context.Background()
 	ctx = ContextWithBearerToken(ctx, token)
 	contextToken, ok := GetBearerToken(ctx)
