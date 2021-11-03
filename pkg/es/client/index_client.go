@@ -99,13 +99,8 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 	return indices, nil
 }
 
-// DeleteIndices deletes specified set of indices.
-func (i *IndicesClient) DeleteIndices(indices []Index) error {
-	concatIndices := ""
-	for _, i := range indices {
-		concatIndices += i.Index
-		concatIndices += ","
-	}
+// execute delete request
+func (i *IndicesClient) indexDeleteRequest(concatIndices string) error {
 	_, err := i.request(elasticRequest{
 		endpoint: fmt.Sprintf("%s?master_timeout=%ds", concatIndices, i.MasterTimeoutSeconds),
 		method:   http.MethodDelete,
@@ -118,6 +113,33 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 			}
 		}
 		return fmt.Errorf("failed to delete indices: %w", err)
+	}
+	return nil
+}
+
+// DeleteIndices deletes specified set of indices.
+func (i *IndicesClient) DeleteIndices(indices []Index) error {
+	concatIndices := ""
+	for j, index := range indices {
+		// verify the length of the concatIndices
+		// An HTTP line is should not be larger than 4096 bytes
+		// a line contains other than concatIndices data in the request, ie: master_timeout
+		// for a safer side check the line length should not exceed 4000
+		if (len(concatIndices) + len(index.Index)) > 4000 {
+			err := i.indexDeleteRequest(concatIndices)
+			if err != nil {
+				return err
+			}
+			concatIndices = ""
+		}
+
+		concatIndices += index.Index
+		concatIndices += ","
+
+		// if it is last index, delete request should be executed
+		if j == len(indices)-1 {
+			return i.indexDeleteRequest(concatIndices)
+		}
 	}
 	return nil
 }
