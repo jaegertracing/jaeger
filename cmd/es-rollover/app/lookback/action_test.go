@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
@@ -132,12 +133,15 @@ func TestLookBackAction(t *testing.T) {
 		},
 	}
 
+	logger, _ := zap.NewProduction()
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			indexClient := &mocks.MockIndexAPI{}
 			lookbackAction := Action{
 				Config:        test.config,
 				IndicesClient: indexClient,
+				Logger:        logger,
 			}
 
 			test.setupCallExpectations(indexClient)
