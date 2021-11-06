@@ -10,8 +10,9 @@
 
 import argparse
 import json
+import os.path
 import urllib.parse
-import os
+from os.path import expanduser
 import sys
 from urllib.request import (
     urlopen,
@@ -23,7 +24,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def num_commits_before_prev_tag(token, base_url):
+def num_commits_since_prev_tag(token, base_url):
     tags_url = f"{base_url}/tags"
 
     req = Request(tags_url)
@@ -36,7 +37,7 @@ def num_commits_before_prev_tag(token, base_url):
     compare_results = json.loads(urlopen(req).read())
     num_commits = compare_results['behind_by']
 
-    print(f"master is behind {prev_release_tag} by {num_commits} commits")
+    print(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
 
 
@@ -48,7 +49,10 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     # If num_commits isn't set, get the number of commits made since the previous release tag.
     if not num_commits:
-        num_commits = num_commits_before_prev_tag(token, base_url)
+        num_commits = num_commits_since_prev_tag(token, base_url)
+
+    if not num_commits:
+        return
 
     # Load commits
     data = urllib.parse.urlencode({'per_page': num_commits})
@@ -97,9 +101,9 @@ def main(token, repo, num_commits, exclude_dependabot):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='List changes based on git log for release notes.')
 
-    parser.add_argument('--token', type=str,
-                        help='The personal github token to access the github API. ' +
-                             '(default: uses OATH_TOKEN environment variable)')
+    parser.add_argument('--token-file', type=str, default="~/.github_token",
+                        help='The file containing your personal github token to access the github API. ' +
+                             '(default: ~/.github_token)')
     parser.add_argument('--repo', type=str, default='jaeger',
                         help='The repository name to fetch commit logs from. (default: jaeger)')
     parser.add_argument('--exclude-dependabot', action='store_true',
@@ -109,13 +113,21 @@ if __name__ == "__main__":
                              '(default: number of commits before the previous tag)')
 
     args = parser.parse_args()
+    generate_token_url = "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
+    generate_err_msg = (f"Please generate a token from this URL: {generate_token_url} and "
+                        f"place it in the token-file. The token only needs default permissions.")
 
-    token = args.token
+    token_file = expanduser(args.token_file)
+
+    if not os.path.exists(token_file):
+        eprint(f"No such token-file: {token_file}.\n{generate_err_msg}")
+        sys.exit(1)
+
+    with open(token_file, 'r') as file:
+        token = file.read().replace('\n', '')
+
     if not token:
-        if "OAUTH_TOKEN" not in os.environ:
-            eprint("Please provide a --token or set OAUTH_TOKEN environment variable to a generated token: " +
-                   "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token")
-            sys.exit(1)
-        token = os.environ["OAUTH_TOKEN"]
+        eprint(f"{token_file} is missing your personal github token.\n{generate_err_msg}")
+        sys.exit(1)
 
     main(token, args.repo, args.num_commits, args.exclude_dependabot)
