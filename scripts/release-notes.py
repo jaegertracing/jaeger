@@ -95,13 +95,11 @@ def main(token, repo, num_commits, exclude_dependabot):
 
 
 if __name__ == "__main__":
-    if "OAUTH_TOKEN" not in os.environ:
-        eprint("Please set OAUTH_TOKEN environment variable: " +
-               "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token")
-        sys.exit(1)
-
     parser = argparse.ArgumentParser(description='List changes based on git log for release notes.')
 
+    parser.add_argument('--token', type=str,
+                        help='The personal github token to access the github API. ' +
+                             '(default: uses OATH_TOKEN environment variable)')
     parser.add_argument('--repo', type=str, default='jaeger',
                         help='The repository name to fetch commit logs from. (default: jaeger)')
     parser.add_argument('--exclude-dependabot', action='store_true',
@@ -111,4 +109,13 @@ if __name__ == "__main__":
                              '(default: number of commits before the previous tag)')
 
     args = parser.parse_args()
-    main(os.environ["OAUTH_TOKEN"], args.repo, args.num_commits, args.exclude_dependabot)
+
+    token = args.token
+    if not token:
+        if "OAUTH_TOKEN" not in os.environ:
+            eprint("Please provide a --token or set OAUTH_TOKEN environment variable to a generated token: " +
+                   "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token")
+            sys.exit(1)
+        token = os.environ["OAUTH_TOKEN"]
+
+    main(token, args.repo, args.num_commits, args.exclude_dependabot)
