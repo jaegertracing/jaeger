@@ -91,7 +91,7 @@ def main(token, repo, num_commits, exclude_dependabot):
         print(f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))')
 
     if skipped_dependabot:
-        print(f"\n(Skipped {skipped_dependabot} dependabot commits)")
+        print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
 
 
 if __name__ == "__main__":
