@@ -15,8 +15,9 @@
 package lookback
 
 import (
-	"fmt"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
@@ -29,6 +30,7 @@ var timeNow func() time.Time = time.Now
 type Action struct {
 	Config
 	IndicesClient client.IndexAPI
+	Logger        *zap.Logger
 }
 
 // Do the lookback action
@@ -54,16 +56,19 @@ func (a *Action) lookback(indexSet app.IndexOption) error {
 	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(timeNow(), a.Unit, a.UnitCount))
 
 	if len(finalIndices) == 0 {
-		return fmt.Errorf("no indices to remove from alias %s", readAliasName)
+		a.Logger.Info("No indices to remove from alias", zap.String("readAliasName", readAliasName))
+		return nil
 	}
 
 	aliases := make([]client.Alias, 0, len(finalIndices))
+	a.Logger.Info("About to remove indices", zap.String("readAliasName", readAliasName), zap.Int("indicesCount", len(finalIndices)))
 
 	for _, index := range finalIndices {
 		aliases = append(aliases, client.Alias{
 			Index: index.Index,
 			Name:  readAliasName,
 		})
+		a.Logger.Info("To be removed", zap.String("index", index.Index), zap.String("creationTime", index.CreationTime.String()))
 	}
 
 	return a.IndicesClient.DeleteAlias(aliases)
