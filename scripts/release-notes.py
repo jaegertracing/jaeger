@@ -26,12 +26,13 @@ def eprint(*args, **kwargs):
 
 def num_commits_since_prev_tag(token, base_url):
     tags_url = f"{base_url}/tags"
+    trunk = "master"
 
     req = Request(tags_url)
     req.add_header("Authorization", f"token {token}")
     tags = json.loads(urlopen(req).read())
     prev_release_tag = tags[0]['name']
-    compare_url = f"{base_url}/compare/master...{prev_release_tag}"
+    compare_url = f"{base_url}/compare/{trunk}...{prev_release_tag}"
     req = Request(compare_url)
     req.add_header("Authorization", f"token {token}")
     compare_results = json.loads(urlopen(req).read())
@@ -115,7 +116,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     generate_token_url = "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
     generate_err_msg = (f"Please generate a token from this URL: {generate_token_url} and "
-                        f"place it in the token-file. The token only needs default permissions.")
+                        f"place it in the token-file. Protect the file so only you can read it: chmod 0600 <file>.")
 
     token_file = expanduser(args.token_file)
 
