@@ -15,6 +15,7 @@
 package client
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -145,30 +146,83 @@ func TestClientGetIndices(t *testing.T) {
 }
 
 func TestClientDeleteIndices(t *testing.T) {
+	// create long list of indices
+	indicesLongList := []Index{}
+	for count := 1; count <= 300; count++ {
+		indicesLongList = append(indicesLongList, Index{Index: fmt.Sprintf("jaeger-span-%06d", count)})
+		indicesLongList = append(indicesLongList, Index{Index: fmt.Sprintf("jaeger-service-%06d", count)})
+	}
+
+	// default indices list
+	indicesDefault := []Index{
+		{
+			Index: "jaeger-span",
+		},
+	}
+
+	masterTimeoutSeconds := 1
+	maxURLPathLength := 4000
+
 	tests := []struct {
 		name         string
 		responseCode int
 		response     string
 		errContains  string
+		indices      []Index
+		triggerAPI   bool
 	}{
 		{
 			name:         "no error",
 			responseCode: http.StatusOK,
+			indices:      indicesDefault,
+			triggerAPI:   true,
 		},
 		{
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
 			errContains:  "failed to delete indices: jaeger-span",
+			indices:      indicesDefault,
+			triggerAPI:   true,
+		},
+		{
+			name:         "long indices list",
+			responseCode: http.StatusOK,
+			response:     "",
+			indices:      indicesLongList,
+			triggerAPI:   true,
+		},
+		{
+			name:         "no indices",
+			responseCode: http.StatusOK,
+			indices:      []Index{},
+			triggerAPI:   false,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
+			deletedIndicesCount := 0
+			apiTriggered := false
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				assert.True(t, strings.Contains(req.URL.String(), "jaeger-span"))
+				apiTriggered = true
 				assert.Equal(t, http.MethodDelete, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, fmt.Sprintf("%ds", masterTimeoutSeconds), req.URL.Query().Get("master_timeout"))
+				assert.True(t, len(req.URL.Path) <= maxURLPathLength)
+
+				// removes begining '/' and ending ','
+				// example: /jaeger-span,  =>  jaeger-span
+				rawIndices := strings.TrimPrefix(req.URL.Path, "/")
+				rawIndices = strings.TrimSuffix(rawIndices, ",")
+
+				if len(test.indices) == 1 {
+					assert.Equal(t, test.indices[0].Index, rawIndices)
+				}
+
+				deletedIndices := strings.Split(rawIndices, ",")
+				deletedIndicesCount += len(deletedIndices)
+
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
@@ -180,13 +234,12 @@ func TestClientDeleteIndices(t *testing.T) {
 					Endpoint:  testServer.URL,
 					BasicAuth: "foobar",
 				},
+				MasterTimeoutSeconds: masterTimeoutSeconds,
 			}
 
-			err := c.DeleteIndices([]Index{
-				{
-					Index: "jaeger-span",
-				},
-			})
+			err := c.DeleteIndices(test.indices)
+			assert.Equal(t, len(test.indices), deletedIndicesCount)
+			assert.Equal(t, test.triggerAPI, apiTriggered)
 
 			if test.errContains != "" {
 				require.Error(t, err)
@@ -202,8 +255,6 @@ func TestClientRequestError(t *testing.T) {
 			Endpoint: "%",
 		},
 	}
-	err := c.DeleteIndices([]Index{})
-	require.Error(t, err)
 	indices, err := c.GetJaegerIndices("")
 	require.Error(t, err)
 	assert.Nil(t, indices)
@@ -216,8 +267,7 @@ func TestClientDoError(t *testing.T) {
 			Endpoint: "localhost:1",
 		},
 	}
-	err := c.DeleteIndices([]Index{})
-	require.Error(t, err)
+
 	indices, err := c.GetJaegerIndices("")
 	require.Error(t, err)
 	assert.Nil(t, indices)
