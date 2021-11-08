@@ -145,21 +145,15 @@ func TestClientGetIndices(t *testing.T) {
 	}
 }
 
+func getIndicesList(size int) []Index {
+	indicesList := []Index{}
+	for count := 1; count <= size/2; count++ {
+		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-span-%06d", count)})
+		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-service-%06d", count)})
+	}
+	return indicesList
+}
 func TestClientDeleteIndices(t *testing.T) {
-	// create long list of indices
-	indicesLongList := []Index{}
-	for count := 1; count <= 300; count++ {
-		indicesLongList = append(indicesLongList, Index{Index: fmt.Sprintf("jaeger-span-%06d", count)})
-		indicesLongList = append(indicesLongList, Index{Index: fmt.Sprintf("jaeger-service-%06d", count)})
-	}
-
-	// default indices list
-	indicesDefault := []Index{
-		{
-			Index: "jaeger-span",
-		},
-	}
-
 	masterTimeoutSeconds := 1
 	maxURLPathLength := 4000
 
@@ -174,7 +168,7 @@ func TestClientDeleteIndices(t *testing.T) {
 		{
 			name:         "no error",
 			responseCode: http.StatusOK,
-			indices:      indicesDefault,
+			indices:      []Index{{Index: "jaeger-span-000001"}},
 			triggerAPI:   true,
 		},
 		{
@@ -182,14 +176,21 @@ func TestClientDeleteIndices(t *testing.T) {
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
 			errContains:  "failed to delete indices: jaeger-span",
-			indices:      indicesDefault,
+			indices:      []Index{{Index: "jaeger-span-000001"}},
 			triggerAPI:   true,
 		},
 		{
 			name:         "long indices list",
 			responseCode: http.StatusOK,
 			response:     "",
-			indices:      indicesLongList,
+			indices:      getIndicesList(600),
+			triggerAPI:   true,
+		},
+		{
+			name:         "moderate indices list",
+			responseCode: http.StatusOK,
+			response:     "",
+			indices:      getIndicesList(20),
 			triggerAPI:   true,
 		},
 		{
