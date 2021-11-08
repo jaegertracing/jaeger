@@ -213,7 +213,7 @@ func TestClientDeleteIndices(t *testing.T) {
 				assert.True(t, len(req.URL.Path) <= maxURLPathLength)
 
 				// removes begining '/' and ending ','
-				// example: /jaeger-span,  =>  jaeger-span
+				// example: /jaeger-span-000001,  =>  jaeger-span-000001
 				rawIndices := strings.TrimPrefix(req.URL.Path, "/")
 				rawIndices = strings.TrimSuffix(rawIndices, ",")
 
