@@ -134,6 +134,7 @@ func main() {
 				return &lookback.Action{
 					IndicesClient: indicesClient,
 					Config:        lookbackCfg,
+					Logger:        logger,
 				}
 			})
 		},

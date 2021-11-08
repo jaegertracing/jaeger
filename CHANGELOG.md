@@ -6,6 +6,34 @@ next release
 ### Backend Changes
 #### New Features
 
+1.28.0 (2021-11-06)
+-------------------
+### Backend Changes
+* Add auth token propagation for metrics reader ([@albertteoh](https://github.com/albertteoh) in [#3341](https://github.com/jaegertracing/jaeger/pull/3341))
+
+#### New Features
+* Add in-memory storage support for adaptive sampling ([@lonewolf3739](https://github.com/lonewolf3739) in [#3335](https://github.com/jaegertracing/jaeger/pull/3335))
+
+#### Bug fixes, Minor Improvements
+
+* Do not throw error on empty indices in Elasticsach rollover lookback ([@jkandasa](https://github.com/jkandasa) in [#3369](https://github.com/jaegertracing/jaeger/pull/3369))
+* Treat input throughput data as immutable ([@rbroggi](https://github.com/rbroggi) in [#3360](https://github.com/jaegertracing/jaeger/pull/3360))
+* Remove dependencies on unused tools, install tools explicitly instead of via go.mod ([@rbroggi](https://github.com/rbroggi) in [#3355](https://github.com/jaegertracing/jaeger/pull/3355))
+* Update mockery to version 2 and adapt to `install-tools` approach ([@rbroggi](https://github.com/rbroggi) in [#3358](https://github.com/jaegertracing/jaeger/pull/3358))
+* Control lightweight storage integration tests via build tags ([@rbroggi](https://github.com/rbroggi) in [#3346](https://github.com/jaegertracing/jaeger/pull/3346))
+* Remove package `integration` from coverage reports ([@rbroggi](https://github.com/rbroggi) in [#3357](https://github.com/jaegertracing/jaeger/pull/3357))
+* Remove outdated reference to cover.sh ([@rbroggi](https://github.com/rbroggi) in [#3348](https://github.com/jaegertracing/jaeger/pull/3348))
+* Update monitoring mixin ([@jpkrohling](https://github.com/jpkrohling) in [#3331](https://github.com/jaegertracing/jaeger/pull/3331))
+* Update Jaeger chart link ([@isbang](https://github.com/isbang) in [#3328](https://github.com/jaegertracing/jaeger/pull/3328))
+* Fix args order in strings.Contains in es-rollover ([@pavolloffay](https://github.com/pavolloffay) in [#3324](https://github.com/jaegertracing/jaeger/pull/3324))
+* Use `(TB).TempDir` instead of non-portable `/mnt/*` in Badger ([@pavolloffay](https://github.com/pavolloffay) in [#3325](https://github.com/jaegertracing/jaeger/pull/3325))
+* Fix `peer.service` retrieval from Zipkin's `MESSAGE_ADDR` annotation ([@Git-Jiro](https://github.com/Git-Jiro) in [#3312](https://github.com/jaegertracing/jaeger/pull/3312))
+
+### UI Changes
+
+* UI pinned to version 1.18.0. The changelog is available here [v1.18.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1180-nov-6-2021)
+
+
 1.27.0 (2021-10-06)
 -------------------
 ### Backend Changes

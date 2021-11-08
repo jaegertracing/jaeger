@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
@@ -116,7 +117,7 @@ func TestLookBackAction(t *testing.T) {
 			expectedErr: errors.New("get indices error"),
 		},
 		{
-			name: "empty indices error",
+			name: "empty indices",
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
 			},
@@ -128,9 +129,11 @@ func TestLookBackAction(t *testing.T) {
 					UseILM:  true,
 				},
 			},
-			expectedErr: errors.New("no indices to remove from alias jaeger-span-archive-read"),
+			expectedErr: nil,
 		},
 	}
+
+	logger, _ := zap.NewProduction()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -138,6 +141,7 @@ func TestLookBackAction(t *testing.T) {
 			lookbackAction := Action{
 				Config:        test.config,
 				IndicesClient: indexClient,
+				Logger:        logger,
 			}
 
 			test.setupCallExpectations(indexClient)
