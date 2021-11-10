@@ -68,7 +68,7 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	services, err := f.builder.Build()
+	services, err := f.builder.Build(logger)
 	if err != nil {
 		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
 	}
@@ -123,4 +123,9 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
 	return f.archiveStore.ArchiveSpanWriter(), nil
+}
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	return f.builder.Close()
 }

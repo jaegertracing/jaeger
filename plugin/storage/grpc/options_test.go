@@ -43,19 +43,15 @@ func TestRemoteOptionsWithFlags(t *testing.T) {
 	opts := &Options{}
 	v, command := config.Viperize(opts.AddFlags)
 	err := command.ParseFlags([]string{
-		"--grpc-storage-plugin.server=localhost:2001",
-		"--grpc-storage-plugin.tls=true",
-		"--grpc-storage-plugin.ca-file=cafile",
-		"--grpc-storage-plugin.server-host-override=example.com",
-		"--grpc-storage-plugin.connection-timeout=60s",
+		"--grpc-storage.server=localhost:2001",
+		"--grpc-storage.tls.enabled=true",
+		"--grpc-storage.connection-timeout=60s",
 	})
 	assert.NoError(t, err)
 	opts.InitFromViper(v)
 
 	assert.Equal(t, opts.Configuration.PluginBinary, "")
 	assert.Equal(t, opts.Configuration.RemoteServerAddr, "localhost:2001")
-	assert.Equal(t, opts.Configuration.RemoteTLS, true)
-	assert.Equal(t, opts.Configuration.RemoteCAFile, "cafile")
-	assert.Equal(t, opts.Configuration.RemoteServerHostOverride, "example.com")
+	assert.Equal(t, opts.Configuration.RemoteTLS.Enabled, true)
 	assert.Equal(t, opts.Configuration.RemoteConnectTimeout, 60*time.Second)
 }

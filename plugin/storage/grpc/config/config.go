@@ -25,22 +25,22 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/opentracing/opentracing-go"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	PluginBinary             string        `yaml:"binary" mapstructure:"binary"`
-	PluginConfigurationFile  string        `yaml:"configuration-file" mapstructure:"configuration_file"`
-	PluginLogLevel           string        `yaml:"log-level" mapstructure:"log_level"`
-	RemoteServerAddr         string        `yaml:"server" mapstructure:"server"`
-	RemoteTLS                bool          `yaml:"tls" mapstructure:"tls"`
-	RemoteCAFile             string        `yaml:"cafile" mapstructure:"cafile"`
-	RemoteServerHostOverride string        `yaml:"server-host-override" mapstructure:"server-host-override"`
-	RemoteConnectTimeout     time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
+	PluginBinary            string `yaml:"binary" mapstructure:"binary"`
+	PluginConfigurationFile string `yaml:"configuration-file" mapstructure:"configuration_file"`
+	PluginLogLevel          string `yaml:"log-level" mapstructure:"log_level"`
+	RemoteServerAddr        string `yaml:"server" mapstructure:"server"`
+	RemoteTLS               tlscfg.Options
+	RemoteConnectTimeout    time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -51,33 +51,39 @@ type ClientPluginServices struct {
 
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
 type PluginBuilder interface {
-	Build() (*ClientPluginServices, error)
+	Build(logger *zap.Logger) (*ClientPluginServices, error)
+	Close() error
 }
 
 // Build instantiates a PluginServices
-func (c *Configuration) Build() (*ClientPluginServices, error) {
+func (c *Configuration) Build(logger *zap.Logger) (*ClientPluginServices, error) {
 	if c.PluginBinary != "" {
 		return c.buildPlugin()
 	} else {
-		return c.BuildRemote()
+		return c.buildRemote(logger)
 	}
 }
 
-func (c *Configuration) BuildRemote() (*ClientPluginServices, error) {
+func (c *Configuration) Close() error {
+	if c.PluginBinary == "" {
+		return c.RemoteTLS.Close()
+	}
+	return nil
+}
+
+func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
 		grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
 		grpc.WithBlock(),
 	}
 	var err error
-	if c.RemoteTLS {
-		if c.RemoteCAFile == "" {
-			return nil, fmt.Errorf("ca file is required with TLS")
-		}
-		creds, err := credentials.NewClientTLSFromFile(c.RemoteCAFile, c.RemoteServerHostOverride)
+	if c.RemoteTLS.Enabled {
+		tlsCfg, err := c.RemoteTLS.Config(logger)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create TLS credentials %w", err)
+			return nil, err
 		}
+		creds := credentials.NewTLS(tlsCfg)
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
 		opts = append(opts, grpc.WithInsecure())
