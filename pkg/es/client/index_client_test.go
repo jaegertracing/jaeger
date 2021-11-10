@@ -175,7 +175,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "failed to delete indices: jaeger-span",
+			errContains:  "failed to delete indices: jaeger-span-000001",
 			indices:      []Index{{Index: "jaeger-span-000001"}},
 			triggerAPI:   true,
 		},
