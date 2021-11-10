@@ -166,9 +166,28 @@ func TestClientDeleteIndices(t *testing.T) {
 		triggerAPI   bool
 	}{
 		{
-			name:         "no error",
+			name:         "no indices",
+			responseCode: http.StatusOK,
+			indices:      []Index{},
+			triggerAPI:   false,
+		}, {
+			name:         "one index",
 			responseCode: http.StatusOK,
 			indices:      []Index{{Index: "jaeger-span-000001"}},
+			triggerAPI:   true,
+		},
+		{
+			name:         "moderate indices",
+			responseCode: http.StatusOK,
+			response:     "",
+			indices:      getIndicesList(20),
+			triggerAPI:   true,
+		},
+		{
+			name:         "long indices",
+			responseCode: http.StatusOK,
+			response:     "",
+			indices:      getIndicesList(600),
 			triggerAPI:   true,
 		},
 		{
@@ -180,24 +199,12 @@ func TestClientDeleteIndices(t *testing.T) {
 			triggerAPI:   true,
 		},
 		{
-			name:         "long indices list",
-			responseCode: http.StatusOK,
-			response:     "",
+			name:         "client error in long indices",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to delete indices: jaeger-span-000001",
 			indices:      getIndicesList(600),
 			triggerAPI:   true,
-		},
-		{
-			name:         "moderate indices list",
-			responseCode: http.StatusOK,
-			response:     "",
-			indices:      getIndicesList(20),
-			triggerAPI:   true,
-		},
-		{
-			name:         "no indices",
-			responseCode: http.StatusOK,
-			indices:      []Index{},
-			triggerAPI:   false,
 		},
 	}
 	for _, test := range tests {
@@ -239,12 +246,13 @@ func TestClientDeleteIndices(t *testing.T) {
 			}
 
 			err := c.DeleteIndices(test.indices)
-			assert.Equal(t, len(test.indices), deletedIndicesCount)
 			assert.Equal(t, test.triggerAPI, apiTriggered)
 
 			if test.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errContains)
+			} else {
+				assert.Equal(t, len(test.indices), deletedIndicesCount)
 			}
 		})
 	}
