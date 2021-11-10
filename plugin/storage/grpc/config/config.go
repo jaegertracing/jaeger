@@ -15,24 +15,32 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	PluginBinary            string `yaml:"binary" mapstructure:"binary"`
-	PluginConfigurationFile string `yaml:"configuration-file" mapstructure:"configuration_file"`
-	PluginLogLevel          string `yaml:"log-level" mapstructure:"log_level"`
+	PluginBinary             string        `yaml:"binary" mapstructure:"binary"`
+	PluginConfigurationFile  string        `yaml:"configuration-file" mapstructure:"configuration_file"`
+	PluginLogLevel           string        `yaml:"log-level" mapstructure:"log_level"`
+	RemoteServerAddr         string        `yaml:"server" mapstructure:"server"`
+	RemoteTLS                bool          `yaml:"tls" mapstructure:"tls"`
+	RemoteCAFile             string        `yaml:"cafile" mapstructure:"cafile"`
+	RemoteServerHostOverride string        `yaml:"server-host-override" mapstructure:"server-host-override"`
+	RemoteConnectTimeout     time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -48,6 +56,51 @@ type PluginBuilder interface {
 
 // Build instantiates a PluginServices
 func (c *Configuration) Build() (*ClientPluginServices, error) {
+	if c.PluginBinary != "" {
+		return c.buildPlugin()
+	} else {
+		return c.BuildRemote()
+	}
+}
+
+func (c *Configuration) BuildRemote() (*ClientPluginServices, error) {
+	opts := []grpc.DialOption{
+		grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
+		grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
+		grpc.WithBlock(),
+	}
+	var err error
+	if c.RemoteTLS {
+		if c.RemoteCAFile == "" {
+			return nil, fmt.Errorf("ca file is required with TLS")
+		}
+		creds, err := credentials.NewClientTLSFromFile(c.RemoteCAFile, c.RemoteServerHostOverride)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create TLS credentials %w", err)
+		}
+		opts = append(opts, grpc.WithTransportCredentials(creds))
+	} else {
+		opts = append(opts, grpc.WithInsecure())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), c.RemoteConnectTimeout)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to Promscale GRPC server: %w", err)
+	}
+
+	grpcClient := shared.NewGRPCClient(conn)
+	return &ClientPluginServices{
+		PluginServices: shared.PluginServices{
+			Store:        grpcClient,
+			ArchiveStore: grpcClient,
+		},
+		Capabilities: grpcClient,
+	}, nil
+}
+
+func (c *Configuration) buildPlugin() (*ClientPluginServices, error) {
 	// #nosec G204
 	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
 

@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"flag"
+	"time"
 
 	"github.com/spf13/viper"
 
@@ -23,10 +24,16 @@ import (
 )
 
 const (
-	pluginBinary            = "grpc-storage-plugin.binary"
-	pluginConfigurationFile = "grpc-storage-plugin.configuration-file"
-	pluginLogLevel          = "grpc-storage-plugin.log-level"
-	defaultPluginLogLevel   = "warn"
+	pluginBinary             = "grpc-storage-plugin.binary"
+	pluginConfigurationFile  = "grpc-storage-plugin.configuration-file"
+	pluginLogLevel           = "grpc-storage-plugin.log-level"
+	pluginServer             = "grpc-storage-plugin.server"
+	pluginTLS                = "grpc-storage-plugin.tls"
+	pluginCAFile             = "grpc-storage-plugin.ca-file"
+	pluginServerHostOverride = "grpc-storage-plugin.server-host-override"
+	pluginConnectionTimeout  = "grpc-storage-plugin.connection-timeout"
+	defaultPluginLogLevel    = "warn"
+	defaultConnectionTimeout = time.Duration(5 * time.Second)
 )
 
 // Options contains GRPC plugins configs and provides the ability
@@ -40,6 +47,12 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginBinary, "", "The location of the plugin binary")
 	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
 	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
+	flagSet.String(pluginServer, "", "The server address for the remote gRPC server")
+	flagSet.Bool(pluginTLS, false, "Whether to use TLS for the remote connection")
+	flagSet.String(pluginCAFile, "", "The CA file for the remote connection")
+	flagSet.String(pluginServerHostOverride, "", "The server host override for the remote connection")
+	flagSet.Duration(pluginConnectionTimeout, defaultConnectionTimeout, "The connection timeout for connecting to the remote server")
+
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -47,4 +60,10 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
 	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
+	opt.Configuration.RemoteServerAddr = v.GetString(pluginServer)
+	opt.Configuration.RemoteTLS = v.GetBool(pluginTLS)
+	opt.Configuration.RemoteCAFile = v.GetString(pluginCAFile)
+	opt.Configuration.RemoteServerHostOverride = v.GetString(pluginServerHostOverride)
+	opt.Configuration.RemoteConnectTimeout = v.GetDuration(pluginConnectionTimeout)
+
 }

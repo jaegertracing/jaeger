@@ -53,12 +53,5 @@ func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server
 
 // GRPCClient implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin client.
 func (*StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return &grpcClient{
-		readerClient:        storage_v1.NewSpanReaderPluginClient(c),
-		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
-		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
-		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
-		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
-		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
-	}, nil
+	return NewGRPCClient(c), nil
 }
