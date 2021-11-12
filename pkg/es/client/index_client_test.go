@@ -15,6 +15,7 @@
 package client
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -144,31 +145,92 @@ func TestClientGetIndices(t *testing.T) {
 	}
 }
 
+func getIndicesList(size int) []Index {
+	indicesList := []Index{}
+	for count := 1; count <= size/2; count++ {
+		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-span-%06d", count)})
+		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-service-%06d", count)})
+	}
+	return indicesList
+}
 func TestClientDeleteIndices(t *testing.T) {
+	masterTimeoutSeconds := 1
+	maxURLPathLength := 4000
+
 	tests := []struct {
 		name         string
 		responseCode int
 		response     string
 		errContains  string
+		indices      []Index
+		triggerAPI   bool
 	}{
 		{
-			name:         "no error",
+			name:         "no indices",
 			responseCode: http.StatusOK,
+			indices:      []Index{},
+			triggerAPI:   false,
+		}, {
+			name:         "one index",
+			responseCode: http.StatusOK,
+			indices:      []Index{{Index: "jaeger-span-000001"}},
+			triggerAPI:   true,
+		},
+		{
+			name:         "moderate indices",
+			responseCode: http.StatusOK,
+			response:     "",
+			indices:      getIndicesList(20),
+			triggerAPI:   true,
+		},
+		{
+			name:         "long indices",
+			responseCode: http.StatusOK,
+			response:     "",
+			indices:      getIndicesList(600),
+			triggerAPI:   true,
 		},
 		{
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "failed to delete indices: jaeger-span",
+			errContains:  "failed to delete indices: jaeger-span-000001",
+			indices:      []Index{{Index: "jaeger-span-000001"}},
+			triggerAPI:   true,
+		},
+		{
+			name:         "client error in long indices",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to delete indices: jaeger-span-000001",
+			indices:      getIndicesList(600),
+			triggerAPI:   true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
+			deletedIndicesCount := 0
+			apiTriggered := false
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				assert.True(t, strings.Contains(req.URL.String(), "jaeger-span"))
+				apiTriggered = true
 				assert.Equal(t, http.MethodDelete, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, fmt.Sprintf("%ds", masterTimeoutSeconds), req.URL.Query().Get("master_timeout"))
+				assert.True(t, len(req.URL.Path) <= maxURLPathLength)
+
+				// removes begining '/' and ending ','
+				// example: /jaeger-span-000001,  =>  jaeger-span-000001
+				rawIndices := strings.TrimPrefix(req.URL.Path, "/")
+				rawIndices = strings.TrimSuffix(rawIndices, ",")
+
+				if len(test.indices) == 1 {
+					assert.Equal(t, test.indices[0].Index, rawIndices)
+				}
+
+				deletedIndices := strings.Split(rawIndices, ",")
+				deletedIndicesCount += len(deletedIndices)
+
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
@@ -180,17 +242,17 @@ func TestClientDeleteIndices(t *testing.T) {
 					Endpoint:  testServer.URL,
 					BasicAuth: "foobar",
 				},
+				MasterTimeoutSeconds: masterTimeoutSeconds,
 			}
 
-			err := c.DeleteIndices([]Index{
-				{
-					Index: "jaeger-span",
-				},
-			})
+			err := c.DeleteIndices(test.indices)
+			assert.Equal(t, test.triggerAPI, apiTriggered)
 
 			if test.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errContains)
+			} else {
+				assert.Equal(t, len(test.indices), deletedIndicesCount)
 			}
 		})
 	}
@@ -202,8 +264,6 @@ func TestClientRequestError(t *testing.T) {
 			Endpoint: "%",
 		},
 	}
-	err := c.DeleteIndices([]Index{})
-	require.Error(t, err)
 	indices, err := c.GetJaegerIndices("")
 	require.Error(t, err)
 	assert.Nil(t, indices)
@@ -216,8 +276,7 @@ func TestClientDoError(t *testing.T) {
 			Endpoint: "localhost:1",
 		},
 	}
-	err := c.DeleteIndices([]Index{})
-	require.Error(t, err)
+
 	indices, err := c.GetJaegerIndices("")
 	require.Error(t, err)
 	assert.Nil(t, indices)
