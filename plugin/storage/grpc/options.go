@@ -29,8 +29,8 @@ const (
 	pluginConfigurationFile  = "grpc-storage-plugin.configuration-file"
 	pluginLogLevel           = "grpc-storage-plugin.log-level"
 	remotePrefix             = "grpc-storage"
-	pluginServer             = remotePrefix + ".server"
-	pluginConnectionTimeout  = remotePrefix + ".connection-timeout"
+	remoteServer             = remotePrefix + ".server"
+	remoteConnectionTimeout  = remotePrefix + ".connection-timeout"
 	defaultPluginLogLevel    = "warn"
 	defaultConnectionTimeout = time.Duration(5 * time.Second)
 )
@@ -55,8 +55,8 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginBinary, "", "The location of the plugin binary")
 	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
 	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
-	flagSet.String(pluginServer, "", "The server address for the remote gRPC server")
-	flagSet.Duration(pluginConnectionTimeout, defaultConnectionTimeout, "The connection timeout for connecting to the remote server")
+	flagSet.String(remoteServer, "", "The server address for the remote gRPC server")
+	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The connection timeout for connecting to the remote server")
 
 }
 
@@ -66,7 +66,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
 	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
-	opt.Configuration.RemoteServerAddr = v.GetString(pluginServer)
+	opt.Configuration.RemoteServerAddr = v.GetString(remoteServer)
 	opt.Configuration.RemoteTLS = tlsFlagsConfig.InitFromViper(v)
-	opt.Configuration.RemoteConnectTimeout = v.GetDuration(pluginConnectionTimeout)
+	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
 }

@@ -93,7 +93,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 	defer cancel()
 	conn, err := grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to Promscale GRPC server: %w", err)
+		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
 	}
 
 	grpcClient := shared.NewGRPCClient(conn)

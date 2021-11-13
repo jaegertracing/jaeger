@@ -23,17 +23,16 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-
 	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
