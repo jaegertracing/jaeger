@@ -21,7 +21,6 @@ import (
 
 	otgrpc "github.com/opentracing-contrib/go-grpc"
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -40,7 +39,7 @@ type Server struct {
 var _ DriverServiceServer = (*Server)(nil)
 
 // NewServer creates a new driver.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metrics.Factory, logger log.Factory) *Server {
+func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
 	server := grpc.NewServer(grpc.UnaryInterceptor(
 		otgrpc.OpenTracingServerInterceptor(tracer)),
 		grpc.StreamInterceptor(
@@ -50,7 +49,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metric
 		tracer:   tracer,
 		logger:   logger,
 		server:   server,
-		redis:    newRedis(metricsFactory, logger),
+		redis:    newRedis(logger),
 	}
 }
 

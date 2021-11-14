@@ -37,7 +37,7 @@ var routeCmd = &cobra.Command{
 		logger := log.NewFactory(zapLogger)
 		server := route.NewServer(
 			net.JoinHostPort("0.0.0.0", strconv.Itoa(routePort)),
-			tracing.Init("route", metricsFactory, logger),
+			tracing.Init("route", logger),
 			logger,
 		)
 		return logError(zapLogger, server.Run())

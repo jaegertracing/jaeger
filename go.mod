@@ -45,6 +45,7 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/xdg-go/scram v1.0.2
 	go.opentelemetry.io/collector/model v0.37.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.1.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.19.1
@@ -128,6 +129,10 @@ require (
 	github.com/xdg-go/stringprep v1.0.2 // indirect
 	go.mongodb.org/mongo-driver v1.5.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
+	go.opentelemetry.io/otel v1.1.0 // indirect
+	go.opentelemetry.io/otel/exporters/jaeger v1.1.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.1.0 // indirect
+	go.opentelemetry.io/otel/trace v1.1.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20210920023735-84f357641f63 // indirect
 	golang.org/x/text v0.3.7 // indirect
