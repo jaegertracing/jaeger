@@ -180,15 +180,16 @@ When using `--query.bearer-token-propagation=true`, the bearer token will be pro
 import (
     // ... other imports
     "fmt"
-    "github.com/jaegertracing/jaeger/storage/spanstore"
     "google.golang.org/grpc/metadata"
+
+    "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 // ... spanReader type declared here
 
 func (r *spanReader) extractBearerToken(ctx context.Context) (string, bool) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		values := md.Get(spanstore.BearerTokenKey)
+		values := md.Get(grpc.BearerTokenKey)
 		if len(values) > 0 {
 			return values[0], true
 		}
