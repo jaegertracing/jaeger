@@ -16,56 +16,39 @@
 package tracing
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber/jaeger-client-go/config"
-	"github.com/uber/jaeger-client-go/rpcmetrics"
-	"github.com/uber/jaeger-lib/metrics"
+	"go.opentelemetry.io/otel"
+	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )
 
-// Init creates a new instance of Jaeger tracer.
-func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
-	cfg := &config.Configuration{
-		Sampler: &config.SamplerConfig{},
-	}
-	cfg.ServiceName = serviceName
-	cfg.Sampler.Type = "const"
-	cfg.Sampler.Param = 1
+// Init creates a new bridge opentrace tracer that sends spans to Jaeger. The
+// bridge tracer is bind to an open telemetry tracer
+func Init(serviceName string, logger log.Factory) opentracing.Tracer {
 
-	_, err := cfg.FromEnv()
-	if err != nil {
-		logger.Bg().Fatal("cannot parse Jaeger env vars", zap.Error(err))
-	}
-
-	// TODO(ys) a quick hack to ensure random generators get different seeds, which are based on current time.
-	time.Sleep(100 * time.Millisecond)
-	jaegerLogger := jaegerLoggerAdapter{logger.Bg()}
-
-	metricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: serviceName, Tags: nil})
-	tracer, _, err := cfg.NewTracer(
-		config.Logger(jaegerLogger),
-		config.Metrics(metricsFactory),
-		config.Observer(rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)),
+	// Create the Jaeger exporter
+	exp, err := jaeger.New(
+		jaeger.WithCollectorEndpoint(
+			jaeger.WithEndpoint("http://localhost:14268/api/traces"),
+		),
 	)
 	if err != nil {
-		logger.Bg().Fatal("cannot initialize Jaeger Tracer", zap.Error(err))
+		logger.Bg().Fatal("cannot create Jaeger exporter", zap.Error(err))
 	}
-	return tracer
-}
-
-type jaegerLoggerAdapter struct {
-	logger log.Logger
-}
-
-func (l jaegerLoggerAdapter) Error(msg string) {
-	l.logger.Error(msg)
-}
-
-func (l jaegerLoggerAdapter) Infof(msg string, args ...interface{}) {
-	l.logger.Info(fmt.Sprintf(msg, args...))
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(serviceName),
+		)),
+	)
+	otTracer, otelTracer := otbridge.NewTracerPair(tp.Tracer(""))
+	otel.SetTracerProvider(otelTracer)
+	return otTracer
 }

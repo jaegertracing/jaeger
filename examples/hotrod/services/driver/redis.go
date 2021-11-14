@@ -24,7 +24,6 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
@@ -40,9 +39,9 @@ type Redis struct {
 	errorSimulator
 }
 
-func newRedis(metricsFactory metrics.Factory, logger log.Factory) *Redis {
+func newRedis(logger log.Factory) *Redis {
 	return &Redis{
-		tracer: tracing.Init("redis", metricsFactory, logger),
+		tracer: tracing.Init("redis", logger),
 		logger: logger,
 	}
 }
