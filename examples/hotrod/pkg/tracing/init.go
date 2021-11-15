@@ -28,8 +28,8 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )
 
-// Init creates a new bridge opentrace tracer that sends spans to Jaeger. The
-// bridge tracer is bind to an open telemetry tracer
+// Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
+// to return an OpenTracing-compatible tracer.
 func Init(serviceName string, logger log.Factory) opentracing.Tracer {
 
 	// Create the Jaeger exporter
