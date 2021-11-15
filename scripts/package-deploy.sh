@@ -59,6 +59,7 @@ mkdir $DEPLOY_STAGING_DIR
 
 package linux-amd64
 package darwin-amd64
+package darwin-arm64
 package windows-amd64 .exe
 package linux-s390x
 package linux-arm64
