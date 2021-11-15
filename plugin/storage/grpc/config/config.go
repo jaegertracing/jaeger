@@ -77,7 +77,6 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 		grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
 		grpc.WithBlock(),
 	}
-	var err error
 	if c.RemoteTLS.Enabled {
 		tlsCfg, err := c.RemoteTLS.Config(logger)
 		if err != nil {

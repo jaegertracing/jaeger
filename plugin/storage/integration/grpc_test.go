@@ -72,8 +72,7 @@ func (s *gRPCServer) Restart() error {
 		ArchiveImpl: memStorePlugin,
 	}
 
-	err := queryPlugin.RegisterServer(s.server)
-	if err != nil {
+	if err := queryPlugin.RegisterHandlers(s.server); err != nil {
 		return err
 	}
 
@@ -84,8 +83,7 @@ func (s *gRPCServer) Restart() error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		err = s.server.Serve(listener)
-		if err != nil {
+		if err = s.server.Serve(listener); err != nil {
 			select {
 			case s.errChan <- err:
 			default:
@@ -184,11 +182,9 @@ func TestGRPCStorage(t *testing.T) {
 		"--grpc-storage-plugin.binary", binaryPath,
 		"--grpc-storage-plugin.log-level", "debug",
 	}
-	if configPath != "" {
-		flags = append(flags,
-			"--grpc-storage-plugin.configuration-file", configPath,
-		)
-	}
+	flags = append(flags,
+		"--grpc-storage-plugin.configuration-file", configPath,
+	)
 
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,

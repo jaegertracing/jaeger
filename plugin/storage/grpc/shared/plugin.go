@@ -36,8 +36,8 @@ type StorageGRPCPlugin struct {
 	ArchiveImpl ArchiveStoragePlugin
 }
 
-// RegisterServer registers the plugin with the server
-func (p *StorageGRPCPlugin) RegisterServer(s *grpc.Server) error {
+// RegisterHandlers registers the plugin with the server
+func (p *StorageGRPCPlugin) RegisterHandlers(s *grpc.Server) error {
 	server := &grpcServer{
 		Impl:        p.Impl,
 		ArchiveImpl: p.ArchiveImpl,
@@ -53,7 +53,7 @@ func (p *StorageGRPCPlugin) RegisterServer(s *grpc.Server) error {
 
 // GRPCServer implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin server.
 func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	return p.RegisterServer(s)
+	return p.RegisterHandlers(s)
 }
 
 // GRPCClient implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin client.

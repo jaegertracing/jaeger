@@ -49,24 +49,22 @@ func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	var tlsFlagsConfig = tlsFlagsConfig()
-	tlsFlagsConfig.AddFlags(flagSet)
+	tlsFlagsConfig().AddFlags(flagSet)
 
 	flagSet.String(pluginBinary, "", "The location of the plugin binary")
 	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
 	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
-	flagSet.String(remoteServer, "", "The server address for the remote gRPC server")
-	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The connection timeout for connecting to the remote server")
+	flagSet.String(remoteServer, "", "The remote storage gRPC server address")
+	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	var tlsFlagsConfig = tlsFlagsConfig()
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
 	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
 	opt.Configuration.RemoteServerAddr = v.GetString(remoteServer)
-	opt.Configuration.RemoteTLS = tlsFlagsConfig.InitFromViper(v)
+	opt.Configuration.RemoteTLS = tlsFlagsConfig().InitFromViper(v)
 	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
 }
