@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -61,10 +62,7 @@ func (s *gRPCServer) Restart() error {
 		}
 	}
 
-	memStorePlugin := &memoryStorePlugin{
-		store:        memory.NewStore(),
-		archiveStore: memory.NewStore(),
-	}
+	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
 
 	s.server = googleGRPC.NewServer()
 	queryPlugin := shared.StorageGRPCPlugin{
