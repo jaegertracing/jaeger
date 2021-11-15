@@ -247,6 +247,10 @@ build-binaries-windows:
 build-binaries-darwin:
 	GOOS=darwin GOARCH=amd64 $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-darwin-arm64
+build-binaries-darwin-arm64:
+	GOOS=darwin GOARCH=arm64 $(MAKE) build-platform-binaries
+
 .PHONY: build-binaries-s390x
 build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
@@ -277,7 +281,7 @@ build-platform-binaries: build-agent \
 	build-es-rollover
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-darwin-arm64 build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
