@@ -434,6 +434,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+	options = append(options, elastic.SetHealthcheck(false))
 
 	if c.SendGetBodyAs != "" {
 		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
