@@ -116,7 +116,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixRackID,
 		"",
-		"Configure the 'rack' in which the consumer resides to enable - must be supported by kafka server")
+		"Rack identifier for this client. This can be any string value which indicates where this client is located. It corresponds with the broker config `broker.rack`")
 
 	auth.AddFlags(KafkaConsumerConfigPrefix, flagSet)
 }
