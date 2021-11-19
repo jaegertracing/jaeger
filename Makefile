@@ -195,13 +195,11 @@ run-all-in-one: build-ui
 
 build-ui: cmd/query/app/ui/actual/index.html.gz
 
-cmd/query/app/ui/actual/index.html.gz: cmd/query/app/ui/actual/index.html
-	find cmd/query/app/ui/actual/ -type f -exec gzip "$@" {} \;
-
-cmd/query/app/ui/actual/index.html: jaeger-ui/packages/jaeger-ui/build/index.html
+cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html
 	rm -rf cmd/query/app/ui/actual
 	mkdir cmd/query/app/ui/actual
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
+	find cmd/query/app/ui/actual -type f | xargs gzip
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
