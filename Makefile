@@ -202,6 +202,10 @@ cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.
 	find cmd/query/app/ui/actual -type f | xargs gzip
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
+	$(MAKE) rebuild-ui
+
+.PHONY: rebuild-ui
+rebuild-ui:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
 
 .PHONY: build-all-in-one-linux
