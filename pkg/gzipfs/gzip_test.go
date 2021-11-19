@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package embed
+package gzipfs_test
 
 import (
 	"embed"
@@ -21,12 +21,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jaegertracing/jaeger/pkg/gzipfs"
 )
 
 //go:embed testdata
 var EmbedFS embed.FS
 
-var testFS = New(EmbedFS)
+var testFS = gzipfs.New(EmbedFS)
 
 func TestFS(t *testing.T) {
 	cases := []struct {

@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package embed
+package gzipfs
 
 import (
 	"compress/gzip"
-	"embed"
 	"io"
 	"io/fs"
 	"time"
@@ -24,33 +23,33 @@ import (
 
 const suffix = ".gz"
 
-type File struct {
+type file struct {
 	file    fs.File
 	content []byte
 	offset  int
 }
 
-type FileInfo struct {
+type fileInfo struct {
 	info fs.FileInfo
 	size int64
 }
 
-type FileSystem struct {
-	embed embed.FS
+type fileSystem struct {
+	fs fs.FS
 }
 
-func (f File) Stat() (fs.FileInfo, error) {
+func (f file) Stat() (fs.FileInfo, error) {
 	stat, err := f.file.Stat()
 	if err != nil {
 		return stat, err
 	}
-	return FileInfo{
+	return fileInfo{
 		info: stat,
 		size: int64(len(f.content)),
 	}, nil
 }
 
-func (f *File) Read(buf []byte) (n int, err error) {
+func (f *file) Read(buf []byte) (n int, err error) {
 	if len(buf) > len(f.content)-f.offset {
 		buf = buf[0:len(f.content[f.offset:])]
 	}
@@ -63,37 +62,39 @@ func (f *File) Read(buf []byte) (n int, err error) {
 	return
 }
 
-func (f File) Close() error {
+func (f file) Close() error {
 	return f.file.Close()
 }
 
-func (fi FileInfo) Name() string {
+func (fi fileInfo) Name() string {
 	name := fi.info.Name()
 	return name[:len(name)-len(suffix)]
 }
 
-func (fi FileInfo) Size() int64 { return fi.size }
+func (fi fileInfo) Size() int64 { return fi.size }
 
-func (fi FileInfo) Mode() fs.FileMode { return fi.info.Mode() }
+func (fi fileInfo) Mode() fs.FileMode { return fi.info.Mode() }
 
-func (fi FileInfo) ModTime() time.Time { return fi.info.ModTime() }
+func (fi fileInfo) ModTime() time.Time { return fi.info.ModTime() }
 
-func (fi FileInfo) IsDir() bool { return fi.info.IsDir() }
+func (fi fileInfo) IsDir() bool { return fi.info.IsDir() }
 
-func (fi FileInfo) Sys() interface{} { return nil }
+func (fi fileInfo) Sys() interface{} { return nil }
 
-func New(fs embed.FS) FileSystem {
-	return FileSystem{fs}
+// New wraps underlying fs that is expected to contain gzipped files
+// and presents an unzipped view of it.
+func New(fs fs.FS) fs.FS {
+	return fileSystem{fs}
 }
 
-func (cfs FileSystem) Open(path string) (fs.File, error) {
+func (cfs fileSystem) Open(path string) (fs.File, error) {
 	var f fs.File
-	f, err := cfs.embed.Open(path)
+	f, err := cfs.fs.Open(path)
 	if err == nil {
 		return f, nil
 	}
 
-	f, err = cfs.embed.Open(path + suffix)
+	f, err = cfs.fs.Open(path + suffix)
 	if err != nil {
 		return f, err
 	}
@@ -109,7 +110,7 @@ func (cfs FileSystem) Open(path string) (fs.File, error) {
 		return f, err
 	}
 
-	return &File{
+	return &file{
 		file:    f,
 		content: c,
 	}, nil
