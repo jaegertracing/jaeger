@@ -193,8 +193,10 @@ docker-hotrod:
 run-all-in-one: build-ui
 	go run -tags ui ./cmd/all-in-one --log-level debug
 
-.PHONY: build-ui
-build-ui: cmd/query/app/ui/actual/index.html
+build-ui: cmd/query/app/ui/actual/index.html.gz
+
+cmd/query/app/ui/actual/index.html.gz: cmd/query/app/ui/actual/index.html
+	find cmd/query/app/ui/actual/ -type f -exec gzip "$@" {} \;
 
 cmd/query/app/ui/actual/index.html: jaeger-ui/packages/jaeger-ui/build/index.html
 	rm -rf cmd/query/app/ui/actual

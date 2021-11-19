@@ -21,6 +21,7 @@ import (
 	"embed"
 	"net/http"
 
+	gzip "github.com/jaegertracing/jaeger/pkg/embed"
 	"github.com/jaegertracing/jaeger/pkg/httpfs"
 )
 
@@ -28,4 +29,4 @@ import (
 var assetsFS embed.FS
 
 // StaticFiles provides http filesystem with static files for UI.
-var StaticFiles = httpfs.PrefixedFS("actual", http.FS(assetsFS))
+var StaticFiles = httpfs.PrefixedFS("actual", http.FS(gzip.New(assetsFS)))
