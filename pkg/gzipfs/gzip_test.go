@@ -18,11 +18,12 @@ import (
 	"embed"
 	"io/fs"
 	"io/ioutil"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/jaegertracing/jaeger/pkg/gzipfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed testdata
@@ -55,11 +56,11 @@ func TestFS(t *testing.T) {
 			expectedMode:    0444,
 			expectedName:    "foobar.gz",
 			expectedSize:    38,
-			expectedContent: "hello world",
+			expectedContent: "", // actual gzipped payload is returned
 			expectedModTime: time.Date(1, 1, 1, 0, 0, 0, 0 /* nanos */, time.UTC),
 		},
 		{
-			name:            "compressed file without gz extension",
+			name:            "compressed file accessed without gz extension",
 			path:            "testdata/foobaz",
 			expectedMode:    0444,
 			expectedName:    "foobaz",
@@ -72,55 +73,22 @@ func TestFS(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			f, err := testFS.Open(c.path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer f.Close()
 
 			stat, err := f.Stat()
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			name := stat.Name()
-			if name != c.expectedName {
-				t.Fatalf("name is wrong, expected %s, got %s", c.expectedName, name)
-			}
-
-			mode := stat.Mode()
-			if mode != c.expectedMode {
-				t.Fatalf("mode is wrong, expected %d, got %d", c.expectedMode, mode)
-			}
-
-			size := stat.Size()
-			if size != c.expectedSize {
-				t.Fatalf("size is wrong, expected %d, got %d", c.expectedSize, size)
-			}
-
-			modtime := stat.ModTime()
-			if modtime != c.expectedModTime {
-				t.Fatalf("modtime is wrong, expected %s, got %s", c.expectedModTime, modtime)
-			}
-
-			if stat.IsDir() {
-				t.Fatalf("isdir is wrong, expected %t, got %t", false, true)
-			}
-
-			if stat.Sys() != nil {
-				t.Fatalf("stat is wrong, expected nil got non-nil")
-			}
-
-			if strings.HasSuffix(c.path, ".gz") {
-				return
-			}
-
+			assert.Equal(t, c.expectedName, stat.Name())
+			assert.Equal(t, c.expectedMode, stat.Mode())
+			assert.Equal(t, c.expectedSize, stat.Size())
+			assert.Equal(t, c.expectedModTime, stat.ModTime())
+			assert.False(t, stat.IsDir())
+			assert.Nil(t, stat.Sys())
 			content, err := ioutil.ReadAll(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if string(content) != c.expectedContent {
-				t.Fatalf("content is wrong, expected %s, got %s", c.expectedContent, string(content))
+			require.NoError(t, err)
+			if c.expectedContent != "" {
+				assert.Equal(t, c.expectedContent, string(content))
 			}
 		})
 	}
