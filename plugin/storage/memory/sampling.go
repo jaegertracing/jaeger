@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
 
-// SamplingStroe is an in-memory store for sampling data
+// SamplingStore is an in-memory store for sampling data
 type SamplingStore struct {
 	sync.RWMutex
 	throughputs         []*storedThroughput
