@@ -49,23 +49,13 @@ func TestFS(t *testing.T) {
 	cases := []struct {
 		name            string
 		path            string
-		expectedErr     bool
+		expectedErr     string
 		expectedName    string
 		expectedMode    fs.FileMode
 		expectedSize    int64
 		expectedContent string
 		expectedModTime time.Time
 	}{
-		{
-			name:        "non-existing file",
-			path:        "testdata/sadpanda",
-			expectedErr: true,
-		},
-		{
-			name:        "not gzipped file",
-			path:        "testdata/not_archive",
-			expectedErr: true,
-		},
 		{
 			name:            "uncompressed file",
 			path:            "testdata/foobar",
@@ -94,17 +84,34 @@ func TestFS(t *testing.T) {
 			expectedModTime: time.Date(1, 1, 1, 0, 0, 0, 0 /* nanos */, time.UTC),
 		},
 		{
+			name:        "non-existing file",
+			path:        "testdata/non-existing-file",
+			expectedErr: "file does not exist",
+		},
+		{
+			name:        "not gzipped file",
+			path:        "testdata/not_archive",
+			expectedErr: "invalid header",
+		},
+		{
+			// To provide coverage of the error from io.ReadAll function, we use a file
+			// that is a copy of proper gzipped file testdata/foobaz.gz but truncated
+			// to 36 bytes with:
+			//     perl -e "truncate 'pkg/gzipfs/testdata/foobaz_truncated.gz', 36"
+			// This allows gzip.NewReader() to succeed because the file has a proper gz
+			// header, but subsequent read fails with unexpected EOF.
 			name:        "compressed but truncated file accessed without gz extension",
 			path:        "testdata/foobaz_truncated",
-			expectedErr: true,
+			expectedErr: "unexpected EOF",
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			f, err := testFS.Open(c.path)
-			if c.expectedErr {
-				assert.Error(t, err)
+			if c.expectedErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), c.expectedErr)
 				return
 			}
 			require.NoError(t, err)
