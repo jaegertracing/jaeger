@@ -93,6 +93,11 @@ func TestFS(t *testing.T) {
 			expectedContent: "hello world",
 			expectedModTime: time.Date(1, 1, 1, 0, 0, 0, 0 /* nanos */, time.UTC),
 		},
+		{
+			name:        "compressed but truncated file accessed without gz extension",
+			path:        "testdata/foobaz_truncated",
+			expectedErr: true,
+		},
 	}
 
 	for _, c := range cases {
