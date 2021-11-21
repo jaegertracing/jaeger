@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package gzipfs_test
+package gzipfs
 
 import (
 	"embed"
@@ -24,25 +24,48 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/gzipfs"
 )
 
 //go:embed testdata
 var EmbedFS embed.FS
 
-var testFS = gzipfs.New(EmbedFS)
+var testFS = New(EmbedFS)
+
+type mockFile struct {
+	err error
+}
+
+func (f *mockFile) Stat() (fs.FileInfo, error) {
+	return nil, f.err
+}
+func (f *mockFile) Read([]byte) (int, error) {
+	return 0, f.err
+}
+func (f *mockFile) Close() error {
+	return f.err
+}
 
 func TestFS(t *testing.T) {
 	cases := []struct {
 		name            string
 		path            string
+		expectedErr     bool
 		expectedName    string
 		expectedMode    fs.FileMode
 		expectedSize    int64
 		expectedContent string
 		expectedModTime time.Time
 	}{
+		{
+			name:        "non-existing file",
+			path:        "testdata/sadpanda",
+			expectedErr: true,
+		},
+		{
+			name:        "not gzipped file",
+			path:        "testdata/not_archive",
+			expectedErr: true,
+		},
 		{
 			name:            "uncompressed file",
 			path:            "testdata/foobar",
@@ -75,6 +98,10 @@ func TestFS(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			f, err := testFS.Open(c.path)
+			if c.expectedErr {
+				assert.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
 			defer f.Close()
 
@@ -94,4 +121,18 @@ func TestFS(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFileStatError(t *testing.T) {
+	f := &file{file: &mockFile{assert.AnError}}
+	_, err := f.Stat()
+	assert.Equal(t, assert.AnError, err)
+}
+
+func TestFileRead(t *testing.T) {
+	f := &file{content: ([]byte)("long content")}
+	buf := make([]byte, 5) // shorter buffer
+	n, err := f.Read(buf)
+	require.NoError(t, err)
+	assert.Equal(t, 5, n)
 }

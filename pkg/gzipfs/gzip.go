@@ -42,7 +42,7 @@ type fileSystem struct {
 func (f file) Stat() (fs.FileInfo, error) {
 	stat, err := f.file.Stat()
 	if err != nil {
-		return stat, err
+		return nil, err
 	}
 	return fileInfo{
 		info: stat,
