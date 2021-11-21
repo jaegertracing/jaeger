@@ -18,8 +18,15 @@
 package ui
 
 import (
-	"github.com/jaegertracing/jaeger/cmd/query/app/ui/actual"
+	"embed"
+	"net/http"
+
+	"github.com/jaegertracing/jaeger/pkg/gzipfs"
+	"github.com/jaegertracing/jaeger/pkg/httpfs"
 )
 
-// StaticFiles provides http filesystem with static files for UI
-var StaticFiles = assets.FS(false)
+//go:embed actual/*
+var assetsFS embed.FS
+
+// StaticFiles provides http filesystem with static files for UI.
+var StaticFiles = httpfs.PrefixedFS("actual", http.FS(gzipfs.New(assetsFS)))
