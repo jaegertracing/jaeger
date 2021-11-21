@@ -17,7 +17,6 @@ package tracing
 
 import (
 	"github.com/opentracing/opentracing-go"
-	"go.opentelemetry.io/otel"
 	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -48,7 +47,6 @@ func Init(serviceName string, logger log.Factory) opentracing.Tracer {
 			semconv.ServiceNameKey.String(serviceName),
 		)),
 	)
-	otTracer, otelTracer := otbridge.NewTracerPair(tp.Tracer(""))
-	otel.SetTracerProvider(otelTracer)
+	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
 	return otTracer
 }
