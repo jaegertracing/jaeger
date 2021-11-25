@@ -4,6 +4,9 @@ Changes by Version
 next release
 -------------------
 ### Backend Changes
+#### Breaking Changes
+* Remove deprecated `--badger.truncate` CLI flag in [#3410](https://github.com/jaegertracing/jaeger/pull/3410))
+
 #### New Features
 
 1.28.0 (2021-11-06)
