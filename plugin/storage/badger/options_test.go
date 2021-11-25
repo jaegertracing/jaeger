@@ -55,14 +55,12 @@ func TestParseOptions(t *testing.T) {
 	assert.False(t, opts.GetPrimary().ReadOnly)
 }
 
-func TestTruncateAndReadOnlyOptions(t *testing.T) {
+func TestReadOnlyOptions(t *testing.T) {
 	opts := NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
-		"--badger.truncate=true",
 		"--badger.read-only=true",
 	})
 	opts.InitFromViper(v, zap.NewNop())
-
 	assert.True(t, opts.GetPrimary().ReadOnly)
 }
