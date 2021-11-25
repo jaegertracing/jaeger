@@ -52,6 +52,13 @@ func TestRolloverIndices(t *testing.T) {
 					writeAliasName:       "jaeger-service-write",
 					initialRolloverIndex: "jaeger-service-000001",
 				},
+				{
+					templateName:         "jaeger-dependencies",
+					mapping:              "jaeger-dependencies",
+					readAliasName:        "jaeger-dependencies-read",
+					writeAliasName:       "jaeger-dependencies-write",
+					initialRolloverIndex: "jaeger-dependencies-000001",
+				},
 			},
 		},
 		{
@@ -98,6 +105,13 @@ func TestRolloverIndices(t *testing.T) {
 					readAliasName:        "mytenant-jaeger-service-read",
 					writeAliasName:       "mytenant-jaeger-service-write",
 					initialRolloverIndex: "mytenant-jaeger-service-000001",
+				},
+				{
+					mapping:              "jaeger-dependencies",
+					templateName:         "mytenant-jaeger-dependencies",
+					readAliasName:        "mytenant-jaeger-dependencies-read",
+					writeAliasName:       "mytenant-jaeger-dependencies-write",
+					initialRolloverIndex: "mytenant-jaeger-dependencies-000001",
 				},
 			},
 		},

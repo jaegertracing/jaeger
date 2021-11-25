@@ -49,7 +49,7 @@ func (i *IndexFilter) filter(indices []client.Index) []client.Index {
 		// archive works only for rollover
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-span-archive-\\d{6}", i.IndexPrefix))
 	} else if i.Rollover {
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service)-\\d{6}", i.IndexPrefix))
+		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies)-\\d{6}", i.IndexPrefix))
 	} else {
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
 	}
@@ -58,7 +58,10 @@ func (i *IndexFilter) filter(indices []client.Index) []client.Index {
 	for _, in := range indices {
 		if reg.MatchString(in.Index) {
 			// index in write alias cannot be removed
-			if in.Aliases[i.IndexPrefix+"jaeger-span-write"] || in.Aliases[i.IndexPrefix+"jaeger-service-write"] || in.Aliases[i.IndexPrefix+"jaeger-span-archive-write"] {
+			if in.Aliases[i.IndexPrefix+"jaeger-span-write"] ||
+				in.Aliases[i.IndexPrefix+"jaeger-service-write"] ||
+				in.Aliases[i.IndexPrefix+"jaeger-span-archive-write"] ||
+				in.Aliases[i.IndexPrefix+"jaeger-dependencies-write"] {
 				continue
 			}
 			filtered = append(filtered, in)
