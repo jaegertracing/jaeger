@@ -58,6 +58,23 @@ setup_query() {
   SPAN_STORAGE_TYPE=${distro} ./cmd/query/query-${os}-${arch} ${params[@]}
 }
 
+wait_for_it() {
+  local url=$1
+  local params=(
+    --silent
+    --output
+    /dev/null
+    --write-out
+    ''%{http_code}''
+  )
+  local counter=0
+  while [[ "$(curl ${params[@]} ${url})" != "200" && ${counter} < 30 ]]; do
+    sleep 2
+    counter=$((counter+1))
+    echo "waiting for ${url} to be up..."
+  done
+}
+
 teardown_es() {
   local cid=$1
   docker kill ${cid}
@@ -85,6 +102,7 @@ run_integration_test() {
     echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
     usage
   fi
+  wait_for_it "http://localhost:9200"
   STORAGE=${distro} make storage-integration-test
   make index-cleaner-integration-test
   make index-rollover-integration-test
