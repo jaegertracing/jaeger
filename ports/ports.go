@@ -45,6 +45,13 @@ const (
 	// QueryAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
 	QueryAdminHTTP = 16687
 
+	// ProxyGRPC is the default port of GRPC requests for proxied Query trace retrieval
+	ProxyGRPC = 16785
+	// ProxyHTTP is the default port for UI and proxied Query API (e.g. /api/* endpoints)
+	ProxyHTTP = 16786
+	// QueryAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
+	ProxyAdminHTTP = 16787
+
 	// IngesterAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
 	IngesterAdminHTTP = 14270
 )
