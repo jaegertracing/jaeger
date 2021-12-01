@@ -5,9 +5,29 @@ next release
 -------------------
 ### Backend Changes
 #### Breaking Changes
-* Remove deprecated `--badger.truncate` CLI flag in [#3410](https://github.com/jaegertracing/jaeger/pull/3410))
 
 #### New Features
+
+1.29.0 (2021-12-01)
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
+* Remove deprecated `--badger.truncate` CLI flag ([@yurishkuro](https://github.com/yurishkuro) in [#3410](https://github.com/jaegertracing/jaeger/pull/3410))
+
+#### New Features
+
+* Expose rackID option in ingester ([@shyimo](https://github.com/shyimo) in [#3395](https://github.com/jaegertracing/jaeger/pull/3395))
+
+#### Bug fixes, Minor Improvements
+
+* Fix debug image builds by installing `build-base` to enable GCC ([@yurishkuro](https://github.com/yurishkuro) in [#3400](https://github.com/jaegertracing/jaeger/pull/3400))
+* Limit URL size in Elasticsearch index delete request ([@jkandasa](https://github.com/jkandasa) in [#3375](https://github.com/jaegertracing/jaeger/pull/3375))
+
+### UI Changes
+
+* UI pinned to version 1.19.0. The changelog is available here [v1.19.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1190-dec-1-2021)
 
 1.28.0 (2021-11-06)
 -------------------
