@@ -14,16 +14,16 @@ next release
 
 #### Breaking Changes
 
-* Remove deprecated `--badger.truncate` CLI flag in [#3410](https://github.com/jaegertracing/jaeger/pull/3410))
+* Remove deprecated `--badger.truncate` CLI flag ([@yurishkuro](https://github.com/yurishkuro) in [#3410](https://github.com/jaegertracing/jaeger/pull/3410))
 
 #### New Features
 
-* Expose rackID option in ingester [#3395](https://github.com/jaegertracing/jaeger/pull/3395))
+* Expose rackID option in ingester ([@shyimo](https://github.com/shyimo) in [#3395](https://github.com/jaegertracing/jaeger/pull/3395))
 
 #### Bug fixes, Minor Improvements
 
-* Fix debug image builds by installing `build-base` to enable GCC [#3400](https://github.com/jaegertracing/jaeger/pull/3400))
-* Limit URL size in Elasticsearch index delete request [#3375](https://github.com/jaegertracing/jaeger/pull/3375))
+* Fix debug image builds by installing `build-base` to enable GCC ([@yurishkuro](https://github.com/yurishkuro) in [#3400](https://github.com/jaegertracing/jaeger/pull/3400))
+* Limit URL size in Elasticsearch index delete request ([@jkandasa](https://github.com/jkandasa) in [#3375](https://github.com/jaegertracing/jaeger/pull/3375))
 
 ### UI Changes
 
