@@ -48,14 +48,14 @@ if [[ "${local_test_only}" = "Y" ]]; then
     IMAGE_TAGS="--tag localhost:5000/${name_space}/${component_name}:latest"
     PUSHTAG="type=image, push=true"
 else
-    # Only push multi-arch images to dockerhub/quay.io for master branch or for release tags vM.N.P
-    if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P
+    if [[ "$BRANCH" == "master" || "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	    echo "build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
 	    bash scripts/docker-login.sh
 	    PUSHTAG="type=image, push=true"
 	    upload_flag=" and uploading"
     else
-	    echo 'skip docker images upload, only allowed for tagged releases or master (latest tag)'
+	    echo 'skip docker images upload, only allowed for tagged releases or main (latest tag)'
 	    PUSHTAG="type=image, push=false"
     fi
 fi

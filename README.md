@@ -206,11 +206,11 @@ If you would like to add your organization to the list, please comment on our
 [doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
-[ci-img]: https://github.com/jaegertracing/jaeger/workflows/Unit%20Tests/badge.svg?branch=master
-[ci]: https://github.com/jaegertracing/jaeger/actions?query=branch%3Amaster
-[cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/graph/badge.svg
-[cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/
-[fossa-img]: https://github.com/jaegertracing/jaeger/workflows/FOSSA/badge.svg?branch=master
+[ci-img]: https://github.com/jaegertracing/jaeger/workflows/Unit%20Tests/badge.svg?branch=main
+[ci]: https://github.com/jaegertracing/jaeger/actions?query=branch%3Amain
+[cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/graph/badge.svg
+[cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/
+[fossa-img]: https://github.com/jaegertracing/jaeger/workflows/FOSSA/badge.svg?branch=main
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: https://uber.github.io
 [ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg
