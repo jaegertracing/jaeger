@@ -47,7 +47,7 @@ For example, any given Jaeger installation at Uber is typically processing sever
 ### Native support for OpenTracing
 
 Jaeger backend, Web UI, and instrumentation libraries have been designed from the ground up to support the [OpenTracing standard](https://opentracing.io/specification/).
-  * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans)
+  * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/main/specification.md#references-between-spans)
   * Support strongly typed span _tags_ and _structured logs_
   * Support general distributed context propagation mechanism via _baggage_
 
@@ -206,11 +206,11 @@ If you would like to add your organization to the list, please comment on our
 [doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
-[ci-img]: https://github.com/jaegertracing/jaeger/workflows/Unit%20Tests/badge.svg?branch=master
-[ci]: https://github.com/jaegertracing/jaeger/actions?query=branch%3Amaster
-[cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/graph/badge.svg
-[cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/
-[fossa-img]: https://github.com/jaegertracing/jaeger/workflows/FOSSA/badge.svg?branch=master
+[ci-img]: https://github.com/jaegertracing/jaeger/workflows/Unit%20Tests/badge.svg?branch=main
+[ci]: https://github.com/jaegertracing/jaeger/actions?query=branch%3Amain
+[cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/graph/badge.svg
+[cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/
+[fossa-img]: https://github.com/jaegertracing/jaeger/workflows/FOSSA/badge.svg?branch=main
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: https://uber.github.io
 [ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg

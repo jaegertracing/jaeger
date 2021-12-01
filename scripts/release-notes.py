@@ -26,7 +26,7 @@ def eprint(*args, **kwargs):
 
 def num_commits_since_prev_tag(token, base_url):
     tags_url = f"{base_url}/tags"
-    trunk = "master"
+    trunk = "main"
 
     req = Request(tags_url)
     req.add_header("Authorization", f"token {token}")

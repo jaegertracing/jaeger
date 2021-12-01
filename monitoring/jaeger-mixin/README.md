@@ -13,7 +13,7 @@ Your monitoring mixin can then be initialized as follows:
 ```console
 jb init
 jb install \
-  github.com/jaegertracing/jaeger/monitoring/jaeger-mixin@master \
+  github.com/jaegertracing/jaeger/monitoring/jaeger-mixin@main \
   github.com/grafana/jsonnet-libs/grafana-builder@master \
   github.com/coreos/kube-prometheus/jsonnet/kube-prometheus@main
 ```

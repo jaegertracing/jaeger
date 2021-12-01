@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-The Jaeger project provides community support only for last minor version: bug fixes are released either as part of the next minor version or as an on-demand patch version. Independent of which version is next, all patch versions are cumulative, meaning that they represent the state of our `master` branch at the moment of the release. For instance, if the latest version is 1.19.0, bug fixes are released either as part of 1.20.0 or 1.19.1.
+The Jaeger project provides community support only for last minor version: bug fixes are released either as part of the next minor version or as an on-demand patch version. Independent of which version is next, all patch versions are cumulative, meaning that they represent the state of our `main` branch at the moment of the release. For instance, if the latest version is 1.19.0, bug fixes are released either as part of 1.20.0 or 1.19.1.
 
 Security fixes are given priority and might be enough to cause a new version to be released.
 
