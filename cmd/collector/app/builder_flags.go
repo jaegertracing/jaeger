@@ -17,6 +17,7 @@ package app
 
 import (
 	"flag"
+	"time"
 
 	"github.com/spf13/viper"
 
@@ -36,6 +37,8 @@ const (
 	collectorZipkinAllowedOrigins        = "collector.zipkin.allowed-origins"
 	collectorZipkinHTTPHostPort          = "collector.zipkin.host-port"
 	collectorGRPCMaxReceiveMessageLength = "collector.grpc-server.max-message-size"
+	collectorMaxConnectionAge            = "collector.grpc-server.max-connection-age"
+	collectorMaxConnectionAgeGrace       = "collector.grpc-server.max-connection-age-grace"
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -72,6 +75,12 @@ type CollectorOptions struct {
 	CollectorZipkinAllowedHeaders string
 	// CollectorGRPCMaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
 	CollectorGRPCMaxReceiveMessageLength int
+	// CollectorGRPCMaxConnectionAge is a duration for the maximum amount of time a connection may exist.
+	// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
+	CollectorGRPCMaxConnectionAge time.Duration
+	// CollectorGRPCMaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
+	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
+	CollectorGRPCMaxConnectionAgeGrace time.Duration
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -86,6 +95,8 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
+	flags.Duration(collectorMaxConnectionAge, 0, "The maximum amount of time a connection may exist. Set this value to a few seconds or minutes on highly elastic environments, so that clients discover new collector nodes frequently. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
+	flags.Duration(collectorMaxConnectionAgeGrace, 0, "The additive period after MaxConnectionAge after which the connection will be forcibly closed. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
 
 	tlsGRPCFlagsConfig.AddFlags(flags)
 	tlsHTTPFlagsConfig.AddFlags(flags)
@@ -105,6 +116,8 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
 	cOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 	cOpts.CollectorGRPCMaxReceiveMessageLength = v.GetInt(collectorGRPCMaxReceiveMessageLength)
+	cOpts.CollectorGRPCMaxConnectionAge = v.GetDuration(collectorMaxConnectionAge)
+	cOpts.CollectorGRPCMaxConnectionAgeGrace = v.GetDuration(collectorMaxConnectionAgeGrace)
 
 	return cOpts
 }

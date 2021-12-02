@@ -17,10 +17,12 @@ package server
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
@@ -38,6 +40,8 @@ type GRPCServerParams struct {
 	Logger                  *zap.Logger
 	OnError                 func(error)
 	MaxReceiveMessageLength int
+	MaxConnectionAge        time.Duration
+	MaxConnectionAgeGrace   time.Duration
 }
 
 // StartGRPCServer based on the given parameters
@@ -46,6 +50,10 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
+	grpcOpts = append(grpcOpts, grpc.KeepaliveParams(keepalive.ServerParameters{
+		MaxConnectionAge:      params.MaxConnectionAge,
+		MaxConnectionAgeGrace: params.MaxConnectionAgeGrace,
+	}))
 
 	if params.TLSConfig.Enabled {
 		// user requested a server with TLS, setup creds
