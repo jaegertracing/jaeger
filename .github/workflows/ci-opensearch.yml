@@ -1,4 +1,4 @@
-name: CIT Elasticsearch
+name: CIT OpenSearch
 
 on:
   push:
@@ -8,20 +8,14 @@ on:
     branches: [main]
 
 jobs:
-  elasticsearch:
+  opensearch:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         version:
-        - major: 5.x
-          image: 5.6.16
-          distribution: elasticsearch
-        - major: 6.x
-          image: 6.8.18
-          distribution: elasticsearch
-        - major: 7.x
-          image: 7.14.0
-          distribution: elasticsearch
+        - major: 1.x
+          image: 1.0.0
+          distribution: opensearch
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v2.4.0
@@ -41,5 +35,5 @@ jobs:
 
     - uses: docker/setup-qemu-action@v1
 
-    - name: Run elasticsearch integration tests
+    - name: Run opensearch integration tests
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
