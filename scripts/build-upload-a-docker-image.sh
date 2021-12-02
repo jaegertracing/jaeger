@@ -49,7 +49,7 @@ if [[ "${local_test_only}" = "Y" ]]; then
     PUSHTAG="type=image, push=true"
 else
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P
-    if [[ "$BRANCH" == "master" || "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	    echo "build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
 	    bash scripts/docker-login.sh
 	    PUSHTAG="type=image, push=true"
