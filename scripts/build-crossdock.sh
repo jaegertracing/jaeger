@@ -8,7 +8,7 @@ COMMIT=${GITHUB_SHA::8}
 make build-and-run-crossdock
 
 # Only push images to dockerhub/quay.io for the main branch
-if [[ $BRANCH == "master" || "$BRANCH" == "main" ]]; then
+if [[ "$BRANCH" == "main" ]]; then
   echo 'upload images to dockerhub/quay.io'
   REPO=jaegertracing/test-driver
   IMAGE_TAGS=$(bash scripts/compute-tags.sh $REPO)
