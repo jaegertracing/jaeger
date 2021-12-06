@@ -101,6 +101,8 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		SamplingStore:           c.strategyStore,
 		Logger:                  c.logger,
 		MaxReceiveMessageLength: builderOpts.CollectorGRPCMaxReceiveMessageLength,
+		MaxConnectionAge:        builderOpts.CollectorGRPCMaxConnectionAge,
+		MaxConnectionAgeGrace:   builderOpts.CollectorGRPCMaxConnectionAgeGrace,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC collector %w", err)

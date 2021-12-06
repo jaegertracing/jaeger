@@ -2,9 +2,10 @@ name: CIT gRPC And Badger
 
 on:
   push:
-    branches: [ master ]
+    branches: [main]
+
   pull_request:
-    branches: [ master ]
+    branches: [main]
 
 jobs:
   grpc-and-badger:

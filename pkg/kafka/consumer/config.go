@@ -47,6 +47,7 @@ type Configuration struct {
 	GroupID         string   `mapstructure:"group_id"`
 	ClientID        string   `mapstructure:"client_id"`
 	ProtocolVersion string   `mapstructure:"protocol_version"`
+	RackID          string   `mapstructure:"rack_id"`
 }
 
 // NewConsumer creates a new kafka consumer
@@ -54,6 +55,7 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	saramaConfig := cluster.NewConfig()
 	saramaConfig.Group.Mode = cluster.ConsumerModePartitions
 	saramaConfig.ClientID = c.ClientID
+	saramaConfig.RackID = c.RackID
 	if len(c.ProtocolVersion) > 0 {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
 		if err != nil {

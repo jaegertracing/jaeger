@@ -27,6 +27,4 @@ fi
 docker rm -f $CID
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
-
-# Only push images to dockerhub/quay.io for master branch or for release tags vM.N.P
 bash scripts/build-upload-a-docker-image.sh -c example-hotrod -d examples/hotrod -p "${platforms}"

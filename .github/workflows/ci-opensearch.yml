@@ -1,4 +1,4 @@
-name: Build all-in-one
+name: CIT OpenSearch
 
 on:
   push:
@@ -8,8 +8,15 @@ on:
     branches: [main]
 
 jobs:
-  all-in-one:
+  opensearch:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version:
+        - major: 1.x
+          image: 1.0.0
+          distribution: opensearch
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v2.4.0
       with:
@@ -23,20 +30,10 @@ jobs:
       with:
         go-version: ^1.17
 
-    - uses: actions/setup-node@v2.5.0
-      with:
-        node-version: '10'
-
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
-
     - name: Install tools
       run: make install-ci
-    
+
     - uses: docker/setup-qemu-action@v1
 
-    - name: Build, test, and publish all-in-one image
-      run: bash scripts/build-all-in-one-image.sh
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+    - name: Run opensearch integration tests
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
