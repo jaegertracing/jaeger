@@ -19,6 +19,8 @@ jobs:
           task: build-binaries-windows
         - name: osx
           task: build-binaries-darwin
+        - name: osx-m1
+          task: build-binaries-darwin-arm64
         - name: system/390
           task: build-binaries-s390x
         - name: arm
