@@ -44,13 +44,13 @@ require (
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/xdg-go/scram v1.0.2
-	go.opentelemetry.io/collector/model v0.39.0
+	go.opentelemetry.io/collector/model v0.40.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.19.1
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
 	golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf
-	google.golang.org/grpc v1.41.0
+	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.4.0
 )
