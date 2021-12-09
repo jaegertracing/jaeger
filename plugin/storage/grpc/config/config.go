@@ -65,10 +65,7 @@ func (c *Configuration) Build(logger *zap.Logger) (*ClientPluginServices, error)
 }
 
 func (c *Configuration) Close() error {
-	if c.PluginBinary == "" {
-		return c.RemoteTLS.Close()
-	}
-	return nil
+	return c.RemoteTLS.Close()
 }
 
 func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, error) {

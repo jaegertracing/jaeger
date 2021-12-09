@@ -34,8 +34,6 @@ import (
 	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const defaultPluginBinaryPath = "../../../examples/memstore-plugin/memstore-plugin"
@@ -138,31 +136,6 @@ func (s *GRPCStorageIntegrationTestSuite) refresh() error {
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
 	return s.initialize()
-}
-
-type memoryStorePlugin struct {
-	store        *memory.Store
-	archiveStore *memory.Store
-}
-
-func (ns *memoryStorePlugin) DependencyReader() dependencystore.Reader {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) SpanReader() spanstore.Reader {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) SpanWriter() spanstore.Writer {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) ArchiveSpanReader() spanstore.Reader {
-	return ns.archiveStore
-}
-
-func (ns *memoryStorePlugin) ArchiveSpanWriter() spanstore.Writer {
-	return ns.archiveStore
 }
 
 func TestGRPCStorage(t *testing.T) {

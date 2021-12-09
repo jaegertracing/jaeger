@@ -17,6 +17,7 @@ package grpc
 import (
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -41,6 +42,8 @@ type Factory struct {
 	archiveStore shared.ArchiveStoragePlugin
 	capabilities shared.PluginCapabilities
 }
+
+var _ io.Closer = (*Factory)(nil)
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
