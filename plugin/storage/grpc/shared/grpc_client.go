@@ -20,6 +20,7 @@ import (
 	"io"
 	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -51,6 +52,17 @@ type grpcClient struct {
 	archiveWriterClient storage_v1.ArchiveSpanWriterPluginClient
 	capabilitiesClient  storage_v1.PluginCapabilitiesClient
 	depsReaderClient    storage_v1.DependenciesReaderPluginClient
+}
+
+func NewGRPCClient(c *grpc.ClientConn) *grpcClient {
+	return &grpcClient{
+		readerClient:        storage_v1.NewSpanReaderPluginClient(c),
+		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
+		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
+		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
+		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
+		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
+	}
 }
 
 // ContextUpgradeFunc is a functional type that can be composed to upgrade context

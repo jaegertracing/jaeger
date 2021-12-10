@@ -17,6 +17,7 @@ package grpc
 import (
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -41,6 +42,8 @@ type Factory struct {
 	archiveStore shared.ArchiveStoragePlugin
 	capabilities shared.PluginCapabilities
 }
+
+var _ io.Closer = (*Factory)(nil)
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
@@ -68,7 +71,7 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	services, err := f.builder.Build()
+	services, err := f.builder.Build(logger)
 	if err != nil {
 		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
 	}
@@ -123,4 +126,9 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
 	return f.archiveStore.ArchiveSpanWriter(), nil
+}
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	return f.builder.Close()
 }
