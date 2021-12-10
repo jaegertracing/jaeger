@@ -258,6 +258,7 @@ func TestWithConfiguration(t *testing.T) {
 	assert.Equal(t, f.options.Configuration.PluginBinary, "noop-grpc-plugin")
 	assert.Equal(t, f.options.Configuration.PluginConfigurationFile, "config.json")
 	assert.Equal(t, f.options.Configuration.PluginLogLevel, "debug")
+	assert.NoError(t, f.Close())
 }
 
 func TestInitFromOptions(t *testing.T) {
