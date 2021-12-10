@@ -4,7 +4,30 @@ Changes by Version
 next release
 -------------------
 ### Backend Changes
+#### Breaking Changes
+
 #### New Features
+
+1.29.0 (2021-12-01)
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
+* Remove deprecated `--badger.truncate` CLI flag ([@yurishkuro](https://github.com/yurishkuro) in [#3410](https://github.com/jaegertracing/jaeger/pull/3410))
+
+#### New Features
+
+* Expose rackID option in ingester ([@shyimo](https://github.com/shyimo) in [#3395](https://github.com/jaegertracing/jaeger/pull/3395))
+
+#### Bug fixes, Minor Improvements
+
+* Fix debug image builds by installing `build-base` to enable GCC ([@yurishkuro](https://github.com/yurishkuro) in [#3400](https://github.com/jaegertracing/jaeger/pull/3400))
+* Limit URL size in Elasticsearch index delete request ([@jkandasa](https://github.com/jkandasa) in [#3375](https://github.com/jaegertracing/jaeger/pull/3375))
+
+### UI Changes
+
+* UI pinned to version 1.19.0. The changelog is available here [v1.19.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1190-dec-1-2021)
 
 1.28.0 (2021-11-06)
 -------------------
@@ -31,7 +54,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version 1.18.0. The changelog is available here [v1.18.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1180-nov-6-2021)
+* UI pinned to version 1.18.0. The changelog is available here [v1.18.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1180-nov-6-2021)
 
 
 1.27.0 (2021-10-06)
@@ -56,7 +79,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version 1.17.0. The changelog is available here [v1.17.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1170-oct-6-2021)
+* UI pinned to version 1.17.0. The changelog is available here [v1.17.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1170-oct-6-2021)
 
 
 1.26.0 (2021-09-06)
@@ -232,7 +255,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version 1.13.0. The changelog is available here [v1.13.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1130-february-20-2021)
+* UI pinned to version 1.13.0. The changelog is available here [v1.13.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1130-february-20-2021)
 
 
 1.21.0 (2020-11-13)
@@ -273,7 +296,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version 1.12.0. The changelog is available here [v1.12.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1120-november-14-2020)
+* UI pinned to version 1.12.0. The changelog is available here [v1.12.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1120-november-14-2020)
 
 
 1.20.0 (2020-09-29)
@@ -340,7 +363,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version 1.11.0. The changelog is available here [v1.11.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1110-september-28-2020)
+* UI pinned to version 1.11.0. The changelog is available here [v1.11.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1110-september-28-2020)
 
 1.19.2 (2020-08-26)
 -------------------
@@ -395,7 +418,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 
 ### UI Changes
 
-* UI pinned to version 1.10.0. The changelog is available here [v1.10.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v1100-august-25-2020)
+* UI pinned to version 1.10.0. The changelog is available here [v1.10.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1100-august-25-2020)
 
 1.18.1 (2020-06-19)
 ------------------
@@ -498,7 +521,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 
 ### UI Changes
 
-* UI pinned to version 1.9.0. The changelog is available here [v1.9.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v190-may-14-2020)
+* UI pinned to version 1.9.0. The changelog is available here [v1.9.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v190-may-14-2020)
 
 1.17.1 (2020-03-13)
 ------------------
@@ -514,7 +537,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 
 ### UI Changes
 
-* UI pinned to version 1.8.0. The changelog is available here [v1.8.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v180-march-12-2020)
+* UI pinned to version 1.8.0. The changelog is available here [v1.8.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v180-march-12-2020)
 
 1.17.0 (2020-02-24)
 ------------------
@@ -556,7 +579,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 
 ### UI Changes
 
-* UI pinned to version 1.7.0. The changelog is available here [v1.7.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v170-february-21-2020)
+* UI pinned to version 1.7.0. The changelog is available here [v1.7.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v170-february-21-2020)
 
 1.16.0 (2019-12-17)
 ------------------
@@ -668,7 +691,7 @@ running curator would immediately remove the old index.
 
 ### UI Changes
 
-* UI pinned to version 1.6.0. The changelog is available here [v1.6.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v160-december-16-2019)
+* UI pinned to version 1.6.0. The changelog is available here [v1.6.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v160-december-16-2019)
 
 1.15.1 (2019-11-07)
 ------------------
@@ -715,7 +738,7 @@ running curator would immediately remove the old index.
 
 #### UI Changes
 
-* UI pinned to version 1.5.0. The changelog is available here [v1.5.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v150-november-4-2019)
+* UI pinned to version 1.5.0. The changelog is available here [v1.5.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v150-november-4-2019)
 
 1.14.0 (2019-09-02)
 ------------------
@@ -774,7 +797,7 @@ running curator would immediately remove the old index.
 
 #### UI Changes
 
-* UI pinned to version 1.4.0. The changelog is available here [v1.4.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v130-june-21-2019)
+* UI pinned to version 1.4.0. The changelog is available here [v1.4.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v130-june-21-2019)
 
 1.13.1 (2019-06-28)
 ------------------
@@ -835,7 +858,7 @@ running curator would immediately remove the old index.
 
 #### UI Changes
 
-* UI pinned to version 1.3.0. The changelog is available here [v1.3.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v130-june-21-2019)
+* UI pinned to version 1.3.0. The changelog is available here [v1.3.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v130-june-21-2019)
 
 1.12.0 (2019-05-16)
 ------------------
@@ -904,7 +927,7 @@ running curator would immediately remove the old index.
 
 #### UI Changes
 
-* UI pinned to version 1.2.0. The changelog is available here [v1.2.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v120-may-14-2019)
+* UI pinned to version 1.2.0. The changelog is available here [v1.2.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v120-may-14-2019)
 
 1.11.0 (2019-03-07)
 ------------------
@@ -949,7 +972,7 @@ running curator would immediately remove the old index.
 
 #### UI Changes
 
-* UI pinned to version 1.1.0. The changelog is available here [v1.1.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v110-march-3-2019)
+* UI pinned to version 1.1.0. The changelog is available here [v1.1.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v110-march-3-2019)
 
 
 1.10.1 (2019-02-21)
@@ -1112,7 +1135,7 @@ jaeger_http_server_errors{source="collector-proxy",status="5xx"}
 
 #### UI Changes
 
-* UI pinned to version 1.0.0. The changelog is available here [v1.0.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v100-january-18-2019)
+* UI pinned to version 1.0.0. The changelog is available here [v1.0.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v100-january-18-2019)
 
 1.8.2 (2018-11-28)
 ------------------

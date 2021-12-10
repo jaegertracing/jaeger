@@ -117,7 +117,7 @@ e.g. a min step of 1 means the backend can only return data points that are at l
 
 ## Responses
 
-The response data model is based on [`MetricsFamily`](https://github.com/jaegertracing/jaeger/blob/master/model/proto/metrics/openmetrics.proto#L53).
+The response data model is based on [`MetricsFamily`](https://github.com/jaegertracing/jaeger/blob/main/model/proto/metrics/openmetrics.proto#L53).
 
 For example:
 ```

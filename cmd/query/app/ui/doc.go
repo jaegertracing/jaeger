@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package ui installs UI assets packaged with github.com/rakyll/statik.
+// Package ui bundles UI assets packaged with stdlib/embed.
 // By default it imports the placeholder, non-functional index.html.
-// When building with "ui" build tag, it imports the real UI assets
-// generated in build_ui Makefile target.
+// When building with "-tags ui", it imports the real UI assets
+// generated in build-ui Makefile target.
 package ui
