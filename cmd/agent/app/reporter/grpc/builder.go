@@ -88,7 +88,6 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			}
 			r.InitialState(resolver.State{Addresses: resolvedAddrs})
 			dialTarget = r.Scheme() + ":///round_robin"
-			fmt.Println(dialTarget)
 			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 		} else {
 			dialTarget = b.CollectorHostPorts[0]
