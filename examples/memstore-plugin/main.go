@@ -27,10 +27,9 @@ import (
 	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -71,10 +70,7 @@ func main() {
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracer)
 
-	memStorePlugin := &memoryStorePlugin{
-		store:        memory.NewStore(),
-		archiveStore: memory.NewStore(),
-	}
+	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
 	grpc.ServeWithGRPCServer(&shared.PluginServices{
 		Store:        memStorePlugin,
 		ArchiveStore: memStorePlugin,
@@ -84,29 +80,4 @@ func main() {
 			googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
 		})
 	})
-}
-
-type memoryStorePlugin struct {
-	store        *memory.Store
-	archiveStore *memory.Store
-}
-
-func (ns *memoryStorePlugin) DependencyReader() dependencystore.Reader {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) SpanReader() spanstore.Reader {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) SpanWriter() spanstore.Writer {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) ArchiveSpanReader() spanstore.Reader {
-	return ns.archiveStore
-}
-
-func (ns *memoryStorePlugin) ArchiveSpanWriter() spanstore.Writer {
-	return ns.archiveStore
 }
