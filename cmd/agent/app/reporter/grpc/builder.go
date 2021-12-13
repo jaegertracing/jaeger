@@ -80,7 +80,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
 		}
 		if len(b.CollectorHostPorts) > 1 {
-			r := manual.NewBuilderWithScheme("jaeger_manual")
+			r := manual.NewBuilderWithScheme("jaeger-manual")
 			dialOptions = append(dialOptions, grpc.WithResolvers(r))
 			var resolvedAddrs []resolver.Address
 			for _, addr := range b.CollectorHostPorts {
@@ -88,6 +88,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			}
 			r.InitialState(resolver.State{Addresses: resolvedAddrs})
 			dialTarget = r.Scheme() + ":///round_robin"
+			fmt.Println(dialTarget)
 			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 		} else {
 			dialTarget = b.CollectorHostPorts[0]
