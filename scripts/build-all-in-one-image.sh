@@ -22,8 +22,7 @@ make build-ui
 
 run_integration_test() {
   CID=$(docker run -d -p 16686:16686 -p 5778:5778 $1:latest)
-  make all-in-one-integration-test
-  if [ $? -ne 0 ] ; then
+  if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"
       echo "--- check the docker log below for details ---"
       docker logs $CID
