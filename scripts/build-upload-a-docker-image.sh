@@ -10,6 +10,7 @@ platforms="linux/amd64"
 name_space="jaegertracing"
 
 while getopts "lbc:d:f:p:t:" opt; do
+	# shellcheck disable=SC2220 # we don't need a *) case
 	case "${opt}" in
 	c)
 		component_name=${OPTARG}
@@ -35,7 +36,7 @@ while getopts "lbc:d:f:p:t:" opt; do
 	esac
 done
 
-if [ ! -z ${target_arg} ]; then
+if [ -n "${target_arg}" ]; then
     target_arg="--target ${target_arg}"
 fi
 

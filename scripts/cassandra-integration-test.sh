@@ -41,7 +41,7 @@ apply_schema() {
     --rm
     --env CQLSH_HOST=localhost
     --env CQLSH_PORT=9042
-    --env TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl
+    --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
     --network host
   )
   docker build -t ${image} ${schema_dir}
