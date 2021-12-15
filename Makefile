@@ -309,7 +309,6 @@ docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg 
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
-			--load \
 			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
