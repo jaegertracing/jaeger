@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
@@ -49,7 +50,7 @@ func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router,
 		creds := credentials.NewTLS(tlsCfg)
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 	} else {
-		dialOpts = append(dialOpts, grpc.WithInsecure())
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 	return api_v3.RegisterQueryServiceHandlerFromEndpoint(ctx, grpcGatewayMux, grpcEndpoint, dialOpts)
 }
