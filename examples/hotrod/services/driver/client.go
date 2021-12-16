@@ -23,6 +23,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )
@@ -36,7 +37,7 @@ type Client struct {
 
 // NewClient creates a new driver.Client
 func NewClient(tracer opentracing.Tracer, logger log.Factory, hostPort string) *Client {
-	conn, err := grpc.Dial(hostPort, grpc.WithInsecure(),
+	conn, err := grpc.Dial(hostPort, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(
 			otgrpc.OpenTracingClientInterceptor(tracer)),
 		grpc.WithStreamInterceptor(
