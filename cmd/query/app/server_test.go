@@ -32,6 +32,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -430,7 +431,7 @@ func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.Transport
 	if creds != nil {
 		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(creds))
 	} else {
-		conn, err = grpc.DialContext(ctx, addr, grpc.WithInsecure())
+		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	require.NoError(t, err)
