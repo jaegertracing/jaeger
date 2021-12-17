@@ -104,7 +104,7 @@ func TestClientGetIndices(t *testing.T) {
 		},
 		{
 			name:         "no error with prefix",
-			prefix:       "foo",
+			prefix:       "foo-",
 			responseCode: http.StatusOK,
 			response:     esIndexResponse,
 			indices: []Index{
@@ -144,13 +144,9 @@ func TestClientGetIndices(t *testing.T) {
 				res.WriteHeader(test.responseCode)
 
 				response := test.response
-				// Formatted string only applies to "success" response bodies.
 				if test.errContains == "" {
-					var prefix string
-					if test.prefix != "" {
-						prefix = test.prefix + "-"
-					}
-					response = fmt.Sprintf(test.response, prefix, prefix, prefix)
+					// Formatted string only applies to "success" response bodies.
+					response = fmt.Sprintf(test.response, test.prefix, test.prefix, test.prefix)
 				}
 				res.Write([]byte(response))
 			}))

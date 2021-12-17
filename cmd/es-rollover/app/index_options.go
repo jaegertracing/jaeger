@@ -56,7 +56,7 @@ func RolloverIndices(archive bool, prefix string) []IndexOption {
 }
 
 func (i *IndexOption) IndexName() string {
-	return strings.TrimLeft(fmt.Sprintf("%s-%s", i.prefix, i.indexType), "-")
+	return strings.TrimLeft(fmt.Sprintf("%s%s", i.prefix, i.indexType), "-")
 }
 
 // ReadAliasName returns read alias name of the index
@@ -76,5 +76,5 @@ func (i *IndexOption) InitialRolloverIndex() string {
 
 // TemplateName returns the prefixed template name
 func (i *IndexOption) TemplateName() string {
-	return strings.TrimLeft(fmt.Sprintf("%s-%s", i.prefix, i.Mapping), "-")
+	return strings.TrimLeft(fmt.Sprintf("%s%s", i.prefix, i.Mapping), "-")
 }
