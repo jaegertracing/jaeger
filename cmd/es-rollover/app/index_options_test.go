@@ -105,6 +105,9 @@ func TestRolloverIndices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.prefix != "" {
+				test.prefix += "-"
+			}
 			result := RolloverIndices(test.archive, test.prefix)
 			for i, r := range result {
 				assert.Equal(t, test.expected[i].templateName, r.TemplateName())

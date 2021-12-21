@@ -30,7 +30,7 @@ import (
 
 const esIndexResponse = `
 {
-  "jaeger-service-2021-08-06" : {
+  "%sjaeger-service-2021-08-06" : {
     "aliases" : { },
     "settings" : {
       "index.creation_date" : "1628259381266",
@@ -44,7 +44,7 @@ const esIndexResponse = `
       "index.version.created" : "5061099"
     }
   },
-  "jaeger-span-2021-08-06" : {
+  "%sjaeger-span-2021-08-06" : {
     "aliases" : { },
     "settings" : {
       "index.creation_date" : "1628259381326",
@@ -58,7 +58,7 @@ const esIndexResponse = `
       "index.version.created" : "5061099"
     }
   },
- "jaeger-span-000001" : {
+ "%sjaeger-span-000001" : {
     "aliases" : {
       "jaeger-span-read" : { },
       "jaeger-span-write" : { }
@@ -74,6 +74,7 @@ const esErrResponse = `{"error":{"root_cause":[{"type":"illegal_argument_excepti
 func TestClientGetIndices(t *testing.T) {
 	tests := []struct {
 		name         string
+		prefix       string
 		responseCode int
 		response     string
 		errContains  string
@@ -102,6 +103,29 @@ func TestClientGetIndices(t *testing.T) {
 			},
 		},
 		{
+			name:         "no error with prefix",
+			prefix:       "foo-",
+			responseCode: http.StatusOK,
+			response:     esIndexResponse,
+			indices: []Index{
+				{
+					Index:        "foo-jaeger-service-2021-08-06",
+					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381266),
+					Aliases:      map[string]bool{},
+				},
+				{
+					Index:        "foo-jaeger-span-000001",
+					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
+					Aliases:      map[string]bool{"jaeger-span-read": true, "jaeger-span-write": true},
+				},
+				{
+					Index:        "foo-jaeger-span-2021-08-06",
+					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
+					Aliases:      map[string]bool{},
+				},
+			},
+		},
+		{
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
@@ -118,7 +142,13 @@ func TestClientGetIndices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
+
+				response := test.response
+				if test.errContains == "" {
+					// Formatted string only applies to "success" response bodies.
+					response = fmt.Sprintf(test.response, test.prefix, test.prefix, test.prefix)
+				}
+				res.Write([]byte(response))
 			}))
 			defer testServer.Close()
 
@@ -129,7 +159,7 @@ func TestClientGetIndices(t *testing.T) {
 				},
 			}
 
-			indices, err := c.GetJaegerIndices("")
+			indices, err := c.GetJaegerIndices(test.prefix)
 			if test.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errContains)
