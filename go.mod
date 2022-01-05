@@ -47,7 +47,7 @@ require (
 	go.opentelemetry.io/collector/model v0.41.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
-	go.uber.org/zap v1.19.1
+	go.uber.org/zap v1.20.0
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
 	golang.org/x/sys v0.0.0-20211210111614-af8b64212486
 	google.golang.org/grpc v1.43.0
@@ -61,6 +61,7 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
+	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
