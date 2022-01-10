@@ -2,7 +2,6 @@
 
 [![Slack chat][slack-img]](#get-in-touch)
 [![Project+Community stats][community-badge]][community-stats]
-[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge-flat.svg)](https://github.com/avelino/awesome-go#performance)
 [![Unit Tests][ci-img]][ci]
 [![Coverage Status][cov-img]][cov]
 [![FOSSA Status][fossa-img]][ci]
