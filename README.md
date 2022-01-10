@@ -85,8 +85,7 @@ Third-party security audits of Jaeger are available in https://github.com/jaeger
 
 ### Backwards compatibility with Zipkin
 
-Although we recommend instrumenting applications with OpenTelemetry to benefit
-from advanced features not available elsewhere, if your organization has already invested in the instrumentation
+Although we recommend instrumenting applications with OpenTelemetry, if your organization has already invested in the instrumentation
 using Zipkin libraries, you do not have to rewrite all that code. Jaeger provides backwards compatibility with Zipkin
 by accepting spans in Zipkin formats (Thrift or JSON v1/v2) over HTTP. Switching from Zipkin backend is just a matter
 of routing the traffic from Zipkin libraries to the Jaeger backend.
