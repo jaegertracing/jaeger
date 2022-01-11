@@ -4,9 +4,33 @@ Changes by Version
 next release
 -------------------
 ### Backend Changes
+
 #### Breaking Changes
 
+### UI Changes
+
 #### New Features
+
+#### Bug fixes, Minor Improvements
+
+1.30.0 (2022-01-11)
+-------------------
+### Backend Changes
+
+#### New Features
+
+* Add remote gRPC option for storage plugin ([@cevian](https://github.com/cevian) in [#3383](https://github.com/jaegertracing/jaeger/pull/3383))
+* Build binaries for darwin/arm64 ([@jhchabran](https://github.com/jhchabran) in [#3431](https://github.com/jaegertracing/jaeger/pull/3431))
+* Add MaxConnectionAge[Grace] to collector's gRPC server ([@jpkrohling](https://github.com/jpkrohling) in [#3422](https://github.com/jaegertracing/jaeger/pull/3422))
+
+#### Bug fixes, Minor Improvements
+
+* Fix prefixed index rollover ([@albertteoh](https://github.com/albertteoh) in [#3457](https://github.com/jaegertracing/jaeger/pull/3457))
+* Log problems communicating with Elasticsearch ([@esnible](https://github.com/esnible) in [#3451](https://github.com/jaegertracing/jaeger/pull/3451))
+
+### UI Changes
+
+* UI pinned to version 1.20.0. The changelog is available here [v1.20.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1200-jan-11-2022)
 
 1.29.0 (2021-12-01)
 -------------------
