@@ -36,12 +36,11 @@ In order to ensure that knowledge about releasing Jaeger is spread among maintai
 
 Here are the release managers for future versions with the tentative release dates. The release dates are the first Wednesday of the month, and we might skip a release if not enough changes happened since the previous release. In such case, the next tentative release date is the first Wednesday of the subsequent month.
 
-| Version   | Release Manager  | Tentative release date |
-|-----------|------------------|------------------------|
-| 1.29.0    | @jpkrohling      |  1 December  2021      |
-| 1.30.0    | @pavolloffay     |  5 January   2022      |
-| 1.31.0    | @vprithvi        |  2 February  2022      |
-| 1.32.0    | @yurishkuro      |  2 March     2022      |
-| 1.33.0    | @jpkrohling      |  6 April     2022      |
-| 1.34.0    | @albertteoh      |  4 May       2022      |
-| 1.35.0    | @joe-elliott     |  1 June      2022      |
+| Version | Release Manager  | Tentative release date |
+|---------|------------------|------------------------|
+| 1.31.0  | @vprithvi        | 2 February  2022       |
+| 1.32.0  | @yurishkuro      | 2 March     2022       |
+| 1.33.0  | @jpkrohling      | 6 April     2022       |
+| 1.34.0  | @albertteoh      | 4 May       2022       |
+| 1.35.0  | @joe-elliott     | 1 June      2022       |
+| 1.36.0  | @pavolloffay     | 6 July      2022       |
