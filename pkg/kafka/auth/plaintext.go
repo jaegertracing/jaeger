@@ -15,10 +15,7 @@
 package auth
 
 import (
-	"crypto/sha256"
-	"crypto/sha512"
 	"fmt"
-	"hash"
 	"strings"
 
 	"github.com/Shopify/sarama"
@@ -72,12 +69,12 @@ func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Con
 	switch strings.ToUpper(config.Mechanism) {
 	case "SCRAM-SHA-256":
 		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-			return &scramClient{HashGeneratorFcn: func() hash.Hash { return sha256.New() }}
+			return &scramClient{HashGeneratorFcn: scram.SHA256}
 		}
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
 	case "SCRAM-SHA-512":
 		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-			return &scramClient{HashGeneratorFcn: func() hash.Hash { return sha512.New() }}
+			return &scramClient{HashGeneratorFcn: scram.SHA512}
 		}
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
 	case "PLAIN":
