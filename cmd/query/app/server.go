@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/stats"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -58,6 +59,10 @@ type Server struct {
 	separatePorts      bool
 	unavailableChannel chan healthcheck.Status
 	grpcGatewayCancel  context.CancelFunc
+}
+
+type jaegerQueryConnLogger struct {
+	logger *zap.Logger
 }
 
 // NewServer creates and initializes Server
@@ -107,6 +112,11 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
+	statsHandler := jaegerQueryConnLogger{
+		logger: logger,
+	}
+	grpcOpts = append(grpcOpts,
+		grpc.StatsHandler(&statsHandler))
 	if options.TLSGRPC.Enabled {
 		tlsCfg, err := options.TLSGRPC.Config(logger)
 		if err != nil {
@@ -314,4 +324,19 @@ func (s *Server) Close() error {
 		s.conn.Close()
 	}
 	return nil
+}
+
+func (*jaegerQueryConnLogger) TagRPC(ctx context.Context, rti *stats.RPCTagInfo) context.Context {
+	return ctx
+}
+
+func (*jaegerQueryConnLogger) HandleRPC(ctx context.Context, stats stats.RPCStats) {
+}
+
+func (qcl *jaegerQueryConnLogger) TagConn(ctx context.Context, cti *stats.ConnTagInfo) context.Context {
+	qcl.logger.Debug("Connection Request", zap.String("remote", cti.RemoteAddr.String()))
+	return ctx
+}
+
+func (*jaegerQueryConnLogger) HandleConn(ctx context.Context, cs stats.ConnStats) {
 }
