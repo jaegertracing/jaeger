@@ -181,12 +181,17 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	localFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "sarama-consumer.current-offset",
 		Tags:  partitionTag,
-		Value: 1,
+		Value: int(msgOffset),
 	})
 	localFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "sarama-consumer.offset-lag",
-		Tags:  partitionTag,
-		Value: 0,
+		Name: "sarama-consumer.offset-lag",
+		Tags: partitionTag,
+		// Prior to sarama v1.31.0 this would be 0, it's unclear why this changed.
+		// v=1 seems to be correct because high watermark in mock is incremented upon
+		// consuming the message, and func HighWaterMarkOffset() returns internal value
+		// (already incremented) + 1, so the difference is always 2, and we then
+		// subtract 1 from it.
+		Value: 1,
 	})
 	localFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
 		Name:  "sarama-consumer.partition-start",
