@@ -240,13 +240,15 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
-		if err == nil && tracesMatch(t, traces, expected) {
-			return true
+		require.NoError(t, err)
+		if len(expected) != len(traces) {
+			t.Logf("FindTraces: expected: %d, actual: %d", len(expected), len(traces))
+			return false
 		}
-		t.Logf("FindTraces: expected: %d, actual: %d, match: false", len(expected), len(traces))
-		return false
+		return true
 	})
 	require.True(t, found)
+	tracesMatch(t, traces, expected)
 	return traces
 }
 
