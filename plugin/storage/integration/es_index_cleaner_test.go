@@ -91,7 +91,7 @@ func TestIndexCleaner(t *testing.T) {
 			envVars: []string{},
 			expectedIndices: []string{
 				archiveIndexName,
-				"jaeger-span-000001", "jaeger-service-000001", "jaeger-span-000002", "jaeger-service-000002",
+				"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000001", "jaeger-span-archive-000002",
 			},
 		},
@@ -100,7 +100,7 @@ func TestIndexCleaner(t *testing.T) {
 			envVars: []string{"ROLLOVER=true"},
 			expectedIndices: []string{
 				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName,
-				"jaeger-span-000002", "jaeger-service-000002",
+				"jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000001", "jaeger-span-archive-000002",
 			},
 		},
@@ -109,7 +109,7 @@ func TestIndexCleaner(t *testing.T) {
 			envVars: []string{"ARCHIVE=true"},
 			expectedIndices: []string{
 				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName,
-				"jaeger-span-000001", "jaeger-service-000001", "jaeger-span-000002", "jaeger-service-000002",
+				"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000002",
 			},
 		},
