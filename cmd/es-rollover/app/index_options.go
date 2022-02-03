@@ -52,6 +52,11 @@ func RolloverIndices(archive bool, prefix string) []IndexOption {
 			Mapping:   "jaeger-service",
 			indexType: "jaeger-service",
 		},
+		{
+			prefix:    prefix,
+			Mapping:   "jaeger-dependencies",
+			indexType: "jaeger-dependencies",
+		},
 	}
 }
 
