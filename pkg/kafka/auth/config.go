@@ -68,11 +68,7 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		setKerberosConfiguration(&config.Kerberos, saramaConfig)
 		return nil
 	case plaintext:
-		err := setPlainTextConfiguration(&config.PlainText, saramaConfig)
-		if err != nil {
-			return err
-		}
-		return nil
+		return setPlainTextConfiguration(&config.PlainText, saramaConfig)
 	default:
 		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
 	}

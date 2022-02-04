@@ -18,9 +18,9 @@ The following diagram illustrates the relationship between these components:
 # Getting Started
 
 ## Bring up/down the dev environment
-```
-docker compose up
-docker compose down
+```bash
+docker-compose up
+docker-compose down
 ```
 
 ## Example 1
@@ -117,7 +117,7 @@ e.g. a min step of 1 means the backend can only return data points that are at l
 
 ## Responses
 
-The response data model is based on [`MetricsFamily`](https://github.com/jaegertracing/jaeger/blob/master/model/proto/metrics/openmetrics.proto#L53).
+The response data model is based on [`MetricsFamily`](https://github.com/jaegertracing/jaeger/blob/main/model/proto/metrics/openmetrics.proto#L53).
 
 For example:
 ```

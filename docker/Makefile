@@ -1,12 +1,12 @@
 VERSION := 1.0.0
 ROOT_IMAGE ?= alpine:3.14
 CERT_IMAGE := $(ROOT_IMAGE)
-# TODO: Change back to golang:1.17-alpine once https://github.com/docker-library/golang/issues/383 is resolved.
-GOLANG_IMAGE := golang:1.17-alpine3.14
+GOLANG_IMAGE := golang:1.17-alpine
 
-BASE_IMAGE := localhost:5000/baseimg_alpine:latest
-DEBUG_IMAGE := localhost:5000/debugimg_alpine:latest
-PLATFORMS := linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
+DOCKER_REGISTRY ?= localhost:5000
+BASE_IMAGE ?= $(DOCKER_REGISTRY)/baseimg_alpine:latest
+DEBUG_IMAGE ?= $(DOCKER_REGISTRY)/debugimg_alpine:latest
+PLATFORMS ?= linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
 
 create-baseimg-debugimg: create-baseimg create-debugimg
 

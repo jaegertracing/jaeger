@@ -8,7 +8,7 @@ BASE_BUILD_IMAGE=$1
 BRANCH=${BRANCH:?'expecting BRANCH env var'}
 
 ## if we are on a release tag, let's extract the version number
-## the other possible value, currently, is 'master' (or another branch name)
+## the other possible value, currently, is 'main' (or another branch name)
 if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     MAJOR_MINOR_PATCH=$(echo ${BRANCH} | grep -Po "([\d\.]+)")
     MAJOR_MINOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1"."$2}')

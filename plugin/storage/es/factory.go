@@ -109,9 +109,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix(),
-		f.primaryConfig.GetIndexDateLayoutDependencies(), f.primaryConfig.GetMaxDocCount())
-	return reader, nil
+	return createDependencyReader(f.logger, f.primaryClient, f.primaryConfig)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -208,6 +206,22 @@ func createSpanWriter(
 		}
 	}
 	return writer, nil
+}
+
+func createDependencyReader(
+	logger *zap.Logger,
+	client es.Client,
+	cfg config.ClientBuilder,
+) (dependencystore.Reader, error) {
+
+	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
+		Client:              client,
+		Logger:              logger,
+		IndexPrefix:         cfg.GetIndexPrefix(),
+		MaxDocCount:         cfg.GetMaxDocCount(),
+		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+	})
+	return reader, nil
 }
 
 var _ io.Closer = (*Factory)(nil)

@@ -42,7 +42,7 @@ type mockPluginBuilder struct {
 	err    error
 }
 
-func (b *mockPluginBuilder) Build() (*grpcConfig.ClientPluginServices, error) {
+func (b *mockPluginBuilder) Build(logger *zap.Logger) (*grpcConfig.ClientPluginServices, error) {
 	if b.err != nil {
 		return nil, b.err
 	}
@@ -58,6 +58,10 @@ func (b *mockPluginBuilder) Build() (*grpcConfig.ClientPluginServices, error) {
 	}
 
 	return services, nil
+}
+
+func (b *mockPluginBuilder) Close() error {
+	return nil
 }
 
 type mockPlugin struct {
@@ -254,6 +258,7 @@ func TestWithConfiguration(t *testing.T) {
 	assert.Equal(t, f.options.Configuration.PluginBinary, "noop-grpc-plugin")
 	assert.Equal(t, f.options.Configuration.PluginConfigurationFile, "config.json")
 	assert.Equal(t, f.options.Configuration.PluginLogLevel, "debug")
+	assert.NoError(t, f.Close())
 }
 
 func TestInitFromOptions(t *testing.T) {

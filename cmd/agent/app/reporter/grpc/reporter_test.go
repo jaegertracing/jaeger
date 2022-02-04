@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -55,7 +56,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer s.Stop()
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	//nolint:staticcheck // don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
@@ -93,7 +94,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer s.Stop()
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	//nolint:staticcheck // don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
@@ -120,7 +121,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 }
 
 func TestReporter_SendFailure(t *testing.T) {
-	conn, err := grpc.Dial("", grpc.WithInsecure())
+	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	rep := NewReporter(conn, nil, zap.NewNop())
 	err = rep.send(context.Background(), nil, nil)

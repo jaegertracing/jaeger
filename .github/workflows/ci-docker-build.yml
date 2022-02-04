@@ -2,9 +2,10 @@ name: Build docker images
 
 on:
   push:
-    branches: [ master ]
+    branches: [main]
+
   pull_request:
-    branches: [ master ]
+    branches: [main]
 
 jobs:
   docker-images:
@@ -23,7 +24,7 @@ jobs:
       with:
         go-version: ^1.17
 
-    - uses: actions/setup-node@v2.4.1
+    - uses: actions/setup-node@v2.5.1
       with:
         node-version: '10'
 

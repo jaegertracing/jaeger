@@ -8,7 +8,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
-				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
@@ -194,22 +193,20 @@ docker-hotrod:
 run-all-in-one: build-ui
 	go run -tags ui ./cmd/all-in-one --log-level debug
 
-.PHONY: build-ui
-build-ui: cmd/query/app/ui/actual/gen_assets.go
-	# UI packaged assets are up-to-date. To force a rebuild, run `make clean`.
+build-ui: cmd/query/app/ui/actual/index.html.gz
+
+cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html
+	rm -rf cmd/query/app/ui/actual
+	mkdir cmd/query/app/ui/actual
+	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
+	find cmd/query/app/ui/actual -type f | xargs gzip
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
-	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+	$(MAKE) rebuild-ui
 
-cmd/query/app/ui/actual/gen_assets.go: jaeger-ui/packages/jaeger-ui/build/index.html
-	@if ! command -v esc > /dev/null 2>&1 ; then \
-		echo "esc: Command not found" ; \
-		echo "Check:" ; \
-		echo "- esc is installed: 'make install-tools'" ; \
-		echo "- add \$$GOPATH into \$$PATH: 'export PATH=\$$PATH:\$$(go env GOPATH)/bin'" ; \
-		false ; \
-	fi
-	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build ; \
+.PHONY: rebuild-ui
+rebuild-ui:
+	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
@@ -250,6 +247,10 @@ build-binaries-windows:
 build-binaries-darwin:
 	GOOS=darwin GOARCH=amd64 $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-darwin-arm64
+build-binaries-darwin-arm64:
+	GOOS=darwin GOARCH=arm64 $(MAKE) build-platform-binaries
+
 .PHONY: build-binaries-s390x
 build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
@@ -280,7 +281,7 @@ build-platform-binaries: build-agent \
 	build-es-rollover
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-darwin-arm64 build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -367,7 +368,6 @@ changelog:
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.9.4
-	go install github.com/mjibson/esc@v0.2.0
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.0
 
 .PHONY: install-ci
