@@ -7,11 +7,26 @@ next release
 
 #### Breaking Changes
 
-### UI Changes
-
 #### New Features
 
 #### Bug fixes, Minor Improvements
+
+### UI Changes
+
+
+1.31.0 (2022-02-04)
+-------------------
+### Backend Changes
+#### Bug fixes, Minor Improvements
+
+* Bump Go compiler in CI to 1.17.6 ([@yurishkuro](https://github.com/yurishkuro) in [#3516](https://github.com/jaegertracing/jaeger/pull/3516))
+* Add support for ES index aliases / rollover to the dependency store (Resolves #2143) ([@frittentheke](https://github.com/frittentheke) in [#2144](https://github.com/jaegertracing/jaeger/pull/2144))
+* Use existing functions from xdg-go/scram pkg ([@yurishkuro](https://github.com/yurishkuro) in [#3481](https://github.com/jaegertracing/jaeger/pull/3481))
+
+### UI Changes
+
+* UI pinned to version 1.20.1. The changelog is available here [v1.20.1](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1201-2022-02-04).
+
 
 1.30.0 (2022-01-11)
 -------------------
