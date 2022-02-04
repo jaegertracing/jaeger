@@ -1,0 +1,4 @@
+name: tracing-ui
+CX_PRODUCT: log-processing
+code_language: go
+tests: false
