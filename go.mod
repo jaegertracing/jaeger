@@ -3,7 +3,7 @@ module github.com/jaegertracing/jaeger
 go 1.17
 
 require (
-	github.com/Shopify/sarama v1.31.0
+	github.com/Shopify/sarama v1.31.1
 	github.com/apache/thrift v0.15.0
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
@@ -48,7 +48,7 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/zap v1.20.0
-	golang.org/x/net v0.0.0-20220105145211-5b0dc2dfae98
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
@@ -95,7 +95,7 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/klauspost/compress v1.14.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -129,7 +129,7 @@ require (
 	go.mongodb.org/mongo-driver v1.7.5 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/crypto v0.0.0-20210920023735-84f357641f63 // indirect
+	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
