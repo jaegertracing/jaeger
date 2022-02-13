@@ -124,7 +124,7 @@ func TestCollectorReflection(t *testing.T) {
 	require.NoError(t, err)
 	defer server.Stop()
 
-	grpctest.VerifyReflectionService{
+	grpctest.ReflectionServiceValidator{
 		HostPort: params.HostPortActual,
 		Server:   server,
 		ExpectedServices: []string{

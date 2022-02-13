@@ -24,16 +24,16 @@ import (
 	"google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 )
 
-// VerifyReflectionService validates that a gRPC service at a given address
+// ReflectionServiceValidator verifies that a gRPC service at a given address
 // supports reflection service. Called must invoke Execute func.
-type VerifyReflectionService struct {
+type ReflectionServiceValidator struct {
 	Server           *grpc.Server
 	HostPort         string
 	ExpectedServices []string
 }
 
 // Execute performs validation.
-func (params VerifyReflectionService) Execute(t *testing.T) {
+func (params ReflectionServiceValidator) Execute(t *testing.T) {
 	conn, err := grpc.Dial(
 		params.HostPort,
 		grpc.WithTransportCredentials(insecure.NewCredentials()))

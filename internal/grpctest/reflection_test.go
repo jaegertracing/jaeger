@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-func TestVerifyReflectionService(t *testing.T) {
+func TestReflectionServiceValidator(t *testing.T) {
 	server := grpc.NewServer()
 	reflection.Register(server)
 
@@ -37,7 +37,7 @@ func TestVerifyReflectionService(t *testing.T) {
 	}()
 	defer server.Stop()
 
-	VerifyReflectionService{
+	ReflectionServiceValidator{
 		HostPort:         listener.Addr().String(),
 		Server:           server,
 		ExpectedServices: []string{"grpc.reflection.v1alpha.ServerReflection"},

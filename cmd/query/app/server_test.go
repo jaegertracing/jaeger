@@ -703,7 +703,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	port := onlyEntry.ContextMap()["port"].(int64)
 	assert.Greater(t, port, int64(0))
 
-	grpctest.VerifyReflectionService{
+	grpctest.ReflectionServiceValidator{
 		HostPort: fmt.Sprintf(":%v", port),
 		Server:   server.grpcServer,
 		ExpectedServices: []string{
