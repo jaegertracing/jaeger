@@ -129,5 +129,9 @@ func TestCollectorReflection(t *testing.T) {
 	grpctest.VerifyReflectionService(t, grpctest.VerifyReflectionServiceParams{
 		HostPort: params.HostPortActual,
 		Server:   server,
+		ExpectedServices: []string{
+			"jaeger.api_v2.CollectorService",
+			"jaeger.api_v2.SamplingManager",
+		},
 	})
 }

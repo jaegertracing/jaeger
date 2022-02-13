@@ -38,7 +38,8 @@ func TestVerifyReflectionService(t *testing.T) {
 	defer server.Stop()
 
 	VerifyReflectionService(t, VerifyReflectionServiceParams{
-		HostPort: listener.Addr().String(),
-		Server:   server,
+		HostPort:         listener.Addr().String(),
+		Server:           server,
+		ExpectedServices: []string{"grpc.reflection.v1alpha.ServerReflection"},
 	})
 }

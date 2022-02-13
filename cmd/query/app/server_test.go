@@ -706,5 +706,10 @@ func TestServerHandlesPortZero(t *testing.T) {
 	grpctest.VerifyReflectionService(t, grpctest.VerifyReflectionServiceParams{
 		HostPort: fmt.Sprintf(":%v", port),
 		Server:   server.grpcServer,
+		ExpectedServices: []string{
+			"jaeger.api_v2.QueryService",
+			"jaeger.api_v3.QueryService",
+			"jaeger.api_v2.metrics.MetricsQueryService",
+		},
 	})
 }

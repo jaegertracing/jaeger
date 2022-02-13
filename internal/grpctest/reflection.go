@@ -24,10 +24,11 @@ import (
 	"google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 )
 
-// VerifyReflectionServiceParams defins inputs to VerifyReflectionService.
+// VerifyReflectionServiceParams defines inputs to VerifyReflectionService.
 type VerifyReflectionServiceParams struct {
-	Server   *grpc.Server
-	HostPort string
+	Server           *grpc.Server
+	HostPort         string
+	ExpectedServices []string
 }
 
 // VerifyReflectionService validates that a gRPC service at a given address
@@ -53,4 +54,18 @@ func VerifyReflectionService(t *testing.T, params VerifyReflectionServiceParams)
 	require.IsType(t,
 		new(grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse),
 		m.MessageResponse)
+
+	resp := m.MessageResponse.(*grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse)
+	for _, svc := range params.ExpectedServices {
+		found := false
+		for _, s := range resp.ListServicesResponse.Service {
+			if svc == s.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected to find service '%v', got '%+v'", svc, resp.ListServicesResponse.Service)
+		}
+	}
 }
