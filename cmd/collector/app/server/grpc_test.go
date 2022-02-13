@@ -71,7 +71,6 @@ func TestFailServe(t *testing.T) {
 func TestSpanCollector(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		HostPort:                ":0",
 		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
 		SamplingStore:           &mockSamplingStore{},
 		Logger:                  logger,
@@ -116,7 +115,6 @@ func TestCollectorStartWithTLS(t *testing.T) {
 func TestCollectorReflection(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		HostPort:      ":0",
 		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
