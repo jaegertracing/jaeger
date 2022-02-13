@@ -703,7 +703,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	port := onlyEntry.ContextMap()["port"].(int64)
 	assert.Greater(t, port, int64(0))
 
-	grpctest.VerifyReflectionService(t, grpctest.VerifyReflectionServiceParams{
+	grpctest.VerifyReflectionService{
 		HostPort: fmt.Sprintf(":%v", port),
 		Server:   server.grpcServer,
 		ExpectedServices: []string{
@@ -711,5 +711,5 @@ func TestServerHandlesPortZero(t *testing.T) {
 			"jaeger.api_v3.QueryService",
 			"jaeger.api_v2.metrics.MetricsQueryService",
 		},
-	})
+	}.Execute(t)
 }

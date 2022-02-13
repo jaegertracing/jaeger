@@ -124,12 +124,12 @@ func TestCollectorReflection(t *testing.T) {
 	require.NoError(t, err)
 	defer server.Stop()
 
-	grpctest.VerifyReflectionService(t, grpctest.VerifyReflectionServiceParams{
+	grpctest.VerifyReflectionService{
 		HostPort: params.HostPortActual,
 		Server:   server,
 		ExpectedServices: []string{
 			"jaeger.api_v2.CollectorService",
 			"jaeger.api_v2.SamplingManager",
 		},
-	})
+	}.Execute(t)
 }
