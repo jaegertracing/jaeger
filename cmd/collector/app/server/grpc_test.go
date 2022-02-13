@@ -26,10 +26,10 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
@@ -126,24 +126,8 @@ func TestCollectorReflection(t *testing.T) {
 	require.NoError(t, err)
 	defer server.Stop()
 
-	conn, err := grpc.Dial(
-		params.HostPortActual,
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-	defer conn.Close()
-
-	client := grpc_reflection_v1alpha.NewServerReflectionClient(conn)
-	r, err := client.ServerReflectionInfo(context.Background())
-	require.NoError(t, err)
-	require.NotNil(t, r)
-
-	err = r.Send(&grpc_reflection_v1alpha.ServerReflectionRequest{
-		MessageRequest: &grpc_reflection_v1alpha.ServerReflectionRequest_ListServices{},
+	grpctest.VerifyReflectionService(t, grpctest.VerifyReflectionServiceParams{
+		HostPort: params.HostPortActual,
+		Server:   server,
 	})
-	require.NoError(t, err)
-	m, err := r.Recv()
-	require.NoError(t, err)
-	require.IsType(t,
-		new(grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse),
-		m.MessageResponse)
 }

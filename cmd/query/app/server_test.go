@@ -33,10 +33,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -703,28 +703,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 	port := onlyEntry.ContextMap()["port"].(int64)
 	assert.Greater(t, port, int64(0))
 
-	verifyGRPCReflection(t, port)
-}
-
-func verifyGRPCReflection(t *testing.T, port int64) {
-	conn, err := grpc.Dial(
-		fmt.Sprintf(":%v", port),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-	defer conn.Close()
-
-	client := grpc_reflection_v1alpha.NewServerReflectionClient(conn)
-	r, err := client.ServerReflectionInfo(context.Background())
-	require.NoError(t, err)
-	require.NotNil(t, r)
-
-	err = r.Send(&grpc_reflection_v1alpha.ServerReflectionRequest{
-		MessageRequest: &grpc_reflection_v1alpha.ServerReflectionRequest_ListServices{},
+	grpctest.VerifyReflectionService(t, grpctest.VerifyReflectionServiceParams{
+		HostPort: fmt.Sprintf(":%v", port),
+		Server:   server.grpcServer,
 	})
-	require.NoError(t, err)
-	m, err := r.Recv()
-	require.NoError(t, err)
-	require.IsType(t,
-		new(grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse),
-		m.MessageResponse)
 }
