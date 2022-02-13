@@ -33,9 +33,9 @@ type ReflectionServiceValidator struct {
 }
 
 // Execute performs validation.
-func (params ReflectionServiceValidator) Execute(t *testing.T) {
+func (v ReflectionServiceValidator) Execute(t *testing.T) {
 	conn, err := grpc.Dial(
-		params.HostPort,
+		v.HostPort,
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
@@ -56,7 +56,7 @@ func (params ReflectionServiceValidator) Execute(t *testing.T) {
 		m.MessageResponse)
 
 	resp := m.MessageResponse.(*grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse)
-	for _, svc := range params.ExpectedServices {
+	for _, svc := range v.ExpectedServices {
 		var found string
 		for _, s := range resp.ListServicesResponse.Service {
 			if svc == s.Name {
