@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -688,15 +689,42 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
+		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"},
+		tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
-	server.Close()
+	defer server.Close()
 
 	message := logs.FilterMessage("Query server started")
-	assert.Equal(t, 1, message.Len(), "Expected query started log message.")
+	assert.Equal(t, 1, message.Len(), "Expected 'Query server started' log message.")
 
 	onlyEntry := message.All()[0]
-	port := onlyEntry.ContextMap()["port"]
+	port := onlyEntry.ContextMap()["port"].(int64)
 	assert.Greater(t, port, int64(0))
+
+	verifyGRPCReflection(t, port)
+}
+
+func verifyGRPCReflection(t *testing.T, port int64) {
+	conn, err := grpc.Dial(
+		fmt.Sprintf(":%v", port),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := grpc_reflection_v1alpha.NewServerReflectionClient(conn)
+	r, err := client.ServerReflectionInfo(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, r)
+
+	err = r.Send(&grpc_reflection_v1alpha.ServerReflectionRequest{
+		MessageRequest: &grpc_reflection_v1alpha.ServerReflectionRequest_ListServices{},
+	})
+	require.NoError(t, err)
+	m, err := r.Recv()
+	require.NoError(t, err)
+	require.IsType(t,
+		new(grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse),
+		m.MessageResponse)
 }

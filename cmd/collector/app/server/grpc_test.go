@@ -16,7 +16,6 @@ package server
 
 import (
 	"context"
-	"net"
 	"sync"
 	"testing"
 
@@ -27,6 +26,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -71,21 +71,19 @@ func TestFailServe(t *testing.T) {
 func TestSpanCollector(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
+		HostPort:      ":0",
 		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 	}
 
-	server := grpc.NewServer()
+	server, err := StartGRPCServer(params)
+	require.NoError(t, err)
 	defer server.Stop()
 
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer listener.Close()
-
-	serveGRPC(server, listener, params)
-
-	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(
+		params.HostPortActual,
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -113,4 +111,40 @@ func TestCollectorStartWithTLS(t *testing.T) {
 	server, err := StartGRPCServer(params)
 	require.NoError(t, err)
 	defer server.Stop()
+}
+
+func TestCollectorReflection(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	params := &GRPCServerParams{
+		HostPort:                ":0",
+		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
+		SamplingStore:           &mockSamplingStore{},
+		Logger:                  logger,
+		MaxReceiveMessageLength: 8 * 1024 * 1024,
+	}
+
+	server, err := StartGRPCServer(params)
+	require.NoError(t, err)
+	defer server.Stop()
+
+	conn, err := grpc.Dial(
+		params.HostPortActual,
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := grpc_reflection_v1alpha.NewServerReflectionClient(conn)
+	r, err := client.ServerReflectionInfo(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, r)
+
+	err = r.Send(&grpc_reflection_v1alpha.ServerReflectionRequest{
+		MessageRequest: &grpc_reflection_v1alpha.ServerReflectionRequest_ListServices{},
+	})
+	require.NoError(t, err)
+	m, err := r.Recv()
+	require.NoError(t, err)
+	require.IsType(t,
+		new(grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse),
+		m.MessageResponse)
 }
