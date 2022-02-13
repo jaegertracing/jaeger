@@ -57,15 +57,15 @@ func VerifyReflectionService(t *testing.T, params VerifyReflectionServiceParams)
 
 	resp := m.MessageResponse.(*grpc_reflection_v1alpha.ServerReflectionResponse_ListServicesResponse)
 	for _, svc := range params.ExpectedServices {
-		found := false
+		var found string
 		for _, s := range resp.ListServicesResponse.Service {
 			if svc == s.Name {
-				found = true
+				found = s.Name
 				break
 			}
 		}
-		if !found {
-			t.Fatalf("expected to find service '%v', got '%+v'", svc, resp.ListServicesResponse.Service)
-		}
+		require.Equalf(t, svc, found,
+			"service not found, got '%+v'",
+			resp.ListServicesResponse.Service)
 	}
 }
