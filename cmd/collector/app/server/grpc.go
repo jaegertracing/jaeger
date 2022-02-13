@@ -53,7 +53,9 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
 	var grpcOpts []grpc.ServerOption
 
-	grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
+	if params.MaxReceiveMessageLength > 0 {
+		grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
+	}
 	grpcOpts = append(grpcOpts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge:      params.MaxConnectionAge,
 		MaxConnectionAgeGrace: params.MaxConnectionAgeGrace,
