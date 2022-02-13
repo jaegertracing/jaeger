@@ -8,7 +8,7 @@ import (
 	fmt "fmt"
 	proto "github.com/gogo/protobuf/proto"
 	types "github.com/gogo/protobuf/types"
-	v1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	v1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"

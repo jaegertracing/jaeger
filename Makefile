@@ -534,7 +534,7 @@ proto: init-submodules proto-prepare-otel
 	# prevents panic of two equal proto types.
 	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
 	cp -R idl/opentelemetry-proto/* $(PROTO_INTERMEDIATE_DIR)
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+github.com/open-telemetry/opentelemetry-proto/gen/go+github.com/jaegertracing/jaeger/proto-gen/otel+g'
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
