@@ -29,6 +29,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+// See description of the SamplingStrategyResponse.strategyType field.
 type SamplingStrategyType int32
 
 const (
@@ -54,7 +55,9 @@ func (SamplingStrategyType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_79c798842d009798, []int{0}
 }
 
+// ProbabilisticSamplingStrategy samples traces with a fixed probability.
 type ProbabilisticSamplingStrategy struct {
+	// samplingRate is the sampling probability in the range [0.0, 1.0].
 	SamplingRate         float64  `protobuf:"fixed64,1,opt,name=samplingRate,proto3" json:"samplingRate,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -101,7 +104,10 @@ func (m *ProbabilisticSamplingStrategy) GetSamplingRate() float64 {
 	return 0
 }
 
+// RateLimitingSamplingStrategy samples a fixed number of traces per time interval.
+// The typical implementations use the leaky bucket algorithm.
 type RateLimitingSamplingStrategy struct {
+	// TODO this field type should be changed to double, to support rates like 1 per minute.
 	MaxTracesPerSecond   int32    `protobuf:"varint,1,opt,name=maxTracesPerSecond,proto3" json:"maxTracesPerSecond,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -148,6 +154,8 @@ func (m *RateLimitingSamplingStrategy) GetMaxTracesPerSecond() int32 {
 	return 0
 }
 
+// OperationSamplingStrategy is a sampling strategy for a given operation
+// (aka endpoint, span name). Only probabilistic sampling is currently supported.
 type OperationSamplingStrategy struct {
 	Operation             string                         `protobuf:"bytes,1,opt,name=operation,proto3" json:"operation,omitempty"`
 	ProbabilisticSampling *ProbabilisticSamplingStrategy `protobuf:"bytes,2,opt,name=probabilisticSampling,proto3" json:"probabilisticSampling,omitempty"`
@@ -203,14 +211,30 @@ func (m *OperationSamplingStrategy) GetProbabilisticSampling() *ProbabilisticSam
 	return nil
 }
 
+// PerOperationSamplingStrategies is a combination of strategies for different endpoints
+// as well as some service-wide defaults. It is particularly useful for services whose
+// endpoints receive vastly different traffic, so that any single rate of sampling would
+// result in either too much data for some endpoints or almost no data for other endpoints.
 type PerOperationSamplingStrategies struct {
-	DefaultSamplingProbability       float64                      `protobuf:"fixed64,1,opt,name=defaultSamplingProbability,proto3" json:"defaultSamplingProbability,omitempty"`
-	DefaultLowerBoundTracesPerSecond float64                      `protobuf:"fixed64,2,opt,name=defaultLowerBoundTracesPerSecond,proto3" json:"defaultLowerBoundTracesPerSecond,omitempty"`
-	PerOperationStrategies           []*OperationSamplingStrategy `protobuf:"bytes,3,rep,name=perOperationStrategies,proto3" json:"perOperationStrategies,omitempty"`
-	DefaultUpperBoundTracesPerSecond float64                      `protobuf:"fixed64,4,opt,name=defaultUpperBoundTracesPerSecond,proto3" json:"defaultUpperBoundTracesPerSecond,omitempty"`
-	XXX_NoUnkeyedLiteral             struct{}                     `json:"-"`
-	XXX_unrecognized                 []byte                       `json:"-"`
-	XXX_sizecache                    int32                        `json:"-"`
+	// defaultSamplingProbability is the sampling probability for spans that do not match
+	// any of the perOperationStrategies.
+	DefaultSamplingProbability float64 `protobuf:"fixed64,1,opt,name=defaultSamplingProbability,proto3" json:"defaultSamplingProbability,omitempty"`
+	// defaultLowerBoundTracesPerSecond defines a lower-bound rate limit used to ensure that
+	// there is some minimal amount of traces sampled for an endpoint that might otherwise
+	// be never sampled via probabilistic strategies. The limit is local to a service instance,
+	// so if a service is deployed with many (N) instances, the effective minimum rate of sampling
+	// will be N times higher. This setting applies to ALL operations, whether or not they match
+	// one of the perOperationStrategies.
+	DefaultLowerBoundTracesPerSecond float64 `protobuf:"fixed64,2,opt,name=defaultLowerBoundTracesPerSecond,proto3" json:"defaultLowerBoundTracesPerSecond,omitempty"`
+	// perOperationStrategies describes sampling strategiesf for individual operations within
+	// a given service.
+	PerOperationStrategies []*OperationSamplingStrategy `protobuf:"bytes,3,rep,name=perOperationStrategies,proto3" json:"perOperationStrategies,omitempty"`
+	// defaultUpperBoundTracesPerSecond defines an upper bound rate limit.
+	// However, almost no Jaeger SDKs support this parameter.
+	DefaultUpperBoundTracesPerSecond float64  `protobuf:"fixed64,4,opt,name=defaultUpperBoundTracesPerSecond,proto3" json:"defaultUpperBoundTracesPerSecond,omitempty"`
+	XXX_NoUnkeyedLiteral             struct{} `json:"-"`
+	XXX_unrecognized                 []byte   `json:"-"`
+	XXX_sizecache                    int32    `json:"-"`
 }
 
 func (m *PerOperationSamplingStrategies) Reset()         { *m = PerOperationSamplingStrategies{} }
@@ -274,7 +298,17 @@ func (m *PerOperationSamplingStrategies) GetDefaultUpperBoundTracesPerSecond() f
 	return 0
 }
 
+// SamplingStrategyResponse contains an overall sampling strategy for a given service.
+// This type should be treated as a union where only one of the strategy field is present.
 type SamplingStrategyResponse struct {
+	// Legacy field that was meant to indicate which one of the strategy fields
+	// below is present. This enum was not extended when per-operation strategy
+	// was introduced, because extending enum has backwards compatiblity issues.
+	// The recommended approach for consumers is to ignore this field and instead
+	// checks the other fields being not null (starting with operationSampling).
+	// For producers, it is recommended to set this field correctly for probabilistic
+	// and rate-limiting strategies, but if per-operation strategy is returned,
+	// the enum can be set to 0 (probabilistic).
 	StrategyType          SamplingStrategyType            `protobuf:"varint,1,opt,name=strategyType,proto3,enum=jaeger.api_v2.SamplingStrategyType" json:"strategyType,omitempty"`
 	ProbabilisticSampling *ProbabilisticSamplingStrategy  `protobuf:"bytes,2,opt,name=probabilisticSampling,proto3" json:"probabilisticSampling,omitempty"`
 	RateLimitingSampling  *RateLimitingSamplingStrategy   `protobuf:"bytes,3,opt,name=rateLimitingSampling,proto3" json:"rateLimitingSampling,omitempty"`
@@ -345,7 +379,9 @@ func (m *SamplingStrategyResponse) GetOperationSampling() *PerOperationSamplingS
 	return nil
 }
 
+// SamplingStrategyParameters defines request parameters for remote sampler.
 type SamplingStrategyParameters struct {
+	// serviceName is a required argument.
 	ServiceName          string   `protobuf:"bytes,1,opt,name=serviceName,proto3" json:"serviceName,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
