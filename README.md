@@ -11,6 +11,30 @@
 
 # Jaeger - a Distributed Tracing System
 
+```mermaid
+graph TD
+    LIB --> |HTTP or gRPC| COLLECTOR
+    LIB[Jaeger Client] --> |UDP| AGENT[Jaeger Agent]
+    %% AGENT --> |HTTP/sampling| LIB
+    AGENT --> |gRPC| COLLECTOR[Jaeger Collector]
+    %% COLLECTOR --> |gRPC/sampling| AGENT
+    SDK[OpenTelemetry SDK] --> |UDP| AGENT
+    SDK --> |HTTP or gRPC| COLLECTOR
+    COLLECTOR --> STORE[Storage]
+    COLLECTOR --> |gRPC| PLUGIN[Storage Plugin]
+    PLUGIN --> STORE
+    QUERY[Jaeger Query Service] --> STORE
+    QUERY --> |gRPC| PLUGIN
+    UI[Jaeger UI] --> |HTTP| QUERY
+    subgraph Application Host
+        subgraph User Application
+            LIB
+            SDK
+        end
+        AGENT
+    end
+```
+
 Jaeger, inspired by [Dapper][dapper] and [OpenZipkin](https://zipkin.io),
 is a distributed tracing platform created by [Uber Technologies][ubeross]
 and donated to [Cloud Native Computing Foundation](https://cncf.io).
