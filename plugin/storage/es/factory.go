@@ -218,6 +218,7 @@ func createDependencyReader(
 		Client:              client,
 		Logger:              logger,
 		IndexPrefix:         cfg.GetIndexPrefix(),
+		IndexDateLayout:     cfg.GetIndexDateLayoutDependencies(),
 		MaxDocCount:         cfg.GetMaxDocCount(),
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 	})
