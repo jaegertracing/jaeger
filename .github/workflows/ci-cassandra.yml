@@ -23,7 +23,7 @@ jobs:
           schema: v004
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
-    - uses: actions/checkout@v2.4.0
+    - uses: actions/checkout@v3
 
     - uses: actions/setup-go@v2
       with:
