@@ -105,10 +105,11 @@ func (m *MetricsReader) GetLatencies(ctx context.Context, requestParams *metrics
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`histogram_quantile(%.2f, sum(latency_bucket{service_name =~ "%s", %s}) by (%s))`,
+				`histogram_quantile(%.2f, sum(rate(latency_bucket{service_name =~ "%s", %s}[%s])) by (%s))`,
 				requestParams.Quantile,
 				p.serviceFilter,
 				p.spanKindFilter,
+				p.rate,
 				p.groupBy,
 			)
 		},
