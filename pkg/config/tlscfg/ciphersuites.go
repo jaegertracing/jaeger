@@ -17,48 +17,29 @@ package tlscfg
 import (
 	"crypto/tls"
 	"fmt"
-	"strings"
 )
-
-var (
-	// https://golang.org/pkg/crypto/tls/#pkg-constants
-	ciphers         = map[string]uint16{}
-	insecureCiphers = map[string]uint16{}
-)
-
-func init() {
-	for _, suite := range tls.CipherSuites() {
-		ciphers[suite.Name] = suite.ID
-	}
-	for _, suite := range tls.InsecureCipherSuites() {
-		insecureCiphers[suite.Name] = suite.ID
-	}
-}
 
 func allCiphers() map[string]uint16 {
-	acceptedCiphers := make(map[string]uint16, len(ciphers))
-	for k, v := range ciphers {
-		acceptedCiphers[k] = v
-	}
-	for k, v := range insecureCiphers {
-		acceptedCiphers[k] = v
+	acceptedCiphers := make(map[string]uint16)
+	for _, suite := range tls.CipherSuites() {
+		acceptedCiphers[suite.Name] = suite.ID
 	}
 	return acceptedCiphers
 }
 
-// TLSCipherSuites returns a list of cipher suite IDs from the cipher suite names passed.
-func TLSCipherSuites(cipherNames string) ([]uint16, error) {
-	if cipherNames == "" {
+// CipherSuiteNamesToIDs returns a list of cipher suite IDs from the cipher suite names passed.
+func CipherSuiteNamesToIDs(cipherNames []string) ([]uint16, error) {
+	if len(cipherNames) == 0 {
 		return nil, nil
 	}
-	ciphersIntSlice := make([]uint16, 0)
+	var ciphersIDs []uint16
 	possibleCiphers := allCiphers()
-	for _, cipher := range strings.Split(cipherNames, ",") {
+	for _, cipher := range cipherNames {
 		intValue, ok := possibleCiphers[cipher]
 		if !ok {
 			return nil, fmt.Errorf("cipher suite %s not supported or doesn't exist", cipher)
 		}
-		ciphersIntSlice = append(ciphersIntSlice, intValue)
+		ciphersIDs = append(ciphersIDs, intValue)
 	}
-	return ciphersIntSlice, nil
+	return ciphersIDs, nil
 }

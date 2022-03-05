@@ -33,7 +33,7 @@ type Options struct {
 	KeyPath        string       `mapstructure:"key"`
 	ServerName     string       `mapstructure:"server_name"` // only for client-side TLS config
 	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
-	CipherSuites   string       `mapstructure:"cipher_suites"`
+	CipherSuites   []string     `mapstructure:"cipher_suites"`
 	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
 	certWatcher    *certWatcher `mapstructure:"-"`
 }
@@ -47,7 +47,7 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to load CA CertPool: %w", err)
 	}
 
-	cipherSuiteIds, err := TLSCipherSuites(p.CipherSuites)
+	cipherSuiteIds, err := CipherSuiteNamesToIDs(p.CipherSuites)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cipher suite ids from cipher suite names: %w", err)
 	}
