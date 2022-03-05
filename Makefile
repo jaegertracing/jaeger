@@ -303,15 +303,22 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
-	for component in agent collector query ingester ; do \
+	OLDIFS=$IFS; \
+	IFS=","; \
+	for v in "jaeger,agent" "jaeger,collector" "jaeger,query" "jaeger,ingester" ",all-in-one" ; do \
+  		set -- $$v; \
+  		prefix=$$1; \
+  		component=$$2; \
+  		echo "prefix=$$prefix component=$$component"; \
 		docker build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
+			--tag $(DOCKER_NAMESPACE)/$$prefix$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
 			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
-	done
+	done; \
+	IFS=$OLDIFS;
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
