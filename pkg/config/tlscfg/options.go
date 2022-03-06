@@ -34,6 +34,7 @@ type Options struct {
 	ServerName     string       `mapstructure:"server_name"` // only for client-side TLS config
 	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
 	CipherSuites   []string     `mapstructure:"cipher_suites"`
+	MinVersion     string       `mapstructure:"min_version"`
 	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
 	certWatcher    *certWatcher `mapstructure:"-"`
 }
@@ -52,12 +53,18 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to get cipher suite ids from cipher suite names: %w", err)
 	}
 
+	minVersionId, err := VersionNameToID(p.MinVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get minimum tls version: %w", err)
+	}
+
 	// #nosec G402
 	tlsCfg := &tls.Config{
 		RootCAs:            certPool,
 		ServerName:         p.ServerName,
 		InsecureSkipVerify: p.SkipHostVerify,
 		CipherSuites:       cipherSuiteIds,
+		MinVersion:         minVersionId,
 	}
 
 	if p.ClientCAPath != "" {

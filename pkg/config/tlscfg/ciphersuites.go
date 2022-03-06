@@ -19,6 +19,14 @@ import (
 	"fmt"
 )
 
+// https://pkg.go.dev/crypto/tls#pkg-constants
+var versions = map[string]uint16{
+	"VersionTLS10": tls.VersionTLS10,
+	"VersionTLS11": tls.VersionTLS11,
+	"VersionTLS12": tls.VersionTLS12,
+	"VersionTLS13": tls.VersionTLS13,
+}
+
 func allCiphers() map[string]uint16 {
 	acceptedCiphers := make(map[string]uint16)
 	for _, suite := range tls.CipherSuites() {
@@ -39,4 +47,20 @@ func CipherSuiteNamesToIDs(cipherNames []string) ([]uint16, error) {
 		ciphersIDs = append(ciphersIDs, intValue)
 	}
 	return ciphersIDs, nil
+}
+
+// VersionNameToID returns the version ID from version name
+func VersionNameToID(versionName string) (uint16, error) {
+	if len(versionName) == 0 {
+		return DefaultVersion(), nil
+	}
+	if version, ok := versions[versionName]; ok {
+		return version, nil
+	}
+	return 0, fmt.Errorf("unknown tls version %q", versionName)
+}
+
+func DefaultVersion() uint16 {
+	// TLS1.2 is considered the safest default
+	return tls.VersionTLS12
 }

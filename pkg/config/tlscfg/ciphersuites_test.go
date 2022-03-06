@@ -20,7 +20,7 @@ import (
 	"testing"
 )
 
-func TestTLSCipherSuites(t *testing.T) {
+func TestCipherSuiteNamesToIDs(t *testing.T) {
 	tests := []struct {
 		flag          []string
 		expected      []uint16
@@ -62,6 +62,43 @@ func TestTLSCipherSuites(t *testing.T) {
 		uIntFlags, err := CipherSuiteNamesToIDs(test.flag)
 		if !reflect.DeepEqual(uIntFlags, test.expected) {
 			t.Errorf("%d: expected %+v, got %+v", i, test.expected, uIntFlags)
+		}
+		if test.expectedError && err == nil {
+			t.Errorf("%d: expecting error, got %+v", i, err)
+		}
+	}
+}
+
+func TestVersionNameToID(t *testing.T) {
+	tests := []struct {
+		flag          string
+		expected      uint16
+		expectedError bool
+	}{
+		{
+			// Happy case
+			flag:          "VersionTLS11",
+			expected:      tls.VersionTLS11,
+			expectedError: false,
+		},
+		{
+			// Empty flag
+			flag:          "",
+			expected:      tls.VersionTLS12,
+			expectedError: false,
+		},
+		{
+			// Invalid flag
+			flag:          "VersionTLSInvalid",
+			expected:      0,
+			expectedError: true,
+		},
+	}
+
+	for i, test := range tests {
+		uIntFlag, err := VersionNameToID(test.flag)
+		if !reflect.DeepEqual(uIntFlag, test.expected) {
+			t.Errorf("%d: expected %+v, got %+v", i, test.expected, uIntFlag)
 		}
 		if test.expectedError && err == nil {
 			t.Errorf("%d: expecting error, got %+v", i, err)
