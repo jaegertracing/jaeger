@@ -33,6 +33,7 @@ type Options struct {
 	KeyPath        string       `mapstructure:"key"`
 	ServerName     string       `mapstructure:"server_name"` // only for client-side TLS config
 	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
+	CipherSuites   []string     `mapstructure:"cipher_suites"`
 	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
 	certWatcher    *certWatcher `mapstructure:"-"`
 }
@@ -41,17 +42,24 @@ var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // Config loads TLS certificates and returns a TLS Config.
 func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
-
 	certPool, err := p.loadCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load CA CertPool: %w", err)
 	}
+
+	cipherSuiteIds, err := CipherSuiteNamesToIDs(p.CipherSuites)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cipher suite ids from cipher suite names: %w", err)
+	}
+
 	// #nosec G402
 	tlsCfg := &tls.Config{
 		RootCAs:            certPool,
 		ServerName:         p.ServerName,
 		InsecureSkipVerify: p.SkipHostVerify,
+		CipherSuites:       cipherSuiteIds,
 	}
+
 	if p.ClientCAPath != "" {
 		certPool := x509.NewCertPool()
 		if err := addCertToPool(p.ClientCAPath, certPool); err != nil {
