@@ -19,8 +19,6 @@ next release
 
 ### Backend Changes
 
-#### Breaking Changes
-
 #### New Features
 
 * Enable gRPC reflection service on collector/query ([@yurishkuro](https://github.com/yurishkuro) in [#3526](https://github.com/jaegertracing/jaeger/pull/3526))
@@ -35,7 +33,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version 1.21.0. The changelog is available here [v1.21.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1210-2022-02-06).
+* UI pinned to version 1.21.0. The changelog is available here [v1.21.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1210-2022-03-06).
 
 1.31.0 (2022-02-04)
 -------------------
