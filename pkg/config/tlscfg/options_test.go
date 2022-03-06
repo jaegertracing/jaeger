@@ -121,6 +121,13 @@ func TestOptionsToConfig(t *testing.T) {
 				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
+		{
+			name: "should fail with invalid Cipher Suite",
+			options: Options{
+				CipherSuites: []string{"TLS_INVALID_CIPHER_SUITE"},
+			},
+			expectError: "failed to get cipher suite ids from cipher suite names: cipher suite TLS_INVALID_CIPHER_SUITE not supported or doesn't exist",
+		},
 	}
 
 	for _, test := range tests {
