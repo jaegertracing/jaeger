@@ -29,9 +29,6 @@ func allCiphers() map[string]uint16 {
 
 // CipherSuiteNamesToIDs returns a list of cipher suite IDs from the cipher suite names passed.
 func CipherSuiteNamesToIDs(cipherNames []string) ([]uint16, error) {
-	if len(cipherNames) == 0 {
-		return nil, nil
-	}
 	var ciphersIDs []uint16
 	possibleCiphers := allCiphers()
 	for _, cipher := range cipherNames {

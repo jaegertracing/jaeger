@@ -16,6 +16,7 @@ package tlscfg
 
 import (
 	"flag"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -80,6 +81,11 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ClientCAPath = v.GetString(c.Prefix + tlsClientCA)
-	p.CipherSuites = v.GetStringSlice(c.Prefix + tlsCipherSuites)
+	p.CipherSuites = strings.Split(stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)), ",")
 	return p
+}
+
+// stripWhiteSpace removes all whitespace characters from a string
+func stripWhiteSpace(str string) string {
+	return strings.Replace(str, " ", "", -1)
 }

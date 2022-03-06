@@ -74,7 +74,7 @@ func TestServerFlags(t *testing.T) {
 		"--prefix.tls.enabled=true",
 		"--prefix.tls.cert=cert-file",
 		"--prefix.tls.key=key-file",
-		"--prefix.tls.cipher-suites=TLS_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+		"--prefix.tls.cipher-suites=TLS_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
 	}
 
 	tests := []struct {
