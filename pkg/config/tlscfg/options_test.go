@@ -131,9 +131,24 @@ func TestOptionsToConfig(t *testing.T) {
 		{
 			name: "should fail with invalid TLS Min Version",
 			options: Options{
-				MinVersion: "VersionTLSInvalid",
+				MinVersion: "Invalid",
 			},
 			expectError: "failed to get minimum tls version",
+		},
+		{
+			name: "should fail with invalid TLS Max Version",
+			options: Options{
+				MaxVersion: "Invalid",
+			},
+			expectError: "failed to get maximum tls version",
+		},
+		{
+			name: "should fail with TLS Min Version greater than TLS Max Version error",
+			options: Options{
+				MinVersion: "1.2",
+				MaxVersion: "1.1",
+			},
+			expectError: "minimum tls version can't be greater than maximum tls version",
 		},
 	}
 

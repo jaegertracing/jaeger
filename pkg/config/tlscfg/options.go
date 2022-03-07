@@ -35,6 +35,7 @@ type Options struct {
 	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
 	CipherSuites   []string     `mapstructure:"cipher_suites"`
 	MinVersion     string       `mapstructure:"min_version"`
+	MaxVersion     string       `mapstructure:"max_version"`
 	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
 	certWatcher    *certWatcher `mapstructure:"-"`
 }
@@ -44,7 +45,7 @@ var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 // Config loads TLS certificates and returns a TLS Config.
 func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	var err error
-	var minVersionId uint16
+	var minVersionId, maxVersionId uint16
 
 	certPool, err := p.loadCertPool()
 	if err != nil {
@@ -63,6 +64,19 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		}
 	}
 
+	if p.MaxVersion != "" {
+		maxVersionId, err = VersionNameToID(p.MaxVersion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get maximum tls version: %w", err)
+		}
+	}
+
+	if p.MinVersion != "" && p.MaxVersion != "" {
+		if minVersionId > maxVersionId {
+			return nil, fmt.Errorf("minimum tls version can't be greater than maximum tls version")
+		}
+	}
+
 	// #nosec G402
 	tlsCfg := &tls.Config{
 		RootCAs:            certPool,
@@ -70,6 +84,7 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		InsecureSkipVerify: p.SkipHostVerify,
 		CipherSuites:       cipherSuiteIds,
 		MinVersion:         minVersionId,
+		MaxVersion:         maxVersionId,
 	}
 
 	if p.ClientCAPath != "" {
