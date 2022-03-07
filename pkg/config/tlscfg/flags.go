@@ -31,6 +31,8 @@ const (
 	tlsClientCA       = tlsPrefix + ".client-ca"
 	tlsSkipHostVerify = tlsPrefix + ".skip-host-verify"
 	tlsCipherSuites   = tlsPrefix + ".cipher-suites"
+	tlsMinVersion     = tlsPrefix + ".min-version"
+	tlsMaxVersion     = tlsPrefix + ".max-version"
 )
 
 // ClientFlagsConfig describes which CLI flags for TLS client should be generated.
@@ -60,6 +62,8 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
 	flags.String(c.Prefix+tlsClientCA, "", "Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted)")
 	flags.String(c.Prefix+tlsCipherSuites, "", "Comma-separated list of cipher suites for the server, values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).")
+	flags.String(c.Prefix+tlsMinVersion, "", "Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
+	flags.String(c.Prefix+tlsMaxVersion, "", "Maximum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
@@ -82,6 +86,8 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ClientCAPath = v.GetString(c.Prefix + tlsClientCA)
 	p.CipherSuites = strings.Split(stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)), ",")
+	p.MinVersion = v.GetString(c.Prefix + tlsMinVersion)
+	p.MaxVersion = v.GetString(c.Prefix + tlsMaxVersion)
 	return p
 }
 
