@@ -19,6 +19,14 @@ import (
 	"fmt"
 )
 
+// https://pkg.go.dev/crypto/tls#pkg-constants
+var versions = map[string]uint16{
+	"1.0": tls.VersionTLS10,
+	"1.1": tls.VersionTLS11,
+	"1.2": tls.VersionTLS12,
+	"1.3": tls.VersionTLS13,
+}
+
 func allCiphers() map[string]uint16 {
 	acceptedCiphers := make(map[string]uint16)
 	for _, suite := range tls.CipherSuites() {
@@ -39,4 +47,12 @@ func CipherSuiteNamesToIDs(cipherNames []string) ([]uint16, error) {
 		ciphersIDs = append(ciphersIDs, intValue)
 	}
 	return ciphersIDs, nil
+}
+
+// VersionNameToID returns the version ID from version name
+func VersionNameToID(versionName string) (uint16, error) {
+	if version, ok := versions[versionName]; ok {
+		return version, nil
+	}
+	return 0, fmt.Errorf("unknown tls version %q", versionName)
 }
