@@ -44,7 +44,6 @@ var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // Config loads TLS certificates and returns a TLS Config.
 func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
-	var err error
 	var minVersionId, maxVersionId uint16
 
 	certPool, err := p.loadCertPool()
