@@ -61,7 +61,7 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
 	flags.String(c.Prefix+tlsClientCA, "", "Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted)")
 	flags.String(c.Prefix+tlsCipherSuites, "", "Comma-separated list of cipher suites for the server, values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).")
-	flags.String(c.Prefix+tlsMinVersion, "", "Minimum TLS version supported (Possible values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13)")
+	flags.String(c.Prefix+tlsMinVersion, "", "Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.

@@ -43,6 +43,9 @@ var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // Config loads TLS certificates and returns a TLS Config.
 func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
+	var err error
+	var minVersionId uint16
+
 	certPool, err := p.loadCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load CA CertPool: %w", err)
@@ -53,9 +56,11 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to get cipher suite ids from cipher suite names: %w", err)
 	}
 
-	minVersionId, err := VersionNameToID(p.MinVersion)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get minimum tls version: %w", err)
+	if p.MinVersion != "" {
+		minVersionId, err = VersionNameToID(p.MinVersion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get minimum tls version: %w", err)
+		}
 	}
 
 	// #nosec G402

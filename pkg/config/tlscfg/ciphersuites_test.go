@@ -77,19 +77,13 @@ func TestVersionNameToID(t *testing.T) {
 	}{
 		{
 			// Happy case
-			flag:          "VersionTLS11",
+			flag:          "1.1",
 			expected:      tls.VersionTLS11,
 			expectedError: false,
 		},
 		{
-			// Empty flag
-			flag:          "",
-			expected:      tls.VersionTLS12,
-			expectedError: false,
-		},
-		{
 			// Invalid flag
-			flag:          "VersionTLSInvalid",
+			flag:          "Invalid",
 			expected:      0,
 			expectedError: true,
 		},
