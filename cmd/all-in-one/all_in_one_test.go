@@ -62,6 +62,10 @@ func TestAllInOne(t *testing.T) {
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
+	// Check if the favicon icon is available
+	if err := faviconCheck(); err != nil {
+		t.Fatal(err)
+	}
 	createTrace(t)
 	getAPITrace(t)
 	getSamplingStrategy(t)
@@ -136,6 +140,18 @@ func healthCheck() error {
 		time.Sleep(time.Second)
 	}
 	return fmt.Errorf("query service is not ready")
+}
+
+func faviconCheck() error {
+	println("Checking favicon...")
+	resp, err := http.Get(queryURL + "/favicon.ico")
+	if err == nil && resp.StatusCode == http.StatusOK {
+		println("Favicon check successful")
+		return nil
+	} else {
+		println("Favicon check failed")
+		return fmt.Errorf("all-in-one failed to serve favicon icon")
+	}
 }
 
 func getServicesAPIV3(t *testing.T) {
