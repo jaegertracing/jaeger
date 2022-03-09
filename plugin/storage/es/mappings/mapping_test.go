@@ -114,7 +114,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err: "",
+			err:       "",
 			esVersion: 7,
 		},
 		{
@@ -126,7 +126,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err: "template exec error",
+			err:       "template exec error",
 			esVersion: 7,
 		},
 		{
@@ -136,7 +136,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(nil, errors.New("template load error"))
 				return &tb
 			},
-			err: "template load error",
+			err:       "template load error",
 			esVersion: 7,
 		},
 		{
@@ -148,7 +148,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err: "",
+			err:       "",
 			esVersion: 8,
 		},
 		{
@@ -160,7 +160,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
-			err: "template exec error",
+			err:       "template exec error",
 			esVersion: 8,
 		},
 		{
@@ -170,7 +170,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				tb.On("Parse", mock.Anything).Return(nil, errors.New("template load error"))
 				return &tb
 			},
-			err: "template load error",
+			err:       "template load error",
 			esVersion: 8,
 		},
 	}
