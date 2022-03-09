@@ -24,8 +24,12 @@ setup_es() {
     --env "http.host=0.0.0.0"
     --env "transport.host=127.0.0.1"
     --env "xpack.security.enabled=false"
-    --env "xpack.monitoring.enabled=false"
   )
+  if [ ${1:0:1} = "8" ]; then
+    params+=(--env "xpack.monitoring.templates.enabled=false")
+  else
+    params+=(--env "xpack.monitoring.enabled=false")
+  fi
   local cid=$(docker run ${params[@]} ${image}:${tag})
   echo ${cid}
 }
