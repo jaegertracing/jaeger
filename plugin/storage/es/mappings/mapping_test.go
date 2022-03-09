@@ -38,10 +38,13 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 		mapping   string
 		esVersion uint
 	}{
+		{mapping: "jaeger-span", esVersion: 8},
 		{mapping: "jaeger-span", esVersion: 7},
 		{mapping: "jaeger-span", esVersion: 6},
+		{mapping: "jaeger-service", esVersion: 8},
 		{mapping: "jaeger-service", esVersion: 7},
 		{mapping: "jaeger-service", esVersion: 6},
+		{mapping: "jaeger-dependencies", esVersion: 8},
 		{mapping: "jaeger-dependencies", esVersion: 7},
 		{mapping: "jaeger-dependencies", esVersion: 6},
 	}
@@ -59,7 +62,7 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
-			if tt.esVersion == 7 {
+			if tt.esVersion == 7 || tt.esVersion == 8 {
 				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + "-7.json")
 				require.NoError(t, err)
 			} else {
@@ -100,9 +103,10 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 		name                    string
 		templateBuilderMockFunc func() *mocks.TemplateBuilder
 		err                     string
+		esVersion               uint
 	}{
 		{
-			name: "templateRenderSuccess",
+			name: "templateRenderSuccess-7",
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
@@ -111,9 +115,10 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				return &tb
 			},
 			err: "",
+			esVersion: 7,
 		},
 		{
-			name: "templateRenderFailure",
+			name: "templateRenderFailure-7",
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
@@ -122,15 +127,51 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				return &tb
 			},
 			err: "template exec error",
+			esVersion: 7,
 		},
 		{
-			name: "templateLoadError",
+			name: "templateLoadError-7",
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				tb.On("Parse", mock.Anything).Return(nil, errors.New("template load error"))
 				return &tb
 			},
 			err: "template load error",
+			esVersion: 7,
+		},
+		{
+			name: "templateRenderSuccess-8",
+			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "",
+			esVersion: 8,
+		},
+		{
+			name: "templateRenderFailure-8",
+			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template exec error"))
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "template exec error",
+			esVersion: 8,
+		},
+		{
+			name: "templateLoadError-8",
+			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				tb.On("Parse", mock.Anything).Return(nil, errors.New("template load error"))
+				return &tb
+			},
+			err: "template load error",
+			esVersion: 8,
 		},
 	}
 
@@ -140,7 +181,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 				TemplateBuilder: test.templateBuilderMockFunc(),
 				Shards:          3,
 				Replicas:        5,
-				EsVersion:       7,
+				EsVersion:       test.esVersion,
 				IndexPrefix:     "test",
 				UseILM:          true,
 				ILMPolicyName:   "jaeger-test-policy",
@@ -151,7 +192,6 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-
 		})
 	}
 }
@@ -275,6 +315,64 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 				shards:        3,
 				replicas:      3,
 				esVersion:     7,
+				indexPrefix:   "test",
+				useILM:        true,
+				ilmPolicyName: "jaeger-test-policy",
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "template load error",
+		},
+		{
+			name: "ES Version 8",
+			args: args{
+				shards:        3,
+				replicas:      3,
+				esVersion:     8,
+				indexPrefix:   "test",
+				useILM:        true,
+				ilmPolicyName: "jaeger-test-policy",
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "",
+		},
+		{
+			name: "ES Version 8 Service Error",
+			args: args{
+				shards:        3,
+				replicas:      3,
+				esVersion:     8,
+				indexPrefix:   "test",
+				useILM:        true,
+				ilmPolicyName: "jaeger-test-policy",
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "template load error",
+		},
+		{
+			name: "ES Version 8 Span Error",
+			args: args{
+				shards:        3,
+				replicas:      3,
+				esVersion:     8,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",

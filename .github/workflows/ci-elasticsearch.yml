@@ -22,6 +22,9 @@ jobs:
         - major: 7.x
           image: 7.14.0
           distribution: elasticsearch
+        - major: 8.x
+          image: 8.1.0
+          distribution: elasticsearch
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v3
