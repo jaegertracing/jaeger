@@ -38,7 +38,7 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
-	assert.Equal(t, "", f.SamplingStorageType)
+	assert.Empty(t, f.SamplingStorageType)
 
 	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType)
 	os.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
