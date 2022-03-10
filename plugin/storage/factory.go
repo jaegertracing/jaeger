@@ -77,6 +77,10 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	for _, storageType := range f.SpanWriterTypes {
 		uniqueTypes[storageType] = struct{}{}
 	}
+	// skip SamplingStorageType if it is empty. See CreateSamplingStoreFactory for details
+	if f.SamplingStorageType != "" {
+		uniqueTypes[f.SamplingStorageType] = struct{}{}
+	}
 	f.factories = make(map[string]storage.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
@@ -162,6 +166,20 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateSamplingStoreFactory creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
 func (f *Factory) CreateSamplingStoreFactory() (storage.SamplingStoreFactory, error) {
+	// if a sampling storage type was specified then use it, otherwise search all factories
+	// for compatibility
+	if f.SamplingStorageType != "" {
+		factory, ok := f.factories[f.SamplingStorageType]
+		if !ok {
+			return nil, fmt.Errorf("no %s backend registered for sampling store", f.SamplingStorageType)
+		}
+		ss, ok := factory.(storage.SamplingStoreFactory)
+		if !ok {
+			return nil, fmt.Errorf("storage factory of type %s does not support sampling store", f.SamplingStorageType)
+		}
+		return ss, nil
+	}
+
 	for _, factory := range f.factories {
 		ss, ok := factory.(storage.SamplingStoreFactory)
 		if ok {
