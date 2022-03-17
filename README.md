@@ -188,10 +188,9 @@ We are grateful to our former maintainers for their contributions to the Jaeger 
 * [@tiffon](https://github.com/tiffon)
 * [@vprithvi](https://github.com/vprithvi)
 
-## Project Status Bi-Weekly Meeting
+## Project Status Meetings
 
-The Jaeger contributors meet bi-weekly, and everyone is welcome to join.
-[Agenda and meeting details here](https://docs.google.com/document/d/1ZuBAwTJvQN7xkWVvEFXj5WU9_JmS5TPiNbxCJSvPqX0/).
+The Jaeger maintainers and contributors meet regularly on a video call. Everyone is welcome to join, including end users. For meeting details, see https://www.jaegertracing.io/get-in-touch/.
 
 ## Roadmap
 
