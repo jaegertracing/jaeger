@@ -161,7 +161,7 @@ func TestVersion(t *testing.T) {
 			name:         "bad version",
 			responseCode: http.StatusOK,
 			response:     badVersionType,
-			errContains:  "invalid version format: %!w(bool=true)",
+			errContains:  "invalid version format: true",
 		},
 		{
 			name:         "version not a number",
