@@ -199,7 +199,7 @@ func createSpanWriter(
 		Archive:                archive,
 		UseReadWriteAliases:    cfg.GetUseReadWriteAliases(),
 	})
-	if cfg.IsCreateIndexTemplates() {
+	if cfg.IsCreateIndexTemplates() && !cfg.GetUseILM() {
 		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
 		if err != nil {
 			return nil, err
