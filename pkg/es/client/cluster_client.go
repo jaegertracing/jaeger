@@ -51,7 +51,7 @@ func (c *ClusterClient) Version() (uint, error) {
 	versionField := info.Version["number"]
 	versionNumber, isString := versionField.(string)
 	if !isString {
-		return 0, fmt.Errorf("invalid version format: %w", versionField)
+		return 0, fmt.Errorf("invalid version format: %v", versionField)
 	}
 	version := strings.Split(versionNumber, ".")
 	major, err := strconv.ParseUint(version[0], 10, 32)
