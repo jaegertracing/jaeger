@@ -310,11 +310,12 @@ docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg 
   		prefix=$$1; \
   		component=$$2; \
   		echo "prefix=$$prefix component=$$component"; \
-		docker build --target $(TARGET) \
+		docker buildx build --target $(TARGET) \
 			--tag $(DOCKER_NAMESPACE)/$$prefix$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
+			--load \
 			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done; \
