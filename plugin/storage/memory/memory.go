@@ -18,20 +18,30 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// Store is an in-memory store of traces
+// Store is an in-memory store of tenants
 type Store struct {
+	sync.RWMutex
+	config  config.Configuration
+	tenants map[string]*Tenant
+}
+
+// Tenant is an in-memory store of traces
+type Tenant struct {
 	sync.RWMutex
 	ids        []*model.TraceID
 	traces     map[model.TraceID]*model.Trace
@@ -50,6 +60,13 @@ func NewStore() *Store {
 // WithConfiguration creates a new in memory storage based on the given configuration
 func WithConfiguration(configuration config.Configuration) *Store {
 	return &Store{
+		config:  configuration,
+		tenants: make(map[string]*Tenant),
+	}
+}
+
+func NewTenant(configuration config.Configuration) *Tenant {
+	return &Tenant{
 		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
@@ -60,8 +77,9 @@ func WithConfiguration(configuration config.Configuration) *Store {
 }
 
 // GetDependencies returns dependencies between services
-func (m *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	// deduper used below can modify the spans, so we take an exclusive lock
+	m := st.GetTenant(GetTenantID(ctx))
 	m.Lock()
 	defer m.Unlock()
 	deps := map[string]*model.DependencyLink{}
@@ -69,9 +87,9 @@ func (m *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback t
 	for _, orig := range m.traces {
 		// SpanIDDeduper never returns an err
 		trace, _ := m.deduper.Adjust(orig)
-		if m.traceIsBetweenStartAndEnd(startTs, endTs, trace) {
+		if st.traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
-				parentSpan := m.findSpan(trace, s.ParentSpanID())
+				parentSpan := st.findSpan(trace, s.ParentSpanID())
 				if parentSpan != nil {
 					if parentSpan.Process.ServiceName == s.Process.ServiceName {
 						continue
@@ -116,7 +134,8 @@ func (m *Store) traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model
 }
 
 // WriteSpan writes the given span
-func (m *Store) WriteSpan(ctx context.Context, span *model.Span) error {
+func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
+	m := st.GetTenant(GetTenantID(ctx))
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
@@ -159,14 +178,15 @@ func (m *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 }
 
 // GetTrace gets a trace
-func (m *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (st *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+	m := st.GetTenant(GetTenantID(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	trace, ok := m.traces[traceID]
 	if !ok {
 		return nil, spanstore.ErrTraceNotFound
 	}
-	return m.copyTrace(trace)
+	return st.copyTrace(trace)
 }
 
 // Spans may still be added to traces after they are returned to user code, so make copies.
@@ -182,7 +202,8 @@ func (m *Store) copyTrace(trace *model.Trace) (*model.Trace, error) {
 }
 
 // GetServices returns a list of all known services
-func (m *Store) GetServices(ctx context.Context) ([]string, error) {
+func (st *Store) GetServices(ctx context.Context) ([]string, error) {
+	m := st.GetTenant(GetTenantID(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []string
@@ -193,10 +214,11 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(
+func (st *Store) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
+	m := st.GetTenant(GetTenantID(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []spanstore.Operation
@@ -211,13 +233,14 @@ func (m *Store) GetOperations(
 }
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
-func (m *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	m := st.GetTenant(GetTenantID(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
-		if m.validTrace(trace, query) {
-			copied, err := m.copyTrace(trace)
+		if st.validTrace(trace, query) {
+			copied, err := st.copyTrace(trace)
 			if err != nil {
 				return nil, err
 			}
@@ -297,4 +320,25 @@ func (m *Store) flattenTags(span *model.Span) model.KeyValues {
 		retMe = append(retMe, l.Fields...)
 	}
 	return retMe
+}
+
+func GetTenantID(ctx context.Context) string {
+	tenant := ctx.Value(app.TenantKey)
+	if tenant != nil {
+		return fmt.Sprintf("%v", tenant)
+	}
+	return ""
+}
+
+func (s *Store) GetTenant(tenantID string) *Tenant {
+	s.Lock()
+	defer s.Unlock()
+
+	tenant, ok := s.tenants[tenantID]
+	if !ok {
+		tenant = NewTenant(s.config)
+		s.tenants[tenantID] = tenant
+		log.Printf("Memory storage reated tenant %q\n", tenantID)
+	}
+	return tenant
 }

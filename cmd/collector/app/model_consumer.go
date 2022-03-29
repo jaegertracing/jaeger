@@ -16,23 +16,25 @@
 package app
 
 import (
+	"context"
+
 	"github.com/jaegertracing/jaeger/model"
 )
 
 // ProcessSpan processes a Domain Model Span
-type ProcessSpan func(span *model.Span)
+type ProcessSpan func(span *model.Span, ctx context.Context) // @@@ ecs modified public method
 
 // ProcessSpans processes a batch of Domain Model Spans
-type ProcessSpans func(spans []*model.Span)
+type ProcessSpans func(spans []*model.Span, ctx context.Context) // @@@ ecs modified public method
 
 // FilterSpan decides whether to allow or disallow a span
 type FilterSpan func(span *model.Span) bool
 
 // ChainedProcessSpan chains spanProcessors as a single ProcessSpan call
 func ChainedProcessSpan(spanProcessors ...ProcessSpan) ProcessSpan {
-	return func(span *model.Span) {
+	return func(span *model.Span, ctx context.Context) {
 		for _, processor := range spanProcessors {
-			processor(span)
+			processor(span, ctx)
 		}
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
@@ -42,6 +43,16 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor) *
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, status.Errorf(codes.DataLoss, "failed to get metadata")
+	}
+	tenants := md["x-tenant"]
+	tenant := ""
+	if len(tenants) != 0 {
+		tenant = tenants[0]
+	}
+
 	for _, span := range r.GetBatch().Spans {
 		if span.GetProcess() == nil {
 			span.Process = r.Batch.Process
@@ -50,6 +61,7 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, processor.SpansOptions{
 		InboundTransport: processor.GRPCTransport,
 		SpanFormat:       processor.ProtoSpanFormat,
+		SpanTenant:       tenant,
 	})
 	if err != nil {
 		if err == processor.ErrBusy {

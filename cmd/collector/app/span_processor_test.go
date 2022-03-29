@@ -327,7 +327,7 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 	p := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
 	defer assert.NoError(t, p.Close())
 
-	p.saveSpan(&model.Span{})
+	p.saveSpan(&model.Span{}, context.TODO())
 
 	expected := []metricstest.ExpectedMetric{{
 		Name: "service.spans.saved-by-svc|debug=false|result=err|svc=__unknown", Value: 1,

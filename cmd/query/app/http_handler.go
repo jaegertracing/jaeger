@@ -31,6 +31,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
@@ -421,7 +422,10 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	trace, err := aH.queryService.GetTrace(r.Context(), traceID)
+	tenant := r.Header.Get("x-tenant")
+	trace, err := aH.queryService.GetTrace(
+		context.WithValue(r.Context(), app.TenantKey, tenant),
+		traceID)
 	if err == spanstore.ErrTraceNotFound {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
