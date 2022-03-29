@@ -26,6 +26,7 @@ import (
 func clearEnv() {
 	os.Setenv(SpanStorageTypeEnvVar, "")
 	os.Setenv(DependencyStorageTypeEnvVar, "")
+	os.Setenv(SamplingStorageTypeEnvVar, "")
 }
 
 func TestFactoryConfigFromEnv(t *testing.T) {
@@ -37,15 +38,18 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
+	assert.Empty(t, f.SamplingStorageType)
 
 	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType)
 	os.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
+	os.Setenv(SamplingStorageTypeEnvVar, cassandraStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Equal(t, 1, len(f.SpanWriterTypes))
 	assert.Equal(t, elasticsearchStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
+	assert.Equal(t, cassandraStorageType, f.SamplingStorageType)
 
 	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
 

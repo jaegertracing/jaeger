@@ -109,24 +109,46 @@ func TestOptionsToConfig(t *testing.T) {
 			expectError: "failed to load CA",
 		},
 		{
-			name: "should fail with invalid Client CA pool",
+			name: "should fail with invalid TLS Client CA pool",
 			options: Options{
 				ClientCAPath: testCertKeyLocation + "/bad-CA-cert.txt",
 			},
 			expectError: "failed to parse CA",
 		},
 		{
-			name: "should pass with valid Client CA pool",
+			name: "should pass with valid TLS Client CA pool",
 			options: Options{
 				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
 		{
-			name: "should fail with invalid Cipher Suite",
+			name: "should fail with invalid TLS Cipher Suite",
 			options: Options{
 				CipherSuites: []string{"TLS_INVALID_CIPHER_SUITE"},
 			},
 			expectError: "failed to get cipher suite ids from cipher suite names: cipher suite TLS_INVALID_CIPHER_SUITE not supported or doesn't exist",
+		},
+		{
+			name: "should fail with invalid TLS Min Version",
+			options: Options{
+				MinVersion: "Invalid",
+			},
+			expectError: "failed to get minimum tls version",
+		},
+		{
+			name: "should fail with invalid TLS Max Version",
+			options: Options{
+				MaxVersion: "Invalid",
+			},
+			expectError: "failed to get maximum tls version",
+		},
+		{
+			name: "should fail with TLS Min Version greater than TLS Max Version error",
+			options: Options{
+				MinVersion: "1.2",
+				MaxVersion: "1.1",
+			},
+			expectError: "minimum tls version can't be greater than maximum tls version",
 		},
 	}
 
