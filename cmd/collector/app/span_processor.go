@@ -30,17 +30,12 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-type TenantKeyType string
-
 const (
 	// if this proves to be too low, we can increase it
 	maxQueueSize = 1_000_000
 
 	// if the new queue size isn't 20% bigger than the previous one, don't change
 	minRequiredChange = 1.2
-
-	// Tenancy for spans
-	TenantKey = TenantKeyType("tenant")
 )
 
 type spanProcessor struct {
@@ -183,7 +178,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 
 func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.processSpan(sp.sanitizer(item.span),
-		context.WithValue(context.TODO(), TenantKey, item.tenant))
+		context.WithValue(context.TODO(), spanstore.TenantKey, item.tenant))
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 

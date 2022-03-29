@@ -16,6 +16,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,10 +27,10 @@ import (
 func TestChainedProcessSpan(t *testing.T) {
 	happened1 := false
 	happened2 := false
-	func1 := func(span *model.Span) { happened1 = true }
-	func2 := func(span *model.Span) { happened2 = true }
+	func1 := func(span *model.Span, _ context.Context) { happened1 = true }
+	func2 := func(span *model.Span, _ context.Context) { happened2 = true }
 	chained := ChainedProcessSpan(func1, func2)
-	chained(&model.Span{})
+	chained(&model.Span{}, nil)
 	assert.True(t, happened1)
 	assert.True(t, happened2)
 }

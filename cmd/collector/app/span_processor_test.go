@@ -391,7 +391,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	p := NewSpanProcessor(w, nil, Options.HostMetrics(m), Options.DynQueueSizeMemory(1000)).(*spanProcessor)
 	p.background(10*time.Millisecond, p.updateGauges)
 
-	p.processSpan(&model.Span{})
+	p.processSpan(&model.Span{}, nil)
 	assert.NotEqual(t, uint64(0), p.bytesProcessed)
 
 	for i := 0; i < 15; i++ {
@@ -546,7 +546,7 @@ func TestAdditionalProcessors(t *testing.T) {
 
 	// additional processor is called
 	count := 0
-	f := func(s *model.Span) {
+	f := func(s *model.Span, _ context.Context) {
 		count++
 	}
 	p = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))

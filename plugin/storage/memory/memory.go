@@ -26,7 +26,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
@@ -323,7 +322,7 @@ func (m *Store) flattenTags(span *model.Span) model.KeyValues {
 }
 
 func GetTenantID(ctx context.Context) string {
-	tenant := ctx.Value(app.TenantKey)
+	tenant := ctx.Value(spanstore.TenantKey)
 	if tenant != nil {
 		return fmt.Sprintf("%v", tenant)
 	}
@@ -338,7 +337,7 @@ func (s *Store) GetTenant(tenantID string) *Tenant {
 	if !ok {
 		tenant = NewTenant(s.config)
 		s.tenants[tenantID] = tenant
-		log.Printf("Memory storage reated tenant %q\n", tenantID)
+		log.Printf("Memory storage created tenant %q\n", tenantID)
 	}
 	return tenant
 }

@@ -23,6 +23,14 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+// TenantKeyType is the type of key used to store a tenant in a Context.
+type TenantKeyType string
+
+const (
+	// TenantKey holds tenancy for spans
+	TenantKey = TenantKeyType("tenant")
+)
+
 var (
 	// ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
 	ErrTraceNotFound = errors.New("trace not found")
