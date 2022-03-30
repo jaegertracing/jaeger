@@ -187,12 +187,11 @@ func TestCreateTemplateError(t *testing.T) {
 
 func TestILMDisableTemplateCreation(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &mockClientBuilder{createTemplateError: errors.New("template-error"), Configuration: escfg.Configuration{Enabled: true, UseILM: false, UseReadWriteAliases: true, CreateIndexTemplates: true}}
+	f.primaryConfig = &mockClientBuilder{createTemplateError: errors.New("template-error"), Configuration: escfg.Configuration{Enabled: true, UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}}
 	f.archiveConfig = &mockClientBuilder{}
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	w, err := f.CreateSpanWriter()
-	assert.Nil(t, w)
+	_, err = f.CreateSpanWriter()
 	assert.Nil(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
 }
 
