@@ -199,6 +199,8 @@ func createSpanWriter(
 		Archive:                archive,
 		UseReadWriteAliases:    cfg.GetUseReadWriteAliases(),
 	})
+
+	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.IsCreateIndexTemplates() && !cfg.GetUseILM() {
 		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
 		if err != nil {
