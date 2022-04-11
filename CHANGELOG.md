@@ -19,8 +19,6 @@ next release
 
 * Elasticsearch: Only create ILM template if configured. ([@rbizos](https://github.com/rbizos) in [#3610](https://github.com/jaegertracing/jaeger/pull/3610))
 
-#### Breaking Changes
-
 #### New Features
 
 * Add SAMPLING_STORAGE_TYPE environment variable ([@joe-elliott](https://github.com/joe-elliott) in [#3573](https://github.com/jaegertracing/jaeger/pull/3573))
