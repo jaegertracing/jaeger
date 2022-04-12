@@ -61,7 +61,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 // Initialize implements strategystore.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	if ssFactory == nil {
-		return errors.New("lock or SamplingStore nil. Please configure a backend that supports adaptive sampling")
+		return errors.New("sampling store factory is nil. Please configure a backend that supports adaptive sampling")
 	}
 
 	var err error

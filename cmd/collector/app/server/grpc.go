@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
@@ -42,6 +43,9 @@ type GRPCServerParams struct {
 	MaxReceiveMessageLength int
 	MaxConnectionAge        time.Duration
 	MaxConnectionAgeGrace   time.Duration
+
+	// Set by the server to indicate the actual host:port of the server.
+	HostPortActual string
 }
 
 // StartGRPCServer based on the given parameters
@@ -49,7 +53,9 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
 	var grpcOpts []grpc.ServerOption
 
-	grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
+	if params.MaxReceiveMessageLength > 0 {
+		grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
+	}
 	grpcOpts = append(grpcOpts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge:      params.MaxConnectionAge,
 		MaxConnectionAgeGrace: params.MaxConnectionAgeGrace,
@@ -64,17 +70,16 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 
 		creds := credentials.NewTLS(tlsCfg)
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
-
-		server = grpc.NewServer(grpcOpts...)
-	} else {
-		// server without TLS
-		server = grpc.NewServer(grpcOpts...)
 	}
+
+	server = grpc.NewServer(grpcOpts...)
+	reflection.Register(server)
 
 	listener, err := net.Listen("tcp", params.HostPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
+	params.HostPortActual = listener.Addr().String()
 
 	if err := serveGRPC(server, listener, params); err != nil {
 		return nil, err
@@ -87,7 +92,7 @@ func serveGRPC(server *grpc.Server, listener net.Listener, params *GRPCServerPar
 	api_v2.RegisterCollectorServiceServer(server, params.Handler)
 	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingStore))
 
-	params.Logger.Info("Starting jaeger-collector gRPC server", zap.String("grpc.host-port", params.HostPort))
+	params.Logger.Info("Starting jaeger-collector gRPC server", zap.String("grpc.host-port", params.HostPortActual))
 	go func() {
 		if err := server.Serve(listener); err != nil {
 			params.Logger.Error("Could not launch gRPC service", zap.Error(err))

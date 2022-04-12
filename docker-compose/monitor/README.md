@@ -18,9 +18,9 @@ The following diagram illustrates the relationship between these components:
 # Getting Started
 
 ## Bring up/down the dev environment
-```
-docker compose up
-docker compose down
+```bash
+docker-compose up
+docker-compose down
 ```
 
 ## Example 1

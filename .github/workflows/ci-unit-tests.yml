@@ -11,11 +11,11 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2.4.0
+    - uses: actions/checkout@v3
 
     - uses: actions/setup-go@v2
       with:
-        go-version: ^1.17
+        go-version: 1.17.x
 
     - name: Install tools
       run: make install-ci
@@ -24,7 +24,7 @@ jobs:
       run: make test-ci
 
     - name: Upload coverage to codecov
-      uses: codecov/codecov-action@v2.1.0
+      uses: codecov/codecov-action@v3.0.0
       with:
         file: cover.out
         fail_ci_if_error: true

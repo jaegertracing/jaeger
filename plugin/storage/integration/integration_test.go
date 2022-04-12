@@ -240,13 +240,15 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
-		if err == nil && tracesMatch(t, traces, expected) {
-			return true
+		require.NoError(t, err)
+		if len(expected) != len(traces) {
+			t.Logf("FindTraces: expected: %d, actual: %d", len(expected), len(traces))
+			return false
 		}
-		t.Logf("FindTraces: expected: %d, actual: %d, match: false", len(expected), len(traces))
-		return false
+		return true
 	})
 	require.True(t, found)
+	tracesMatch(t, traces, expected)
 	return traces
 }
 
@@ -325,10 +327,10 @@ func loadAndParseJSON(t *testing.T, path string, object interface{}) {
 func correctTime(json []byte) []byte {
 	jsonString := string(json)
 	now := time.Now().UTC()
-	today := now.Format("2006-01-02")
 	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
-	retString := strings.Replace(jsonString, "2017-01-26", today, -1)
-	retString = strings.Replace(retString, "2017-01-25", yesterday, -1)
+	twoDaysAgo := now.AddDate(0, 0, -2).Format("2006-01-02")
+	retString := strings.Replace(jsonString, "2017-01-26", yesterday, -1)
+	retString = strings.Replace(retString, "2017-01-25", twoDaysAgo, -1)
 	return []byte(retString)
 }
 

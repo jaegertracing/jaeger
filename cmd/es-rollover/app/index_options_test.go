@@ -52,6 +52,13 @@ func TestRolloverIndices(t *testing.T) {
 					writeAliasName:       "jaeger-service-write",
 					initialRolloverIndex: "jaeger-service-000001",
 				},
+				{
+					templateName:         "jaeger-dependencies",
+					mapping:              "jaeger-dependencies",
+					readAliasName:        "jaeger-dependencies-read",
+					writeAliasName:       "jaeger-dependencies-write",
+					initialRolloverIndex: "jaeger-dependencies-000001",
+				},
 			},
 		},
 		{
@@ -99,12 +106,22 @@ func TestRolloverIndices(t *testing.T) {
 					writeAliasName:       "mytenant-jaeger-service-write",
 					initialRolloverIndex: "mytenant-jaeger-service-000001",
 				},
+				{
+					mapping:              "jaeger-dependencies",
+					templateName:         "mytenant-jaeger-dependencies",
+					readAliasName:        "mytenant-jaeger-dependencies-read",
+					writeAliasName:       "mytenant-jaeger-dependencies-write",
+					initialRolloverIndex: "mytenant-jaeger-dependencies-000001",
+				},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.prefix != "" {
+				test.prefix += "-"
+			}
 			result := RolloverIndices(test.archive, test.prefix)
 			for i, r := range result {
 				assert.Equal(t, test.expected[i].templateName, r.TemplateName())

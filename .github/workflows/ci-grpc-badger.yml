@@ -11,11 +11,11 @@ jobs:
   grpc-and-badger:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2.4.0
+    - uses: actions/checkout@v3
 
     - uses: actions/setup-go@v2
       with:
-        go-version: ^1.17
+        go-version: 1.17.x
 
     - name: Run Badger storage integration tests
       run: make badger-storage-integration-test

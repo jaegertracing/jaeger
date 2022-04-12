@@ -4,9 +4,89 @@ Changes by Version
 next release
 -------------------
 ### Backend Changes
+
 #### Breaking Changes
 
 #### New Features
+
+#### Bug fixes, Minor Improvements
+
+### UI Changes
+
+1.33.0 (2022-04-11)
+-------------------
+#### New Features
+
+* Add SAMPLING_STORAGE_TYPE environment variable ([@joe-elliott](https://github.com/joe-elliott) in [#3573](https://github.com/jaegertracing/jaeger/pull/3573))
+* Support min/max TLS version in TLS config ([@Ashmita152](https://github.com/Ashmita152) in [#3567](https://github.com/jaegertracing/jaeger/pull/3567))
+* Add support for ciphersuites in tls config ([@Ashmita152](https://github.com/Ashmita152) in [#3564](https://github.com/jaegertracing/jaeger/pull/3564))
+
+#### Bug fixes, Minor Improvements
+
+* Fix: exit on grpc plugin crash ([@johanneswuerbach](https://github.com/johanneswuerbach) in [#3604](https://github.com/jaegertracing/jaeger/pull/3604))
+* Bump go.opentelemetry.io/collector/model from 0.47.0 to 0.48.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3608](https://github.com/jaegertracing/jaeger/pull/3608))
+* Fix format string for go1.18 ([@bobrik](https://github.com/bobrik) in [#3596](https://github.com/jaegertracing/jaeger/pull/3596))
+* Fix favicon returning 500 inside container ([@Ashmita152](https://github.com/Ashmita152) in [#3569](https://github.com/jaegertracing/jaeger/pull/3569))
+* Elasticsearch: Do not create index templates if ILM is enabled. ([@rbizos](https://github.com/rbizos) in [#3610](https://github.com/jaegertracing/jaeger/pull/3610))
+
+
+### UI Changes
+
+* UI pinned to version 1.22.0. The changelog is available here [v1.22.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1220-2022-04-11).
+
+1.32.0 (2022-03-06)
+-------------------
+
+### Backend Changes
+
+#### New Features
+
+* Enable gRPC reflection service on collector/query ([@yurishkuro](https://github.com/yurishkuro) in [#3526](https://github.com/jaegertracing/jaeger/pull/3526))
+ 
+#### Bug fixes, Minor Improvements
+
+* Fix query for latency metrics ([@Ashmita152](https://github.com/Ashmita152) in [#3559](https://github.com/jaegertracing/jaeger/pull/3559))
+* Fix integration tests containing spans in the future ([@johanneswuerbach](https://github.com/johanneswuerbach) in [#3538](https://github.com/jaegertracing/jaeger/pull/3538))
+* Add system diagram using mermaid markdown ([@yurishkuro](https://github.com/yurishkuro) in [#3529](https://github.com/jaegertracing/jaeger/pull/3529))
+* Fix indexDateLayout for elasticsearch dependencies #3523 ([@ilyamor](https://github.com/ilyamor) in [#3524](https://github.com/jaegertracing/jaeger/pull/3524))
+* Fix builds due to upstream OTEL proto path change ([@albertteoh](https://github.com/albertteoh) in [#3525](https://github.com/jaegertracing/jaeger/pull/3525))
+
+### UI Changes
+
+* UI pinned to version 1.21.0. The changelog is available here [v1.21.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1210-2022-03-06).
+
+1.31.0 (2022-02-04)
+-------------------
+### Backend Changes
+#### Bug fixes, Minor Improvements
+
+* Bump Go compiler in CI to 1.17.6 ([@yurishkuro](https://github.com/yurishkuro) in [#3516](https://github.com/jaegertracing/jaeger/pull/3516))
+* Add support for ES index aliases / rollover to the dependency store (Resolves #2143) ([@frittentheke](https://github.com/frittentheke) in [#2144](https://github.com/jaegertracing/jaeger/pull/2144))
+* Use existing functions from xdg-go/scram pkg ([@yurishkuro](https://github.com/yurishkuro) in [#3481](https://github.com/jaegertracing/jaeger/pull/3481))
+
+### UI Changes
+
+* UI pinned to version 1.20.1. The changelog is available here [v1.20.1](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1201-2022-02-04).
+
+
+1.30.0 (2022-01-11)
+-------------------
+### Backend Changes
+
+#### New Features
+
+* Add remote gRPC option for storage plugin ([@cevian](https://github.com/cevian) in [#3383](https://github.com/jaegertracing/jaeger/pull/3383))
+* Build binaries for darwin/arm64 ([@jhchabran](https://github.com/jhchabran) in [#3431](https://github.com/jaegertracing/jaeger/pull/3431))
+* Add MaxConnectionAge[Grace] to collector's gRPC server ([@jpkrohling](https://github.com/jpkrohling) in [#3422](https://github.com/jaegertracing/jaeger/pull/3422))
+
+#### Bug fixes, Minor Improvements
+
+* Fix prefixed index rollover ([@albertteoh](https://github.com/albertteoh) in [#3457](https://github.com/jaegertracing/jaeger/pull/3457))
+* Log problems communicating with Elasticsearch ([@esnible](https://github.com/esnible) in [#3451](https://github.com/jaegertracing/jaeger/pull/3451))
+
+### UI Changes
+
+* UI pinned to version 1.20.0. The changelog is available here [v1.20.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1200-jan-11-2022)
 
 1.29.0 (2021-12-01)
 -------------------

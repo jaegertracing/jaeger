@@ -45,7 +45,7 @@ func TestBindFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
-	assert.Equal(t, "tenant1", c.IndexPrefix)
+	assert.Equal(t, "tenant1-", c.IndexPrefix)
 	assert.Equal(t, true, c.Archive)
 	assert.Equal(t, 150, c.Timeout)
 	assert.Equal(t, "admin", c.Username)

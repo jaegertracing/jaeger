@@ -296,19 +296,38 @@ func TestCreateError(t *testing.T) {
 	}
 }
 
-func CreateSamplingStoreFactory(t *testing.T) {
+func TestCreateSamplingStoreFactory(t *testing.T) {
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
 
+	// if not specified sampling store is chosen from available factories
 	ssFactory, err := f.CreateSamplingStoreFactory()
 	assert.Equal(t, f.factories[cassandraStorageType], ssFactory)
 	assert.NoError(t, err)
 
+	// if not specified and there's no compatible factories then return nil
 	delete(f.factories, cassandraStorageType)
 	ssFactory, err = f.CreateSamplingStoreFactory()
 	assert.Nil(t, ssFactory)
+	assert.NoError(t, err)
+
+	// if an incompatible factory is specified return err
+	cfg := defaultCfg()
+	cfg.SamplingStorageType = "elasticsearch"
+	f, err = NewFactory(cfg)
+	require.NoError(t, err)
+	ssFactory, err = f.CreateSamplingStoreFactory()
+	assert.Nil(t, ssFactory)
+	assert.EqualError(t, err, "storage factory of type elasticsearch does not support sampling store")
+
+	// if a compatible factory is specified then return it
+	cfg.SamplingStorageType = "cassandra"
+	f, err = NewFactory(cfg)
+	require.NoError(t, err)
+	ssFactory, err = f.CreateSamplingStoreFactory()
+	assert.Equal(t, ssFactory, f.factories["cassandra"])
 	assert.NoError(t, err)
 }
 

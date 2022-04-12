@@ -74,6 +74,9 @@ func TestServerFlags(t *testing.T) {
 		"--prefix.tls.enabled=true",
 		"--prefix.tls.cert=cert-file",
 		"--prefix.tls.key=key-file",
+		"--prefix.tls.cipher-suites=TLS_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+		"--prefix.tls.min-version=1.2",
+		"--prefix.tls.max-version=1.3",
 	}
 
 	tests := []struct {
@@ -107,6 +110,9 @@ func TestServerFlags(t *testing.T) {
 				CertPath:     "cert-file",
 				KeyPath:      "key-file",
 				ClientCAPath: test.file,
+				CipherSuites: []string{"TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"},
+				MinVersion:   "1.2",
+				MaxVersion:   "1.3",
 			}, tlsOpts)
 		})
 	}

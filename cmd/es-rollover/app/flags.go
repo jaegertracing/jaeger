@@ -56,6 +56,9 @@ func AddFlags(flags *flag.FlagSet) {
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
 	c.IndexPrefix = v.GetString(indexPrefix)
+	if c.IndexPrefix != "" {
+		c.IndexPrefix += "-"
+	}
 	c.Archive = v.GetBool(archive)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)
