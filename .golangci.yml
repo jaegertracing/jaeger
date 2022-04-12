@@ -16,7 +16,7 @@ linters-settings:
       - G404
       - G601
   gosimple:
-    go: "1.17"
+    go: "1.18"
 
 linters:
   enable:
