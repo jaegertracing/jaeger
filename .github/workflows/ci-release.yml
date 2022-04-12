@@ -20,7 +20,7 @@ jobs:
 
     - uses: actions/setup-go@v2
       with:
-        go-version: 1.17.x
+        go-version: 1.18.x
 
     - uses: actions/setup-node@v3
       with:
