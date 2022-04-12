@@ -1,7 +1,7 @@
 VERSION := 1.0.0
 ROOT_IMAGE ?= alpine:3.14
 CERT_IMAGE := $(ROOT_IMAGE)
-GOLANG_IMAGE := golang:1.17-alpine
+GOLANG_IMAGE := golang:1.18-alpine
 
 DOCKER_REGISTRY ?= localhost:5000
 BASE_IMAGE ?= $(DOCKER_REGISTRY)/baseimg_alpine:latest
