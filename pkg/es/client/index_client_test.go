@@ -249,7 +249,7 @@ func TestClientDeleteIndices(t *testing.T) {
 				assert.Equal(t, fmt.Sprintf("%ds", masterTimeoutSeconds), req.URL.Query().Get("master_timeout"))
 				assert.True(t, len(req.URL.Path) <= maxURLPathLength)
 
-				// removes begining '/' and ending ','
+				// removes leading '/' and trailing ','
 				// example: /jaeger-span-000001,  =>  jaeger-span-000001
 				rawIndices := strings.TrimPrefix(req.URL.Path, "/")
 				rawIndices = strings.TrimSuffix(rawIndices, ",")
