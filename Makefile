@@ -368,7 +368,7 @@ changelog:
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.10.4
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.0
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
 
 .PHONY: install-ci
 install-ci: install-tools
