@@ -96,9 +96,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	}
 	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
-	sanitizers := []sanitizer.SanitizeSpan{
-		sanitizer.NewEmptyServiceNameSanitizer(),
-	}
+	sanitizers := append([]sanitizer.SanitizeSpan{}, sanitizer.StandardSanitizers...)
 	if options.sanitizer != nil {
 		sanitizers = append(sanitizers, options.sanitizer)
 	}
