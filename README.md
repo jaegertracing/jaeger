@@ -56,7 +56,7 @@ Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CN
 
 ## Get Involved
 
-Jaeger is an open source project with open governance. We welcome contributions from the community, and we’d love your help to improve and extend the project. Here are [some ideas](https://www.jaegertracing.io/get-involved/) for how to get involved. Many of them don’t even require any coding.
+Jaeger is an open source project with open governance. We welcome contributions from the community, and we would love your help to improve and extend the project. Here are [some ideas](https://www.jaegertracing.io/get-involved/) for how to get involved. Many of them do not even require any coding.
 
 ## Features
 
