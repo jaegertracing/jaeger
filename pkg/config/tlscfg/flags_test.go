@@ -18,6 +18,7 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -120,44 +121,8 @@ func TestServerFlags(t *testing.T) {
 	}
 }
 
-func TestTLSFailClientFlags(t *testing.T) {
-	cmdLine := []string{
-		"--prefix.tls.ca=ca-file",
-		"--prefix.tls.cert=cert-file",
-		"--prefix.tls.key=key-file",
-		"--prefix.tls.server-name=HAL1",
-		"--prefix.tls.skip-host-verify=true",
-	}
-
-	tests := []struct {
-		option string
-	}{
-		{
-			option: "--prefix.tls.enabled=false",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.option, func(t *testing.T) {
-			v := viper.New()
-			command := cobra.Command{}
-			flagSet := &flag.FlagSet{}
-			flagCfg := ClientFlagsConfig{
-				Prefix: "prefix",
-			}
-			flagCfg.AddFlags(flagSet)
-			command.PersistentFlags().AddGoFlagSet(flagSet)
-			v.BindPFlags(command.PersistentFlags())
-
-			err := command.ParseFlags(append(cmdLine, test.option))
-			require.NoError(t, err)
-			_, err = flagCfg.InitFromViper(v)
-			require.Error(t, err, "prefix.tls.enabled has been disable")
-		})
-	}
-}
-
-func TestTLSFailServerFlags(t *testing.T) {
+// TestFailedTLSFlags verifies that TLS options cannot be used when tls.enabled=false
+func TestFailedTLSFlags(t *testing.T) {
 	clientTests := []string{
 		".ca=blah",
 		".cert=blah",
@@ -185,9 +150,6 @@ func TestTLSFailServerFlags(t *testing.T) {
 		t.Run(metaTest.side, func(t *testing.T) {
 			for _, test := range metaTest.tests {
 				t.Run(test, func(t *testing.T) {
-					v := viper.New()
-					command := cobra.Command{}
-					flagSet := &flag.FlagSet{}
 					type UnderTest interface {
 						AddFlags(flags *flag.FlagSet)
 						InitFromViper(v *viper.Viper) (Options, error)
@@ -202,9 +164,7 @@ func TestTLSFailServerFlags(t *testing.T) {
 							Prefix: "prefix",
 						}
 					}
-					underTest.AddFlags(flagSet)
-					command.PersistentFlags().AddGoFlagSet(flagSet)
-					v.BindPFlags(command.PersistentFlags())
+					v, command := config.Viperize(underTest.AddFlags)
 
 					cmdLine := []string{
 						"--prefix.tls.enabled=true",

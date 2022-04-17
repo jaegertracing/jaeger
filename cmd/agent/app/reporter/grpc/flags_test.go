@@ -18,6 +18,7 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -53,19 +54,13 @@ func TestBindFlags(t *testing.T) {
 }
 
 func TestBindTLSFlagFailure(t *testing.T) {
-	v := viper.New()
-	command := cobra.Command{}
-	flags := &flag.FlagSet{}
-	AddFlags(flags)
-	command.ParseFlags([]string{
-		"--reporter.grpc-server.host-port=127.0.0.1:1234",
+	v, command := config.Viperize(AddFlags)
+	err := command.ParseFlags([]string{
+		"--reporter.grpc.tls.enabled=false",
+		"--reporter.grpc.tls.cert=blah", // invalid unless tls.enabled
 	})
-	v.Set("reporter.grpc.tls.enabled", "false")
-	v.Set("reporter.grpc.tls.cert", "abc")
-	v.Set("reporter.grpc.tls.ca", "def")
-	v.Set("reporter.grpc.tls.key", "xyz")
-	v.Set("reporter.grpc.tls.server-name", "xyz")
-	v.Set("reporter.grpc.tls.skip-host-verify", "true")
-	_, err := new(ConnBuilder).InitFromViper(v)
-	require.Error(t, err, "collector.grpc.tls.enabled has been disable")
+	require.NoError(t, err)
+	_, err = new(ConnBuilder).InitFromViper(v)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to process TLS options")
 }

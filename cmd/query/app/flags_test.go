@@ -17,6 +17,7 @@ package app
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,6 +124,7 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
 }
 
+// TODO (yurishkuro) it is not clear what this test is testing (added in PR # 3030)
 func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 	var flagPortCases = []struct {
 		name                 string
@@ -176,74 +178,19 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 	}
 }
 
-func TestQueryOptionsPortAllocationFromFailedGRPCFlags(t *testing.T) {
-	var flagPortCases = []struct {
-		name                 string
-		flagsArray           []string
-		expectedHTTPHostPort string
-		expectedGRPCHostPort string
-		verifyCommonPort     bool
-		expectedHostPort     string
-	}{
-		{
-			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
-			// The server with TLS enabled with equal HTTP & GRPC host-ports, is still an acceptable flag configuration
-			name: "Common equal host-port specified, TLS enabled in atleast one server",
-			flagsArray: []string{
-				"--query.grpc.tls.enabled=false",
-				"--query.http-server.host-port=127.0.0.1:8081",
-				"--query.grpc-server.host-port=127.0.0.1:8081",
-			},
-			expectedHTTPHostPort: "127.0.0.1:8081",
-			expectedGRPCHostPort: "127.0.0.1:8081",
-		},
-	}
-	for _, test := range flagPortCases {
-		t.Run(test.name, func(t *testing.T) {
+func TestQueryOptions_FailedTLSFlags(t *testing.T) {
+	for _, test := range []string{"gRPC", "HTTP"} {
+		t.Run(test, func(t *testing.T) {
+			proto := strings.ToLower(test)
 			v, command := config.Viperize(AddFlags)
-			command.ParseFlags(test.flagsArray)
-			v.Set("query.grpc.tls.enabled", "false")
-			v.Set("query.grpc.tls.cert", "abc")
-			v.Set("query.grpc.tls.ca", "def")
-			v.Set("query.grpc.tls.key", "xyz")
-			_, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-			require.Error(t, err, "query.grpc.tls.enabled has been disable")
-		})
-	}
-}
-
-func TestQueryOptionsPortAllocationFromFailedHTTPFlags(t *testing.T) {
-	var flagPortCases = []struct {
-		name                 string
-		flagsArray           []string
-		expectedHTTPHostPort string
-		expectedGRPCHostPort string
-		verifyCommonPort     bool
-		expectedHostPort     string
-	}{
-		{
-			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
-			// The server with TLS enabled with equal HTTP & GRPC host-ports, is still an acceptable flag configuration
-			name: "Common equal host-port specified, TLS enabled in atleast one server",
-			flagsArray: []string{
-				"--query.http.tls.enabled=false",
-				"--query.http-server.host-port=127.0.0.1:8081",
-				"--query.grpc-server.host-port=127.0.0.1:8081",
-			},
-			expectedHTTPHostPort: "127.0.0.1:8081",
-			expectedGRPCHostPort: "127.0.0.1:8081",
-		},
-	}
-	for _, test := range flagPortCases {
-		t.Run(test.name, func(t *testing.T) {
-			v, command := config.Viperize(AddFlags)
-			command.ParseFlags(test.flagsArray)
-			v.Set("query.http.tls.enabled", "false")
-			v.Set("query.http.tls.cert", "abc")
-			v.Set("query.http.tls.ca", "def")
-			v.Set("query.http.tls.key", "xyz")
-			_, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-			require.Error(t, err, "query.http.tls.enabled has been disable")
+			err := command.ParseFlags([]string{
+				"--query." + proto + ".tls.enabled=false",
+				"--query." + proto + ".tls.cert=blah", // invalid unless tls.enabled
+			})
+			require.NoError(t, err)
+			_, err = new(QueryOptions).InitFromViper(v, zap.NewNop())
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "failed to process "+test+" TLS options")
 		})
 	}
 }

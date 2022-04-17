@@ -57,31 +57,27 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 func TestCollectorOptionsWithFailedHTTPFlags(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--collector.http-server.host-port=:5678",
-		"--collector.grpc-server.host-port=127.0.0.1:1234",
+	err := command.ParseFlags([]string{
+		"--collector.http.tls.enabled=false",
+		"--collector.http.tls.cert=blah", // invalid unless tls.enabled
 	})
-	v.Set("collector.http.tls.enabled", "false")
-	v.Set("collector.http.tls.cert", "abc")
-	v.Set("collector.http.tls.ca", "def")
-	v.Set("collector.http.tls.key", "xyz")
-	_, err := c.InitFromViper(v)
-	require.Error(t, err, "query.http.tls.enabled has been disable")
+	require.NoError(t, err)
+	_, err = c.InitFromViper(v)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse HTTP TLS options")
 }
 
 func TestCollectorOptionsWithFailedGRPCFlags(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--collector.http-server.host-port=:5678",
-		"--collector.grpc-server.host-port=127.0.0.1:1234",
+	err := command.ParseFlags([]string{
+		"--collector.grpc.tls.enabled=false",
+		"--collector.grpc.tls.cert=blah", // invalid unless tls.enabled
 	})
-	v.Set("collector.grpc.tls.enabled", "false")
-	v.Set("collector.grpc.tls.cert", "abc")
-	v.Set("collector.grpc.tls.ca", "def")
-	v.Set("collector.grpc.tls.key", "xyz")
-	_, err := c.InitFromViper(v)
-	require.Error(t, err, "query.grpc.tls.enabled has been disable")
+	require.NoError(t, err)
+	_, err = c.InitFromViper(v)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse gRPC TLS options")
 }
 
 func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {

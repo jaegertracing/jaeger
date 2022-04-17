@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -53,7 +54,7 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) (*ConnBuilder, error) {
 	if tls, err := tlsFlagsConfig.InitFromViper(v); err == nil {
 		b.TLS = tls
 	} else {
-		return b, err
+		return b, fmt.Errorf("failed to process TLS options: %w", err)
 	}
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 	return b, nil
