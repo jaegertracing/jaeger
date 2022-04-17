@@ -124,7 +124,6 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
 }
 
-// TODO (yurishkuro) it is not clear what this test is testing (added in PR # 3030)
 func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 	var flagPortCases = []struct {
 		name                 string
