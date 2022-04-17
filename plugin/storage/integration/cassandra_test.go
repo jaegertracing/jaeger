@@ -18,6 +18,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -57,7 +58,9 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(flags []string)
 	s.logger, _ = testutils.NewLogger()
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags(flags)
+	if err := command.ParseFlags(flags); err != nil {
+		return nil, fmt.Errorf("unable to parse flags: %w", err)
+	}
 	f.InitFromViper(v, zap.NewNop())
 	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return nil, err
