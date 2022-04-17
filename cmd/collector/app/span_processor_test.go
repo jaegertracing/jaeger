@@ -293,7 +293,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 	defer assert.NoError(t, p.Close())
 
 	// block the writer so that the first span is read from the queue and blocks the processor,
-	// and eiher the second or the third span is rejected since the queue capacity is just 1.
+	// and either the second or the third span is rejected since the queue capacity is just 1.
 	w.Lock()
 	defer w.Unlock()
 
