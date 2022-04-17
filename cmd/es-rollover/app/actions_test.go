@@ -92,7 +92,8 @@ func TestExecuteAction(t *testing.T) {
 			tlsFlags.AddFlags(flags)
 			command.PersistentFlags().AddGoFlagSet(flags)
 			v.BindPFlags(command.PersistentFlags())
-			err := command.ParseFlags(test.flags)
+			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
+			err := command.ParseFlags(cmdLine)
 			require.NoError(t, err)
 			executedAction := false
 			err = ExecuteAction(ActionExecuteOptions{
