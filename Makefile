@@ -368,7 +368,9 @@ changelog:
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.10.4
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
+	# FIXME: pin to f5b92e1 until v1.45.3 is available to pick up fixes for staticheck
+	# go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@f5b92e1
 
 .PHONY: install-ci
 install-ci: install-tools
