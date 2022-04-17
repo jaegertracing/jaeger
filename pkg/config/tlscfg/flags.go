@@ -95,7 +95,9 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ClientCAPath = v.GetString(c.Prefix + tlsClientCA)
-	p.CipherSuites = strings.Split(stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)), ",")
+	if s := v.GetString(c.Prefix + tlsCipherSuites); s != "" {
+		p.CipherSuites = strings.Split(stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)), ",")
+	}
 	p.MinVersion = v.GetString(c.Prefix + tlsMinVersion)
 	p.MaxVersion = v.GetString(c.Prefix + tlsMaxVersion)
 
