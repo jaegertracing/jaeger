@@ -17,7 +17,7 @@ package healthcheck
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -63,7 +63,7 @@ func TestHttpCall(t *testing.T) {
 }
 
 func parseHealthCheckResponse(t *testing.T, resp *http.Response) healthCheckResponse {
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	var hr healthCheckResponse
 	err = json.Unmarshal(body, &hr)

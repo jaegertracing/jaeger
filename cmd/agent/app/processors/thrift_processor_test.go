@@ -28,6 +28,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	grpcrep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
@@ -80,7 +81,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.GrpcCollector, reporter.Reporter, *grpc.ClientConn) {
 	grpcCollector := testutils.StartGRPCCollector(t)
-	conn, err := grpc.Dial(grpcCollector.Listener().Addr().String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(grpcCollector.Listener().Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	rep := grpcrep.NewReporter(conn, map[string]string{}, zap.NewNop())
 	metricsFactory := metricstest.NewFactory(0)

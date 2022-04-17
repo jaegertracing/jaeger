@@ -18,7 +18,7 @@ package clientcfghttp
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -86,7 +86,7 @@ func testHTTPHandler(t *testing.T, basePath string) {
 				resp, err := http.Get(ts.server.URL + basePath + endpoint + "?service=Y")
 				require.NoError(t, err)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
-				body, err := ioutil.ReadAll(resp.Body)
+				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				err = resp.Body.Close()
 				require.NoError(t, err)
@@ -111,7 +111,7 @@ func testHTTPHandler(t *testing.T, basePath string) {
 			resp, err := http.Get(ts.server.URL + basePath + "/baggageRestrictions?service=Y")
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			require.NoError(t, err)
 			var objResp []*baggage.BaggageRestriction
@@ -202,7 +202,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, testCase.statusCode, resp.StatusCode)
 				if testCase.body != "" {
-					body, err := ioutil.ReadAll(resp.Body)
+					body, err := io.ReadAll(resp.Body)
 					assert.NoError(t, err)
 					assert.Equal(t, testCase.body, string(body))
 				}

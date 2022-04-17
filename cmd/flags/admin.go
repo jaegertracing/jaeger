@@ -24,6 +24,7 @@ import (
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -31,9 +32,7 @@ import (
 )
 
 const (
-	healthCheckHTTPPort = "health-check-http-port"
-	adminHTTPPort       = "admin-http-port"
-	adminHTTPHostPort   = "admin.http.host-port"
+	adminHTTPHostPort = "admin.http.host-port"
 )
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
@@ -107,7 +106,12 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
-	s.server = &http.Server{Handler: recoveryHandler(s.mux)}
+	errorLog, _ := zap.NewStdLogAt(s.logger, zapcore.ErrorLevel)
+	s.server = &http.Server{
+		Handler:  recoveryHandler(s.mux),
+		ErrorLog: errorLog,
+	}
+
 	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.adminHostPort))
 	go func() {
 		switch err := s.server.Serve(l); err {

@@ -22,9 +22,9 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -59,6 +59,7 @@ const (
 	suffixVersion                        = ".version"
 	suffixMaxDocCount                    = ".max-doc-count"
 	suffixLogLevel                       = ".log-level"
+	suffixSendGetBodyAs                  = ".send-get-body-as"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
@@ -68,6 +69,7 @@ const (
 	defaultIndexDateSeparator = "-"
 
 	defaultIndexRolloverFrequency = "day"
+	defaultSendGetBodyAs          = ""
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -110,6 +112,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		RemoteReadClusters:   []string{},
 		MaxDocCount:          defaultMaxDocCount,
 		LogLevel:             "error",
+		SendGetBodyAs:        defaultSendGetBodyAs,
 	}
 	options := &Options{
 		Primary: namespaceConfig{
@@ -265,6 +268,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixLogLevel,
 		nsConfig.LogLevel,
 		"The Elasticsearch client log-level. Valid levels: [debug, info, error]")
+	flagSet.String(
+		nsConfig.namespace+suffixSendGetBodyAs,
+		nsConfig.SendGetBodyAs,
+		"HTTP verb for requests that contain a body [GET, POST].")
 
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
@@ -315,12 +322,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 	cfg.LogLevel = v.GetString(cfg.namespace + suffixLogLevel)
+	cfg.SendGetBodyAs = v.GetString(cfg.namespace + suffixSendGetBodyAs)
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
-	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
+	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
@@ -337,6 +345,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// Dependencies calculation should be daily, and this index size is very small
 	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
 
+	// TODO handle error
 	cfg.TLS, _ = cfg.getTLSFlagsConfig().InitFromViper(v)
 }
 

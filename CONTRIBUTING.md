@@ -15,6 +15,7 @@ We gratefully welcome improvements to documentation as well as to code.
 
 ### Pre-requisites
 * Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH
+* Install [Yarn](https://yarnpkg.com/) for running local build with the UI
 
 This library uses Go modules to manage dependencies.
 
@@ -131,11 +132,6 @@ import (
 
 We strive to maintain as high code coverage as possible. The current repository limit is set at 95%,
 with some exclusions discussed below.
-
-### Combining code coverage
-
-We use [cover.sh](./scripts/cover.sh) script to run tests and combine code coverage from all packages
-(see also [issue # 797](https://github.com/jaegertracing/jaeger/issues/797)).
 
 ### Packages with no tests
 

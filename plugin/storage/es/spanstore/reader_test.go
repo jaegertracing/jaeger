@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
@@ -132,14 +131,34 @@ func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 var _ spanstore.Reader = &SpanReader{} // check API conformance
 
 func TestNewSpanReader(t *testing.T) {
-	client := &mocks.Client{}
-	reader := NewSpanReader(SpanReaderParams{
-		Client:         client,
-		Logger:         zap.NewNop(),
-		MaxSpanAge:     0,
-		MetricsFactory: metrics.NullFactory,
-		IndexPrefix:    ""})
-	assert.NotNil(t, reader)
+	tests := []struct {
+		name       string
+		params     SpanReaderParams
+		maxSpanAge time.Duration
+	}{
+		{
+			name: "no rollover",
+			params: SpanReaderParams{
+				MaxSpanAge: time.Hour * 72,
+			},
+			maxSpanAge: time.Hour * 72,
+		},
+		{
+			name: "rollover enabled",
+			params: SpanReaderParams{
+				MaxSpanAge:          time.Hour * 72,
+				UseReadWriteAliases: true,
+			},
+			maxSpanAge: time.Hour * 24 * 365 * 50,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewSpanReader(test.params)
+			require.NotNil(t, reader)
+			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
+		})
+	}
 }
 
 func TestSpanReaderIndices(t *testing.T) {
@@ -1092,7 +1111,7 @@ func TestSpanReader_buildOperationNameQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildTagQuery(t *testing.T) {
-	inStr, err := ioutil.ReadFile("fixtures/query_01.json")
+	inStr, err := os.ReadFile("fixtures/query_01.json")
 	require.NoError(t, err)
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat.foo", "spook")
@@ -1107,7 +1126,7 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildTagRegexQuery(t *testing.T) {
-	inStr, err := ioutil.ReadFile("fixtures/query_02.json")
+	inStr, err := os.ReadFile("fixtures/query_02.json")
 	require.NoError(t, err)
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat.foo", "spo.*")
@@ -1122,7 +1141,7 @@ func TestSpanReader_buildTagRegexQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildTagRegexEscapedQuery(t *testing.T) {
-	inStr, err := ioutil.ReadFile("fixtures/query_03.json")
+	inStr, err := os.ReadFile("fixtures/query_03.json")
 	require.NoError(t, err)
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat.foo", "spo\\*")

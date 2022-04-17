@@ -92,7 +92,7 @@ func TestClose(t *testing.T) {
 	err := fmt.Errorf("some error")
 	f := Factory{
 		factories: map[string]storage.Factory{
-			storageType: &errorCloseFactory{closeErr: err},
+			storageType: &errorFactory{closeErr: err},
 		},
 		FactoryConfig: FactoryConfig{SpanWriterTypes: []string{storageType}},
 	}
@@ -296,6 +296,41 @@ func TestCreateError(t *testing.T) {
 	}
 }
 
+func TestCreateSamplingStoreFactory(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+
+	// if not specified sampling store is chosen from available factories
+	ssFactory, err := f.CreateSamplingStoreFactory()
+	assert.Equal(t, f.factories[cassandraStorageType], ssFactory)
+	assert.NoError(t, err)
+
+	// if not specified and there's no compatible factories then return nil
+	delete(f.factories, cassandraStorageType)
+	ssFactory, err = f.CreateSamplingStoreFactory()
+	assert.Nil(t, ssFactory)
+	assert.NoError(t, err)
+
+	// if an incompatible factory is specified return err
+	cfg := defaultCfg()
+	cfg.SamplingStorageType = "elasticsearch"
+	f, err = NewFactory(cfg)
+	require.NoError(t, err)
+	ssFactory, err = f.CreateSamplingStoreFactory()
+	assert.Nil(t, ssFactory)
+	assert.EqualError(t, err, "storage factory of type elasticsearch does not support sampling store")
+
+	// if a compatible factory is specified then return it
+	cfg.SamplingStorageType = "cassandra"
+	f, err = NewFactory(cfg)
+	require.NoError(t, err)
+	ssFactory, err = f.CreateSamplingStoreFactory()
+	assert.Equal(t, ssFactory, f.factories["cassandra"])
+	assert.NoError(t, err)
+}
+
 type configurable struct {
 	mocks.Factory
 	flagSet *flag.FlagSet
@@ -392,29 +427,29 @@ func TestPublishOpts(t *testing.T) {
 	})
 }
 
-type errorCloseFactory struct {
+type errorFactory struct {
 	closeErr error
 }
 
-var _ storage.Factory = (*errorCloseFactory)(nil)
-var _ io.Closer = (*errorCloseFactory)(nil)
+var _ storage.Factory = (*errorFactory)(nil)
+var _ io.Closer = (*errorFactory)(nil)
 
-func (e errorCloseFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("implement me")
 }
 
-func (e errorCloseFactory) Close() error {
+func (e errorFactory) Close() error {
 	return e.closeErr
 }

@@ -19,7 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
@@ -51,7 +51,7 @@ func (c *HTTPClient) GetJSON(ctx context.Context, endpoint string, url string, o
 	defer res.Body.Close()
 
 	if res.StatusCode >= 400 {
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}

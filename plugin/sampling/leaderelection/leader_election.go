@@ -15,6 +15,7 @@
 package leaderelection
 
 import (
+	"io"
 	"sync"
 	"time"
 
@@ -30,7 +31,10 @@ const (
 
 // ElectionParticipant partakes in leader election to become leader.
 type ElectionParticipant interface {
+	io.Closer
+
 	IsLeader() bool
+	Start() error
 }
 
 // DistributedElectionParticipant implements ElectionParticipant on top of a distributed lock.

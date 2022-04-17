@@ -19,8 +19,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
+	"os"
 	"testing"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
@@ -50,7 +50,7 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 		require.NoError(t, err)
 
 		out := fmt.Sprintf("fixtures/domain_%02d.json", i)
-		outStr, err := ioutil.ReadFile(out)
+		outStr, err := os.ReadFile(out)
 		require.NoError(t, err)
 		var expectedSpan model.Span
 		require.NoError(t, gogojsonpb.Unmarshal(bytes.NewReader(outStr), &expectedSpan))
@@ -61,7 +61,7 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 
 func loadESSpanFixture(i int) (Span, error) {
 	in := fmt.Sprintf("fixtures/es_%02d.json", i)
-	inStr, err := ioutil.ReadFile(in)
+	inStr, err := os.ReadFile(in)
 	if err != nil {
 		return Span{}, err
 	}

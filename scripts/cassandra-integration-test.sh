@@ -1,30 +1,68 @@
 #!/bin/bash
 
-set -ex
+set -uxf -o pipefail
 
-# Clean up before starting.
-docker rm -f cassandra || true
-docker rm -f cassandra2 || true
-docker network rm integration_test || true
+usage() {
+  echo $"Usage: $0 <cassandra_version> <schema_version>"
+  exit 1
+}
 
-# Create a network so that the schema container can communicate with the cassandra containers.
-docker network create integration_test
+check_arg() {
+  if [ ! $# -eq 2 ]; then
+    echo "ERROR: need exactly two arguments, <cassandra_version> <schema_version>"
+    usage
+  fi
+}
 
-# Start cassandra containers whose ports are exposed to localhost to facilitate testing.
-docker run -d --name cassandra --network integration_test -p 9042:9042 -p 9160:9160 cassandra:3.9
-docker run -d --name cassandra2 --network integration_test -p 9043:9042 -p 9161:9160 cassandra:3.9
+setup_cassandra() {
+  local tag=$1
+  local image=cassandra
+  local params=(
+    --rm
+    --detach
+    --publish 9042:9042
+    --publish 9160:9160
+  )
+  local cid=$(docker run ${params[@]} ${image}:${tag})
+  echo ${cid}
+}
 
-# Build the schema container and run it rather than using the existing container in Docker Hub since that
-# requires this current build to succeed before this test can use it; chicken and egg problem.
-docker build -t jaeger-cassandra-schema-integration-test plugin/storage/cassandra/
-docker run --network integration_test -e CQLSH_HOST=cassandra -e TEMPLATE=/cassandra-schema/v001.cql.tmpl jaeger-cassandra-schema-integration-test
-docker run --network integration_test -e CQLSH_HOST=cassandra2 -e TEMPLATE=/cassandra-schema/v002.cql.tmpl jaeger-cassandra-schema-integration-test
+teardown_cassandra() {
+  local cid=$1
+  docker kill ${cid}
+  exit ${exit_status}
+}
 
-# Run the test.
-export STORAGE=cassandra
-make storage-integration-test
+apply_schema() {
+  local image=cassandra-schema
+  local schema_dir=plugin/storage/cassandra/
+  local schema_version=$1
+  local params=(
+    --rm
+    --env CQLSH_HOST=localhost
+    --env CQLSH_PORT=9042
+    --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
+    --network host
+  )
+  docker build -t ${image} ${schema_dir}
+  docker run ${params[@]} ${image}
+}
 
-# Tear down after.
-docker rm -f cassandra
-docker rm -f cassandra2
-docker network rm integration_test
+run_integration_test() {
+  local version=$1
+  local schema_version=$2
+  local cid=$(setup_cassandra ${version})
+  apply_schema "$2"
+  STORAGE=cassandra make storage-integration-test
+  exit_status=$?
+  trap 'teardown_cassandra ${cid}' EXIT
+}
+
+main() {
+  check_arg "$@"
+
+  echo "Executing integration test for $1 with schema $2.cql.tmpl"
+  run_integration_test "$1" "$2"
+}
+
+main "$@"

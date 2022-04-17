@@ -2,18 +2,14 @@ name: CIT Crossdock
 
 on:
   push:
-    branches: [ master ]
+    branches: [main]
+
   pull_request:
-    branches: [ master ]
+    branches: [main]
 
 jobs:
   crossdock:
     runs-on: ubuntu-latest
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
     strategy:
       matrix:
         steps:
@@ -21,7 +17,7 @@ jobs:
           cmd: bash scripts/build-crossdock.sh
     name: ${{ matrix.steps.name }}
     steps:
-    - uses: actions/checkout@v2.3.4
+    - uses: actions/checkout@v3
       with:
         submodules: true
 
@@ -29,9 +25,9 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@v2
+    - uses: actions/setup-go@v3
       with:
-        go-version: ^1.16
+        go-version: 1.18.x
 
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch
@@ -40,10 +36,6 @@ jobs:
       run: make install-ci
     
     - uses: docker/setup-qemu-action@v1
-
-    - uses: docker/setup-buildx-action@v1
-      with:
-        driver-opts: network=host
 
     - name: Build, test, and publish ${{ matrix.steps.name }} image
       run: ${{ matrix.steps.cmd }}

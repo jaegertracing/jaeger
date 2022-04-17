@@ -15,10 +15,7 @@
 package auth
 
 import (
-	"crypto/sha256"
-	"crypto/sha512"
 	"fmt"
-	"hash"
 	"strings"
 
 	"github.com/Shopify/sarama"
@@ -65,20 +62,22 @@ type PlainTextConfig struct {
 
 var _ sarama.SCRAMClient = (*scramClient)(nil)
 
+func clientGenFunc(hashFn scram.HashGeneratorFcn) func() sarama.SCRAMClient {
+	return func() sarama.SCRAMClient {
+		return &scramClient{HashGeneratorFcn: hashFn}
+	}
+}
+
 func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Config) error {
 	saramaConfig.Net.SASL.Enable = true
 	saramaConfig.Net.SASL.User = config.Username
 	saramaConfig.Net.SASL.Password = config.Password
 	switch strings.ToUpper(config.Mechanism) {
 	case "SCRAM-SHA-256":
-		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-			return &scramClient{HashGeneratorFcn: func() hash.Hash { return sha256.New() }}
-		}
+		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = clientGenFunc(scram.SHA256)
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
 	case "SCRAM-SHA-512":
-		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-			return &scramClient{HashGeneratorFcn: func() hash.Hash { return sha512.New() }}
-		}
+		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = clientGenFunc(scram.SHA512)
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
 	case "PLAIN":
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext

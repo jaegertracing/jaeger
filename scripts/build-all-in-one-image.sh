@@ -20,12 +20,9 @@ fi
 
 make build-ui
 
-set +e
-
 run_integration_test() {
   CID=$(docker run -d -p 16686:16686 -p 5778:5778 $1:latest)
-  make all-in-one-integration-test
-  if [ $? -ne 0 ] ; then
+  if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"
       echo "--- check the docker log below for details ---"
       docker logs $CID
@@ -38,7 +35,9 @@ make create-baseimg-debugimg
 
 make build-all-in-one GOOS=linux GOARCH=amd64
 make build-all-in-one GOOS=linux GOARCH=s390x
-platforms="linux/amd64,linux/s390x"
+make build-all-in-one GOOS=linux GOARCH=ppc64le
+make build-all-in-one GOOS=linux GOARCH=arm64
+platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 repo=jaegertracing/all-in-one
 #build all-in-one image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release

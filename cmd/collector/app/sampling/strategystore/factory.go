@@ -17,6 +17,8 @@ package strategystore
 import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 // Factory defines an interface for a factory that can create implementations of different strategy storage components.
@@ -27,8 +29,8 @@ import (
 // plugin.Configurable
 type Factory interface {
 	// Initialize performs internal initialization of the factory.
-	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+	Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
-	CreateStrategyStore() (StrategyStore, error)
+	CreateStrategyStore() (StrategyStore, Aggregator, error)
 }

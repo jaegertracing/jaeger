@@ -17,7 +17,7 @@ package metricsstore
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -138,8 +139,8 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(latency_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}) by (service_name,le))`,
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,le))`,
 		},
 		{
 			name:             "group by service and operation should be reflected in name/description and query group-by",
@@ -152,8 +153,8 @@ func TestGetLatencies(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(latency_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}) by (service_name,operation,le))`,
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation,le))`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -165,8 +166,8 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(latency_bucket{service_name =~ "frontend|emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}) by (service_name,le))`,
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "frontend|emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name,le))`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -331,12 +332,27 @@ func TestGetRoundTripper(t *testing.T) {
 				},
 			}, logger)
 			require.NoError(t, err)
-			assert.IsType(t, &http.Transport{}, rt)
-			if tc.tlsEnabled {
-				assert.NotNil(t, rt.(*http.Transport).TLSClientConfig)
-			} else {
-				assert.Nil(t, rt.(*http.Transport).TLSClientConfig)
-			}
+
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, "Bearer foo", r.Header.Get("Authorization"))
+					},
+				),
+			)
+			defer server.Close()
+
+			req, err := http.NewRequestWithContext(
+				bearertoken.ContextWithBearerToken(context.Background(), "foo"),
+				http.MethodGet,
+				server.URL,
+				nil,
+			)
+			require.NoError(t, err)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
 }
@@ -362,7 +378,7 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 			return
 		}
 
-		body, _ := ioutil.ReadAll(r.Body)
+		body, _ := io.ReadAll(r.Body)
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))

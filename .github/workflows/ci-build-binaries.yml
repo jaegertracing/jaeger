@@ -2,9 +2,10 @@ name: Build binaries
 
 on:
   push:
-    branches: [ master ]
+    branches: [main]
+
   pull_request:
-    branches: [ master ]
+    branches: [main]
 
 jobs:
   build-binaries:
@@ -18,6 +19,8 @@ jobs:
           task: build-binaries-windows
         - name: osx
           task: build-binaries-darwin
+        - name: osx-m1
+          task: build-binaries-darwin-arm64
         - name: system/390
           task: build-binaries-s390x
         - name: arm
@@ -26,7 +29,7 @@ jobs:
           task: build-binaries-ppc64le
     name: build binaries for ${{ matrix.platform.name }}
     steps:
-    - uses: actions/checkout@v2.3.4
+    - uses: actions/checkout@v3
       with:
         submodules: true
 
@@ -34,9 +37,9 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@v2
+    - uses: actions/setup-go@v3
       with:
-        go-version: ^1.16
+        go-version: 1.18.x
 
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch

@@ -17,10 +17,10 @@ package spanstore_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"testing"
 	"time"
@@ -376,7 +376,7 @@ func TestMenuSeeks(t *testing.T) {
 }
 
 func TestPersist(t *testing.T) {
-	dir, err := ioutil.TempDir("", "badgerTest")
+	dir, err := os.MkdirTemp("", "badgerTest")
 	assert.NoError(t, err)
 	defer os.RemoveAll(dir)
 
@@ -615,7 +615,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 
-	dir := "/mnt/ssd/badger/testRun"
+	dir := filepath.Join(tb.TempDir(), "badger-testRun")
 	err := os.MkdirAll(dir, 0700)
 	assert.NoError(err)
 	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)

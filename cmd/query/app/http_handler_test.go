@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -239,7 +238,7 @@ func TestWriteJSON(t *testing.T) {
 	get := func(url string) string {
 		res, err := http.Get(url)
 		require.NoError(t, err)
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		return string(body)
 	}
@@ -843,7 +842,7 @@ func execJSON(req *http.Request, out interface{}) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -851,7 +850,7 @@ func execJSON(req *http.Request, out interface{}) error {
 	}
 
 	if out == nil {
-		io.Copy(ioutil.Discard, resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 

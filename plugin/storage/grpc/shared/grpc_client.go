@@ -20,15 +20,20 @@ import (
 	"io"
 	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
+
+// BearerTokenKey is the key name for the bearer token context value.
+const BearerTokenKey = "bearer.token"
 
 var (
 	_ StoragePlugin        = (*grpcClient)(nil)
@@ -49,6 +54,17 @@ type grpcClient struct {
 	depsReaderClient    storage_v1.DependenciesReaderPluginClient
 }
 
+func NewGRPCClient(c *grpc.ClientConn) *grpcClient {
+	return &grpcClient{
+		readerClient:        storage_v1.NewSpanReaderPluginClient(c),
+		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
+		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
+		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
+		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
+		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
+	}
+}
+
 // ContextUpgradeFunc is a functional type that can be composed to upgrade context
 type ContextUpgradeFunc func(ctx context.Context) context.Context
 
@@ -67,13 +83,13 @@ func composeContextUpgradeFuncs(funcs ...ContextUpgradeFunc) ContextUpgradeFunc 
 // in the request metadata, if the original context has bearer token attached.
 // Otherwise returns original context.
 func upgradeContextWithBearerToken(ctx context.Context) context.Context {
-	bearerToken, hasToken := spanstore.GetBearerToken(ctx)
+	bearerToken, hasToken := bearertoken.GetBearerToken(ctx)
 	if hasToken {
 		md, ok := metadata.FromOutgoingContext(ctx)
 		if !ok {
 			md = metadata.New(nil)
 		}
-		md.Set(spanstore.BearerTokenKey, bearerToken)
+		md.Set(BearerTokenKey, bearerToken)
 		return metadata.NewOutgoingContext(ctx, md)
 	}
 	return ctx
@@ -222,7 +238,17 @@ func (c *grpcClient) WriteSpan(ctx context.Context, span *model.Span) error {
 	_, err := c.writerClient.WriteSpan(ctx, &storage_v1.WriteSpanRequest{
 		Span: span,
 	})
+
 	if err != nil {
+		return fmt.Errorf("plugin error: %w", err)
+	}
+
+	return nil
+}
+
+func (c *grpcClient) Close() error {
+	_, err := c.writerClient.Close(context.Background(), &storage_v1.CloseWriterRequest{})
+	if err != nil && status.Code(err) != codes.Unimplemented {
 		return fmt.Errorf("plugin error: %w", err)
 	}
 

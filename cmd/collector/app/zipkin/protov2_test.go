@@ -17,7 +17,7 @@ package zipkin
 import (
 	"crypto/rand"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,7 +67,7 @@ func TestLCFromProtoSpanLocalEndpoint(t *testing.T) {
 }
 
 func loadProto(t *testing.T, fname string, spans *zipkinProto.ListOfSpans) {
-	b, err := ioutil.ReadFile(fname)
+	b, err := os.ReadFile(fname)
 	require.NoError(t, err)
 	err = json.Unmarshal(b, spans)
 	require.NoError(t, err)

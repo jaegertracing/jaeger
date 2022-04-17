@@ -1,0 +1,35 @@
+run:
+  timeout: 10m
+  skip-dirs:
+    - swagger-gen
+    - pkg/cassandra/mocks
+    - storage/mocks
+    - cmd/ingester/app/consumer/mocks
+
+linters-settings:
+  gosec:
+    # To specify a set of rules to explicitly exclude.
+    # Available rules: https://github.com/securego/gosec#available-rules
+    excludes:
+      - G104
+      - G107
+      - G404
+      - G601
+  gosimple:
+    go: "1.18"
+
+linters:
+  enable:
+    - gofmt
+    - gosec
+    - govet
+  disable:
+    - errcheck
+
+issues:
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - gosec

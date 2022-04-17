@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -108,11 +109,11 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 
 func TestContextUpgradeWithToken(t *testing.T) {
 	testBearerToken := "test-bearer-token"
-	ctx := spanstore.ContextWithBearerToken(context.Background(), testBearerToken)
+	ctx := bearertoken.ContextWithBearerToken(context.Background(), testBearerToken)
 	upgradedToken := upgradeContextWithBearerToken(ctx)
 	md, ok := metadata.FromOutgoingContext(upgradedToken)
 	assert.Truef(t, ok, "Expected metadata in context")
-	bearerTokenFromMetadata := md.Get(spanstore.BearerTokenKey)
+	bearerTokenFromMetadata := md.Get(BearerTokenKey)
 	assert.Equal(t, []string{testBearerToken}, bearerTokenFromMetadata)
 }
 
@@ -294,6 +295,25 @@ func TestGRPCClientWriteSpan(t *testing.T) {
 		}).Return(&storage_v1.WriteSpanResponse{}, nil)
 
 		err := r.client.WriteSpan(context.Background(), &mockTraceSpans[0])
+		assert.NoError(t, err)
+	})
+}
+
+func TestGRPCClientCloseWriter(t *testing.T) {
+	withGRPCClient(func(r *grpcClientTest) {
+		r.spanWriter.On("Close", mock.Anything, &storage_v1.CloseWriterRequest{}).Return(&storage_v1.CloseWriterResponse{}, nil)
+
+		err := r.client.Close()
+		assert.NoError(t, err)
+	})
+}
+
+func TestGRPCClientCloseNotSupported(t *testing.T) {
+	withGRPCClient(func(r *grpcClientTest) {
+		r.spanWriter.On("Close", mock.Anything, &storage_v1.CloseWriterRequest{}).Return(
+			nil, status.Errorf(codes.Unimplemented, "method not implemented"))
+
+		err := r.client.Close()
 		assert.NoError(t, err)
 	})
 }

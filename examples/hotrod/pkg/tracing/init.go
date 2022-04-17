@@ -30,13 +30,17 @@ import (
 
 // Init creates a new instance of Jaeger tracer.
 func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
-	cfg, err := config.FromEnv()
-	if err != nil {
-		logger.Bg().Fatal("cannot parse Jaeger env vars", zap.Error(err))
+	cfg := &config.Configuration{
+		Sampler: &config.SamplerConfig{},
 	}
 	cfg.ServiceName = serviceName
 	cfg.Sampler.Type = "const"
 	cfg.Sampler.Param = 1
+
+	_, err := cfg.FromEnv()
+	if err != nil {
+		logger.Bg().Fatal("cannot parse Jaeger env vars", zap.Error(err))
+	}
 
 	// TODO(ys) a quick hack to ensure random generators get different seeds, which are based on current time.
 	time.Sleep(100 * time.Millisecond)

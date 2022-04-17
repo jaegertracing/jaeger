@@ -2,9 +2,11 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ master ]
+    branches: [main]
+
   pull_request:
-    branches: [ master ]
+    branches: [main]
+
   schedule:
     - cron: '31 6 * * 1'
 
@@ -25,7 +27,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2.3.4
+      uses: actions/checkout@v3
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL

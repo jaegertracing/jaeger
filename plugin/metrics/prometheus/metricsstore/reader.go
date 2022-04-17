@@ -31,6 +31,7 @@ import (
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -104,10 +105,11 @@ func (m *MetricsReader) GetLatencies(ctx context.Context, requestParams *metrics
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`histogram_quantile(%.2f, sum(latency_bucket{service_name =~ "%s", %s}) by (%s))`,
+				`histogram_quantile(%.2f, sum(rate(latency_bucket{service_name =~ "%s", %s}[%s])) by (%s))`,
 				requestParams.Quantile,
 				p.serviceFilter,
 				p.spanKindFilter,
+				p.rate,
 				p.groupBy,
 			)
 		},
@@ -253,7 +255,7 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
 	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
-	return &http.Transport{
+	httpTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   c.ConnectTimeout,
@@ -261,5 +263,9 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     ctlsConfig,
+	}
+	return bearertoken.RoundTripper{
+		Transport:       httpTransport,
+		OverrideFromCtx: true,
 	}, nil
 }

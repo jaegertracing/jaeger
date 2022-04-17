@@ -35,7 +35,7 @@ func TestFactory(t *testing.T) {
 	command.ParseFlags([]string{"--sampling.strategies-file=fixtures/strategies.json"})
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	_, err := f.CreateStrategyStore()
+	assert.NoError(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
+	_, _, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
 }

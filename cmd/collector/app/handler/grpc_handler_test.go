@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
@@ -74,7 +75,7 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(s *grpc.Server)) (*
 }
 
 func newClient(t *testing.T, addr net.Addr) (api_v2.CollectorServiceClient, *grpc.ClientConn) {
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	return api_v2.NewCollectorServiceClient(conn), conn
 }
@@ -108,6 +109,23 @@ func TestPostSpans(t *testing.T) {
 		assert.Equal(t, test.expected, got)
 		processor.reset()
 	}
+}
+
+func TestGRPCCompressionEnabled(t *testing.T) {
+	processor := &mockSpanProcessor{}
+	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		handler := NewGRPCHandler(zap.NewNop(), processor)
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
+	defer server.Stop()
+
+	client, conn := newClient(t, addr)
+	defer conn.Close()
+
+	// Do not use string constant imported from grpc, since we are actually testing that package is imported by the handler.
+	_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{},
+		grpc.UseCompressor("gzip"))
+	require.NoError(t, err)
 }
 
 func TestPostSpansWithError(t *testing.T) {

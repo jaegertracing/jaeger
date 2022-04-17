@@ -17,9 +17,9 @@ package gogocodec
 import (
 	"testing"
 
-	"github.com/golang/protobuf/proto" //lint:ignore SA1019 deprecated package
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/model"

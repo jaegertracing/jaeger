@@ -37,6 +37,8 @@ const (
 	SuffixBrokers = ".brokers"
 	// SuffixTopic is a suffix for the topic flag
 	SuffixTopic = ".topic"
+	// SuffixRackID is a suffix for the consumer rack-id flag
+	SuffixRackID = ".rack-id"
 	// SuffixGroupID is a suffix for the group-id flag
 	SuffixGroupID = ".group-id"
 	// SuffixClientID is a suffix for the client-id flag
@@ -111,6 +113,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
+	flagSet.String(
+		KafkaConsumerConfigPrefix+SuffixRackID,
+		"",
+		"Rack identifier for this client. This can be any string value which indicates where this client is located. It corresponds with the broker config `broker.rack`")
 
 	auth.AddFlags(KafkaConsumerConfigPrefix, flagSet)
 }
@@ -123,6 +129,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.ClientID = v.GetString(KafkaConsumerConfigPrefix + SuffixClientID)
 	o.ProtocolVersion = v.GetString(KafkaConsumerConfigPrefix + SuffixProtocolVersion)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
+	o.RackID = v.GetString(KafkaConsumerConfigPrefix + SuffixRackID)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)

@@ -5,6 +5,7 @@ set -euo pipefail
 COLOR_FIXME=$(printf "\033[31mFIXME\033[0m")
 
 NO_TEST_FILE_DIRS=""
+# shellcheck disable=SC2048
 for dir in $*; do
   mainFile=$(find ${dir} -maxdepth 1 -name 'main.go')
   testFiles=$(find ${dir} -maxdepth 1 -name '*_test.go')
@@ -14,7 +15,7 @@ for dir in $*; do
     fi
     if [ -e ${dir}/.nocover ]; then
       reason=$(cat ${dir}/.nocover)
-      if [ "${reason}" == "" ]; then 
+      if [ "${reason}" == "" ]; then
         echo "error: ${dir}/.nocover must specify reason" >&2
         exit 1
       fi

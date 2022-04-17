@@ -29,6 +29,8 @@ const (
 	DefaultNumWorkers = 50
 	// DefaultQueueSize is the size of the processor's queue
 	DefaultQueueSize = 2000
+	// DefaultGRPCMaxReceiveMessageLength is the default max receivable message size for the gRPC Collector
+	DefaultGRPCMaxReceiveMessageLength = 4 * 1024 * 1024
 )
 
 type options struct {

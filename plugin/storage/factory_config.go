@@ -29,6 +29,9 @@ const (
 	// DependencyStorageTypeEnvVar is the name of the env var that defines the type of backend used for dependencies storage.
 	DependencyStorageTypeEnvVar = "DEPENDENCY_STORAGE_TYPE"
 
+	// SamplingStorageTypeEnvVar is the name of the env var that defines the type of backend used for sampling data storage when using adaptive sampling.
+	SamplingStorageTypeEnvVar = "SAMPLING_STORAGE_TYPE"
+
 	spanStorageFlag = "--span-storage.type"
 )
 
@@ -36,6 +39,7 @@ const (
 type FactoryConfig struct {
 	SpanWriterTypes         []string
 	SpanReaderType          string
+	SamplingStorageType     string
 	DependenciesStorageType string
 	DownsamplingRatio       float64
 	DownsamplingHashSalt    string
@@ -44,6 +48,7 @@ type FactoryConfig struct {
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
 // DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
 //   * `cassandra` - built-in
+//   * `opensearch` - built-in
 //   * `elasticsearch` - built-in
 //   * `memory` - built-in
 //   * `kafka` - built-in
@@ -72,11 +77,13 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if depStorageType == "" {
 		depStorageType = spanWriterTypes[0]
 	}
+	samplingStorageType := os.Getenv(SamplingStorageTypeEnvVar)
 	// TODO support explicit configuration for readers
 	return FactoryConfig{
 		SpanWriterTypes:         spanWriterTypes,
 		SpanReaderType:          spanWriterTypes[0],
 		DependenciesStorageType: depStorageType,
+		SamplingStorageType:     samplingStorageType,
 	}
 }
 

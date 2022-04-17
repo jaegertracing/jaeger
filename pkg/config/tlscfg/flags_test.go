@@ -75,6 +75,9 @@ func TestServerFlags(t *testing.T) {
 		"--prefix.tls.enabled=true",
 		"--prefix.tls.cert=cert-file",
 		"--prefix.tls.key=key-file",
+		"--prefix.tls.cipher-suites=TLS_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+		"--prefix.tls.min-version=1.2",
+		"--prefix.tls.max-version=1.3",
 	}
 
 	tests := []struct {
@@ -109,6 +112,9 @@ func TestServerFlags(t *testing.T) {
 				CertPath:     "cert-file",
 				KeyPath:      "key-file",
 				ClientCAPath: test.file,
+				CipherSuites: []string{"TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"},
+				MinVersion:   "1.2",
+				MaxVersion:   "1.3",
 			}, tlsOpts)
 		})
 	}
@@ -152,40 +158,71 @@ func TestTLSFailClientFlags(t *testing.T) {
 }
 
 func TestTLSFailServerFlags(t *testing.T) {
-	cmdLine := []string{
-		"##placeholder##", // replaced in each test below
-		"--prefix.tls.enabled=false",
-		"--prefix.tls.cert=cert-file",
-		"--prefix.tls.key=key-file",
+	clientTests := []string{
+		".ca=blah",
+		".cert=blah",
+		".key=blah",
+		".server-name=blah",
+		".skip-host-verify=true",
 	}
-
-	tests := []struct {
-		option string
-		file   string
+	serverTests := []string{
+		".cert=blah",
+		".key=blah",
+		".client-ca=blah",
+		".cipher-suites=blah",
+		".min-version=1.1",
+		".max-version=1.3",
+	}
+	allTests := []struct {
+		side  string
+		tests []string
 	}{
-		{
-			option: "--prefix.tls.client-ca=client-ca-file",
-			file:   "client-ca-file",
-		},
+		{side: "client", tests: clientTests},
+		{side: "server", tests: serverTests},
 	}
 
-	for _, test := range tests {
-		t.Run(test.file, func(t *testing.T) {
-			v := viper.New()
-			command := cobra.Command{}
-			flagSet := &flag.FlagSet{}
-			flagCfg := ServerFlagsConfig{
-				Prefix: "prefix",
-			}
-			flagCfg.AddFlags(flagSet)
-			command.PersistentFlags().AddGoFlagSet(flagSet)
-			v.BindPFlags(command.PersistentFlags())
+	for _, metaTest := range allTests {
+		t.Run(metaTest.side, func(t *testing.T) {
+			for _, test := range metaTest.tests {
+				t.Run(test, func(t *testing.T) {
+					v := viper.New()
+					command := cobra.Command{}
+					flagSet := &flag.FlagSet{}
+					type UnderTest interface {
+						AddFlags(flags *flag.FlagSet)
+						InitFromViper(v *viper.Viper) (Options, error)
+					}
+					var underTest UnderTest
+					if metaTest.side == "client" {
+						underTest = &ClientFlagsConfig{
+							Prefix: "prefix",
+						}
+					} else {
+						underTest = &ServerFlagsConfig{
+							Prefix: "prefix",
+						}
+					}
+					underTest.AddFlags(flagSet)
+					command.PersistentFlags().AddGoFlagSet(flagSet)
+					v.BindPFlags(command.PersistentFlags())
 
-			cmdLine[0] = test.option
-			err := command.ParseFlags(cmdLine)
-			require.NoError(t, err)
-			_, err = flagCfg.InitFromViper(v)
-			require.Error(t, err, "prefix.tls.enabled has been disable")
+					cmdLine := []string{
+						"--prefix.tls.enabled=true",
+						"--prefix.tls" + test,
+					}
+					err := command.ParseFlags(cmdLine)
+					require.NoError(t, err)
+					_, err = underTest.InitFromViper(v)
+					require.NoError(t, err)
+
+					cmdLine[0] = "--prefix.tls.enabled=false"
+					err = command.ParseFlags(cmdLine)
+					require.NoError(t, err)
+					_, err = underTest.InitFromViper(v)
+					require.Error(t, err)
+					require.EqualError(t, err, "prefix.tls.* options cannot be used when prefix.tls.enabled is false")
+				})
+			}
 		})
 	}
 }

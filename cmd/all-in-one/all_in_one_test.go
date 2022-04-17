@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build integration
 // +build integration
 
 package main
@@ -20,15 +21,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
@@ -44,6 +47,8 @@ const (
 	getServicesURL         = queryURL + "/api/services"
 	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
 	getSamplingStrategyURL = agentURL + "/sampling?service=whatever"
+
+	getServicesAPIV3URL = queryURL + "/api/v3/services"
 )
 
 var (
@@ -57,9 +62,14 @@ func TestAllInOne(t *testing.T) {
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
+	// Check if the favicon icon is available
+	if err := faviconCheck(); err != nil {
+		t.Fatal(err)
+	}
 	createTrace(t)
 	getAPITrace(t)
 	getSamplingStrategy(t)
+	getServicesAPIV3(t)
 }
 
 func createTrace(t *testing.T) {
@@ -86,7 +96,7 @@ func getAPITrace(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 
 		err = json.Unmarshal(body, &queryResponse)
 		require.NoError(t, err)
@@ -109,7 +119,7 @@ func getSamplingStrategy(t *testing.T) {
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	err = json.Unmarshal(body, &queryResponse)
 	require.NoError(t, err)
@@ -130,4 +140,30 @@ func healthCheck() error {
 		time.Sleep(time.Second)
 	}
 	return fmt.Errorf("query service is not ready")
+}
+
+func faviconCheck() error {
+	println("Checking favicon...")
+	resp, err := http.Get(queryURL + "/favicon.ico")
+	if err == nil && resp.StatusCode == http.StatusOK {
+		println("Favicon check successful")
+		return nil
+	} else {
+		println("Favicon check failed")
+		return fmt.Errorf("all-in-one failed to serve favicon icon")
+	}
+}
+
+func getServicesAPIV3(t *testing.T) {
+	req, err := http.NewRequest("GET", getServicesAPIV3URL, nil)
+	require.NoError(t, err)
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	body, _ := io.ReadAll(resp.Body)
+
+	var servicesResponse api_v3.GetServicesResponse
+	jsonpb := runtime.JSONPb{}
+	err = jsonpb.Unmarshal(body, &servicesResponse)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"jaeger-query"}, servicesResponse.GetServices())
 }

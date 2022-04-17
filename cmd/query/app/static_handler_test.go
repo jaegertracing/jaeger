@@ -18,7 +18,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -115,7 +115,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
-				respByteArray, err := ioutil.ReadAll(resp.Body)
+				respByteArray, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode, "url: %s, response: %v", url, string(respByteArray))
 				return string(respByteArray)
@@ -241,15 +241,15 @@ func TestWatcherError(t *testing.T) {
 }
 
 func TestHotReloadUIConfigTempFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "ui-config-hotreload-*")
+	dir, err := os.MkdirTemp("", "ui-config-hotreload-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	tmpfile, err := ioutil.TempFile(dir, "*.json")
+	tmpfile, err := os.CreateTemp(dir, "*.json")
 	require.NoError(t, err)
 	tmpFileName := tmpfile.Name()
 
-	content, err := ioutil.ReadFile("fixture/ui-config-hotreload.json")
+	content, err := os.ReadFile("fixture/ui-config-hotreload.json")
 	require.NoError(t, err)
 
 	err = syncWrite(tmpFileName, content, 0644)

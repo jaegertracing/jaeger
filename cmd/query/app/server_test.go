@@ -32,9 +32,11 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -430,7 +432,7 @@ func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.Transport
 	if creds != nil {
 		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(creds))
 	} else {
-		conn, err = grpc.DialContext(ctx, addr, grpc.WithInsecure())
+		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	require.NoError(t, err)
@@ -687,15 +689,27 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
+		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"},
+		tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
-	server.Close()
+	defer server.Close()
 
 	message := logs.FilterMessage("Query server started")
-	assert.Equal(t, 1, message.Len(), "Expected query started log message.")
+	assert.Equal(t, 1, message.Len(), "Expected 'Query server started' log message.")
 
 	onlyEntry := message.All()[0]
-	port := onlyEntry.ContextMap()["port"]
+	port := onlyEntry.ContextMap()["port"].(int64)
 	assert.Greater(t, port, int64(0))
+
+	grpctest.ReflectionServiceValidator{
+		HostPort: fmt.Sprintf(":%v", port),
+		Server:   server.grpcServer,
+		ExpectedServices: []string{
+			"jaeger.api_v2.QueryService",
+			"jaeger.api_v3.QueryService",
+			"jaeger.api_v2.metrics.MetricsQueryService",
+		},
+	}.Execute(t)
 }

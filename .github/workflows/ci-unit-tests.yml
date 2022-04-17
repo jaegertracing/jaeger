@@ -2,19 +2,20 @@ name: Unit Tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [main]
+
   pull_request:
-    branches: [ master ]
+    branches: [main]
 
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2.3.4
+    - uses: actions/checkout@v3
 
-    - uses: actions/setup-go@v2
+    - uses: actions/setup-go@v3
       with:
-        go-version: ^1.16
+        go-version: 1.18.x
 
     - name: Install tools
       run: make install-ci
@@ -23,7 +24,7 @@ jobs:
       run: make test-ci
 
     - name: Upload coverage to codecov
-      uses: codecov/codecov-action@v1.5.2
+      uses: codecov/codecov-action@v3.0.0
       with:
         file: cover.out
         fail_ci_if_error: true

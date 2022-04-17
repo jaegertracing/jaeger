@@ -16,6 +16,7 @@ package app
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,4 +82,28 @@ func TestCollectorOptionsWithFailedGRPCFlags(t *testing.T) {
 	v.Set("collector.grpc.tls.key", "xyz")
 	_, err := c.InitFromViper(v)
 	require.Error(t, err, "query.grpc.tls.enabled has been disable")
+}
+
+func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.grpc-server.max-message-size=8388608",
+	})
+	c.InitFromViper(v)
+
+	assert.Equal(t, 8388608, c.CollectorGRPCMaxReceiveMessageLength)
+}
+
+func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.grpc-server.max-connection-age=5m",
+		"--collector.grpc-server.max-connection-age-grace=1m",
+	})
+	c.InitFromViper(v)
+
+	assert.Equal(t, 5*time.Minute, c.CollectorGRPCMaxConnectionAge)
+	assert.Equal(t, time.Minute, c.CollectorGRPCMaxConnectionAgeGrace)
 }

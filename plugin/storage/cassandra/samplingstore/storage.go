@@ -38,11 +38,9 @@ const (
 	constBucket    = 1
 	constBucketStr = `1`
 
-	insertThroughput    = `INSERT INTO operation_throughput(bucket, ts, throughput) VALUES (?, ?, ?)`
-	getThroughput       = `SELECT throughput FROM operation_throughput WHERE bucket IN ` + buckets + ` AND ts > ? AND ts <= ?`
-	insertProbabilities = `INSERT INTO sampling_probabilities(bucket, ts, hostname, probabilities) VALUES (?, ?, ?, ?)`
-	getProbabilities    = `SELECT probabilities, hostname FROM sampling_probabilities WHERE bucket = ` + constBucketStr +
-		` AND ts > ? AND ts <= ?`
+	insertThroughput       = `INSERT INTO operation_throughput(bucket, ts, throughput) VALUES (?, ?, ?)`
+	getThroughput          = `SELECT throughput FROM operation_throughput WHERE bucket IN ` + buckets + ` AND ts > ? AND ts <= ?`
+	insertProbabilities    = `INSERT INTO sampling_probabilities(bucket, ts, hostname, probabilities) VALUES (?, ?, ?, ?)`
 	getLatestProbabilities = `SELECT probabilities FROM sampling_probabilities WHERE bucket = ` + constBucketStr + ` LIMIT 1`
 )
 
@@ -113,21 +111,6 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		return nil, err
 	}
 	return s.stringToProbabilities(probabilitiesStr), nil
-}
-
-// GetProbabilitiesAndQPS implements samplingstore.Reader#GetProbabilitiesAndQPS.
-func (s *SamplingStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error) {
-	iter := s.session.Query(getProbabilities, gocql.UUIDFromTime(start), gocql.UUIDFromTime(end)).Iter()
-	hostProbabilitiesAndQPS := make(map[string][]model.ServiceOperationData)
-	var probabilitiesAndQPSStr, host string
-	for iter.Scan(&probabilitiesAndQPSStr, &host) {
-		hostProbabilitiesAndQPS[host] = append(hostProbabilitiesAndQPS[host], s.stringToProbabilitiesAndQPS(probabilitiesAndQPSStr))
-	}
-	if err := iter.Close(); err != nil {
-		err = fmt.Errorf("error reading probabilities and qps from storage: %w", err)
-		return nil, err
-	}
-	return hostProbabilitiesAndQPS, nil
 }
 
 // This is random enough for storage purposes

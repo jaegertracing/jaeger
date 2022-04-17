@@ -60,6 +60,8 @@ const (
 	tagValueField          = "value"
 
 	defaultNumTraces = 100
+
+	rolloverMaxSpanAge = time.Hour * 24 * 365 * 50
 )
 
 var (
@@ -129,10 +131,16 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
+	maxSpanAge := p.MaxSpanAge
+	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
+	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
+	if p.UseReadWriteAliases {
+		maxSpanAge = rolloverMaxSpanAge
+	}
 	return &SpanReader{
 		client:                        p.Client,
 		logger:                        p.Logger,
-		maxSpanAge:                    p.MaxSpanAge,
+		maxSpanAge:                    maxSpanAge,
 		serviceOperationStorage:       NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:               indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:            indexNames(p.IndexPrefix, serviceIndex),
@@ -565,6 +573,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
+		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {

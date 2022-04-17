@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !ui
 // +build !ui
 
 package ui
@@ -26,5 +27,5 @@ import (
 //go:embed placeholder/index.html
 var assetsFS embed.FS
 
-// StaticFiles provides http filesystem with static files for UI
+// StaticFiles provides http filesystem with static files for UI.
 var StaticFiles = httpfs.PrefixedFS("placeholder", http.FS(assetsFS))
