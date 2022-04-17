@@ -18,11 +18,12 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestBindFlags(t *testing.T) {

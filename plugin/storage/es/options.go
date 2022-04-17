@@ -17,6 +17,7 @@ package es
 
 import (
 	"flag"
+	"log"
 	"strings"
 	"time"
 
@@ -345,8 +346,12 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// Dependencies calculation should be daily, and this index size is very small
 	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
 
-	// TODO handle error
-	cfg.TLS, _ = cfg.getTLSFlagsConfig().InitFromViper(v)
+	var err error
+	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
+	if err != nil {
+		// TODO refactor to be able to return error
+		log.Fatal(err)
+	}
 }
 
 // GetPrimary returns primary configuration.

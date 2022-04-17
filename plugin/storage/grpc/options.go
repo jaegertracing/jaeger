@@ -69,7 +69,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	var err error
 	opt.Configuration.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
 	if err != nil {
-		return fmt.Errorf("cannot parse gRPC storage TLS options: %w", err)
+		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
 	}
 	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
 	return nil
