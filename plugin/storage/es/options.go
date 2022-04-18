@@ -17,6 +17,7 @@ package es
 
 import (
 	"flag"
+	"log"
 	"strings"
 	"time"
 
@@ -329,7 +330,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
-	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
@@ -345,6 +345,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	// Dependencies calculation should be daily, and this index size is very small
 	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
+
+	var err error
+	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
+	if err != nil {
+		// TODO refactor to be able to return error
+		log.Fatal(err)
+	}
 }
 
 // GetPrimary returns primary configuration.

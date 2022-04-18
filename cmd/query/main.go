@@ -93,7 +93,10 @@ func main() {
 			}
 			defer closer.Close()
 			opentracing.SetGlobalTracer(tracer)
-			queryOpts := new(app.QueryOptions).InitFromViper(v, logger)
+			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
+			if err != nil {
+				logger.Fatal("Failed to configure query service", zap.Error(err))
+			}
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v, logger)

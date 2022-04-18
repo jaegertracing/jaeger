@@ -75,7 +75,7 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 }
 
 // InitFromViper loads authentication configuration from viper flags.
-func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.Viper) {
+func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.Viper) error {
 	config.Authentication = v.GetString(configPrefix + suffixAuthentication)
 	config.Kerberos.ServiceName = v.GetString(configPrefix + kerberosPrefix + suffixKerberosServiceName)
 	config.Kerberos.Realm = v.GetString(configPrefix + kerberosPrefix + suffixKerberosRealm)
@@ -89,7 +89,11 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		Prefix: configPrefix,
 	}
 
-	config.TLS = tlsClientConfig.InitFromViper(v)
+	var err error
+	config.TLS, err = tlsClientConfig.InitFromViper(v)
+	if err != nil {
+		return fmt.Errorf("failed to process Kafka TLS options: %w", err)
+	}
 	if config.Authentication == tls {
 		config.TLS.Enabled = true
 	}
@@ -97,4 +101,5 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
 	config.PlainText.Mechanism = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextMechanism)
+	return nil
 }

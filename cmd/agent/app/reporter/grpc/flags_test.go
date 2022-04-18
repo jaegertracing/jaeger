@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestBindFlags(t *testing.T) {
@@ -46,7 +48,20 @@ func TestBindFlags(t *testing.T) {
 
 		err := command.ParseFlags(test.cOpts)
 		require.NoError(t, err)
-		b := new(ConnBuilder).InitFromViper(v)
+		b, err := new(ConnBuilder).InitFromViper(v)
+		require.NoError(t, err)
 		assert.Equal(t, test.expected, b)
 	}
+}
+
+func TestBindTLSFlagFailure(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	err := command.ParseFlags([]string{
+		"--reporter.grpc.tls.enabled=false",
+		"--reporter.grpc.tls.cert=blah", // invalid unless tls.enabled
+	})
+	require.NoError(t, err)
+	_, err = new(ConnBuilder).InitFromViper(v)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to process TLS options")
 }

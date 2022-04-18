@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/spf13/viper"
@@ -60,11 +61,16 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties from viper
-func (opt *Options) InitFromViper(v *viper.Viper) {
+func (opt *Options) InitFromViper(v *viper.Viper) error {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
 	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
 	opt.Configuration.RemoteServerAddr = v.GetString(remoteServer)
-	opt.Configuration.RemoteTLS = tlsFlagsConfig().InitFromViper(v)
+	var err error
+	opt.Configuration.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
+	if err != nil {
+		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
+	}
 	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
+	return nil
 }
