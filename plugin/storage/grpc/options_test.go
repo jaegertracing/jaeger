@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -71,4 +72,17 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 	assert.Equal(t, opts.Configuration.RemoteServerAddr, "localhost:2001")
 	assert.Equal(t, opts.Configuration.RemoteTLS.Enabled, false)
 	assert.Equal(t, opts.Configuration.RemoteConnectTimeout, 60*time.Second)
+}
+
+func TestFailedTLSFlags(t *testing.T) {
+	opts := &Options{}
+	v, command := config.Viperize(opts.AddFlags)
+	err := command.ParseFlags([]string{
+		"--grpc-storage.tls.enabled=false",
+		"--grpc-storage.tls.cert=blah", // invalid unless tls.enabled=true
+	})
+	require.NoError(t, err)
+	err = opts.InitFromViper(v)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse gRPC storage TLS options")
 }

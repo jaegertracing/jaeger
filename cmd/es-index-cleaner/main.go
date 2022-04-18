@@ -52,7 +52,10 @@ func main() {
 			}
 
 			cfg.InitFromViper(v)
-			tlsOpts := tlsFlags.InitFromViper(v)
+			tlsOpts, err := tlsFlags.InitFromViper(v)
+			if err != nil {
+				return err
+			}
 			tlsCfg, err := tlsOpts.Config(logger)
 			if err != nil {
 				return err

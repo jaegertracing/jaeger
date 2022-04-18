@@ -176,7 +176,9 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	authenticationOptions := auth.AuthenticationConfig{}
-	authenticationOptions.InitFromViper(configPrefix, v)
+	if err := authenticationOptions.InitFromViper(configPrefix, v); err != nil {
+		log.Fatal(err)
+	}
 
 	requiredAcks, err := getRequiredAcks(v.GetString(configPrefix + suffixRequiredAcks))
 	if err != nil {

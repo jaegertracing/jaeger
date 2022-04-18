@@ -141,9 +141,18 @@ by default uses only in-memory database.`,
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v, logger)
-			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
-			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
-			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
+			grpcBuilder, err := agentGrpcRep.NewConnBuilder().InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Failed to configure connection for grpc", zap.Error(err))
+			}
+			cOpts, err := new(collectorApp.CollectorOptions).InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Failed to initialize collector", zap.Error(err))
+			}
+			qOpts, err := new(queryApp.QueryOptions).InitFromViper(v, logger)
+			if err != nil {
+				logger.Fatal("Failed to configure query service", zap.Error(err))
+			}
 
 			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{

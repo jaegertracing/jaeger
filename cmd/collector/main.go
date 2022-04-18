@@ -106,7 +106,10 @@ func main() {
 				Aggregator:     aggregator,
 				HealthCheck:    svc.HC(),
 			})
-			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
+			collectorOpts, err := new(app.CollectorOptions).InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Failed to initialize collector", zap.Error(err))
+			}
 			if err := c.Start(collectorOpts); err != nil {
 				logger.Fatal("Failed to start collector", zap.Error(err))
 			}

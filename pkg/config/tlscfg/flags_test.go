@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestClientFlags(t *testing.T) {
@@ -55,7 +57,8 @@ func TestClientFlags(t *testing.T) {
 
 			err := command.ParseFlags(append(cmdLine, test.option))
 			require.NoError(t, err)
-			tlsOpts := flagCfg.InitFromViper(v)
+			tlsOpts, err := flagCfg.InitFromViper(v)
+			require.NoError(t, err)
 			assert.Equal(t, Options{
 				Enabled:        true,
 				CAPath:         "ca-file",
@@ -104,7 +107,8 @@ func TestServerFlags(t *testing.T) {
 			cmdLine[0] = test.option
 			err := command.ParseFlags(cmdLine)
 			require.NoError(t, err)
-			tlsOpts := flagCfg.InitFromViper(v)
+			tlsOpts, err := flagCfg.InitFromViper(v)
+			require.NoError(t, err)
 			assert.Equal(t, Options{
 				Enabled:      true,
 				CertPath:     "cert-file",
@@ -114,6 +118,72 @@ func TestServerFlags(t *testing.T) {
 				MinVersion:   "1.2",
 				MaxVersion:   "1.3",
 			}, tlsOpts)
+		})
+	}
+}
+
+// TestFailedTLSFlags verifies that TLS options cannot be used when tls.enabled=false
+func TestFailedTLSFlags(t *testing.T) {
+	clientTests := []string{
+		".ca=blah",
+		".cert=blah",
+		".key=blah",
+		".server-name=blah",
+		".skip-host-verify=true",
+	}
+	serverTests := []string{
+		".cert=blah",
+		".key=blah",
+		".client-ca=blah",
+		".cipher-suites=blah",
+		".min-version=1.1",
+		".max-version=1.3",
+	}
+	allTests := []struct {
+		side  string
+		tests []string
+	}{
+		{side: "client", tests: clientTests},
+		{side: "server", tests: serverTests},
+	}
+
+	for _, metaTest := range allTests {
+		t.Run(metaTest.side, func(t *testing.T) {
+			for _, test := range metaTest.tests {
+				t.Run(test, func(t *testing.T) {
+					type UnderTest interface {
+						AddFlags(flags *flag.FlagSet)
+						InitFromViper(v *viper.Viper) (Options, error)
+					}
+					var underTest UnderTest
+					if metaTest.side == "client" {
+						underTest = &ClientFlagsConfig{
+							Prefix: "prefix",
+						}
+					} else {
+						underTest = &ServerFlagsConfig{
+							Prefix: "prefix",
+						}
+					}
+					v, command := config.Viperize(underTest.AddFlags)
+
+					cmdLine := []string{
+						"--prefix.tls.enabled=true",
+						"--prefix.tls" + test,
+					}
+					err := command.ParseFlags(cmdLine)
+					require.NoError(t, err)
+					_, err = underTest.InitFromViper(v)
+					require.NoError(t, err)
+
+					cmdLine[0] = "--prefix.tls.enabled=false"
+					err = command.ParseFlags(cmdLine)
+					require.NoError(t, err)
+					_, err = underTest.InitFromViper(v)
+					require.Error(t, err)
+					require.EqualError(t, err, "prefix.tls.* options cannot be used when prefix.tls.enabled is false")
+				})
+			}
 		})
 	}
 }

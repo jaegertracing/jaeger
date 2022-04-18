@@ -16,6 +16,8 @@ package tlscfg
 
 import (
 	"flag"
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -67,7 +69,7 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
+func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	var p Options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CAPath = v.GetString(c.Prefix + tlsCA)
@@ -75,20 +77,38 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ServerName = v.GetString(c.Prefix + tlsServerName)
 	p.SkipHostVerify = v.GetBool(c.Prefix + tlsSkipHostVerify)
-	return p
+
+	if !p.Enabled {
+		var empty Options
+		if !reflect.DeepEqual(&p, &empty) {
+			return p, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
+		}
+	}
+
+	return p, nil
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) Options {
+func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	var p Options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ClientCAPath = v.GetString(c.Prefix + tlsClientCA)
-	p.CipherSuites = strings.Split(stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)), ",")
+	if s := v.GetString(c.Prefix + tlsCipherSuites); s != "" {
+		p.CipherSuites = strings.Split(stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)), ",")
+	}
 	p.MinVersion = v.GetString(c.Prefix + tlsMinVersion)
 	p.MaxVersion = v.GetString(c.Prefix + tlsMaxVersion)
-	return p
+
+	if !p.Enabled {
+		var empty Options
+		if !reflect.DeepEqual(&p, &empty) {
+			return p, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
+		}
+	}
+
+	return p, nil
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

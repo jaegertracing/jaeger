@@ -16,6 +16,7 @@ package prometheus
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 	"time"
 
@@ -68,11 +69,16 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes the options struct with values from Viper.
-func (opt *Options) InitFromViper(v *viper.Viper) {
+func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg := &opt.Primary
 	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
-	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
+	var err error
+	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
+	if err != nil {
+		return fmt.Errorf("failed to process Prometheus TLS options: %w", err)
+	}
+	return nil
 }
 
 func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
