@@ -34,7 +34,7 @@ require (
 	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.12.1
-	github.com/prometheus/common v0.33.0
+	github.com/prometheus/common v0.34.0
 	github.com/rs/cors v1.8.2
 	github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/cobra v1.4.0
@@ -54,6 +54,8 @@ require (
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v2 v2.4.0
 )
+
+require go.opentelemetry.io/collector/pdata v0.49.0
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1 // indirect
@@ -127,7 +129,6 @@ require (
 	github.com/xdg-go/stringprep v1.0.3 // indirect
 	go.mongodb.org/mongo-driver v1.8.3 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/collector/pdata v0.49.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/text v0.3.7 // indirect
