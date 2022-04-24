@@ -76,6 +76,9 @@ func (c *Configuration) Close() error {
 		c.pluginHealthCheck.Stop()
 		c.pluginHealthCheckDone <- true
 	}
+	if c.pluginRPCClient != nil {
+		c.pluginRPCClient.Close()
+	}
 
 	return c.RemoteTLS.Close()
 }
