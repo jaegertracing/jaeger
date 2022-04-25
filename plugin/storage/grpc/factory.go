@@ -38,9 +38,10 @@ type Factory struct {
 
 	builder config.PluginBuilder
 
-	store        shared.StoragePlugin
-	archiveStore shared.ArchiveStoragePlugin
-	capabilities shared.PluginCapabilities
+	store               shared.StoragePlugin
+	archiveStore        shared.ArchiveStoragePlugin
+	streamingSpanWriter shared.StreamingSpanWriterPlugin
+	capabilities        shared.PluginCapabilities
 }
 
 var _ io.Closer = (*Factory)(nil)
@@ -81,6 +82,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.store = services.Store
 	f.archiveStore = services.ArchiveStore
 	f.capabilities = services.Capabilities
+	f.streamingSpanWriter = services.StreamingSpanWriter
 	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
@@ -92,6 +94,11 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
+	if f.capabilities != nil && f.streamingSpanWriter != nil {
+		if capabilities, err := f.capabilities.Capabilities(); err == nil && capabilities.StreamingSpanWriter {
+			return f.streamingSpanWriter.StreamingSpanWriter(), nil
+		}
+	}
 	return f.store.SpanWriter(), nil
 }
 

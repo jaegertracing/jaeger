@@ -41,6 +41,10 @@ func (ns *storagePlugin) SpanWriter() spanstore.Writer {
 	return ns.store
 }
 
+func (ns *storagePlugin) StreamingSpanWriter() spanstore.Writer {
+	return ns.store
+}
+
 func (ns *storagePlugin) ArchiveSpanReader() spanstore.Reader {
 	return ns.archiveStore
 }

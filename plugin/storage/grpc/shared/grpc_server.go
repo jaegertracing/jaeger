@@ -33,6 +33,7 @@ const spanBatchSize = 1000
 type grpcServer struct {
 	Impl        StoragePlugin
 	ArchiveImpl ArchiveStoragePlugin
+	StreamImpl  StreamingSpanWriterPlugin
 }
 
 // GetDependencies returns all interservice dependencies
@@ -44,6 +45,21 @@ func (s *grpcServer) GetDependencies(ctx context.Context, r *storage_v1.GetDepen
 	return &storage_v1.GetDependenciesResponse{
 		Dependencies: deps,
 	}, nil
+}
+
+// WriteSpanStream recieve the span from stream and save it
+func (s *grpcServer) WriteSpanStream(stream storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer) error {
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		err = s.StreamImpl.StreamingSpanWriter().WriteSpan(stream.Context(), in.Span)
+		if err != nil {
+			return err
+		}
+	}
+	return stream.SendAndClose(&storage_v1.WriteSpanResponse{})
 }
 
 // WriteSpan saves the span
@@ -183,8 +199,9 @@ func (s *grpcServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Span
 
 func (s *grpcServer) Capabilities(ctx context.Context, request *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
 	return &storage_v1.CapabilitiesResponse{
-		ArchiveSpanReader: s.ArchiveImpl != nil,
-		ArchiveSpanWriter: s.ArchiveImpl != nil,
+		ArchiveSpanReader:   s.ArchiveImpl != nil,
+		ArchiveSpanWriter:   s.ArchiveImpl != nil,
+		StreamingSpanWriter: s.StreamImpl != nil,
 	}, nil
 }
 

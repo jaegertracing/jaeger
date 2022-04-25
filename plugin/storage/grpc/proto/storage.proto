@@ -146,6 +146,10 @@ service SpanWriterPlugin {
     rpc Close(CloseWriterRequest) returns (CloseWriterResponse);
 }
 
+service StreamingSpanWriterPlugin {
+    rpc WriteSpanStream(stream WriteSpanRequest) returns (WriteSpanResponse);
+}
+
 service SpanReaderPlugin {
     // spanstore/Reader
     rpc GetTrace(GetTraceRequest) returns (stream SpansResponseChunk);
@@ -178,6 +182,7 @@ message CapabilitiesRequest {
 message CapabilitiesResponse {
     bool archiveSpanReader = 1;
     bool archiveSpanWriter = 2;
+    bool streamingSpanWriter = 3;
 }
 
 service PluginCapabilities {
