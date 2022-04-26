@@ -1,5 +1,8 @@
 gRPC Storage Plugins
 ====================
+
+Update (Jan 2022): as of Jaeger v1.30, the gRPC storage extension can be implemented as a remote gRPC server, in addition to the gRPC plugin architecture described below. The remote server needs to implement the same `storage_v1` gRPC interfaces defined in `plugin/storage/grpc/proto/`.
+
 gRPC Storage Plugins currently use the [Hashicorp go-plugin](https://github.com/hashicorp/go-plugin). This requires the
 implementer of a plugin to develop the "server" side of the go-plugin system. At a high level this looks like:
 
@@ -21,7 +24,7 @@ Implementing a plugin
 ----------------------
 
 Although the instructions below are limited to Go, plugins can be implemented any language. Languages other than
-Go would implement a gRPC server using the `storage_v1.proto` interfaces. The `proto` file can be found in `plugin/storage/grpc/proto/`.
+Go would implement a gRPC server using the `storage_v1` proto interfaces. The `proto` file can be found in `plugin/storage/grpc/proto/`.
 To generate the bindings for your language you would use `protoc` with the appropriate `xx_out=` flag. This is detailed 
 in the [protobuf documentation](https://developers.google.com/protocol-buffers/docs/tutorials) and you can see an example of
 how it is done for Go in the top level Jaeger `Makefile`. 
