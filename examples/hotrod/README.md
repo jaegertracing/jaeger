@@ -65,6 +65,15 @@ docker run \
 
 Then open http://127.0.0.1:8080
 
+### Run HotROD from kubernetes
+
+```bash
+kustomize build ../kubernetes | kubectl apply -f -
+kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend
+```
+
+Then open http://127.0.0.1:8080
+
 ## Metrics
 
 The app exposes metrics in either Go's `expvar` format (by default) or in Prometheus format (enabled via `-m prometheus` flag).

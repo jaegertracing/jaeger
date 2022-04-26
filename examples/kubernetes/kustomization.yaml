@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+
+# If you want to use the grafana-agent, uncomment below.
+# patches:
+#   - target:
+#       group: apps
+#       version: v1
+#       kind: Deployment
+#       name: example-hotrod
+#     patch: |-
+#       - op: add
+#         path: /spec/template/spec/containers/0/env/-
+#         value:
+#           name: JAEGER_AGENT_HOST
+#           value: grafana-agent-traces.grafana.svc.cluster.local
+#       - op: add
+#         path: /spec/template/spec/containers/0/env/-
+#         value:
+#           name: JAEGER_AGENT_PORT
+#           value: "6831"
