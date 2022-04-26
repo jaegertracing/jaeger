@@ -35,6 +35,9 @@ kustomize build ./kubernetes | kubectl apply -f -
 kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend
 # In another terminal
 kubectl port-forward -n example-hotrod service/jaeger 16686:frontend
+
+# To cleanup
+kustomize build ./kubernetes | kubectl delete -f -
 ```
 
 Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
