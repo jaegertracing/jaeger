@@ -68,7 +68,7 @@ Then open http://127.0.0.1:8080
 ### Run HotROD from kubernetes
 
 ```bash
-kustomize build ../kubernetes | kubectl apply -f -
+kustomize build kubernetes | kubectl apply -f -
 kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend
 ```
 

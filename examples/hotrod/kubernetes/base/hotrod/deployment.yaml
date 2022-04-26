@@ -4,7 +4,6 @@ metadata:
   labels:
     app: example-hotrod
   name: example-hotrod
-  namespace: example-hotrod
 spec:
   replicas: 1
   selector:
@@ -22,7 +21,7 @@ spec:
         args: ["all"]
         env:
           - name: JAEGER_AGENT_HOST
-            value: jaeger.jaeger.svc.cluster.local
+            value: jaeger.example-hotrod.svc.cluster.local
           - name: JAEGER_AGENT_PORT
             value: "6831"
         ports:
