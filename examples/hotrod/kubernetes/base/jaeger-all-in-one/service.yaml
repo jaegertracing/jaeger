@@ -4,13 +4,13 @@ metadata:
   name: jaeger
 spec:
   selector:
-    app: jaeger
+    app: example-hotrod
   ports:
     - name: tracing
       protocol: UDP
       port: 6831
-      targetPort: tracing
+      targetPort: tracing-jaeger
     - name: frontend
       protocol: TCP
       port: 16686
-      targetPort: frontend
+      targetPort: frontend-jaeger

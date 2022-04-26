@@ -21,7 +21,7 @@ spec:
         args: ["all"]
         env:
           - name: JAEGER_AGENT_HOST
-            value: jaeger.example-hotrod.svc.cluster.local
+            value: localhost
           - name: JAEGER_AGENT_PORT
             value: "6831"
         ports:
