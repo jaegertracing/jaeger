@@ -28,6 +28,17 @@ to view the traces. A tutorial / walkthrough is available:
 
 Alternatively, you can run each component separately as described below.
 
+### Run HotROD/Jaeger all-in-one from kubernetes
+
+```bash
+kustomize build ./kubernetes | kubectl apply -f -
+kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend
+# In another terminal
+kubectl port-forward -n example-hotrod service/jaeger 16686:frontend
+```
+
+Then open <http://127.0.0.1:8080>
+
 ### Run Jaeger backend
 
 An all-in-one Jaeger backend is packaged as a Docker container with in-memory storage.
@@ -61,17 +72,6 @@ docker run \
   -p8080-8083:8080-8083 \
   jaegertracing/example-hotrod:latest \
   all
-```
-
-Then open http://127.0.0.1:8080
-
-### Run HotROD/Jaeger all-in-one from kubernetes
-
-```bash
-kustomize build ./kubernetes | kubectl apply -f -
-kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend
-# In another terminal
-kubectl port-forward -n example-hotrod service/jaeger 16686:frontend
 ```
 
 Then open http://127.0.0.1:8080
