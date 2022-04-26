@@ -34,8 +34,20 @@ spec:
             name: route
         resources:
           limits:
-            cpu: 250m
-            memory: 1G
+            cpu: 100m
+            memory: 100M
           requests:
             cpu: 100m
-            memory: 1G
+            memory: 100M
+      - image: redis:latest
+        name: redis
+        ports:
+          - containerPort: 6379
+            name: redis
+        resources:
+          limits:
+            cpu: 100m
+            memory: 50M
+          requests:
+            cpu: 100m
+            memory: 50M
