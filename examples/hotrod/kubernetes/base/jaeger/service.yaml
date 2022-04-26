@@ -7,7 +7,7 @@ spec:
     app: jaeger
   ports:
     - name: tracing
-      protocol: TCP
+      protocol: UDP
       port: 6831
       targetPort: tracing
     - name: frontend
