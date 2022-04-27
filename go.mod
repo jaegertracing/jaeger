@@ -9,7 +9,7 @@ require (
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
-	github.com/fsnotify/fsnotify v1.5.3
+	github.com/fsnotify/fsnotify v1.5.4
 	github.com/go-openapi/errors v0.20.2
 	github.com/go-openapi/loads v0.21.1
 	github.com/go-openapi/runtime v0.23.3
