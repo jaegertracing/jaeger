@@ -216,7 +216,7 @@ If you would like to add your organization to the list, please comment on our
 
 ## License
 
-[Apache 2.0 License](./LICENSE).
+Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).
 
 [doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
