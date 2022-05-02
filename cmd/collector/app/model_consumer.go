@@ -30,6 +30,9 @@ type ProcessSpans func(spans []*model.Span, ctx context.Context) // @@@ ecs modi
 // FilterSpan decides whether to allow or disallow a span
 type FilterSpan func(span *model.Span) bool
 
+// ValidTenant decides whether to allow or disallow a slice of spans based on tenancy
+type ValidTenant func(tenant string) bool
+
 // ChainedProcessSpan chains spanProcessors as a single ProcessSpan call
 func ChainedProcessSpan(spanProcessors ...ProcessSpan) ProcessSpan {
 	return func(span *model.Span, ctx context.Context) {

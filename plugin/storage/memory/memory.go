@@ -78,7 +78,11 @@ func NewTenant(configuration config.Configuration) *Tenant {
 // GetDependencies returns dependencies between services
 func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	// deduper used below can modify the spans, so we take an exclusive lock
-	m := st.GetTenant(GetTenantID(ctx))
+	m, err := st.GetTenant(GetTenantID(ctx))
+	if err != nil {
+		return nil, err
+	}
+
 	m.Lock()
 	defer m.Unlock()
 	deps := map[string]*model.DependencyLink{}
@@ -134,7 +138,11 @@ func (m *Store) traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model
 
 // WriteSpan writes the given span
 func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
-	m := st.GetTenant(GetTenantID(ctx))
+	m, err := st.GetTenant(GetTenantID(ctx))
+	if err != nil {
+		return err
+	}
+
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
@@ -178,7 +186,11 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 
 // GetTrace gets a trace
 func (st *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	m := st.GetTenant(GetTenantID(ctx))
+	m, err := st.GetTenant(GetTenantID(ctx))
+	if err != nil {
+		return nil, err
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 	trace, ok := m.traces[traceID]
@@ -202,7 +214,11 @@ func (m *Store) copyTrace(trace *model.Trace) (*model.Trace, error) {
 
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
-	m := st.GetTenant(GetTenantID(ctx))
+	m, err := st.GetTenant(GetTenantID(ctx))
+	if err != nil {
+		return nil, err
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []string
@@ -217,7 +233,11 @@ func (st *Store) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	m := st.GetTenant(GetTenantID(ctx))
+	m, err := st.GetTenant(GetTenantID(ctx))
+	if err != nil {
+		return nil, err
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []spanstore.Operation
@@ -233,7 +253,11 @@ func (st *Store) GetOperations(
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
 func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	m := st.GetTenant(GetTenantID(ctx))
+	m, err := st.GetTenant(GetTenantID(ctx))
+	if err != nil {
+		return nil, err
+	}
+
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []*model.Trace
@@ -329,15 +353,38 @@ func GetTenantID(ctx context.Context) string {
 	return ""
 }
 
-func (s *Store) GetTenant(tenantID string) *Tenant {
+func (s *Store) GetTenant(tenantID string) (*Tenant, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	tenant, ok := s.tenants[tenantID]
 	if !ok {
+		if s.config.MaxTenants != 0 && len(s.tenants) == s.config.MaxTenants {
+			return nil, fmt.Errorf("tenant capacity exhausted")
+		}
+
+		if s.config.ValidTenants != nil {
+			// Note that this O(N) look-up only occurs once per tenant, not per-access
+			found := false
+			for _, v := range s.config.ValidTenants {
+				if v == tenantID {
+					found = true
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("unknown tenant %s", tenantID)
+			}
+		}
+
 		tenant = NewTenant(s.config)
 		s.tenants[tenantID] = tenant
 		log.Printf("Memory storage created tenant %q\n", tenantID)
 	}
-	return tenant
+	return tenant, nil
+}
+
+// IsValid returns `true` if the tenant is valid for this storage
+func (st *Store) IsValid(tenant string) bool {
+	_, err := st.GetTenant(tenant)
+	return err == nil
 }

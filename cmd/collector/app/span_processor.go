@@ -39,6 +39,7 @@ const (
 )
 
 type spanProcessor struct {
+	validTenant        ValidTenant // validTenant is called before enqueuing spans
 	queue              *queue.BoundedQueue
 	queueResizeMu      sync.Mutex
 	metrics            *SpanProcessorMetrics
@@ -98,6 +99,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
 	sp := spanProcessor{
+		validTenant:        options.validTenant,
 		queue:              boundedQueue,
 		metrics:            handlerMetrics,
 		logger:             options.logger,
@@ -127,6 +129,15 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	processSpanFuncs = append(processSpanFuncs, additional...)
 
 	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
+
+	// If the SpanWriter implements the optional TenantValidator interface, the queue and processing can be skipped
+	validator, ok := spanWriter.(spanstore.TenantValidator)
+	if ok {
+		sp.validTenant = validator.IsValid
+	} else {
+		sp.validTenant = func(tenant string) bool { return true }
+	}
+
 	return &sp
 }
 
@@ -162,6 +173,10 @@ func (sp *spanProcessor) countSpan(span *model.Span, _ context.Context) {
 }
 
 func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
+
+	if !sp.validTenant(options.SpanTenant) {
+		return nil, processor.ErrTenant
+	}
 
 	sp.preProcessSpans(mSpans, context.TODO())
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))

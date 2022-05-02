@@ -28,6 +28,7 @@ import (
 )
 
 var traceID = model.NewTraceID(1, 2)
+var traceID2 = model.NewTraceID(2, 3)
 
 var testingSpan = &model.Span{
 	TraceID: traceID,
@@ -136,6 +137,30 @@ var nonSerializableSpan = &model.Span{
 	StartTime: time.Date(0, 0, 0, 0, 0, 0, 0, time.UTC),
 }
 
+var testingSpan2 = &model.Span{
+	TraceID: traceID2,
+	SpanID:  model.NewSpanID(1),
+	Process: &model.Process{
+		ServiceName: "serviceName2",
+		Tags:        []model.KeyValue(nil),
+	},
+	OperationName: "operationName2",
+	Tags: model.KeyValues{
+		model.String("tagKey", "tagValue2"),
+		model.String("span.kind", "client2"),
+	},
+	Logs: []model.Log{
+		{
+			Timestamp: time.Now().UTC(),
+			Fields: []model.KeyValue{
+				model.String("logKey", "logValue2"),
+			},
+		},
+	},
+	Duration:  time.Second * 5,
+	StartTime: time.Unix(300, 0).UTC(),
+}
+
 func withPopulatedMemoryStore(f func(store *Store)) {
 	memStore := NewStore()
 	memStore.WriteSpan(context.Background(), testingSpan)
@@ -205,8 +230,8 @@ func TestStoreWithLimit(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, maxTraces, len(store.GetTenant("").traces))
-	assert.Equal(t, maxTraces, len(store.GetTenant("").ids))
+	assert.Equal(t, maxTraces, len(mustGetTenant(t, store, "").traces))
+	assert.Equal(t, maxTraces, len(mustGetTenant(t, store, "").ids))
 }
 
 func TestStoreGetTraceSuccess(t *testing.T) {
@@ -238,7 +263,7 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 
 func TestStoreGetTraceError(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		store.GetTenant("").traces[testingSpan.TraceID] = &model.Trace{
+		mustGetTenant(t, store, "").traces[testingSpan.TraceID] = &model.Trace{
 			Spans: []*model.Span{nonSerializableSpan},
 		}
 		_, err := store.GetTrace(context.Background(), testingSpan.TraceID)
@@ -461,4 +486,143 @@ func TestStore_FindTraceIDs(t *testing.T) {
 		assert.Nil(t, traceIDs)
 		assert.EqualError(t, err, "not implemented")
 	})
+}
+
+func TestTenantStore(t *testing.T) {
+	withMemoryStore(func(store *Store) {
+		ctxAcme := context.WithValue(context.Background(), spanstore.TenantKey, "acme")
+		ctxWonka := context.WithValue(context.Background(), spanstore.TenantKey, "wonka")
+
+		assert.NoError(t, store.WriteSpan(ctxAcme, testingSpan))
+		assert.NoError(t, store.WriteSpan(ctxWonka, testingSpan2))
+
+		// Can we retrieve the spans with correct tenancy
+		trace1, err := store.GetTrace(ctxAcme, testingSpan.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace1.Spans, 1)
+		assert.Equal(t, testingSpan, trace1.Spans[0])
+
+		trace2, err := store.GetTrace(ctxWonka, testingSpan2.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace2.Spans, 1)
+		assert.Equal(t, testingSpan2, trace2.Spans[0])
+
+		// Can we query the spans with correct tenancy
+		traces1, err := store.FindTraces(ctxAcme, &spanstore.TraceQueryParameters{
+			ServiceName: "serviceName",
+		})
+		assert.NoError(t, err)
+		assert.Len(t, traces1, 1)
+		assert.Len(t, traces1[0].Spans, 1)
+		assert.Equal(t, testingSpan, traces1[0].Spans[0])
+
+		traces2, err := store.FindTraces(ctxWonka, &spanstore.TraceQueryParameters{
+			ServiceName: "serviceName2",
+		})
+		assert.NoError(t, err)
+		assert.Len(t, traces2, 1)
+		assert.Len(t, traces2[0].Spans, 1)
+		assert.Equal(t, testingSpan2, traces2[0].Spans[0])
+
+		// Do the spans fail with incorrect tenancy?
+		_, err = store.GetTrace(ctxAcme, testingSpan2.TraceID)
+		assert.Error(t, err)
+
+		_, err = store.GetTrace(ctxWonka, testingSpan.TraceID)
+		assert.Error(t, err)
+
+		_, err = store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.Error(t, err)
+	})
+}
+
+func TestStoreWithTenantLimit(t *testing.T) {
+	maxTraces := 100
+	tenants := []string{"acme", "stark-industries"}
+
+	store := WithConfiguration(config.Configuration{
+		MaxTraces:  maxTraces,
+		MaxTenants: len(tenants),
+	})
+
+	for _, tenant := range tenants {
+		ctxTenant := context.WithValue(context.Background(), spanstore.TenantKey, tenant)
+		for i := 0; i < maxTraces*2; i++ {
+			id := model.NewTraceID(1, uint64(i))
+			err := store.WriteSpan(ctxTenant, &model.Span{
+				TraceID: id,
+				Process: &model.Process{
+					ServiceName: "TestStoreWithTenantLimit",
+				},
+			})
+			assert.NoError(t, err)
+
+			err = store.WriteSpan(ctxTenant, &model.Span{
+				TraceID: id,
+				SpanID:  model.NewSpanID(uint64(i)),
+				Process: &model.Process{
+					ServiceName: "TestStoreWithTenantLimit",
+				},
+				OperationName: "childOperationName",
+			})
+			assert.NoError(t, err)
+		}
+
+		assert.Equal(t, maxTraces, len(mustGetTenant(t, store, tenant).traces))
+		assert.Equal(t, maxTraces, len(mustGetTenant(t, store, tenant).ids))
+	}
+
+	ctxTooMany := context.WithValue(context.Background(), spanstore.TenantKey, "too-many-tenants")
+	assert.Error(t, store.WriteSpan(ctxTooMany, testingSpan))
+}
+
+func TestStoreWithTenantList(t *testing.T) {
+	maxTraces := 100
+	tenants := []string{"acme", "stark-industries"}
+
+	store := WithConfiguration(config.Configuration{
+		MaxTraces:    maxTraces,
+		ValidTenants: tenants,
+	})
+
+	for _, tenant := range tenants {
+		ctxTenant := context.WithValue(context.Background(), spanstore.TenantKey, tenant)
+		for i := 0; i < maxTraces*2; i++ {
+			id := model.NewTraceID(1, uint64(i))
+			err := store.WriteSpan(ctxTenant, &model.Span{
+				TraceID: id,
+				Process: &model.Process{
+					ServiceName: "TestStoreWithTenantLimit",
+				},
+			})
+			assert.NoError(t, err)
+
+			err = store.WriteSpan(ctxTenant, &model.Span{
+				TraceID: id,
+				SpanID:  model.NewSpanID(uint64(i)),
+				Process: &model.Process{
+					ServiceName: "TestStoreWithTenantLimit",
+				},
+				OperationName: "childOperationName",
+			})
+			assert.NoError(t, err)
+		}
+
+		assert.Equal(t, maxTraces, len(mustGetTenant(t, store, tenant).traces))
+		assert.Equal(t, maxTraces, len(mustGetTenant(t, store, tenant).ids))
+	}
+
+	ctxTooMany := context.WithValue(context.Background(), spanstore.TenantKey, "unknown-tenants")
+	assert.Error(t, store.WriteSpan(ctxTooMany, testingSpan))
+}
+
+func mustGetTenant(t *testing.T, store *Store, tenant string) *Tenant {
+	t.Helper()
+
+	m, err := store.GetTenant(tenant)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return m
 }

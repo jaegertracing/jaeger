@@ -16,5 +16,8 @@ package config
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
-	MaxTraces int `yaml:"max-traces" mapstructure:"max_traces"`
+	// MaxTraces is now a per-tenant limit, not an over-all limit
+	MaxTraces    int      `yaml:"max-traces" mapstructure:"max_traces"`
+	ValidTenants []string `yaml:"valid-tenants" mapstructure:"valid_tenants"`
+	MaxTenants   int      `yaml:"max-tenants" mapstructure:"max_tenants"`
 }

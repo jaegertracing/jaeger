@@ -24,6 +24,9 @@ import (
 // ErrBusy signalizes that processor cannot process incoming data
 var ErrBusy = errors.New("server busy")
 
+// ErrTenant signalizes that processor wont accept incoming data for tenant
+var ErrTenant = errors.New("invalid tenant")
+
 // SpansOptions additional options passed to processor along with the spans.
 type SpansOptions struct {
 	SpanFormat       SpanFormat

@@ -44,6 +44,7 @@ func TestAllOptionSet(t *testing.T) {
 		Options.DynQueueSizeWarmup(1000),
 		Options.DynQueueSizeMemory(1024),
 		Options.PreSave(func(span *model.Span, _ context.Context) {}),
+		Options.ValidTenant(func(tenant string) bool { return true }),
 		Options.CollectorTags(map[string]string{"extra": "tags"}),
 	)
 	assert.EqualValues(t, 5, opts.numWorkers)

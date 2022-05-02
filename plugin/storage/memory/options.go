@@ -16,6 +16,7 @@ package memory
 
 import (
 	"flag"
+	"strings"
 
 	"github.com/spf13/viper"
 
@@ -23,6 +24,8 @@ import (
 )
 
 const limit = "memory.max-traces"
+const limitTenants = "memory.max-tenants"
+const validTenants = "memory.valid-tenants"
 
 // Options stores the configuration entries for this storage
 type Options struct {
@@ -32,9 +35,13 @@ type Options struct {
 // AddFlags from this storage to the CLI
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(limit, 0, "The maximum amount of traces to store in memory. The default number of traces is unbounded.")
+	flagSet.Int(limitTenants, 10, "limit on the number of tenants that may send and query (use 0 for no limit)")
+	flagSet.String(validTenants, "", "If defined; only tenants in this list may send and query")
 }
 
 // InitFromViper initializes the options struct with values from Viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.MaxTraces = v.GetInt(limit)
+	opt.Configuration.MaxTenants = v.GetInt(limitTenants)
+	opt.Configuration.ValidTenants = strings.Split(v.GetString(validTenants), ",")
 }

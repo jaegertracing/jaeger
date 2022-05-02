@@ -71,6 +71,11 @@ type Reader interface {
 	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
 }
 
+// An optional interface that a Writer may also choose to implement
+type TenantValidator interface {
+	IsValid(tenant string) bool
+}
+
 // TraceQueryParameters contains parameters of a trace query.
 type TraceQueryParameters struct {
 	ServiceName   string

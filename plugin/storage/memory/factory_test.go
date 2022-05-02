@@ -57,7 +57,23 @@ func TestWithConfiguration(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, f.options.Configuration.MaxTraces, 100)
+	assert.Equal(t, 100, f.options.Configuration.MaxTraces)
+}
+
+func TestWithValidTenantConfiguration(t *testing.T) {
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{"--memory.valid-tenants=acme,stark-industries"})
+	f.InitFromViper(v, zap.NewNop())
+	assert.Equal(t, []string{"acme", "stark-industries"}, f.options.Configuration.ValidTenants, f.options.Configuration.ValidTenants)
+}
+
+func TestWithMaxTenantConfiguration(t *testing.T) {
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{"--memory.max-tenants=12"})
+	f.InitFromViper(v, zap.NewNop())
+	assert.Equal(t, 12, f.options.Configuration.MaxTenants)
 }
 
 func TestInitFromOptions(t *testing.T) {

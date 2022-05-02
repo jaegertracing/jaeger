@@ -42,6 +42,7 @@ type options struct {
 	preProcessSpans    ProcessSpans
 	sanitizer          sanitizer.SanitizeSpan
 	preSave            ProcessSpan
+	validTenant        ValidTenant
 	spanFilter         FilterSpan
 	numWorkers         int
 	blockingSubmit     bool
@@ -77,6 +78,13 @@ func (options) ServiceMetrics(serviceMetrics metrics.Factory) Option {
 func (options) HostMetrics(hostMetrics metrics.Factory) Option {
 	return func(b *options) {
 		b.hostMetrics = hostMetrics
+	}
+}
+
+// ValidTenant creates an Option that initializes the validTenant function
+func (options) ValidTenant(tenantValiator ValidTenant) Option {
+	return func(b *options) {
+		b.validTenant = tenantValiator
 	}
 }
 
@@ -186,6 +194,9 @@ func (o options) apply(opts ...Option) options {
 	}
 	if ret.preSave == nil {
 		ret.preSave = func(span *model.Span, _ context.Context) {}
+	}
+	if ret.validTenant == nil {
+		ret.validTenant = func(tenant string) bool { return true }
 	}
 	if ret.spanFilter == nil {
 		ret.spanFilter = func(span *model.Span) bool { return true }
