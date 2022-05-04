@@ -112,6 +112,8 @@ grpc.Serve(&shared.PluginServices{
 })
 ```
 
+To support writing span via client stream (which can enlarge the throughput), you must fill `StreamingSpanWriter` with the same plugin with `Store` field. Note that use streaming spanWriter may make the `save_by_svr` metric inaccurate, in which case users will need to pay attention to the metrics provided by plugin.
+
 Running with a plugin
 ---------------------
 A plugin can be run using the `all-in-one` application within the top level `cmd` package of the Jaeger project. To do this

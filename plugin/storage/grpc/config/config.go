@@ -159,6 +159,11 @@ func (c *Configuration) buildPlugin(logger *zap.Logger) (*ClientPluginServices, 
 		return nil, fmt.Errorf("unable to cast %T to shared.ArchiveStoragePlugin for plugin \"%s\"",
 			raw, shared.StoragePluginIdentifier)
 	}
+	streamingSpanWriterPlugin, ok := raw.(shared.StreamingSpanWriterPlugin)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast %T to shared.StreamingSpanWriterPlugin for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
+	}
 	capabilities, ok := raw.(shared.PluginCapabilities)
 	if !ok {
 		return nil, fmt.Errorf("unable to cast %T to shared.PluginCapabilities for plugin \"%s\"",
@@ -171,8 +176,9 @@ func (c *Configuration) buildPlugin(logger *zap.Logger) (*ClientPluginServices, 
 
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
-			Store:        storagePlugin,
-			ArchiveStore: archiveStoragePlugin,
+			Store:               storagePlugin,
+			ArchiveStore:        archiveStoragePlugin,
+			StreamingSpanWriter: streamingSpanWriterPlugin,
 		},
 		Capabilities: capabilities,
 	}, nil

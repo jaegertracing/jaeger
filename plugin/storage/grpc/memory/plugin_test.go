@@ -31,6 +31,7 @@ func TestPluginUsesMemoryStorage(t *testing.T) {
 	assert.Equal(t, mainStorage, memStorePlugin.DependencyReader())
 	assert.Equal(t, mainStorage, memStorePlugin.SpanReader())
 	assert.Equal(t, mainStorage, memStorePlugin.SpanWriter())
+	assert.Equal(t, mainStorage, memStorePlugin.StreamingSpanWriter())
 	assert.Equal(t, archiveStorage, memStorePlugin.ArchiveSpanReader())
 	assert.Equal(t, archiveStorage, memStorePlugin.ArchiveSpanWriter())
 
