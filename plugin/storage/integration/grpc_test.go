@@ -12,6 +12,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //go:build grpc_storage_integration
 // +build grpc_storage_integration
 
@@ -157,11 +158,11 @@ func getPluginFlags(t *testing.T) []string {
 
 func TestGRPCStorage(t *testing.T) {
 	flags := getPluginFlags(t)
-	configPath := os.Getenv("PLUGIN_CONFIG_PATH")
-	if configPath == "" {
+	if configPath := os.Getenv("PLUGIN_CONFIG_PATH"); configPath == "" {
 		t.Log("PLUGIN_CONFIG_PATH env var not set")
+	} else {
+		flags = append(flags, "--grpc-storage-plugin.configuration-file", configPath)
 	}
-	flags = append(flags, "--grpc-storage-plugin.configuration-file", configPath)
 
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,
@@ -174,7 +175,9 @@ func TestGRPCStreamingWriter(t *testing.T) {
 	flags := getPluginFlags(t)
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	flags = append(flags, "--grpc-storage-plugin.configuration-file", path.Join(wd, streamingPluginConfigPath))
+	flags = append(flags,
+		"--grpc-storage-plugin.configuration-file",
+		path.Join(wd, streamingPluginConfigPath))
 
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,
