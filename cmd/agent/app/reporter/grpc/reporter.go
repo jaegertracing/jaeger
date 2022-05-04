@@ -17,6 +17,7 @@ package grpc
 
 import (
 	"context"
+	"strings"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -32,19 +33,21 @@ import (
 
 // Reporter reports data to collector over gRPC.
 type Reporter struct {
-	collector api_v2.CollectorServiceClient
-	agentTags []model.KeyValue
-	logger    *zap.Logger
-	sanitizer zipkin2.Sanitizer
+	collector                  api_v2.CollectorServiceClient
+	agentTags                  []model.KeyValue
+	logger                     *zap.Logger
+	filterProcessTagsSlice []string
+	sanitizer                  zipkin2.Sanitizer
 }
 
 // NewReporter creates gRPC reporter.
-func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
+func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger, filterProcessTags string) *Reporter {
 	return &Reporter{
-		collector: api_v2.NewCollectorServiceClient(conn),
-		agentTags: makeModelKeyValue(agentTags),
-		logger:    logger,
-		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
+		collector:                  api_v2.NewCollectorServiceClient(conn),
+		agentTags:                  makeModelKeyValue(agentTags),
+		logger:                     logger,
+		filterProcessTagsSlice: makeSliceOfTags(filterProcessTags),
+		sanitizer:                  zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
 	}
 }
 
@@ -66,6 +69,9 @@ func (r *Reporter) EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Spa
 }
 
 func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model.Process) error {
+	if len(r.filterProcessTagsSlice) != 0 {
+		spans = pruneUnwantedTags(r.filterProcessTagsSlice, spans, process)
+	}
 	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
@@ -100,4 +106,38 @@ func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
 	}
 
 	return tags
+}
+
+func makeSliceOfTags(includedTags string) []string {
+	if includedTags != "" {
+		tags := strings.Split(strings.Trim(includedTags, " "), ",")
+		return tags
+	} else {
+		return make([]string, 0)
+	}
+}
+
+//remove the tags not present in filterProcessTags flag
+func pruneUnwantedTags(filterProcessTagsSlice []string, spans []*model.Span, process *model.Process) []*model.Span {
+	for _, span := range spans {
+		if span.Process != nil && span.Process.Tags != nil {
+			finalTags := make([]model.KeyValue, 0)
+			for _, tag := range span.Process.Tags {
+				if contains(filterProcessTagsSlice, tag.Key) {
+					finalTags = append(finalTags, tag)
+				}
+			}
+			span.Process.Tags = finalTags
+		}
+	}
+	return spans
+}
+
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
 }

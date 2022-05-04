@@ -21,6 +21,6 @@ import (
 // GRPCCollectorProxyBuilder creates CollectorProxyBuilder for GRPC reporter
 func GRPCCollectorProxyBuilder(builder *grpc.ConnBuilder) CollectorProxyBuilder {
 	return func(opts ProxyBuilderOptions) (proxy CollectorProxy, err error) {
-		return grpc.NewCollectorProxy(builder, opts.AgentTags, opts.Metrics, opts.Logger)
+		return grpc.NewCollectorProxy(builder, opts.AgentTags, opts.Metrics, opts.Logger, opts.FilterProcessTags)
 	}
 }

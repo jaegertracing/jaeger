@@ -210,7 +210,7 @@ func TestProxyBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop(), "")
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -359,7 +359,8 @@ func TestProxyClientTLS(t *testing.T) {
 				grpcBuilder,
 				nil,
 				mFactory,
-				zap.NewNop())
+				zap.NewNop(),
+				"")
 
 			require.NoError(t, err)
 			require.NotNil(t, proxy)

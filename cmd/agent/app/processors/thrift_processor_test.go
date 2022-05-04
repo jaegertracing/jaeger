@@ -83,7 +83,7 @@ func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.Gr
 	grpcCollector := testutils.StartGRPCCollector(t)
 	conn, err := grpc.Dial(grpcCollector.Listener().Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
-	rep := grpcrep.NewReporter(conn, map[string]string{}, zap.NewNop())
+	rep := grpcrep.NewReporter(conn, map[string]string{}, zap.NewNop(), "")
 	metricsFactory := metricstest.NewFactory(0)
 	reporter := reporter.WrapWithMetrics(rep, metricsFactory)
 	return metricsFactory, grpcCollector, reporter, conn
