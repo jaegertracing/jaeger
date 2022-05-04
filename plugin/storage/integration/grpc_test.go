@@ -20,6 +20,7 @@ package integration
 import (
 	"net"
 	"os"
+	"path"
 	"sync"
 	"testing"
 
@@ -36,7 +37,10 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
-const defaultPluginBinaryPath = "../../../examples/memstore-plugin/memstore-plugin"
+const (
+	defaultPluginBinaryPath   = "../../../examples/memstore-plugin/memstore-plugin"
+	streamingPluginConfigPath = "fixtures/grpc_plugin_conf.yaml"
+)
 
 type gRPCServer struct {
 	errChan chan error
@@ -138,24 +142,39 @@ func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
 	return s.initialize()
 }
 
-func TestGRPCStorage(t *testing.T) {
+func getPluginFlags(t *testing.T) []string {
 	binaryPath := os.Getenv("PLUGIN_BINARY_PATH")
 	if binaryPath == "" {
 		t.Logf("PLUGIN_BINARY_PATH env var not set, using %s", defaultPluginBinaryPath)
 		binaryPath = defaultPluginBinaryPath
 	}
+
+	return []string{
+		"--grpc-storage-plugin.binary", binaryPath,
+		"--grpc-storage-plugin.log-level", "debug",
+	}
+}
+
+func TestGRPCStorage(t *testing.T) {
+	flags := getPluginFlags(t)
 	configPath := os.Getenv("PLUGIN_CONFIG_PATH")
 	if configPath == "" {
 		t.Log("PLUGIN_CONFIG_PATH env var not set")
 	}
+	flags = append(flags, "--grpc-storage-plugin.configuration-file", configPath)
 
-	flags := []string{
-		"--grpc-storage-plugin.binary", binaryPath,
-		"--grpc-storage-plugin.log-level", "debug",
+	s := &GRPCStorageIntegrationTestSuite{
+		flags: flags,
 	}
-	flags = append(flags,
-		"--grpc-storage-plugin.configuration-file", configPath,
-	)
+	require.NoError(t, s.initialize())
+	s.IntegrationTestAll(t)
+}
+
+func TestGRPCStreamingWriter(t *testing.T) {
+	flags := getPluginFlags(t)
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	flags = append(flags, "--grpc-storage-plugin.configuration-file", path.Join(wd, streamingPluginConfigPath))
 
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,
