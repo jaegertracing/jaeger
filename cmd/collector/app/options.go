@@ -16,6 +16,8 @@
 package app
 
 import (
+	"context"
+
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -177,13 +179,13 @@ func (o options) apply(opts ...Option) options {
 		ret.hostMetrics = metrics.NullFactory
 	}
 	if ret.preProcessSpans == nil {
-		ret.preProcessSpans = func(spans []*model.Span) {}
+		ret.preProcessSpans = func(spans []*model.Span, ctx context.Context) {}
 	}
 	if ret.sanitizer == nil {
 		ret.sanitizer = func(span *model.Span) *model.Span { return span }
 	}
 	if ret.preSave == nil {
-		ret.preSave = func(span *model.Span) {}
+		ret.preSave = func(span *model.Span, ctx context.Context) {}
 	}
 	if ret.spanFilter == nil {
 		ret.spanFilter = func(span *model.Span) bool { return true }

@@ -15,6 +15,8 @@
 package app
 
 import (
+	"context"
+
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -23,7 +25,7 @@ import (
 
 // handleRootSpan returns a function that records throughput for root spans
 func handleRootSpan(aggregator strategystore.Aggregator, logger *zap.Logger) ProcessSpan {
-	return func(span *model.Span) {
+	return func(span *model.Span, ctx context.Context) {
 		// TODO simply checking parentId to determine if a span is a root span is not sufficient. However,
 		// we can be sure that only a root span will have sampler tags.
 		if span.ParentSpanID() != model.NewSpanID(0) {

@@ -15,6 +15,7 @@
 package processor
 
 import (
+	"context"
 	"errors"
 	"io"
 
@@ -28,6 +29,7 @@ var ErrBusy = errors.New("server busy")
 type SpansOptions struct {
 	SpanFormat       SpanFormat
 	InboundTransport InboundTransport
+	Context          context.Context
 }
 
 // SpanProcessor handles model spans
