@@ -45,7 +45,7 @@ type spanProcessor struct {
 	preProcessSpans    ProcessSpans
 	filterSpan         FilterSpan             // filter is called before the sanitizer but after preProcessSpans
 	sanitizer          sanitizer.SanitizeSpan // sanitizer is called before processSpan
-	processSpan        ProcessSpan
+	processSpan        func(span *model.Span, ctx context.Context)
 	logger             *zap.Logger
 	spanWriter         spanstore.Writer
 	reportBusy         bool
@@ -61,6 +61,7 @@ type spanProcessor struct {
 type queueItem struct {
 	queuedTime time.Time
 	span       *model.Span
+	context    context.Context
 }
 
 // NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans
@@ -114,7 +115,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 		spansProcessed:     atomic.NewUint64(0),
 	}
 
-	processSpanFuncs := []ProcessSpan{options.preSave, sp.saveSpan}
+	processSpanFuncs := []ProcessSpan{options.preSave}
 	if options.dynQueueSizeMemory > 0 {
 		// add to processSpanFuncs
 		options.logger.Info("Dynamically adjusting the queue size at runtime.",
@@ -125,7 +126,12 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 
 	processSpanFuncs = append(processSpanFuncs, additional...)
 
-	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
+	processorChain := ChainedProcessSpan(processSpanFuncs...)
+	sp.processSpan = func(span *model.Span, ctx context.Context) {
+		processorChain(span)
+		// saveSpan has different signature, so is not part of the chain
+		sp.saveSpan(span, ctx)
+	}
 	return &sp
 }
 
@@ -136,7 +142,7 @@ func (sp *spanProcessor) Close() error {
 	return nil
 }
 
-func (sp *spanProcessor) saveSpan(span *model.Span) {
+func (sp *spanProcessor) saveSpan(span *model.Span, ctx context.Context) {
 	if nil == span.Process {
 		sp.logger.Error("process is empty for the span")
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
@@ -145,7 +151,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 
 	startTime := time.Now()
 	// TODO context should be propagated from upstream components
-	if err := sp.spanWriter.WriteSpan(context.TODO(), span); err != nil {
+	if err := sp.spanWriter.WriteSpan(ctx, span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
 	} else {
@@ -164,9 +170,15 @@ func (sp *spanProcessor) countSpan(span *model.Span) {
 func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
 	sp.preProcessSpans(mSpans)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
+
+	ctx := options.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	retMe := make([]bool, len(mSpans))
 	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
+		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport, ctx)
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
 		}
@@ -176,7 +188,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 }
 
 func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
-	sp.processSpan(sp.sanitizer(item.span))
+	sp.processSpan(sp.sanitizer(item.span), item.context)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
@@ -201,7 +213,7 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	typedTags.Sort()
 }
 
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport) bool {
+func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport, ctx context.Context) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
@@ -219,6 +231,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	item := &queueItem{
 		queuedTime: time.Now(),
 		span:       span,
+		context:    ctx,
 	}
 	return sp.queue.Produce(item)
 }

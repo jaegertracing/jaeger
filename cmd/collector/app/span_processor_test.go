@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -36,6 +37,14 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+)
+
+// tenantKeyType is a custom type for the key "tenant", following context.Context convention
+type tenantKeyType string
+
+const (
+	// TenantKey holds tenancy for spans
+	tenantKey = tenantKeyType("tenant")
 )
 
 var (
@@ -165,10 +174,20 @@ func isSpanAllowed(span *model.Span) bool {
 }
 
 type fakeSpanWriter struct {
-	err error
+	tenants map[string]bool
+	err     error
 }
 
 func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+	// Record all unique tenants arriving in span Contexts
+	tenant := ctx.Value(tenantKey)
+	if tenant != nil {
+		if n.tenants == nil {
+			n.tenants = make(map[string]bool)
+		}
+		n.tenants[tenant.(string)] = true
+	}
+
 	return n.err
 }
 
@@ -327,7 +346,7 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 	p := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
 	defer assert.NoError(t, p.Close())
 
-	p.saveSpan(&model.Span{})
+	p.saveSpan(&model.Span{}, context.Background())
 
 	expected := []metricstest.ExpectedMetric{{
 		Name: "service.spans.saved-by-svc|debug=false|result=err|svc=__unknown", Value: 1,
@@ -391,7 +410,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	p := NewSpanProcessor(w, nil, Options.HostMetrics(m), Options.DynQueueSizeMemory(1000)).(*spanProcessor)
 	p.background(10*time.Millisecond, p.updateGauges)
 
-	p.processSpan(&model.Span{})
+	p.processSpan(&model.Span{}, context.Background())
 	assert.NotEqual(t, uint64(0), p.bytesProcessed)
 
 	for i := 0; i < 15; i++ {
@@ -561,4 +580,29 @@ func TestAdditionalProcessors(t *testing.T) {
 	assert.Equal(t, []bool{true}, res)
 	assert.NoError(t, p.Close())
 	assert.Equal(t, 1, count)
+}
+
+func TestSpanProcessorContextPropagation(t *testing.T) {
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, nil, Options.QueueSize(1))
+
+	dummyTenant := "context-prop-test-tenant"
+
+	res, err := p.ProcessSpans([]*model.Span{
+		{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, processor.SpansOptions{
+		Context: context.WithValue(context.Background(), tenantKey, dummyTenant),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, []bool{true}, res)
+	assert.NoError(t, p.Close())
+
+	// Verify that the dummy tenant from SpansOptions context made it to writer
+	assert.Equal(t, true, w.tenants[dummyTenant])
+	// Verify no other tenantKey context values made it to writer
+	assert.True(t, reflect.DeepEqual(w.tenants, map[string]bool{dummyTenant: true}))
 }
