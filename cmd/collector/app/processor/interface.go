@@ -28,6 +28,7 @@ var ErrBusy = errors.New("server busy")
 type SpansOptions struct {
 	SpanFormat       SpanFormat
 	InboundTransport InboundTransport
+	Tenant           string
 }
 
 // SpanProcessor handles model spans

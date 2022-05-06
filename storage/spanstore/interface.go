@@ -86,3 +86,11 @@ type Operation struct {
 	Name     string
 	SpanKind string
 }
+
+// tenantKeyType is a custom type for the key "tenant", following context.Context convention
+type TenantKeyType string
+
+const (
+	// TenantKey holds tenancy for spans
+	TenantKey = TenantKeyType("tenant")
+)
