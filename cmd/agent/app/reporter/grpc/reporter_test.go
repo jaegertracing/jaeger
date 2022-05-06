@@ -61,7 +61,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	defer conn.Close()
 	require.NoError(t, err)
 
-	rep := NewReporter(conn, nil, zap.NewNop(), "")
+	rep := NewReporter(conn, nil, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	a := tm.Unix() * 1000 * 1000
@@ -98,7 +98,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 	//nolint:staticcheck // don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, nil, zap.NewNop(), "")
+	rep := NewReporter(conn, nil, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	tests := []struct {
@@ -123,7 +123,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
-	rep := NewReporter(conn, nil, zap.NewNop(), "")
+	rep := NewReporter(conn, nil, zap.NewNop())
 	err = rep.send(context.Background(), nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transport: Error while dialing dial tcp: missing address")
@@ -170,22 +170,4 @@ func TestReporter_MakeModelKeyValue(t *testing.T) {
 	actualTags := makeModelKeyValue(stringTags)
 
 	assert.Equal(t, expectedTags, actualTags)
-}
-
-func TestReporter_MakeSliceOfTags(t *testing.T) {
-	result := makeSliceOfTags("bugs,bunny")
-	assert.Equal(t, result, []string{"bugs", "bunny"})
-	result = makeSliceOfTags("")
-	assert.Equal(t, result, []string{})
-}
-
-func TestReporter_PruneUnwantedTags(t *testing.T) {
-	keyValue := model.KeyValue{Key: "bugs"}
-	keyValue2 := model.KeyValue{Key: "daffy"}
-	tags := []model.KeyValue{keyValue, keyValue2}
-	process := &model.Process{ServiceName: "ServName", Tags: tags}
-	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "opName", Process: process}}
-	spans = pruneUnwantedTags([]string{"daffy", "duck"}, spans, process)
-	assert.Equal(t, len(spans[0].Process.Tags), 1)
-	assert.Equal(t, spans[0].Process.Tags[0].Key, "daffy")
 }

@@ -32,9 +32,6 @@ const (
 	GRPC Type = "grpc"
 
 	agentTags = "agent.tags"
-
-	//tags to be included for sending to collector
-	filterProcessTags = "filterProcessTags"
 )
 
 // Type defines type of reporter.
@@ -42,18 +39,13 @@ type Type string
 
 // Options holds generic reporter configuration.
 type Options struct {
-	ReporterType          Type
-	AgentTags             map[string]string
-	FilterProcessTags string
+	ReporterType Type
+	AgentTags    map[string]string
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s", string(GRPC)))
-
-	//Comma seperated values of tags to be sent to collector
-	flags.String(filterProcessTags, string(""), fmt.Sprintf("Tags to be included in the blob sent to collector"))
-
 	if !setupcontext.IsAllInOne() {
 		flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 	}
@@ -62,9 +54,6 @@ func AddFlags(flags *flag.FlagSet) {
 // InitFromViper initializes Options with properties retrieved from Viper.
 func (b *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
-
-	b.FilterProcessTags = v.GetString(filterProcessTags)
-
 	if !setupcontext.IsAllInOne() {
 		if len(v.GetString(agentTags)) > 0 {
 			b.AgentTags = flags.ParseJaegerTags(v.GetString(agentTags))
