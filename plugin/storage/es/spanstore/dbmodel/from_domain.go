@@ -45,17 +45,32 @@ func (fd FromDomain) FromDomainEmbedProcess(span *model.Span) *Span {
 
 func (fd FromDomain) convertSpanInternal(span *model.Span) Span {
 	tags, tagsMap := fd.convertKeyValuesString(span.Tags)
-	return Span{
-		TraceID:         TraceID(span.TraceID.String()),
-		SpanID:          SpanID(span.SpanID.String()),
-		Flags:           uint32(span.Flags),
-		OperationName:   span.OperationName,
-		StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
-		StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
-		Duration:        model.DurationAsMicroseconds(span.Duration),
-		Tags:            tags,
-		Tag:             tagsMap,
-		Logs:            fd.convertLogs(span.Logs),
+	if tagsMap == nil || len(tagsMap) == 0 {
+		return Span{
+			TraceID:         TraceID(span.TraceID.String()),
+			SpanID:          SpanID(span.SpanID.String()),
+			Flags:           uint32(span.Flags),
+			OperationName:   span.OperationName,
+			StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
+			StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
+			Duration:        model.DurationAsMicroseconds(span.Duration),
+			Tags:            tags,
+			Tag:             tagsMap,
+			Logs:            fd.convertLogs(span.Logs),
+		}
+	} else {
+		return Span{
+			TraceID:         TraceID(span.TraceID.String()),
+			SpanID:          SpanID(span.SpanID.String()),
+			Flags:           uint32(span.Flags),
+			OperationName:   span.OperationName,
+			StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
+			StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
+			Duration:        model.DurationAsMicroseconds(span.Duration),
+			Tags:            []KeyValue{}, // removing Tags if --es.tags-as-fields.include or --es.tags-as-fields.all is used
+			Tag:             tagsMap,
+			Logs:            fd.convertLogs(span.Logs),
+		}
 	}
 }
 
@@ -121,10 +136,18 @@ func (fd FromDomain) convertLogs(logs []model.Log) []Log {
 
 func (fd FromDomain) convertProcess(process *model.Process) Process {
 	tags, tagsMap := fd.convertKeyValuesString(process.Tags)
-	return Process{
-		ServiceName: process.ServiceName,
-		Tags:        tags,
-		Tag:         tagsMap,
+	if tagsMap == nil || len(tagsMap) == 0 {
+		return Process{
+			ServiceName: process.ServiceName,
+			Tags:        tags,
+			Tag:         tagsMap,
+		}
+	} else {
+		return Process{
+			ServiceName: process.ServiceName,
+			Tags:        []KeyValue{}, // removing Tags if --es.tags-as-fields.include or --es.tags-as-fields.all is used
+			Tag:         tagsMap,
+		}
 	}
 }
 
