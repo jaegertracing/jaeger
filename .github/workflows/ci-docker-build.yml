@@ -34,7 +34,7 @@ jobs:
     - name: Install tools
       run: make install-ci
 
-    - uses: docker/setup-qemu-action@v1
+    - uses: docker/setup-qemu-action@v2
 
     - name: Build and upload all docker images
       run: bash scripts/build-upload-docker-images.sh
