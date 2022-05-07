@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"go.uber.org/zap/zapcore"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,6 +32,7 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
