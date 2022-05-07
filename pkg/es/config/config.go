@@ -90,6 +90,8 @@ type TagsAsFields struct {
 	File string `mapstructure:"config_file"`
 	// Comma delimited list of tags to store as object fields
 	Include string `mapstructure:"include"`
+	// remove the tags which do not match include tags field
+	RemoveTags bool `mapstructure:"remove"`
 }
 
 // ClientBuilder creates new es.Client
@@ -108,6 +110,7 @@ type ClientBuilder interface {
 	GetIndexRolloverFrequencyServicesDuration() time.Duration
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
+	GetRemoveTags() bool
 	GetTagDotReplacement() string
 	GetUseReadWriteAliases() bool
 	GetTokenFilePath() string
@@ -251,6 +254,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
 	}
+	if !c.Tags.RemoveTags {
+		c.Tags.RemoveTags = source.Tags.RemoveTags
+	}
 	if c.Tags.DotReplacement == "" {
 		c.Tags.DotReplacement = source.Tags.DotReplacement
 	}
@@ -340,6 +346,10 @@ func (c *Configuration) GetTagsFilePath() string {
 // GetAllTagsAsFields returns true if all tags should be stored as object fields
 func (c *Configuration) GetAllTagsAsFields() bool {
 	return c.Tags.AllAsFields
+}
+
+func (c *Configuration) GetRemoveTags() bool {
+	return c.Tags.RemoveTags
 }
 
 // GetVersion returns Elasticsearch version

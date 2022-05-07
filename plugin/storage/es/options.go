@@ -53,6 +53,7 @@ const (
 	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
 	suffixTagsFile                       = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar                   = suffixTagsAsFields + ".dot-replacement"
+	suffixRemoveTags                     = suffixTagsAsFields + ".remove"
 	suffixReadAlias                      = ".use-aliases"
 	suffixUseILM                         = ".use-ilm"
 	suffixCreateIndexTemplate            = ".create-index-templates"
@@ -225,6 +226,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
 		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" and "+suffixTagsAsFieldsInclude+" is ignored. Binary tags are always stored as nested objects.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixRemoveTags,
+		nsConfig.Tags.RemoveTags,
+		"Remove rest of the Tags which do not match the --es.tags-as-fields.include tag",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixTagsAsFieldsInclude,
 		nsConfig.Tags.Include,
@@ -316,6 +322,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
+	cfg.Tags.RemoveTags = v.GetBool(cfg.namespace + suffixRemoveTags)
 	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.Tags.DotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)

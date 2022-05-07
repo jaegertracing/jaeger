@@ -63,6 +63,7 @@ type SpanWriterParams struct {
 	SpanIndexDateLayout    string
 	ServiceIndexDateLayout string
 	AllTagsAsFields        bool
+	RemoveTags             bool
 	TagKeysAsFields        []string
 	TagDotReplacement      string
 	Archive                bool
@@ -97,7 +98,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 				TTL: indexCacheTTL,
 			},
 		),
-		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement, p.RemoveTags),
 		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.SpanIndexDateLayout, p.ServiceIndexDateLayout),
 	}
 }

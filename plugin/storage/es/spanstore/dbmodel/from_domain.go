@@ -22,12 +22,12 @@ import (
 )
 
 // NewFromDomain creates FromDomain used to convert model span to db span
-func NewFromDomain(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) FromDomain {
+func NewFromDomain(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string, removeTagsObject bool) FromDomain {
 	tags := map[string]bool{}
 	for _, k := range tagKeysAsFields {
 		tags[k] = true
 	}
-	return FromDomain{allTagsAsFields: allTagsAsObject, tagKeysAsFields: tags, tagDotReplacement: tagDotReplacement}
+	return FromDomain{allTagsAsFields: allTagsAsObject, tagKeysAsFields: tags, tagDotReplacement: tagDotReplacement, removeTags: removeTagsObject}
 }
 
 // FromDomain is used to convert model span to db span
@@ -35,6 +35,7 @@ type FromDomain struct {
 	allTagsAsFields   bool
 	tagKeysAsFields   map[string]bool
 	tagDotReplacement string
+	removeTags        bool
 }
 
 // FromDomainEmbedProcess converts model.Span into json.Span format.
@@ -45,32 +46,18 @@ func (fd FromDomain) FromDomainEmbedProcess(span *model.Span) *Span {
 
 func (fd FromDomain) convertSpanInternal(span *model.Span) Span {
 	tags, tagsMap := fd.convertKeyValuesString(span.Tags)
-	if tagsMap == nil || len(tagsMap) == 0 {
-		return Span{
-			TraceID:         TraceID(span.TraceID.String()),
-			SpanID:          SpanID(span.SpanID.String()),
-			Flags:           uint32(span.Flags),
-			OperationName:   span.OperationName,
-			StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
-			StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
-			Duration:        model.DurationAsMicroseconds(span.Duration),
-			Tags:            tags,
-			Tag:             tagsMap,
-			Logs:            fd.convertLogs(span.Logs),
-		}
-	} else {
-		return Span{
-			TraceID:         TraceID(span.TraceID.String()),
-			SpanID:          SpanID(span.SpanID.String()),
-			Flags:           uint32(span.Flags),
-			OperationName:   span.OperationName,
-			StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
-			StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
-			Duration:        model.DurationAsMicroseconds(span.Duration),
-			Tags:            []KeyValue{}, // removing Tags if --es.tags-as-fields.include or --es.tags-as-fields.all is used
-			Tag:             tagsMap,
-			Logs:            fd.convertLogs(span.Logs),
-		}
+	tags = fd.checkRemoveTagsFlag(tags)
+	return Span{
+		TraceID:         TraceID(span.TraceID.String()),
+		SpanID:          SpanID(span.SpanID.String()),
+		Flags:           uint32(span.Flags),
+		OperationName:   span.OperationName,
+		StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
+		StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
+		Duration:        model.DurationAsMicroseconds(span.Duration),
+		Tags:            tags,
+		Tag:             tagsMap,
+		Logs:            fd.convertLogs(span.Logs),
 	}
 }
 
@@ -136,18 +123,11 @@ func (fd FromDomain) convertLogs(logs []model.Log) []Log {
 
 func (fd FromDomain) convertProcess(process *model.Process) Process {
 	tags, tagsMap := fd.convertKeyValuesString(process.Tags)
-	if tagsMap == nil || len(tagsMap) == 0 {
-		return Process{
-			ServiceName: process.ServiceName,
-			Tags:        tags,
-			Tag:         tagsMap,
-		}
-	} else {
-		return Process{
-			ServiceName: process.ServiceName,
-			Tags:        []KeyValue{}, // removing Tags if --es.tags-as-fields.include or --es.tags-as-fields.all is used
-			Tag:         tagsMap,
-		}
+	tags = fd.checkRemoveTagsFlag(tags)
+	return Process{
+		ServiceName: process.ServiceName,
+		Tags:        tags,
+		Tag:         tagsMap,
 	}
 }
 
@@ -156,5 +136,13 @@ func convertKeyValue(kv model.KeyValue) KeyValue {
 		Key:   kv.Key,
 		Type:  ValueType(strings.ToLower(kv.VType.String())),
 		Value: kv.AsString(),
+	}
+}
+
+func (fd FromDomain) checkRemoveTagsFlag(kv []KeyValue) []KeyValue {
+	if fd.removeTags {
+		return []KeyValue{}
+	} else {
+		return kv
 	}
 }

@@ -194,6 +194,7 @@ func createSpanWriter(
 		SpanIndexDateLayout:    cfg.GetIndexDateLayoutSpans(),
 		ServiceIndexDateLayout: cfg.GetIndexDateLayoutServices(),
 		AllTagsAsFields:        cfg.GetAllTagsAsFields(),
+		RemoveTags:             cfg.GetRemoveTags(),
 		TagKeysAsFields:        tags,
 		TagDotReplacement:      cfg.GetTagDotReplacement(),
 		Archive:                archive,

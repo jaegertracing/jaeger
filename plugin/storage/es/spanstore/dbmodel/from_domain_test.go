@@ -39,7 +39,7 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 
 			var span model.Span
 			require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(domainStr), &span))
-			converter := NewFromDomain(false, nil, ":")
+			converter := NewFromDomain(false, nil, ":", false)
 			embeddedSpan := converter.FromDomainEmbedProcess(&span)
 
 			var expectedSpan Span
@@ -80,7 +80,7 @@ func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object interface{
 func TestEmptyTags(t *testing.T) {
 	tags := make([]model.KeyValue, 0)
 	span := model.Span{Tags: tags, Process: &model.Process{Tags: tags}}
-	converter := NewFromDomain(false, nil, ":")
+	converter := NewFromDomain(false, nil, ":", false)
 	dbSpan := converter.FromDomainEmbedProcess(&span)
 	assert.Equal(t, 0, len(dbSpan.Tags))
 	assert.Equal(t, 0, len(dbSpan.Tag))
@@ -93,7 +93,7 @@ func TestTagMap(t *testing.T) {
 		model.Int64("b.b", 1),
 	}
 	span := model.Span{Tags: tags, Process: &model.Process{Tags: tags}}
-	converter := NewFromDomain(false, []string{"a", "b.b", "b*"}, ":")
+	converter := NewFromDomain(false, []string{"a", "b.b", "b*"}, ":", false)
 	dbSpan := converter.FromDomainEmbedProcess(&span)
 
 	assert.Equal(t, 1, len(dbSpan.Tags))
