@@ -20,6 +20,7 @@ import (
 	"io"
 	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -51,6 +52,19 @@ type grpcClient struct {
 	archiveWriterClient storage_v1.ArchiveSpanWriterPluginClient
 	capabilitiesClient  storage_v1.PluginCapabilitiesClient
 	depsReaderClient    storage_v1.DependenciesReaderPluginClient
+	streamWriterClient  storage_v1.StreamingSpanWriterPluginClient
+}
+
+func NewGRPCClient(c *grpc.ClientConn) *grpcClient {
+	return &grpcClient{
+		readerClient:        storage_v1.NewSpanReaderPluginClient(c),
+		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
+		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
+		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
+		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
+		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
+		streamWriterClient:  storage_v1.NewStreamingSpanWriterPluginClient(c),
+	}
 }
 
 // ContextUpgradeFunc is a functional type that can be composed to upgrade context
@@ -96,6 +110,10 @@ func (c *grpcClient) SpanReader() spanstore.Reader {
 // SpanWriter implements shared.StoragePlugin.
 func (c *grpcClient) SpanWriter() spanstore.Writer {
 	return c
+}
+
+func (c *grpcClient) StreamingSpanWriter() spanstore.Writer {
+	return newStreamingSpanWriter(c.streamWriterClient)
 }
 
 func (c *grpcClient) ArchiveSpanReader() spanstore.Reader {
@@ -266,8 +284,9 @@ func (c *grpcClient) Capabilities() (*Capabilities, error) {
 	}
 
 	return &Capabilities{
-		ArchiveSpanReader: capabilities.ArchiveSpanReader,
-		ArchiveSpanWriter: capabilities.ArchiveSpanWriter,
+		ArchiveSpanReader:   capabilities.ArchiveSpanReader,
+		ArchiveSpanWriter:   capabilities.ArchiveSpanWriter,
+		StreamingSpanWriter: capabilities.StreamingSpanWriter,
 	}, nil
 }
 

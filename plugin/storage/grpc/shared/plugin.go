@@ -34,13 +34,15 @@ type StorageGRPCPlugin struct {
 	// Concrete implementation, This is only used for plugins that are written in Go.
 	Impl        StoragePlugin
 	ArchiveImpl ArchiveStoragePlugin
+	StreamImpl  StreamingSpanWriterPlugin
 }
 
-// GRPCServer implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin server.
-func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+// RegisterHandlers registers the plugin with the server
+func (p *StorageGRPCPlugin) RegisterHandlers(s *grpc.Server) error {
 	server := &grpcServer{
 		Impl:        p.Impl,
 		ArchiveImpl: p.ArchiveImpl,
+		StreamImpl:  p.StreamImpl,
 	}
 	storage_v1.RegisterSpanReaderPluginServer(s, server)
 	storage_v1.RegisterSpanWriterPluginServer(s, server)
@@ -48,17 +50,16 @@ func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server
 	storage_v1.RegisterArchiveSpanWriterPluginServer(s, server)
 	storage_v1.RegisterPluginCapabilitiesServer(s, server)
 	storage_v1.RegisterDependenciesReaderPluginServer(s, server)
+	storage_v1.RegisterStreamingSpanWriterPluginServer(s, server)
 	return nil
+}
+
+// GRPCServer implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin server.
+func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	return p.RegisterHandlers(s)
 }
 
 // GRPCClient implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin client.
 func (*StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return &grpcClient{
-		readerClient:        storage_v1.NewSpanReaderPluginClient(c),
-		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
-		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
-		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
-		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
-		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
-	}, nil
+	return NewGRPCClient(c), nil
 }

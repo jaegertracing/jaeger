@@ -247,6 +247,10 @@ build-binaries-windows:
 build-binaries-darwin:
 	GOOS=darwin GOARCH=amd64 $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-darwin-arm64
+build-binaries-darwin-arm64:
+	GOOS=darwin GOARCH=arm64 $(MAKE) build-platform-binaries
+
 .PHONY: build-binaries-s390x
 build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
@@ -277,7 +281,7 @@ build-platform-binaries: build-agent \
 	build-es-rollover
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-darwin-arm64 build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -363,8 +367,10 @@ changelog:
 
 .PHONY: install-tools
 install-tools:
-	go install github.com/vektra/mockery/v2@v2.9.4
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.0
+	go install github.com/vektra/mockery/v2@v2.10.4
+	# FIXME: pin to f5b92e1 until v1.45.3 is available to pick up fixes for staticheck
+	# go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@f5b92e1
 
 .PHONY: install-ci
 install-ci: install-tools
@@ -530,7 +536,7 @@ proto: init-submodules proto-prepare-otel
 	# prevents panic of two equal proto types.
 	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
 	cp -R idl/opentelemetry-proto/* $(PROTO_INTERMEDIATE_DIR)
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+github.com/open-telemetry/opentelemetry-proto/gen/go+github.com/jaegertracing/jaeger/proto-gen/otel+g'
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \

@@ -2,9 +2,10 @@ name: CIT Elasticsearch
 
 on:
   push:
-    branches: [ master ]
+    branches: [main]
+
   pull_request:
-    branches: [ master ]
+    branches: [main]
 
 jobs:
   elasticsearch:
@@ -21,12 +22,9 @@ jobs:
         - major: 7.x
           image: 7.14.0
           distribution: elasticsearch
-        - major: 1.x
-          image: 1.0.0
-          distribution: opensearch
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
-    - uses: actions/checkout@v2.4.0
+    - uses: actions/checkout@v3
       with:
         submodules: true
 
@@ -34,9 +32,9 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@v2
+    - uses: actions/setup-go@v3
       with:
-        go-version: ^1.17
+        go-version: 1.18.x
 
     - name: Install tools
       run: make install-ci

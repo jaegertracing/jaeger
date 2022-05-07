@@ -139,8 +139,8 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(latency_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}) by (service_name,le))`,
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,le))`,
 		},
 		{
 			name:             "group by service and operation should be reflected in name/description and query group-by",
@@ -153,8 +153,8 @@ func TestGetLatencies(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(latency_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}) by (service_name,operation,le))`,
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation,le))`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -166,8 +166,8 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(latency_bucket{service_name =~ "frontend|emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}) by (service_name,le))`,
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "frontend|emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name,le))`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

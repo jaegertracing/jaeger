@@ -17,6 +17,7 @@ package cassandra
 
 import (
 	"flag"
+	"log"
 	"strings"
 	"time"
 
@@ -254,7 +255,12 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
-	cfg.TLS = tlsFlagsConfig.InitFromViper(v)
+	var err error
+	cfg.TLS, err = tlsFlagsConfig.InitFromViper(v)
+	if err != nil {
+		// TODO refactor to be able to return error
+		log.Fatal(err)
+	}
 }
 
 // GetPrimary returns primary configuration.

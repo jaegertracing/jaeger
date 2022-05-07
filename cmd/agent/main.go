@@ -61,7 +61,10 @@ func main() {
 			version.NewInfoMetrics(mFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
-			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
+			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Failed to configure gRPC connection", zap.Error(err))
+			}
 			builders := map[reporter.Type]app.CollectorProxyBuilder{
 				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
@@ -71,7 +74,7 @@ func main() {
 				Metrics: mFactory,
 			}, builders)
 			if err != nil {
-				logger.Fatal("Could not create collector proxy", zap.Error(err))
+				logger.Fatal("Failed to create collector proxy", zap.Error(err))
 			}
 
 			// TODO illustrate discovery service wiring
@@ -79,7 +82,7 @@ func main() {
 			builder := new(app.Builder).InitFromViper(v)
 			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
-				return fmt.Errorf("unable to initialize Jaeger Agent: %w", err)
+				return fmt.Errorf("failed to initialize Jaeger Agent: %w", err)
 			}
 
 			logger.Info("Starting agent")

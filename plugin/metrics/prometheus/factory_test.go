@@ -62,7 +62,23 @@ func TestWithConfiguration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	f.InitFromViper(v, zap.NewNop())
+	err = f.InitFromViper(v, zap.NewNop())
+
+	require.NoError(t, err)
 	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:1234")
 	assert.Equal(t, f.options.Primary.ConnectTimeout, 5*time.Second)
+}
+
+func TestFailedTLSOptions(t *testing.T) {
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	err := command.ParseFlags([]string{
+		"--prometheus.tls.enabled=false",
+		"--prometheus.tls.cert=blah", // not valid unless tls.enabled=true
+	})
+	require.NoError(t, err)
+
+	err = f.InitFromViper(v, zap.NewNop())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to process Prometheus TLS options")
 }

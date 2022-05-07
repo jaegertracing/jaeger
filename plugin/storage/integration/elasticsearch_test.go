@@ -152,7 +152,14 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
 	})
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix, indexDateLayout, defaultMaxDocCount)
+	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
+		Client:          client,
+		Logger:          s.logger,
+		IndexPrefix:     indexPrefix,
+		IndexDateLayout: indexDateLayout,
+		MaxDocCount:     defaultMaxDocCount,
+	})
+
 	depMapping, err := mappingBuilder.GetDependenciesMappings()
 	if err != nil {
 		return err

@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -119,6 +120,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	}
 
 	server := grpc.NewServer(grpcOpts...)
+	reflection.Register(server)
 
 	handler := &GRPCHandler{
 		queryService:        querySvc,
@@ -195,7 +197,11 @@ func (s *Server) initListener() (cmux.CMux, error) {
 		if err != nil {
 			return nil, err
 		}
-		s.logger.Info("Query server started")
+		s.logger.Info(
+			"Query server started",
+			zap.String("http_addr", s.httpConn.Addr().String()),
+			zap.String("grpc_addr", s.grpcConn.Addr().String()),
+		)
 		return nil, nil
 	}
 

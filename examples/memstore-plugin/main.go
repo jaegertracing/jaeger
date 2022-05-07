@@ -16,7 +16,6 @@ package main
 
 import (
 	"flag"
-	"path"
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
@@ -27,10 +26,9 @@ import (
 	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -43,14 +41,16 @@ func main() {
 	flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
 	flag.Parse()
 
-	if configPath != "" {
-		viper.SetConfigFile(path.Base(configPath))
-		viper.AddConfigPath(path.Dir(configPath))
-	}
-
 	v := viper.New()
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+		if err := v.ReadInConfig(); err != nil {
+			panic(err)
+		}
+	}
 
 	opts := memory.Options{}
 	opts.InitFromViper(v)
@@ -71,42 +71,18 @@ func main() {
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracer)
 
-	memStorePlugin := &memoryStorePlugin{
-		store:        memory.NewStore(),
-		archiveStore: memory.NewStore(),
-	}
-	grpc.ServeWithGRPCServer(&shared.PluginServices{
+	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
+	service := &shared.PluginServices{
 		Store:        memStorePlugin,
 		ArchiveStore: memStorePlugin,
-	}, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
+	}
+	if v.GetBool("enable_streaming_writer") {
+		service.StreamingSpanWriter = memStorePlugin
+	}
+	grpc.ServeWithGRPCServer(service, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
 		return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
 			googleGRPC.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
 			googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
 		})
 	})
-}
-
-type memoryStorePlugin struct {
-	store        *memory.Store
-	archiveStore *memory.Store
-}
-
-func (ns *memoryStorePlugin) DependencyReader() dependencystore.Reader {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) SpanReader() spanstore.Reader {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) SpanWriter() spanstore.Writer {
-	return ns.store
-}
-
-func (ns *memoryStorePlugin) ArchiveSpanReader() spanstore.Reader {
-	return ns.archiveStore
-}
-
-func (ns *memoryStorePlugin) ArchiveSpanWriter() spanstore.Writer {
-	return ns.archiveStore
 }

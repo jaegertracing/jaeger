@@ -17,6 +17,7 @@ package grpc
 import (
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -37,10 +38,13 @@ type Factory struct {
 
 	builder config.PluginBuilder
 
-	store        shared.StoragePlugin
-	archiveStore shared.ArchiveStoragePlugin
-	capabilities shared.PluginCapabilities
+	store               shared.StoragePlugin
+	archiveStore        shared.ArchiveStoragePlugin
+	streamingSpanWriter shared.StreamingSpanWriterPlugin
+	capabilities        shared.PluginCapabilities
 }
+
+var _ io.Closer = (*Factory)(nil)
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
@@ -54,7 +58,9 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	f.options.InitFromViper(v)
+	if err := f.options.InitFromViper(v); err != nil {
+		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
+	}
 	f.builder = &f.options.Configuration
 }
 
@@ -68,7 +74,7 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	services, err := f.builder.Build()
+	services, err := f.builder.Build(logger)
 	if err != nil {
 		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
 	}
@@ -76,6 +82,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.store = services.Store
 	f.archiveStore = services.ArchiveStore
 	f.capabilities = services.Capabilities
+	f.streamingSpanWriter = services.StreamingSpanWriter
 	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
@@ -87,6 +94,11 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
+	if f.capabilities != nil && f.streamingSpanWriter != nil {
+		if capabilities, err := f.capabilities.Capabilities(); err == nil && capabilities.StreamingSpanWriter {
+			return f.streamingSpanWriter.StreamingSpanWriter(), nil
+		}
+	}
 	return f.store.SpanWriter(), nil
 }
 
@@ -123,4 +135,9 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
 	return f.archiveStore.ArchiveSpanWriter(), nil
+}
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	return f.builder.Close()
 }

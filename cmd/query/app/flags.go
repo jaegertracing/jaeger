@@ -96,11 +96,19 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
-func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
+func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
 	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
 	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
-	qOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
-	qOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
+	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
+		qOpts.TLSGRPC = tlsGrpc
+	} else {
+		return qOpts, fmt.Errorf("failed to process gRPC TLS options: %w", err)
+	}
+	if tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v); err == nil {
+		qOpts.TLSHTTP = tlsHTTP
+	} else {
+		return qOpts, fmt.Errorf("failed to process HTTP TLS options: %w", err)
+	}
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
@@ -114,7 +122,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	} else {
 		qOpts.AdditionalHeaders = headers
 	}
-	return qOpts
+	return qOpts, nil
 }
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config

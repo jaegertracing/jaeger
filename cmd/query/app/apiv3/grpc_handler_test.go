@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
@@ -66,7 +67,7 @@ func TestGetTrace(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -92,7 +93,7 @@ func TestGetTrace_storage_error(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -120,7 +121,7 @@ func TestGetTrace_traceID_error(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -154,7 +155,7 @@ func TestFindTraces(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -181,7 +182,7 @@ func TestFindTraces_query_nil(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -217,7 +218,7 @@ func TestFindTraces_storage_error(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -248,7 +249,7 @@ func TestGetServices(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -269,7 +270,7 @@ func TestGetServices_storage_error(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -294,7 +295,7 @@ func TestGetOperations(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)
@@ -319,7 +320,7 @@ func TestGetOperations_storage_error(t *testing.T) {
 	server, addr := newGrpcServer(t, h)
 	defer server.Stop()
 
-	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	client := api_v3.NewQueryServiceClient(conn)

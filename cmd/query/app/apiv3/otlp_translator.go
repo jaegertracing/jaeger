@@ -25,6 +25,7 @@ import (
 
 	"go.opentelemetry.io/collector/model/pdata"
 	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/model"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
@@ -376,7 +377,7 @@ func uint64ToTraceID(high, low uint64) []byte {
 // See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/http.md#status
 func statusCodeFromHTTP(httpStatusCode int) pdata.StatusCode {
 	if httpStatusCode >= 100 && httpStatusCode < 399 {
-		return pdata.StatusCodeUnset
+		return ptrace.StatusCodeUnset
 	}
-	return pdata.StatusCodeError
+	return ptrace.StatusCodeError
 }
