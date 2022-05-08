@@ -18,6 +18,7 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -38,7 +39,7 @@ func (f *Factory) AddFlags(_ *flag.FlagSet) {}
 func (f *Factory) InitFromViper(_ *viper.Viper, _ *zap.Logger) {}
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(_ *zap.Logger) error {
+func (f *Factory) Initialize(_ metrics.Factory, _ *zap.Logger) error {
 	return nil
 }
 

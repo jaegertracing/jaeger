@@ -169,13 +169,16 @@ func main() {
 }
 
 func createMetricsQueryService(metricsReaderFactory *metricsPlugin.Factory, metricsReaderMetricsFactory metrics.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
-	if err := metricsReaderFactory.Initialize(logger); err != nil {
+	if err := metricsReaderFactory.Initialize(metricsReaderMetricsFactory, logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
 
 	// Ensure default parameter values are loaded correctly.
 	metricsReaderFactory.InitFromViper(v, logger)
 	reader, err := metricsReaderFactory.CreateMetricsReader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics reader: %w", err)
+	}
 
 	// Decorate the metrics reader with metrics instrumentation.
 	reader = metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory)
