@@ -36,7 +36,7 @@ type ReadMetricsDecorator struct {
 type queryMetrics struct {
 	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
 	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
-	Responses  metrics.Timer   `metric:"responses"` // used as a histogram, not necessary for GetTrace
+	Responses  metrics.Timer   `metric:"responses"`
 	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
 	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
 }
