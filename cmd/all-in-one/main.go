@@ -308,7 +308,12 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	return closer
 }
 
-func createMetricsQueryService(metricsReaderFactory *metricsPlugin.Factory, metricsReaderMetricsFactory metrics.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
+func createMetricsQueryService(
+	metricsReaderFactory *metricsPlugin.Factory,
+	metricsReaderMetricsFactory metrics.Factory,
+	v *viper.Viper,
+	logger *zap.Logger) (querysvc.MetricsQueryService, error) {
+
 	if err := metricsReaderFactory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
@@ -321,6 +326,5 @@ func createMetricsQueryService(metricsReaderFactory *metricsPlugin.Factory, metr
 	}
 
 	// Decorate the metrics reader with metrics instrumentation.
-	reader = metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory)
-	return reader, err
+	return metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
 }
