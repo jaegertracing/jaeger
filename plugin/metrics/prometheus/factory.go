@@ -16,10 +16,8 @@ package prometheus
 
 import (
 	"flag"
-	"time"
 
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	prometheusstore "github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore"
@@ -32,37 +30,11 @@ type Factory struct {
 	logger  *zap.Logger
 }
 
-type queryMetrics struct {
-	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
-	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
-	Responses  metrics.Timer   `metric:"responses"` // used as a histogram, not necessary for GetTrace
-	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
-	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
-}
-
-func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
-	if err != nil {
-		q.Errors.Inc(1)
-		q.ErrLatency.Record(latency)
-	} else {
-		q.Successes.Inc(1)
-		q.OKLatency.Record(latency)
-		q.Responses.Record(time.Duration(responses))
-	}
-}
-
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
 		options: NewOptions("prometheus"),
 	}
-}
-
-func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryMetrics {
-	qMetrics := &queryMetrics{}
-	scoped := metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
-	metrics.Init(qMetrics, scoped, nil)
-	return qMetrics
 }
 
 // AddFlags implements plugin.Configurable.
