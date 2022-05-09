@@ -121,7 +121,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, metricsFactory, v, logger)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, metricsFactory)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -310,9 +310,10 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 
 func createMetricsQueryService(
 	metricsReaderFactory *metricsPlugin.Factory,
-	metricsReaderMetricsFactory metrics.Factory,
 	v *viper.Viper,
-	logger *zap.Logger) (querysvc.MetricsQueryService, error) {
+	logger *zap.Logger,
+	metricsReaderMetricsFactory metrics.Factory,
+) (querysvc.MetricsQueryService, error) {
 
 	if err := metricsReaderFactory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
