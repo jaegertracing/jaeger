@@ -50,6 +50,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -120,7 +121,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, metricsFactory)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -307,12 +308,24 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	return closer
 }
 
-func createMetricsQueryService(factory *metricsPlugin.Factory, v *viper.Viper, logger *zap.Logger) (querysvc.MetricsQueryService, error) {
-	if err := factory.Initialize(logger); err != nil {
+func createMetricsQueryService(
+	metricsReaderFactory *metricsPlugin.Factory,
+	v *viper.Viper,
+	logger *zap.Logger,
+	metricsReaderMetricsFactory metrics.Factory,
+) (querysvc.MetricsQueryService, error) {
+
+	if err := metricsReaderFactory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
 
 	// Ensure default parameter values are loaded correctly.
-	factory.InitFromViper(v, logger)
-	return factory.CreateMetricsReader()
+	metricsReaderFactory.InitFromViper(v, logger)
+	reader, err := metricsReaderFactory.CreateMetricsReader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics reader: %w", err)
+	}
+
+	// Decorate the metrics reader with metrics instrumentation.
+	return metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
 }
