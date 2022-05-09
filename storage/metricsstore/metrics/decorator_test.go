@@ -69,7 +69,6 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	// This is not exhaustive.
 	wantExistingKeys := []string{
 		"latency|operation=get_latencies|result=ok.P50",
-		"responses|operation=get_call_rates.P50",
 		"latency|operation=get_error_rates|result=ok.P50",
 	}
 
@@ -147,7 +146,6 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	// This is not exhaustive.
 	wantNonExistentKeys := []string{
 		"latency|operation=get_latencies|result=ok.P50",
-		"responses|operation=get_call_rates|result=ok.P50",
 		"latency|operation=get_error_rates|result=ok.P50",
 	}
 

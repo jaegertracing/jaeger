@@ -36,19 +36,17 @@ type ReadMetricsDecorator struct {
 type queryMetrics struct {
 	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
 	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
-	Responses  metrics.Timer   `metric:"responses"`
 	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
 	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
 }
 
-func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
+func (q *queryMetrics) emit(err error, latency time.Duration) {
 	if err != nil {
 		q.Errors.Inc(1)
 		q.ErrLatency.Record(latency)
 	} else {
 		q.Successes.Inc(1)
 		q.OKLatency.Record(latency)
-		q.Responses.Record(time.Duration(responses))
 	}
 }
 
@@ -74,7 +72,7 @@ func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryM
 func (m *ReadMetricsDecorator) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*protometrics.MetricFamily, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetLatencies(ctx, params)
-	m.getLatenciesMetrics.emit(err, time.Since(start), 1)
+	m.getLatenciesMetrics.emit(err, time.Since(start))
 	return retMe, err
 }
 
@@ -82,7 +80,7 @@ func (m *ReadMetricsDecorator) GetLatencies(ctx context.Context, params *metrics
 func (m *ReadMetricsDecorator) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*protometrics.MetricFamily, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetCallRates(ctx, params)
-	m.getCallRatesMetrics.emit(err, time.Since(start), 1)
+	m.getCallRatesMetrics.emit(err, time.Since(start))
 	return retMe, err
 }
 
@@ -90,7 +88,7 @@ func (m *ReadMetricsDecorator) GetCallRates(ctx context.Context, params *metrics
 func (m *ReadMetricsDecorator) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*protometrics.MetricFamily, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetErrorRates(ctx, params)
-	m.getErrorRatesMetrics.emit(err, time.Since(start), 1)
+	m.getErrorRatesMetrics.emit(err, time.Since(start))
 	return retMe, err
 }
 
@@ -98,6 +96,6 @@ func (m *ReadMetricsDecorator) GetErrorRates(ctx context.Context, params *metric
 func (m *ReadMetricsDecorator) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetMinStepDuration(ctx, params)
-	m.getMinStepDurationMetrics.emit(err, time.Since(start), 1)
+	m.getMinStepDurationMetrics.emit(err, time.Since(start))
 	return retMe, err
 }
