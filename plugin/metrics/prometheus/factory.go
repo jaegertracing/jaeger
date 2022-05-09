@@ -28,9 +28,8 @@ import (
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
-	options                    *Options
-	logger                     *zap.Logger
-	newPrometheusReaderMetrics *queryMetrics
+	options *Options
+	logger  *zap.Logger
 }
 
 type queryMetrics struct {
@@ -77,16 +76,12 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) error {
 }
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(logger *zap.Logger) error {
 	f.logger = logger
-	f.newPrometheusReaderMetrics = buildQueryMetrics("new_prometheus_reader", metricsFactory)
 	return nil
 }
 
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	start := time.Now()
-	reader, err := prometheusstore.NewMetricsReader(f.logger, f.options.Primary.Configuration)
-	f.newPrometheusReaderMetrics.emit(err, time.Since(start), 1)
-	return reader, err
+	return prometheusstore.NewMetricsReader(f.logger, f.options.Primary.Configuration)
 }

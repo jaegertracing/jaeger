@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin"
@@ -73,9 +72,9 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, 
 }
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(metricsReaderMetricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(logger *zap.Logger) error {
 	for _, factory := range f.factories {
-		factory.Initialize(metricsReaderMetricsFactory, logger)
+		factory.Initialize(logger)
 	}
 	return nil
 }
