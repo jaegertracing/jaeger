@@ -35,7 +35,7 @@ import (
 	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -179,13 +179,11 @@ func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error 
 	n.spans = append(n.spans, span)
 
 	// Record all unique tenants arriving in span Contexts
-	tenant := ctx.Value(spanstore.TenantKey)
-	if tenant != nil {
-		if n.tenants == nil {
-			n.tenants = make(map[string]bool)
-		}
-		n.tenants[tenant.(string)] = true
+	if n.tenants == nil {
+		n.tenants = make(map[string]bool)
 	}
+
+	n.tenants[storage.GetTenant(ctx)] = true
 
 	return n.err
 }
