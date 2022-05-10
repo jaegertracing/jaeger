@@ -23,9 +23,11 @@ import (
 // span should implement this interface.
 type SanitizeSpan func(span *model.Span) *model.Span
 
-// StandardSanitizers are automatically applied by SpanProcessor.
-var StandardSanitizers []SanitizeSpan = []SanitizeSpan{
-	NewEmptyServiceNameSanitizer(),
+// NewStandardSanitizers are automatically applied by SpanProcessor.
+func NewStandardSanitizers() []SanitizeSpan {
+	return []SanitizeSpan{
+		NewEmptyServiceNameSanitizer(),
+	}
 }
 
 // NewChainedSanitizer creates a Sanitizer from the variadic list of passed Sanitizers.

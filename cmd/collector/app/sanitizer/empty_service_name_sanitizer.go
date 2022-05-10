@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-var (
+const (
 	serviceNameReplacement = "empty-service-name"
 	nullProcessServiceName = "null-process-and-service-name"
 )

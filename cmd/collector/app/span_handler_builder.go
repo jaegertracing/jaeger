@@ -67,7 +67,11 @@ func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) proce
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
 func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor) *SpanHandlers {
 	return &SpanHandlers{
-		handler.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
+		handler.NewZipkinSpanHandler(
+			b.Logger,
+			spanProcessor,
+			zs.NewChainedSanitizer(zs.NewStandardSanitizers()...),
+		),
 		handler.NewJaegerSpanHandler(b.Logger, spanProcessor),
 		handler.NewGRPCHandler(b.Logger, spanProcessor),
 	}
