@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -34,6 +35,7 @@ import (
 
 // ZipkinServerParams to construct a new Jaeger Collector Zipkin Server
 type ZipkinServerParams struct {
+	TLSConfig      tlscfg.Options
 	HostPort       string
 	Handler        handler.ZipkinSpansHandler
 	AllowedOrigins string
@@ -62,6 +64,13 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 		Addr:     params.HostPort,
 		ErrorLog: errorLog,
 	}
+	if params.TLSConfig.Enabled {
+		tlsCfg, err := params.TLSConfig.Config(params.Logger) // This checks if the certificates are correctly provided
+		if err != nil {
+			return nil, err
+		}
+		server.TLSConfig = tlsCfg
+	}
 	serveZipkin(server, listener, params)
 
 	return server, nil
@@ -84,7 +93,13 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
 	server.Handler = cors.Handler(httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory))
 	go func(listener net.Listener, server *http.Server) {
-		if err := server.Serve(listener); err != nil {
+		var err error
+		if params.TLSConfig.Enabled {
+			err = server.ServeTLS(listener, "", "")
+		} else {
+			err = server.Serve(listener)
+		}
+		if err != nil {
 			if err != http.ErrServerClosed {
 				params.Logger.Error("Could not launch Zipkin server", zap.Error(err))
 			}
