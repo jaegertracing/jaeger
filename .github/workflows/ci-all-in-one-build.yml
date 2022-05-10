@@ -33,7 +33,7 @@ jobs:
     - name: Install tools
       run: make install-ci
     
-    - uses: docker/setup-qemu-action@v1
+    - uses: docker/setup-qemu-action@v2
 
     - name: Build, test, and publish all-in-one image
       run: bash scripts/build-all-in-one-image.sh
