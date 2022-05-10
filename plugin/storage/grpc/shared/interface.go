@@ -48,6 +48,11 @@ type ArchiveStoragePlugin interface {
 	ArchiveSpanWriter() spanstore.Writer
 }
 
+// StreamingSpanWriterPlugin is the interface we're exposing as a plugin.
+type StreamingSpanWriterPlugin interface {
+	StreamingSpanWriter() spanstore.Writer
+}
+
 // PluginCapabilities allow expose plugin its capabilities.
 type PluginCapabilities interface {
 	Capabilities() (*Capabilities, error)
@@ -55,12 +60,14 @@ type PluginCapabilities interface {
 
 // Capabilities contains information about plugin capabilities
 type Capabilities struct {
-	ArchiveSpanReader bool
-	ArchiveSpanWriter bool
+	ArchiveSpanReader   bool
+	ArchiveSpanWriter   bool
+	StreamingSpanWriter bool
 }
 
 // PluginServices defines services plugin can expose
 type PluginServices struct {
-	Store        StoragePlugin
-	ArchiveStore ArchiveStoragePlugin
+	Store               StoragePlugin
+	ArchiveStore        ArchiveStoragePlugin
+	StreamingSpanWriter StreamingSpanWriterPlugin
 }

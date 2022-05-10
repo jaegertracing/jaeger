@@ -16,7 +16,6 @@ package main
 
 import (
 	"flag"
-	"path"
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
@@ -42,14 +41,16 @@ func main() {
 	flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
 	flag.Parse()
 
-	if configPath != "" {
-		viper.SetConfigFile(path.Base(configPath))
-		viper.AddConfigPath(path.Dir(configPath))
-	}
-
 	v := viper.New()
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+		if err := v.ReadInConfig(); err != nil {
+			panic(err)
+		}
+	}
 
 	opts := memory.Options{}
 	opts.InitFromViper(v)
@@ -71,10 +72,14 @@ func main() {
 	opentracing.SetGlobalTracer(tracer)
 
 	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
-	grpc.ServeWithGRPCServer(&shared.PluginServices{
+	service := &shared.PluginServices{
 		Store:        memStorePlugin,
 		ArchiveStore: memStorePlugin,
-	}, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
+	}
+	if v.GetBool("enable_streaming_writer") {
+		service.StreamingSpanWriter = memStorePlugin
+	}
+	grpc.ServeWithGRPCServer(service, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
 		return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
 			googleGRPC.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
 			googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),

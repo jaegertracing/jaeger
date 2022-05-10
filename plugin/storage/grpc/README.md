@@ -112,6 +112,10 @@ grpc.Serve(&shared.PluginServices{
 })
 ```
 
+The plugin framework supports writing spans via gRPC stream, instead of unary messages. Streaming writes can improve throughput and decrease CPU load (see benchmarks in Issue #3636). The plugin needs to implement `StreamingSpanWriter` interface and indicate support via the `streamingSpanWriter` flag in the `Capabilities` response.
+
+Note that using the streaming spanWriter may make the collector's `save_by_svr` metric inaccurate, in which case users will need to pay attention to the metrics provided by the plugin.
+
 Running with a plugin
 ---------------------
 A plugin can be run using the `all-in-one` application within the top level `cmd` package of the Jaeger project. To do this
