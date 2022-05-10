@@ -55,7 +55,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
-require go.opentelemetry.io/collector/pdata v0.49.0
+require go.opentelemetry.io/collector/pdata v0.50.0
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1 // indirect
