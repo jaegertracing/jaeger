@@ -36,5 +36,8 @@ func GetTenant(ctx context.Context) string {
 		return ""
 	}
 
-	return tenant.(string)
+	if s, ok := tenant.(string); ok {
+		return s
+	}
+	return ""
 }
