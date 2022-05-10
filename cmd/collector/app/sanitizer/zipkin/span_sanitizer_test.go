@@ -28,6 +28,10 @@ var (
 	positiveDuration = int64(1)
 )
 
+func TestNewStandardSanitizers(t *testing.T) {
+	NewStandardSanitizers()
+}
+
 func TestChainedSanitizer(t *testing.T) {
 	sanitizer := NewChainedSanitizer(NewSpanDurationSanitizer())
 

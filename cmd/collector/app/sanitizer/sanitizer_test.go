@@ -22,6 +22,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+func TestNewStandardSanitizers(t *testing.T) {
+	NewStandardSanitizers()
+}
+
 func TestChainedSanitizer(t *testing.T) {
 	var s1 SanitizeSpan = func(span *model.Span) *model.Span {
 		span.Process = &model.Process{ServiceName: "s1"}
