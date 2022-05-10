@@ -26,10 +26,10 @@ import (
 func TestChainedProcessSpan(t *testing.T) {
 	happened1 := false
 	happened2 := false
-	func1 := func(span *model.Span) { happened1 = true }
-	func2 := func(span *model.Span) { happened2 = true }
+	func1 := func(span *model.Span, tenant string) { happened1 = true }
+	func2 := func(span *model.Span, tenant string) { happened2 = true }
 	chained := ChainedProcessSpan(func1, func2)
-	chained(&model.Span{})
+	chained(&model.Span{}, "")
 	assert.True(t, happened1)
 	assert.True(t, happened2)
 }
