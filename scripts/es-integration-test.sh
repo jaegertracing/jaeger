@@ -69,11 +69,12 @@ wait_for_it() {
     ''%{http_code}''
   )
   local counter=0
-  while [[ "$(curl ${params[@]} ${url})" != "200" && ${counter} -le 60 ]]; do
+  local max_counter=60
+  while [[ "$(curl ${params[@]} ${url})" != "200" && ${counter} -le ${max_counter} ]]; do
     sleep 2
     counter=$((counter+1))
     echo "waiting for ${url} to be up..."
-    if [ ${counter} -eq 30 ]; then
+    if [ ${counter} -eq ${max_counter} ]; then
       echo "ERROR: elasticsearch/opensearch is down"
       exit 1
     fi
