@@ -179,13 +179,13 @@ func (o options) apply(opts ...Option) options {
 		ret.hostMetrics = metrics.NullFactory
 	}
 	if ret.preProcessSpans == nil {
-		ret.preProcessSpans = func(spans []*model.Span) {}
+		ret.preProcessSpans = func(spans []*model.Span, tenant string) {}
 	}
 	if ret.sanitizer == nil {
 		ret.sanitizer = func(span *model.Span) *model.Span { return span }
 	}
 	if ret.preSave == nil {
-		ret.preSave = func(span *model.Span) {}
+		ret.preSave = func(span *model.Span, tenant string) {}
 	}
 	if ret.spanFilter == nil {
 		ret.spanFilter = func(span *model.Span) bool { return true }

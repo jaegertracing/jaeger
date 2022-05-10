@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -61,6 +62,7 @@ type spanProcessor struct {
 type queueItem struct {
 	queuedTime time.Time
 	span       *model.Span
+	tenant     string
 }
 
 // NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans.
@@ -141,7 +143,7 @@ func (sp *spanProcessor) Close() error {
 	return nil
 }
 
-func (sp *spanProcessor) saveSpan(span *model.Span) {
+func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 	if nil == span.Process {
 		sp.logger.Error("process is empty for the span")
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
@@ -149,8 +151,11 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	}
 
 	startTime := time.Now()
-	// TODO context should be propagated from upstream components
-	if err := sp.spanWriter.WriteSpan(context.TODO(), span); err != nil {
+	// Since we save spans asynchronously from receiving them, we cannot reuse
+	// the inbound Context, as it may be cancelled by the time we reach this point,
+	// so we need to start a new Context.
+	ctx := storage.WithTenant(context.Background(), tenant)
+	if err := sp.spanWriter.WriteSpan(ctx, span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
 	} else {
@@ -161,17 +166,17 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
-func (sp *spanProcessor) countSpan(span *model.Span) {
+func (sp *spanProcessor) countSpan(span *model.Span, tenant string) {
 	sp.bytesProcessed.Add(uint64(span.Size()))
 	sp.spansProcessed.Inc()
 }
 
 func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
-	sp.preProcessSpans(mSpans)
+	sp.preProcessSpans(mSpans, options.Tenant)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
 	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
+		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport, options.Tenant)
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
 		}
@@ -181,7 +186,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 }
 
 func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
-	sp.processSpan(sp.sanitizer(item.span))
+	sp.processSpan(sp.sanitizer(item.span), item.tenant)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
@@ -206,7 +211,7 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	typedTags.Sort()
 }
 
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport) bool {
+func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport, tenant string) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
@@ -224,6 +229,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	item := &queueItem{
 		queuedTime: time.Now(),
 		span:       span,
+		tenant:     tenant,
 	}
 	return sp.queue.Produce(item)
 }
