@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: example-hotrod
+  name: example-hotrod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-hotrod
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: example-hotrod
+    spec:
+      containers:
+      - image: jaegertracing/example-hotrod:latest
+        name: example-hotrod
+        args: ["all"]
+        env:
+          - name: JAEGER_AGENT_HOST
+            value: localhost
+          - name: JAEGER_AGENT_PORT
+            value: "6831"
+        ports:
+          - containerPort: 8080
+            name: frontend
+          - containerPort: 8081
+            name: customer
+          - containerPort: 8083
+            name: route
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100M
+          requests:
+            cpu: 100m
+            memory: 100M
