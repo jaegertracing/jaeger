@@ -50,7 +50,7 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
       if: steps.package-binaries.outcome == 'success'
 
-    - uses: docker/setup-qemu-action@v1
+    - uses: docker/setup-qemu-action@v2
 
     - name: Build and upload all docker images
       run: bash scripts/build-upload-docker-images.sh
