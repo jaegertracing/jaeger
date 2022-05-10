@@ -44,7 +44,7 @@ func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap
 		collector: api_v2.NewCollectorServiceClient(conn),
 		agentTags: makeModelKeyValue(agentTags),
 		logger:    logger,
-		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
+		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.NewStandardSanitizers()...),
 	}
 }
 

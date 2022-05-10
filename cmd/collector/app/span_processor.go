@@ -63,7 +63,7 @@ type queueItem struct {
 	span       *model.Span
 }
 
-// NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans
+// NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans.
 func NewSpanProcessor(
 	spanWriter spanstore.Writer,
 	additional []ProcessSpan,
@@ -96,13 +96,18 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	}
 	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
+	sanitizers := sanitizer.NewStandardSanitizers()
+	if options.sanitizer != nil {
+		sanitizers = append(sanitizers, options.sanitizer)
+	}
+
 	sp := spanProcessor{
 		queue:              boundedQueue,
 		metrics:            handlerMetrics,
 		logger:             options.logger,
 		preProcessSpans:    options.preProcessSpans,
 		filterSpan:         options.spanFilter,
-		sanitizer:          options.sanitizer,
+		sanitizer:          sanitizer.NewChainedSanitizer(sanitizers...),
 		reportBusy:         options.reportBusy,
 		numWorkers:         options.numWorkers,
 		spanWriter:         spanWriter,
