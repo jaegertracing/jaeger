@@ -46,11 +46,12 @@ type Collector struct {
 	spanHandlers   *SpanHandlers
 
 	// state, read only
-	hServer                  *http.Server
-	zkServer                 *http.Server
-	grpcServer               *grpc.Server
-	tlsGRPCCertWatcherCloser io.Closer
-	tlsHTTPCertWatcherCloser io.Closer
+	hServer                    *http.Server
+	zkServer                   *http.Server
+	grpcServer                 *grpc.Server
+	tlsGRPCCertWatcherCloser   io.Closer
+	tlsHTTPCertWatcherCloser   io.Closer
+	tlsZipkinCertWatcherCloser io.Closer
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -125,9 +126,11 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 
 	c.tlsGRPCCertWatcherCloser = &builderOpts.TLSGRPC
 	c.tlsHTTPCertWatcherCloser = &builderOpts.TLSHTTP
+	c.tlsZipkinCertWatcherCloser = &builderOpts.TLSZipkin
 	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
 		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
+		TLSConfig:      builderOpts.TLSZipkin,
 		HealthCheck:    c.hCheck,
 		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
