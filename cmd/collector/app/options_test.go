@@ -37,12 +37,12 @@ func TestAllOptionSet(t *testing.T) {
 		Options.ServiceMetrics(metrics.NullFactory),
 		Options.Logger(zap.NewNop()),
 		Options.NumWorkers(5),
-		Options.PreProcessSpans(func(spans []*model.Span) {}),
+		Options.PreProcessSpans(func(spans []*model.Span, tenant string) {}),
 		Options.Sanitizer(func(span *model.Span) *model.Span { return span }),
 		Options.QueueSize(10),
 		Options.DynQueueSizeWarmup(1000),
 		Options.DynQueueSizeMemory(1024),
-		Options.PreSave(func(span *model.Span) {}),
+		Options.PreSave(func(span *model.Span, tenant string) {}),
 		Options.CollectorTags(map[string]string{"extra": "tags"}),
 	)
 	assert.EqualValues(t, 5, opts.numWorkers)
@@ -59,8 +59,8 @@ func TestNoOptionsSet(t *testing.T) {
 	assert.Nil(t, opts.collectorTags)
 	assert.False(t, opts.reportBusy)
 	assert.False(t, opts.blockingSubmit)
-	assert.NotPanics(t, func() { opts.preProcessSpans(nil) })
-	assert.NotPanics(t, func() { opts.preSave(nil) })
+	assert.NotPanics(t, func() { opts.preProcessSpans(nil, "") })
+	assert.NotPanics(t, func() { opts.preSave(nil, "") })
 	assert.True(t, opts.spanFilter(nil))
 	span := model.Span{}
 	assert.EqualValues(t, &span, opts.sanitizer(&span))

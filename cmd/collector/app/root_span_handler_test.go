@@ -43,7 +43,7 @@ func TestHandleRootSpan(t *testing.T) {
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
-	processor(span)
+	processor(span, "")
 	assert.Equal(t, 0, aggregator.callCount)
 
 	// Testing span with service name but no operation
@@ -51,12 +51,12 @@ func TestHandleRootSpan(t *testing.T) {
 	span.Process = &model.Process{
 		ServiceName: "service",
 	}
-	processor(span)
+	processor(span, "")
 	assert.Equal(t, 0, aggregator.callCount)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
 	span.OperationName = "GET"
-	processor(span)
+	processor(span, "")
 	assert.Equal(t, 0, aggregator.callCount)
 
 	// Testing span with service name, operation, and probabilistic sampling tags
@@ -64,6 +64,6 @@ func TestHandleRootSpan(t *testing.T) {
 		model.String("sampler.type", "probabilistic"),
 		model.String("sampler.param", "0.001"),
 	}
-	processor(span)
+	processor(span, "")
 	assert.Equal(t, 1, aggregator.callCount)
 }
