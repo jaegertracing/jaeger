@@ -29,7 +29,7 @@ jobs:
     - name: Install tools
       run: make install-ci
     
-    - uses: docker/setup-qemu-action@v1
+    - uses: docker/setup-qemu-action@v2
 
     - name: Build, test, and publish hotrod image
       run: bash scripts/hotrod-integration-test.sh
