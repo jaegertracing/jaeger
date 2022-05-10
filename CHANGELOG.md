@@ -13,6 +13,31 @@ next release
 
 ### UI Changes
 
+1.34.0 (2022-05-11)
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
+#### New Features
+
+* Add kubernetes example for hotrod app ([@highb](https://github.com/highb) in [#3645](https://github.com/jaegertracing/jaeger/pull/3645))
+* Support writing via gRPC stream in storage plugin ([@vuuihc](https://github.com/vuuihc) in [#3640](https://github.com/jaegertracing/jaeger/pull/3640))
+* Instrument MetricsReader with metrics ([@albertteoh](https://github.com/albertteoh) in [#3667](https://github.com/jaegertracing/jaeger/pull/3667))
+
+#### Bug fixes, Minor Improvements
+
+* Sanitize spans with null process or empty service name ([@yurishkuro](https://github.com/yurishkuro) in [#3631](https://github.com/jaegertracing/jaeger/pull/3631))
+* Flow tenant through processors as a string ([@esnible](https://github.com/esnible) in [#3661](https://github.com/jaegertracing/jaeger/pull/3661))
+* Fix es.log-level behaviour ([@albertteoh](https://github.com/albertteoh) in [#3664](https://github.com/jaegertracing/jaeger/pull/3664))
+* Mention remote gRPC storage API ([@yurishkuro](https://github.com/yurishkuro) in [cb6853d](https://github.com/jaegertracing/jaeger/commit/cb6853d4eea1ab5430f5e8db6b603cd7de5a16c3))
+* Perform log.fatal if TLS flags are used when tls.enabled=false #2893 ([@clock21am](https://github.com/clock21am) in [#3030](https://github.com/jaegertracing/jaeger/pull/3030))
+* Upgrade to Go 1.18 ([@yurishkuro](https://github.com/yurishkuro) in [#3624](https://github.com/jaegertracing/jaeger/pull/3624))
+
+### UI Changes
+
+* UI pinned to version 1.23.0. The changelog is available here [v1.23.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1220-2022-05-10).
+
 1.33.0 (2022-04-11)
 -------------------
 #### New Features
