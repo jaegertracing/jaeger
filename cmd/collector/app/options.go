@@ -37,7 +37,7 @@ type options struct {
 	logger             *zap.Logger
 	serviceMetrics     metrics.Factory
 	hostMetrics        metrics.Factory
-	preProcessSpans    ProcessSpans
+	preProcessSpans    ProcessSpans // see docs in PreProcessSpans option.
 	sanitizer          sanitizer.SanitizeSpan
 	preSave            ProcessSpan
 	spanFilter         FilterSpan
@@ -78,7 +78,9 @@ func (options) HostMetrics(hostMetrics metrics.Factory) Option {
 	}
 }
 
-// PreProcessSpans creates an Option that initializes the preProcessSpans function
+// PreProcessSpans creates an Option that initializes the preProcessSpans function.
+// This function can implement non-standard pre-processing of the spans when extending
+// the collector from source. Jaeger itself does not define any pre-processing.
 func (options) PreProcessSpans(preProcessSpans ProcessSpans) Option {
 	return func(b *options) {
 		b.preProcessSpans = preProcessSpans

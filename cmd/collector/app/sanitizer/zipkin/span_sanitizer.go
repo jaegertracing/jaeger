@@ -27,11 +27,17 @@ const (
 	zeroParentIDTag     = "errZeroParentID"
 )
 
-var (
-	defaultDuration = int64(1)
-	// StandardSanitizers is a list of standard zipkin sanitizers.
-	StandardSanitizers = []Sanitizer{NewSpanStartTimeSanitizer(), NewSpanDurationSanitizer(), NewParentIDSanitizer(), NewErrorTagSanitizer()}
-)
+var defaultDuration = int64(1) // not a const because we take its address
+
+// NewStandardSanitizers is a list of standard zipkin sanitizers.
+func NewStandardSanitizers() []Sanitizer {
+	return []Sanitizer{
+		NewSpanStartTimeSanitizer(),
+		NewSpanDurationSanitizer(),
+		NewParentIDSanitizer(),
+		NewErrorTagSanitizer(),
+	}
+}
 
 // Sanitizer interface for sanitizing spans. Any business logic that needs to be applied to normalize the contents of a
 // span should implement this interface.
