@@ -165,10 +165,15 @@ func isSpanAllowed(span *model.Span) bool {
 }
 
 type fakeSpanWriter struct {
-	err error
+	spansLock sync.Mutex
+	spans     []*model.Span
+	err       error
 }
 
 func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+	n.spansLock.Lock()
+	defer n.spansLock.Unlock()
+	n.spans = append(n.spans, span)
 	return n.err
 }
 
@@ -222,16 +227,15 @@ func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, nil, Options.QueueSize(1)).(*spanProcessor)
 
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
-			},
-		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	res, err := p.ProcessSpans(
+		[]*model.Span{{}}, // empty span should be enriched by sanitizers
+		processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 	assert.NoError(t, p.Close())
+	assert.Len(t, w.spans, 1)
+	assert.NotNil(t, w.spans[0].Process)
+	assert.NotEmpty(t, w.spans[0].Process.ServiceName)
 }
 
 func TestSpanProcessorErrors(t *testing.T) {

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+PS4='T$(date "+%H:%M:%S") '
 set -euxf -o pipefail
 
 usage() {
@@ -68,7 +69,7 @@ wait_for_it() {
     ''%{http_code}''
   )
   local counter=0
-  while [[ "$(curl ${params[@]} ${url})" != "200" && ${counter} -le 30 ]]; do
+  while [[ "$(curl ${params[@]} ${url})" != "200" && ${counter} -le 60 ]]; do
     sleep 2
     counter=$((counter+1))
     echo "waiting for ${url} to be up..."
