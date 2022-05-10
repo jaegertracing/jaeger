@@ -15,17 +15,23 @@
 package server
 
 import (
+	"crypto/tls"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // test wrong port number
@@ -56,4 +62,175 @@ func TestSpanCollectorZipkin(t *testing.T) {
 	response, err := http.Post(server.URL, "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
+}
+
+func TestSpanCollectorZipkinTLS(t *testing.T) {
+	testCases := []struct {
+		name              string
+		TLS               tlscfg.Options
+		clientTLS         tlscfg.Options
+		expectError       bool
+		expectClientError bool
+		expectServerFail  bool
+	}{
+		{
+			name: "should fail with TLS client to untrusted TLS server",
+			TLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				ServerName: "example.com",
+			},
+			expectError:       true,
+			expectClientError: true,
+			expectServerFail:  false,
+		},
+		{
+			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
+			TLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "nonEmpty",
+			},
+			expectError:       true,
+			expectClientError: true,
+			expectServerFail:  false,
+		},
+		{
+			name: "should pass with TLS client to trusted TLS server with correct hostname",
+			TLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+			},
+			expectError:       false,
+			expectClientError: false,
+			expectServerFail:  false,
+		},
+		{
+			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
+			TLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+			},
+			expectError:       false,
+			expectServerFail:  false,
+			expectClientError: true,
+		},
+		{
+			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
+			TLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
+			},
+			expectError:       false,
+			expectServerFail:  false,
+			expectClientError: false,
+		},
+		{
+			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
+			TLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
+			},
+			expectError:       false,
+			expectServerFail:  false,
+			expectClientError: true,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			logger, _ := zap.NewDevelopment()
+			params := &ZipkinServerParams{
+				HostPort:       fmt.Sprintf(":%d", ports.CollectorHTTP),
+				Handler:        handler.NewZipkinSpanHandler(logger, nil, nil),
+				MetricsFactory: metricstest.NewFactory(time.Hour),
+				HealthCheck:    healthcheck.New(),
+				Logger:         logger,
+				TLSConfig:      test.TLS,
+			}
+
+			server, err := StartZipkinServer(params)
+
+			if test.expectServerFail {
+				require.Error(t, err)
+			}
+			defer server.Close()
+
+			require.NoError(t, err)
+			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
+			require.NoError(t, err0)
+			dialer := &net.Dialer{Timeout: 2 * time.Second}
+			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), clientTLSCfg)
+			var clientClose func() error
+			clientClose = nil
+			if conn != nil {
+				clientClose = conn.Close
+			}
+
+			if test.expectError {
+				require.Error(t, clientError)
+			} else {
+				require.NoError(t, clientError)
+			}
+
+			if clientClose != nil {
+				require.Nil(t, clientClose())
+			}
+
+			client := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: clientTLSCfg,
+				},
+			}
+
+			response, requestError := client.Post("https://localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), "", nil)
+
+			if test.expectClientError {
+				require.Error(t, requestError)
+			} else {
+				require.NoError(t, requestError)
+				require.NotNil(t, response)
+			}
+		})
+	}
 }
