@@ -50,6 +50,10 @@ var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "collector.http",
 }
 
+var tlsZipkinFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix: "collector.zipkin",
+}
+
 // CollectorOptions holds configuration for collector
 type CollectorOptions struct {
 	// DynQueueSizeMemory determines how much memory to use for the queue
@@ -66,6 +70,8 @@ type CollectorOptions struct {
 	TLSGRPC tlscfg.Options
 	// TLSHTTP configures secure transport for HTTP endpoint to collect spans
 	TLSHTTP tlscfg.Options
+	// TLSZipkin configures secure transport for Zipkin endpoint to collect spans
+	TLSZipkin tlscfg.Options
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
 	// CollectorZipkinHTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
@@ -101,6 +107,7 @@ func AddFlags(flags *flag.FlagSet) {
 
 	tlsGRPCFlagsConfig.AddFlags(flags)
 	tlsHTTPFlagsConfig.AddFlags(flags)
+	tlsZipkinFlagsConfig.AddFlags(flags)
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -126,6 +133,11 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) (*CollectorOptions,
 		cOpts.TLSHTTP = tlsHTTP
 	} else {
 		return cOpts, fmt.Errorf("failed to parse HTTP TLS options: %w", err)
+	}
+	if tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v); err == nil {
+		cOpts.TLSZipkin = tlsZipkin
+	} else {
+		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
 
 	return cOpts, nil
