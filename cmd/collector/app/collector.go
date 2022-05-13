@@ -192,6 +192,7 @@ func (c *Collector) Close() error {
 	// watchers actually never return errors from Close
 	_ = c.tlsGRPCCertWatcherCloser.Close()
 	_ = c.tlsHTTPCertWatcherCloser.Close()
+	_ = c.tlsZipkinCertWatcherCloser.Close()
 
 	return nil
 }
