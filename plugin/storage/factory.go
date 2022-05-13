@@ -59,6 +59,23 @@ const (
 // AllStorageTypes defines all available storage backends
 var AllStorageTypes = []string{cassandraStorageType, opensearchStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
 
+// AllSamplingStorageTypes returns all storage backends that implement adaptive sampling
+func AllSamplingStorageTypes() []string {
+	f := &Factory{}
+	var backends []string
+	for _, st := range AllStorageTypes {
+		f, err := f.getFactoryOfType(st)
+		if err != nil {
+			panic(err.Error())
+		}
+		_, ok := f.(storage.SamplingStoreFactory)
+		if ok {
+			backends = append(backends, st)
+		}
+	}
+	return backends
+}
+
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
