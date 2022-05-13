@@ -64,10 +64,7 @@ func AllSamplingStorageTypes() []string {
 	f := &Factory{}
 	var backends []string
 	for _, st := range AllStorageTypes {
-		f, err := f.getFactoryOfType(st)
-		if err != nil {
-			panic(err.Error())
-		}
+		f, _ := f.getFactoryOfType(st)
 		_, ok := f.(storage.SamplingStoreFactory)
 		if ok {
 			backends = append(backends, st)
