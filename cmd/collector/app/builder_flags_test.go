@@ -80,6 +80,19 @@ func TestCollectorOptionsWithFailedGRPCFlags(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to parse gRPC TLS options")
 }
 
+func TestCollectorOptionsWithFailedZipkinFlags(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	err := command.ParseFlags([]string{
+		"--collector.zipkin.tls.enabled=false",
+		"--collector.zipkin.tls.cert=blah", // invalid unless tls.enabled
+	})
+	require.NoError(t, err)
+	_, err = c.InitFromViper(v)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse Zipkin TLS options")
+}
+
 func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
