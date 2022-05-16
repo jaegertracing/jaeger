@@ -21,9 +21,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type testContextKey string
+
 func TestContextTenantHandling(t *testing.T) {
 	ctxWithTenant := WithTenant(context.Background(), "tenant1")
 	assert.Equal(t, "tenant1", GetTenant(ctxWithTenant))
+}
+
+func TestContextPreserved(t *testing.T) {
+	key := testContextKey("expected-key")
+	val := "expected-value"
+	ctxWithValue := context.WithValue(context.Background(), key, val)
+	ctxWithTenant := WithTenant(ctxWithValue, "tenant1")
+	assert.Equal(t, "tenant1", GetTenant(ctxWithTenant))
+	assert.Equal(t, val, ctxWithTenant.Value(key))
 }
 
 func TestNoTenant(t *testing.T) {
