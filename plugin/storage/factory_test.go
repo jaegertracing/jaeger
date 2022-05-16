@@ -296,6 +296,10 @@ func TestCreateError(t *testing.T) {
 	}
 }
 
+func TestAllSamplingStorageTypes(t *testing.T) {
+	assert.Equal(t, AllSamplingStorageTypes(), []string{"cassandra", "memory"})
+}
+
 func TestCreateSamplingStoreFactory(t *testing.T) {
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
