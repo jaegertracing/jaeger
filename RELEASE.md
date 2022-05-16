@@ -28,6 +28,18 @@
 
 Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-1.8`).
 
+## Patch Release
+
+Sometimes we need to do a patch release, e.g. to fix a newly introduced bug. If the main branch already contains newer changes, it is recommended that a patch release is done from a version branch.
+
+1. Find the commit in `main` for the release you want to patch (e.g., `a49094c2` for v1.34.0).
+2. `git checkout ${commit}; git checkout -b ${branch-name}`. The branch name should be in the form `release-major.minor`, e.g., `release-1.34`. Push the branch to the upstream repository.
+3. Apply fixes to the branch. The recommended way is to merge the fixes into `main` first and then cherry-pick them into the version branch (e.g., `git cherry-pick c733708c` for the fix going into `v1.34.1`).
+4. Follow the regular process for creating a release (except for the Documentation step).
+  * When creating a release on GitHub, pick the version branch when applying the new tag.
+  * Once the release tag is created, the `ci-release` workflow will kick in and deploy the artifacts for the patch release.
+5. Do not perform a new release of the documentation since the major.minor is not changing. The one change that may be useful is bumping the `binariesLatest` variable in the `config.toml` file ([example](https://github.com/jaegertracing/documentation/commit/eacb52f332a7e069c254e652a6b4a58ea5a07b32)).
+
 ## Release managers
 
 A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes, including to the related components such as UI, IDL, and jaeger-lib and will address any problems that might happen during the release, making sure that the documentation above is correct.
