@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/jaegertracing/jaeger/plugin/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
@@ -49,6 +50,14 @@ when Jaeger is deployed in the collector+ingester configuration.
 to clients configured with remote sampling enabled. "file" uses a periodically reloaded file and
 "adaptive" dynamically adjusts sampling rates based on current traffic.
 `
+
+	samplingStorageTypeDescription = `The type of backend [%s] used for adaptive sampling storage
+when adaptive sampling is enabled via %s.
+`
+
+	metricsStorageTypeDescription = `The type of backend [%s] used as a metrics store with
+Service Performance Monitoring (https://www.jaegertracing.io/docs/latest/spm/).
+`
 )
 
 // Command creates `env` command
@@ -73,6 +82,23 @@ func Command() *cobra.Command {
 		fmt.Sprintf(
 			strings.ReplaceAll(samplingTypeDescription, "\n", " "),
 			strings.Join(strategystore.AllSamplingTypes, ", "),
+		),
+	)
+	fs.String(
+		storage.SamplingStorageTypeEnvVar,
+		"",
+		fmt.Sprintf(
+			strings.ReplaceAll(samplingStorageTypeDescription, "\n", " "),
+			strings.Join(storage.AllSamplingStorageTypes(), ", "),
+			strategystore.SamplingTypeEnvVar,
+		),
+	)
+	fs.String(
+		metrics.StorageTypeEnvVar,
+		"",
+		fmt.Sprintf(
+			strings.ReplaceAll(metricsStorageTypeDescription, "\n", " "),
+			strings.Join(metrics.AllStorageTypes, ", "),
 		),
 	)
 	long := fmt.Sprintf(longTemplate, strings.Replace(fs.FlagUsagesWrapped(0), "      --", "\n", -1))
