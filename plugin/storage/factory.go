@@ -59,6 +59,11 @@ const (
 // AllStorageTypes defines all available storage backends
 var AllStorageTypes = []string{cassandraStorageType, opensearchStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
 
+var (
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
+)
+
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig

@@ -38,6 +38,8 @@ const (
 // AllStorageTypes defines all available storage backends.
 var AllStorageTypes = []string{prometheusStorageType}
 
+var _ plugin.Configurable = (*Factory)(nil)
+
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig

@@ -23,11 +23,17 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+)
+
+var (
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
@@ -43,8 +49,6 @@ type Factory struct {
 	streamingSpanWriter shared.StreamingSpanWriterPlugin
 	capabilities        shared.PluginCapabilities
 }
-
-var _ io.Closer = (*Factory)(nil)
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
