@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-next release
+next release (copy before changing)
 -------------------
 ### Backend Changes
 
@@ -12,6 +12,14 @@ next release
 #### Bug fixes, Minor Improvements
 
 ### UI Changes
+
+1.34.1 (2022-05-16)
+-------------------
+### Backend Changes
+
+#### Bug fix
+
+Fix Prometheus factory API to restore its configurability ([@yurishkuro](https://github.com/yurishkuro) in [#3681](https://github.com/jaegertracing/jaeger/pull/3681))
 
 1.34.0 (2022-05-11)
 -------------------
@@ -67,7 +75,7 @@ next release
 #### New Features
 
 * Enable gRPC reflection service on collector/query ([@yurishkuro](https://github.com/yurishkuro) in [#3526](https://github.com/jaegertracing/jaeger/pull/3526))
- 
+
 #### Bug fixes, Minor Improvements
 
 * Fix query for latency metrics ([@Ashmita152](https://github.com/Ashmita152) in [#3559](https://github.com/jaegertracing/jaeger/pull/3559))
