@@ -25,7 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
-var _ plugin.Configurable = new(Factory)
+var _ plugin.Configurable = (*Factory)(nil)
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
