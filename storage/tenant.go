@@ -26,7 +26,7 @@ const (
 
 // WithTenant creates a Context with a tenant association
 func WithTenant(ctx context.Context, tenant string) context.Context {
-	return context.WithValue(context.Background(), tenantKey, tenant)
+	return context.WithValue(ctx, tenantKey, tenant)
 }
 
 // GetTenant retrieves a tenant associated with a Context
