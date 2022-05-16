@@ -20,8 +20,11 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
+
+var _ plugin.Configurable = (*Factory)(nil)
 
 // Factory implements storage.Factory that returns a Disabled metrics reader.
 type Factory struct{}

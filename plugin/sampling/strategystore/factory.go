@@ -37,7 +37,10 @@ const (
 	samplingTypeFile     = "file"
 )
 
+// AllSamplingTypes lists all types of sampling factories.
 var AllSamplingTypes = []string{samplingTypeFile, samplingTypeAdaptive}
+
+var _ plugin.Configurable = (*Factory)(nil)
 
 // Factory implements strategystore.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
