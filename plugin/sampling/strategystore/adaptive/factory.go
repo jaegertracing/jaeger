@@ -24,9 +24,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
+
+var _ plugin.Configurable = (*Factory)(nil)
 
 // Factory implements strategystore.Factory for an adaptive strategy store.
 type Factory struct {

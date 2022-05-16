@@ -28,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
+	"github.com/jaegertracing/jaeger/plugin"
 	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
 	cSamplingStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/samplingstore"
@@ -42,6 +43,11 @@ import (
 const (
 	primaryStorageConfig = "cassandra"
 	archiveStorageConfig = "cassandra-archive"
+)
+
+var (
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Cassandra backend.
