@@ -177,10 +177,8 @@ func withMetadata(ctx context.Context, headerName, headerValue string, t *testin
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-// @@@ ecs TODO also add something similar to queries and v3 queries
 func TestPostTenantedSpans(t *testing.T) {
 	tenantHeader := "x-tenant"
-	// @@@ ecs TODO test with bogus tenant
 	dummyTenant := "grpc-test-tenant"
 
 	processor := &mockSpanProcessor{}
@@ -278,7 +276,6 @@ func withIncomingMetadata(ctx context.Context, headerName, headerValue string, t
 	return metadata.NewIncomingContext(ctx, md)
 }
 
-// @@@ ecs TODO also add this to v3 version
 func TestGetTenant(t *testing.T) {
 	tenantHeader := "some-tenant-header"
 	validTenants := []string{"acme", "another-example"}

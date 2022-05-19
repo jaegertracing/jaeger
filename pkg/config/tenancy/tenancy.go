@@ -38,11 +38,9 @@ func NewTenancyConfig(options *Options) *TenancyConfig {
 	return &TenancyConfig{
 		Enabled: options.Enabled,
 		Header:  options.Header,
-		Valid:   TenancyGuardFactory(options),
+		Valid:   tenancyGuardFactory(options),
 	}
 }
-
-// @@@ ecs TODO a function that validates Options; and call it
 
 type tenantUnaware bool
 
@@ -70,8 +68,7 @@ func newTenantList(tenants []string) tenantList {
 	}
 }
 
-// @@@ ecs
-func TenancyGuardFactory(options *Options) Guard {
+func tenancyGuardFactory(options *Options) Guard {
 	if !options.Enabled {
 		return tenantUnaware(true)
 	}
