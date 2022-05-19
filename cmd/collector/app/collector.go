@@ -93,7 +93,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
-	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
+	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor, builderOpts)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		HostPort:                builderOpts.CollectorGRPCHostPort,

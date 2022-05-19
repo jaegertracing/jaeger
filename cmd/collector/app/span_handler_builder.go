@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -65,7 +66,7 @@ func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) proce
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
-func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor) *SpanHandlers {
+func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor, colectorOpts *CollectorOptions) *SpanHandlers {
 	return &SpanHandlers{
 		handler.NewZipkinSpanHandler(
 			b.Logger,
@@ -73,7 +74,7 @@ func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor
 			zs.NewChainedSanitizer(zs.NewStandardSanitizers()...),
 		),
 		handler.NewJaegerSpanHandler(b.Logger, spanProcessor),
-		handler.NewGRPCHandler(b.Logger, spanProcessor),
+		handler.NewGRPCHandler(b.Logger, spanProcessor, tenancy.NewTenancyConfig(&b.CollectorOpts.TenancyGRPC)),
 	}
 }
 

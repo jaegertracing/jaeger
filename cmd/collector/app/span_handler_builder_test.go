@@ -52,7 +52,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	}
 
 	spanProcessor := builder.BuildSpanProcessor()
-	spanHandlers := builder.BuildHandlers(spanProcessor)
+	spanHandlers := builder.BuildHandlers(spanProcessor, &CollectorOptions{})
 	assert.NotNil(t, spanHandlers.ZipkinSpansHandler)
 	assert.NotNil(t, spanHandlers.JaegerBatchesHandler)
 	assert.NotNil(t, spanHandlers.GRPCHandler)

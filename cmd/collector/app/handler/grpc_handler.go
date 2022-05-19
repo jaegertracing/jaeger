@@ -20,9 +20,11 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -30,18 +32,30 @@ import (
 type GRPCHandler struct {
 	logger        *zap.Logger
 	spanProcessor processor.SpanProcessor
+	tenancyConfig *tenancy.TenancyConfig
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor) *GRPCHandler {
+func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyConfig *tenancy.TenancyConfig) *GRPCHandler {
 	return &GRPCHandler{
 		logger:        logger,
 		spanProcessor: spanProcessor,
+		tenancyConfig: tenancyConfig,
 	}
 }
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+	var tenant string
+	if g.tenancyConfig.Enabled {
+		var err error
+		tenant, err = g.validateTenant(ctx)
+		if err != nil {
+			g.logger.Error("rejecting spans (tenancy)", zap.Error(err))
+			return nil, err
+		}
+	}
+
 	for _, span := range r.GetBatch().Spans {
 		if span.GetProcess() == nil {
 			span.Process = r.Batch.Process
@@ -50,6 +64,7 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, processor.SpansOptions{
 		InboundTransport: processor.GRPCTransport,
 		SpanFormat:       processor.ProtoSpanFormat,
+		Tenant:           tenant,
 	})
 	if err != nil {
 		if err == processor.ErrBusy {
@@ -59,4 +74,24 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 		return nil, err
 	}
 	return &api_v2.PostSpansResponse{}, nil
+}
+
+func (g *GRPCHandler) validateTenant(ctx context.Context) (string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	}
+
+	tenants := md[g.tenancyConfig.Header]
+	if len(tenants) < 1 {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	} else if len(tenants) > 1 {
+		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
+	}
+
+	if !g.tenancyConfig.Valid.Valid(tenants[0]) {
+		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
+	}
+
+	return tenants[0], nil
 }

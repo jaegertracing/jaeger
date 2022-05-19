@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -53,6 +54,8 @@ var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 var tlsZipkinFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "collector.zipkin",
 }
+
+var tenancyFlagsConfig = tenancy.TenancyFlagsConfig{}
 
 // CollectorOptions holds configuration for collector
 type CollectorOptions struct {
@@ -88,6 +91,8 @@ type CollectorOptions struct {
 	// CollectorGRPCMaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
 	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
 	CollectorGRPCMaxConnectionAgeGrace time.Duration
+	// TenancyGRPC configures tenancy for gRPC endpoint to collect spans
+	TenancyGRPC tenancy.Options
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -108,6 +113,8 @@ func AddFlags(flags *flag.FlagSet) {
 	tlsGRPCFlagsConfig.AddFlags(flags)
 	tlsHTTPFlagsConfig.AddFlags(flags)
 	tlsZipkinFlagsConfig.AddFlags(flags)
+
+	tenancyFlagsConfig.AddFlags(flags)
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
