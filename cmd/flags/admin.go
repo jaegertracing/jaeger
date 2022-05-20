@@ -86,7 +86,6 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 
 	s.adminHostPort = v.GetString(adminHTTPHostPort)
 	var tlsAdminHTTP tlscfg.Options
-	s.tlsCertWatcherCloser = &tlsAdminHTTP
 	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
@@ -97,6 +96,9 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 			return err
 		}
 		s.tlsCfg = tlsCfg
+		s.tlsCertWatcherCloser = &tlsAdminHTTP
+	} else {
+		s.tlsCertWatcherCloser = io.NopCloser(nil)
 	}
 	return nil
 }
