@@ -111,7 +111,9 @@ func (s *Service) Start(v *viper.Viper) error {
 	}
 	s.MetricsFactory = metricsFactory
 
-	s.Admin.initFromViper(v, s.Logger)
+	if err = s.Admin.initFromViper(v, s.Logger); err != nil {
+		s.Logger.Fatal("Failed to initialize admin server", zap.Error(err))
+	}
 	if h := metricsBuilder.Handler(); h != nil {
 		route := metricsBuilder.HTTPRoute
 		s.Logger.Info("Mounting metrics handler on admin server", zap.String("route", route))
