@@ -80,20 +80,18 @@ func TestAdminFailToServe(t *testing.T) {
 
 	adminServer.serveWithListener(l)
 	defer adminServer.Close()
-	for i := 0; i < 1000; i++ {
-		if adminServer.HC().Get() == healthcheck.Broken {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	assert.Equal(t, healthcheck.Broken, adminServer.HC().Get())
+
+	waitForEqual(t, healthcheck.Broken, func() interface{} { return adminServer.HC().Get() })
+
 	logEntries := logs.TakeAll()
+	var matchedEntry string
 	for _, log := range logEntries {
 		if strings.Contains(log.Message, "failed to serve") {
-			return
+			matchedEntry = log.Message
+			break
 		}
 	}
-	assert.Fail(t, "logs do not contain 'failed to serve': %+v", logEntries)
+	assert.Contains(t, matchedEntry, "failed to serve")
 }
 
 func TestAdminWithFailedFlags(t *testing.T) {

@@ -16,6 +16,7 @@ package flags
 import (
 	"flag"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -91,25 +92,23 @@ func TestStartErrors(t *testing.T) {
 			}
 			go s.RunAndThen(shutdown)
 
-			for i := 0; i < 1000; i++ {
-				if s.HC().Get() == healthcheck.Ready {
-					break
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
-			assert.Equal(t, healthcheck.Ready, s.HC().Get())
-
+			waitForEqual(t, healthcheck.Ready, func() interface{} { return s.HC().Get() })
 			s.SetHealthCheckStatus(healthcheck.Unavailable)
-			s.SetHealthCheckStatus(healthcheck.Ready)
+			waitForEqual(t, healthcheck.Unavailable, func() interface{} { return s.HC().Get() })
 
 			s.signalsChannel <- os.Interrupt
-			for i := 0; i < 1000; i++ {
-				if stopped.Load() {
-					break
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
-			assert.True(t, stopped.Load())
+			waitForEqual(t, true, func() interface{} { return stopped.Load() })
 		})
 	}
+}
+
+func waitForEqual(t *testing.T, expected interface{}, getter func() interface{}) {
+	for i := 0; i < 1000; i++ {
+		value := getter()
+		if reflect.DeepEqual(value, expected) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(t, expected, getter())
 }
