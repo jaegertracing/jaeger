@@ -16,8 +16,10 @@ package flags
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -26,6 +28,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -35,15 +38,19 @@ const (
 	adminHTTPHostPort = "admin.http.host-port"
 )
 
+var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix: "admin.http",
+}
+
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
 type AdminServer struct {
-	logger        *zap.Logger
-	adminHostPort string
-
-	hc *healthcheck.HealthCheck
-
-	mux    *http.ServeMux
-	server *http.Server
+	logger               *zap.Logger
+	adminHostPort        string
+	hc                   *healthcheck.HealthCheck
+	mux                  *http.ServeMux
+	server               *http.Server
+	tlsCfg               *tls.Config
+	tlsCertWatcherCloser io.Closer
 }
 
 // NewAdminServer creates a new admin server.
@@ -70,13 +77,28 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(adminHTTPHostPort, s.adminHostPort, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.adminHostPort, s.adminHostPort))
+	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
 }
 
 // InitFromViper initializes the server with properties retrieved from Viper.
-func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) {
+func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 	s.setLogger(logger)
 
 	s.adminHostPort = v.GetString(adminHTTPHostPort)
+	var tlsAdminHTTP tlscfg.Options
+	s.tlsCertWatcherCloser = &tlsAdminHTTP
+	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
+	if err != nil {
+		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
+	}
+	if tlsAdminHTTP.Enabled {
+		tlsCfg, err := tlsAdminHTTP.Config(s.logger) // This checks if the certificates are correctly provided
+		if err != nil {
+			return err
+		}
+		s.tlsCfg = tlsCfg
+	}
+	return nil
 }
 
 // Handle adds a new handler to the admin server.
@@ -111,10 +133,18 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 		Handler:  recoveryHandler(s.mux),
 		ErrorLog: errorLog,
 	}
-
+	if s.tlsCfg != nil {
+		s.server.TLSConfig = s.tlsCfg
+	}
 	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.adminHostPort))
 	go func() {
-		switch err := s.server.Serve(l); err {
+		var err error
+		if s.tlsCfg != nil {
+			err = s.server.ServeTLS(l, "", "")
+		} else {
+			err = s.server.Serve(l)
+		}
+		switch err {
 		case nil, http.ErrServerClosed:
 			// normal exit, nothing to do
 		default:
@@ -138,5 +168,6 @@ func (s *AdminServer) registerPprofHandlers() {
 
 // Close stops the HTTP server
 func (s *AdminServer) Close() error {
+	_ = s.tlsCertWatcherCloser.Close()
 	return s.server.Shutdown(context.Background())
 }
