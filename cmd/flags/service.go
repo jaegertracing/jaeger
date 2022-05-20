@@ -37,7 +37,7 @@ type Service struct {
 	// AdminPort is the HTTP port number for admin server.
 	AdminPort int
 
-	// NoStorage indicates that storage type CLI flag is not applicable
+	// NoStorage indicates that storage-type CLI flag is not applicable
 	NoStorage bool
 
 	// Admin is the admin server that hosts the health check and metrics endpoints.
@@ -112,7 +112,7 @@ func (s *Service) Start(v *viper.Viper) error {
 	s.MetricsFactory = metricsFactory
 
 	if err = s.Admin.initFromViper(v, s.Logger); err != nil {
-		s.Logger.Fatal("Failed to initialize admin server", zap.Error(err))
+		return fmt.Errorf("cannot initialize admin server: %w", err)
 	}
 	if h := metricsBuilder.Handler(); h != nil {
 		route := metricsBuilder.HTTPRoute

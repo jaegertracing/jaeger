@@ -31,6 +31,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -58,7 +59,42 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	assert.Greater(t, port, 0)
 }
 
-func TestCollectorAdminWithFailedFlags(t *testing.T) {
+func TestAdminHealthCheck(t *testing.T) {
+	adminServer := NewAdminServer(":0")
+	status := adminServer.HC().Get()
+	assert.Equal(t, healthcheck.Unavailable, status)
+}
+
+func TestAdminFailToServe(t *testing.T) {
+	l, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	l.Close() // forcing Serve on a closed connection
+
+	adminServer := NewAdminServer(":0")
+	v, command := config.Viperize(adminServer.AddFlags)
+	command.ParseFlags([]string{})
+	zapCore, logs := observer.New(zap.InfoLevel)
+	logger := zap.New(zapCore)
+
+	require.NoError(t, adminServer.initFromViper(v, logger))
+
+	adminServer.serveWithListener(l)
+	defer adminServer.Close()
+
+	waitForEqual(t, healthcheck.Broken, func() interface{} { return adminServer.HC().Get() })
+
+	logEntries := logs.TakeAll()
+	var matchedEntry string
+	for _, log := range logEntries {
+		if strings.Contains(log.Message, "failed to serve") {
+			matchedEntry = log.Message
+			break
+		}
+	}
+	assert.Contains(t, matchedEntry, "failed to serve")
+}
+
+func TestAdminWithFailedFlags(t *testing.T) {
 	adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.CollectorAdminHTTP))
 	zapCore, _ := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
@@ -75,44 +111,10 @@ func TestCollectorAdminWithFailedFlags(t *testing.T) {
 
 func TestAdminServerTLS(t *testing.T) {
 	testCases := []struct {
-		name                 string
-		serverTLSFlags       []string
-		clientTLS            tlscfg.Options
-		expectTLSClientErr   bool
-		expectAdminClientErr bool
-		expectServerFail     bool
+		name           string
+		serverTLSFlags []string
+		clientTLS      tlscfg.Options
 	}{
-		{
-			name: "should fail with TLS client to untrusted TLS server",
-			serverTLSFlags: []string{
-				"--admin.http.tls.enabled=true",
-				"--admin.http.tls.cert=" + testCertKeyLocation + "/example-server-cert.pem",
-				"--admin.http.tls.key=" + testCertKeyLocation + "/example-server-key.pem",
-			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				ServerName: "example.com",
-			},
-			expectTLSClientErr:   true,
-			expectAdminClientErr: true,
-			expectServerFail:     false,
-		},
-		{
-			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
-			serverTLSFlags: []string{
-				"--admin.http.tls.enabled=true",
-				"--admin.http.tls.cert=" + testCertKeyLocation + "/example-server-cert.pem",
-				"--admin.http.tls.key=" + testCertKeyLocation + "/example-server-key.pem",
-			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
-				ServerName: "nonEmpty",
-			},
-			expectTLSClientErr:   true,
-			expectAdminClientErr: true,
-			expectServerFail:     false,
-		},
 		{
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
 			serverTLSFlags: []string{
@@ -125,84 +127,6 @@ func TestAdminServerTLS(t *testing.T) {
 				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "example.com",
 			},
-			expectTLSClientErr:   false,
-			expectAdminClientErr: false,
-			expectServerFail:     false,
-		},
-		{
-			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
-			serverTLSFlags: []string{
-				"--admin.http.tls.enabled=true",
-				"--admin.http.tls.cert=" + testCertKeyLocation + "/example-server-cert.pem",
-				"--admin.http.tls.key=" + testCertKeyLocation + "/example-server-key.pem",
-				"--admin.http.tls.client-ca=" + testCertKeyLocation + "/example-CA-cert.pem",
-			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
-				ServerName: "example.com",
-			},
-			expectTLSClientErr:   false,
-			expectServerFail:     false,
-			expectAdminClientErr: true,
-		},
-		{
-			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
-			serverTLSFlags: []string{
-				"--admin.http.tls.enabled=true",
-				"--admin.http.tls.cert=" + testCertKeyLocation + "/example-server-cert.pem",
-				"--admin.http.tls.key=" + testCertKeyLocation + "/example-server-key.pem",
-				"--admin.http.tls.client-ca=" + testCertKeyLocation + "/example-CA-cert.pem",
-			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
-				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
-			},
-			expectTLSClientErr:   false,
-			expectServerFail:     false,
-			expectAdminClientErr: false,
-		},
-		{
-			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
-			serverTLSFlags: []string{
-				"--admin.http.tls.enabled=true",
-				"--admin.http.tls.cert=" + testCertKeyLocation + "/example-server-cert.pem",
-				"--admin.http.tls.key=" + testCertKeyLocation + "/example-server-key.pem",
-				"--admin.http.tls.client-ca=" + testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
-			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
-				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
-			},
-			expectTLSClientErr:   false,
-			expectServerFail:     false,
-			expectAdminClientErr: true,
-		},
-		{
-			name: "should fail with TLS client with cert to trusted TLS server with incorrect TLS min",
-			serverTLSFlags: []string{
-				"--admin.http.tls.enabled=true",
-				"--admin.http.tls.cert=" + testCertKeyLocation + "/example-server-cert.pem",
-				"--admin.http.tls.key=" + testCertKeyLocation + "/example-server-key.pem",
-				"--admin.http.tls.client-ca=" + testCertKeyLocation + "/example-CA-cert.pem",
-				"--admin.http.tls.min-version=1.5",
-			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
-				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
-			},
-			expectTLSClientErr:   true,
-			expectServerFail:     true,
-			expectAdminClientErr: false,
 		},
 	}
 
@@ -217,11 +141,6 @@ func TestAdminServerTLS(t *testing.T) {
 			logger := zap.New(zapCore)
 
 			err = adminServer.initFromViper(v, logger)
-
-			if test.expectServerFail {
-				require.Error(t, err)
-				return
-			}
 			require.NoError(t, err)
 
 			adminServer.Serve()
@@ -231,13 +150,8 @@ func TestAdminServerTLS(t *testing.T) {
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorAdminHTTP), clientTLSCfg)
-
-			if test.expectTLSClientErr {
-				require.Error(t, clientError)
-			} else {
-				require.NoError(t, clientError)
-				require.Nil(t, conn.Close())
-			}
+			require.NoError(t, clientError)
+			require.Nil(t, conn.Close())
 
 			client := &http.Client{
 				Transport: &http.Transport{
@@ -246,13 +160,8 @@ func TestAdminServerTLS(t *testing.T) {
 			}
 
 			response, requestError := client.Get(fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP))
-
-			if test.expectAdminClientErr {
-				require.Error(t, requestError)
-			} else {
-				require.NoError(t, requestError)
-				require.NotNil(t, response)
-			}
+			require.NoError(t, requestError)
+			require.NotNil(t, response)
 		})
 	}
 }

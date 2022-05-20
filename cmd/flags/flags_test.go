@@ -24,6 +24,7 @@ import (
 )
 
 func TestParseJaegerTags(t *testing.T) {
+	assert.Nil(t, ParseJaegerTags(""))
 
 	jaegerTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
 		"key=value",
