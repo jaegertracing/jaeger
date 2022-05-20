@@ -15,11 +15,16 @@ package flags
 
 import (
 	"flag"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/crossdock/crossdock-go/assert"
 	"github.com/crossdock/crossdock-go/require"
+	"go.uber.org/atomic"
+
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -61,6 +66,10 @@ func TestStartErrors(t *testing.T) {
 			flags:  []string{"--admin.http.host-port=invalid"},
 			expErr: "cannot start the admin server",
 		},
+		{
+			name:  "clean start",
+			flags: []string{},
+		},
 	}
 	for _, test := range scenarios {
 		t.Run(test.name, func(t *testing.T) {
@@ -72,9 +81,35 @@ func TestStartErrors(t *testing.T) {
 			if test.expErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.expErr)
-			} else {
-				assert.NoError(t, err)
+				return
 			}
+			assert.NoError(t, err)
+
+			stopped := atomic.NewBool(false)
+			shutdown := func() {
+				stopped.Store(true)
+			}
+			go s.RunAndThen(shutdown)
+
+			for i := 0; i < 1000; i++ {
+				if s.HC().Get() == healthcheck.Ready {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			assert.Equal(t, healthcheck.Ready, s.HC().Get())
+
+			s.SetHealthCheckStatus(healthcheck.Unavailable)
+			s.SetHealthCheckStatus(healthcheck.Ready)
+
+			s.signalsChannel <- os.Interrupt
+			for i := 0; i < 1000; i++ {
+				if stopped.Load() {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			assert.True(t, stopped.Load())
 		})
 	}
 }
