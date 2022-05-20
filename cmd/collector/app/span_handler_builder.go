@@ -74,7 +74,7 @@ func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor
 			zs.NewChainedSanitizer(zs.NewStandardSanitizers()...),
 		),
 		handler.NewJaegerSpanHandler(b.Logger, spanProcessor),
-		handler.NewGRPCHandler(b.Logger, spanProcessor, tenancy.NewTenancyConfig(&b.CollectorOpts.TenancyGRPC)),
+		handler.NewGRPCHandler(b.Logger, spanProcessor, tenancy.NewTenancyConfig(&b.CollectorOpts.Tenancy)),
 	}
 }
 

@@ -18,11 +18,11 @@ package tenancy
 type TenancyConfig struct {
 	Enabled bool
 	Header  string
-	Valid   Guard
+	guard   guard
 }
 
 // Guard verifies a valid tenant when tenancy is enabled
-type Guard interface {
+type guard interface {
 	Valid(candidate string) bool
 }
 
@@ -38,13 +38,17 @@ func NewTenancyConfig(options *Options) *TenancyConfig {
 	return &TenancyConfig{
 		Enabled: options.Enabled,
 		Header:  options.Header,
-		Valid:   tenancyGuardFactory(options),
+		guard:   tenancyGuardFactory(options),
 	}
 }
 
-type tenantUnaware bool
+func (tc *TenancyConfig) Valid(tenant string) bool {
+	return tc.guard.Valid(tenant)
+}
 
-func (tenantUnaware) Valid(candidate string) bool {
+type tenantDontCare bool
+
+func (tenantDontCare) Valid(candidate string) bool {
 	return true
 }
 
@@ -52,25 +56,30 @@ type tenantList struct {
 	tenants map[string]bool
 }
 
-func (tl tenantList) Valid(candidate string) bool {
+func (tl *tenantList) Valid(candidate string) bool {
 	_, ok := tl.tenants[candidate]
 	return ok
 }
 
-func newTenantList(tenants []string) tenantList {
+func newTenantList(tenants []string) *tenantList {
 	tenantMap := make(map[string]bool)
 	for _, tenant := range tenants {
 		tenantMap[tenant] = true
 	}
 
-	return tenantList{
+	return &tenantList{
 		tenants: tenantMap,
 	}
 }
 
-func tenancyGuardFactory(options *Options) Guard {
-	if !options.Enabled {
-		return tenantUnaware(true)
+func tenancyGuardFactory(options *Options) guard {
+	// Three cases
+	// - no tenancy
+	// - tenancy, but no guarding by tenant
+	// - tenancy, with guarding by a list
+
+	if !options.Enabled || len(options.Tenants) == 0 {
+		return tenantDontCare(true)
 	}
 
 	return newTenantList(options.Tenants)

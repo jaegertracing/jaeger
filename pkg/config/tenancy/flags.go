@@ -16,7 +16,6 @@ package tenancy
 
 import (
 	"flag"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -28,27 +27,19 @@ const (
 	validTenants   = "multi_tenancy.tenants"
 )
 
-// TenancyFlagsConfig describes which CLI flags for TLS client should be generated.
-type TenancyFlagsConfig struct {
-}
-
 // AddFlags adds flags for tenancy to the FlagSet.
-func (c TenancyFlagsConfig) AddFlags(flags *flag.FlagSet) {
+func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(tenancyEnabled, false, "Enable tenancy header when receiving or querying")
 	flags.String(tenancyHeader, "x-tenant", "HTTP header carrying tenant")
 	flags.String(validTenants, "", "Acceptable tenants")
 }
 
-// InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c TenancyFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
+// InitFromViper creates tenancy.Options populated with values retrieved from Viper.
+func InitFromViper(v *viper.Viper) (Options, error) {
 	var p Options
 	p.Enabled = v.GetBool(tenancyEnabled)
 	p.Header = v.GetString(tenancyHeader)
 	p.Tenants = strings.Split(v.GetString(validTenants), ",")
-
-	if p.Enabled && len(p.Tenants) == 0 {
-		return p, fmt.Errorf("%s must have at least one tenant when tenancy is enabled", validTenants)
-	}
 
 	return p, nil
 }

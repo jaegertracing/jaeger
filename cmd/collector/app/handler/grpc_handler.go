@@ -46,14 +46,10 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, t
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	var tenant string
-	if g.tenancyConfig.Enabled {
-		var err error
-		tenant, err = g.validateTenant(ctx)
-		if err != nil {
-			g.logger.Error("rejecting spans (tenancy)", zap.Error(err))
-			return nil, err
-		}
+	tenant, err := g.validateTenant(ctx)
+	if err != nil {
+		g.logger.Error("rejecting spans (tenancy)", zap.Error(err))
+		return nil, err
 	}
 
 	for _, span := range r.GetBatch().Spans {
@@ -61,7 +57,7 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 			span.Process = r.Batch.Process
 		}
 	}
-	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, processor.SpansOptions{
+	_, err = g.spanProcessor.ProcessSpans(r.GetBatch().Spans, processor.SpansOptions{
 		InboundTransport: processor.GRPCTransport,
 		SpanFormat:       processor.ProtoSpanFormat,
 		Tenant:           tenant,
@@ -77,6 +73,10 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 }
 
 func (g *GRPCHandler) validateTenant(ctx context.Context) (string, error) {
+	if !g.tenancyConfig.Enabled {
+		return "", nil
+	}
+
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
@@ -89,7 +89,7 @@ func (g *GRPCHandler) validateTenant(ctx context.Context) (string, error) {
 		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
 	}
 
-	if !g.tenancyConfig.Valid.Valid(tenants[0]) {
+	if !g.tenancyConfig.Valid(tenants[0]) {
 		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
 	}
 

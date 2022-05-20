@@ -67,38 +67,17 @@ func TestTenancyFlags(t *testing.T) {
 				Tenants: []string{"acme"},
 			},
 		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			v := viper.New()
-			command := cobra.Command{}
-			flagSet := &flag.FlagSet{}
-			flagCfg := TenancyFlagsConfig{}
-			flagCfg.AddFlags(flagSet)
-			command.PersistentFlags().AddGoFlagSet(flagSet)
-			v.BindPFlags(command.PersistentFlags())
-
-			err := command.ParseFlags(test.cmd)
-			require.NoError(t, err)
-			tenancyCfg, err := flagCfg.InitFromViper(v)
-			require.NoError(t, err)
-			assert.Equal(t, test.expected, tenancyCfg)
-		})
-	}
-}
-
-// TestFailedTLSFlags verifies that TLS options cannot be used when tls.enabled=false
-func TestInvalidTenancyFlags(t *testing.T) {
-	tests := []struct {
-		name string
-		cmd  []string
-	}{
 		{
-			name: "no tenants",
+			// Not supplying a list of tenants will mean
+			// "tenant header required, but any value will pass"
+			name: "no_tenants",
 			cmd: []string{
 				"--multi_tenancy.enabled=true",
-				"--multi_tenancy.tenants=",
+			},
+			expected: Options{
+				Enabled: true,
+				Header:  "x-tenant",
+				Tenants: []string{""},
 			},
 		},
 	}
@@ -108,15 +87,15 @@ func TestInvalidTenancyFlags(t *testing.T) {
 			v := viper.New()
 			command := cobra.Command{}
 			flagSet := &flag.FlagSet{}
-			flagCfg := TenancyFlagsConfig{}
-			flagCfg.AddFlags(flagSet)
+			AddFlags(flagSet)
 			command.PersistentFlags().AddGoFlagSet(flagSet)
 			v.BindPFlags(command.PersistentFlags())
 
 			err := command.ParseFlags(test.cmd)
 			require.NoError(t, err)
-			_, err = flagCfg.InitFromViper(v)
-			require.Error(t, err)
+			tenancyCfg, err := InitFromViper(v)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, tenancyCfg)
 		})
 	}
 }
