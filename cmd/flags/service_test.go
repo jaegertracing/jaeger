@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossdock/crossdock-go/assert"
-	"github.com/crossdock/crossdock-go/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
