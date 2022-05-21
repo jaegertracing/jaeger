@@ -7,6 +7,8 @@ run:
     - cmd/ingester/app/consumer/mocks
 
 linters-settings:
+  goimports:
+    local-prefixes: github.com/jaegertracing/jaeger
   gosec:
     # To specify a set of rules to explicitly exclude.
     # Available rules: https://github.com/securego/gosec#available-rules
@@ -21,6 +23,7 @@ linters-settings:
 linters:
   enable:
     - gofmt
+    - goimports
     - gosec
     - govet
     - misspell
