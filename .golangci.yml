@@ -23,6 +23,7 @@ linters:
     - gofmt
     - gosec
     - govet
+    - misspell
   disable:
     - errcheck
 
