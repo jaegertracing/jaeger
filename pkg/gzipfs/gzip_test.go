@@ -17,8 +17,8 @@ package gzipfs
 
 import (
 	"embed"
+	"io"
 	"io/fs"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -38,9 +38,11 @@ type mockFile struct {
 func (f *mockFile) Stat() (fs.FileInfo, error) {
 	return nil, f.err
 }
+
 func (f *mockFile) Read([]byte) (int, error) {
 	return 0, f.err
 }
+
 func (f *mockFile) Close() error {
 	return f.err
 }
@@ -59,7 +61,7 @@ func TestFS(t *testing.T) {
 		{
 			name:            "uncompressed file",
 			path:            "testdata/foobar",
-			expectedMode:    0444,
+			expectedMode:    0o444,
 			expectedName:    "foobar",
 			expectedSize:    11,
 			expectedContent: "hello world",
@@ -68,7 +70,7 @@ func TestFS(t *testing.T) {
 		{
 			name:            "compressed file",
 			path:            "testdata/foobar.gz",
-			expectedMode:    0444,
+			expectedMode:    0o444,
 			expectedName:    "foobar.gz",
 			expectedSize:    38,
 			expectedContent: "", // actual gzipped payload is returned
@@ -77,7 +79,7 @@ func TestFS(t *testing.T) {
 		{
 			name:            "compressed file accessed without gz extension",
 			path:            "testdata/foobaz",
-			expectedMode:    0444,
+			expectedMode:    0o444,
 			expectedName:    "foobaz",
 			expectedSize:    11,
 			expectedContent: "hello world",
@@ -126,7 +128,7 @@ func TestFS(t *testing.T) {
 			assert.Equal(t, c.expectedModTime, stat.ModTime())
 			assert.False(t, stat.IsDir())
 			assert.Nil(t, stat.Sys())
-			content, err := ioutil.ReadAll(f)
+			content, err := io.ReadAll(f)
 			require.NoError(t, err)
 			if c.expectedContent != "" {
 				assert.Equal(t, c.expectedContent, string(content))
