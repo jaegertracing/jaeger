@@ -28,9 +28,9 @@ type guard interface {
 
 // Options describes the configuration properties for multitenancy
 type Options struct {
-	Enabled bool     `mapstructure:"enabled"`
-	Header  string   `mapstructure:"header"`
-	Tenants []string `mapstructure:"tenants"`
+	Enabled bool
+	Header  string
+	Tenants []string
 }
 
 // NewTenancyConfig creates a tenancy configuration for tenancy Options
