@@ -77,7 +77,7 @@ func TestTenancyFlags(t *testing.T) {
 			expected: Options{
 				Enabled: true,
 				Header:  "x-tenant",
-				Tenants: []string{""},
+				Tenants: []string{},
 			},
 		},
 	}

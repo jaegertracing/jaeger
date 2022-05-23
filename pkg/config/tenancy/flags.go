@@ -39,7 +39,12 @@ func InitFromViper(v *viper.Viper) (Options, error) {
 	var p Options
 	p.Enabled = v.GetBool(tenancyEnabled)
 	p.Header = v.GetString(tenancyHeader)
-	p.Tenants = strings.Split(v.GetString(validTenants), ",")
+	tenants := v.GetString(validTenants)
+	if len(tenants) != 0 {
+		p.Tenants = strings.Split(tenants, ",")
+	} else {
+		p.Tenants = []string{}
+	}
 
 	return p, nil
 }
