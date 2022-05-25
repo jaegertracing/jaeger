@@ -193,3 +193,64 @@ func TestQueryOptions_FailedTLSFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestQueryOptionsTenancyFromFlags(t *testing.T) {
+	var flagTenantCases = []struct {
+		name            string
+		flagsArray      []string
+		expectedTenancy bool
+		expectedHeader  string
+		expectedTenants []string
+	}{
+		{
+			// Default behavior
+			name:            "No tenancy flags specified",
+			flagsArray:      []string{},
+			expectedTenancy: false,
+		},
+		{
+			name: "simple tenancy",
+			flagsArray: []string{
+				"--multi_tenancy.enabled=true",
+			},
+			expectedTenancy: true,
+			expectedHeader:  "x-tenant",
+			expectedTenants: []string{},
+		},
+		{
+			name: "restricted tenant list",
+			flagsArray: []string{
+				"--multi_tenancy.enabled=true",
+				"--multi_tenancy.tenants=acme,hardware-store",
+			},
+			expectedTenancy: true,
+			expectedHeader:  "x-tenant",
+			expectedTenants: []string{"acme", "hardware-store"},
+		},
+		{
+			name: "custom tenancy header",
+			flagsArray: []string{
+				"--multi_tenancy.enabled=true",
+				"--multi_tenancy.header=custom-tenant-header",
+			},
+			expectedTenancy: true,
+			expectedHeader:  "custom-tenant-header",
+			expectedTenants: []string{},
+		},
+	}
+
+	for _, test := range flagTenantCases {
+		t.Run(test.name, func(t *testing.T) {
+			v, command := config.Viperize(AddFlags)
+			command.ParseFlags(test.flagsArray)
+			qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			require.NoError(t, err)
+
+			assert.Equal(t, test.expectedTenancy, qOpts.Tenancy.Enabled)
+			if test.expectedTenancy {
+				assert.Equal(t, test.expectedHeader, qOpts.Tenancy.Header)
+				assert.Equal(t, test.expectedTenants, qOpts.Tenancy.Tenants)
+			}
+		})
+	}
+}

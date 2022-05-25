@@ -30,6 +30,7 @@ import (
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
@@ -154,7 +155,8 @@ func (aH *APIHandler) route(route string, args ...interface{}) string {
 }
 
 func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
-	services, err := aH.queryService.GetServices(r.Context())
+	ctx := contextWithMetadata(r.Context(), r.Header)
+	services, err := aH.queryService.GetServices(ctx)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -170,7 +172,8 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
 	service, _ := url.QueryUnescape(vars[serviceParam])
 	// for backwards compatibility, we will retrieve operations with all span kind
-	operations, err := aH.queryService.GetOperations(r.Context(),
+	ctx := contextWithMetadata(r.Context(), r.Header)
+	operations, err := aH.queryService.GetOperations(ctx,
 		spanstore.OperationQueryParameters{
 			ServiceName: service,
 			// include all kinds
@@ -197,7 +200,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	}
 	spanKind := r.FormValue(spanKindParam)
 	operations, err := aH.queryService.GetOperations(
-		r.Context(),
+		contextWithMetadata(r.Context(), r.Header),
 		spanstore.OperationQueryParameters{ServiceName: service, SpanKind: spanKind},
 	)
 
@@ -227,12 +230,14 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	var uiErrors []structuredError
 	var tracesFromStorage []*model.Trace
 	if len(tQuery.traceIDs) > 0 {
-		tracesFromStorage, uiErrors, err = aH.tracesByIDs(r.Context(), tQuery.traceIDs)
+		cxt := contextWithMetadata(r.Context(), r.Header)
+		tracesFromStorage, uiErrors, err = aH.tracesByIDs(cxt, tQuery.traceIDs)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
 		}
 	} else {
-		tracesFromStorage, err = aH.queryService.FindTraces(r.Context(), &tQuery.TraceQueryParameters)
+		cxt := contextWithMetadata(r.Context(), r.Header)
+		tracesFromStorage, err = aH.queryService.FindTraces(cxt, &tQuery.TraceQueryParameters)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
 		}
@@ -280,7 +285,8 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	}
 	service := r.FormValue(serviceParam)
 
-	dependencies, err := aH.queryService.GetDependencies(r.Context(), dqp.endTs, dqp.lookback)
+	ctx := contextWithMetadata(r.Context(), r.Header)
+	dependencies, err := aH.queryService.GetDependencies(ctx, dqp.endTs, dqp.lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -421,7 +427,8 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	trace, err := aH.queryService.GetTrace(r.Context(), traceID)
+	ctx := contextWithMetadata(r.Context(), r.Header)
+	trace, err := aH.queryService.GetTrace(ctx, traceID)
 	if err == spanstore.ErrTraceNotFound {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
@@ -460,7 +467,8 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// QueryService.ArchiveTrace can now archive this traceID.
-	err := aH.queryService.ArchiveTrace(r.Context(), traceID)
+	ctx := contextWithMetadata(r.Context(), r.Header)
+	err := aH.queryService.ArchiveTrace(ctx, traceID)
 	if err == spanstore.ErrTraceNotFound {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
@@ -515,4 +523,17 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 	if err := marshal(w, response); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
 	}
+}
+
+// contextWithMetadata creates a context that combines metadata from the original
+// context with all of the HTTP headers.
+func contextWithMetadata(ctx context.Context, hdr http.Header) context.Context {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		md = metadata.New(map[string]string{})
+	}
+	for k, v := range hdr {
+		md.Set(k, v...)
+	}
+	return metadata.NewIncomingContext(ctx, md)
 }

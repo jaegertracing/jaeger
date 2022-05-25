@@ -866,3 +866,38 @@ func execJSON(req *http.Request, out interface{}) error {
 func parsedError(code int, err string) string {
 	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
 }
+
+/** @@@ ecs TODO uncomment
+func initializeTestServerWithTenancy(tenancyOptions *tenancy.Options, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
+	readStorage := tenancy.NewGuardedSpanReader(&spanstoremocks.Reader{}, tenancyOptions)
+	dependencyStorage := tenancy.NewGuardedDependencyReader(&depsmocks.Reader{}, tenancyOptions)
+	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
+	r := NewRouter()
+	handler := NewAPIHandler(qs, options...)
+	handler.RegisterRoutes(r)
+	return &testServer{
+		server:           httptest.NewServer(r),
+		spanReader:       readStorage,
+		dependencyReader: dependencyStorage,
+		handler:          handler,
+	}
+}
+
+func TestSearchTenancy(t *testing.T) {
+	tenancyOptions := tenancy.Options{
+		Enabled: true,
+	}
+	ts := initializeTestServerWithTenancy(&tenancyOptions, querysvc.QueryServiceOptions{})
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Twice()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	assert.Error(t, err)
+	assert.Len(t, response.Errors, 1)
+	assert.Len(t, response.Data, 0)
+
+	// @@@ TODO a second GET with X-Tenant header
+}
+*/

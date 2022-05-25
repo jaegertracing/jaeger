@@ -116,3 +116,39 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 	assert.Equal(t, 5*time.Minute, c.CollectorGRPCMaxConnectionAge)
 	assert.Equal(t, time.Minute, c.CollectorGRPCMaxConnectionAgeGrace)
 }
+
+func TestCollectorOptionsWithFlags_CheckNoTenancy(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{})
+	c.InitFromViper(v)
+
+	assert.Equal(t, false, c.Tenancy.Enabled)
+}
+
+func TestCollectorOptionsWithFlags_CheckSimpleTenancy(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--multi_tenancy.enabled=true",
+	})
+	c.InitFromViper(v)
+
+	assert.Equal(t, true, c.Tenancy.Enabled)
+	assert.Equal(t, "x-tenant", c.Tenancy.Header)
+}
+
+func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--multi_tenancy.enabled=true",
+		"--multi_tenancy.header=custom-tenant-header",
+		"--multi_tenancy.tenants=acme,hardware-store",
+	})
+	c.InitFromViper(v)
+
+	assert.Equal(t, true, c.Tenancy.Enabled)
+	assert.Equal(t, "custom-tenant-header", c.Tenancy.Header)
+	assert.Equal(t, []string{"acme", "hardware-store"}, c.Tenancy.Tenants)
+}

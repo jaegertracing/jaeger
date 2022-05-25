@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -112,6 +113,11 @@ func main() {
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
+			}
+
+			if queryOpts.Tenancy.Enabled {
+				spanReader = tenancy.NewGuardedSpanReader(spanReader, &queryOpts.Tenancy)
+				dependencyReader = tenancy.NewGuardedDependencyReader(dependencyReader, &queryOpts.Tenancy)
 			}
 
 			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, metricsFactory)

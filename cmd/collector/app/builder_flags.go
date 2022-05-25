@@ -145,5 +145,11 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) (*CollectorOptions,
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
 
+	if tenancy, err := tenancy.InitFromViper(v); err == nil {
+		cOpts.Tenancy = tenancy
+	} else {
+		return cOpts, fmt.Errorf("failed to parse Tenancy options: %w", err)
+	}
+
 	return cOpts, nil
 }

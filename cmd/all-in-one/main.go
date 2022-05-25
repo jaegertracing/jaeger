@@ -44,6 +44,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -267,6 +268,12 @@ func startQuery(
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
 ) *queryApp.Server {
+	fmt.Printf("@@@ ecs REACHED startQuery, tenancy is %v\n", qOpts.Tenancy.Enabled)
+	if qOpts.Tenancy.Enabled {
+		spanReader = tenancy.NewGuardedSpanReader(spanReader, &qOpts.Tenancy)
+		depReader = tenancy.NewGuardedDependencyReader(depReader, &qOpts.Tenancy)
+	}
+
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, opentracing.GlobalTracer())
