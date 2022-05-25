@@ -16,8 +16,6 @@ package tenancy
 
 import (
 	"context"
-	"fmt"
-	"runtime/debug"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -127,6 +125,10 @@ func tenancyGuardFactory(options *Options) guard {
 }
 
 func NewGuardedSpanReader(reader spanstore.Reader, options *Options) spanstore.Reader {
+	if options.Header == "" {
+		// options.Header defaults to "x-tenant" in the CLI; this defaults for tests
+		options.Header = "x-tenant"
+	}
 	return &guardedSpanstoreReader{
 		tenancyHeader: options.Header,
 		guard:         tenancyGuardFactory(options),
@@ -134,7 +136,6 @@ func NewGuardedSpanReader(reader spanstore.Reader, options *Options) spanstore.R
 	}
 }
 
-// @@@ ecs TODO refactor validateTenant
 func TenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
 	tenants := md.Get(tenancyHeader)
 	if len(tenants) < 1 {
@@ -150,17 +151,13 @@ func ensureTenant(ctx context.Context, tenancyHeader string) (string, context.Co
 	tenant := storage.GetTenant(ctx)
 	// The tenant might be in either directly in the context or through the metadata
 	if tenant == "" {
-		fmt.Printf("@@@ ecs ensureTenant found no context tenant, checking metadata\n")
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
-			fmt.Printf("@@@ ecs ensureTenant NO METADATA\n")
 			return "", ctx, status.Errorf(codes.PermissionDenied, "missing tenant header")
 		}
-		fmt.Printf("@@@ ecs ensureTenant found metadata\n")
 
 		var err error
 		tenant, err = TenantFromMetadata(md, tenancyHeader)
-		fmt.Printf("@@@ ecs ensureTenant value of header %s is %q\n", tenancyHeader, tenant)
 		if err != nil {
 			return "", ctx, err
 		}
@@ -199,22 +196,11 @@ func (gsr *guardedSpanstoreReader) GetOperations(ctx context.Context, query span
 }
 
 func (gsr *guardedSpanstoreReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	fmt.Printf("@@@ ecs REACHED gsr.FindTraces, ctx is %#v, a %T\n", ctx, ctx)
-	if _, ok := metadata.FromIncomingContext(ctx); ok {
-		fmt.Printf("@@@ ecs REACHED gsr.FindTraces, ctx has incoming metadata\n")
-	}
-	if _, ok := metadata.FromOutgoingContext(ctx); ok {
-		fmt.Printf("@@@ ecs REACHED gsr.FindTraces, ctx has outgoing metadata\n")
-	}
-	debug.PrintStack()
-
 	tenant, tenantedCtx, err := ensureTenant(ctx, gsr.tenancyHeader)
 	if !gsr.guard.Valid(tenant) {
-		fmt.Printf("@@@ ecs REACHED gsr.FindTraces(): tenant %q is NOT VALID\n", tenant)
 		return nil, err
 	}
 
-	fmt.Printf("@@@ ecs REACHED gsr.FindTraces(): tenant %q is VALID\n", tenant)
 	return gsr.reader.FindTraces(tenantedCtx, query)
 
 }
@@ -239,6 +225,10 @@ func (gsr *guardedDependencystoreReader) GetDependencies(ctx context.Context, en
 }
 
 func NewGuardedDependencyReader(reader dependencystore.Reader, options *Options) dependencystore.Reader {
+	if options.Header == "" {
+		// options.Header defaults to "x-tenant" in the CLI; this defaults for tests
+		options.Header = "x-tenant"
+	}
 	return &guardedDependencystoreReader{
 		tenancyHeader: options.Header,
 		guard:         tenancyGuardFactory(options),

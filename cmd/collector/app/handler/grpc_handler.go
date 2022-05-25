@@ -82,16 +82,5 @@ func (g *GRPCHandler) validateTenant(ctx context.Context) (string, error) {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	}
 
-	tenants := md[g.tenancyConfig.Header]
-	if len(tenants) < 1 {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
-	} else if len(tenants) > 1 {
-		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
-	}
-
-	if !g.tenancyConfig.Valid(tenants[0]) {
-		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
-	}
-
-	return tenants[0], nil
+	return tenancy.TenantFromMetadata(md, g.tenancyConfig.Header)
 }

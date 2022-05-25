@@ -268,7 +268,6 @@ func startQuery(
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
 ) *queryApp.Server {
-	fmt.Printf("@@@ ecs REACHED startQuery, tenancy is %v\n", qOpts.Tenancy.Enabled)
 	if qOpts.Tenancy.Enabled {
 		spanReader = tenancy.NewGuardedSpanReader(spanReader, &qOpts.Tenancy)
 		depReader = tenancy.NewGuardedDependencyReader(depReader, &qOpts.Tenancy)

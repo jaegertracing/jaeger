@@ -42,6 +42,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -809,11 +810,15 @@ func TestGetMinStep(t *testing.T) {
 
 // getJSON fetches a JSON document from a server via HTTP GET
 func getJSON(url string, out interface{}) error {
+	return getJSONCustomHeaders(url, make(map[string]string), out)
+}
+
+func getJSONCustomHeaders(url string, additionalHeaders map[string]string, out interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
-	return execJSON(req, out)
+	return execJSON(req, additionalHeaders, out)
 }
 
 // postJSON submits a JSON document to a server via HTTP POST and parses response as JSON.
@@ -827,12 +832,15 @@ func postJSON(url string, req interface{}, out interface{}) error {
 	if err != nil {
 		return err
 	}
-	return execJSON(r, out)
+	return execJSON(r, make(map[string]string), out)
 }
 
 // execJSON executes an http request against a server and parses response as JSON
-func execJSON(req *http.Request, out interface{}) error {
+func execJSON(req *http.Request, additionalHeaders map[string]string, out interface{}) error {
 	req.Header.Add("Accept", "application/json")
+	for k, v := range additionalHeaders {
+		req.Header.Add(k, v)
+	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -867,18 +875,19 @@ func parsedError(code int, err string) string {
 	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
 }
 
-/** @@@ ecs TODO uncomment
 func initializeTestServerWithTenancy(tenancyOptions *tenancy.Options, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
-	readStorage := tenancy.NewGuardedSpanReader(&spanstoremocks.Reader{}, tenancyOptions)
-	dependencyStorage := tenancy.NewGuardedDependencyReader(&depsmocks.Reader{}, tenancyOptions)
+	mockSpanStore := &spanstoremocks.Reader{}
+	mockDepStore := &depsmocks.Reader{}
+	readStorage := tenancy.NewGuardedSpanReader(mockSpanStore, tenancyOptions)
+	dependencyStorage := tenancy.NewGuardedDependencyReader(mockDepStore, tenancyOptions)
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
 	r := NewRouter()
 	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
 	return &testServer{
 		server:           httptest.NewServer(r),
-		spanReader:       readStorage,
-		dependencyReader: dependencyStorage,
+		spanReader:       mockSpanStore,
+		dependencyReader: mockDepStore,
 		handler:          handler,
 	}
 }
@@ -890,14 +899,19 @@ func TestSearchTenancy(t *testing.T) {
 	ts := initializeTestServerWithTenancy(&tenancyOptions, querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(nil, spanstore.ErrTraceNotFound).Twice()
+		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
 	assert.Error(t, err)
-	assert.Len(t, response.Errors, 1)
-	assert.Len(t, response.Data, 0)
+	assert.Len(t, response.Errors, 0)
+	assert.Nil(t, response.Data)
 
-	// @@@ TODO a second GET with X-Tenant header
+	err = getJSONCustomHeaders(
+		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
+		map[string]string{"x-tenant": "acme"},
+		&response)
+	assert.NoError(t, err)
+	assert.Len(t, response.Errors, 0)
+	assert.Len(t, response.Data, 2)
 }
-*/
