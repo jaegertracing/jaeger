@@ -97,7 +97,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 			}
-			c := app.New(&app.CollectorParams{
+			collector := app.New(&app.CollectorParams{
 				ServiceName:    serviceName,
 				Logger:         logger,
 				MetricsFactory: metricsFactory,
@@ -110,12 +110,13 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
-			if err := c.Start(collectorOpts); err != nil {
+			// Start all Collector services
+			if err := collector.Start(collectorOpts); err != nil {
 				logger.Fatal("Failed to start collector", zap.Error(err))
 			}
-
+			// Wait for shutfown
 			svc.RunAndThen(func() {
-				if err := c.Close(); err != nil {
+				if err := collector.Close(); err != nil {
 					logger.Error("failed to cleanly close the collector", zap.Error(err))
 				}
 				if closer, ok := spanWriter.(io.Closer); ok {
