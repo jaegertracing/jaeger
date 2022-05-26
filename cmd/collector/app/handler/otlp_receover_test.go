@@ -18,8 +18,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestOtlpReceiver(t *testing.T) {
