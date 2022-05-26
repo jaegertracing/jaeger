@@ -21,25 +21,27 @@ import (
 )
 
 const (
-	indexPrefix   = "index-prefix"
-	archive       = "archive"
-	username      = "es.username"
-	password      = "es.password"
-	useILM        = "es.use-ilm"
-	ilmPolicyName = "es.ilm-policy-name"
-	timeout       = "timeout"
+	indexPrefix      = "index-prefix"
+	archive          = "archive"
+	username         = "es.username"
+	password         = "es.password"
+	useILM           = "es.use-ilm"
+	ilmPolicyName    = "es.ilm-policy-name"
+	timeout          = "timeout"
+	skipDependencies = "skip-dependencies"
 )
 
 // Config holds the global configurations for the es rollover, common to all actions
 type Config struct {
-	IndexPrefix   string
-	Archive       bool
-	Username      string
-	Password      string
-	TLSEnabled    bool
-	ILMPolicyName string
-	UseILM        bool
-	Timeout       int
+	IndexPrefix      string
+	Archive          bool
+	Username         string
+	Password         string
+	TLSEnabled       bool
+	ILMPolicyName    string
+	UseILM           bool
+	Timeout          int
+	SkipDependencies bool
 }
 
 // AddFlags adds flags
@@ -51,6 +53,8 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(useILM, false, "Use ILM to manage jaeger indices")
 	flags.String(ilmPolicyName, "jaeger-ilm-policy", "The name of the ILM policy to use if ILM is active")
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
+	flags.Bool(skipDependencies, false, "Disable rollover for dependencies index")
+
 }
 
 // InitFromViper initializes config from viper.Viper.

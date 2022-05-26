@@ -30,7 +30,7 @@ type Action struct {
 
 // Do the rollover action
 func (a *Action) Do() error {
-	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := a.rollover(indexName); err != nil {
 			return err
