@@ -34,9 +34,9 @@ func TestCollectorOptionsWithFlags_CheckHostPort(t *testing.T) {
 	})
 	c.InitFromViper(v)
 
-	assert.Equal(t, ":5678", c.CollectorHTTPHostPort)
-	assert.Equal(t, ":1234", c.CollectorGRPCHostPort)
-	assert.Equal(t, ":3456", c.CollectorZipkinHTTPHostPort)
+	assert.Equal(t, ":5678", c.HTTP.HostPort)
+	assert.Equal(t, ":1234", c.GRPC.HostPort)
+	assert.Equal(t, ":3456", c.Zipkin.HTTPHostPort)
 }
 
 func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
@@ -49,9 +49,9 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	})
 	c.InitFromViper(v)
 
-	assert.Equal(t, ":5678", c.CollectorHTTPHostPort)
-	assert.Equal(t, "127.0.0.1:1234", c.CollectorGRPCHostPort)
-	assert.Equal(t, "0.0.0.0:3456", c.CollectorZipkinHTTPHostPort)
+	assert.Equal(t, ":5678", c.HTTP.HostPort)
+	assert.Equal(t, "127.0.0.1:1234", c.GRPC.HostPort)
+	assert.Equal(t, "0.0.0.0:3456", c.Zipkin.HTTPHostPort)
 }
 
 func TestCollectorOptionsWithFailedHTTPFlags(t *testing.T) {
@@ -101,7 +101,7 @@ func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 	})
 	c.InitFromViper(v)
 
-	assert.Equal(t, 8388608, c.CollectorGRPCMaxReceiveMessageLength)
+	assert.Equal(t, 8388608, c.GRPC.MaxReceiveMessageLength)
 }
 
 func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
@@ -113,6 +113,6 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 	})
 	c.InitFromViper(v)
 
-	assert.Equal(t, 5*time.Minute, c.CollectorGRPCMaxConnectionAge)
-	assert.Equal(t, time.Minute, c.CollectorGRPCMaxConnectionAgeGrace)
+	assert.Equal(t, 5*time.Minute, c.GRPC.MaxConnectionAge)
+	assert.Equal(t, time.Minute, c.GRPC.MaxConnectionAgeGrace)
 }

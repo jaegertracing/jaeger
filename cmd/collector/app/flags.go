@@ -62,32 +62,41 @@ type CollectorOptions struct {
 	QueueSize int
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
-	// CollectorHTTPHostPort is the host:port address that the collector service listens in on for http requests
-	CollectorHTTPHostPort string
-	// CollectorGRPCHostPort is the host:port address that the collector service listens in on for gRPC requests
-	CollectorGRPCHostPort string
-	// TLSGRPC configures secure transport for gRPC endpoint to collect spans
-	TLSGRPC tlscfg.Options
-	// TLSHTTP configures secure transport for HTTP endpoint to collect spans
-	TLSHTTP tlscfg.Options
-	// TLSZipkin configures secure transport for Zipkin endpoint to collect spans
-	TLSZipkin tlscfg.Options
+	// HTTP section defines options for HTTP server
+	HTTP struct {
+		// HostPort is the host:port address that the collector service listens in on for http requests
+		HostPort string
+		// TLS configures secure transport for HTTP endpoint to collect spans
+		TLS tlscfg.Options
+	}
+	// GRPC section defines options for gRPC server
+	GRPC struct {
+		// HostPort is the host:port address that the collector service listens in on for gRPC requests
+		HostPort string
+		// TLS configures secure transport for gRPC endpoint to collect spans
+		TLS tlscfg.Options
+		// MaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
+		MaxReceiveMessageLength int
+		// MaxConnectionAge is a duration for the maximum amount of time a connection may exist.
+		// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
+		MaxConnectionAge time.Duration
+		// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
+		// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
+		MaxConnectionAgeGrace time.Duration
+	}
+	// Zipkin section defines options for Zipkin HTTP server
+	Zipkin struct {
+		// HTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
+		HTTPHostPort string
+		// ZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
+		AllowedOrigins string
+		// ZipkinAllowedHeaders is a list of headers that the Zipkin collector service allowes the client to use with cross-domain requests
+		AllowedHeaders string
+		// TLS configures secure transport for Zipkin endpoint to collect spans
+		TLS tlscfg.Options
+	}
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
-	// CollectorZipkinHTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
-	CollectorZipkinHTTPHostPort string
-	// CollectorZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
-	CollectorZipkinAllowedOrigins string
-	// CollectorZipkinAllowedHeaders is a list of headers that the Zipkin collector service allowes the client to use with cross-domain requests
-	CollectorZipkinAllowedHeaders string
-	// CollectorGRPCMaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
-	CollectorGRPCMaxReceiveMessageLength int
-	// CollectorGRPCMaxConnectionAge is a duration for the maximum amount of time a connection may exist.
-	// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
-	CollectorGRPCMaxConnectionAge time.Duration
-	// CollectorGRPCMaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
-	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
-	CollectorGRPCMaxConnectionAgeGrace time.Duration
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -112,33 +121,33 @@ func AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes CollectorOptions with properties from viper
 func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) (*CollectorOptions, error) {
-	cOpts.CollectorGRPCHostPort = ports.FormatHostPort(v.GetString(collectorGRPCHostPort))
-	cOpts.CollectorHTTPHostPort = ports.FormatHostPort(v.GetString(collectorHTTPHostPort))
-	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
-	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
-	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
-	cOpts.CollectorZipkinHTTPHostPort = ports.FormatHostPort(v.GetString(collectorZipkinHTTPHostPort))
-	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
-	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.QueueSize = v.GetInt(collectorQueueSize)
-	cOpts.CollectorGRPCMaxReceiveMessageLength = v.GetInt(collectorGRPCMaxReceiveMessageLength)
-	cOpts.CollectorGRPCMaxConnectionAge = v.GetDuration(collectorMaxConnectionAge)
-	cOpts.CollectorGRPCMaxConnectionAgeGrace = v.GetDuration(collectorMaxConnectionAgeGrace)
+	cOpts.GRPC.HostPort = ports.FormatHostPort(v.GetString(collectorGRPCHostPort))
+	cOpts.GRPC.MaxReceiveMessageLength = v.GetInt(collectorGRPCMaxReceiveMessageLength)
+	cOpts.GRPC.MaxConnectionAge = v.GetDuration(collectorMaxConnectionAge)
+	cOpts.GRPC.MaxConnectionAgeGrace = v.GetDuration(collectorMaxConnectionAgeGrace)
 	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
-		cOpts.TLSGRPC = tlsGrpc
+		cOpts.GRPC.TLS = tlsGrpc
 	} else {
 		return cOpts, fmt.Errorf("failed to parse gRPC TLS options: %w", err)
 	}
+	cOpts.HTTP.HostPort = ports.FormatHostPort(v.GetString(collectorHTTPHostPort))
 	if tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v); err == nil {
-		cOpts.TLSHTTP = tlsHTTP
+		cOpts.HTTP.TLS = tlsHTTP
 	} else {
 		return cOpts, fmt.Errorf("failed to parse HTTP TLS options: %w", err)
 	}
+	cOpts.Zipkin.AllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
+	cOpts.Zipkin.AllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
+	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(collectorZipkinHTTPHostPort))
 	if tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v); err == nil {
-		cOpts.TLSZipkin = tlsZipkin
+		cOpts.Zipkin.TLS = tlsZipkin
 	} else {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
+	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
+	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
+	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
+	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 
 	return cOpts, nil
 }

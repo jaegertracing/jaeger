@@ -172,7 +172,7 @@ by default uses only in-memory database.`,
 			// agent
 			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
 			if len(grpcBuilder.CollectorHostPorts) == 0 {
-				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCHostPort)
+				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.GRPC.HostPort)
 			}
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{

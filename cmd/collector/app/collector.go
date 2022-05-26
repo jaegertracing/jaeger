@@ -79,10 +79,10 @@ func New(params *CollectorParams) *Collector {
 }
 
 // Start the component and underlying dependencies
-func (c *Collector) Start(builderOpts *CollectorOptions) error {
+func (c *Collector) Start(options *CollectorOptions) error {
 	handlerBuilder := &SpanHandlerBuilder{
 		SpanWriter:     c.spanWriter,
-		CollectorOpts:  *builderOpts,
+		CollectorOpts:  *options,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
 	}
@@ -96,14 +96,14 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		HostPort:                builderOpts.CollectorGRPCHostPort,
+		HostPort:                options.GRPC.HostPort,
 		Handler:                 c.spanHandlers.GRPCHandler,
-		TLSConfig:               builderOpts.TLSGRPC,
+		TLSConfig:               options.GRPC.TLS,
 		SamplingStore:           c.strategyStore,
 		Logger:                  c.logger,
-		MaxReceiveMessageLength: builderOpts.CollectorGRPCMaxReceiveMessageLength,
-		MaxConnectionAge:        builderOpts.CollectorGRPCMaxConnectionAge,
-		MaxConnectionAgeGrace:   builderOpts.CollectorGRPCMaxConnectionAgeGrace,
+		MaxReceiveMessageLength: options.GRPC.MaxReceiveMessageLength,
+		MaxConnectionAge:        options.GRPC.MaxConnectionAge,
+		MaxConnectionAgeGrace:   options.GRPC.MaxConnectionAgeGrace,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC collector %w", err)
@@ -111,9 +111,9 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	c.grpcServer = grpcServer
 
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		HostPort:       builderOpts.CollectorHTTPHostPort,
+		HostPort:       options.HTTP.HostPort,
 		Handler:        c.spanHandlers.JaegerBatchesHandler,
-		TLSConfig:      builderOpts.TLSHTTP,
+		TLSConfig:      options.HTTP.TLS,
 		HealthCheck:    c.hCheck,
 		MetricsFactory: c.metricsFactory,
 		SamplingStore:  c.strategyStore,
@@ -124,16 +124,16 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 	c.hServer = httpServer
 
-	c.tlsGRPCCertWatcherCloser = &builderOpts.TLSGRPC
-	c.tlsHTTPCertWatcherCloser = &builderOpts.TLSHTTP
-	c.tlsZipkinCertWatcherCloser = &builderOpts.TLSZipkin
+	c.tlsGRPCCertWatcherCloser = &options.GRPC.TLS
+	c.tlsHTTPCertWatcherCloser = &options.HTTP.TLS
+	c.tlsZipkinCertWatcherCloser = &options.Zipkin.TLS
 	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
-		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
+		HostPort:       options.Zipkin.HTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
-		TLSConfig:      builderOpts.TLSZipkin,
+		TLSConfig:      options.Zipkin.TLS,
 		HealthCheck:    c.hCheck,
-		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
-		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
+		AllowedHeaders: options.Zipkin.AllowedHeaders,
+		AllowedOrigins: options.Zipkin.AllowedOrigins,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
 	})
@@ -142,7 +142,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 	c.zkServer = zkServer
 
-	c.publishOpts(builderOpts)
+	c.publishOpts(options)
 
 	return nil
 }
