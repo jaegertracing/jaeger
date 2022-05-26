@@ -96,14 +96,14 @@ func (c *Collector) Start(options *CollectorOptions) error {
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		HostPort:                options.GRPCHostPort,
+		HostPort:                options.GRPC.HostPort,
 		Handler:                 c.spanHandlers.GRPCHandler,
-		TLSConfig:               options.TLSGRPC,
+		TLSConfig:               options.GRPC.TLS,
 		SamplingStore:           c.strategyStore,
 		Logger:                  c.logger,
-		MaxReceiveMessageLength: options.GRPCMaxReceiveMessageLength,
-		MaxConnectionAge:        options.GRPCMaxConnectionAge,
-		MaxConnectionAgeGrace:   options.GRPCMaxConnectionAgeGrace,
+		MaxReceiveMessageLength: options.GRPC.MaxReceiveMessageLength,
+		MaxConnectionAge:        options.GRPC.MaxConnectionAge,
+		MaxConnectionAgeGrace:   options.GRPC.MaxConnectionAgeGrace,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC collector %w", err)
@@ -111,9 +111,9 @@ func (c *Collector) Start(options *CollectorOptions) error {
 	c.grpcServer = grpcServer
 
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		HostPort:       options.HTTPHostPort,
+		HostPort:       options.HTTP.HostPort,
 		Handler:        c.spanHandlers.JaegerBatchesHandler,
-		TLSConfig:      options.TLSHTTP,
+		TLSConfig:      options.HTTP.TLS,
 		HealthCheck:    c.hCheck,
 		MetricsFactory: c.metricsFactory,
 		SamplingStore:  c.strategyStore,
@@ -124,16 +124,16 @@ func (c *Collector) Start(options *CollectorOptions) error {
 	}
 	c.hServer = httpServer
 
-	c.tlsGRPCCertWatcherCloser = &options.TLSGRPC
-	c.tlsHTTPCertWatcherCloser = &options.TLSHTTP
-	c.tlsZipkinCertWatcherCloser = &options.TLSZipkin
+	c.tlsGRPCCertWatcherCloser = &options.GRPC.TLS
+	c.tlsHTTPCertWatcherCloser = &options.HTTP.TLS
+	c.tlsZipkinCertWatcherCloser = &options.Zipkin.TLS
 	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
-		HostPort:       options.ZipkinHTTPHostPort,
+		HostPort:       options.Zipkin.HTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
-		TLSConfig:      options.TLSZipkin,
+		TLSConfig:      options.Zipkin.TLS,
 		HealthCheck:    c.hCheck,
-		AllowedHeaders: options.ZipkinAllowedHeaders,
-		AllowedOrigins: options.ZipkinAllowedOrigins,
+		AllowedHeaders: options.Zipkin.AllowedHeaders,
+		AllowedOrigins: options.Zipkin.AllowedOrigins,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
 	})
