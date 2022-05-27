@@ -109,7 +109,7 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		MaxConnectionAgeGrace:   options.GRPC.MaxConnectionAgeGrace,
 	})
 	if err != nil {
-		return fmt.Errorf("could not start gRPC collector: %w", err)
+		return fmt.Errorf("could not start gRPC server: %w", err)
 	}
 	c.grpcServer = grpcServer
 
@@ -123,7 +123,7 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		Logger:         c.logger,
 	})
 	if err != nil {
-		return fmt.Errorf("could not start the HTTP server: %w", err)
+		return fmt.Errorf("could not start HTTP server: %w", err)
 	}
 	c.hServer = httpServer
 
@@ -141,7 +141,7 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		MetricsFactory: c.metricsFactory,
 	})
 	if err != nil {
-		return fmt.Errorf("could not start the Zipkin server: %w", err)
+		return fmt.Errorf("could not start Zipkin server: %w", err)
 	}
 	c.zkServer = zkServer
 
@@ -154,7 +154,7 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		c.spanProcessor,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not start OTLP server: %w", err)
 	}
 	c.otlpReceiver = otlpReceiver
 
@@ -171,12 +171,12 @@ func (c *Collector) publishOpts(cOpts *CollectorOptions) {
 
 // Close the component and all its underlying dependencies
 func (c *Collector) Close() error {
-	// gRPC server
+	// Stop gRPC server
 	if c.grpcServer != nil {
 		c.grpcServer.GracefulStop()
 	}
 
-	// HTTP server
+	// Stop HTTP server
 	if c.hServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := c.hServer.Shutdown(timeout); err != nil {
@@ -185,7 +185,7 @@ func (c *Collector) Close() error {
 		defer cancel()
 	}
 
-	// Zipkin server
+	// Stop Zipkin server
 	if c.zkServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := c.zkServer.Shutdown(timeout); err != nil {
@@ -194,7 +194,7 @@ func (c *Collector) Close() error {
 		defer cancel()
 	}
 
-	// OpenTelemetry OTLP receiver
+	// Stop OpenTelemetry OTLP receiver
 	if c.otlpReceiver != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := c.otlpReceiver.Shutdown(timeout); err != nil {
