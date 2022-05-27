@@ -145,7 +145,14 @@ func (c *Collector) Start(options *CollectorOptions) error {
 	}
 	c.zkServer = zkServer
 
-	otlpReceiver, err := handler.StartOtelReceiver(c.logger, c.spanProcessor)
+	otlpReceiver, err := handler.StartOtelReceiver(
+		handler.OtelReceiverOptions{
+			GRPCHostPort: options.OTLP.GRPCHostPort,
+			HTTPHostPort: options.OTLP.HTTPHostPort,
+		},
+		c.logger,
+		c.spanProcessor,
+	)
 	if err != nil {
 		return err
 	}

@@ -60,6 +60,8 @@ const (
 	ZipkinSpanFormat SpanFormat = "zipkin"
 	// ProtoSpanFormat is for Jaeger protobuf Spans.
 	ProtoSpanFormat SpanFormat = "proto"
+	// OTLPSpanFormat is for OpenTelemetry OTLP format.
+	OTLPSpanFormat SpanFormat = "otlp"
 	// UnknownSpanFormat is the fallback/catch-all category.
 	UnknownSpanFormat SpanFormat = "unknown"
 )

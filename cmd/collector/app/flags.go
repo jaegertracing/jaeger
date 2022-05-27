@@ -84,6 +84,11 @@ type CollectorOptions struct {
 		// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
 		MaxConnectionAgeGrace time.Duration
 	}
+	// OTLP section defines options for servers accepting OpenTelemetry OTLP format
+	OTLP struct {
+		GRPCHostPort string
+		HTTPHostPort string
+	}
 	// Zipkin section defines options for Zipkin HTTP server
 	Zipkin struct {
 		// HTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests

@@ -29,64 +29,84 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-// A delegation function to assist in tests, because ProtoFromTraces never returns errors despite its API.
-var protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error) = otlp2jaeger.ProtoFromTraces
+// // A delegation function to assist in tests, because ProtoFromTraces never returns errors despite its API.
+// var protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error) = otlp2jaeger.ProtoFromTraces
 
 var _ component.Host = (*otelHost)(nil) // API check
 
+// OtelReceiverOptions allows configuration of the receiver.
 type OtelReceiverOptions struct {
-	GRPCAddress string
-	HTTPAddress string
+	GRPCHostPort string
+	HTTPHostPort string
 }
 
 // StartOtelReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
-func StartOtelReceiver(logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
+func StartOtelReceiver(options OtelReceiverOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
 	otlpFactory := otlpreceiver.NewFactory()
-	otlpReceiverConfig := otlpFactory.CreateDefaultConfig()
+	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+	if options.GRPCHostPort != "" {
+		otlpReceiverConfig.GRPC.NetAddr.Endpoint = options.GRPCHostPort
+	}
+	if options.HTTPHostPort != "" {
+		otlpReceiverConfig.HTTP.Endpoint = options.HTTPHostPort
+	}
 	otlpReceiverSettings := component.ReceiverCreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: otel.GetTracerProvider(), // TODO we may always want no-op here, not the global default
 		},
 	}
-	// TODO re-implement the logic of NewGRPCHandler, it's fairly trivial
-	jaegerBatchHandler := NewGRPCHandler(logger, spanProcessor)
-	nextConsumer, err := consumer.NewTraces(consumer.ConsumeTracesFunc(func(ctx context.Context, ld ptrace.Traces) error {
-		batches, err := protoFromTraces(ld)
-		if err != nil {
-			return err
-		}
-		for _, batch := range batches {
-			// TODO generate metrics
-			_, err := jaegerBatchHandler.PostSpans(ctx, &api_v2.PostSpansRequest{
-				Batch: *batch,
-			})
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}))
-	if err != nil {
-		return nil, fmt.Errorf("could not create the OTLP consumer: %w", err)
-	}
-	otlpReceiver, err := otlpFactory.CreateTracesReceiver(
+
+	otlpConsumer := newConsumerDelegate(logger, spanProcessor)
+	// the following two constructors never return errors given non-nil arguments, so we ignore errors
+	nextConsumer, _ := consumer.NewTraces(consumer.ConsumeTracesFunc(otlpConsumer.consume))
+	otlpReceiver, _ := otlpFactory.CreateTracesReceiver(
 		context.Background(),
 		otlpReceiverSettings,
 		otlpReceiverConfig,
 		nextConsumer,
 	)
-	if err != nil {
-		return nil, fmt.Errorf("could not create the OTLP receiver: %w", err)
-	}
-	err = otlpReceiver.Start(context.Background(), &otelHost{logger: logger})
-	if err != nil {
+	if err := otlpReceiver.Start(context.Background(), &otelHost{logger: logger}); err != nil {
 		return nil, fmt.Errorf("could not start the OTLP receiver: %w", err)
 	}
 	return otlpReceiver, nil
+}
+
+func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor) *consumerDelegate {
+	return &consumerDelegate{
+		logger: logger,
+		batchConsumer: batchConsumer{
+			logger:        logger,
+			spanProcessor: spanProcessor,
+			spanOptions: processor.SpansOptions{
+				SpanFormat:       processor.OTLPSpanFormat,
+				InboundTransport: processor.UnknownTransport, // could be gRPC or HTTP
+			},
+		},
+		protoFromTraces: otlp2jaeger.ProtoFromTraces,
+	}
+}
+
+type consumerDelegate struct {
+	logger          *zap.Logger
+	batchConsumer   batchConsumer
+	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
+}
+
+func (c *consumerDelegate) consume(ctx context.Context, ld ptrace.Traces) error {
+	batches, err := c.protoFromTraces(ld)
+	if err != nil {
+		return err
+	}
+	for _, batch := range batches {
+		err := c.batchConsumer.consume(batch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // otelHost is a mostly no-op implementation of OTEL component.Host
