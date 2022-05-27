@@ -59,27 +59,30 @@ func makeTracesOneSpan() ptrace.Traces {
 }
 
 func TestConsumerDelegate(t *testing.T) {
-	logger, _ := testutils.NewLogger()
-	spanProcessor := &mockSpanProcessor{}
-	consumer := newConsumerDelegate(logger, spanProcessor)
-
-	err := consumer.consume(context.Background(), makeTracesOneSpan())
-	require.NoError(t, err)
-	assert.Len(t, spanProcessor.getSpans(), 1)
-}
-
-func TestConsumerDelegate_Error(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
-	expectedErr := errors.New("test-error")
-	spanProcessor := &mockSpanProcessor{
-		expectedError: expectedErr,
+	testCases := []struct {
+		expectErr error
+		expectLog string
+	}{
+		{}, // no errors
+		{expectErr: errors.New("test-error"), expectLog: "test-error"},
 	}
-	consumer := newConsumerDelegate(logger, spanProcessor)
+	for _, test := range testCases {
+		t.Run(test.expectLog, func(t *testing.T) {
+			logger, logBuf := testutils.NewLogger()
+			spanProcessor := &mockSpanProcessor{expectedError: test.expectErr}
+			consumer := newConsumerDelegate(logger, spanProcessor)
 
-	err := consumer.consume(context.Background(), makeTracesOneSpan())
-	require.Error(t, err)
-	assert.Equal(t, expectedErr, err)
-	assert.Contains(t, logBuf.String(), "test-error")
+			err := consumer.consume(context.Background(), makeTracesOneSpan())
+
+			if test.expectErr != nil {
+				require.Equal(t, test.expectErr, err)
+				assert.Contains(t, logBuf.String(), test.expectLog)
+			} else {
+				require.NoError(t, err)
+				assert.Len(t, spanProcessor.getSpans(), 1)
+			}
+		})
+	}
 }
 
 func TestStartOtlpReceiver_Error(t *testing.T) {

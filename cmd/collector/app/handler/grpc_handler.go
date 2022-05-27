@@ -29,8 +29,7 @@ import (
 
 // GRPCHandler implements gRPC CollectorService.
 type GRPCHandler struct {
-	logger *zap.Logger
-	// spanProcessor processor.SpanProcessor
+	logger        *zap.Logger
 	batchConsumer batchConsumer
 }
 
@@ -38,7 +37,6 @@ type GRPCHandler struct {
 func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor) *GRPCHandler {
 	return &GRPCHandler{
 		logger: logger,
-		// spanProcessor: spanProcessor,
 		batchConsumer: batchConsumer{
 			logger:        logger,
 			spanProcessor: spanProcessor,

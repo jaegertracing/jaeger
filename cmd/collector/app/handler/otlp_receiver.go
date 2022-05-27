@@ -31,9 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// // A delegation function to assist in tests, because ProtoFromTraces never returns errors despite its API.
-// var protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error) = otlp2jaeger.ProtoFromTraces
-
 var _ component.Host = (*otelHost)(nil) // API check
 
 // OtelReceiverOptions allows configuration of the receiver.
@@ -76,7 +73,6 @@ func StartOtelReceiver(options OtelReceiverOptions, logger *zap.Logger, spanProc
 
 func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor) *consumerDelegate {
 	return &consumerDelegate{
-		logger: logger,
 		batchConsumer: batchConsumer{
 			logger:        logger,
 			spanProcessor: spanProcessor,
@@ -90,7 +86,6 @@ func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcess
 }
 
 type consumerDelegate struct {
-	logger          *zap.Logger
 	batchConsumer   batchConsumer
 	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
 }
