@@ -69,7 +69,7 @@ func (c Action) Do() error {
 			return fmt.Errorf("ILM is supported only for ES version 7+")
 		}
 	}
-	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := c.init(version, indexName); err != nil {
 			return err
