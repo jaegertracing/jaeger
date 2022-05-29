@@ -103,7 +103,7 @@ func TestCollector_StartErrors(t *testing.T) {
 
 	options = optionsForEphemeralPorts()
 	options.OTLP.HTTPHostPort = ":-1"
-	run("OTLP", options, "could not start OTLP server")
+	run("OTLP", options, "could not start OTLP receiver")
 }
 
 type mockStrategyStore struct {

@@ -154,7 +154,7 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		c.spanProcessor,
 	)
 	if err != nil {
-		return fmt.Errorf("could not start OTLP server: %w", err)
+		return fmt.Errorf("could not start OTLP receiver: %w", err)
 	}
 	c.otlpReceiver = otlpReceiver
 
