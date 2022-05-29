@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -145,4 +147,70 @@ func TestOtelHost(t *testing.T) {
 	assert.Nil(t, host.GetFactory(component.KindReceiver, config.TracesDataType))
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
+}
+
+func TestApplyOTLPGRPCServerSettings(t *testing.T) {
+	otlpFactory := otlpreceiver.NewFactory()
+	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+
+	grpcOpts := &flags.GRPCOptions{
+		HostPort:                ":54321",
+		MaxReceiveMessageLength: 42 * 1024 * 1024,
+		MaxConnectionAge:        33 * time.Second,
+		MaxConnectionAgeGrace:   37 * time.Second,
+		TLS: tlscfg.Options{
+			Enabled:      true,
+			CAPath:       "ca",
+			CertPath:     "cert",
+			KeyPath:      "key",
+			ClientCAPath: "clientca",
+			MinVersion:   "1.1",
+			MaxVersion:   "1.3",
+		},
+	}
+	applyGRPCSettings(otlpReceiverConfig.GRPC, grpcOpts)
+	out := otlpReceiverConfig.GRPC
+	assert.Equal(t, out.NetAddr.Endpoint, ":54321")
+	assert.EqualValues(t, out.MaxRecvMsgSizeMiB, 42)
+	require.NotNil(t, out.Keepalive)
+	require.NotNil(t, out.Keepalive.ServerParameters)
+	assert.Equal(t, out.Keepalive.ServerParameters.MaxConnectionAge, 33*time.Second)
+	assert.Equal(t, out.Keepalive.ServerParameters.MaxConnectionAgeGrace, 37*time.Second)
+	require.NotNil(t, out.TLSSetting)
+	assert.Equal(t, out.TLSSetting.CAFile, "ca")
+	assert.Equal(t, out.TLSSetting.CertFile, "cert")
+	assert.Equal(t, out.TLSSetting.KeyFile, "key")
+	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
+	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
+	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
+}
+
+func TestApplyOTLPHTTPServerSettings(t *testing.T) {
+	otlpFactory := otlpreceiver.NewFactory()
+	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+
+	httpOpts := &flags.HTTPOptions{
+		HostPort: ":12345",
+		TLS: tlscfg.Options{
+			Enabled:      true,
+			CAPath:       "ca",
+			CertPath:     "cert",
+			KeyPath:      "key",
+			ClientCAPath: "clientca",
+			MinVersion:   "1.1",
+			MaxVersion:   "1.3",
+		},
+	}
+
+	applyHTTPSettings(otlpReceiverConfig.HTTP, httpOpts)
+
+	out := otlpReceiverConfig.HTTP
+	assert.Equal(t, out.Endpoint, ":12345")
+	require.NotNil(t, out.TLSSetting)
+	assert.Equal(t, out.TLSSetting.CAFile, "ca")
+	assert.Equal(t, out.TLSSetting.CertFile, "cert")
+	assert.Equal(t, out.TLSSetting.KeyFile, "key")
+	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
+	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
+	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
 }
