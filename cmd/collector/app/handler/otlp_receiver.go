@@ -58,7 +58,7 @@ func StartOtelReceiver(options OtelReceiverOptions, logger *zap.Logger, spanProc
 
 	otlpConsumer := newConsumerDelegate(logger, spanProcessor)
 	// the following two constructors never return errors given non-nil arguments, so we ignore errors
-	nextConsumer, _ := consumer.NewTraces(consumer.ConsumeTracesFunc(otlpConsumer.consume))
+	nextConsumer, _ := consumer.NewTraces(otlpConsumer.consume)
 	otlpReceiver, _ := otlpFactory.CreateTracesReceiver(
 		context.Background(),
 		otlpReceiverSettings,
@@ -90,7 +90,7 @@ type consumerDelegate struct {
 	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
 }
 
-func (c *consumerDelegate) consume(ctx context.Context, ld ptrace.Traces) error {
+func (c *consumerDelegate) consume(_ context.Context, ld ptrace.Traces) error {
 	batches, err := c.protoFromTraces(ld)
 	if err != nil {
 		return err
