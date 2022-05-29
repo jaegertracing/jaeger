@@ -90,8 +90,8 @@ type consumerDelegate struct {
 	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
 }
 
-func (c *consumerDelegate) consume(_ context.Context, ld ptrace.Traces) error {
-	batches, err := c.protoFromTraces(ld)
+func (c *consumerDelegate) consume(_ context.Context, td ptrace.Traces) error {
+	batches, err := c.protoFromTraces(td)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ type otelHost struct {
 func (h *otelHost) ReportFatalError(err error) {
 	h.logger.Fatal("OTLP receiver error", zap.Error(err))
 }
-func (*otelHost) GetFactory(kind component.Kind, componentType config.Type) component.Factory {
+func (*otelHost) GetFactory(_ component.Kind, _ config.Type) component.Factory {
 	return nil
 }
 func (*otelHost) GetExtensions() map[config.ComponentID]component.Extension {
