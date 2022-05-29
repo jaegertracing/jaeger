@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package flags
 
 import (
 	"flag"
@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -28,26 +29,61 @@ import (
 )
 
 const (
-	collectorDynQueueSizeMemory          = "collector.queue-size-memory"
-	collectorGRPCHostPort                = "collector.grpc-server.host-port"
-	collectorHTTPHostPort                = "collector.http-server.host-port"
-	collectorNumWorkers                  = "collector.num-workers"
-	collectorQueueSize                   = "collector.queue-size"
-	collectorTags                        = "collector.tags"
-	collectorZipkinAllowedHeaders        = "collector.zipkin.allowed-headers"
-	collectorZipkinAllowedOrigins        = "collector.zipkin.allowed-origins"
-	collectorZipkinHTTPHostPort          = "collector.zipkin.host-port"
-	collectorGRPCMaxReceiveMessageLength = "collector.grpc-server.max-message-size"
-	collectorMaxConnectionAge            = "collector.grpc-server.max-connection-age"
-	collectorMaxConnectionAgeGrace       = "collector.grpc-server.max-connection-age-grace"
+	flagDynQueueSizeMemory = "collector.queue-size-memory"
+	flagNumWorkers         = "collector.num-workers"
+	flagQueueSize          = "collector.queue-size"
+	flagCollectorTags      = "collector.tags"
+
+	flagSuffixHostPort = "host-port"
+
+	flagSuffixGRPCMaxReceiveMessageLength = "max-message-size"
+	flagSuffixGRPCMaxConnectionAge        = "max-connection-age"
+	flagSuffixGRPCMaxConnectionAgeGrace   = "max-connection-age-grace"
+
+	flagZipkinHTTPHostPort   = "collector.zipkin.host-port"
+	flagZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
+	flagZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
+
+	// DefaultNumWorkers is the default number of workers consuming from the processor queue
+	DefaultNumWorkers = 50
+	// DefaultQueueSize is the size of the processor's queue
+	DefaultQueueSize = 2000
+	// DefaultGRPCMaxReceiveMessageLength is the default max receivable message size for the gRPC Collector
+	DefaultGRPCMaxReceiveMessageLength = 4 * 1024 * 1024
 )
 
-var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix: "collector.grpc",
+var grpcServerFlagsCfg = serverFlagsConfig{
+	// for legacy reasons the prefixes are different
+	prefix: "collector.grpc-server",
+	tls: tlscfg.ServerFlagsConfig{
+		Prefix: "collector.grpc",
+	},
 }
 
-var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix: "collector.http",
+var httpServerFlagsCfg = serverFlagsConfig{
+	// for legacy reasons the prefixes are different
+	prefix: "collector.http-server",
+	tls: tlscfg.ServerFlagsConfig{
+		Prefix: "collector.http",
+	},
+}
+
+var otlpServerFlagsCfg = struct {
+	GRPC serverFlagsConfig
+	HTTP serverFlagsConfig
+}{
+	GRPC: serverFlagsConfig{
+		prefix: "collector.otlp.grpc",
+		tls: tlscfg.ServerFlagsConfig{
+			Prefix: "collector.otlp.grpc",
+		},
+	},
+	HTTP: serverFlagsConfig{
+		prefix: "collector.otlp.http",
+		tls: tlscfg.ServerFlagsConfig{
+			Prefix: "collector.otlp.http",
+		},
+	},
 }
 
 var tlsZipkinFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -63,31 +99,13 @@ type CollectorOptions struct {
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
 	// HTTP section defines options for HTTP server
-	HTTP struct {
-		// HostPort is the host:port address that the collector service listens in on for http requests
-		HostPort string
-		// TLS configures secure transport for HTTP endpoint to collect spans
-		TLS tlscfg.Options
-	}
+	HTTP HTTPOptions
 	// GRPC section defines options for gRPC server
-	GRPC struct {
-		// HostPort is the host:port address that the collector service listens in on for gRPC requests
-		HostPort string
-		// TLS configures secure transport for gRPC endpoint to collect spans
-		TLS tlscfg.Options
-		// MaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
-		MaxReceiveMessageLength int
-		// MaxConnectionAge is a duration for the maximum amount of time a connection may exist.
-		// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
-		MaxConnectionAge time.Duration
-		// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
-		// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
-		MaxConnectionAgeGrace time.Duration
-	}
+	GRPC GRPCOptions
 	// OTLP section defines options for servers accepting OpenTelemetry OTLP format
 	OTLP struct {
-		GRPCHostPort string
-		HTTPHostPort string
+		GRPC GRPCOptions
+		HTTP HTTPOptions
 	}
 	// Zipkin section defines options for Zipkin HTTP server
 	Zipkin struct {
@@ -104,55 +122,134 @@ type CollectorOptions struct {
 	CollectorTags map[string]string
 }
 
+type serverFlagsConfig struct {
+	prefix string
+	tls    tlscfg.ServerFlagsConfig
+}
+
+// HTTPOptions defines options for an HTTP server
+type HTTPOptions struct {
+	// HostPort is the host:port address that the server listens on
+	HostPort string
+	// TLS configures secure transport for HTTP endpoint
+	TLS tlscfg.Options
+}
+
+// GRPCOptions defines options for a gRPC server
+type GRPCOptions struct {
+	// HostPort is the host:port address that the collector service listens in on for gRPC requests
+	HostPort string
+	// TLS configures secure transport for gRPC endpoint to collect spans
+	TLS tlscfg.Options
+	// MaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
+	MaxReceiveMessageLength int
+	// MaxConnectionAge is a duration for the maximum amount of time a connection may exist.
+	// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
+	MaxConnectionAge time.Duration
+	// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
+	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
+	MaxConnectionAgeGrace time.Duration
+}
+
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
-	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
-	flags.Int(collectorGRPCMaxReceiveMessageLength, DefaultGRPCMaxReceiveMessageLength, "The maximum receivable message size for the collector's GRPC server")
-	flags.String(collectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the collector's GRPC server")
-	flags.String(collectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the collector's HTTP server")
-	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
-	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
-	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
-	flags.String(collectorZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
-	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
-	flags.Duration(collectorMaxConnectionAge, 0, "The maximum amount of time a connection may exist. Set this value to a few seconds or minutes on highly elastic environments, so that clients discover new collector nodes frequently. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
-	flags.Duration(collectorMaxConnectionAgeGrace, 0, "The additive period after MaxConnectionAge after which the connection will be forcibly closed. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
+	flags.Int(flagNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
+	flags.Int(flagQueueSize, DefaultQueueSize, "The queue size of the collector")
+	flags.Uint(flagDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
+	flags.String(flagCollectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
 
-	tlsGRPCFlagsConfig.AddFlags(flags)
-	tlsHTTPFlagsConfig.AddFlags(flags)
+	addHTTPFlags(flags, httpServerFlagsCfg, ports.PortToHostPort(ports.CollectorHTTP))
+	addGRPCFlags(flags, grpcServerFlagsCfg, ports.PortToHostPort(ports.CollectorGRPC))
+
+	addHTTPFlags(flags, otlpServerFlagsCfg.HTTP, "")
+	addGRPCFlags(flags, otlpServerFlagsCfg.GRPC, "")
+
+	flags.String(flagZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
+	flags.String(flagZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
+	flags.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 	tlsZipkinFlagsConfig.AddFlags(flags)
 }
 
+func addHTTPFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort string) {
+	flags.String(cfg.prefix+"."+flagSuffixHostPort, defaultHostPort, "The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's HTTP server")
+	cfg.tls.AddFlags(flags)
+}
+
+func addGRPCFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort string) {
+	flags.String(
+		cfg.prefix+"."+flagSuffixHostPort,
+		defaultHostPort,
+		"The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's gRPC server")
+	flags.Int(
+		cfg.prefix+"."+flagSuffixGRPCMaxReceiveMessageLength,
+		DefaultGRPCMaxReceiveMessageLength,
+		"The maximum receivable message size for the collector's gRPC server")
+	flags.Duration(
+		cfg.prefix+"."+flagSuffixGRPCMaxConnectionAge,
+		0,
+		"The maximum amount of time a connection may exist. Set this value to a few seconds or minutes on highly elastic environments, so that clients discover new collector nodes frequently. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
+	flags.Duration(
+		cfg.prefix+"."+flagSuffixGRPCMaxConnectionAgeGrace,
+		0,
+		"The additive period after MaxConnectionAge after which the connection will be forcibly closed. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
+	cfg.tls.AddFlags(flags)
+}
+
+func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg serverFlagsConfig) error {
+	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
+	if tlsOpts, err := cfg.tls.InitFromViper(v); err == nil {
+		opts.TLS = tlsOpts
+	} else {
+		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
+	}
+	return nil
+}
+
+func (opts *GRPCOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg serverFlagsConfig) error {
+	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
+	opts.MaxReceiveMessageLength = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength)
+	opts.MaxConnectionAge = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge)
+	opts.MaxConnectionAgeGrace = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace)
+	if tlsOpts, err := cfg.tls.InitFromViper(v); err == nil {
+		opts.TLS = tlsOpts
+	} else {
+		return fmt.Errorf("failed to parse gRPC TLS options: %w", err)
+	}
+
+	return nil
+}
+
 // InitFromViper initializes CollectorOptions with properties from viper
-func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) (*CollectorOptions, error) {
-	cOpts.GRPC.HostPort = ports.FormatHostPort(v.GetString(collectorGRPCHostPort))
-	cOpts.GRPC.MaxReceiveMessageLength = v.GetInt(collectorGRPCMaxReceiveMessageLength)
-	cOpts.GRPC.MaxConnectionAge = v.GetDuration(collectorMaxConnectionAge)
-	cOpts.GRPC.MaxConnectionAgeGrace = v.GetDuration(collectorMaxConnectionAgeGrace)
-	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
-		cOpts.GRPC.TLS = tlsGrpc
-	} else {
-		return cOpts, fmt.Errorf("failed to parse gRPC TLS options: %w", err)
+func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*CollectorOptions, error) {
+	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(flagCollectorTags))
+	cOpts.NumWorkers = v.GetInt(flagNumWorkers)
+	cOpts.QueueSize = v.GetInt(flagQueueSize)
+	cOpts.DynQueueSizeMemory = v.GetUint(flagDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
+
+	if err := cOpts.HTTP.initFromViper(v, logger, httpServerFlagsCfg); err != nil {
+		return cOpts, fmt.Errorf("failed to parse HTTP server options: %w", err)
 	}
-	cOpts.HTTP.HostPort = ports.FormatHostPort(v.GetString(collectorHTTPHostPort))
-	if tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v); err == nil {
-		cOpts.HTTP.TLS = tlsHTTP
-	} else {
-		return cOpts, fmt.Errorf("failed to parse HTTP TLS options: %w", err)
+
+	if err := cOpts.GRPC.initFromViper(v, logger, grpcServerFlagsCfg); err != nil {
+		return cOpts, fmt.Errorf("failed to parse gRPC server options: %w", err)
 	}
-	cOpts.Zipkin.AllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
-	cOpts.Zipkin.AllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
-	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(collectorZipkinHTTPHostPort))
+
+	if err := cOpts.OTLP.HTTP.initFromViper(v, logger, otlpServerFlagsCfg.HTTP); err != nil {
+		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
+	}
+
+	if err := cOpts.OTLP.GRPC.initFromViper(v, logger, otlpServerFlagsCfg.GRPC); err != nil {
+		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
+	}
+
+	cOpts.Zipkin.AllowedHeaders = v.GetString(flagZipkinAllowedHeaders)
+	cOpts.Zipkin.AllowedOrigins = v.GetString(flagZipkinAllowedOrigins)
+	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
 	if tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v); err == nil {
 		cOpts.Zipkin.TLS = tlsZipkin
 	} else {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
-	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
-	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
-	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 
 	return cOpts, nil
 }
