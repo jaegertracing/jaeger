@@ -22,9 +22,11 @@ import (
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
+	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
@@ -49,6 +51,7 @@ type Collector struct {
 	hServer                    *http.Server
 	zkServer                   *http.Server
 	grpcServer                 *grpc.Server
+	otlpReceiver               component.TracesReceiver
 	tlsGRPCCertWatcherCloser   io.Closer
 	tlsHTTPCertWatcherCloser   io.Closer
 	tlsZipkinCertWatcherCloser io.Closer
@@ -106,7 +109,7 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		MaxConnectionAgeGrace:   options.GRPC.MaxConnectionAgeGrace,
 	})
 	if err != nil {
-		return fmt.Errorf("could not start gRPC collector %w", err)
+		return fmt.Errorf("could not start gRPC server: %w", err)
 	}
 	c.grpcServer = grpcServer
 
@@ -120,7 +123,7 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		Logger:         c.logger,
 	})
 	if err != nil {
-		return fmt.Errorf("could not start the HTTP server %w", err)
+		return fmt.Errorf("could not start HTTP server: %w", err)
 	}
 	c.hServer = httpServer
 
@@ -138,9 +141,22 @@ func (c *Collector) Start(options *CollectorOptions) error {
 		MetricsFactory: c.metricsFactory,
 	})
 	if err != nil {
-		return fmt.Errorf("could not start the Zipkin server %w", err)
+		return fmt.Errorf("could not start Zipkin server: %w", err)
 	}
 	c.zkServer = zkServer
+
+	otlpReceiver, err := handler.StartOtelReceiver(
+		handler.OtelReceiverOptions{
+			GRPCHostPort: options.OTLP.GRPCHostPort,
+			HTTPHostPort: options.OTLP.HTTPHostPort,
+		},
+		c.logger,
+		c.spanProcessor,
+	)
+	if err != nil {
+		return fmt.Errorf("could not start OTLP receiver: %w", err)
+	}
+	c.otlpReceiver = otlpReceiver
 
 	c.publishOpts(options)
 
@@ -155,12 +171,12 @@ func (c *Collector) publishOpts(cOpts *CollectorOptions) {
 
 // Close the component and all its underlying dependencies
 func (c *Collector) Close() error {
-	// gRPC server
+	// Stop gRPC server
 	if c.grpcServer != nil {
 		c.grpcServer.GracefulStop()
 	}
 
-	// HTTP server
+	// Stop HTTP server
 	if c.hServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := c.hServer.Shutdown(timeout); err != nil {
@@ -169,11 +185,20 @@ func (c *Collector) Close() error {
 		defer cancel()
 	}
 
-	// Zipkin server
+	// Stop Zipkin server
 	if c.zkServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := c.zkServer.Shutdown(timeout); err != nil {
 			c.logger.Fatal("failed to stop the Zipkin server", zap.Error(err))
+		}
+		defer cancel()
+	}
+
+	// Stop OpenTelemetry OTLP receiver
+	if c.otlpReceiver != nil {
+		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := c.otlpReceiver.Shutdown(timeout); err != nil {
+			c.logger.Fatal("failed to stop the OTLP receiver", zap.Error(err))
 		}
 		defer cancel()
 	}
