@@ -39,8 +39,10 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts := &flags.CollectorOptions{}
 	collectorOpts.GRPC.HostPort = ":0"
 	collectorOpts.HTTP.HostPort = ":0"
+	collectorOpts.OTLP.Enabled = true
 	collectorOpts.OTLP.GRPC.HostPort = ":0"
 	collectorOpts.OTLP.HTTP.HostPort = ":0"
+	collectorOpts.Zipkin.HTTPHostPort = ":0"
 	return collectorOpts
 }
 
@@ -60,8 +62,10 @@ func TestNewCollector(t *testing.T) {
 		StrategyStore:  strategyStore,
 		HealthCheck:    hc,
 	})
+
 	collectorOpts := optionsForEphemeralPorts()
 	require.NoError(t, c.Start(collectorOpts))
+	assert.NotNil(t, c.SpanHandlers())
 	assert.NoError(t, c.Close())
 }
 

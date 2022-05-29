@@ -40,6 +40,8 @@ const (
 	flagSuffixGRPCMaxConnectionAge        = "max-connection-age"
 	flagSuffixGRPCMaxConnectionAgeGrace   = "max-connection-age-grace"
 
+	flagCollectorOTLPEnabled = "collector.otlp.enabled"
+
 	flagZipkinHTTPHostPort   = "collector.zipkin.host-port"
 	flagZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 	flagZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
@@ -104,8 +106,9 @@ type CollectorOptions struct {
 	GRPC GRPCOptions
 	// OTLP section defines options for servers accepting OpenTelemetry OTLP format
 	OTLP struct {
-		GRPC GRPCOptions
-		HTTP HTTPOptions
+		Enabled bool
+		GRPC    GRPCOptions
+		HTTP    HTTPOptions
 	}
 	// Zipkin section defines options for Zipkin HTTP server
 	Zipkin struct {
@@ -161,6 +164,7 @@ func AddFlags(flags *flag.FlagSet) {
 	addHTTPFlags(flags, httpServerFlagsCfg, ports.PortToHostPort(ports.CollectorHTTP))
 	addGRPCFlags(flags, grpcServerFlagsCfg, ports.PortToHostPort(ports.CollectorGRPC))
 
+	flags.Bool(flagCollectorOTLPEnabled, false, "Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports")
 	addHTTPFlags(flags, otlpServerFlagsCfg.HTTP, "")
 	addGRPCFlags(flags, otlpServerFlagsCfg.GRPC, "")
 
@@ -234,10 +238,10 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 		return cOpts, fmt.Errorf("failed to parse gRPC server options: %w", err)
 	}
 
+	cOpts.OTLP.Enabled = v.GetBool(flagCollectorOTLPEnabled)
 	if err := cOpts.OTLP.HTTP.initFromViper(v, logger, otlpServerFlagsCfg.HTTP); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
 	}
-
 	if err := cOpts.OTLP.GRPC.initFromViper(v, logger, otlpServerFlagsCfg.GRPC); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}

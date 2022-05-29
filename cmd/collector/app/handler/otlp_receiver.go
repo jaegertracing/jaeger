@@ -17,7 +17,6 @@ package handler
 import (
 	"context"
 	"fmt"
-	"time"
 
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
@@ -31,45 +30,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 var _ component.Host = (*otelHost)(nil) // API check
 
-// OtelReceiverOptions allows configuration of the receiver.
-type OtelReceiverOptions struct {
-	GRPC OtelReceiverGRPCOptions
-	HTTP OtelReceiverHTTPOptions
-}
-
-// OtelReceiverGRPCOptions allows configuration of the GRPC receiver.
-type OtelReceiverGRPCOptions struct {
-	// HostPort is the host:port address that the server listens on
-	HostPort string
-	// TLS configures secure transport for HTTP endpoint
-	TLS tlscfg.Options
-	// MaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
-	MaxReceiveMessageLength int
-	// MaxConnectionAge is a duration for the maximum amount of time a connection may exist.
-	// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
-	MaxConnectionAge time.Duration
-	// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
-	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
-	MaxConnectionAgeGrace time.Duration
-}
-
-// OtelReceiverHTTPOptions defines options for an HTTP server
-type OtelReceiverHTTPOptions struct {
-	// HostPort is the host:port address that the server listens on
-	HostPort string
-	// TLS configures secure transport for HTTP endpoint
-	TLS tlscfg.Options
-}
-
-// StartOtelReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
-func StartOtelReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
+// StartOTLPReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
+func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
 	otlpFactory := otlpreceiver.NewFactory()
-	return startOtelReceiver(
+	return startOTLPReceiver(
 		options,
 		logger,
 		spanProcessor,
@@ -82,7 +50,7 @@ func StartOtelReceiver(options *flags.CollectorOptions, logger *zap.Logger, span
 // Some of OTELCOL constructor functions return errors when passed nil arguments,
 // which is a situation we cannot reproduce. To test our own error handling, this
 // function allows to mock those constructors.
-func startOtelReceiver(
+func startOTLPReceiver(
 	options *flags.CollectorOptions,
 	logger *zap.Logger,
 	spanProcessor processor.SpanProcessor,

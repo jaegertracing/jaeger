@@ -46,7 +46,7 @@ func optionsWithPorts(port string) *flags.CollectorOptions {
 func TestStartOtlpReceiver(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
-	rec, err := StartOtelReceiver(optionsWithPorts(":0"), logger, spanProcessor)
+	rec, err := StartOTLPReceiver(optionsWithPorts(":0"), logger, spanProcessor)
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, rec.Shutdown(context.Background()))
@@ -96,7 +96,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
 	opts := optionsWithPorts(":-1")
-	_, err := StartOtelReceiver(opts, logger, spanProcessor)
+	_, err := StartOTLPReceiver(opts, logger, spanProcessor)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not start the OTLP receiver")
 
@@ -104,7 +104,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 		return nil, errors.New("mock error")
 	}
 	f := otlpreceiver.NewFactory()
-	_, err = startOtelReceiver(opts, logger, spanProcessor, f, newTraces, f.CreateTracesReceiver)
+	_, err = startOTLPReceiver(opts, logger, spanProcessor, f, newTraces, f.CreateTracesReceiver)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
@@ -112,7 +112,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 		_ config.Receiver, _ consumer.Traces) (component.TracesReceiver, error) {
 		return nil, errors.New("mock error")
 	}
-	_, err = startOtelReceiver(opts, logger, spanProcessor, f, consumer.NewTraces, createTracesReceiver)
+	_, err = startOTLPReceiver(opts, logger, spanProcessor, f, consumer.NewTraces, createTracesReceiver)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP receiver")
 }

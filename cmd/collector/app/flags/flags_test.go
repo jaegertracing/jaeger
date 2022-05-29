@@ -57,43 +57,28 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	assert.Equal(t, "0.0.0.0:3456", c.Zipkin.HTTPHostPort)
 }
 
-func TestCollectorOptionsWithFailedHTTPFlags(t *testing.T) {
-	c := &CollectorOptions{}
-	v, command := config.Viperize(AddFlags)
-	err := command.ParseFlags([]string{
-		"--collector.http.tls.enabled=false",
-		"--collector.http.tls.cert=blah", // invalid unless tls.enabled
-	})
-	require.NoError(t, err)
-	_, err = c.InitFromViper(v, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse HTTP TLS options")
-}
-
-func TestCollectorOptionsWithFailedGRPCFlags(t *testing.T) {
-	c := &CollectorOptions{}
-	v, command := config.Viperize(AddFlags)
-	err := command.ParseFlags([]string{
-		"--collector.grpc.tls.enabled=false",
-		"--collector.grpc.tls.cert=blah", // invalid unless tls.enabled
-	})
-	require.NoError(t, err)
-	_, err = c.InitFromViper(v, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse gRPC TLS options")
-}
-
-func TestCollectorOptionsWithFailedZipkinFlags(t *testing.T) {
-	c := &CollectorOptions{}
-	v, command := config.Viperize(AddFlags)
-	err := command.ParseFlags([]string{
-		"--collector.zipkin.tls.enabled=false",
-		"--collector.zipkin.tls.cert=blah", // invalid unless tls.enabled
-	})
-	require.NoError(t, err)
-	_, err = c.InitFromViper(v, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse Zipkin TLS options")
+func TestCollectorOptionsWithFailedTLSFlags(t *testing.T) {
+	prefixes := []string{
+		"--collector.http",
+		"--collector.grpc",
+		"--collector.zipkin",
+		"--collector.otlp.http",
+		"--collector.otlp.grpc",
+	}
+	for _, prefix := range prefixes {
+		t.Run(prefix, func(t *testing.T) {
+			c := &CollectorOptions{}
+			v, command := config.Viperize(AddFlags)
+			err := command.ParseFlags([]string{
+				prefix + ".tls.enabled=false",
+				prefix + ".tls.cert=blah", // invalid unless tls.enabled
+			})
+			require.NoError(t, err)
+			_, err = c.InitFromViper(v, zap.NewNop())
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "failed to parse")
+		})
+	}
 }
 
 func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {

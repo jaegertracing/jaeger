@@ -151,11 +151,13 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 	c.zkServer = zkServer
 
-	otlpReceiver, err := handler.StartOtelReceiver(options, c.logger, c.spanProcessor)
-	if err != nil {
-		return fmt.Errorf("could not start OTLP receiver: %w", err)
+	if options.OTLP.Enabled {
+		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor)
+		if err != nil {
+			return fmt.Errorf("could not start OTLP receiver: %w", err)
+		}
+		c.otlpReceiver = otlpReceiver
 	}
-	c.otlpReceiver = otlpReceiver
 
 	c.publishOpts(options)
 
