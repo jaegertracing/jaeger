@@ -17,6 +17,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
@@ -27,27 +28,78 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 var _ component.Host = (*otelHost)(nil) // API check
 
 // OtelReceiverOptions allows configuration of the receiver.
 type OtelReceiverOptions struct {
-	GRPCHostPort string
-	HTTPHostPort string
+	GRPC OtelReceiverGRPCOptions
+	HTTP OtelReceiverHTTPOptions
+}
+
+// OtelReceiverGRPCOptions allows configuration of the GRPC receiver.
+type OtelReceiverGRPCOptions struct {
+	// HostPort is the host:port address that the server listens on
+	HostPort string
+	// TLS configures secure transport for HTTP endpoint
+	TLS tlscfg.Options
+	// MaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
+	MaxReceiveMessageLength int
+	// MaxConnectionAge is a duration for the maximum amount of time a connection may exist.
+	// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
+	MaxConnectionAge time.Duration
+	// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
+	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
+	MaxConnectionAgeGrace time.Duration
+}
+
+// OtelReceiverHTTPOptions defines options for an HTTP server
+type OtelReceiverHTTPOptions struct {
+	// HostPort is the host:port address that the server listens on
+	HostPort string
+	// TLS configures secure transport for HTTP endpoint
+	TLS tlscfg.Options
 }
 
 // StartOtelReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
-func StartOtelReceiver(options OtelReceiverOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
+func StartOtelReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
 	otlpFactory := otlpreceiver.NewFactory()
+	return startOtelReceiver(
+		options,
+		logger,
+		spanProcessor,
+		otlpFactory,
+		consumer.NewTraces,
+		otlpFactory.CreateTracesReceiver,
+	)
+}
+
+// Some of OTELCOL constructor functions return errors when passed nil arguments,
+// which is a situation we cannot reproduce. To test our own error handling, this
+// function allows to mock those constructors.
+func startOtelReceiver(
+	options *flags.CollectorOptions,
+	logger *zap.Logger,
+	spanProcessor processor.SpanProcessor,
+	// from here: params that can be mocked in tests
+	otlpFactory component.ReceiverFactory,
+	newTraces func(consume consumer.ConsumeTracesFunc, options ...consumer.Option) (consumer.Traces, error),
+	createTracesReceiver func(ctx context.Context, set component.ReceiverCreateSettings,
+		cfg config.Receiver, nextConsumer consumer.Traces) (component.TracesReceiver, error),
+) (component.TracesReceiver, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-	if options.GRPCHostPort != "" {
-		otlpReceiverConfig.GRPC.NetAddr.Endpoint = options.GRPCHostPort
+	if options.OTLP.GRPC.HostPort != "" {
+		otlpReceiverConfig.GRPC.NetAddr.Endpoint = options.OTLP.GRPC.HostPort
+		// TODO pass other options
 	}
-	if options.HTTPHostPort != "" {
-		otlpReceiverConfig.HTTP.Endpoint = options.HTTPHostPort
+	if options.OTLP.HTTP.HostPort != "" {
+		otlpReceiverConfig.HTTP.Endpoint = options.OTLP.HTTP.HostPort
+		// TODO pass other options
 	}
 	otlpReceiverSettings := component.ReceiverCreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
@@ -58,13 +110,19 @@ func StartOtelReceiver(options OtelReceiverOptions, logger *zap.Logger, spanProc
 
 	otlpConsumer := newConsumerDelegate(logger, spanProcessor)
 	// the following two constructors never return errors given non-nil arguments, so we ignore errors
-	nextConsumer, _ := consumer.NewTraces(otlpConsumer.consume)
-	otlpReceiver, _ := otlpFactory.CreateTracesReceiver(
+	nextConsumer, err := newTraces(otlpConsumer.consume)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the OTLP consumer: %w", err)
+	}
+	otlpReceiver, err := createTracesReceiver(
 		context.Background(),
 		otlpReceiverSettings,
 		otlpReceiverConfig,
 		nextConsumer,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the OTLP receiver: %w", err)
+	}
 	if err := otlpReceiver.Start(context.Background(), &otelHost{logger: logger}); err != nil {
 		return nil, fmt.Errorf("could not start the OTLP receiver: %w", err)
 	}

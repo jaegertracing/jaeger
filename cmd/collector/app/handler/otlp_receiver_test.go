@@ -23,23 +23,30 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
+func optionsWithPorts(port string) *flags.CollectorOptions {
+	opts := &flags.CollectorOptions{}
+	opts.OTLP.GRPC = flags.GRPCOptions{
+		HostPort: port,
+	}
+	opts.OTLP.HTTP = flags.HTTPOptions{
+		HostPort: port,
+	}
+	return opts
+}
+
 func TestStartOtlpReceiver(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
-	rec, err := StartOtelReceiver(
-		OtelReceiverOptions{
-			GRPCHostPort: ":0",
-			HTTPHostPort: ":0",
-		},
-		logger,
-		spanProcessor,
-	)
+	rec, err := StartOtelReceiver(optionsWithPorts(":0"), logger, spanProcessor)
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, rec.Shutdown(context.Background()))
@@ -88,16 +95,28 @@ func TestConsumerDelegate(t *testing.T) {
 func TestStartOtlpReceiver_Error(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
-	_, err := StartOtelReceiver(
-		OtelReceiverOptions{
-			GRPCHostPort: ":-1",
-			HTTPHostPort: ":-1",
-		},
-		logger,
-		spanProcessor,
-	)
-	assert.Error(t, err)
+	opts := optionsWithPorts(":-1")
+	_, err := StartOtelReceiver(opts, logger, spanProcessor)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not start the OTLP receiver")
+
+	newTraces := func(_ consumer.ConsumeTracesFunc, _ ...consumer.Option) (consumer.Traces, error) {
+		return nil, errors.New("mock error")
+	}
+	f := otlpreceiver.NewFactory()
+	_, err = startOtelReceiver(opts, logger, spanProcessor, f, newTraces, f.CreateTracesReceiver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
+
+	createTracesReceiver := func(_ context.Context, _ component.ReceiverCreateSettings,
+		_ config.Receiver, _ consumer.Traces) (component.TracesReceiver, error) {
+		return nil, errors.New("mock error")
+	}
+	_, err = startOtelReceiver(opts, logger, spanProcessor, f, consumer.NewTraces, createTracesReceiver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not create the OTLP receiver")
 }
+
 func TestProtoFromTracesError(t *testing.T) {
 	mockErr := errors.New("mock error")
 	c := &consumerDelegate{

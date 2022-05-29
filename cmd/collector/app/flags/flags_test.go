@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package flags
 
 import (
 	"testing"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -32,7 +33,8 @@ func TestCollectorOptionsWithFlags_CheckHostPort(t *testing.T) {
 		"--collector.grpc-server.host-port=1234",
 		"--collector.zipkin.host-port=3456",
 	})
-	c.InitFromViper(v)
+	_, err := c.InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 
 	assert.Equal(t, ":5678", c.HTTP.HostPort)
 	assert.Equal(t, ":1234", c.GRPC.HostPort)
@@ -47,7 +49,8 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 		"--collector.grpc-server.host-port=127.0.0.1:1234",
 		"--collector.zipkin.host-port=0.0.0.0:3456",
 	})
-	c.InitFromViper(v)
+	_, err := c.InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 
 	assert.Equal(t, ":5678", c.HTTP.HostPort)
 	assert.Equal(t, "127.0.0.1:1234", c.GRPC.HostPort)
@@ -62,7 +65,7 @@ func TestCollectorOptionsWithFailedHTTPFlags(t *testing.T) {
 		"--collector.http.tls.cert=blah", // invalid unless tls.enabled
 	})
 	require.NoError(t, err)
-	_, err = c.InitFromViper(v)
+	_, err = c.InitFromViper(v, zap.NewNop())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse HTTP TLS options")
 }
@@ -75,7 +78,7 @@ func TestCollectorOptionsWithFailedGRPCFlags(t *testing.T) {
 		"--collector.grpc.tls.cert=blah", // invalid unless tls.enabled
 	})
 	require.NoError(t, err)
-	_, err = c.InitFromViper(v)
+	_, err = c.InitFromViper(v, zap.NewNop())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse gRPC TLS options")
 }
@@ -88,7 +91,7 @@ func TestCollectorOptionsWithFailedZipkinFlags(t *testing.T) {
 		"--collector.zipkin.tls.cert=blah", // invalid unless tls.enabled
 	})
 	require.NoError(t, err)
-	_, err = c.InitFromViper(v)
+	_, err = c.InitFromViper(v, zap.NewNop())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse Zipkin TLS options")
 }
@@ -99,7 +102,8 @@ func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 	command.ParseFlags([]string{
 		"--collector.grpc-server.max-message-size=8388608",
 	})
-	c.InitFromViper(v)
+	_, err := c.InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 
 	assert.Equal(t, 8388608, c.GRPC.MaxReceiveMessageLength)
 }
@@ -111,7 +115,8 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 		"--collector.grpc-server.max-connection-age=5m",
 		"--collector.grpc-server.max-connection-age-grace=1m",
 	})
-	c.InitFromViper(v)
+	_, err := c.InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
 
 	assert.Equal(t, 5*time.Minute, c.GRPC.MaxConnectionAge)
 	assert.Equal(t, time.Minute, c.GRPC.MaxConnectionAgeGrace)

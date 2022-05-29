@@ -23,30 +23,31 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
+	cmdFlags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 func TestNewSpanHandlerBuilder(t *testing.T) {
-	v, command := config.Viperize(flags.AddFlags, AddFlags)
+	v, command := config.Viperize(cmdFlags.AddFlags, flags.AddFlags)
 
 	require.NoError(t, command.ParseFlags([]string{}))
-	cOpts, err := new(CollectorOptions).InitFromViper(v)
+	cOpts, err := new(flags.CollectorOptions).InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
 
 	spanWriter := memory.NewStore()
 
 	builder := &SpanHandlerBuilder{
 		SpanWriter:    spanWriter,
-		CollectorOpts: *cOpts,
+		CollectorOpts: cOpts,
 	}
 	assert.NotNil(t, builder.logger())
 	assert.NotNil(t, builder.metricsFactory())
 
 	builder = &SpanHandlerBuilder{
 		SpanWriter:     spanWriter,
-		CollectorOpts:  *cOpts,
+		CollectorOpts:  cOpts,
 		Logger:         zap.NewNop(),
 		MetricsFactory: metrics.NullFactory,
 	}
