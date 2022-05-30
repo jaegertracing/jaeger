@@ -102,7 +102,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not start the OTLP receiver")
 
-	newTraces := func(_ consumer.ConsumeTracesFunc, _ ...consumer.Option) (consumer.Traces, error) {
+	newTraces := func(consumer.ConsumeTracesFunc, ...consumer.Option) (consumer.Traces, error) {
 		return nil, errors.New("mock error")
 	}
 	f := otlpreceiver.NewFactory()
@@ -110,8 +110,9 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
-	createTracesReceiver := func(_ context.Context, _ component.ReceiverCreateSettings,
-		_ config.Receiver, _ consumer.Traces) (component.TracesReceiver, error) {
+	createTracesReceiver := func(
+		context.Context, component.ReceiverCreateSettings, config.Receiver, consumer.Traces,
+	) (component.TracesReceiver, error) {
 		return nil, errors.New("mock error")
 	}
 	_, err = startOTLPReceiver(opts, logger, spanProcessor, f, consumer.NewTraces, createTracesReceiver)
