@@ -21,34 +21,52 @@ import (
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 var _ component.Host = (*otelHost)(nil) // API check
 
-// OtelReceiverOptions allows configuration of the receiver.
-type OtelReceiverOptions struct {
-	GRPCHostPort string
-	HTTPHostPort string
+// StartOTLPReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
+func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
+	otlpFactory := otlpreceiver.NewFactory()
+	return startOTLPReceiver(
+		options,
+		logger,
+		spanProcessor,
+		otlpFactory,
+		consumer.NewTraces,
+		otlpFactory.CreateTracesReceiver,
+	)
 }
 
-// StartOtelReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
-func StartOtelReceiver(options OtelReceiverOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
-	otlpFactory := otlpreceiver.NewFactory()
+// Some of OTELCOL constructor functions return errors when passed nil arguments,
+// which is a situation we cannot reproduce. To test our own error handling, this
+// function allows to mock those constructors.
+func startOTLPReceiver(
+	options *flags.CollectorOptions,
+	logger *zap.Logger,
+	spanProcessor processor.SpanProcessor,
+	// from here: params that can be mocked in tests
+	otlpFactory component.ReceiverFactory,
+	newTraces func(consume consumer.ConsumeTracesFunc, options ...consumer.Option) (consumer.Traces, error),
+	createTracesReceiver func(ctx context.Context, set component.ReceiverCreateSettings,
+		cfg config.Receiver, nextConsumer consumer.Traces) (component.TracesReceiver, error),
+) (component.TracesReceiver, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-	if options.GRPCHostPort != "" {
-		otlpReceiverConfig.GRPC.NetAddr.Endpoint = options.GRPCHostPort
-	}
-	if options.HTTPHostPort != "" {
-		otlpReceiverConfig.HTTP.Endpoint = options.HTTPHostPort
-	}
+	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
+	applyHTTPSettings(otlpReceiverConfig.HTTP, &options.OTLP.HTTP)
 	otlpReceiverSettings := component.ReceiverCreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
@@ -58,17 +76,65 @@ func StartOtelReceiver(options OtelReceiverOptions, logger *zap.Logger, spanProc
 
 	otlpConsumer := newConsumerDelegate(logger, spanProcessor)
 	// the following two constructors never return errors given non-nil arguments, so we ignore errors
-	nextConsumer, _ := consumer.NewTraces(otlpConsumer.consume)
-	otlpReceiver, _ := otlpFactory.CreateTracesReceiver(
+	nextConsumer, err := newTraces(otlpConsumer.consume)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the OTLP consumer: %w", err)
+	}
+	otlpReceiver, err := createTracesReceiver(
 		context.Background(),
 		otlpReceiverSettings,
 		otlpReceiverConfig,
 		nextConsumer,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the OTLP receiver: %w", err)
+	}
 	if err := otlpReceiver.Start(context.Background(), &otelHost{logger: logger}); err != nil {
 		return nil, fmt.Errorf("could not start the OTLP receiver: %w", err)
 	}
 	return otlpReceiver, nil
+}
+
+func applyGRPCSettings(cfg *configgrpc.GRPCServerSettings, opts *flags.GRPCOptions) {
+	if opts.HostPort != "" {
+		cfg.NetAddr.Endpoint = opts.HostPort
+	}
+	if opts.TLS.Enabled {
+		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
+	}
+	if opts.MaxReceiveMessageLength > 0 {
+		cfg.MaxRecvMsgSizeMiB = uint64(opts.MaxReceiveMessageLength / (1024 * 1024))
+	}
+	if opts.MaxConnectionAge != 0 || opts.MaxConnectionAgeGrace != 0 {
+		cfg.Keepalive = &configgrpc.KeepaliveServerConfig{
+			ServerParameters: &configgrpc.KeepaliveServerParameters{
+				MaxConnectionAge:      opts.MaxConnectionAge,
+				MaxConnectionAgeGrace: opts.MaxConnectionAgeGrace,
+			},
+		}
+	}
+}
+
+func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptions) {
+	if opts.HostPort != "" {
+		cfg.Endpoint = opts.HostPort
+	}
+	if opts.TLS.Enabled {
+		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
+	}
+}
+
+func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
+	return &configtls.TLSServerSetting{
+		TLSSetting: configtls.TLSSetting{
+			CAFile:     opts.CAPath,
+			CertFile:   opts.CertPath,
+			KeyFile:    opts.KeyPath,
+			MinVersion: opts.MinVersion,
+			MaxVersion: opts.MaxVersion,
+		},
+		ClientCAFile: opts.ClientCAPath,
+	}
 }
 
 func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor) *consumerDelegate {

@@ -18,28 +18,37 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
+
+func optionsWithPorts(port string) *flags.CollectorOptions {
+	opts := &flags.CollectorOptions{}
+	opts.OTLP.GRPC = flags.GRPCOptions{
+		HostPort: port,
+	}
+	opts.OTLP.HTTP = flags.HTTPOptions{
+		HostPort: port,
+	}
+	return opts
+}
 
 func TestStartOtlpReceiver(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
-	rec, err := StartOtelReceiver(
-		OtelReceiverOptions{
-			GRPCHostPort: ":0",
-			HTTPHostPort: ":0",
-		},
-		logger,
-		spanProcessor,
-	)
+	rec, err := StartOTLPReceiver(optionsWithPorts(":0"), logger, spanProcessor)
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, rec.Shutdown(context.Background()))
@@ -88,16 +97,29 @@ func TestConsumerDelegate(t *testing.T) {
 func TestStartOtlpReceiver_Error(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
-	_, err := StartOtelReceiver(
-		OtelReceiverOptions{
-			GRPCHostPort: ":-1",
-			HTTPHostPort: ":-1",
-		},
-		logger,
-		spanProcessor,
-	)
-	assert.Error(t, err)
+	opts := optionsWithPorts(":-1")
+	_, err := StartOTLPReceiver(opts, logger, spanProcessor)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not start the OTLP receiver")
+
+	newTraces := func(consumer.ConsumeTracesFunc, ...consumer.Option) (consumer.Traces, error) {
+		return nil, errors.New("mock error")
+	}
+	f := otlpreceiver.NewFactory()
+	_, err = startOTLPReceiver(opts, logger, spanProcessor, f, newTraces, f.CreateTracesReceiver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
+
+	createTracesReceiver := func(
+		context.Context, component.ReceiverCreateSettings, config.Receiver, consumer.Traces,
+	) (component.TracesReceiver, error) {
+		return nil, errors.New("mock error")
+	}
+	_, err = startOTLPReceiver(opts, logger, spanProcessor, f, consumer.NewTraces, createTracesReceiver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not create the OTLP receiver")
 }
+
 func TestProtoFromTracesError(t *testing.T) {
 	mockErr := errors.New("mock error")
 	c := &consumerDelegate{
@@ -126,4 +148,70 @@ func TestOtelHost(t *testing.T) {
 	assert.Nil(t, host.GetFactory(component.KindReceiver, config.TracesDataType))
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
+}
+
+func TestApplyOTLPGRPCServerSettings(t *testing.T) {
+	otlpFactory := otlpreceiver.NewFactory()
+	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+
+	grpcOpts := &flags.GRPCOptions{
+		HostPort:                ":54321",
+		MaxReceiveMessageLength: 42 * 1024 * 1024,
+		MaxConnectionAge:        33 * time.Second,
+		MaxConnectionAgeGrace:   37 * time.Second,
+		TLS: tlscfg.Options{
+			Enabled:      true,
+			CAPath:       "ca",
+			CertPath:     "cert",
+			KeyPath:      "key",
+			ClientCAPath: "clientca",
+			MinVersion:   "1.1",
+			MaxVersion:   "1.3",
+		},
+	}
+	applyGRPCSettings(otlpReceiverConfig.GRPC, grpcOpts)
+	out := otlpReceiverConfig.GRPC
+	assert.Equal(t, out.NetAddr.Endpoint, ":54321")
+	assert.EqualValues(t, out.MaxRecvMsgSizeMiB, 42)
+	require.NotNil(t, out.Keepalive)
+	require.NotNil(t, out.Keepalive.ServerParameters)
+	assert.Equal(t, out.Keepalive.ServerParameters.MaxConnectionAge, 33*time.Second)
+	assert.Equal(t, out.Keepalive.ServerParameters.MaxConnectionAgeGrace, 37*time.Second)
+	require.NotNil(t, out.TLSSetting)
+	assert.Equal(t, out.TLSSetting.CAFile, "ca")
+	assert.Equal(t, out.TLSSetting.CertFile, "cert")
+	assert.Equal(t, out.TLSSetting.KeyFile, "key")
+	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
+	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
+	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
+}
+
+func TestApplyOTLPHTTPServerSettings(t *testing.T) {
+	otlpFactory := otlpreceiver.NewFactory()
+	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+
+	httpOpts := &flags.HTTPOptions{
+		HostPort: ":12345",
+		TLS: tlscfg.Options{
+			Enabled:      true,
+			CAPath:       "ca",
+			CertPath:     "cert",
+			KeyPath:      "key",
+			ClientCAPath: "clientca",
+			MinVersion:   "1.1",
+			MaxVersion:   "1.3",
+		},
+	}
+
+	applyHTTPSettings(otlpReceiverConfig.HTTP, httpOpts)
+
+	out := otlpReceiverConfig.HTTP
+	assert.Equal(t, out.Endpoint, ":12345")
+	require.NotNil(t, out.TLSSetting)
+	assert.Equal(t, out.TLSSetting.CAFile, "ca")
+	assert.Equal(t, out.TLSSetting.CertFile, "cert")
+	assert.Equal(t, out.TLSSetting.KeyFile, "key")
+	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
+	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
+	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
 }

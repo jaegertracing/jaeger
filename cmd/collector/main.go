@@ -30,9 +30,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
-	"github.com/jaegertracing/jaeger/cmd/flags"
+	cmdFlags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -44,7 +45,7 @@ import (
 const serviceName = "jaeger-collector"
 
 func main() {
-	svc := flags.NewService(ports.CollectorAdminHTTP)
+	svc := cmdFlags.NewService(ports.CollectorAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
@@ -106,7 +107,7 @@ func main() {
 				Aggregator:     aggregator,
 				HealthCheck:    svc.HC(),
 			})
-			collectorOpts, err := new(app.CollectorOptions).InitFromViper(v)
+			collectorOpts, err := new(flags.CollectorOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
@@ -143,7 +144,7 @@ func main() {
 		v,
 		command,
 		svc.AddFlags,
-		app.AddFlags,
+		flags.AddFlags,
 		storageFactory.AddPipelineFlags,
 		strategyStoreFactory.AddFlags,
 	)

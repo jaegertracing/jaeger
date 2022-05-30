@@ -19,18 +19,10 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
-)
-
-const (
-	// DefaultNumWorkers is the default number of workers consuming from the processor queue
-	DefaultNumWorkers = 50
-	// DefaultQueueSize is the size of the processor's queue
-	DefaultQueueSize = 2000
-	// DefaultGRPCMaxReceiveMessageLength is the default max receivable message size for the gRPC Collector
-	DefaultGRPCMaxReceiveMessageLength = 4 * 1024 * 1024
 )
 
 type options struct {
@@ -191,7 +183,7 @@ func (o options) apply(opts ...Option) options {
 		ret.spanFilter = func(span *model.Span) bool { return true }
 	}
 	if ret.numWorkers == 0 {
-		ret.numWorkers = DefaultNumWorkers
+		ret.numWorkers = flags.DefaultNumWorkers
 	}
 	return ret
 }
