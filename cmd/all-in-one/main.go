@@ -37,6 +37,7 @@ import (
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
+	collectorFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -146,7 +147,7 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to configure connection for grpc", zap.Error(err))
 			}
-			cOpts, err := new(collectorApp.CollectorOptions).InitFromViper(v)
+			cOpts, err := new(collectorFlags.CollectorOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
@@ -227,7 +228,7 @@ by default uses only in-memory database.`,
 		agentApp.AddFlags,
 		agentRep.AddFlags,
 		agentGrpcRep.AddFlags,
-		collectorApp.AddFlags,
+		collectorFlags.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 		metricsReaderFactory.AddFlags,

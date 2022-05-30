@@ -21,6 +21,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -31,7 +32,7 @@ import (
 // SpanHandlerBuilder holds configuration required for handlers
 type SpanHandlerBuilder struct {
 	SpanWriter     spanstore.Writer
-	CollectorOpts  CollectorOptions
+	CollectorOpts  *flags.CollectorOptions
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
 }

@@ -26,12 +26,18 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+)
+
+const (
+	metricNumWorkers = "collector.num-workers"
+	metricQueueSize  = "collector.queue-size"
 )
 
 // Collector returns the collector as a manageable unit of work
@@ -82,10 +88,10 @@ func New(params *CollectorParams) *Collector {
 }
 
 // Start the component and underlying dependencies
-func (c *Collector) Start(options *CollectorOptions) error {
+func (c *Collector) Start(options *flags.CollectorOptions) error {
 	handlerBuilder := &SpanHandlerBuilder{
 		SpanWriter:     c.spanWriter,
-		CollectorOpts:  *options,
+		CollectorOpts:  options,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
 	}
@@ -145,28 +151,23 @@ func (c *Collector) Start(options *CollectorOptions) error {
 	}
 	c.zkServer = zkServer
 
-	otlpReceiver, err := handler.StartOtelReceiver(
-		handler.OtelReceiverOptions{
-			GRPCHostPort: options.OTLP.GRPCHostPort,
-			HTTPHostPort: options.OTLP.HTTPHostPort,
-		},
-		c.logger,
-		c.spanProcessor,
-	)
-	if err != nil {
-		return fmt.Errorf("could not start OTLP receiver: %w", err)
+	if options.OTLP.Enabled {
+		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor)
+		if err != nil {
+			return fmt.Errorf("could not start OTLP receiver: %w", err)
+		}
+		c.otlpReceiver = otlpReceiver
 	}
-	c.otlpReceiver = otlpReceiver
 
 	c.publishOpts(options)
 
 	return nil
 }
 
-func (c *Collector) publishOpts(cOpts *CollectorOptions) {
+func (c *Collector) publishOpts(cOpts *flags.CollectorOptions) {
 	internalFactory := c.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: collectorNumWorkers}).Update(int64(cOpts.NumWorkers))
-	internalFactory.Gauge(metrics.Options{Name: collectorQueueSize}).Update(int64(cOpts.QueueSize))
+	internalFactory.Gauge(metrics.Options{Name: metricNumWorkers}).Update(int64(cOpts.NumWorkers))
+	internalFactory.Gauge(metrics.Options{Name: metricQueueSize}).Update(int64(cOpts.QueueSize))
 }
 
 // Close the component and all its underlying dependencies

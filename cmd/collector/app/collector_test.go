@@ -26,6 +26,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -34,12 +35,14 @@ import (
 
 var _ (io.Closer) = (*Collector)(nil)
 
-func optionsForEphemeralPorts() *CollectorOptions {
-	collectorOpts := &CollectorOptions{}
+func optionsForEphemeralPorts() *flags.CollectorOptions {
+	collectorOpts := &flags.CollectorOptions{}
 	collectorOpts.GRPC.HostPort = ":0"
 	collectorOpts.HTTP.HostPort = ":0"
-	collectorOpts.OTLP.GRPCHostPort = ":0"
-	collectorOpts.OTLP.HTTPHostPort = ":0"
+	collectorOpts.OTLP.Enabled = true
+	collectorOpts.OTLP.GRPC.HostPort = ":0"
+	collectorOpts.OTLP.HTTP.HostPort = ":0"
+	collectorOpts.Zipkin.HTTPHostPort = ":0"
 	return collectorOpts
 }
 
@@ -59,13 +62,15 @@ func TestNewCollector(t *testing.T) {
 		StrategyStore:  strategyStore,
 		HealthCheck:    hc,
 	})
+
 	collectorOpts := optionsForEphemeralPorts()
 	require.NoError(t, c.Start(collectorOpts))
+	assert.NotNil(t, c.SpanHandlers())
 	assert.NoError(t, c.Close())
 }
 
 func TestCollector_StartErrors(t *testing.T) {
-	run := func(name string, options *CollectorOptions, expErr string) {
+	run := func(name string, options *flags.CollectorOptions, expErr string) {
 		t.Run(name, func(t *testing.T) {
 			hc := healthcheck.New()
 			logger := zap.NewNop()
@@ -87,7 +92,7 @@ func TestCollector_StartErrors(t *testing.T) {
 		})
 	}
 
-	var options *CollectorOptions
+	var options *flags.CollectorOptions
 
 	options = optionsForEphemeralPorts()
 	options.GRPC.HostPort = ":-1"
@@ -102,8 +107,12 @@ func TestCollector_StartErrors(t *testing.T) {
 	run("Zipkin", options, "could not start Zipkin server")
 
 	options = optionsForEphemeralPorts()
-	options.OTLP.HTTPHostPort = ":-1"
-	run("OTLP", options, "could not start OTLP receiver")
+	options.OTLP.GRPC.HostPort = ":-1"
+	run("OTLP/GRPC", options, "could not start OTLP receiver")
+
+	options = optionsForEphemeralPorts()
+	options.OTLP.HTTP.HostPort = ":-1"
+	run("OTLP/HTTP", options, "could not start OTLP receiver")
 }
 
 type mockStrategyStore struct {
