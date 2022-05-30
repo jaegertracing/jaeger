@@ -323,7 +323,8 @@ func TestServerHTTPTLS(t *testing.T) {
 				HTTPHostPort:           ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
 				TLSHTTP:                test.TLS,
 				TLSGRPC:                TLSGRPC,
-				BearerTokenPropagation: true}
+				BearerTokenPropagation: true,
+			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
@@ -418,7 +419,6 @@ func TestServerHTTPTLS(t *testing.T) {
 			server.Close()
 			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
-
 		})
 	}
 }
@@ -483,7 +483,8 @@ func TestServerGRPCTLS(t *testing.T) {
 				HTTPHostPort:           ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
 				TLSHTTP:                TLSHTTP,
 				TLSGRPC:                test.TLS,
-				BearerTokenPropagation: true}
+				BearerTokenPropagation: true,
+			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
@@ -544,8 +545,8 @@ func TestServerGRPCTLS(t *testing.T) {
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
-
 }
+
 func TestServerBadHostPort(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: "8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
@@ -632,7 +633,6 @@ func TestServerSinglePort(t *testing.T) {
 
 		}
 		wg.Done()
-
 	}()
 
 	client := newGRPCClient(t, hostPort)
@@ -710,6 +710,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 			"jaeger.api_v2.QueryService",
 			"jaeger.api_v3.QueryService",
 			"jaeger.api_v2.metrics.MetricsQueryService",
+			"grpc.health.v1.Health",
 		},
 	}.Execute(t)
 }

@@ -130,6 +130,7 @@ func TestCollectorReflection(t *testing.T) {
 		ExpectedServices: []string{
 			"jaeger.api_v2.CollectorService",
 			"jaeger.api_v2.SamplingManager",
+			"grpc.health.v1.Health",
 		},
 	}.Execute(t)
 }
