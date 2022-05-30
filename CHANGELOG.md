@@ -13,11 +13,34 @@ next release
 
 ### UI Changes
 
-1.34.0 (2022-05-11)
+
+1.35.0 (2022-06-01)
 -------------------
 ### Backend Changes
 
-#### Breaking Changes
+#### New Features
+
+- Introduce OTLP receiver configuration flags ([@yurishkuro](https://github.com/yurishkuro) in [#3710](https://github.com/jaegertracing/jaeger/pull/3710))
+- Define Health Server for GRPC servers ([@mmorel-35](https://github.com/mmorel-35) in [#3712](https://github.com/jaegertracing/jaeger/pull/3712))
+- Add OTLP receiver to collector ([@yurishkuro](https://github.com/yurishkuro) in [#3701](https://github.com/jaegertracing/jaeger/pull/3701))
+- Add flag to enable/disable dependencies on rollover ([@rubenvp8510](https://github.com/rubenvp8510) in [#3705](https://github.com/jaegertracing/jaeger/pull/3705))
+- Add TLS configuration for Admin Server ([@mmorel-35](https://github.com/mmorel-35) in [#3679](https://github.com/jaegertracing/jaeger/pull/3679))
+- Add TLS configuration for Zipkin ([@mmorel-35](https://github.com/mmorel-35) in [#3676](https://github.com/jaegertracing/jaeger/pull/3676))
+
+#### Bug fixes, Minor Improvements
+
+- Fix for WithTenant() lost orig context ([@esnible](https://github.com/esnible) in [#3685](https://github.com/jaegertracing/jaeger/pull/3685))
+- Add entries to env command for new storage types ([@yurishkuro](https://github.com/yurishkuro) in [#3678](https://github.com/jaegertracing/jaeger/pull/3678))
+- Fix Prometheus factory signature ([@yurishkuro](https://github.com/yurishkuro) in [#3681](https://github.com/jaegertracing/jaeger/pull/3681))
+
+### UI Changes
+
+* UI pinned to version [1.24.0 - see the changelog](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1240-2022-06-01).
+
+
+1.34.0 (2022-05-11)
+-------------------
+### Backend Changes
 
 #### New Features
 
@@ -36,7 +59,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version 1.23.0. The changelog is available here [v1.23.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1220-2022-05-10).
+* UI pinned to version 1.23.0. The changelog is available here [v1.23.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1230-2022-05-10).
 
 1.33.0 (2022-04-11)
 -------------------
@@ -67,7 +90,7 @@ next release
 #### New Features
 
 * Enable gRPC reflection service on collector/query ([@yurishkuro](https://github.com/yurishkuro) in [#3526](https://github.com/jaegertracing/jaeger/pull/3526))
- 
+
 #### Bug fixes, Minor Improvements
 
 * Fix query for latency metrics ([@Ashmita152](https://github.com/Ashmita152) in [#3559](https://github.com/jaegertracing/jaeger/pull/3559))
