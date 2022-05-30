@@ -363,7 +363,7 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: changelog
 changelog:
-	python ./scripts/release-notes.py
+	python3 ./scripts/release-notes.py
 
 .PHONY: install-tools
 install-tools:
