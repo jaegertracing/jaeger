@@ -29,6 +29,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
@@ -63,7 +65,6 @@ type Server struct {
 
 // NewServer creates and initializes Server
 func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
-
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
 		return nil, err
@@ -129,9 +130,17 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		tracer:              tracer,
 		nowFn:               time.Now,
 	}
+	healthServer := health.NewServer()
+
 	api_v2.RegisterQueryServiceServer(server, handler)
 	metrics.RegisterMetricsQueryServiceServer(server, handler)
 	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
+
+	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+
+	grpc_health_v1.RegisterHealthServer(server, healthServer)
 	return server, nil
 }
 

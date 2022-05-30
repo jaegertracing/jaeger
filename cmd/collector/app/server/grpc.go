@@ -22,6 +22,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
@@ -89,8 +91,15 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 }
 
 func serveGRPC(server *grpc.Server, listener net.Listener, params *GRPCServerParams) error {
+	healthServer := health.NewServer()
+
 	api_v2.RegisterCollectorServiceServer(server, params.Handler)
 	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingStore))
+
+	healthServer.SetServingStatus("jaeger.api_v2.CollectorService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)
+
+	grpc_health_v1.RegisterHealthServer(server, healthServer)
 
 	params.Logger.Info("Starting jaeger-collector gRPC server", zap.String("grpc.host-port", params.HostPortActual))
 	go func() {
