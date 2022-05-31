@@ -162,7 +162,7 @@ func (c *consumerDelegate) consume(_ context.Context, td ptrace.Traces) error {
 		return err
 	}
 	for _, batch := range batches {
-		err := c.batchConsumer.consume(batch)
+		err := c.batchConsumer.consume(batch, "")
 		if err != nil {
 			return err
 		}

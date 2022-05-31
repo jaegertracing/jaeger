@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -152,6 +153,8 @@ type GRPCOptions struct {
 	// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
 	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
 	MaxConnectionAgeGrace time.Duration
+	// Tenancy configures tenancy for endpoints that collect spans
+	Tenancy tenancy.Options
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -172,6 +175,8 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(flagZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 	tlsZipkinFlagsConfig.AddFlags(flags)
+
+	tenancy.AddFlags(flags)
 }
 
 func addHTTPFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort string) {
@@ -218,6 +223,11 @@ func (opts *GRPCOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 		opts.TLS = tlsOpts
 	} else {
 		return fmt.Errorf("failed to parse gRPC TLS options: %w", err)
+	}
+	if tenancy, err := tenancy.InitFromViper(v); err == nil {
+		opts.Tenancy = tenancy
+	} else {
+		return fmt.Errorf("failed to parse Tenancy options: %w", err)
 	}
 
 	return nil
