@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -266,8 +265,10 @@ func TestHotReloadUIConfigTempFile(t *testing.T) {
 	c := string(h.indexHTML.Load().([]byte))
 	assert.Contains(t, c, "About Jaeger")
 
-	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-	err = syncWrite(tmpFileName, []byte(newContent), 0644)
+	newContent, err := os.ReadFile("fixture/ui-config-new-hotreload.json")
+	require.NoError(t, err)
+
+	err = syncWrite(tmpFileName, newContent, 0644)
 	require.NoError(t, err)
 
 	waitUntil(t, func() bool {
