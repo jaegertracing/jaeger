@@ -20,10 +20,12 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // register zip encoding
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -31,10 +33,11 @@ import (
 type GRPCHandler struct {
 	logger        *zap.Logger
 	batchConsumer batchConsumer
+	tenancyConfig *tenancy.TenancyConfig
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor) *GRPCHandler {
+func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyConfig *tenancy.TenancyConfig) *GRPCHandler {
 	return &GRPCHandler{
 		logger: logger,
 		batchConsumer: batchConsumer{
@@ -45,13 +48,20 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor) *
 				SpanFormat:       processor.ProtoSpanFormat,
 			},
 		},
+		tenancyConfig: tenancyConfig,
 	}
 }
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+	tenant, err := g.validateTenant(ctx)
+	if err != nil {
+		g.logger.Error("rejecting spans (tenancy)", zap.Error(err))
+		return nil, err
+	}
+
 	batch := &r.Batch
-	err := g.batchConsumer.consume(batch)
+	err = g.batchConsumer.consume(batch, tenant)
 	return &api_v2.PostSpansResponse{}, err
 }
 
@@ -61,7 +71,7 @@ type batchConsumer struct {
 	spanOptions   processor.SpansOptions
 }
 
-func (c *batchConsumer) consume(batch *model.Batch) error {
+func (c *batchConsumer) consume(batch *model.Batch, tenant string) error {
 	for _, span := range batch.Spans {
 		if span.GetProcess() == nil {
 			span.Process = batch.Process
@@ -70,6 +80,7 @@ func (c *batchConsumer) consume(batch *model.Batch) error {
 	_, err := c.spanProcessor.ProcessSpans(batch.Spans, processor.SpansOptions{
 		InboundTransport: processor.GRPCTransport,
 		SpanFormat:       processor.ProtoSpanFormat,
+		Tenant:           tenant,
 	})
 	if err != nil {
 		if err == processor.ErrBusy {
@@ -79,4 +90,28 @@ func (c *batchConsumer) consume(batch *model.Batch) error {
 		return err
 	}
 	return nil
+}
+
+func (g *GRPCHandler) validateTenant(ctx context.Context) (string, error) {
+	if !g.tenancyConfig.Enabled {
+		return "", nil
+	}
+
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	}
+
+	tenants := md[g.tenancyConfig.Header]
+	if len(tenants) < 1 {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	} else if len(tenants) > 1 {
+		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
+	}
+
+	if !g.tenancyConfig.Valid(tenants[0]) {
+		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
+	}
+
+	return tenants[0], nil
 }
