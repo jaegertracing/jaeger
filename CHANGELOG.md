@@ -14,6 +14,15 @@ next release
 ### UI Changes
 
 
+1.35.1 (2022-06-01)
+-------------------
+### Backend Changes
+
+#### Bug fixes
+
+- Fix panic from gogo-codec when receiving OTLP over gRPC ([@yurishkuro](https://github.com/yurishkuro) in [#3719](https://github.com/jaegertracing/jaeger/pull/3719))
+
+
 1.35.0 (2022-06-01)
 -------------------
 ### Backend Changes
