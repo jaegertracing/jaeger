@@ -156,13 +156,13 @@ type consumerDelegate struct {
 	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
 }
 
-func (c *consumerDelegate) consume(_ context.Context, td ptrace.Traces) error {
+func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
 	batches, err := c.protoFromTraces(td)
 	if err != nil {
 		return err
 	}
 	for _, batch := range batches {
-		err := c.batchConsumer.consume(batch, "")
+		err := c.batchConsumer.consume(ctx, batch)
 		if err != nil {
 			return err
 		}

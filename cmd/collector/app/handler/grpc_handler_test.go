@@ -350,7 +350,7 @@ func TestGetTenant(t *testing.T) {
 		}))
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tenant, err := handler.validateTenant(test.ctx)
+			tenant, err := handler.batchConsumer.validateTenant(test.ctx)
 			if test.mustFail {
 				require.Error(t, err)
 			} else {
