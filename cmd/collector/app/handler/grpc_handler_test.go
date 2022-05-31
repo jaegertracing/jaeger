@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -46,12 +47,10 @@ func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, opts processor.Spa
 	defer p.mux.Unlock()
 	p.spans = append(p.spans, spans...)
 	oks := make([]bool, len(spans))
-
 	if p.tenants == nil {
 		p.tenants = make(map[string]bool)
 	}
 	p.tenants[opts.Tenant] = true
-
 	return oks, p.expectedError
 }
 
@@ -139,34 +138,57 @@ func TestGRPCCompressionEnabled(t *testing.T) {
 	defer conn.Close()
 
 	// Do not use string constant imported from grpc, since we are actually testing that package is imported by the handler.
-	_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{},
-		grpc.UseCompressor("gzip"))
+	_, err := client.PostSpans(
+		context.Background(),
+		&api_v2.PostSpansRequest{},
+		grpc.UseCompressor("gzip"),
+	)
 	require.NoError(t, err)
 }
 
 func TestPostSpansWithError(t *testing.T) {
-	expectedError := errors.New("test-error")
-	processor := &mockSpanProcessor{expectedError: expectedError}
-	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyConfig{})
-		api_v2.RegisterCollectorServiceServer(s, handler)
-	})
-	defer server.Stop()
-	client, conn := newClient(t, addr)
-	defer conn.Close()
-	r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
-		Batch: model.Batch{
-			Spans: []*model.Span{
-				{
-					OperationName: "fake-operation",
-				},
-			},
+	testCases := []struct {
+		processorError error
+		expectedError  string
+		expectedLog    string
+	}{
+		{
+			processorError: errors.New("test-error"),
+			expectedError:  "test-error",
+			expectedLog:    "test-error",
 		},
-	})
-	require.Error(t, err)
-	require.Nil(t, r)
-	require.Contains(t, err.Error(), expectedError.Error())
-	require.Len(t, processor.getSpans(), 1)
+		{
+			processorError: processor.ErrBusy,
+			expectedError:  "server busy",
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.expectedError, func(t *testing.T) {
+			processor := &mockSpanProcessor{expectedError: test.processorError}
+			logger, logBuf := testutils.NewLogger()
+			server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+				handler := NewGRPCHandler(logger, processor, &tenancy.TenancyConfig{})
+				api_v2.RegisterCollectorServiceServer(s, handler)
+			})
+			defer server.Stop()
+			client, conn := newClient(t, addr)
+			defer conn.Close()
+			r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
+				Batch: model.Batch{
+					Spans: []*model.Span{
+						{
+							OperationName: "fake-operation",
+						},
+					},
+				},
+			})
+			require.Error(t, err)
+			require.Nil(t, r)
+			assert.Contains(t, err.Error(), test.expectedError)
+			assert.Contains(t, logBuf.String(), test.expectedLog)
+			assert.Len(t, processor.getSpans(), 1)
+		})
+	}
 }
 
 // withMetadata returns a Context with metadata for outbound (client) calls
