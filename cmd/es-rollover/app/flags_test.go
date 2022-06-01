@@ -41,6 +41,7 @@ func TestBindFlags(t *testing.T) {
 		"--es.password=qwerty123",
 		"--es.use-ilm=true",
 		"--es.ilm-policy-name=jaeger-ilm",
+		"--skip-dependencies=true",
 	})
 	require.NoError(t, err)
 
@@ -51,4 +52,5 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "admin", c.Username)
 	assert.Equal(t, "qwerty123", c.Password)
 	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
+	assert.Equal(t, true, c.SkipDependencies)
 }
