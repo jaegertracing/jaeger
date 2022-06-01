@@ -69,4 +69,5 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.ILMPolicyName = v.GetString(ilmPolicyName)
 	c.UseILM = v.GetBool(useILM)
 	c.Timeout = v.GetInt(timeout)
+	c.SkipDependencies = v.GetBool(skipDependencies)
 }
