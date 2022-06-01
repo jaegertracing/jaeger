@@ -39,15 +39,11 @@ type GRPCHandler struct {
 func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyConfig *tenancy.TenancyConfig) *GRPCHandler {
 	return &GRPCHandler{
 		logger: logger,
-		batchConsumer: batchConsumer{
-			logger:        logger,
-			spanProcessor: spanProcessor,
-			spanOptions: processor.SpansOptions{
-				InboundTransport: processor.GRPCTransport,
-				SpanFormat:       processor.ProtoSpanFormat,
-			},
-			tenancyConfig: *tenancyConfig,
-		},
+		batchConsumer: newBatchConsumer(logger,
+			spanProcessor,
+			processor.GRPCTransport,
+			processor.ProtoSpanFormat,
+			tenancyConfig),
 	}
 }
 
@@ -63,6 +59,21 @@ type batchConsumer struct {
 	spanProcessor processor.SpanProcessor
 	spanOptions   processor.SpansOptions
 	tenancyConfig tenancy.TenancyConfig
+}
+
+func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyConfig *tenancy.TenancyConfig) batchConsumer {
+	if tenancyConfig == nil {
+		tenancyConfig = &tenancy.TenancyConfig{}
+	}
+	return batchConsumer{
+		logger:        logger,
+		spanProcessor: spanProcessor,
+		spanOptions: processor.SpansOptions{
+			InboundTransport: transport,
+			SpanFormat:       spanFormat,
+		},
+		tenancyConfig: *tenancyConfig,
+	}
 }
 
 func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
