@@ -139,14 +139,11 @@ func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
 
 func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor) *consumerDelegate {
 	return &consumerDelegate{
-		batchConsumer: batchConsumer{
-			logger:        logger,
-			spanProcessor: spanProcessor,
-			spanOptions: processor.SpansOptions{
-				SpanFormat:       processor.OTLPSpanFormat,
-				InboundTransport: processor.UnknownTransport, // could be gRPC or HTTP
-			},
-		},
+		batchConsumer: newBatchConsumer(logger,
+			spanProcessor,
+			processor.UnknownTransport, // could be gRPC or HTTP
+			processor.OTLPSpanFormat,
+			nil),
 		protoFromTraces: otlp2jaeger.ProtoFromTraces,
 	}
 }
@@ -156,13 +153,13 @@ type consumerDelegate struct {
 	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
 }
 
-func (c *consumerDelegate) consume(_ context.Context, td ptrace.Traces) error {
+func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
 	batches, err := c.protoFromTraces(td)
 	if err != nil {
 		return err
 	}
 	for _, batch := range batches {
-		err := c.batchConsumer.consume(batch, "")
+		err := c.batchConsumer.consume(ctx, batch)
 		if err != nil {
 			return err
 		}
