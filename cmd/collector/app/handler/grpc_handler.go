@@ -33,35 +33,24 @@ import (
 type GRPCHandler struct {
 	logger        *zap.Logger
 	batchConsumer batchConsumer
-	tenancyConfig *tenancy.TenancyConfig
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
 func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyConfig *tenancy.TenancyConfig) *GRPCHandler {
 	return &GRPCHandler{
 		logger: logger,
-		batchConsumer: batchConsumer{
-			logger:        logger,
-			spanProcessor: spanProcessor,
-			spanOptions: processor.SpansOptions{
-				InboundTransport: processor.GRPCTransport,
-				SpanFormat:       processor.ProtoSpanFormat,
-			},
-		},
-		tenancyConfig: tenancyConfig,
+		batchConsumer: newBatchConsumer(logger,
+			spanProcessor,
+			processor.GRPCTransport,
+			processor.ProtoSpanFormat,
+			tenancyConfig),
 	}
 }
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	tenant, err := g.validateTenant(ctx)
-	if err != nil {
-		g.logger.Error("rejecting spans (tenancy)", zap.Error(err))
-		return nil, err
-	}
-
 	batch := &r.Batch
-	err = g.batchConsumer.consume(batch, tenant)
+	err := g.batchConsumer.consume(ctx, batch)
 	return &api_v2.PostSpansResponse{}, err
 }
 
@@ -69,15 +58,37 @@ type batchConsumer struct {
 	logger        *zap.Logger
 	spanProcessor processor.SpanProcessor
 	spanOptions   processor.SpansOptions
+	tenancyConfig tenancy.TenancyConfig
 }
 
-func (c *batchConsumer) consume(batch *model.Batch, tenant string) error {
+func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyConfig *tenancy.TenancyConfig) batchConsumer {
+	if tenancyConfig == nil {
+		tenancyConfig = &tenancy.TenancyConfig{}
+	}
+	return batchConsumer{
+		logger:        logger,
+		spanProcessor: spanProcessor,
+		spanOptions: processor.SpansOptions{
+			InboundTransport: transport,
+			SpanFormat:       spanFormat,
+		},
+		tenancyConfig: *tenancyConfig,
+	}
+}
+
+func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
+	tenant, err := c.validateTenant(ctx)
+	if err != nil {
+		c.logger.Error("rejecting spans (tenancy)", zap.Error(err))
+		return err
+	}
+
 	for _, span := range batch.Spans {
 		if span.GetProcess() == nil {
 			span.Process = batch.Process
 		}
 	}
-	_, err := c.spanProcessor.ProcessSpans(batch.Spans, processor.SpansOptions{
+	_, err = c.spanProcessor.ProcessSpans(batch.Spans, processor.SpansOptions{
 		InboundTransport: processor.GRPCTransport,
 		SpanFormat:       processor.ProtoSpanFormat,
 		Tenant:           tenant,
@@ -92,8 +103,8 @@ func (c *batchConsumer) consume(batch *model.Batch, tenant string) error {
 	return nil
 }
 
-func (g *GRPCHandler) validateTenant(ctx context.Context) (string, error) {
-	if !g.tenancyConfig.Enabled {
+func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
+	if !c.tenancyConfig.Enabled {
 		return "", nil
 	}
 
@@ -102,14 +113,14 @@ func (g *GRPCHandler) validateTenant(ctx context.Context) (string, error) {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	}
 
-	tenants := md[g.tenancyConfig.Header]
+	tenants := md[c.tenancyConfig.Header]
 	if len(tenants) < 1 {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	} else if len(tenants) > 1 {
 		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
 	}
 
-	if !g.tenancyConfig.Valid(tenants[0]) {
+	if !c.tenancyConfig.Valid(tenants[0]) {
 		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
 	}
 
