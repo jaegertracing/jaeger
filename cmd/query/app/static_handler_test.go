@@ -240,25 +240,30 @@ func TestWatcherError(t *testing.T) {
 	}
 }
 
-func TestHotReloadUIConfigTempFile(t *testing.T) {
+func TestHotReloadUIConfig(t *testing.T) {
 	dir, err := os.MkdirTemp("", "ui-config-hotreload-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	tmpfile, err := os.CreateTemp(dir, "*.json")
+	cfgFile, err := os.CreateTemp(dir, "*.json")
 	require.NoError(t, err)
-	tmpFileName := tmpfile.Name()
+	defer cfgFile.Close()
+	cfgFileName := cfgFile.Name()
+
+	tmpFile, err := os.CreateTemp(dir, "*.json")
+	require.NoError(t, err)
+	defer tmpFile.Close()
 
 	content, err := os.ReadFile("fixture/ui-config-hotreload.json")
 	require.NoError(t, err)
 
-	err = syncWrite(tmpFileName, content, 0644)
+	err = syncWrite(cfgFile, tmpFile, content)
 	require.NoError(t, err)
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
 	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfigPath: tmpFileName,
+		UIConfigPath: cfgFileName,
 		Logger:       logger,
 	})
 	require.NoError(t, err)
@@ -267,12 +272,12 @@ func TestHotReloadUIConfigTempFile(t *testing.T) {
 	assert.Contains(t, c, "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-	err = syncWrite(tmpFileName, []byte(newContent), 0644)
+	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
 	require.NoError(t, err)
 
 	waitUntil(t, func() bool {
 		return logObserver.FilterMessage("reloaded UI config").
-			FilterField(zap.String("filename", tmpFileName)).Len() > 0
+			FilterField(zap.String("filename", cfgFileName)).Len() > 0
 	}, 100, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
 
 	i := string(h.indexHTML.Load().([]byte))
@@ -392,8 +397,8 @@ func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.D
 
 // syncWrite ensures data is written to the given filename and flushed to disk.
 // This ensures that any watchers looking for file system changes can be reliably alerted.
-func syncWrite(filename string, data []byte, perm os.FileMode) error {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, perm)
+func syncWrite(target *os.File, temp *os.File, data []byte) error {
+	f, err := os.OpenFile(temp.Name(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -401,5 +406,8 @@ func syncWrite(filename string, data []byte, perm os.FileMode) error {
 	if _, err = f.Write(data); err != nil {
 		return err
 	}
-	return f.Sync()
+	if err := f.Sync(); err != nil {
+		return err
+	}
+	return os.Rename(temp.Name(), target.Name())
 }
