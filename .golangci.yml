@@ -29,6 +29,7 @@ linters-settings:
 
 linters:
   enable:
+    - contextcheck
     - depguard
     - gofmt
     - goimports
