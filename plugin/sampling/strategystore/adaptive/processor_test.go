@@ -561,7 +561,8 @@ func TestGenerateStrategyResponses(t *testing.T) {
 		Options: Options{
 			InitialSamplingProbability: 0.001,
 			MinSamplesPerSecond:        0.0001,
-		}}
+		},
+	}
 	p.generateStrategyResponses()
 
 	expectedResponse := map[string]*sampling.SamplingStrategyResponse{
@@ -609,6 +610,7 @@ func TestUsingAdaptiveSampling(t *testing.T) {
 		assert.Equal(t, test.expected, p.isUsingAdaptiveSampling(test.probability, test.service, test.operation, throughput))
 	}
 }
+
 func TestPrependServiceCache(t *testing.T) {
 	p := &Processor{}
 	for i := 0; i < serviceCacheSize*2; i++ {

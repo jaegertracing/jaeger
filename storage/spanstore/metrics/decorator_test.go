@@ -79,7 +79,8 @@ func checkExpectedExistingAndNonExistentCounters(t *testing.T,
 	expectedCounters,
 	actualGauges map[string]int64,
 	existingKeys,
-	nonExistentKeys []string) {
+	nonExistentKeys []string,
+) {
 	for k, v := range expectedCounters {
 		assert.EqualValues(t, v, actualCounters[k], k)
 	}

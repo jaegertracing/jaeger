@@ -25,7 +25,6 @@ import (
 var _ TagFilter = &TagFilterDropAll{} // Check API compliance
 
 func TestDropAll(t *testing.T) {
-
 	sampleTags := model.KeyValues{
 		model.String(someStringTagKey, someStringTagValue),
 		model.Bool(someBoolTagKey, someBoolTagValue),

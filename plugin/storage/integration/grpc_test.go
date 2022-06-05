@@ -54,7 +54,7 @@ func newgRPCServer() (*gRPCServer, error) {
 }
 
 func (s *gRPCServer) Restart() error {
-	//stop the server if one already exists
+	// stop the server if one already exists
 	if s.server != nil {
 		s.server.GracefulStop()
 		s.wg.Wait()

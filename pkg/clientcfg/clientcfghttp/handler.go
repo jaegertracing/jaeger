@@ -31,9 +31,7 @@ import (
 
 const mimeTypeApplicationJSON = "application/json"
 
-var (
-	errBadRequest = errors.New("bad request")
-)
+var errBadRequest = errors.New("bad request")
 
 // HTTPHandlerParams contains parameters that must be passed to NewHTTPHandler.
 type HTTPHandlerParams struct {
@@ -99,7 +97,6 @@ func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc(prefix+"/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
 		h.serveBaggageHTTP(w, r)
 	}).Methods(http.MethodGet)
-
 }
 
 func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {

@@ -38,9 +38,7 @@ const (
 	cqlDeleteLock = `DELETE FROM ` + leasesTable + ` WHERE name = ? IF owner = ?;`
 )
 
-var (
-	errLockOwnership = errors.New("this host does not own the resource lock")
-)
+var errLockOwnership = errors.New("this host does not own the resource lock")
 
 // NewLock creates a new instance of a distributed locking mechanism based off Cassandra.
 func NewLock(session cassandra.Session, tenantID string) *Lock {

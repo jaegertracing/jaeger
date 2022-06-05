@@ -35,7 +35,6 @@ func Test_NewFactory(t *testing.T) {
 }
 
 func Test_new(t *testing.T) {
-
 	mockConsumer := &kmocks.Consumer{}
 	mockConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 

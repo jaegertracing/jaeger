@@ -40,7 +40,6 @@ func newServiceNameReplacer() *strings.Replacer {
 	// lower case letters are safe
 	for i := 'a'; i <= 'z'; i++ {
 		mapping[i] = byte(i)
-
 	}
 	// upper case letters are safe, but convert them to lower case
 	for i := 'A'; i <= 'Z'; i++ {

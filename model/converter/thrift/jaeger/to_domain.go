@@ -59,7 +59,7 @@ func (td toDomain) ToDomainSpan(jSpan *jaeger.Span, jProcess *jaeger.Process) *m
 
 func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *model.Span {
 	traceID := model.NewTraceID(uint64(jSpan.TraceIdHigh), uint64(jSpan.TraceIdLow))
-	//allocate extra space for future append operation
+	// allocate extra space for future append operation
 	tags := td.getTags(jSpan.Tags, 1)
 	refs := td.getReferences(jSpan.References)
 	// We no longer store ParentSpanID in the domain model, but the data in Thrift model
@@ -113,9 +113,9 @@ func (td toDomain) getProcess(jProcess *jaeger.Process) *model.Process {
 	}
 }
 
-//convert the jaeger.Tag slice to domain KeyValue slice
-//zipkin/to_domain.go does not give a default slice size since it has to filter annotations, jaeger conversion is more predictable
-//thus to avoid future full array copy when using append, pre-allocate extra space as an optimization
+// convert the jaeger.Tag slice to domain KeyValue slice
+// zipkin/to_domain.go does not give a default slice size since it has to filter annotations, jaeger conversion is more predictable
+// thus to avoid future full array copy when using append, pre-allocate extra space as an optimization
 func (td toDomain) getTags(tags []*jaeger.Tag, extraSpace int) model.KeyValues {
 	if len(tags) == 0 {
 		return nil

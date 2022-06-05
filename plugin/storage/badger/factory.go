@@ -150,7 +150,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 // initializeDir makes the directory and parent directories if the path doesn't exists yet.
 func initializeDir(path string) {
 	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
-		os.MkdirAll(path, 0700)
+		os.MkdirAll(path, 0o700)
 	}
 }
 

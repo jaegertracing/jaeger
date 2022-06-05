@@ -140,7 +140,6 @@ func NewSpanReader(
 // GetServices returns all services traced by Jaeger
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	return s.serviceNamesReader()
-
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger

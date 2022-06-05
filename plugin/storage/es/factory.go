@@ -221,7 +221,6 @@ func createDependencyReader(
 	client es.Client,
 	cfg config.ClientBuilder,
 ) (dependencystore.Reader, error) {
-
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
 		Client:              client,
 		Logger:              logger,

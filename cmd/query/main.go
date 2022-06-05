@@ -60,7 +60,7 @@ func main() {
 	}
 
 	v := viper.New()
-	var command = &cobra.Command{
+	command := &cobra.Command{
 		Use:   "jaeger-query",
 		Short: "Jaeger query service provides a Web UI and an API for accessing trace data.",
 		Long:  `Jaeger query service provides a Web UI and an API for accessing trace data.`,
@@ -174,7 +174,6 @@ func createMetricsQueryService(
 	logger *zap.Logger,
 	metricsReaderMetricsFactory metrics.Factory,
 ) (querysvc.MetricsQueryService, error) {
-
 	if err := metricsReaderFactory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}

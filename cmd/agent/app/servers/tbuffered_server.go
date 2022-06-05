@@ -78,13 +78,14 @@ func NewTBufferedServer(
 ) (*TBufferedServer, error) {
 	dataChan := make(chan *ReadBuf, maxQueueSize)
 
-	var readBufPool = &sync.Pool{
+	readBufPool := &sync.Pool{
 		New: func() interface{} {
 			return &ReadBuf{bytes: make([]byte, maxPacketSize)}
 		},
 	}
 
-	res := &TBufferedServer{dataChan: dataChan,
+	res := &TBufferedServer{
+		dataChan:      dataChan,
 		transport:     transport,
 		maxQueueSize:  maxQueueSize,
 		maxPacketSize: maxPacketSize,

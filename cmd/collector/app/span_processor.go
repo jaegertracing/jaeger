@@ -220,7 +220,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 		return true // as in "not dropped", because it's actively rejected
 	}
 
-	//add format tag
+	// add format tag
 	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
 
 	// append the collector tags

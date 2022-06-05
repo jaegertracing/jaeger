@@ -31,7 +31,8 @@ func TestIsValidOption(t *testing.T) {
 		name          string
 		arg           string
 		expectedValue bool
-	}{{name: "span mapping", arg: "jaeger-span", expectedValue: true},
+	}{
+		{name: "span mapping", arg: "jaeger-span", expectedValue: true},
 		{name: "service mapping", arg: "jaeger-service", expectedValue: true},
 		{name: "Invalid mapping", arg: "dependency-service", expectedValue: false},
 	}

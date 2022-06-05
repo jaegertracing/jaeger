@@ -243,7 +243,6 @@ func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, clien
 
 func TestGetTraceSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
 
@@ -255,7 +254,6 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, spanResChunk.Spans[0].TraceID, mockTraceID)
-
 	})
 }
 
@@ -265,9 +263,9 @@ func assertGRPCError(t *testing.T, err error, code codes.Code, msg string) {
 	assert.Equal(t, code, s.Code())
 	assert.Contains(t, s.Message(), msg)
 }
+
 func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
 
@@ -285,7 +283,6 @@ func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 
 func TestGetTraceDBFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(nil, errStorageGRPC).Once()
 
@@ -298,12 +295,10 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 		assertGRPCError(t, err, codes.Internal, "failed to fetch spans from the backend")
 		assert.Nil(t, spanResChunk)
 	})
-
 }
 
 func TestGetTraceNotFoundGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
@@ -359,13 +354,11 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 
 func TestArchiveTraceEmptyTraceFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: model.TraceID{},
 		})
 		assert.ErrorIs(t, err, errUninitializedTraceID)
 	})
-
 }
 
 // test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
@@ -377,7 +370,6 @@ func TestArchiveTraceNilRequestOnHandlerGRPC(t *testing.T) {
 
 func TestArchiveTraceFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
 		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
@@ -415,13 +407,11 @@ func TestFindTracesSuccessGRPC(t *testing.T) {
 			spansArr = append(spansArr, *span)
 		}
 		assert.Equal(t, spansArr, spanResChunk.Spans)
-
 	})
 }
 
 func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 			Return([]*model.Trace{mockLargeTraceGRPC}, nil).Once()
 
@@ -444,7 +434,6 @@ func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
 		spanResChunk, err = res.Recv()
 		assert.NoError(t, err)
 		assert.Len(t, spanResChunk.Spans, 1)
-
 	})
 }
 
@@ -517,7 +506,6 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 
 func TestGetOperationsSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 		expectedOperations := []spanstore.Operation{
 			{Name: ""},
 			{Name: "get", SpanKind: "server"},
@@ -577,7 +565,6 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, expectedDependencies, res.Dependencies)
-
 	})
 }
 
@@ -597,7 +584,6 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 }
 
 func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
-
 	timeInputs := []struct {
 		startTime time.Time
 		endTime   time.Time
@@ -609,7 +595,6 @@ func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
 
 	for _, input := range timeInputs {
 		withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
 			_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
 				StartTime: input.startTime,
 				EndTime:   input.endTime,

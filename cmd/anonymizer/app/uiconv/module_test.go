@@ -71,9 +71,9 @@ func TestModule_TraceOutputFileError(t *testing.T) {
 		TraceID:      "2be38093ead7a083",
 	}
 
-	err := os.Chmod("fixtures", 0550)
+	err := os.Chmod("fixtures", 0o550)
 	require.NoError(t, err)
-	defer os.Chmod("fixtures", 0755)
+	defer os.Chmod("fixtures", 0o755)
 
 	err = Extract(config, zap.NewNop())
 	require.Contains(t, err.Error(), "cannot create output file")

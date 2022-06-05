@@ -298,7 +298,6 @@ func TestSpanWriterSkippingTags(t *testing.T) {
 
 func TestStorageMode_IndexOnly(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
-
 		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
 		w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return nil }
 		span := &model.Span{
@@ -410,12 +409,10 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 
 func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
-
-		w.writer.serviceNamesWriter =
-			func(serviceName string) error {
-				assert.Fail(t, "Non indexing store shouldn't index")
-				return nil
-			}
+		w.writer.serviceNamesWriter = func(serviceName string) error {
+			assert.Fail(t, "Non indexing store shouldn't index")
+			return nil
+		}
 		span := &model.Span{
 			TraceID: model.NewTraceID(0, 1),
 			Process: &model.Process{

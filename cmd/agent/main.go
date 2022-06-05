@@ -43,7 +43,7 @@ func main() {
 	svc.NoStorage = true
 
 	v := viper.New()
-	var command = &cobra.Command{
+	command := &cobra.Command{
 		Use:   "jaeger-agent",
 		Short: "Jaeger agent is a local daemon program which collects tracing data.",
 		Long:  `Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,

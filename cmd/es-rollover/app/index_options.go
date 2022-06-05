@@ -19,9 +19,11 @@ import (
 	"strings"
 )
 
-const writeAliasFormat = "%s-write"
-const readAliasFormat = "%s-read"
-const rolloverIndexFormat = "%s-000001"
+const (
+	writeAliasFormat    = "%s-write"
+	readAliasFormat     = "%s-read"
+	rolloverIndexFormat = "%s-000001"
+)
 
 // IndexOption holds the information for the indices to rollover
 type IndexOption struct {

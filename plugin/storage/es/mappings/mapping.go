@@ -69,7 +69,6 @@ func loadMapping(name string) string {
 }
 
 func (mb *MappingBuilder) fixMapping(mapping string) (string, error) {
-
 	tmpl, err := mb.TemplateBuilder.Parse(loadMapping(mapping))
 	if err != nil {
 		return "", err

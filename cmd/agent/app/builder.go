@@ -55,12 +55,10 @@ type Model string
 // Protocol used to distinguish the data transfer protocol
 type Protocol string
 
-var (
-	protocolFactoryMap = map[Protocol]thrift.TProtocolFactory{
-		compactProtocol: thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{}),
-		binaryProtocol:  thrift.NewTBinaryProtocolFactoryConf(&thrift.TConfiguration{}),
-	}
-)
+var protocolFactoryMap = map[Protocol]thrift.TProtocolFactory{
+	compactProtocol: thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{}),
+	binaryProtocol:  thrift.NewTBinaryProtocolFactoryConf(&thrift.TConfiguration{}),
+}
 
 // CollectorProxy provides access to Reporter and ClientConfigManager
 type CollectorProxy interface {

@@ -115,8 +115,7 @@ func TestCollector_StartErrors(t *testing.T) {
 	run("OTLP/HTTP", options, "could not start OTLP receiver")
 }
 
-type mockStrategyStore struct {
-}
+type mockStrategyStore struct{}
 
 func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	return &sampling.SamplingStrategyResponse{}, nil

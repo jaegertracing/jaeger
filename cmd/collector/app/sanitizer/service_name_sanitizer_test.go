@@ -23,12 +23,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-var (
-	testCache = map[string]string{
-		"rt-supply": "rt-supply",
-		"supply":    "rt-supply",
-	}
-)
+var testCache = map[string]string{
+	"rt-supply": "rt-supply",
+	"supply":    "rt-supply",
+}
 
 type fixedMappingCache struct {
 	Cache map[string]string

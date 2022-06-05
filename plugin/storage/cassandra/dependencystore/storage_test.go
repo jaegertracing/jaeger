@@ -57,8 +57,10 @@ func withDepStore(version Version, fn func(s *depStorageTest)) {
 	fn(s)
 }
 
-var _ dependencystore.Reader = &DependencyStore{} // check API conformance
-var _ dependencystore.Writer = &DependencyStore{} // check API conformance
+var (
+	_ dependencystore.Reader = &DependencyStore{} // check API conformance
+	_ dependencystore.Writer = &DependencyStore{} // check API conformance
+)
 
 func TestVersionIsValid(t *testing.T) {
 	assert.True(t, V1.IsValid())

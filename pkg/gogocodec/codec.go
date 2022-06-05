@@ -23,8 +23,10 @@ import (
 	"google.golang.org/grpc/encoding/proto"
 )
 
-const jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
-const jaegerModelPkgPath = "github.com/jaegertracing/jaeger/model"
+const (
+	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
+	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
+)
 
 var defaultCodec encoding.Codec
 

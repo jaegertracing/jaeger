@@ -293,7 +293,6 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 
 // indexSeeksToTraceIDs does the index scanning against badger based on the parsed index queries
 func (r *TraceReader) indexSeeksToTraceIDs(plan *executionPlan, indexSeeks [][]byte) ([]model.TraceID, error) {
-
 	for i := len(indexSeeks) - 1; i > 0; i-- {
 		indexResults, err := r.scanIndexKeys(indexSeeks[i], plan)
 		if err != nil {

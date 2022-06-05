@@ -44,7 +44,6 @@ func TestBasicAuth(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result := BasicAuth(test.username, test.password)
 			assert.Equal(t, test.expectedResult, result)
-
 		})
 	}
 }

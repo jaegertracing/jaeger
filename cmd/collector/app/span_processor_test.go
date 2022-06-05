@@ -73,7 +73,8 @@ func TestBySvcMetrics(t *testing.T) {
 							format:      format,
 							serviceName: serviceName,
 							rootSpan:    rootSpan,
-							debug:       debug})
+							debug:       debug,
+						})
 				}
 			}
 		}

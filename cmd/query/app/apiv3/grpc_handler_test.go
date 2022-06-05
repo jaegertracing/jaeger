@@ -29,7 +29,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" //force gogo codec registration
+	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -286,7 +286,8 @@ func TestGetOperations(t *testing.T) {
 		[]spanstore.Operation{
 			{
 				Name: "get_users",
-			}}, nil).Once()
+			},
+		}, nil).Once()
 
 	q := querysvc.NewQueryService(r, &dependencyStoreMocks.Reader{}, querysvc.QueryServiceOptions{})
 	h := &Handler{

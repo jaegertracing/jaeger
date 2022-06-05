@@ -161,8 +161,10 @@ func TestClockSkewAdjuster(t *testing.T) {
 				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
 				// latency = (100-50) / 2 = 25
 				// delta = (10 - 0) + latency = 35
-				{id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 35,
-					logs: []int{5, 10}, adjustedLogs: []int{40, 45}},
+				{
+					id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 35,
+					logs: []int{5, 10}, adjustedLogs: []int{40, 45},
+				},
 			},
 			maxAdjust: time.Second,
 		},
@@ -183,8 +185,10 @@ func TestClockSkewAdjuster(t *testing.T) {
 				{id: 2, parent: 1, startTime: 50, duration: 70, host: "b", adjusted: 25},
 				// same host 'b', so same delta = -25
 				// new start time: 60 + delta = 35
-				{id: 3, parent: 2, startTime: 60, duration: 20, host: "b", adjusted: 35,
-					logs: []int{65, 70}, adjustedLogs: []int{40, 45}},
+				{
+					id: 3, parent: 2, startTime: 60, duration: 20, host: "b", adjusted: 35,
+					logs: []int{65, 70}, adjustedLogs: []int{40, 45},
+				},
 			},
 			maxAdjust: time.Second,
 		},

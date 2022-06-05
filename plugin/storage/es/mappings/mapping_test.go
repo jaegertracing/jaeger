@@ -151,7 +151,6 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-
 		})
 	}
 }

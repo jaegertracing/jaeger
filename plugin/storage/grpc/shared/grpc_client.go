@@ -244,7 +244,6 @@ func (c *grpcClient) WriteSpan(ctx context.Context, span *model.Span) error {
 	_, err := c.writerClient.WriteSpan(ctx, &storage_v1.WriteSpanRequest{
 		Span: span,
 	})
-
 	if err != nil {
 		return fmt.Errorf("plugin error: %w", err)
 	}

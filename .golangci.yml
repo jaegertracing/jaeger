@@ -1,10 +1,11 @@
 run:
   timeout: 10m
   skip-dirs:
-    - swagger-gen
-    - pkg/cassandra/mocks
-    - storage/mocks
-    - cmd/ingester/app/consumer/mocks
+    - mocks
+    - thrift-0.9.2
+    - .*-gen
+  skip-files:
+    - ".*.pb.go$"
 
 linters-settings:
   depguard:
@@ -32,6 +33,7 @@ linters:
     - contextcheck
     - depguard
     - gofmt
+    - gofumpt
     - goimports
     - gosec
     - govet

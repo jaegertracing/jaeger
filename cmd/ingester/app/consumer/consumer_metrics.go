@@ -58,7 +58,8 @@ func (c *Consumer) partitionMetrics(partition int32) partitionMetrics {
 	f := c.namespace(partition)
 	return partitionMetrics{
 		closeCounter: f.Counter(metrics.Options{Name: "partition-close", Tags: nil}),
-		startCounter: f.Counter(metrics.Options{Name: "partition-start", Tags: nil})}
+		startCounter: f.Counter(metrics.Options{Name: "partition-start", Tags: nil}),
+	}
 }
 
 func partitionsHeldGauge(metricsFactory metrics.Factory) metrics.Gauge {
