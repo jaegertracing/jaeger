@@ -31,8 +31,10 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 )
 
-var _ storage.Factory = new(Factory)
-var _ storage.ArchiveFactory = new(Factory)
+var (
+	_ storage.Factory        = new(Factory)
+	_ storage.ArchiveFactory = new(Factory)
+)
 
 type mockSessionBuilder struct {
 	session *mocks.Session
@@ -113,9 +115,11 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--cassandra-archive.enabled=true",
+	command.ParseFlags([]string{
+		"--cassandra-archive.enabled=true",
 		"--cassandra.index.tag-whitelist=a,b,c",
-		"--cassandra.index.tag-blacklist=a,b,c"})
+		"--cassandra.index.tag-blacklist=a,b,c",
+	})
 	f.InitFromViper(v, zap.NewNop())
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,

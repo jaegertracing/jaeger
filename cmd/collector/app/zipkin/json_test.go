@@ -27,10 +27,12 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-var endpointFmt = `{"serviceName": "%s", "ipv4": "%s", "ipv6": "%s", "port": %d}`
-var annoFmt = `{"value": "%s", "timestamp": %d, "endpoint": %s}`
-var binaAnnoFmt = `{"key": "%s", "value": "%s", "endpoint": %s}`
-var spanFmt = `[{"name": "%s", "id": "%s", "parentId": "%s", "traceId": "%s", "timestamp": %d, "duration": %d, "debug": %t, "annotations": [%s], "binaryAnnotations": [%s]}]`
+var (
+	endpointFmt = `{"serviceName": "%s", "ipv4": "%s", "ipv6": "%s", "port": %d}`
+	annoFmt     = `{"value": "%s", "timestamp": %d, "endpoint": %s}`
+	binaAnnoFmt = `{"key": "%s", "value": "%s", "endpoint": %s}`
+	spanFmt     = `[{"name": "%s", "id": "%s", "parentId": "%s", "traceId": "%s", "timestamp": %d, "duration": %d, "debug": %t, "annotations": [%s], "binaryAnnotations": [%s]}]`
+)
 
 func createEndpoint(serviveName string, ipv4 string, ipv6 string, port int) string {
 	return fmt.Sprintf(endpointFmt, serviveName, ipv4, ipv6, port)
@@ -45,7 +47,8 @@ func createBinAnno(key string, val string, endpoint string) string {
 }
 
 func createSpan(name string, id string, parentID string, traceID string, ts int64, duration int64, debug bool,
-	anno string, binAnno string) string {
+	anno string, binAnno string,
+) string {
 	return fmt.Sprintf(spanFmt, name, id, parentID, traceID, ts, duration, debug, anno, binAnno)
 }
 

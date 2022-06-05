@@ -35,6 +35,7 @@ GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOFMT=gofmt
+GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 
@@ -145,8 +146,10 @@ nocover:
 .PHONY: fmt
 fmt:
 	./scripts/import-order-cleanup.sh inplace
-	@echo Running go fmt on ALL_SRC ...
+	@echo Running gofmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
+	@echo Running gofumpt on ALL_SRC ...
+	@$(GOFUMPT) -e -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
 .PHONY: lint
@@ -371,6 +374,7 @@ install-tools:
 	# FIXME: pin to f5b92e1 until v1.45.3 is available to pick up fixes for staticheck
 	# go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@f5b92e1
+	go install mvdan.cc/gofumpt@latest
 
 .PHONY: install-ci
 install-ci: install-tools

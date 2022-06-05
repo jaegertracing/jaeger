@@ -350,7 +350,8 @@ func TestLoadUIConfig(t *testing.T) {
   return {
     x: "y"
   }
-}`)},
+}`),
+		},
 	})
 	run("js-menu", testCase{
 		configFile: "fixture/ui-config-menu.js",
@@ -365,7 +366,8 @@ func TestLoadUIConfig(t *testing.T) {
       }
     ]
   }
-}`)},
+}`),
+		},
 	})
 }
 
@@ -398,7 +400,7 @@ func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.D
 // syncWrite ensures data is written to the given filename and flushed to disk.
 // This ensures that any watchers looking for file system changes can be reliably alerted.
 func syncWrite(target *os.File, temp *os.File, data []byte) error {
-	f, err := os.OpenFile(temp.Name(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0644)
+	f, err := os.OpenFile(temp.Name(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0o644)
 	if err != nil {
 		return err
 	}

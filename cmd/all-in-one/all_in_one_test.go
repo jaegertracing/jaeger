@@ -51,11 +51,9 @@ const (
 	getServicesAPIV3URL = queryURL + "/api/v3/services"
 )
 
-var (
-	httpClient = &http.Client{
-		Timeout: time.Second,
-	}
-)
+var httpClient = &http.Client{
+	Timeout: time.Second,
+}
 
 func TestAllInOne(t *testing.T) {
 	// Check if the query service is available

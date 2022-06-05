@@ -53,7 +53,7 @@ func TestMultipleCollectors(t *testing.T) {
 	assert.NotNil(t, proxy.GetManager())
 	assert.NotNil(t, proxy.GetConn())
 
-	var bothServers = false
+	bothServers := false
 	r := proxy.GetReporter()
 	// TODO do not iterate, just create two batches
 	for i := 0; i < 100; i++ {

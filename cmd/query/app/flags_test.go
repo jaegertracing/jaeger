@@ -125,7 +125,7 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 }
 
 func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
-	var flagPortCases = []struct {
+	flagPortCases := []struct {
 		name                 string
 		flagsArray           []string
 		expectedHTTPHostPort string
@@ -172,7 +172,6 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 
 			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTPHostPort)
 			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPCHostPort)
-
 		})
 	}
 }

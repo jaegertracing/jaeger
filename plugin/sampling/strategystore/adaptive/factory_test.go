@@ -34,8 +34,10 @@ import (
 	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
 
-var _ ss.Factory = new(Factory)
-var _ plugin.Configurable = new(Factory)
+var (
+	_ ss.Factory          = new(Factory)
+	_ plugin.Configurable = new(Factory)
+)
 
 func TestFactory(t *testing.T) {
 	f := NewFactory()
@@ -123,6 +125,7 @@ func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 
 	return mockLock, nil
 }
+
 func (m *mockSamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	if m.storeFailsWith != nil {
 		return nil, m.storeFailsWith

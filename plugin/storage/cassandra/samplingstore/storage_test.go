@@ -32,9 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
-var (
-	testTime = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
-)
+var testTime = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
 
 type samplingStoreTest struct {
 	session   *mocks.Session
@@ -206,7 +204,8 @@ func TestGetThroughput(t *testing.T) {
 							Service:       "svc,withcomma",
 							Operation:     "op,withcomma",
 							Count:         40,
-							Probabilities: map[string]struct{}{"0.1": {}}},
+							Probabilities: map[string]struct{}{"0.1": {}},
+						},
 						*throughput[0],
 					)
 					assert.Equal(t,
@@ -214,7 +213,8 @@ func TestGetThroughput(t *testing.T) {
 							Service:       "svc",
 							Operation:     "op",
 							Count:         50,
-							Probabilities: map[string]struct{}{}},
+							Probabilities: map[string]struct{}{},
+						},
 						*throughput[1],
 					)
 				} else {
@@ -321,7 +321,8 @@ func TestStringToThroughput(t *testing.T) {
 			Service:       "svc1",
 			Operation:     "op,1",
 			Count:         1,
-			Probabilities: map[string]struct{}{"0.1": {}, "0.2": {}}},
+			Probabilities: map[string]struct{}{"0.1": {}, "0.2": {}},
+		},
 		*throughput[0],
 	)
 	assert.Equal(t,
@@ -329,7 +330,8 @@ func TestStringToThroughput(t *testing.T) {
 			Service:       "svc2",
 			Operation:     "op2",
 			Count:         2,
-			Probabilities: map[string]struct{}{}},
+			Probabilities: map[string]struct{}{},
+		},
 		*throughput[1],
 	)
 }

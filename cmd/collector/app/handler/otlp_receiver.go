@@ -175,12 +175,15 @@ type otelHost struct {
 func (h *otelHost) ReportFatalError(err error) {
 	h.logger.Fatal("OTLP receiver error", zap.Error(err))
 }
+
 func (*otelHost) GetFactory(_ component.Kind, _ config.Type) component.Factory {
 	return nil
 }
+
 func (*otelHost) GetExtensions() map[config.ComponentID]component.Extension {
 	return nil
 }
+
 func (*otelHost) GetExporters() map[config.DataType]map[config.ComponentID]component.Exporter {
 	return nil
 }

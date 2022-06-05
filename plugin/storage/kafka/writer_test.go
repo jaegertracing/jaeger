@@ -95,7 +95,6 @@ func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) 
 
 func TestKafkaWriter(t *testing.T) {
 	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
-
 		w.producer.ExpectInputAndSucceed()
 
 		err := w.writer.WriteSpan(context.Background(), span)
@@ -128,7 +127,6 @@ func TestKafkaWriter(t *testing.T) {
 
 func TestKafkaWriterErr(t *testing.T) {
 	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
-
 		w.producer.ExpectInputAndFail(sarama.ErrRequestTimedOut)
 		err := w.writer.WriteSpan(context.Background(), span)
 		assert.NoError(t, err)
@@ -160,7 +158,6 @@ func TestKafkaWriterErr(t *testing.T) {
 
 func TestMarshallerErr(t *testing.T) {
 	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
-
 		marshaller := &mocks.Marshaller{}
 		marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).Return([]byte{}, errors.New(""))
 		w.writer.marshaller = marshaller

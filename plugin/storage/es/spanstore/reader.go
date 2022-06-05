@@ -361,7 +361,6 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 }
 
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
-
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
 	childSpan.LogFields(otlog.Object("trace_ids", traceIDs))
 	defer childSpan.Finish()
@@ -403,7 +402,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		// set traceIDs to empty
 		traceIDs = nil
 		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
-
 		if err != nil {
 			logErrorToSpan(childSpan, err)
 			return nil, err
@@ -604,23 +602,23 @@ func (s *SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
-	//add duration query
+	// add duration query
 	if traceQuery.DurationMax != 0 || traceQuery.DurationMin != 0 {
 		durationQuery := s.buildDurationQuery(traceQuery.DurationMin, traceQuery.DurationMax)
 		boolQuery.Must(durationQuery)
 	}
 
-	//add startTime query
+	// add startTime query
 	startTimeQuery := s.buildStartTimeQuery(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	boolQuery.Must(startTimeQuery)
 
-	//add process.serviceName query
+	// add process.serviceName query
 	if traceQuery.ServiceName != "" {
 		serviceNameQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
 		boolQuery.Must(serviceNameQuery)
 	}
 
-	//add operationName query
+	// add operationName query
 	if traceQuery.OperationName != "" {
 		operationNameQuery := s.buildOperationNameQuery(traceQuery.OperationName)
 		boolQuery.Must(operationNameQuery)

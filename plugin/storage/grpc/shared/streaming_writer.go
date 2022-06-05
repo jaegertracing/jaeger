@@ -26,9 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var (
-	_ spanstore.Writer = (*streamingSpanWriter)(nil)
-)
+var _ spanstore.Writer = (*streamingSpanWriter)(nil)
 
 const (
 	defaultMaxPoolSize = 1000

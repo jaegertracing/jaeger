@@ -32,9 +32,9 @@ import (
 var logger, _ = zap.NewDevelopment()
 
 func main() {
-	var options = app.Options{}
+	options := app.Options{}
 
-	var command = &cobra.Command{
+	command := &cobra.Command{
 		Use:   "jaeger-anonymizer",
 		Short: "Jaeger anonymizer hashes fields of a trace for easy sharing",
 		Long:  `Jaeger anonymizer queries Jaeger query for a trace, anonymizes fields, and store in file`,

@@ -49,7 +49,8 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", `unable to parse param 'maxDuration': time: missing unit in duration "?30"?$`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `malformed 'tag' parameter, expecting key:value, received: k`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -64,7 +65,8 @@ func TestParseTraceQuery(t *testing.T) {
 		// tags=JSON with a non-string value 123
 		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
 		// tags=JSON
-		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,
+		{
+			`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -77,7 +79,8 @@ func TestParseTraceQuery(t *testing.T) {
 			},
 		},
 		// tags=url_encode(JSON)
-		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags=%7B%22x%22%3A%22y%22%7D`, noErr,
+		{
+			`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags=%7B%22x%22%3A%22y%22%7D`, noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -89,7 +92,8 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s&maxDuration=20s", noErr,
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s&maxDuration=20s", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -103,7 +107,8 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s", noErr,
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -117,7 +122,8 @@ func TestParseTraceQuery(t *testing.T) {
 			},
 		},
 		// trace ID in upper/lower case
-		{"x?traceID=1f00&traceID=1E00", noErr,
+		{
+			"x?traceID=1f00&traceID=1E00", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					NumTraces:    100,
@@ -131,7 +137,8 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?traceID=100&traceID=x200", `cannot parse traceID param: strconv.ParseUint: parsing "x200": invalid syntax`,
+		{
+			"x?traceID=100&traceID=x200", `cannot parse traceID param: strconv.ParseUint: parsing "x200": invalid syntax`,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					StartTimeMin: time.Unix(0, 0),

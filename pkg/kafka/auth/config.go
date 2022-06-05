@@ -47,7 +47,7 @@ type AuthenticationConfig struct {
 	PlainText      PlainTextConfig `mapstructure:"plaintext"`
 }
 
-//SetConfiguration set configure authentication into sarama config structure
+// SetConfiguration set configure authentication into sarama config structure
 func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config, logger *zap.Logger) error {
 	authentication := strings.ToLower(config.Authentication)
 	if strings.Trim(authentication, " ") == "" {
@@ -85,7 +85,7 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.ConfigPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosConfig)
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 
-	var tlsClientConfig = tlscfg.ClientFlagsConfig{
+	tlsClientConfig := tlscfg.ClientFlagsConfig{
 		Prefix: configPrefix,
 	}
 

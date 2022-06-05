@@ -60,7 +60,7 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 		writeCacheTTL := ttl // capture loop var
 		t.Run(fmt.Sprintf("writeCacheTTL=%v", writeCacheTTL), func(t *testing.T) {
 			withServiceNamesStorage(writeCacheTTL, func(s *serviceNameStorageTest) {
-				var execError = errors.New("exec error")
+				execError := errors.New("exec error")
 				query := &mocks.Query{}
 				query1 := &mocks.Query{}
 				query2 := &mocks.Query{}
@@ -107,7 +107,7 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 }
 
 func TestServiceNamesStorageGetServices(t *testing.T) {
-	var scanError = errors.New("scan error")
+	scanError := errors.New("scan error")
 	var writeCacheTTL time.Duration
 	var matched bool
 	matchOnce := mock.MatchedBy(func(v []interface{}) bool {
@@ -140,7 +140,5 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 				assert.EqualError(t, err, "error reading service_names from storage: "+expErr.Error())
 			}
 		})
-
 	}
-
 }

@@ -75,15 +75,21 @@ func TestConvertRateLimitingToDomain(t *testing.T) {
 }
 
 func TestConvertPerOperationStrategyToDomain(t *testing.T) {
-	var a = 11.2
+	a := 11.2
 	tests := []struct {
 		expected *api_v2.PerOperationSamplingStrategies
 		in       *sampling.PerOperationSamplingStrategies
 	}{
-		{expected: &api_v2.PerOperationSamplingStrategies{DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: a, DefaultLowerBoundTracesPerSecond: 2,
-			PerOperationStrategies: []*api_v2.OperationSamplingStrategy{{Operation: "fao"}}},
-			in: &sampling.PerOperationSamplingStrategies{DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: &a, DefaultLowerBoundTracesPerSecond: 2,
-				PerOperationStrategies: []*sampling.OperationSamplingStrategy{{Operation: "fao"}}}},
+		{
+			expected: &api_v2.PerOperationSamplingStrategies{
+				DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: a, DefaultLowerBoundTracesPerSecond: 2,
+				PerOperationStrategies: []*api_v2.OperationSamplingStrategy{{Operation: "fao"}},
+			},
+			in: &sampling.PerOperationSamplingStrategies{
+				DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: &a, DefaultLowerBoundTracesPerSecond: 2,
+				PerOperationStrategies: []*sampling.OperationSamplingStrategy{{Operation: "fao"}},
+			},
+		},
 		{},
 	}
 	for _, test := range tests {

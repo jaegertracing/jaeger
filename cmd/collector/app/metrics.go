@@ -53,7 +53,7 @@ const (
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
 type SpanProcessorMetrics struct {
-	//TODO - initialize metrics in the traditional factory way. Initialize map afterward.
+	// TODO - initialize metrics in the traditional factory way. Initialize map afterward.
 	// SaveLatency measures how long the actual save to storage takes
 	SaveLatency metrics.Timer
 	// InQueueLatency measures how long the span spends in the queue
@@ -233,7 +233,6 @@ func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
 
 	m.countSpansByServiceName(serviceName, span.Flags.IsDebug())
 	if span.ParentSpanID() == 0 {
-
 		m.countTracesByServiceName(serviceName, span.Flags.IsDebug(), span.
 			GetSamplerType())
 	}

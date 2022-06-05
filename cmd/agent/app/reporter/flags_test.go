@@ -93,7 +93,6 @@ func TestBindFlags(t *testing.T) {
 }
 
 func TestBindFlagsAllInOne(t *testing.T) {
-
 	setupcontext.SetAllInOne()
 	defer setupcontext.UnsetAllInOne()
 

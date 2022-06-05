@@ -575,7 +575,6 @@ func makeReadBenchmark(b *testing.B, tid time.Time, params *spanstore.TraceQuery
 		}
 		b.StopTimer()
 	})
-
 }
 
 func BenchmarkServiceTagsRangeQueryLimitIndexFetch(b *testing.B) {
@@ -616,7 +615,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 	v, command := config.Viperize(opts.AddFlags)
 
 	dir := filepath.Join(tb.TempDir(), "badger-testRun")
-	err := os.MkdirAll(dir, 0700)
+	err := os.MkdirAll(dir, 0o700)
 	assert.NoError(err)
 	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
 	valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)

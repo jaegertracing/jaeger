@@ -54,9 +54,7 @@ const (
 	tsBucket = 24 * time.Hour
 )
 
-var (
-	errInvalidVersion = errors.New("invalid version")
-)
+var errInvalidVersion = errors.New("invalid version")
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
 type DependencyStore struct {

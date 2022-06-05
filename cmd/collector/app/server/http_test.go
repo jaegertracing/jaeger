@@ -87,7 +87,6 @@ func TestSpanCollectorHTTP(t *testing.T) {
 }
 
 func TestSpanCollectorHTTPS(t *testing.T) {
-
 	testCases := []struct {
 		name              string
 		TLS               tlscfg.Options

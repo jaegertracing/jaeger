@@ -120,7 +120,8 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		tagFirst  opentracing.Tag
 		tagSecond opentracing.Tag
 	}{
-		{json: `[{ "trace_id": -1, "id": 31, "annotations": [
+		{
+			json: `[{ "trace_id": -1, "id": 31, "annotations": [
 		{"value": "cs", "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "sr", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "ss", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
@@ -128,7 +129,8 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 			tagFirst:  ext.SpanKindRPCClient,
 			tagSecond: ext.SpanKindRPCServer,
 		},
-		{json: `[{ "trace_id": -1, "id": 31, "annotations": [
+		{
+			json: `[{ "trace_id": -1, "id": 31, "annotations": [
 		{"value": "sr", "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "cs", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "cr", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}

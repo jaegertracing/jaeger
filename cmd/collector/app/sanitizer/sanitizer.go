@@ -39,7 +39,6 @@ func NewChainedSanitizer(sanitizers ...SanitizeSpan) SanitizeSpan {
 	return func(span *model.Span) *model.Span {
 		for _, s := range sanitizers {
 			span = s(span)
-
 		}
 		return span
 	}

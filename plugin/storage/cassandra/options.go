@@ -144,7 +144,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
-	var tlsFlagsConfig = tlsFlagsConfig(nsConfig.namespace)
+	tlsFlagsConfig := tlsFlagsConfig(nsConfig.namespace)
 	tlsFlagsConfig.AddFlags(flagSet)
 
 	if nsConfig.namespace != primaryStorageConfig {
@@ -236,7 +236,7 @@ func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
-	var tlsFlagsConfig = tlsFlagsConfig(cfg.namespace)
+	tlsFlagsConfig := tlsFlagsConfig(cfg.namespace)
 	if cfg.namespace != primaryStorageConfig {
 		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	}

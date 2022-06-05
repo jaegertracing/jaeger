@@ -29,9 +29,7 @@ const (
 	dirFlag    = "dir"
 )
 
-var (
-	formats = []string{"md", "man", "rst", "yaml"}
-)
+var formats = []string{"md", "man", "rst", "yaml"}
 
 // Command for generating flags/commands documentation.
 // It generates the documentation for all commands starting at parent.

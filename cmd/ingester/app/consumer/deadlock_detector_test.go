@@ -147,7 +147,7 @@ func TestNoPanicForPartitionIfDeadlockDetectorDisabled(t *testing.T) {
 	w.close()
 }
 
-//same as TestNoClosingSignalIfMessagesProcessedInInterval but with disabled deadlock detector
+// same as TestNoClosingSignalIfMessagesProcessedInInterval but with disabled deadlock detector
 func TestApiCompatibilityWhenDeadlockDetectorDisabled(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 	l, _ := zap.NewDevelopment()

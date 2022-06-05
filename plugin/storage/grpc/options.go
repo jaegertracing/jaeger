@@ -57,7 +57,6 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
 	flagSet.String(remoteServer, "", "The remote storage gRPC server address")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
-
 }
 
 // InitFromViper initializes Options with properties from viper

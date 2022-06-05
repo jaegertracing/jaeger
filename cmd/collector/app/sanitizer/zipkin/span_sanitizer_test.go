@@ -124,16 +124,20 @@ func TestSpanErrorSanitizer(t *testing.T) {
 		addErrMsgAnno bool
 	}{
 		// value is string
-		{&zipkincore.BinaryAnnotation{Key: "error", AnnotationType: zipkincore.AnnotationType_STRING},
+		{
+			&zipkincore.BinaryAnnotation{Key: "error", AnnotationType: zipkincore.AnnotationType_STRING},
 			true, true, false,
 		},
-		{&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("true"), AnnotationType: zipkincore.AnnotationType_STRING},
+		{
+			&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("true"), AnnotationType: zipkincore.AnnotationType_STRING},
 			true, true, false,
 		},
-		{&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("message"), AnnotationType: zipkincore.AnnotationType_STRING},
+		{
+			&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("message"), AnnotationType: zipkincore.AnnotationType_STRING},
 			true, true, true,
 		},
-		{&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("false"), AnnotationType: zipkincore.AnnotationType_STRING},
+		{
+			&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("false"), AnnotationType: zipkincore.AnnotationType_STRING},
 			true, false, false,
 		},
 	}
@@ -145,7 +149,7 @@ func TestSpanErrorSanitizer(t *testing.T) {
 
 		sanitized := sanitizer.Sanitize(span)
 		if test.isErrorTag {
-			var expectedVal = []byte{0}
+			expectedVal := []byte{0}
 			if test.isError {
 				expectedVal = []byte{1}
 			}

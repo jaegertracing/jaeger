@@ -421,12 +421,13 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-
-	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
+	options := []elastic.ClientOptionFunc{
+		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
 		// Disable health check when token from context is allowed, this is because at this time
 		// we don' have a valid token to do the check ad if we don't disable the check the service that
 		// uses this won't start.
-		elastic.SetHealthcheck(!c.AllowTokenFromContext)}
+		elastic.SetHealthcheck(!c.AllowTokenFromContext),
+	}
 	if c.SnifferTLSEnabled {
 		options = append(options, elastic.SetScheme("https"))
 	}

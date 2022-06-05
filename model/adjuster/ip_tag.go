@@ -32,7 +32,6 @@ var ipTagsToCorrect = map[string]struct{}{
 // which usually contain IPv4 packed into uint32, with their string
 // representation (e.g. "8.8.8.8"").
 func IPTagAdjuster() Adjuster {
-
 	adjustTags := func(tags model.KeyValues) {
 		for i, tag := range tags {
 			var value uint32

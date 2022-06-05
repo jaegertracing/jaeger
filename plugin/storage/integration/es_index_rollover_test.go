@@ -53,7 +53,6 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 }
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
-
 	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
 	t.Run(fmt.Sprintf("DefaultPolicyName"), func(t *testing.T) {
 		runCreateIndicesWithILM(t, defaultILMPolicyName)
@@ -66,7 +65,6 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 }
 
 func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
-
 	client, err := createESClient()
 	require.NoError(t, err)
 
@@ -128,17 +126,17 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	indices, err := client.IndexNames()
 	require.NoError(t, err)
 
-	//Get ILM Policy Attached
+	// Get ILM Policy Attached
 	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
 	require.NoError(t, err)
-	//Check ILM Policy is attached and Get rollover alias attached
+	// Check ILM Policy is attached and Get rollover alias attached
 	for _, v := range settings {
 		assert.Equal(t, ilmPolicyName, v.Settings["index.lifecycle.name"])
 		actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
 	}
-	//Check indices created
+	// Check indices created
 	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
-	//Check rollover alias is write alias
+	// Check rollover alias is write alias
 	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases, fmt.Sprintf("aliases found: %v, expected: %v", actualWriteAliases, expectedWriteAliases))
 }
 

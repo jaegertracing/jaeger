@@ -35,7 +35,7 @@ func main() {
 	v := viper.New()
 	logger, _ := zap.NewProduction()
 
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:   "jaeger-es-rollover",
 		Short: "Jaeger es-rollover manages Jaeger indices",
 		Long:  "Jaeger es-rollover manages Jaeger indices",

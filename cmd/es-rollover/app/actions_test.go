@@ -41,7 +41,6 @@ func (a *dummyAction) Do() error {
 }
 
 func TestExecuteAction(t *testing.T) {
-
 	tests := []struct {
 		name                  string
 		flags                 []string

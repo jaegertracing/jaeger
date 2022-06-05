@@ -42,7 +42,6 @@ var (
 )
 
 func TestUTF8Sanitizer_SanitizeKV(t *testing.T) {
-
 	tests := []struct {
 		input    model.KeyValues
 		expected model.KeyValues
@@ -124,7 +123,6 @@ func TestUTF8Sanitizer_SanitizeProcessTags(t *testing.T) {
 	)
 	_, exists := model.KeyValues(actual.Process.Tags).FindByKey(invalidTagKey)
 	assert.True(t, exists)
-
 }
 
 func TestUTF8Sanitizer_SanitizeTags(t *testing.T) {
@@ -136,7 +134,6 @@ func TestUTF8Sanitizer_SanitizeTags(t *testing.T) {
 	)
 	_, exists := model.KeyValues(actual.Tags).FindByKey(invalidTagKey)
 	assert.True(t, exists)
-
 }
 
 func TestUTF8Sanitizer_SanitizeLogs(t *testing.T) {

@@ -38,15 +38,19 @@ func TestProtoSpanFixtures(t *testing.T) {
 	var d int64 = 10
 	localE := &zipkincore.Endpoint{ServiceName: "foo", Ipv4: 170594602}
 	remoteE := &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594603}
-	var highID = int64(4793352529331701374)
-	tSpan := &zipkincore.Span{ID: 2, TraceID: int64(4795885597963667071), TraceIDHigh: &highID, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
+	highID := int64(4793352529331701374)
+	tSpan := &zipkincore.Span{
+		ID: 2, TraceID: int64(4795885597963667071), TraceIDHigh: &highID, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
 		Annotations: []*zipkincore.Annotation{
 			{Value: "foo", Timestamp: 1, Host: localE},
 			{Value: zipkincore.CLIENT_SEND, Timestamp: ts, Host: localE},
-			{Value: zipkincore.CLIENT_RECV, Timestamp: ts + d, Host: localE}},
+			{Value: zipkincore.CLIENT_RECV, Timestamp: ts + d, Host: localE},
+		},
 		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
 			{Key: "foo", Value: []byte("bar"), Host: localE, AnnotationType: zipkincore.AnnotationType_STRING},
-			{Key: zipkincore.SERVER_ADDR, Host: remoteE, AnnotationType: zipkincore.AnnotationType_BOOL}}}
+			{Key: zipkincore.SERVER_ADDR, Host: remoteE, AnnotationType: zipkincore.AnnotationType_BOOL},
+		},
+	}
 	assert.Equal(t, tSpan, tSpans[0])
 }
 
@@ -58,11 +62,15 @@ func TestLCFromProtoSpanLocalEndpoint(t *testing.T) {
 	assert.Equal(t, len(tSpans), 1)
 	var ts int64 = 1
 	var d int64 = 10
-	tSpan := &zipkincore.Span{ID: 2, TraceID: 2, Name: "foo", Duration: &d, Timestamp: &ts,
+	tSpan := &zipkincore.Span{
+		ID: 2, TraceID: 2, Name: "foo", Duration: &d, Timestamp: &ts,
 		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
-			{Key: zipkincore.LOCAL_COMPONENT, Host: &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594602, Port: 8080},
-				AnnotationType: zipkincore.AnnotationType_STRING},
-		}}
+			{
+				Key: zipkincore.LOCAL_COMPONENT, Host: &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594602, Port: 8080},
+				AnnotationType: zipkincore.AnnotationType_STRING,
+			},
+		},
+	}
 	assert.Equal(t, tSpan, tSpans[0])
 }
 

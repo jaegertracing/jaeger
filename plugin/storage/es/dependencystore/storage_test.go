@@ -61,8 +61,10 @@ func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn fun
 	fn(r)
 }
 
-var _ dependencystore.Reader = &DependencyStore{} // check API conformance
-var _ dependencystore.Writer = &DependencyStore{} // check API conformance
+var (
+	_ dependencystore.Reader = &DependencyStore{} // check API conformance
+	_ dependencystore.Writer = &DependencyStore{} // check API conformance
+)
 
 func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	testCases := []struct {
@@ -122,13 +124,11 @@ func TestWriteDependencies(t *testing.T) {
 				assert.NoError(t, err)
 			}
 		})
-
 	}
 }
 
 func TestGetDependencies(t *testing.T) {
-	goodDependencies :=
-		`{
+	goodDependencies := `{
 			"ts": 798434479000000,
 			"dependencies": [
 				{ "parent": "hello",

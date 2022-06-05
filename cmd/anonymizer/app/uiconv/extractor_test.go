@@ -73,9 +73,9 @@ func TestExtractor_TraceOutputFileError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	err = os.Chmod("fixtures", 0000)
+	err = os.Chmod("fixtures", 0o000)
 	require.NoError(t, err)
-	defer os.Chmod("fixtures", 0755)
+	defer os.Chmod("fixtures", 0o755)
 
 	_, err = NewExtractor(
 		outputFile,

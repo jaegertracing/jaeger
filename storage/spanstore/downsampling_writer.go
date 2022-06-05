@@ -29,9 +29,7 @@ import (
 
 const defaultHashSalt = "downsampling-default-salt"
 
-var (
-	traceIDByteSize = (&model.TraceID{}).Size()
-)
+var traceIDByteSize = (&model.TraceID{}).Size()
 
 // hasher includes data we want to put in sync.Pool.
 type hasher struct {
