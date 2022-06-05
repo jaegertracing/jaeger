@@ -54,7 +54,6 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 		UIConfigPath: qOpts.UIConfig,
 		Logger:       logger,
 	})
-
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}

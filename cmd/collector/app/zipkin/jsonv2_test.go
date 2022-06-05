@@ -39,15 +39,19 @@ func TestFixtures(t *testing.T) {
 	var d int64 = 10
 	localE := &zipkincore.Endpoint{ServiceName: "foo", Ipv4: 170594602}
 	remoteE := &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594603}
-	var highID = int64(-4793352529331701374)
-	tSpan := &zipkincore.Span{ID: 2, TraceID: int64(-4795885597963667071), TraceIDHigh: &highID, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
+	highID := int64(-4793352529331701374)
+	tSpan := &zipkincore.Span{
+		ID: 2, TraceID: int64(-4795885597963667071), TraceIDHigh: &highID, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
 		Annotations: []*zipkincore.Annotation{
 			{Value: "foo", Timestamp: 1, Host: localE},
 			{Value: zipkincore.CLIENT_SEND, Timestamp: ts, Host: localE},
-			{Value: zipkincore.CLIENT_RECV, Timestamp: ts + d, Host: localE}},
+			{Value: zipkincore.CLIENT_RECV, Timestamp: ts + d, Host: localE},
+		},
 		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
 			{Key: "foo", Value: []byte("bar"), Host: localE, AnnotationType: zipkincore.AnnotationType_STRING},
-			{Key: zipkincore.SERVER_ADDR, Host: remoteE, AnnotationType: zipkincore.AnnotationType_BOOL}}}
+			{Key: zipkincore.SERVER_ADDR, Host: remoteE, AnnotationType: zipkincore.AnnotationType_BOOL},
+		},
+	}
 	assert.Equal(t, tSpan, tSpans[0])
 }
 
@@ -59,11 +63,15 @@ func TestLCFromLocalEndpoint(t *testing.T) {
 	assert.Equal(t, len(tSpans), 1)
 	var ts int64 = 1
 	var d int64 = 10
-	tSpan := &zipkincore.Span{ID: 2, TraceID: 2, Name: "foo", Duration: &d, Timestamp: &ts,
+	tSpan := &zipkincore.Span{
+		ID: 2, TraceID: 2, Name: "foo", Duration: &d, Timestamp: &ts,
 		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
-			{Key: zipkincore.LOCAL_COMPONENT, Host: &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594602, Port: 8080},
-				AnnotationType: zipkincore.AnnotationType_STRING},
-		}}
+			{
+				Key: zipkincore.LOCAL_COMPONENT, Host: &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594602, Port: 8080},
+				AnnotationType: zipkincore.AnnotationType_STRING,
+			},
+		},
+	}
 	assert.Equal(t, tSpan, tSpans[0])
 }
 
@@ -76,11 +84,12 @@ func TestMissingKafkaEndpoint(t *testing.T) {
 	var ts int64 = 1597704629675602
 	var d int64 = 9550570
 	var parentId int64 = 0xc26551047c72d19
-	var endpoint1 = zipkincore.Endpoint{ServiceName: "schemas-service"}
-	var endpoint2 = zipkincore.Endpoint{ServiceName: "schemas-service"}
-	var endpoint3 = zipkincore.Endpoint{ServiceName: "kafka"}
+	endpoint1 := zipkincore.Endpoint{ServiceName: "schemas-service"}
+	endpoint2 := zipkincore.Endpoint{ServiceName: "schemas-service"}
+	endpoint3 := zipkincore.Endpoint{ServiceName: "kafka"}
 
-	tSpan := &zipkincore.Span{ID: 0x188bb8428fc7e477, TraceID: 0x091f00370361e578, ParentID: &parentId,
+	tSpan := &zipkincore.Span{
+		ID: 0x188bb8428fc7e477, TraceID: 0x091f00370361e578, ParentID: &parentId,
 		Name: "send", Duration: &d, Timestamp: &ts,
 		Annotations: []*zipkincore.Annotation{
 			{
@@ -94,9 +103,9 @@ func TestMissingKafkaEndpoint(t *testing.T) {
 				Host:           &endpoint2,
 				Key:            "kafka.topic",
 				Value:          []byte("schema-changed"),
-				AnnotationType: zipkincore.AnnotationType_STRING},
+				AnnotationType: zipkincore.AnnotationType_STRING,
+			},
 			{
-
 				Key:            zipkincore.MESSAGE_ADDR,
 				Host:           &endpoint3,
 				AnnotationType: zipkincore.AnnotationType_BOOL,

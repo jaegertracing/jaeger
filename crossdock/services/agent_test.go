@@ -27,20 +27,18 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-var (
-	testResponse = &sampling.SamplingStrategyResponse{
-		OperationSampling: &sampling.PerOperationSamplingStrategies{
-			PerOperationStrategies: []*sampling.OperationSamplingStrategy{
-				{
-					Operation: "op",
-					ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
-						SamplingRate: 0.01,
-					},
+var testResponse = &sampling.SamplingStrategyResponse{
+	OperationSampling: &sampling.PerOperationSamplingStrategies{
+		PerOperationStrategies: []*sampling.OperationSamplingStrategy{
+			{
+				Operation: "op",
+				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+					SamplingRate: 0.01,
 				},
 			},
 		},
-	}
-)
+	},
+}
 
 func TestGetSamplingRateInternal(t *testing.T) {
 	tests := []struct {

@@ -35,9 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
-var (
-	errInitializeCassandraDependencyWriter = errors.New("failed to initialize cassandra dependency writer")
-)
+var errInitializeCassandraDependencyWriter = errors.New("failed to initialize cassandra dependency writer")
 
 type CassandraStorageIntegration struct {
 	StorageIntegration

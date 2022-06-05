@@ -22,9 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	currTime = time.Now()
-)
+var currTime = time.Now()
 
 func TestSortTraces(t *testing.T) {
 	t1 := &Trace{

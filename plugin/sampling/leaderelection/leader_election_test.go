@@ -28,9 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-var (
-	errTestLock = errors.New("lock error")
-)
+var errTestLock = errors.New("lock error")
 
 var _ io.Closer = new(DistributedElectionParticipant)
 

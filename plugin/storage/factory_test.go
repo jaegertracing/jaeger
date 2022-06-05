@@ -42,8 +42,10 @@ import (
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
-var _ storage.Factory = new(Factory)
-var _ storage.ArchiveFactory = new(Factory)
+var (
+	_ storage.Factory        = new(Factory)
+	_ storage.ArchiveFactory = new(Factory)
+)
 
 func defaultCfg() FactoryConfig {
 	return FactoryConfig{
@@ -177,7 +179,7 @@ func TestCreateDownsamplingWriter(t *testing.T) {
 	l := zap.NewNop()
 	mock.On("Initialize", m, l).Return(nil)
 
-	var testParams = []struct {
+	testParams := []struct {
 		ratio      float64
 		writerType string
 	}{
@@ -380,7 +382,8 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	v, command := config.Viperize(f.AddPipelineFlags)
 	err := command.ParseFlags([]string{
 		"--downsampling.ratio=1.5",
-		"--downsampling.hashsalt=jaeger"})
+		"--downsampling.hashsalt=jaeger",
+	})
 	assert.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 
@@ -388,7 +391,8 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, "jaeger")
 
 	err = command.ParseFlags([]string{
-		"--downsampling.ratio=0.5"})
+		"--downsampling.ratio=0.5",
+	})
 	assert.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
@@ -405,7 +409,8 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, defaultDownsamplingHashSalt)
 
 	err = command.ParseFlags([]string{
-		"--downsampling.ratio=0.5"})
+		"--downsampling.ratio=0.5",
+	})
 	assert.Error(t, err)
 }
 
@@ -435,8 +440,10 @@ type errorFactory struct {
 	closeErr error
 }
 
-var _ storage.Factory = (*errorFactory)(nil)
-var _ io.Closer = (*errorFactory)(nil)
+var (
+	_ storage.Factory = (*errorFactory)(nil)
+	_ io.Closer       = (*errorFactory)(nil)
+)
 
 func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	panic("implement me")

@@ -136,7 +136,6 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			f := NewFactory()
 			v, command := config.Viperize(f.AddFlags)
 			err := command.ParseFlags(test.flags)

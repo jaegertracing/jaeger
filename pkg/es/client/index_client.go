@@ -67,7 +67,6 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 		endpoint: fmt.Sprintf("%s?flat_settings=true&filter_path=*.aliases,*.settings", prefix),
 		method:   http.MethodGet,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to query indices: %w", err)
 	}
@@ -105,7 +104,6 @@ func (i *IndicesClient) indexDeleteRequest(concatIndices string) error {
 		endpoint: fmt.Sprintf("%s?master_timeout=%ds", concatIndices, i.MasterTimeoutSeconds),
 		method:   http.MethodDelete,
 	})
-
 	if err != nil {
 		if responseError, isResponseError := err.(ResponseError); isResponseError {
 			if responseError.StatusCode != http.StatusOK {

@@ -54,7 +54,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(ilmPolicyName, "jaeger-ilm-policy", "The name of the ILM policy to use if ILM is active")
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 	flags.Bool(skipDependencies, false, "Disable rollover for dependencies index")
-
 }
 
 // InitFromViper initializes config from viper.Viper.

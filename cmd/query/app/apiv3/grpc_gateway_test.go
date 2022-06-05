@@ -36,7 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" //force gogo codec registration
+	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"

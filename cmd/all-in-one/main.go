@@ -58,7 +58,6 @@ import (
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-
 	setupcontext.SetAllInOne()
 
 	svc := flags.NewService(ports.CollectorAdminHTTP)
@@ -245,7 +244,6 @@ func startAgent(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) *agentApp.Agent {
-
 	agent, err := b.CreateAgent(cp, logger, baseFactory)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
@@ -315,7 +313,6 @@ func createMetricsQueryService(
 	logger *zap.Logger,
 	metricsReaderMetricsFactory metrics.Factory,
 ) (querysvc.MetricsQueryService, error) {
-
 	if err := metricsReaderFactory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}

@@ -28,8 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-type noopManager struct {
-}
+type noopManager struct{}
 
 func (noopManager) GetSamplingStrategy(_ context.Context, s string) (*sampling.SamplingStrategyResponse, error) {
 	if s == "failed" {
@@ -37,6 +36,7 @@ func (noopManager) GetSamplingStrategy(_ context.Context, s string) (*sampling.S
 	}
 	return &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}, nil
 }
+
 func (noopManager) GetBaggageRestrictions(_ context.Context, s string) ([]*baggage.BaggageRestriction, error) {
 	if s == "failed" {
 		return nil, errors.New("failed")

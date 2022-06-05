@@ -38,8 +38,10 @@ func clearEnv() {
 	os.Setenv(SamplingTypeEnvVar, "static")
 }
 
-var _ ss.Factory = new(Factory)
-var _ plugin.Configurable = new(Factory)
+var (
+	_ ss.Factory          = new(Factory)
+	_ plugin.Configurable = new(Factory)
+)
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
@@ -153,6 +155,7 @@ type mockSamplingStoreFactory struct{}
 func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return nil, nil
 }
+
 func (m *mockSamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return nil, nil
 }

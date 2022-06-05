@@ -222,8 +222,10 @@ func TestArchiveEnabled(t *testing.T) {
 
 func TestInitFromOptions(t *testing.T) {
 	f := NewFactory()
-	o := Options{Primary: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
-		others: map[string]*namespaceConfig{"es-archive": {Configuration: escfg.Configuration{Servers: []string{"server2"}}}}}
+	o := Options{
+		Primary: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
+		others:  map[string]*namespaceConfig{"es-archive": {Configuration: escfg.Configuration{Servers: []string{"server2"}}}},
+	}
 	f.InitFromOptions(o)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)

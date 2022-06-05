@@ -25,7 +25,7 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 )
 
-//MaxLength of UDP packet
+// MaxLength of UDP packet
 const (
 	MaxLength = 65000
 )

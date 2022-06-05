@@ -64,7 +64,7 @@ var (
 	// AllEncodings is a list of all supported encodings.
 	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
 
-	//requiredAcks is mapping of sarama supported requiredAcks
+	// requiredAcks is mapping of sarama supported requiredAcks
 	requiredAcks = map[string]sarama.RequiredAcks{
 		"noack": sarama.NoResponse,
 		"local": sarama.WaitForLocal,
@@ -235,7 +235,7 @@ func getCompressionLevel(mode string, compressionLevel int) (int, error) {
 	return compressionLevel, nil
 }
 
-//getCompressionMode maps input modes to sarama CompressionCodec
+// getCompressionMode maps input modes to sarama CompressionCodec
 func getCompressionMode(mode string) (sarama.CompressionCodec, error) {
 	compressionMode, ok := compressionModes[mode]
 	if !ok {
@@ -245,7 +245,7 @@ func getCompressionMode(mode string) (sarama.CompressionCodec, error) {
 	return compressionMode.compressor, nil
 }
 
-//getRequiredAcks maps input ack values to sarama requiredAcks
+// getRequiredAcks maps input ack values to sarama requiredAcks
 func getRequiredAcks(acks string) (sarama.RequiredAcks, error) {
 	requiredAcks, ok := requiredAcks[strings.ToLower(acks)]
 	if !ok {

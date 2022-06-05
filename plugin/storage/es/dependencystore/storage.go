@@ -93,7 +93,8 @@ func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 
 func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
 	s.client.Index().Index(indexName).Type(dependencyType).
-		BodyJson(&dbmodel.TimeDependencies{Timestamp: ts,
+		BodyJson(&dbmodel.TimeDependencies{
+			Timestamp:    ts,
 			Dependencies: dbmodel.FromDomainDependencies(dependencies),
 		}).Add()
 }

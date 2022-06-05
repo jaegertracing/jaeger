@@ -164,6 +164,7 @@ func (testLogger) Sync() error                         { return nil }
 func (l testLogger) Check(e zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
 	return ce.AddCore(e, l)
 }
+
 func (l testLogger) Write(e zapcore.Entry, f []zapcore.Field) error {
 	*l.logs = append(*l.logs, logData{e: e, f: f})
 	return nil
@@ -198,6 +199,7 @@ func (h *httpResponseErrWriter) WriteHeader(statusCode int) {}
 func (h *httpResponseErrWriter) Header() http.Header {
 	return http.Header{}
 }
+
 func TestWriteJSON(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -584,7 +586,8 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	expectedOperations := []spanstore.Operation{
 		{Name: ""},
 		{Name: "get", SpanKind: "server"},
-		{Name: "get", SpanKind: "client"}}
+		{Name: "get", SpanKind: "client"},
+	}
 
 	ts.spanReader.On(
 		"GetOperations",

@@ -141,6 +141,7 @@ func withPopulatedMemoryStore(f func(store *Store)) {
 	memStore.WriteSpan(context.Background(), testingSpan)
 	f(memStore)
 }
+
 func withMemoryStore(f func(store *Store)) {
 	f(NewStore())
 }

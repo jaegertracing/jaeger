@@ -208,7 +208,6 @@ func TestTLSFlags(t *testing.T) {
 			require.NoError(t, err)
 			o.InitFromViper(v)
 			assert.Equal(t, test.expected, o.Config.AuthenticationConfig)
-
 		})
 	}
 }

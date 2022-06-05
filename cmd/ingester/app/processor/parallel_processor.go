@@ -35,7 +35,8 @@ type ParallelProcessor struct {
 func NewParallelProcessor(
 	processor SpanProcessor,
 	parallelism int,
-	logger *zap.Logger) *ParallelProcessor {
+	logger *zap.Logger,
+) *ParallelProcessor {
 	return &ParallelProcessor{
 		logger:      logger,
 		messages:    make(chan Message),

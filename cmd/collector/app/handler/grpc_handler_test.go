@@ -109,10 +109,14 @@ func TestPostSpans(t *testing.T) {
 		batch    model.Batch
 		expected []*model.Span
 	}{
-		{batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
-			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
-		{batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op"}}},
-			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "batch-process"}}}},
+		{
+			batch:    model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
+		},
+		{
+			batch:    model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op"}}},
+			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "batch-process"}}},
+		},
 	}
 	for _, test := range tests {
 		_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
@@ -277,7 +281,6 @@ func TestPostTenantedSpans(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			_, err := client.PostSpans(test.ctx, &api_v2.PostSpansRequest{
 				Batch: test.batch,
 			})

@@ -32,7 +32,8 @@ func ConvertSamplingResponseFromDomain(r *api_v2.SamplingStrategyResponse) (*sam
 	if err != nil {
 		return nil, err
 	}
-	thriftResp := &sampling.SamplingStrategyResponse{StrategyType: typ,
+	thriftResp := &sampling.SamplingStrategyResponse{
+		StrategyType:          typ,
 		ProbabilisticSampling: convertProbabilisticFromDomain(r.GetProbabilisticSampling()),
 		RateLimitingSampling:  rl,
 		OperationSampling:     convertPerOperationFromDomain(r.GetOperationSampling()),
