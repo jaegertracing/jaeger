@@ -31,6 +31,7 @@ linters-settings:
 linters:
   enable:
     - contextcheck
+    - errorlint
     - depguard
     - gofmt
     - gofumpt

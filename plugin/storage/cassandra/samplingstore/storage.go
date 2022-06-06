@@ -18,6 +18,7 @@ package samplingstore
 import (
 	"bytes"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -247,7 +248,7 @@ func (s *SamplingStore) parseString(str string, numColumns int, appendFunc func(
 	reader := csv.NewReader(strings.NewReader(str))
 	for {
 		csvFields, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

@@ -16,6 +16,7 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -51,7 +52,7 @@ func (s *grpcServer) GetDependencies(ctx context.Context, r *storage_v1.GetDepen
 func (s *grpcServer) WriteSpanStream(stream storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer) error {
 	for {
 		in, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		err = s.StreamImpl.StreamingSpanWriter().WriteSpan(stream.Context(), in.Span)
@@ -86,7 +87,7 @@ func (s *grpcServer) Close(ctx context.Context, r *storage_v1.CloseWriterRequest
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *grpcServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
 	trace, err := s.Impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
-	if err == spanstore.ErrTraceNotFound {
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {
@@ -210,7 +211,7 @@ func (s *grpcServer) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stora
 		return status.Error(codes.Unimplemented, "not implemented")
 	}
 	trace, err := s.ArchiveImpl.ArchiveSpanReader().GetTrace(stream.Context(), r.TraceID)
-	if err == spanstore.ErrTraceNotFound {
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {

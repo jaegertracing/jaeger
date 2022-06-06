@@ -19,6 +19,7 @@ package tlscfg
 
 import (
 	"crypto/x509"
+	"errors"
 	"syscall"
 	"unsafe"
 )
@@ -41,7 +42,8 @@ func appendCerts(rootCAs *x509.CertPool) (*x509.CertPool, error) {
 	for {
 		cert, err = syscall.CertEnumCertificatesInStore(storeHandle, cert)
 		if err != nil {
-			if errno, ok := err.(syscall.Errno); ok {
+			var errno syscall.Errno
+			if errors.As(err, &errno) {
 				if errno == CRYPT_E_NOT_FOUND {
 					break
 				}
