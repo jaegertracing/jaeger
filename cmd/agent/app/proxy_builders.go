@@ -15,8 +15,9 @@
 package app
 
 import (
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 )
 
 // GRPCCollectorProxyBuilder creates CollectorProxyBuilder for GRPC reporter

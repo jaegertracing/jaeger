@@ -16,6 +16,7 @@ package tenancy
 
 import (
 	"context"
+	"fmt"
 
 	"google.golang.org/grpc"
 )
@@ -35,9 +36,11 @@ func NewGuardingStreamInterceptor(tc *TenancyConfig) grpc.StreamServerIntercepto
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		tenantedCtx, err := tc.GetValidTenantContext(ss.Context())
 		if err != nil {
+			fmt.Printf("@@@ ecs failed to get GetValidTenantContext for %v\n", tc)
 			return err
 		}
 
+		fmt.Printf("@@@ ecs got GetValidTenantContext for %v\n", tc)
 		wrappedSS := &tenantedServerStream{
 			ServerStream: ss,
 			context:      tenantedCtx,

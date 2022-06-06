@@ -41,13 +41,18 @@ type Reporter struct {
 }
 
 // NewReporter creates gRPC reporter.
-func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, metadata metadata.MD, logger *zap.Logger) *Reporter {
+func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
+	return NewReporterWithMetadata(conn, agentTags, metadata.New(map[string]string{}), logger)
+}
+
+// NewReporter creates gRPC reporter that supplies metadata (e.g. for tenancy).
+func NewReporterWithMetadata(conn *grpc.ClientConn, agentTags map[string]string, md metadata.MD, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		agentTags: makeModelKeyValue(agentTags),
 		logger:    logger,
 		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.NewStandardSanitizers()...),
-		metadata:  metadata,
+		metadata:  md,
 	}
 }
 

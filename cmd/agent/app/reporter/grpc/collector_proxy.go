@@ -43,7 +43,7 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 		return nil, err
 	}
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
-	r1 := NewReporter(conn, agentTags, metadata, logger)
+	r1 := NewReporterWithMetadata(conn, agentTags, metadata, logger)
 	r2 := reporter.WrapWithMetrics(r1, grpcMetrics)
 	r3 := reporter.WrapWithClientMetrics(reporter.ClientMetricsReporterParams{
 		Reporter:       r2,

@@ -35,6 +35,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
@@ -44,7 +45,10 @@ import (
 
 var testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata/"
 
-func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, clientTLS tlscfg.Options) {
+func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, clientTLS tlscfg.Options,
+	tenancyOptions tenancy.Options,
+	setupRequest func(*http.Request),
+) {
 	defer serverTLS.Close()
 	defer clientTLS.Close()
 
@@ -70,6 +74,11 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 		creds := credentials.NewTLS(config)
 		serverGRPCOpts = append(serverGRPCOpts, grpc.Creds(creds))
 	}
+	if tenancyOptions.Enabled {
+		tc := tenancy.NewTenancyConfig(&tenancyOptions)
+		serverGRPCOpts = append(serverGRPCOpts, grpc.StreamInterceptor(
+			tenancy.NewGuardingStreamInterceptor(tc)))
+	}
 	grpcServer := grpc.NewServer(serverGRPCOpts...)
 	h := &Handler{
 		QueryService: q,
@@ -86,7 +95,7 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 	router = router.PathPrefix(basePath).Subrouter()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS)
+	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancyOptions)
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")
@@ -101,6 +110,7 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 	defer httpServer.Shutdown(context.Background())
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
 	req.Header.Set("Content-Type", "application/json")
+	setupRequest(req)
 	response, err := http.DefaultClient.Do(req)
 	buf := bytes.Buffer{}
 	_, err = buf.ReadFrom(response.Body)
@@ -118,7 +128,9 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 }
 
 func TestGRPCGateway(t *testing.T) {
-	testGRPCGateway(t, "/", tlscfg.Options{}, tlscfg.Options{})
+	testGRPCGateway(t, "/", tlscfg.Options{}, tlscfg.Options{},
+		tenancy.Options{},
+		func(*http.Request) {})
 }
 
 func TestGRPCGateway_TLS_with_base_path(t *testing.T) {
@@ -135,10 +147,27 @@ func TestGRPCGateway_TLS_with_base_path(t *testing.T) {
 		KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 		ServerName: "example.com",
 	}
-	testGRPCGateway(t, "/jaeger", serverTLS, clientTLS)
+	testGRPCGateway(t, "/jaeger", serverTLS, clientTLS,
+		tenancy.Options{},
+		func(*http.Request) {})
 }
 
 // For more details why this is needed see https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
 type envelope struct {
 	Result json.RawMessage `json:"result"`
+}
+
+func TestTenancyGRPCGateway(t *testing.T) {
+	// @@@ ecs TODO add failure tests
+	tenancyOptions := tenancy.Options{
+		Enabled: true,
+	}
+	tc := tenancy.NewTenancyConfig(&tenancyOptions)
+	testGRPCGateway(t, "/", tlscfg.Options{}, tlscfg.Options{},
+		// Configure the gateway to forward tenancy header from HTTP to GRPC
+		tenancyOptions,
+		// Add a tenancy header on outbound requests
+		func(req *http.Request) {
+			req.Header.Add(tc.Header, "dummy")
+		})
 }
