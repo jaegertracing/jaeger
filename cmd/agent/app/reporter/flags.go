@@ -39,8 +39,10 @@ type Type string
 
 // Options holds generic reporter configuration.
 type Options struct {
-	ReporterType Type
-	AgentTags    map[string]string
+	ReporterType  Type
+	AgentTags     map[string]string
+	TenancyHeader string
+	Tenant        string
 }
 
 // AddFlags adds flags for Options.
@@ -59,5 +61,8 @@ func (b *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) *Options {
 			b.AgentTags = flags.ParseJaegerTags(v.GetString(agentTags))
 		}
 	}
+	// @@@ ecs TODO These MUST be defined as flags, not constants
+	b.TenancyHeader = "x-tenant"
+	b.Tenant = "_self"
 	return b
 }

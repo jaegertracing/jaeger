@@ -36,6 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -120,6 +121,13 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
+	if options.Tenancy.Enabled {
+		tc := tenancy.NewTenancyConfig(&options.Tenancy)
+		grpcOpts = append(grpcOpts, grpc.StreamInterceptor(
+			tenancy.NewGuardingStreamInterceptor(tc)),
+		)
+	}
+
 	server := grpc.NewServer(grpcOpts...)
 	reflection.Register(server)
 
@@ -171,6 +179,9 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(logger, handler)
+	}
+	if queryOpts.Tenancy.Enabled {
+		handler = tenancy.NewTenancyConfig(&queryOpts.Tenancy).PropagationHandler(logger, handler)
 	}
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)

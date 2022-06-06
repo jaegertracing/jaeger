@@ -20,6 +20,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 )
 
 const (
@@ -43,6 +45,7 @@ type FactoryConfig struct {
 	DependenciesStorageType string
 	DownsamplingRatio       float64
 	DownsamplingHashSalt    string
+	TenancyConfig           tenancy.TenancyConfig
 }
 
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and

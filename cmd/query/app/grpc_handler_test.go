@@ -31,10 +31,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -143,9 +145,17 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, tenancyConfig *tenancy.TenancyConfig) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
-	grpcServer := grpc.NewServer()
+
+	var grpcOpts []grpc.ServerOption
+	if tenancyConfig.Enabled {
+		grpcOpts = append(grpcOpts, grpc.StreamInterceptor(
+			tenancy.NewGuardingStreamInterceptor(tenancyConfig)),
+		)
+	}
+	grpcServer := grpc.NewServer(grpcOpts...)
+
 	grpcHandler := &GRPCHandler{
 		queryService:        q,
 		metricsQueryService: mq,
@@ -219,7 +229,7 @@ func initializeTestServerGRPCWithOptions(t *testing.T, options ...testOption) *g
 	logger := zap.NewNop()
 	tracer := opentracing.NoopTracer{}
 
-	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer)
+	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, &tenancy.TenancyConfig{})
 
 	return &grpcServer{
 		server:              server,
@@ -929,4 +939,180 @@ func TestMetricsQueryNilRequestGRPC(t *testing.T) {
 	bqp, err := grpcHandler.newBaseQueryParameters(nil)
 	assert.Empty(t, bqp)
 	assert.EqualError(t, err, errNilRequest.Error())
+}
+
+func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tc *tenancy.TenancyConfig, options ...testOption) *grpcServer {
+	archiveSpanReader := &spanstoremocks.Reader{}
+	archiveSpanWriter := &spanstoremocks.Writer{}
+
+	spanReader := &spanstoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+	disabledReader, err := disabled.NewMetricsReader()
+	require.NoError(t, err)
+
+	q := querysvc.NewQueryService(
+		spanReader,
+		dependencyReader,
+		querysvc.QueryServiceOptions{
+			ArchiveSpanReader: archiveSpanReader,
+			ArchiveSpanWriter: archiveSpanWriter,
+		})
+
+	tqs := &testQueryService{
+		// Disable metrics query by default.
+		metricsQueryService: disabledReader,
+	}
+	for _, opt := range options {
+		opt(tqs)
+	}
+
+	logger := zap.NewNop()
+	tracer := opentracing.NoopTracer{}
+
+	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, tc)
+
+	return &grpcServer{
+		server:              server,
+		lisAddr:             addr,
+		spanReader:          spanReader,
+		depReader:           dependencyReader,
+		metricsQueryService: tqs.metricsQueryService,
+		archiveSpanReader:   archiveSpanReader,
+		archiveSpanWriter:   archiveSpanWriter,
+	}
+}
+
+func withTenantedServerAndClient(t *testing.T, tc *tenancy.TenancyConfig, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
+	server := initializeTenantedTestServerGRPCWithOptions(t, tc, options...)
+	client := newGRPCClient(t, server.lisAddr.String())
+	defer server.server.Stop()
+	defer client.conn.Close()
+
+	actualTest(server, client)
+}
+
+// withOutgoingMetadata returns a Context with metadata for a server to receive
+func withOutgoingMetadata(t *testing.T, ctx context.Context, headerName, headerValue string) context.Context {
+	t.Helper()
+
+	md := metadata.New(map[string]string{headerName: headerValue})
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+func TestSearchTenancyGRPC(t *testing.T) {
+	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+		Enabled: true,
+	})
+	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).Once()
+
+		// First try without tenancy header
+		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+			TraceID: mockTraceID,
+		})
+
+		require.NoError(t, err, "could not initiate GetTraceRequest")
+
+		spanResChunk, err := res.Recv()
+		assertGRPCError(t, err, codes.PermissionDenied, "missing tenant header")
+		assert.Nil(t, spanResChunk)
+
+		// Next try with tenancy
+		res, err = client.GetTrace(
+			withOutgoingMetadata(t, context.Background(), tc.Header, "acme"),
+			&api_v2.GetTraceRequest{
+				TraceID: mockTraceID,
+			})
+
+		spanResChunk, _ = res.Recv()
+
+		require.NoError(t, err, "expecting gRPC to succeed with any tenancy header")
+		require.NotNil(t, spanResChunk)
+		require.NotNil(t, spanResChunk.Spans)
+		require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
+		assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
+	})
+}
+
+func TestSearchTenancyGRPCExplicitList(t *testing.T) {
+	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+		Enabled: true,
+		Header:  "non-standard-tenant-header",
+		Tenants: []string{"mercury", "venus", "mars"},
+	})
+	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).Once()
+
+		for _, tc := range []struct {
+			name           string
+			tenancyHeader  string
+			tenant         string
+			wantErr        bool
+			failureCode    codes.Code
+			failureMessage string
+		}{
+			{
+				name:           "no header",
+				wantErr:        true,
+				failureCode:    codes.PermissionDenied,
+				failureMessage: "missing tenant header",
+			},
+			{
+				name:           "invalid header",
+				tenancyHeader:  "not-the-correct-header",
+				tenant:         "mercury",
+				wantErr:        true,
+				failureCode:    codes.PermissionDenied,
+				failureMessage: "missing tenant header",
+			},
+			{
+				name:           "missing tenant",
+				tenancyHeader:  tc.Header,
+				tenant:         "",
+				wantErr:        true,
+				failureCode:    codes.PermissionDenied,
+				failureMessage: "unknown tenant",
+			},
+			{
+				name:           "invalid tenant",
+				tenancyHeader:  tc.Header,
+				tenant:         "some-other-tenant-not-in-the-list",
+				wantErr:        true,
+				failureCode:    codes.PermissionDenied,
+				failureMessage: "unknown tenant",
+			},
+			{
+				name:          "valid tenant",
+				tenancyHeader: tc.Header,
+				tenant:        "venus",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx := context.Background()
+				if tc.tenancyHeader != "" {
+					ctx = withOutgoingMetadata(t, context.Background(), tc.tenancyHeader, tc.tenant)
+				}
+				res, err := client.GetTrace(ctx, &api_v2.GetTraceRequest{
+					TraceID: mockTraceID,
+				})
+
+				require.NoError(t, err, "could not initiate GetTraceRequest")
+
+				spanResChunk, err := res.Recv()
+
+				if tc.wantErr {
+					assertGRPCError(t, err, tc.failureCode, tc.failureMessage)
+					assert.Nil(t, spanResChunk)
+				} else {
+					require.NoError(t, err, "expecting gRPC to succeed")
+					require.NotNil(t, spanResChunk)
+					require.NotNil(t, spanResChunk.Spans)
+					require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
+					assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
+				}
+			})
+		}
+	})
 }

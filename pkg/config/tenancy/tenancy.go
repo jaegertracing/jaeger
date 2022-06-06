@@ -35,9 +35,14 @@ type Options struct {
 
 // NewTenancyConfig creates a tenancy configuration for tenancy Options
 func NewTenancyConfig(options *Options) *TenancyConfig {
+	// Default header value (although set by CLI flags, this helps tests and API users)
+	header := options.Header
+	if header == "" && options.Enabled {
+		header = "x-tenant"
+	}
 	return &TenancyConfig{
 		Enabled: options.Enabled,
-		Header:  options.Header,
+		Header:  header,
 		guard:   tenancyGuardFactory(options),
 	}
 }
