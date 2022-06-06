@@ -42,7 +42,7 @@ func TestNewTUDPClientTransport(t *testing.T) {
 		require.True(t, trans.IsOpen())
 		require.NotNil(t, trans.Addr())
 
-		//Check address
+		// Check address
 		assert.True(t, strings.HasPrefix(trans.Addr().String(), "127.0.0.1:"), "address check")
 		require.Equal(t, "udp", trans.Addr().Network())
 
@@ -64,10 +64,10 @@ func TestNewTUDPServerTransport(t *testing.T) {
 	require.True(t, trans.IsOpen())
 	require.Equal(t, ^uint64(0), trans.RemainingBytes())
 
-	//Ensure a second server can't be created on the same address
+	// Ensure a second server can't be created on the same address
 	trans2, err := NewTUDPServerTransport(trans.Addr().String())
 	if trans2 != nil {
-		//close the second server if one got created
+		// close the second server if one got created
 		trans2.Close()
 	}
 	require.NotNil(t, err)
@@ -152,7 +152,7 @@ func TestDoubleCloseError(t *testing.T) {
 	require.Nil(t, err)
 	require.True(t, trans.IsOpen())
 
-	//Close connection object directly
+	// Close connection object directly
 	conn := trans.Conn()
 	require.NotNil(t, conn)
 	conn.Close()
@@ -185,7 +185,7 @@ func TestHugeWrite(t *testing.T) {
 		_, err = trans.Write(hugeMessage)
 		require.Nil(t, err)
 
-		//expect buffer to exceed max
+		// expect buffer to exceed max
 		_, err = trans.Write(hugeMessage)
 		require.NotNil(t, err)
 	})
@@ -196,12 +196,12 @@ func TestFlushErrors(t *testing.T) {
 		trans, err := NewTUDPClientTransport(addr, "")
 		require.Nil(t, err)
 
-		//flushing closed transport
+		// flushing closed transport
 		trans.Close()
 		err = trans.Flush(context.Background())
 		require.NotNil(t, err)
 
-		//error when trying to write in flush
+		// error when trying to write in flush
 		trans, err = NewTUDPClientTransport(addr, "")
 		require.Nil(t, err)
 		trans.conn.Close()

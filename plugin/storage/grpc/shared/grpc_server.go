@@ -47,7 +47,7 @@ func (s *grpcServer) GetDependencies(ctx context.Context, r *storage_v1.GetDepen
 	}, nil
 }
 
-// WriteSpanStream recieve the span from stream and save it
+// WriteSpanStream receive the span from stream and save it
 func (s *grpcServer) WriteSpanStream(stream storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer) error {
 	for {
 		in, err := stream.Recv()

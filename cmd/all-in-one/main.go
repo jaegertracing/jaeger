@@ -37,6 +37,7 @@ import (
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
+	collectorFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -57,7 +58,6 @@ import (
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-
 	setupcontext.SetAllInOne()
 
 	svc := flags.NewService(ports.CollectorAdminHTTP)
@@ -146,7 +146,7 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to configure connection for grpc", zap.Error(err))
 			}
-			cOpts, err := new(collectorApp.CollectorOptions).InitFromViper(v)
+			cOpts, err := new(collectorFlags.CollectorOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
@@ -172,7 +172,7 @@ by default uses only in-memory database.`,
 			// agent
 			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
 			if len(grpcBuilder.CollectorHostPorts) == 0 {
-				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCHostPort)
+				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.GRPC.HostPort)
 			}
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
@@ -227,7 +227,7 @@ by default uses only in-memory database.`,
 		agentApp.AddFlags,
 		agentRep.AddFlags,
 		agentGrpcRep.AddFlags,
-		collectorApp.AddFlags,
+		collectorFlags.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 		metricsReaderFactory.AddFlags,
@@ -244,7 +244,6 @@ func startAgent(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) *agentApp.Agent {
-
 	agent, err := b.CreateAgent(cp, logger, baseFactory)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
@@ -314,7 +313,6 @@ func createMetricsQueryService(
 	logger *zap.Logger,
 	metricsReaderMetricsFactory metrics.Factory,
 ) (querysvc.MetricsQueryService, error) {
-
 	if err := metricsReaderFactory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}

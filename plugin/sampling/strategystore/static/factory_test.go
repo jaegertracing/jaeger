@@ -26,8 +26,10 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 )
 
-var _ ss.Factory = new(Factory)
-var _ plugin.Configurable = new(Factory)
+var (
+	_ ss.Factory          = new(Factory)
+	_ plugin.Configurable = new(Factory)
+)
 
 func TestFactory(t *testing.T) {
 	f := NewFactory()

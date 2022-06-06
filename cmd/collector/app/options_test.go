@@ -22,6 +22,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -54,7 +55,7 @@ func TestAllOptionSet(t *testing.T) {
 
 func TestNoOptionsSet(t *testing.T) {
 	opts := Options.apply()
-	assert.EqualValues(t, DefaultNumWorkers, opts.numWorkers)
+	assert.EqualValues(t, flags.DefaultNumWorkers, opts.numWorkers)
 	assert.EqualValues(t, 0, opts.queueSize)
 	assert.Nil(t, opts.collectorTags)
 	assert.False(t, opts.reportBusy)

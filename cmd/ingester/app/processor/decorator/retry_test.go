@@ -31,6 +31,7 @@ type fakeMsg struct{}
 func (fakeMsg) Value() []byte {
 	return nil
 }
+
 func TestNewRetryingProcessor(t *testing.T) {
 	mockProcessor := &mocks.SpanProcessor{}
 	msg := &fakeMsg{}
@@ -55,7 +56,8 @@ func TestNewRetryingProcessorError(t *testing.T) {
 		MaxBackoffInterval(time.Second),
 		MaxAttempts(2),
 		PropagateError(true),
-		Rand(&fakeRand{})}
+		Rand(&fakeRand{}),
+	}
 	lf := metricstest.NewFactory(0)
 	rp := NewRetryingProcessor(lf, mockProcessor, opts...)
 
@@ -76,7 +78,8 @@ func TestNewRetryingProcessorNoErrorPropagation(t *testing.T) {
 		MaxBackoffInterval(time.Second),
 		MaxAttempts(1),
 		PropagateError(false),
-		Rand(&fakeRand{})}
+		Rand(&fakeRand{}),
+	}
 
 	lf := metricstest.NewFactory(0)
 	rp := NewRetryingProcessor(lf, mockProcessor, opts...)

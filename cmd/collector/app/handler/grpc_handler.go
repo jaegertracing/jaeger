@@ -19,44 +19,110 @@ import (
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	_ "google.golang.org/grpc/encoding/gzip"
+	_ "google.golang.org/grpc/encoding/gzip" // register zip encoding
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // GRPCHandler implements gRPC CollectorService.
 type GRPCHandler struct {
 	logger        *zap.Logger
-	spanProcessor processor.SpanProcessor
+	batchConsumer batchConsumer
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor) *GRPCHandler {
+func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyConfig *tenancy.TenancyConfig) *GRPCHandler {
 	return &GRPCHandler{
-		logger:        logger,
-		spanProcessor: spanProcessor,
+		logger: logger,
+		batchConsumer: newBatchConsumer(logger,
+			spanProcessor,
+			processor.GRPCTransport,
+			processor.ProtoSpanFormat,
+			tenancyConfig),
 	}
 }
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	for _, span := range r.GetBatch().Spans {
+	batch := &r.Batch
+	err := g.batchConsumer.consume(ctx, batch)
+	return &api_v2.PostSpansResponse{}, err
+}
+
+type batchConsumer struct {
+	logger        *zap.Logger
+	spanProcessor processor.SpanProcessor
+	spanOptions   processor.SpansOptions
+	tenancyConfig tenancy.TenancyConfig
+}
+
+func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyConfig *tenancy.TenancyConfig) batchConsumer {
+	if tenancyConfig == nil {
+		tenancyConfig = &tenancy.TenancyConfig{}
+	}
+	return batchConsumer{
+		logger:        logger,
+		spanProcessor: spanProcessor,
+		spanOptions: processor.SpansOptions{
+			InboundTransport: transport,
+			SpanFormat:       spanFormat,
+		},
+		tenancyConfig: *tenancyConfig,
+	}
+}
+
+func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
+	tenant, err := c.validateTenant(ctx)
+	if err != nil {
+		c.logger.Error("rejecting spans (tenancy)", zap.Error(err))
+		return err
+	}
+
+	for _, span := range batch.Spans {
 		if span.GetProcess() == nil {
-			span.Process = r.Batch.Process
+			span.Process = batch.Process
 		}
 	}
-	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, processor.SpansOptions{
+	_, err = c.spanProcessor.ProcessSpans(batch.Spans, processor.SpansOptions{
 		InboundTransport: processor.GRPCTransport,
 		SpanFormat:       processor.ProtoSpanFormat,
+		Tenant:           tenant,
 	})
 	if err != nil {
 		if err == processor.ErrBusy {
-			return nil, status.Errorf(codes.ResourceExhausted, err.Error())
+			return status.Errorf(codes.ResourceExhausted, err.Error())
 		}
-		g.logger.Error("cannot process spans", zap.Error(err))
-		return nil, err
+		c.logger.Error("cannot process spans", zap.Error(err))
+		return err
 	}
-	return &api_v2.PostSpansResponse{}, nil
+	return nil
+}
+
+func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
+	if !c.tenancyConfig.Enabled {
+		return "", nil
+	}
+
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	}
+
+	tenants := md[c.tenancyConfig.Header]
+	if len(tenants) < 1 {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	} else if len(tenants) > 1 {
+		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
+	}
+
+	if !c.tenancyConfig.Valid(tenants[0]) {
+		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
+	}
+
+	return tenants[0], nil
 }

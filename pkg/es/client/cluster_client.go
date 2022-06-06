@@ -39,7 +39,6 @@ func (c *ClusterClient) Version() (uint, error) {
 		endpoint: "/",
 		method:   http.MethodGet,
 	})
-
 	if err != nil {
 		return 0, err
 	}

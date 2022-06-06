@@ -17,6 +17,7 @@ package badger
 import (
 	"expvar"
 	"flag"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/plugin"
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -37,6 +39,11 @@ const (
 	keyLogSpaceAvailableName   = "badger_key_log_bytes_available"
 	lastMaintenanceRunName     = "badger_storage_maintenance_last_run"
 	lastValueLogCleanedName    = "badger_storage_valueloggc_last_run"
+)
+
+var (
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Badger backend.
@@ -143,7 +150,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 // initializeDir makes the directory and parent directories if the path doesn't exists yet.
 func initializeDir(path string) {
 	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
-		os.MkdirAll(path, 0700)
+		os.MkdirAll(path, 0o700)
 	}
 }
 

@@ -89,7 +89,6 @@ func TestLookBackAction(t *testing.T) {
 						Name:  "jaeger-span-archive-read",
 					},
 				}).Return(nil)
-
 			},
 			config: Config{
 				Unit:      "days",

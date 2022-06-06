@@ -286,8 +286,7 @@ func TestGetDependencies(t *testing.T) {
 	assert.Equal(t, expectedDependencies, actualDependencies)
 }
 
-type fakeStorageFactory1 struct {
-}
+type fakeStorageFactory1 struct{}
 
 type fakeStorageFactory2 struct {
 	fakeStorageFactory1
@@ -307,8 +306,10 @@ func (*fakeStorageFactory1) CreateDependencyReader() (dependencystore.Reader, er
 func (f *fakeStorageFactory2) CreateArchiveSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
 func (f *fakeStorageFactory2) CreateArchiveSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
 
-var _ storage.Factory = new(fakeStorageFactory1)
-var _ storage.ArchiveFactory = new(fakeStorageFactory2)
+var (
+	_ storage.Factory        = new(fakeStorageFactory1)
+	_ storage.ArchiveFactory = new(fakeStorageFactory2)
+)
 
 func TestInitArchiveStorageErrors(t *testing.T) {
 	opts := &QueryServiceOptions{}

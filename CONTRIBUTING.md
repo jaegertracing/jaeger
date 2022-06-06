@@ -34,8 +34,32 @@ git submodule update --init --recursive
 # Installs required tools
 make install-tools
 
-# Runs all unit tests
+# Runs all unit tests:
 make test
+```
+
+### Contributing Code
+
+We accept new changes as pull requests on GitHub. Please make sure the following conditions are met before submitting PRs:
+
+1. Use a named branch in your fork, not the `main` branch, otherwise the CI jobs will fail and we won't be able to merge the PR.
+2. All commits in the PR must be signed (verified by the DCO check on GitHub).
+3. Before submitting a PR, make sure to run:
+```
+make fmt  # commit all changes from auto-format
+make lint
+make test
+```
+
+### Auto-format
+
+We are currently using `gofumpt`, which is installed automatically by `make install-tools` as part of `golangci-lint` installation. We recommend configuring your IDE to run `gofumpt` on file saves, e.g. in VSCode:
+
+```json
+"go.formatTool": "gofumpt",
+"gopls": {
+    "formatting.gofumpt": true,
+}
 ```
 
 ### Running local build with the UI
@@ -161,7 +185,7 @@ requires connection to Cassandra
 ```
 
 ## Merging PRs
-Before merging a PR make sure:
+For maintainers: before merging a PR make sure:
 * the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md)
 * pull request is assigned to the current release milestone
 * add `changelog:*` and other labels

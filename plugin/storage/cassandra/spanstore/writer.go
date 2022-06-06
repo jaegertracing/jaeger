@@ -73,9 +73,11 @@ const (
 	indexFlag
 )
 
-type storageMode uint8
-type serviceNamesWriter func(serviceName string) error
-type operationNamesWriter func(operation dbmodel.Operation) error
+type (
+	storageMode          uint8
+	serviceNamesWriter   func(serviceName string) error
+	operationNamesWriter func(operation dbmodel.Operation) error
+)
 
 type spanWriterMetrics struct {
 	traces                *casMetrics.Table

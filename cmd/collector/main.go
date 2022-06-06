@@ -30,9 +30,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
-	"github.com/jaegertracing/jaeger/cmd/flags"
+	cmdFlags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -44,7 +45,7 @@ import (
 const serviceName = "jaeger-collector"
 
 func main() {
-	svc := flags.NewService(ports.CollectorAdminHTTP)
+	svc := cmdFlags.NewService(ports.CollectorAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
@@ -97,7 +98,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 			}
-			c := app.New(&app.CollectorParams{
+			collector := app.New(&app.CollectorParams{
 				ServiceName:    serviceName,
 				Logger:         logger,
 				MetricsFactory: metricsFactory,
@@ -106,16 +107,17 @@ func main() {
 				Aggregator:     aggregator,
 				HealthCheck:    svc.HC(),
 			})
-			collectorOpts, err := new(app.CollectorOptions).InitFromViper(v)
+			collectorOpts, err := new(flags.CollectorOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
-			if err := c.Start(collectorOpts); err != nil {
+			// Start all Collector services
+			if err := collector.Start(collectorOpts); err != nil {
 				logger.Fatal("Failed to start collector", zap.Error(err))
 			}
-
+			// Wait for shutfown
 			svc.RunAndThen(func() {
-				if err := c.Close(); err != nil {
+				if err := collector.Close(); err != nil {
 					logger.Error("failed to cleanly close the collector", zap.Error(err))
 				}
 				if closer, ok := spanWriter.(io.Closer); ok {
@@ -127,7 +129,6 @@ func main() {
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
-
 			})
 			return nil
 		},
@@ -142,7 +143,7 @@ func main() {
 		v,
 		command,
 		svc.AddFlags,
-		app.AddFlags,
+		flags.AddFlags,
 		storageFactory.AddPipelineFlags,
 		strategyStoreFactory.AddFlags,
 	)

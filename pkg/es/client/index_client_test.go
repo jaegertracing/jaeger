@@ -183,6 +183,7 @@ func getIndicesList(size int) []Index {
 	}
 	return indicesList
 }
+
 func TestClientDeleteIndices(t *testing.T) {
 	masterTimeoutSeconds := 1
 	maxURLPathLength := 4000
@@ -200,7 +201,8 @@ func TestClientDeleteIndices(t *testing.T) {
 			responseCode: http.StatusOK,
 			indices:      []Index{},
 			triggerAPI:   false,
-		}, {
+		},
+		{
 			name:         "one index",
 			responseCode: http.StatusOK,
 			indices:      []Index{{Index: "jaeger-span-000001"}},
@@ -239,7 +241,6 @@ func TestClientDeleteIndices(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			deletedIndicesCount := 0
 			apiTriggered := false
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {

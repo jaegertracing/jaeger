@@ -28,8 +28,7 @@ func (s mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName st
 	return nil, nil
 }
 
-type mockSpanProcessor struct {
-}
+type mockSpanProcessor struct{}
 
 func (p *mockSpanProcessor) Close() error {
 	return nil

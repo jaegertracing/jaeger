@@ -43,8 +43,8 @@ type operationNameStorageTest struct {
 
 func withOperationNamesStorage(writeCacheTTL time.Duration,
 	schemaVersion schemaVersion,
-	fn func(s *operationNameStorageTest)) {
-
+	fn func(s *operationNameStorageTest),
+) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
@@ -81,7 +81,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			withOperationNamesStorage(test.ttl, test.schemaVersion, func(s *operationNameStorageTest) {
-				var execError = errors.New("exec error")
+				execError := errors.New("exec error")
 				query := &mocks.Query{}
 				query1 := &mocks.Query{}
 				query2 := &mocks.Query{}
@@ -149,7 +149,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 }
 
 func TestOperationNamesStorageGetServices(t *testing.T) {
-	var scanError = errors.New("scan error")
+	scanError := errors.New("scan error")
 	for _, test := range []struct {
 		name          string
 		schemaVersion schemaVersion
@@ -200,7 +200,5 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 				}
 			})
 		})
-
 	}
-
 }

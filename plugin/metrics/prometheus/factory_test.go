@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -62,9 +63,7 @@ func TestWithConfiguration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = f.InitFromViper(v, zap.NewNop())
-
-	require.NoError(t, err)
+	f.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:1234")
 	assert.Equal(t, f.options.Primary.ConnectTimeout, 5*time.Second)
 }
@@ -78,7 +77,14 @@ func TestFailedTLSOptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = f.InitFromViper(v, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to process Prometheus TLS options")
+	logger, logOut := testutils.NewLogger()
+
+	defer func() {
+		r := recover()
+		t.Logf("%v", r)
+		assert.Contains(t, logOut.Lines()[0], "failed to process Prometheus TLS options")
+	}()
+
+	f.InitFromViper(v, logger)
+	t.Errorf("f.InitFromViper did not panic")
 }

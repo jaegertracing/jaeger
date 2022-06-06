@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
 
 	"github.com/jaegertracing/jaeger/model"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
@@ -302,7 +302,6 @@ func TestTranslateSpanStatus(t *testing.T) {
 			status, ignoreKeys := getSpanStatus(test.tags)
 			assert.Equal(t, test.status, status)
 			assert.Equal(t, test.ignoreKeys, ignoreKeys)
-
 		})
 	}
 }

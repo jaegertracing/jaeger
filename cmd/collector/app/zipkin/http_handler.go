@@ -83,7 +83,6 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Cannot parse Content-Type: %v", err), http.StatusBadRequest)
 		return
@@ -133,7 +132,6 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Cannot parse Content-Type: %v", err), http.StatusBadRequest)
 		return

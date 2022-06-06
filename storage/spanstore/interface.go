@@ -23,10 +23,8 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-var (
-	// ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
-	ErrTraceNotFound = errors.New("trace not found")
-)
+// ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
+var ErrTraceNotFound = errors.New("trace not found")
 
 // Writer writes spans to storage.
 type Writer interface {

@@ -29,9 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var (
-	errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
-)
+var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
 const (
 	defaultMaxClockSkewAdjust = time.Second

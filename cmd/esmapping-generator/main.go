@@ -29,13 +29,12 @@ import (
 
 func main() {
 	logger, _ := zap.NewDevelopment()
-	var options = app.Options{}
-	var command = &cobra.Command{
+	options := app.Options{}
+	command := &cobra.Command{
 		Use:   "jaeger-esmapping-generator",
 		Short: "Jaeger esmapping-generator prints rendered mappings as string",
 		Long:  `Jaeger esmapping-generator renders passed templates with provided values and prints rendered output to stdout`,
 		Run: func(cmd *cobra.Command, args []string) {
-
 			if !renderer.IsValidOption(options.Mapping) {
 				logger.Fatal("please pass either 'jaeger-service' or 'jaeger-span' as argument")
 			}
@@ -56,5 +55,4 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-
 }

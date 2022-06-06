@@ -139,7 +139,7 @@ func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object interface{
 	require.NoError(t, enc.Encode(object))
 
 	if !assert.Equal(t, string(expectedStr), buf.String()) {
-		err := os.WriteFile(outFile+"-actual.json", buf.Bytes(), 0644)
+		err := os.WriteFile(outFile+"-actual.json", buf.Bytes(), 0o644)
 		assert.NoError(t, err)
 	}
 }

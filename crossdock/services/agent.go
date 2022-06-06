@@ -27,9 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-var (
-	errSamplingRateMissing = errors.New("sampling rate is missing")
-)
+var errSamplingRateMissing = errors.New("sampling rate is missing")
 
 // AgentService is the service used to report traces to the collector.
 type AgentService interface {

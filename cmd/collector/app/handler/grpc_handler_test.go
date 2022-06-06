@@ -26,9 +26,12 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -36,6 +39,7 @@ type mockSpanProcessor struct {
 	expectedError error
 	mux           sync.Mutex
 	spans         []*model.Span
+	tenants       map[string]bool
 }
 
 func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, opts processor.SpansOptions) ([]bool, error) {
@@ -43,6 +47,10 @@ func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, opts processor.Spa
 	defer p.mux.Unlock()
 	p.spans = append(p.spans, spans...)
 	oks := make([]bool, len(spans))
+	if p.tenants == nil {
+		p.tenants = make(map[string]bool)
+	}
+	p.tenants[opts.Tenant] = true
 	return oks, p.expectedError
 }
 
@@ -52,10 +60,17 @@ func (p *mockSpanProcessor) getSpans() []*model.Span {
 	return p.spans
 }
 
+func (p *mockSpanProcessor) getTenants() map[string]bool {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.tenants
+}
+
 func (p *mockSpanProcessor) reset() {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.spans = nil
+	p.tenants = nil
 }
 
 func (p *mockSpanProcessor) Close() error {
@@ -83,7 +98,7 @@ func newClient(t *testing.T, addr net.Addr) (api_v2.CollectorServiceClient, *grp
 func TestPostSpans(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor)
+		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyConfig{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -94,10 +109,14 @@ func TestPostSpans(t *testing.T) {
 		batch    model.Batch
 		expected []*model.Span
 	}{
-		{batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
-			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
-		{batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op"}}},
-			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "batch-process"}}}},
+		{
+			batch:    model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
+		},
+		{
+			batch:    model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op"}}},
+			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "batch-process"}}},
+		},
 	}
 	for _, test := range tests {
 		_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
@@ -114,7 +133,7 @@ func TestPostSpans(t *testing.T) {
 func TestGRPCCompressionEnabled(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor)
+		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyConfig{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -123,32 +142,224 @@ func TestGRPCCompressionEnabled(t *testing.T) {
 	defer conn.Close()
 
 	// Do not use string constant imported from grpc, since we are actually testing that package is imported by the handler.
-	_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{},
-		grpc.UseCompressor("gzip"))
+	_, err := client.PostSpans(
+		context.Background(),
+		&api_v2.PostSpansRequest{},
+		grpc.UseCompressor("gzip"),
+	)
 	require.NoError(t, err)
 }
 
 func TestPostSpansWithError(t *testing.T) {
-	expectedError := errors.New("test-error")
-	processor := &mockSpanProcessor{expectedError: expectedError}
+	testCases := []struct {
+		processorError error
+		expectedError  string
+		expectedLog    string
+	}{
+		{
+			processorError: errors.New("test-error"),
+			expectedError:  "test-error",
+			expectedLog:    "test-error",
+		},
+		{
+			processorError: processor.ErrBusy,
+			expectedError:  "server busy",
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.expectedError, func(t *testing.T) {
+			processor := &mockSpanProcessor{expectedError: test.processorError}
+			logger, logBuf := testutils.NewLogger()
+			server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+				handler := NewGRPCHandler(logger, processor, &tenancy.TenancyConfig{})
+				api_v2.RegisterCollectorServiceServer(s, handler)
+			})
+			defer server.Stop()
+			client, conn := newClient(t, addr)
+			defer conn.Close()
+			r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
+				Batch: model.Batch{
+					Spans: []*model.Span{
+						{
+							OperationName: "fake-operation",
+						},
+					},
+				},
+			})
+			require.Error(t, err)
+			require.Nil(t, r)
+			assert.Contains(t, err.Error(), test.expectedError)
+			assert.Contains(t, logBuf.String(), test.expectedLog)
+			assert.Len(t, processor.getSpans(), 1)
+		})
+	}
+}
+
+// withMetadata returns a Context with metadata for outbound (client) calls
+func withMetadata(ctx context.Context, headerName, headerValue string, t *testing.T) context.Context {
+	t.Helper()
+
+	md := metadata.New(map[string]string{headerName: headerValue})
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+func TestPostTenantedSpans(t *testing.T) {
+	tenantHeader := "x-tenant"
+	dummyTenant := "grpc-test-tenant"
+
+	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor)
+		handler := NewGRPCHandler(zap.NewNop(), processor,
+			tenancy.NewTenancyConfig(&tenancy.Options{
+				Enabled: true,
+				Header:  tenantHeader,
+				Tenants: []string{dummyTenant},
+			}))
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
 	client, conn := newClient(t, addr)
 	defer conn.Close()
-	r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
-		Batch: model.Batch{
-			Spans: []*model.Span{
-				{
-					OperationName: "fake-operation",
-				},
-			},
+
+	ctxWithTenant := withMetadata(context.Background(), tenantHeader, dummyTenant, t)
+	ctxNoTenant := context.Background()
+	mdTwoTenants := metadata.Pairs()
+	mdTwoTenants.Set(tenantHeader, "a", "b")
+	ctxTwoTenants := metadata.NewOutgoingContext(context.Background(), mdTwoTenants)
+	ctxBadTenant := withMetadata(context.Background(), tenantHeader, "invalid-tenant", t)
+
+	withMetadata(context.Background(),
+		tenantHeader, dummyTenant, t)
+
+	tests := []struct {
+		name            string
+		ctx             context.Context
+		batch           model.Batch
+		mustFail        bool
+		expected        []*model.Span
+		expectedTenants map[string]bool
+	}{
+		{
+			name:  "valid tenant",
+			ctx:   ctxWithTenant,
+			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+
+			mustFail:        false,
+			expected:        []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
+			expectedTenants: map[string]bool{dummyTenant: true},
 		},
-	})
-	require.Error(t, err)
-	require.Nil(t, r)
-	require.Contains(t, err.Error(), expectedError.Error())
-	require.Len(t, processor.getSpans(), 1)
+		{
+			name:  "no tenant",
+			ctx:   ctxNoTenant,
+			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+
+			// Because NewGRPCHandler expects a tenant header, it will reject spans without one
+			mustFail:        true,
+			expected:        nil,
+			expectedTenants: nil,
+		},
+		{
+			name:  "two tenants",
+			ctx:   ctxTwoTenants,
+			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+
+			// NewGRPCHandler rejects spans with multiple values for tenant header
+			mustFail:        true,
+			expected:        nil,
+			expectedTenants: nil,
+		},
+		{
+			name:  "invalid tenant",
+			ctx:   ctxBadTenant,
+			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+
+			// NewGRPCHandler rejects spans with multiple values for tenant header
+			mustFail:        true,
+			expected:        nil,
+			expectedTenants: nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := client.PostSpans(test.ctx, &api_v2.PostSpansRequest{
+				Batch: test.batch,
+			})
+			if test.mustFail {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, test.expected, processor.getSpans())
+			assert.Equal(t, test.expectedTenants, processor.getTenants())
+			processor.reset()
+		})
+	}
+}
+
+// withIncomingMetadata returns a Context with metadata for a server to receive
+func withIncomingMetadata(ctx context.Context, headerName, headerValue string, t *testing.T) context.Context {
+	t.Helper()
+
+	md := metadata.New(map[string]string{headerName: headerValue})
+	return metadata.NewIncomingContext(ctx, md)
+}
+
+func TestGetTenant(t *testing.T) {
+	tenantHeader := "some-tenant-header"
+	validTenants := []string{"acme", "another-example"}
+
+	mdTwoTenants := metadata.Pairs()
+	mdTwoTenants.Set(tenantHeader, "a", "b")
+	ctxTwoTenants := metadata.NewOutgoingContext(context.Background(), mdTwoTenants)
+
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		tenant   string
+		mustFail bool
+	}{
+		{
+			name:     "valid tenant",
+			ctx:      withIncomingMetadata(context.TODO(), tenantHeader, "acme", t),
+			mustFail: false,
+			tenant:   "acme",
+		},
+		{
+			name:     "no tenant",
+			ctx:      context.TODO(),
+			mustFail: true,
+			tenant:   "",
+		},
+		{
+			name:     "two tenants",
+			ctx:      ctxTwoTenants,
+			mustFail: true,
+			tenant:   "",
+		},
+		{
+			name:     "invalid tenant",
+			ctx:      withIncomingMetadata(context.TODO(), tenantHeader, "an-invalid-tenant", t),
+			mustFail: true,
+			tenant:   "",
+		},
+	}
+
+	processor := &mockSpanProcessor{}
+	handler := NewGRPCHandler(zap.NewNop(), processor,
+		tenancy.NewTenancyConfig(&tenancy.Options{
+			Enabled: true,
+			Header:  tenantHeader,
+			Tenants: validTenants,
+		}))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tenant, err := handler.batchConsumer.validateTenant(test.ctx)
+			if test.mustFail {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, test.tenant, tenant)
+		})
+	}
 }

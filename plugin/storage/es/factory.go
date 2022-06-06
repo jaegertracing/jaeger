@@ -26,6 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
@@ -36,6 +37,11 @@ import (
 const (
 	primaryNamespace = "es"
 	archiveNamespace = "es-archive"
+)
+
+var (
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -215,7 +221,6 @@ func createDependencyReader(
 	client es.Client,
 	cfg config.ClientBuilder,
 ) (dependencystore.Reader, error) {
-
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
 		Client:              client,
 		Logger:              logger,

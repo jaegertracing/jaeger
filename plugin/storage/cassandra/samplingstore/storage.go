@@ -127,8 +127,10 @@ func probabilitiesAndQPSToString(probabilities model.ServiceOperationProbabiliti
 			if _, ok := qps[svc]; ok {
 				opQPS = qps[svc][op]
 			}
-			writer.Write([]string{svc, op, strconv.FormatFloat(probability, 'f', -1, 64),
-				strconv.FormatFloat(opQPS, 'f', -1, 64)})
+			writer.Write([]string{
+				svc, op, strconv.FormatFloat(probability, 'f', -1, 64),
+				strconv.FormatFloat(opQPS, 'f', -1, 64),
+			})
 		}
 	}
 	writer.Flush()

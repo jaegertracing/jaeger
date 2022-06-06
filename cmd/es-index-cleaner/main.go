@@ -38,7 +38,7 @@ func main() {
 	cfg := &app.Config{}
 	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
 
-	var command = &cobra.Command{
+	command := &cobra.Command{
 		Use:   "jaeger-es-index-cleaner NUM_OF_DAYS http://HOSTNAME:PORT",
 		Short: "Jaeger es-index-cleaner removes Jaeger indices",
 		Long:  "Jaeger es-index-cleaner removes Jaeger indices",

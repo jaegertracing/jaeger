@@ -41,9 +41,7 @@ const (
 	epsilon = 0.00000001
 )
 
-var (
-	defaultProbabilities = []float64{1.0, 0.001, 0.5}
-)
+var defaultProbabilities = []float64{1.0, 0.001, 0.5}
 
 type traceRequest struct {
 	Type      string            `json:"type"`

@@ -80,10 +80,9 @@ func TestSpanReaderGetOperations(t *testing.T) {
 				SpanKind: "server",
 			},
 		}
-		r.reader.operationNamesReader =
-			func(parameters spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-				return expectedOperations, nil
-			}
+		r.reader.operationNamesReader = func(parameters spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+			return expectedOperations, nil
+		}
 		s, err := r.reader.GetOperations(context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "service-x", SpanKind: "server"})
 		assert.NoError(t, err)
@@ -397,7 +396,6 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					assert.Equal(t, "", r.logBuffer.String())
 				}
 			})
-
 		})
 	}
 }
@@ -429,7 +427,7 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	err = validateQuery(tsp)
 	assert.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
 
-	tsp.StartTimeMin = time.Time{} //time.Unix(0,0) doesn't work because timezones
+	tsp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tsp.StartTimeMax = time.Time{}
 	err = validateQuery(tsp)
 	assert.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())

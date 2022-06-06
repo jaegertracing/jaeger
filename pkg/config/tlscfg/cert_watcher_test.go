@@ -83,7 +83,7 @@ func TestReload(t *testing.T) {
 	// Write the client's public key.
 	certData, err = os.ReadFile(clientCert)
 	require.NoError(t, err)
-	err = syncWrite(certFile.Name(), certData, 0644)
+	err = syncWrite(certFile.Name(), certData, 0o644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
@@ -100,7 +100,7 @@ func TestReload(t *testing.T) {
 	// Write the client's private key.
 	keyData, err = os.ReadFile(clientKey)
 	require.NoError(t, err)
-	err = syncWrite(keyFile.Name(), keyData, 0644)
+	err = syncWrite(keyFile.Name(), keyData, 0o644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
@@ -157,11 +157,11 @@ func TestReload_ca_certs(t *testing.T) {
 	// update the content with client certs
 	caData, err = os.ReadFile(caCert)
 	require.NoError(t, err)
-	err = syncWrite(caFile.Name(), caData, 0644)
+	err = syncWrite(caFile.Name(), caData, 0o644)
 	require.NoError(t, err)
 	clientCaData, err = os.ReadFile(caCert)
 	require.NoError(t, err)
-	err = syncWrite(clientCaFile.Name(), clientCaData, 0644)
+	err = syncWrite(clientCaFile.Name(), clientCaData, 0o644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {
@@ -173,7 +173,6 @@ func TestReload_ca_certs(t *testing.T) {
 		return logObserver.FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0
 	}, 100, time.Millisecond*200)
 	assert.True(t, logObserver.FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0)
-
 }
 
 func TestReload_err_cert_update(t *testing.T) {
@@ -219,11 +218,11 @@ func TestReload_err_cert_update(t *testing.T) {
 	// update the content with client certs
 	certData, err = os.ReadFile(badCaCert)
 	require.NoError(t, err)
-	err = syncWrite(certFile.Name(), certData, 0644)
+	err = syncWrite(certFile.Name(), certData, 0o644)
 	require.NoError(t, err)
 	keyData, err = os.ReadFile(clientKey)
 	require.NoError(t, err)
-	err = syncWrite(keyFile.Name(), keyData, 0644)
+	err = syncWrite(keyFile.Name(), keyData, 0o644)
 	require.NoError(t, err)
 
 	waitUntil(func() bool {

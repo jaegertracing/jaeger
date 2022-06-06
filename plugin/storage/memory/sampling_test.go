@@ -34,7 +34,8 @@ func withPopulatedSamplingStore(f func(samplingStore *SamplingStore)) {
 		{[]*model.Throughput{{Service: "svc-2", Operation: "op-3", Count: 1}}, secondsAfter},
 	}
 	pQPS := &storedServiceOperationProbabilitiesAndQPS{
-		hostname: "guntur38ab8928", probabilities: model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, qps: model.ServiceOperationQPS{"svc-1": {"op-1": 10.0}}, time: now}
+		hostname: "guntur38ab8928", probabilities: model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, qps: model.ServiceOperationQPS{"svc-1": {"op-1": 10.0}}, time: now,
+	}
 	samplingStore := &SamplingStore{throughputs: throughputs, probabilitiesAndQPS: pQPS}
 	f(samplingStore)
 }

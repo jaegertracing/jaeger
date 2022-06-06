@@ -181,12 +181,12 @@ func TestMultipleCollectorProxies(t *testing.T) {
 	assert.Equal(t, ra, mr[1])
 }
 
-type fakeCollectorProxy struct {
-}
+type fakeCollectorProxy struct{}
 
 func (f fakeCollectorProxy) GetReporter() reporter.Reporter {
 	return fakeCollectorProxy{}
 }
+
 func (f fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 	return fakeCollectorProxy{}
 }
@@ -194,9 +194,11 @@ func (f fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 func (fakeCollectorProxy) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) (err error) {
 	return nil
 }
+
 func (fakeCollectorProxy) EmitBatch(_ context.Context, _ *jaeger.Batch) (err error) {
 	return nil
 }
+
 func (fakeCollectorProxy) Close() error {
 	return nil
 }
@@ -204,6 +206,7 @@ func (fakeCollectorProxy) Close() error {
 func (f fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*sampling.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")
 }
+
 func (fakeCollectorProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
 	return nil, nil
 }

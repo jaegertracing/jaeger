@@ -18,22 +18,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 )
 
 type mockAggregator struct {
-	callCount  int
-	closeCount int
+	callCount  atomic.Int32
+	closeCount atomic.Int32
 }
 
 func (t *mockAggregator) RecordThroughput(service, operation, samplerType string, probability float64) {
-	t.callCount++
+	t.callCount.Inc()
 }
 func (t *mockAggregator) Start() {}
 func (t *mockAggregator) Close() error {
-	t.closeCount++
+	t.closeCount.Inc()
 	return nil
 }
 
@@ -44,7 +45,7 @@ func TestHandleRootSpan(t *testing.T) {
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
 	processor(span, "")
-	assert.Equal(t, 0, aggregator.callCount)
+	assert.EqualValues(t, 0, aggregator.callCount.Load())
 
 	// Testing span with service name but no operation
 	span.References = []model.SpanRef{}
@@ -52,12 +53,12 @@ func TestHandleRootSpan(t *testing.T) {
 		ServiceName: "service",
 	}
 	processor(span, "")
-	assert.Equal(t, 0, aggregator.callCount)
+	assert.EqualValues(t, 0, aggregator.callCount.Load())
 
 	// Testing span with service name and operation but no probabilistic sampling tags
 	span.OperationName = "GET"
 	processor(span, "")
-	assert.Equal(t, 0, aggregator.callCount)
+	assert.EqualValues(t, 0, aggregator.callCount.Load())
 
 	// Testing span with service name, operation, and probabilistic sampling tags
 	span.Tags = model.KeyValues{
@@ -65,5 +66,5 @@ func TestHandleRootSpan(t *testing.T) {
 		model.String("sampler.param", "0.001"),
 	}
 	processor(span, "")
-	assert.Equal(t, 1, aggregator.callCount)
+	assert.EqualValues(t, 1, aggregator.callCount.Load())
 }

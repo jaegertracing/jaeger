@@ -67,8 +67,7 @@ func NewSpanDurationSanitizer() Sanitizer {
 	return &spanDurationSanitizer{}
 }
 
-type spanDurationSanitizer struct {
-}
+type spanDurationSanitizer struct{}
 
 func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Duration == nil {
@@ -115,8 +114,7 @@ func NewSpanStartTimeSanitizer() Sanitizer {
 	return &spanStartTimeSanitizer{}
 }
 
-type spanStartTimeSanitizer struct {
-}
+type spanStartTimeSanitizer struct{}
 
 func (s *spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Timestamp != nil || len(span.Annotations) == 0 {
@@ -143,8 +141,7 @@ func NewParentIDSanitizer() Sanitizer {
 	return &parentIDSanitizer{}
 }
 
-type parentIDSanitizer struct {
-}
+type parentIDSanitizer struct{}
 
 func (s *parentIDSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.ParentID == nil || *span.ParentID != 0 {
@@ -167,8 +164,7 @@ func NewErrorTagSanitizer() Sanitizer {
 	return &errorTagSanitizer{}
 }
 
-type errorTagSanitizer struct {
-}
+type errorTagSanitizer struct{}
 
 func (s *errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	for _, binAnno := range span.BinaryAnnotations {

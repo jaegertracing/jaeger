@@ -34,12 +34,10 @@ const (
 	UnableToReadBodyErrFormat = "Unable to process request body: %v"
 )
 
-var (
-	acceptedThriftFormats = map[string]struct{}{
-		"application/x-thrift":                 {},
-		"application/vnd.apache.thrift.binary": {},
-	}
-)
+var acceptedThriftFormats = map[string]struct{}{
+	"application/x-thrift":                 {},
+	"application/vnd.apache.thrift.binary": {},
+}
 
 // APIHandler handles all HTTP calls to the collector
 type APIHandler struct {
@@ -70,7 +68,6 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Cannot parse content type: %v", err), http.StatusBadRequest)
 		return

@@ -29,9 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const bearerToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
-const bearerHeader = "Bearer " + bearerToken
-const queryUrl = "http://127.0.0.1:16686/api/services"
+const (
+	bearerToken  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
+	bearerHeader = "Bearer " + bearerToken
+	queryUrl     = "http://127.0.0.1:16686/api/services"
+)
 
 type esTokenPropagationTestHandler struct {
 	test *testing.T

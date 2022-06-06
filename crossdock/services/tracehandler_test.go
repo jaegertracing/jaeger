@@ -35,12 +35,10 @@ import (
 	ui "github.com/jaegertracing/jaeger/model/json"
 )
 
-var (
-	testTrace = ui.Trace{
-		TraceID: ui.TraceID("0"),
-		Spans:   []ui.Span{{Tags: []ui.KeyValue{{Key: "k", Value: "v", Type: ui.StringType}}}},
-	}
-)
+var testTrace = ui.Trace{
+	TraceID: ui.TraceID("0"),
+	Spans:   []ui.Span{{Tags: []ui.KeyValue{{Key: "k", Value: "v", Type: ui.StringType}}}},
+}
 
 func TestCreateTraceRequest(t *testing.T) {
 	handler := NewTraceHandler(nil, nil, zap.NewNop())

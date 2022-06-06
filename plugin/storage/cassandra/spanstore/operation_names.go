@@ -104,7 +104,6 @@ func NewOperationNamesStorage(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *OperationNamesStorage {
-
 	schemaVersion := latestVersion
 	if !tableExist(session, schemas[schemaVersion].tableName) {
 		schemaVersion = previousVersion
