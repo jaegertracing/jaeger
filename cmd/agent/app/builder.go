@@ -244,6 +244,7 @@ func CreateCollectorProxy(
 	opts ProxyBuilderOptions,
 	builders map[reporter.Type]CollectorProxyBuilder,
 ) (CollectorProxy, error) {
+	fmt.Printf("@@@ ecs REACHED CreateCollectorProxy, opts=%#v\n", opts)
 	builder, ok := builders[opts.ReporterType]
 	if !ok {
 		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))

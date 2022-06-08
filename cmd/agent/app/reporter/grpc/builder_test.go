@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -43,6 +44,8 @@ collectorHostPorts:
 `
 
 var testCertKeyLocation = "../../../../../pkg/config/tlscfg/testdata/"
+
+var emptyMetadata = metadata.New(map[string]string{})
 
 type noopNotifier struct{}
 
@@ -210,7 +213,7 @@ func TestProxyBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, emptyMetadata, zap.NewNop())
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -359,6 +362,7 @@ func TestProxyClientTLS(t *testing.T) {
 				grpcBuilder,
 				nil,
 				mFactory,
+				emptyMetadata,
 				zap.NewNop())
 
 			require.NoError(t, err)

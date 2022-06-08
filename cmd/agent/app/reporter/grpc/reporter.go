@@ -17,9 +17,11 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
@@ -36,15 +38,22 @@ type Reporter struct {
 	agentTags []model.KeyValue
 	logger    *zap.Logger
 	sanitizer zipkin2.Sanitizer
+	metadata  metadata.MD
 }
 
 // NewReporter creates gRPC reporter.
 func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
+	return NewReporterWithMetadata(conn, agentTags, metadata.New(map[string]string{}), logger)
+}
+
+// NewReporter creates gRPC reporter that supplies metadata (e.g. for tenancy).
+func NewReporterWithMetadata(conn *grpc.ClientConn, agentTags map[string]string, md metadata.MD, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		agentTags: makeModelKeyValue(agentTags),
 		logger:    logger,
 		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.NewStandardSanitizers()...),
+		metadata:  md,
 	}
 }
 
@@ -69,6 +78,10 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
+	fmt.Printf("@@@ ecs in Reporter.send, r.metadata=%#v\n", r.metadata)
+	if len(r.metadata) > 0 {
+		ctx = metadata.NewOutgoingContext(ctx, r.metadata)
+	}
 	_, err := r.collector.PostSpans(ctx, req)
 	if err != nil {
 		r.logger.Error("Could not send spans over gRPC", zap.Error(err))

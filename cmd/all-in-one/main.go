@@ -45,6 +45,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -154,6 +155,10 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
+			tOpts, err := tenancy.InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Failed to initialize tenancy", zap.Error(err))
+			}
 
 			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{
@@ -173,6 +178,10 @@ by default uses only in-memory database.`,
 			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
 			if len(grpcBuilder.CollectorHostPorts) == 0 {
 				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.GRPC.HostPort)
+			}
+			// if the agent reporter grpc tenant header was not explicitly set then use whatever the collector expects, if anything
+			if grpcBuilder.CollectorTenancyHeader == "" && tOpts.Enabled {
+				grpcBuilder.CollectorTenancyHeader = tOpts.Header
 			}
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{

@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -25,9 +26,11 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/storage"
 	jThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -35,6 +38,9 @@ import (
 type mockSpanHandler struct {
 	mux      sync.Mutex
 	requests []*api_v2.PostSpansRequest
+
+	tenantHeader string
+	tenants      map[string]bool
 }
 
 func (h *mockSpanHandler) getRequests() []*api_v2.PostSpansRequest {
@@ -43,10 +49,30 @@ func (h *mockSpanHandler) getRequests() []*api_v2.PostSpansRequest {
 	return h.requests
 }
 
+func (h *mockSpanHandler) getTenants() map[string]bool {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+	return h.tenants
+}
+
 func (h *mockSpanHandler) PostSpans(c context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 	h.requests = append(h.requests, r)
+	if h.tenants == nil {
+		h.tenants = make(map[string]bool)
+	}
+	if h.tenantHeader != "" {
+		md, ok := metadata.FromIncomingContext(c)
+		fmt.Printf("@@@ ecs in mockSpanHandler, c metadata is %#v\n", md)
+		fmt.Printf("@@@ ecs in mockSpanHandler, storage.GetTenant() is %q\n", storage.GetTenant(c))
+		if ok {
+			tenants := md.Get(h.tenantHeader)
+			if len(tenants) > 0 {
+				h.tenants[tenants[0]] = true
+			}
+		}
+	}
 	return &api_v2.PostSpansResponse{}, nil
 }
 
@@ -177,4 +203,47 @@ func TestReporter_MakeModelKeyValue(t *testing.T) {
 	actualTags := makeModelKeyValue(stringTags)
 
 	assert.Equal(t, expectedTags, actualTags)
+}
+
+func TestReporter_EmitTenantedBatch(t *testing.T) {
+	handler := &mockSpanHandler{
+		tenantHeader: "x-tenant",
+	}
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
+	defer s.Stop()
+	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	//nolint:staticcheck // don't care about errors
+	defer conn.Close()
+	require.NoError(t, err)
+	md := metadata.New(map[string]string{"x-tenant": "dummy"})
+	rep := NewReporterWithMetadata(conn, nil, md, zap.NewNop())
+
+	tm := time.Unix(158, 0)
+	tests := []struct {
+		in       *jThrift.Batch
+		expected model.Batch
+		err      string
+
+		expectedTenants map[string]bool
+	}{
+		{
+			in:       &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
+			expected: model.Batch{Process: &model.Process{ServiceName: "node"}, Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}}},
+			expectedTenants: map[string]bool{
+				"dummy": true,
+			},
+		},
+	}
+	for _, test := range tests {
+		err = rep.EmitBatch(context.Background(), test.in)
+		if test.err != "" {
+			assert.EqualError(t, err, test.err)
+		} else {
+			assert.Equal(t, 1, len(handler.requests))
+			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
+			assert.Equal(t, test.expectedTenants, handler.getTenants())
+		}
+	}
 }
