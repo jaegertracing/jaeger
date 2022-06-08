@@ -16,9 +16,13 @@ package tenancy
 
 import (
 	"context"
-	"fmt"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 // tenantedServerStream is a wrapper for ServerStream providing settable context
@@ -32,19 +36,38 @@ func (tss *tenantedServerStream) Context() context.Context {
 }
 
 // NewGuardingStreamInterceptor blocks handling of streams whose tenancy header isn't doesn't meet tenancy requirements
+// It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingStreamInterceptor(tc *TenancyConfig) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		tenantedCtx, err := tc.GetValidTenantContext(ss.Context())
-		if err != nil {
-			fmt.Printf("@@@ ecs failed to get GetValidTenantContext for %v\n", tc)
-			return err
+		ctx := ss.Context()
+		// Handle case where tenant is directly in the context
+		tenant := storage.GetTenant(ctx)
+		if tenant != "" {
+			if !tc.Valid(tenant) {
+				return status.Errorf(codes.PermissionDenied, "unknown tenant header")
+			}
+			return handler(srv, ss)
 		}
 
-		fmt.Printf("@@@ ecs got GetValidTenantContext for %v\n", tc)
-		wrappedSS := &tenantedServerStream{
-			ServerStream: ss,
-			context:      tenantedCtx,
+		// Handle case where tenant is in the context metadata
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return status.Errorf(codes.PermissionDenied, "missing tenant header")
 		}
-		return handler(srv, wrappedSS)
+
+		var err error
+		tenant, err = tenantFromMetadata(md, tc.Header)
+		if err != nil {
+			return err
+		}
+		if !tc.Valid(tenant) {
+			return status.Errorf(codes.PermissionDenied, "unknown tenant")
+		}
+
+		// Apply the tenant directly the context (in addition to metadata)
+		return handler(srv, &tenantedServerStream{
+			ServerStream: ss,
+			context:      storage.WithTenant(ctx, tenant),
+		})
 	}
 }
