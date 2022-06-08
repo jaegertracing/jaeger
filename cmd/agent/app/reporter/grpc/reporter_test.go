@@ -16,7 +16,6 @@ package grpc
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage"
 	jThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -64,8 +62,6 @@ func (h *mockSpanHandler) PostSpans(c context.Context, r *api_v2.PostSpansReques
 	}
 	if h.tenantHeader != "" {
 		md, ok := metadata.FromIncomingContext(c)
-		fmt.Printf("@@@ ecs in mockSpanHandler, c metadata is %#v\n", md)
-		fmt.Printf("@@@ ecs in mockSpanHandler, storage.GetTenant() is %q\n", storage.GetTenant(c))
 		if ok {
 			tenants := md.Get(h.tenantHeader)
 			if len(tenants) > 0 {

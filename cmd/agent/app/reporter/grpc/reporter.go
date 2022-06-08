@@ -17,7 +17,6 @@ package grpc
 
 import (
 	"context"
-	"fmt"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -78,7 +77,6 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
-	fmt.Printf("@@@ ecs in Reporter.send, r.metadata=%#v\n", r.metadata)
 	if len(r.metadata) > 0 {
 		ctx = metadata.NewOutgoingContext(ctx, r.metadata)
 	}

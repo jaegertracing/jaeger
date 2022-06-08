@@ -15,8 +15,6 @@
 package app
 
 import (
-	"fmt"
-
 	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
@@ -25,7 +23,6 @@ import (
 // GRPCCollectorProxyBuilder creates CollectorProxyBuilder for GRPC reporter
 func GRPCCollectorProxyBuilder(builder *grpc.ConnBuilder) CollectorProxyBuilder {
 	return func(opts ProxyBuilderOptions) (proxy CollectorProxy, err error) {
-		fmt.Printf("@@@ ecs REACHED GRPCCollectorProxyBuilder, builder=%#v, opts=%#v\n", builder, opts)
 		md := metadata.New(map[string]string{})
 		if builder.CollectorTenancyHeader != "" {
 			md = metadata.New(map[string]string{builder.CollectorTenancyHeader: builder.CollectorTenant})

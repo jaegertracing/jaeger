@@ -15,7 +15,6 @@
 package grpc
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -39,7 +38,6 @@ type ProxyBuilder struct {
 
 // NewCollectorProxy creates ProxyBuilder
 func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, md metadata.MD, logger *zap.Logger) (*ProxyBuilder, error) {
-	fmt.Printf("@@@ ecs REACHED NewCollectorProxy, builder=%#v\n", builder)
 	conn, err := builder.CreateConnection(logger, mFactory)
 	if err != nil {
 		return nil, err
