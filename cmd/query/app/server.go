@@ -63,6 +63,9 @@ type Server struct {
 	grpcGatewayCancel  context.CancelFunc
 }
 
+// TenancyTag tags agent reporter spans with the tenant involved in their generation
+const TenancyTag = "_tenant"
+
 // NewServer creates and initializes Server
 func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
@@ -120,6 +123,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
+	// @@@ ecs TODO add nethttp.MWSpanObserver similar to http_handler.go
 	server := grpc.NewServer(grpcOpts...)
 	reflection.Register(server)
 

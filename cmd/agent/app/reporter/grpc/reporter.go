@@ -23,10 +23,14 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/model"
 	jConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/storage"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -37,28 +41,64 @@ type Reporter struct {
 	agentTags []model.KeyValue
 	logger    *zap.Logger
 	sanitizer zipkin2.Sanitizer
-	metadata  metadata.MD
+
+	tenantHeader string
 }
 
 // NewReporter creates gRPC reporter.
 func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
-	return NewReporterWithMetadata(conn, agentTags, metadata.New(map[string]string{}), logger)
+	return NewMultitenantReporter(conn, agentTags, "", logger)
 }
 
-// NewReporter creates gRPC reporter that supplies metadata (e.g. for tenancy).
-func NewReporterWithMetadata(conn *grpc.ClientConn, agentTags map[string]string, md metadata.MD, logger *zap.Logger) *Reporter {
+func NewMultitenantReporter(conn *grpc.ClientConn, agentTags map[string]string, tenantHeader string, logger *zap.Logger) *Reporter {
 	return &Reporter{
-		collector: api_v2.NewCollectorServiceClient(conn),
-		agentTags: makeModelKeyValue(agentTags),
-		logger:    logger,
-		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.NewStandardSanitizers()...),
-		metadata:  md,
+		collector:    api_v2.NewCollectorServiceClient(conn),
+		agentTags:    makeModelKeyValue(agentTags),
+		logger:       logger,
+		sanitizer:    zipkin2.NewChainedSanitizer(zipkin2.NewStandardSanitizers()...),
+		tenantHeader: tenantHeader,
 	}
 }
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(ctx context.Context, b *thrift.Batch) error {
-	return r.send(ctx, jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
+	// If we aren't sending tenant headers, forward along the batch
+	if r.tenantHeader == "" {
+		return r.send(ctx, jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
+	}
+
+	// Partition batch by tenant
+	batches := make(map[string]*[]*thrift.Span)
+	for _, span := range b.Spans {
+		tenant := ""
+		for _, tag := range span.Tags {
+			if tag.GetKey() == app.TenancyTag {
+				tenant = tag.GetVStr()
+				break
+			}
+		}
+		if tenant == "" {
+			tenant = tenancy.MissingTenant
+		}
+
+		batch, ok := batches[tenant]
+		if !ok {
+			batch = &[]*thrift.Span{}
+			batches[tenant] = batch
+		}
+		*batch = append(*batch, span)
+	}
+
+	// Send each tenant's spans
+	var errors []error
+	for tenant, partitionedBatch := range batches {
+		tenantedCtx := storage.WithTenant(ctx, tenant)
+		err := r.send(tenantedCtx, jConverter.ToDomain(*partitionedBatch, nil), jConverter.ToDomainProcess(b.Process))
+		if err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return multierror.Wrap(errors)
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
@@ -74,12 +114,17 @@ func (r *Reporter) EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Spa
 }
 
 func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model.Process) error {
+	if r.tenantHeader != "" {
+		tenant := storage.GetTenant(ctx)
+		md := metadata.New(map[string]string{
+			r.tenantHeader: tenant,
+		})
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+
 	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
-	if len(r.metadata) > 0 {
-		ctx = metadata.NewOutgoingContext(ctx, r.metadata)
-	}
 	_, err := r.collector.PostSpans(ctx, req)
 	if err != nil {
 		r.logger.Error("Could not send spans over gRPC", zap.Error(err))

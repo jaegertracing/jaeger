@@ -31,7 +31,6 @@ const (
 	defaultMaxRetry        = 3
 	discoveryMinPeers      = gRPCPrefix + ".discovery.min-peers"
 	collectorTenancyHeader = gRPCPrefix + ".tenancy-header"
-	collectorTenant        = gRPCPrefix + ".tenant"
 )
 
 var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
@@ -45,7 +44,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly")
 	tlsFlagsConfig.AddFlags(flags)
 	flags.String(collectorTenancyHeader, "", "HTTP header carrying reporter tenant")
-	flags.String(collectorTenant, "jaeger", "Reporter tenant")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
@@ -62,6 +60,5 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) (*ConnBuilder, error) {
 	}
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 	b.CollectorTenancyHeader = v.GetString(collectorTenancyHeader)
-	b.CollectorTenant = v.GetString(collectorTenant)
 	return b, nil
 }

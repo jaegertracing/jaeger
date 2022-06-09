@@ -35,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -144,7 +145,24 @@ func (aH *APIHandler) handleFunc(
 		http.HandlerFunc(f),
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return route
-		}))
+		}),
+		// @@@ ecs TODO only create this if tenancy is enabled
+		nethttp.MWSpanObserver(
+			func(span opentracing.Span, r *http.Request) {
+				// @@@ ecs TODO make header configurable
+				tenant := r.Header.Get("x-tenant")
+				if tenant == "" {
+					// @@@ ecs TODO Jaeger generates a span for
+					// rejected queries, re-order so that only valid
+					// queries generate spans.
+					// (There might also be a missing tenant if Jaeger
+					// traced internal "side work", such as syncing with a time
+					// server, but we aren't considering that for this POC.)
+					tenant = tenancy.MissingTenant
+				}
+				span.SetTag(TenancyTag, tenant)
+			}),
+	)
 	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 

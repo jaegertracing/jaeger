@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	jThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -213,9 +214,9 @@ func TestReporter_EmitTenantedBatch(t *testing.T) {
 	//nolint:staticcheck // don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
-	md := metadata.New(map[string]string{"x-tenant": "dummy"})
-	rep := NewReporterWithMetadata(conn, nil, md, zap.NewNop())
+	rep := NewMultitenantReporter(conn, nil, "x-tenant", zap.NewNop())
 
+	exampleTag := "acme"
 	tm := time.Unix(158, 0)
 	tests := []struct {
 		in       *jThrift.Batch
@@ -225,10 +226,27 @@ func TestReporter_EmitTenantedBatch(t *testing.T) {
 		expectedTenants map[string]bool
 	}{
 		{
-			in:       &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
-			expected: model.Batch{Process: &model.Process{ServiceName: "node"}, Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}}},
+			in: &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{
+				OperationName: "foo",
+				StartTime:     int64(model.TimeAsEpochMicroseconds(tm)),
+				Tags: []*jThrift.Tag{
+					{
+						Key:  app.TenancyTag,
+						VStr: &exampleTag,
+					},
+				},
+			}}},
+			expected: model.Batch{Process: &model.Process{ServiceName: "node"}, Spans: []*model.Span{{
+				OperationName: "foo", StartTime: tm.UTC(),
+				Tags: []model.KeyValue{
+					{
+						Key:  app.TenancyTag,
+						VStr: exampleTag,
+					},
+				},
+			}}},
 			expectedTenants: map[string]bool{
-				"dummy": true,
+				"acme": true,
 			},
 		},
 	}
@@ -237,7 +255,7 @@ func TestReporter_EmitTenantedBatch(t *testing.T) {
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 		} else {
-			assert.Equal(t, 1, len(handler.requests))
+			require.Equal(t, 1, len(handler.requests))
 			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
 			assert.Equal(t, test.expectedTenants, handler.getTenants())
 		}

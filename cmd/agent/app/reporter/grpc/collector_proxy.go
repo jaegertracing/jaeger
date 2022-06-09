@@ -20,7 +20,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
@@ -37,13 +36,13 @@ type ProxyBuilder struct {
 }
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, md metadata.MD, logger *zap.Logger) (*ProxyBuilder, error) {
+func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, tenantHeader string, logger *zap.Logger) (*ProxyBuilder, error) {
 	conn, err := builder.CreateConnection(logger, mFactory)
 	if err != nil {
 		return nil, err
 	}
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
-	r1 := NewReporterWithMetadata(conn, agentTags, md, logger)
+	r1 := NewMultitenantReporter(conn, agentTags, tenantHeader, logger)
 	r2 := reporter.WrapWithMetrics(r1, grpcMetrics)
 	r3 := reporter.WrapWithClientMetrics(reporter.ClientMetricsReporterParams{
 		Reporter:       r2,

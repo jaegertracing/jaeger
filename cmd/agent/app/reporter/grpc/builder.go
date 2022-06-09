@@ -50,8 +50,6 @@ type ConnBuilder struct {
 
 	// CollectorTenancyHeader is the header used for reporting to a multi-tenant Jaeger, typically x-tenant
 	CollectorTenancyHeader string
-	// CollectorTenant is the tenant reported, typically 'jaeger'
-	CollectorTenant string
 }
 
 // NewConnBuilder creates a new grpc connection builder.

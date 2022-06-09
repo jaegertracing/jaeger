@@ -33,23 +33,19 @@ func TestBindFlags(t *testing.T) {
 	}{
 		{
 			cOpts:    []string{"--reporter.grpc.host-port=localhost:1111", "--reporter.grpc.retry.max=15"},
-			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111"}, MaxRetry: 15, DiscoveryMinPeers: 3, CollectorTenant: "jaeger"},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111"}, MaxRetry: 15, DiscoveryMinPeers: 3},
 		},
 		{
 			cOpts:    []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
-			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3, CollectorTenant: "jaeger"},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3},
 		},
 		{
 			cOpts:    []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222", "--reporter.grpc.discovery.min-peers=5"},
-			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 5, CollectorTenant: "jaeger"},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 5},
 		},
 		{
 			cOpts:    []string{"--reporter.grpc.tenancy-header=jaeger-tenant"},
-			expected: &ConnBuilder{MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3, CollectorTenancyHeader: "jaeger-tenant", CollectorTenant: "jaeger"},
-		},
-		{
-			cOpts:    []string{"--reporter.grpc.tenancy-header=jaeger-tenant", "--reporter.grpc.tenant=acme"},
-			expected: &ConnBuilder{MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3, CollectorTenancyHeader: "jaeger-tenant", CollectorTenant: "acme"},
+			expected: &ConnBuilder{MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3, CollectorTenancyHeader: "jaeger-tenant"},
 		},
 	}
 	for _, test := range tests {

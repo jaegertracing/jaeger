@@ -33,6 +33,8 @@ type Options struct {
 	Tenants []string
 }
 
+const MissingTenant = "_missing"
+
 // NewTenancyConfig creates a tenancy configuration for tenancy Options
 func NewTenancyConfig(options *Options) *TenancyConfig {
 	return &TenancyConfig{
