@@ -47,7 +47,7 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	// dependencyKeyPrefix + timestamp + parent + child key and do a key-only seek (which is fast - but requires additional writes)
 
 	// GetDependencies is not shipped with a context like the SpanReader / SpanWriter
-	traces, err := s.reader.FindTraces(context.Background(), params)
+	traces, err := s.reader.FindTraces(ctx, params)
 	if err != nil {
 		return nil, err
 	}
