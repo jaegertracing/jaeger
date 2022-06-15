@@ -13,6 +13,21 @@ next release
 
 ### UI Changes
 
+1.35.2 (2022-07-15)
+-------------------
+### Backend Changes
+
+#### Bug fixes, Minor Improvements
+
+* fix: dependency flag not recognized ([@frzifus](https://github.com/frzifus) in [#3724](https://github.com/jaegertracing/jaeger/pull/3724))
+
+1.35.1 (2022-06-31)
+-------------------
+### Backend Changes
+
+#### Bug fixes, Minor Improvements
+
+- Fix custom gogo codec to allow OTLP data ([@yurishkuro](https://github.com/yurishkuro) in [#3719](https://github.com/jaegertracing/jaeger/pull/3719))
 
 1.35.0 (2022-06-01)
 -------------------
