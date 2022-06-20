@@ -33,17 +33,18 @@ import (
 const (
 	defaultQueryLimit = 100
 
-	operationParam   = "operation"
-	tagParam         = "tag"
-	tagsParam        = "tags"
-	startTimeParam   = "start"
-	limitParam       = "limit"
-	minDurationParam = "minDuration"
-	maxDurationParam = "maxDuration"
-	serviceParam     = "service"
-	spanKindParam    = "spanKind"
-	endTimeParam     = "end"
-	prettyPrintParam = "prettyPrint"
+	operationParam     = "operation" // legacy param
+	operationNameParam = "operationName"
+	tagParam           = "tag"
+	tagsParam          = "tags"
+	startTimeParam     = "start"
+	limitParam         = "limit"
+	minDurationParam   = "minDuration"
+	maxDurationParam   = "maxDuration"
+	serviceParam       = "service"
+	spanKindParam      = "spanKind"
+	endTimeParam       = "end"
+	prettyPrintParam   = "prettyPrint"
 )
 
 var (
@@ -113,9 +114,10 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 //
 // Trace query syntax:
 //     query ::= param | param '&' query
-//     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
+//     param ::= service | operation | operationName | limit | start | end | minDuration | maxDuration | tag | tags
 //     service ::= 'service=' strValue
 //     operation ::= 'operation=' strValue
+//     operationName ::= 'operationName=' strValue
 //     limit ::= 'limit=' intValue
 //     start ::= 'start=' intValue in unix microseconds
 //     end ::= 'end=' intValue in unix microseconds
@@ -127,7 +129,7 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 //     tags :== 'tags=' jsonMap
 func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
-	operation := r.FormValue(operationParam)
+	operation := p.parseOperationName(r, operationParam, operationNameParam)
 
 	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond)
 	if err != nil {
@@ -281,6 +283,16 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 	bqp.Step = &step
 	bqp.RatePer = &ratePer
 	return bqp, err
+}
+
+// parseOperationName parses the operation or an operationName parameter of an HTTP request.
+// If both are present then operationName has a higher priority.
+func (p *queryParser) parseOperationName(r *http.Request, operationParamName string, operationNameParamName string) (operationName string) {
+	if operationName = r.FormValue(operationNameParamName); operationName == "" {
+		operationName = r.FormValue(operationParamName)
+	}
+
+	return operationName
 }
 
 // parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
