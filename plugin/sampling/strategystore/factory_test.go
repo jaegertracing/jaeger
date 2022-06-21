@@ -21,10 +21,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"

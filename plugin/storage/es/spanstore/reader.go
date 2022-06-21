@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/olivere/elastic"
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"

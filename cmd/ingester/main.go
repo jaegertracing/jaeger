@@ -20,9 +20,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 

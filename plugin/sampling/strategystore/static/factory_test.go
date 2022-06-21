@@ -17,8 +17,8 @@ package static
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"

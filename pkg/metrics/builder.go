@@ -139,3 +139,7 @@ func (a *JLibAdapter) Namespace(opts NSOptions) Factory {
 		Tags: opts.Tags,
 	})}
 }
+
+func (a *JLibAdapter) Unwrap() metrics.Factory {
+	return a.f
+}

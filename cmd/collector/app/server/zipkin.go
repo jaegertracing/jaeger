@@ -20,8 +20,8 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/rs/cors"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 

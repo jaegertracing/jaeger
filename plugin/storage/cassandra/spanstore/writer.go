@@ -23,7 +23,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"

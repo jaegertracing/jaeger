@@ -20,8 +20,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/cobra"
-	"github.com/uber/jaeger-lib/metrics"
 	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
 	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"go.uber.org/zap"

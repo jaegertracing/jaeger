@@ -29,8 +29,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/olivere/elastic"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"

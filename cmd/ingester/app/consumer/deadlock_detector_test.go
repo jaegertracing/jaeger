@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 )
 

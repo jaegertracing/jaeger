@@ -19,9 +19,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
-
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type retryDecorator struct {

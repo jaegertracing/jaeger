@@ -22,9 +22,8 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/uber/jaeger-lib/metrics"
-
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const defaultHashSalt = "downsampling-default-salt"

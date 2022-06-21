@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"

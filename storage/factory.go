@@ -18,7 +18,7 @@ package storage
 import (
 	"errors"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"

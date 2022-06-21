@@ -20,12 +20,12 @@ import (
 	"log"
 	"os"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
-	"github.com/uber/jaeger-lib/metrics"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -86,7 +86,7 @@ func main() {
 				logger.Fatal("Failed to read tracer configuration", zap.Error(err))
 			}
 			tracer, closer, err := traceCfg.NewTracer(
-				jaegerClientConfig.Metrics(svc.MetricsFactory),
+				jaegerClientConfig.Metrics(svc.JLibMetricsFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
 			if err != nil {

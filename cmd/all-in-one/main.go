@@ -21,12 +21,12 @@ import (
 	"log"
 	"os"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
-	"github.com/uber/jaeger-lib/metrics"
 	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
 	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"

@@ -19,9 +19,9 @@ import (
 	"context"
 	"net"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	otgrpc "github.com/opentracing-contrib/go-grpc"
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 

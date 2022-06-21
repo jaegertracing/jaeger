@@ -21,11 +21,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
-	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -35,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/env"
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/status"
+	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -72,7 +72,7 @@ func main() {
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := fork.New("internal",
-				jexpvar.NewFactory(10), // backend for internal opts
+				metrics.NewJLibAdapter(jexpvar.NewFactory(10)), // backend for internal opts
 				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
 			version.NewInfoMetrics(metricsFactory)
 

@@ -18,10 +18,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"

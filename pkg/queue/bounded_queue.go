@@ -21,7 +21,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	uatomic "go.uber.org/atomic"
 )
 
