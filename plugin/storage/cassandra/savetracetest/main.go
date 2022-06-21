@@ -19,11 +19,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )

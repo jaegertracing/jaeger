@@ -18,7 +18,7 @@ package metrics
 import (
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // WriteMetrics is a collection of metrics for write operations.

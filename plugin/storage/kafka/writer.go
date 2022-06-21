@@ -18,10 +18,10 @@ import (
 	"context"
 
 	"github.com/Shopify/sarama"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type spanWriterMetrics struct {

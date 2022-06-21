@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
 
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	. "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"

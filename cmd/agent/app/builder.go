@@ -22,7 +22,6 @@ import (
 	"strconv"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
@@ -31,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 )

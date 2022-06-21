@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type statusRecorder struct {

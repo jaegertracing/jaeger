@@ -19,10 +19,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/uber/jaeger-lib/metrics"
-
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/normalizer"
 )
 

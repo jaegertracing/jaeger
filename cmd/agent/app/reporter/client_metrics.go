@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )

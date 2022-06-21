@@ -24,11 +24,11 @@ import (
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
+	jlibmetrics "github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -48,6 +48,8 @@ type Service struct {
 
 	// MetricsFactory is the root factory without a namespace.
 	MetricsFactory metrics.Factory
+
+	JLibMetricsFactory jlibmetrics.Factory
 
 	signalsChannel chan os.Signal
 
@@ -75,7 +77,7 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	} else {
 		AddFlags(flagSet)
 	}
-	pMetrics.AddFlags(flagSet)
+	metrics.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
 }
 
@@ -104,12 +106,17 @@ func (s *Service) Start(v *viper.Viper) error {
 		return fmt.Errorf("cannot create logger: %w", err)
 	}
 
-	metricsBuilder := new(pMetrics.Builder).InitFromViper(v)
+	metricsBuilder := new(metrics.Builder).InitFromViper(v)
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")
 	if err != nil {
 		return fmt.Errorf("cannot create metrics factory: %w", err)
 	}
 	s.MetricsFactory = metricsFactory
+	if jlib, ok := metricsFactory.(*metrics.JLibAdapter); ok {
+		s.JLibMetricsFactory = jlib.Unwrap()
+	} else {
+		s.JLibMetricsFactory = jlibmetrics.NullFactory
+	}
 
 	if err = s.Admin.initFromViper(v, s.Logger); err != nil {
 		return fmt.Errorf("cannot initialize admin server: %w", err)

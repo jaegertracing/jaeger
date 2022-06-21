@@ -27,8 +27,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
 
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 	tSampling092 "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp/thrift-0.9.2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"

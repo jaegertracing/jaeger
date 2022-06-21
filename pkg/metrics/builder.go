@@ -67,19 +67,19 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 // CreateMetricsFactory creates a metrics factory based on the configured type of the backend.
 // If the metrics backend supports HTTP endpoint for scraping, it is stored in the builder and
 // can be later added by RegisterHandler function.
-func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
+func (b *Builder) CreateMetricsFactory(namespace string) (Factory, error) {
 	if b.Backend == "prometheus" {
 		metricsFactory := jprom.New().Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
-		return metricsFactory, nil
+		return NewJLibAdapter(metricsFactory), nil
 	}
 	if b.Backend == "expvar" {
 		metricsFactory := jexpvar.NewFactory(10).Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = expvar.Handler()
-		return metricsFactory, nil
+		return NewJLibAdapter(metricsFactory), nil
 	}
 	if b.Backend == "none" || b.Backend == "" {
-		return metrics.NullFactory, nil
+		return NullFactory, nil
 	}
 	return nil, errUnknownBackend
 }
@@ -87,4 +87,61 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 // Handler returns an http.Handler for the metrics endpoint.
 func (b *Builder) Handler() http.Handler {
 	return b.handler
+}
+
+// JLibAdapter is temporary type used to bridge metrics API in this package
+// with that of jaeger-lib.
+type JLibAdapter struct {
+	f metrics.Factory
+}
+
+var _ Factory = (*JLibAdapter)(nil)
+
+func NewJLibAdapter(f metrics.Factory) *JLibAdapter {
+	return &JLibAdapter{f: f}
+}
+
+func (a *JLibAdapter) Counter(opts Options) Counter {
+	return a.f.Counter(metrics.Options{
+		Name: opts.Name,
+		Tags: opts.Tags,
+		Help: opts.Help,
+	})
+}
+
+func (a *JLibAdapter) Timer(opts TimerOptions) Timer {
+	return a.f.Timer(metrics.TimerOptions{
+		Name:    opts.Name,
+		Tags:    opts.Tags,
+		Help:    opts.Help,
+		Buckets: opts.Buckets,
+	})
+}
+
+func (a *JLibAdapter) Gauge(opts Options) Gauge {
+	return a.f.Gauge(metrics.Options{
+		Name: opts.Name,
+		Tags: opts.Tags,
+		Help: opts.Help,
+	})
+}
+
+func (a *JLibAdapter) Histogram(opts HistogramOptions) Histogram {
+	return a.f.Histogram(metrics.HistogramOptions{
+		Name:    opts.Name,
+		Tags:    opts.Tags,
+		Help:    opts.Help,
+		Buckets: opts.Buckets,
+	})
+}
+
+func (a *JLibAdapter) Namespace(opts NSOptions) Factory {
+	return &JLibAdapter{f: a.f.Namespace(metrics.NSOptions{
+		Name: opts.Name,
+		Tags: opts.Tags,
+	})}
+}
+
+func (a *JLibAdapter) Unwrap() metrics.Factory {
+	return a.f
 }

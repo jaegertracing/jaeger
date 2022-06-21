@@ -23,12 +23,12 @@ import (
 	"github.com/Shopify/sarama/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 )
 

@@ -13,5 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package metrics provides command line flags for configuring the metrics backend.
+// Package metrics provides an internal abstraction for metrics API,
+// and command line flags for configuring the metrics backend.
 package metrics

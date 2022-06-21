@@ -18,13 +18,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	kafkaConsumer "github.com/jaegertracing/jaeger/pkg/kafka/consumer"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )

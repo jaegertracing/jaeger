@@ -17,8 +17,7 @@ package reporter
 import (
 	"context"
 
-	"github.com/uber/jaeger-lib/metrics"
-
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )

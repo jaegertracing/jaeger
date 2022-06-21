@@ -20,7 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // ThriftTransport is a subset of thrift.TTransport methods, for easier mocking.
