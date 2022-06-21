@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 The Jaeger Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package metrics provides an internal abstraction for metrics API,
-// and command line flags for configuring the metrics backend.
 package metrics
+
+// Histogram that keeps track of a distribution of values.
+type Histogram interface {
+	// Records the value passed in.
+	Record(float64)
+}
+
+// NullHistogram that does nothing
+var NullHistogram Histogram = nullHistogram{}
+
+type nullHistogram struct{}
+
+func (nullHistogram) Record(float64) {}

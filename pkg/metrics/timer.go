@@ -1,4 +1,3 @@
-// Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package metrics provides an internal abstraction for metrics API,
-// and command line flags for configuring the metrics backend.
 package metrics
+
+import (
+	"time"
+)
+
+// Timer accumulates observations about how long some operation took,
+// and also maintains a historgam of percentiles.
+type Timer interface {
+	// Records the time passed in.
+	Record(time.Duration)
+}
+
+// NullTimer timer that does nothing
+var NullTimer Timer = nullTimer{}
+
+type nullTimer struct{}
+
+func (nullTimer) Record(time.Duration) {}

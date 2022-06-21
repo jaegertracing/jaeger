@@ -1,4 +1,3 @@
-// Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package metrics provides an internal abstraction for metrics API,
-// and command line flags for configuring the metrics backend.
 package metrics
+
+// Gauge returns instantaneous measurements of something as an int64 value
+type Gauge interface {
+	// Update the gauge to the value passed in.
+	Update(int64)
+}
+
+// NullGauge gauge that does nothing
+var NullGauge Gauge = nullGauge{}
+
+type nullGauge struct{}
+
+func (nullGauge) Update(int64) {}

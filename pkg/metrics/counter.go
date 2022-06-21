@@ -1,4 +1,3 @@
-// Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package metrics provides an internal abstraction for metrics API,
-// and command line flags for configuring the metrics backend.
 package metrics
+
+// Counter tracks the number of times an event has occurred
+type Counter interface {
+	// Inc adds the given value to the counter.
+	Inc(int64)
+}
+
+// NullCounter counter that does nothing
+var NullCounter Counter = nullCounter{}
+
+type nullCounter struct{}
+
+func (nullCounter) Inc(int64) {}

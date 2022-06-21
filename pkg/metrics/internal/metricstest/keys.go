@@ -1,4 +1,3 @@
-// Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package metrics provides an internal abstraction for metrics API,
-// and command line flags for configuring the metrics backend.
-package metrics
+package metricstest
+
+import (
+	"sort"
+)
+
+// GetKey converts name+tags into a single string of the form
+// "name|tag1=value1|...|tagN=valueN", where tag names are
+// sorted alphabetically.
+func GetKey(name string, tags map[string]string, tagsSep string, tagKVSep string) string {
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	key := name
+	for _, k := range keys {
+		key = key + tagsSep + k + tagKVSep + tags[k]
+	}
+	return key
+}
