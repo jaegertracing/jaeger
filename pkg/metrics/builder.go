@@ -67,19 +67,19 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 // CreateMetricsFactory creates a metrics factory based on the configured type of the backend.
 // If the metrics backend supports HTTP endpoint for scraping, it is stored in the builder and
 // can be later added by RegisterHandler function.
-func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
+func (b *Builder) CreateMetricsFactory(namespace string) (Factory, error) {
 	if b.Backend == "prometheus" {
 		metricsFactory := jprom.New().Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
-		return metricsFactory, nil
+		return &adapter{f: metricsFactory}, nil
 	}
 	if b.Backend == "expvar" {
 		metricsFactory := jexpvar.NewFactory(10).Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = expvar.Handler()
-		return metricsFactory, nil
+		return &adapter{f: metricsFactory}, nil
 	}
 	if b.Backend == "none" || b.Backend == "" {
-		return metrics.NullFactory, nil
+		return &adapter{f: metrics.NullFactory}, nil
 	}
 	return nil, errUnknownBackend
 }
@@ -87,4 +87,49 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 // Handler returns an http.Handler for the metrics endpoint.
 func (b *Builder) Handler() http.Handler {
 	return b.handler
+}
+
+type adapter struct {
+	f metrics.Factory
+}
+
+func (a *adapter) Counter(opts Options) Counter {
+	return a.f.Counter(metrics.Options{
+		Name: opts.Name,
+		Tags: opts.Tags,
+		Help: opts.Help,
+	})
+}
+
+func (a *adapter) Timer(opts TimerOptions) Timer {
+	return a.f.Timer(metrics.TimerOptions{
+		Name:    opts.Name,
+		Tags:    opts.Tags,
+		Help:    opts.Help,
+		Buckets: opts.Buckets,
+	})
+}
+
+func (a *adapter) Gauge(opts Options) Gauge {
+	return a.f.Gauge(metrics.Options{
+		Name: opts.Name,
+		Tags: opts.Tags,
+		Help: opts.Help,
+	})
+}
+
+func (a *adapter) Histogram(opts HistogramOptions) Histogram {
+	return a.f.Histogram(metrics.HistogramOptions{
+		Name:    opts.Name,
+		Tags:    opts.Tags,
+		Help:    opts.Help,
+		Buckets: opts.Buckets,
+	})
+}
+
+func (a *adapter) Namespace(opts NSOptions) Factory {
+	return &adapter{f: a.f.Namespace(metrics.NSOptions{
+		Name: opts.Name,
+		Tags: opts.Tags,
+	})}
 }

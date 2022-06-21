@@ -25,7 +25,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -114,7 +113,7 @@ func TestBuilder(t *testing.T) {
 			continue
 		}
 		require.NotNil(t, mf)
-		mf.Counter(metrics.Options{Name: "counter", Tags: nil}).Inc(1)
+		mf.Counter(Options{Name: "counter", Tags: nil}).Inc(1)
 		if testCase.assert != nil {
 			testCase.assert()
 		}
