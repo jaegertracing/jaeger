@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/status"
+	"github.com/jaegertracing/jaeger/internal/metrics/jlibadapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -86,7 +87,7 @@ func main() {
 				logger.Fatal("Failed to read tracer configuration", zap.Error(err))
 			}
 			tracer, closer, err := traceCfg.NewTracer(
-				jaegerClientConfig.Metrics(svc.JLibMetricsFactory),
+				jaegerClientConfig.Metrics(jlibadapter.NewAdapter(svc.MetricsFactory)),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
 			if err != nil {

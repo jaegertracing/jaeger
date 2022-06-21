@@ -22,12 +22,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	jlibmetrics "github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/atomic"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -113,16 +111,4 @@ func waitForEqual(t *testing.T, expected interface{}, getter func() interface{})
 		time.Sleep(10 * time.Millisecond)
 	}
 	assert.Equal(t, expected, getter())
-}
-
-func TestNullMetricsFactory(t *testing.T) {
-	v, cmd := config.Viperize(metrics.AddFlags)
-	err := cmd.ParseFlags([]string{
-		"--metrics-backend=none",
-	})
-	require.NoError(t, err)
-
-	s := NewService(0)
-	s.Start(v)
-	assert.IsType(t, jlibmetrics.NullFactory, s.JLibMetricsFactory)
 }
