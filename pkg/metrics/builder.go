@@ -95,7 +95,9 @@ type JLibAdapter struct {
 	f metrics.Factory
 }
 
-func NewJLibAdapter(f metrics.Factory) Factory {
+var _ Factory = (*JLibAdapter)(nil)
+
+func NewJLibAdapter(f metrics.Factory) *JLibAdapter {
 	return &JLibAdapter{f: f}
 }
 

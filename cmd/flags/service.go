@@ -29,7 +29,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -78,7 +77,7 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	} else {
 		AddFlags(flagSet)
 	}
-	pMetrics.AddFlags(flagSet)
+	metrics.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
 }
 
@@ -107,7 +106,7 @@ func (s *Service) Start(v *viper.Viper) error {
 		return fmt.Errorf("cannot create logger: %w", err)
 	}
 
-	metricsBuilder := new(pMetrics.Builder).InitFromViper(v)
+	metricsBuilder := new(metrics.Builder).InitFromViper(v)
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")
 	if err != nil {
 		return fmt.Errorf("cannot create metrics factory: %w", err)

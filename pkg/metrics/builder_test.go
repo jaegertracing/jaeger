@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -121,4 +122,14 @@ func TestBuilder(t *testing.T) {
 			require.NotNil(t, b.Handler())
 		}
 	}
+}
+
+func TestJLibAdapter(t *testing.T) {
+	f := NewJLibAdapter(metrics.NullFactory)
+	f.Counter(Options{})
+	f.Timer(TimerOptions{})
+	f.Gauge(Options{})
+	f.Histogram(HistogramOptions{})
+	f.Namespace(NSOptions{})
+	f.Unwrap()
 }
