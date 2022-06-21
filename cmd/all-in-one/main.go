@@ -26,8 +26,6 @@ import (
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
-	jlibmetrics "github.com/uber/jaeger-lib/metrics"
-	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -43,7 +41,9 @@ import (
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/status"
+	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
+	"github.com/jaegertracing/jaeger/internal/metrics/jlibadapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -95,14 +95,13 @@ by default uses only in-memory database.`,
 			if err := svc.Start(v); err != nil {
 				return err
 			}
-			logger := svc.Logger                     // shortcut
-			rootMetricsFactory := svc.MetricsFactory // shortcut
+			logger := svc.Logger // shortcut
 			metricsFactory := fork.New("internal",
-				metrics.NewJLibAdapter(jexpvar.NewFactory(10)), // backend for internal opts
-				rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
+				expvar.NewFactory(10), // backend for internal opts
+				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(metricsFactory)
 
-			tracerCloser := initTracer(svc.JLibMetricsFactory, svc.Logger)
+			tracerCloser := initTracer(svc)
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -284,7 +283,8 @@ func startQuery(
 	return server
 }
 
-func initTracer(metricsFactory jlibmetrics.Factory, logger *zap.Logger) io.Closer {
+func initTracer(svc *flags.Service) io.Closer {
+	logger := svc.Logger
 	traceCfg := &jaegerClientConfig.Configuration{
 		ServiceName: "jaeger-query",
 		Sampler: &jaegerClientConfig.SamplerConfig{
@@ -298,7 +298,7 @@ func initTracer(metricsFactory jlibmetrics.Factory, logger *zap.Logger) io.Close
 		logger.Fatal("Failed to read tracer configuration", zap.Error(err))
 	}
 	tracer, closer, err := traceCfg.NewTracer(
-		jaegerClientConfig.Metrics(metricsFactory),
+		jaegerClientConfig.Metrics(jlibadapter.NewAdapter(svc.MetricsFactory)),
 		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 	)
 	if err != nil {
