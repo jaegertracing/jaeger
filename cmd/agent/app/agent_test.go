@@ -23,11 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/fork"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/fork"
 	"go.uber.org/zap"
 
 	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"

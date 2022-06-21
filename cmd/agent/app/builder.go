@@ -22,7 +22,7 @@ import (
 	"strconv"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"

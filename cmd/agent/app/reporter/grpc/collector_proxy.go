@@ -17,7 +17,7 @@ package grpc
 import (
 	"io"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 

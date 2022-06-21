@@ -23,8 +23,8 @@ import (
 	"syscall"
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"

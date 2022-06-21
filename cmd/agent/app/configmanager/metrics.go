@@ -17,8 +17,7 @@ package configmanager
 import (
 	"context"
 
-	"github.com/uber/jaeger-lib/metrics"
-
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
