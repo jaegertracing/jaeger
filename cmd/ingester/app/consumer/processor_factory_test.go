@@ -18,13 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func Test_NewFactory(t *testing.T) {

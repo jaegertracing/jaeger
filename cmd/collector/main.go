@@ -21,7 +21,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
@@ -36,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"

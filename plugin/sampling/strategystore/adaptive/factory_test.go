@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
@@ -29,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"

@@ -20,9 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
 func TestClosingSignalEmitted(t *testing.T) {

@@ -19,10 +19,10 @@ package integration
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	assert "github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )

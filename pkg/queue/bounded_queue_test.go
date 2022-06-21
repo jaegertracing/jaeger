@@ -23,11 +23,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	uatomic "go.uber.org/atomic"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // In this test we run a queue with capacity 1 and a single consumer.

@@ -15,9 +15,9 @@
 package strategystore
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 )
 

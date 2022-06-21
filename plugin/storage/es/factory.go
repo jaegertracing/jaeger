@@ -20,12 +20,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"

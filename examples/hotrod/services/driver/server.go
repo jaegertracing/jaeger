@@ -19,12 +19,12 @@ import (
 	"context"
 	"net"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	otgrpc "github.com/opentracing-contrib/go-grpc"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )
 

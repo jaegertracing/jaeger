@@ -15,10 +15,10 @@
 package mocks
 
 import (
-	metrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	mock "github.com/stretchr/testify/mock"
 	zap "go.uber.org/zap"
 
+	metrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	storage "github.com/jaegertracing/jaeger/storage"
 	dependencystore "github.com/jaegertracing/jaeger/storage/dependencystore"
 	spanstore "github.com/jaegertracing/jaeger/storage/spanstore"

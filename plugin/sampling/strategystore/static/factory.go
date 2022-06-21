@@ -17,11 +17,11 @@ package static
 import (
 	"flag"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
 )

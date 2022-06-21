@@ -25,12 +25,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"

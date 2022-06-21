@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	tSampling "github.com/jaegertracing/jaeger/thrift-gen/sampling"
