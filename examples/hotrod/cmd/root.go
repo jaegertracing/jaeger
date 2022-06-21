@@ -21,12 +21,12 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/uber/jaeger-lib/metrics"
 	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
 	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 )
 
