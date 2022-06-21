@@ -26,9 +26,8 @@ import (
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
-	"github.com/uber/jaeger-lib/metrics"
+	jlibmetrics "github.com/uber/jaeger-lib/metrics"
 	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
-	"github.com/uber/jaeger-lib/metrics/fork"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -44,7 +43,9 @@ import (
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/status"
+	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -97,11 +98,11 @@ by default uses only in-memory database.`,
 			logger := svc.Logger                     // shortcut
 			rootMetricsFactory := svc.MetricsFactory // shortcut
 			metricsFactory := fork.New("internal",
-				jexpvar.NewFactory(10), // backend for internal opts
+				metrics.NewJLibAdapter(jexpvar.NewFactory(10)), // backend for internal opts
 				rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(metricsFactory)
 
-			tracerCloser := initTracer(rootMetricsFactory, svc.Logger)
+			tracerCloser := initTracer(svc.JLibMetricsFactory, svc.Logger)
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -283,7 +284,7 @@ func startQuery(
 	return server
 }
 
-func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
+func initTracer(metricsFactory jlibmetrics.Factory, logger *zap.Logger) io.Closer {
 	traceCfg := &jaegerClientConfig.Configuration{
 		ServiceName: "jaeger-query",
 		Sampler: &jaegerClientConfig.SamplerConfig{

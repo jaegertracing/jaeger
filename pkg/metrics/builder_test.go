@@ -114,7 +114,7 @@ func TestBuilder(t *testing.T) {
 			continue
 		}
 		require.NotNil(t, mf)
-		mf.Counter(metrics.Options{Name: "counter", Tags: nil}).Inc(1)
+		mf.Counter(Options{Name: "counter", Tags: nil}).Inc(1)
 		if testCase.assert != nil {
 			testCase.assert()
 		}
@@ -122,4 +122,14 @@ func TestBuilder(t *testing.T) {
 			require.NotNil(t, b.Handler())
 		}
 	}
+}
+
+func TestJLibAdapter(t *testing.T) {
+	f := NewJLibAdapter(metrics.NullFactory)
+	f.Counter(Options{})
+	f.Timer(TimerOptions{})
+	f.Gauge(Options{})
+	f.Histogram(HistogramOptions{})
+	f.Namespace(NSOptions{})
+	f.Unwrap()
 }

@@ -21,10 +21,10 @@ import (
 	"testing"
 
 	assert "github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestDiskStatisticsUpdate(t *testing.T) {

@@ -23,9 +23,9 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	tSampling "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 

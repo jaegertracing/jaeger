@@ -19,12 +19,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // NewHTTPServer creates a new server that hosts an HTTP/JSON endpoint for clients

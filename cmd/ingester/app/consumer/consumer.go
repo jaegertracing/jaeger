@@ -20,11 +20,11 @@ import (
 
 	"github.com/Shopify/sarama"
 	sc "github.com/bsm/sarama-cluster"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Params are the parameters of a Consumer

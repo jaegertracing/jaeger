@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 

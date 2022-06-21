@@ -24,9 +24,9 @@ import (
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"

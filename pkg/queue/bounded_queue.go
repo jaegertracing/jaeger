@@ -21,8 +21,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/uber/jaeger-lib/metrics"
 	uatomic "go.uber.org/atomic"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Consumer consumes data from a bounded queue

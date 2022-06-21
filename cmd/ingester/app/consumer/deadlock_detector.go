@@ -19,8 +19,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // deadlockDetector monitors the messages consumed and wither signals for the partition to be closed by sending a

@@ -18,8 +18,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
-
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )

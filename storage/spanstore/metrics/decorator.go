@@ -19,9 +19,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
-
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
