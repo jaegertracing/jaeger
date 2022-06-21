@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package metrics
+package metricsbuilder
 
 import (
 	"expvar"
@@ -25,7 +25,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -114,7 +115,7 @@ func TestBuilder(t *testing.T) {
 			continue
 		}
 		require.NotNil(t, mf)
-		mf.Counter(Options{Name: "counter", Tags: nil}).Inc(1)
+		mf.Counter(metrics.Options{Name: "counter", Tags: nil}).Inc(1)
 		if testCase.assert != nil {
 			testCase.assert()
 		}
@@ -122,14 +123,4 @@ func TestBuilder(t *testing.T) {
 			require.NotNil(t, b.Handler())
 		}
 	}
-}
-
-func TestJLibAdapter(t *testing.T) {
-	f := NewJLibAdapter(metrics.NullFactory)
-	f.Counter(Options{})
-	f.Timer(TimerOptions{})
-	f.Gauge(Options{})
-	f.Histogram(HistogramOptions{})
-	f.Namespace(NSOptions{})
-	f.Unwrap()
 }

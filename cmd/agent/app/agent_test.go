@@ -29,8 +29,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
+	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -100,7 +100,7 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 		},
 	}
 	logger, logBuf := testutils.NewLogger()
-	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
+	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
@@ -155,7 +155,7 @@ func TestStartStopRace(t *testing.T) {
 		},
 	}
 	logger, logBuf := testutils.NewEchoLogger(t)
-	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
+	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
