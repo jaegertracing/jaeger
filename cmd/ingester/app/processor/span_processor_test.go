@@ -71,5 +71,6 @@ func TestSpanProcessor_ProcessError(t *testing.T) {
 	assert.Error(t, processor.Process(message))
 
 	message.AssertExpectations(t)
+	writer.AssertExpectations(t)
 	writer.AssertNotCalled(t, "WriteSpan")
 }
