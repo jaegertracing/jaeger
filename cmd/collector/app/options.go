@@ -26,21 +26,22 @@ import (
 )
 
 type options struct {
-	logger             *zap.Logger
-	serviceMetrics     metrics.Factory
-	hostMetrics        metrics.Factory
-	preProcessSpans    ProcessSpans // see docs in PreProcessSpans option.
-	sanitizer          sanitizer.SanitizeSpan
-	preSave            ProcessSpan
-	spanFilter         FilterSpan
-	numWorkers         int
-	blockingSubmit     bool
-	queueSize          int
-	dynQueueSizeWarmup uint
-	dynQueueSizeMemory uint
-	reportBusy         bool
-	extraFormatTypes   []processor.SpanFormat
-	collectorTags      map[string]string
+	logger                      *zap.Logger
+	serviceMetrics              metrics.Factory
+	hostMetrics                 metrics.Factory
+	preProcessSpans             ProcessSpans // see docs in PreProcessSpans option.
+	sanitizer                   sanitizer.SanitizeSpan
+	preSave                     ProcessSpan
+	spanFilter                  FilterSpan
+	numWorkers                  int
+	blockingSubmit              bool
+	queueSize                   int
+	dynQueueSizeWarmup          uint
+	dynQueueSizeMemory          uint
+	reportBusy                  bool
+	extraFormatTypes            []processor.SpanFormat
+	collectorTags               map[string]string
+	processedSpanMetricsEnabled bool
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -153,6 +154,13 @@ func (options) ExtraFormatTypes(extraFormatTypes []processor.SpanFormat) Option 
 func (options) CollectorTags(extraTags map[string]string) Option {
 	return func(b *options) {
 		b.collectorTags = extraTags
+	}
+}
+
+// ProcessedSpanMetricsEnabled creates an Option that initializes the processedSpanMetrics boolean
+func (options) ProcessedSpanMetricsEnabled(processedSpanMetrics bool) Option {
+	return func(b *options) {
+		b.processedSpanMetricsEnabled = processedSpanMetrics
 	}
 }
 
