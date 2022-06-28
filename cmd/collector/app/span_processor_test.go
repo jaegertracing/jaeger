@@ -438,7 +438,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			m := mb.Namespace(metrics.NSOptions{})
 
 			w := &fakeSpanWriter{}
-			opts := []Option{Options.HostMetrics(m), Options.ProcessedSpanMetricsEnabled(tt.enableSpanMetrics)}
+			opts := []Option{Options.HostMetrics(m), Options.SpanSizeMetricsEnabled(tt.enableSpanMetrics)}
 			if tt.enableDynQueueSizeMem {
 				opts = append(opts, Options.DynQueueSizeMemory(1000))
 			} else {

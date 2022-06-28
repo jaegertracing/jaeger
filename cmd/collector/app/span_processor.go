@@ -127,7 +127,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 			zap.Uint("memory-mib", options.dynQueueSizeMemory/1024/1024),
 			zap.Uint("queue-size-warmup", options.dynQueueSizeWarmup))
 	}
-	if options.dynQueueSizeMemory > 0 || options.processedSpanMetricsEnabled {
+	if options.dynQueueSizeMemory > 0 || options.spanSizeMetricsEnabled {
 		// add to processSpanFuncs
 		processSpanFuncs = append(processSpanFuncs, sp.countSpan)
 	}
