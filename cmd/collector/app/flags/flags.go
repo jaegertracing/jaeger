@@ -30,10 +30,11 @@ import (
 )
 
 const (
-	flagDynQueueSizeMemory = "collector.queue-size-memory"
-	flagNumWorkers         = "collector.num-workers"
-	flagQueueSize          = "collector.queue-size"
-	flagCollectorTags      = "collector.tags"
+	flagDynQueueSizeMemory     = "collector.queue-size-memory"
+	flagNumWorkers             = "collector.num-workers"
+	flagQueueSize              = "collector.queue-size"
+	flagCollectorTags          = "collector.tags"
+	flagSpanSizeMetricsEnabled = "collector.enable-span-size-metrics"
 
 	flagSuffixHostPort = "host-port"
 
@@ -124,6 +125,8 @@ type CollectorOptions struct {
 	}
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
+	// SpanSizeMetricsEnabled determines whether to enable metrics based on processed span size
+	SpanSizeMetricsEnabled bool
 }
 
 type serverFlagsConfig struct {
@@ -163,6 +166,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(flagQueueSize, DefaultQueueSize, "The queue size of the collector")
 	flags.Uint(flagDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 	flags.String(flagCollectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
+	flags.Bool(flagSpanSizeMetricsEnabled, false, "Enables metrics based on processed span size, which are more expensive to calculate.")
 
 	addHTTPFlags(flags, httpServerFlagsCfg, ports.PortToHostPort(ports.CollectorHTTP))
 	addGRPCFlags(flags, grpcServerFlagsCfg, ports.PortToHostPort(ports.CollectorGRPC))
@@ -239,6 +243,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	cOpts.NumWorkers = v.GetInt(flagNumWorkers)
 	cOpts.QueueSize = v.GetInt(flagQueueSize)
 	cOpts.DynQueueSizeMemory = v.GetUint(flagDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
+	cOpts.SpanSizeMetricsEnabled = v.GetBool(flagSpanSizeMetricsEnabled)
 
 	if err := cOpts.HTTP.initFromViper(v, logger, httpServerFlagsCfg); err != nil {
 		return cOpts, fmt.Errorf("failed to parse HTTP server options: %w", err)
