@@ -75,7 +75,7 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 	if err != nil {
 		stat, ok := status.FromError(err)
 		if ok && stat.Code() == codes.PermissionDenied && stat.Message() == "missing tenant header" {
-			r.logger.Debug("Could not send spans over gRPC", zap.Error(err))
+			r.logger.Debug("Could not report untenanted spans over gRPC", zap.Error(err))
 		} else {
 			r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 		}
