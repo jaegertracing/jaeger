@@ -407,25 +407,25 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 		expectedUpdateGauge   bool
 	}{
 		{
-			name:                  "enable-dyn-queue-size-enable-metrics",
+			name:                  "enable dyn-queue-size, enable metrics",
 			enableDynQueueSizeMem: true,
 			enableSpanMetrics:     true,
 			expectedUpdateGauge:   true,
 		},
 		{
-			name:                  "enable-dyn-queue-size-disable-metrics",
+			name:                  "enable dyn-queue-size, disable metrics",
 			enableDynQueueSizeMem: true,
 			enableSpanMetrics:     false,
 			expectedUpdateGauge:   true,
 		},
 		{
-			name:                  "disable-dyn-queue-size-enable-metrics",
+			name:                  "disable dyn-queue-size, enable metrics",
 			enableDynQueueSizeMem: false,
 			enableSpanMetrics:     true,
 			expectedUpdateGauge:   true,
 		},
 		{
-			name:                  "disable-dyn-queue-size-disable-metrics",
+			name:                  "disable dyn-queue-size, disable metrics",
 			enableDynQueueSizeMem: false,
 			enableSpanMetrics:     false,
 			expectedUpdateGauge:   false,
@@ -445,12 +445,15 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 				opts = append(opts, Options.DynQueueSizeMemory(0))
 			}
 			p := NewSpanProcessor(w, nil, opts...).(*spanProcessor)
+			defer func() {
+				assert.NoError(t, p.Close())
+			}()
 			p.background(10*time.Millisecond, p.updateGauges)
 
 			p.processSpan(&model.Span{}, "")
 			assert.NotEqual(t, uint64(0), p.bytesProcessed)
 
-			for i := 0; i < 15; i++ {
+			for i := 0; i < 10000; i++ {
 				_, g := mb.Snapshot()
 				if b := g["spans.bytes"]; b > 0 {
 					if !tt.expectedUpdateGauge {
@@ -465,7 +468,6 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			if tt.expectedUpdateGauge {
 				assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
 			}
-			assert.NoError(t, p.Close())
 		})
 	}
 }
