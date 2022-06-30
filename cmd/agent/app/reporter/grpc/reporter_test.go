@@ -207,12 +207,11 @@ func TestReporter_MultitenantEmitBatch(t *testing.T) {
 	})
 	defer s.Stop()
 	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	//nolint:staticcheck // don't care about errors
-	defer conn.Close()
 	require.NoError(t, err)
+	defer func() { require.NoError(t, conn.Close()) }()
 	rep := NewReporter(conn, nil, zap.NewNop())
 
-	tm := time.Unix(158, 0)
+	tm := time.Now()
 	tests := []struct {
 		in  *jThrift.Batch
 		err string
