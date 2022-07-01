@@ -30,5 +30,6 @@ func StandardAdjusters(maxClockSkewAdjust time.Duration) []adjuster.Adjuster {
 		adjuster.IPTagAdjuster(),
 		adjuster.SortLogFields(),
 		adjuster.SpanReferences(),
+		adjuster.ParentReference(),
 	}
 }
