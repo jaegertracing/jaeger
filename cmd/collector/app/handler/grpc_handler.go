@@ -113,7 +113,7 @@ func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	}
 
-	tenants := md[c.tenancyConfig.Header]
+	tenants := md.Get(c.tenancyConfig.Header)
 	if len(tenants) < 1 {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	} else if len(tenants) > 1 {

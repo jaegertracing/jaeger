@@ -42,6 +42,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -91,6 +92,7 @@ type structuredTraceResponse struct {
 
 func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	return initializeTestServerWithOptions(
+		tenancy.TenancyConfig{},
 		queryOptions,
 		append(
 			[]HandlerOption{
@@ -105,7 +107,7 @@ func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, 
 	)
 }
 
-func initializeTestServerWithOptions(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
+func initializeTestServerWithOptions(tenancyConfig tenancy.TenancyConfig, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
@@ -113,7 +115,7 @@ func initializeTestServerWithOptions(queryOptions querysvc.QueryServiceOptions, 
 	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
 	return &testServer{
-		server:           httptest.NewServer(r),
+		server:           httptest.NewServer(tenancyConfig.PropagationHandler(zap.NewNop(), r)),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
 		handler:          handler,
@@ -132,7 +134,7 @@ type testServer struct {
 }
 
 func withTestServer(doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
-	ts := initializeTestServerWithOptions(queryOptions, options...)
+	ts := initializeTestServerWithOptions(tenancy.TenancyConfig{}, queryOptions, options...)
 	defer ts.server.Close()
 	doTest(ts)
 }
@@ -401,7 +403,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	ts := initializeTestServerWithOptions(querysvc.QueryServiceOptions{
+	ts := initializeTestServerWithOptions(tenancy.TenancyConfig{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
 	defer ts.server.Close()
@@ -444,6 +446,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 func TestSearchModelConversionFailure(t *testing.T) {
 	ts := initializeTestServerWithOptions(
+		tenancy.TenancyConfig{},
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
@@ -812,11 +815,15 @@ func TestGetMinStep(t *testing.T) {
 
 // getJSON fetches a JSON document from a server via HTTP GET
 func getJSON(url string, out interface{}) error {
+	return getJSONCustomHeaders(url, make(map[string]string), out)
+}
+
+func getJSONCustomHeaders(url string, additionalHeaders map[string]string, out interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
-	return execJSON(req, out)
+	return execJSON(req, additionalHeaders, out)
 }
 
 // postJSON submits a JSON document to a server via HTTP POST and parses response as JSON.
@@ -830,12 +837,15 @@ func postJSON(url string, req interface{}, out interface{}) error {
 	if err != nil {
 		return err
 	}
-	return execJSON(r, out)
+	return execJSON(r, make(map[string]string), out)
 }
 
 // execJSON executes an http request against a server and parses response as JSON
-func execJSON(req *http.Request, out interface{}) error {
+func execJSON(req *http.Request, additionalHeaders map[string]string, out interface{}) error {
 	req.Header.Add("Accept", "application/json")
+	for k, v := range additionalHeaders {
+		req.Header.Add(k, v)
+	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -868,4 +878,30 @@ func execJSON(req *http.Request, out interface{}) error {
 // Generates a JSON response that the server should produce given a certain error code and error.
 func parsedError(code int, err string) string {
 	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
+}
+
+func TestSearchTenancyHTTP(t *testing.T) {
+	tenancyOptions := tenancy.Options{
+		Enabled: true,
+	}
+	ts := initializeTestServerWithOptions(
+		*tenancy.NewTenancyConfig(&tenancyOptions),
+		querysvc.QueryServiceOptions{})
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Twice()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	assert.Error(t, err)
+	assert.Len(t, response.Errors, 0)
+	assert.Nil(t, response.Data)
+
+	err = getJSONCustomHeaders(
+		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
+		map[string]string{"x-tenant": "acme"},
+		&response)
+	assert.NoError(t, err)
+	assert.Len(t, response.Errors, 0)
+	assert.Len(t, response.Data, 2)
 }

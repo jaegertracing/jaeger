@@ -25,16 +25,32 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 )
 
 // RegisterGRPCGateway registers api_v3 endpoints into provided mux.
 func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options) error {
-	jsonpb := &runtime.JSONPb{}
-	grpcGatewayMux := runtime.NewServeMux(
-		runtime.WithMarshalerOption(runtime.MIMEWildcard, jsonpb),
+	return RegisterGRPCGatewayWithTenancy(ctx, logger, r, basePath, grpcEndpoint, grpcTLS,
+		tenancy.Options{
+			Enabled: false,
+		},
 	)
+}
+
+func RegisterGRPCGatewayWithTenancy(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tenancyOptions tenancy.Options) error {
+	jsonpb := &runtime.JSONPb{}
+
+	muxOpts := []runtime.ServeMuxOption{
+		runtime.WithMarshalerOption(runtime.MIMEWildcard, jsonpb),
+	}
+	tc := tenancy.NewTenancyConfig(&tenancyOptions)
+	if tenancyOptions.Enabled {
+		muxOpts = append(muxOpts, runtime.WithMetadata(tc.MetadataAnnotator()))
+	}
+
+	grpcGatewayMux := runtime.NewServeMux(muxOpts...)
 	var handler http.Handler = grpcGatewayMux
 	if basePath != "/" {
 		handler = http.StripPrefix(basePath, grpcGatewayMux)
