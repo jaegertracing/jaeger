@@ -24,7 +24,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -177,4 +180,49 @@ func TestReporter_MakeModelKeyValue(t *testing.T) {
 	actualTags := makeModelKeyValue(stringTags)
 
 	assert.Equal(t, expectedTags, actualTags)
+}
+
+type mockMultitenantSpanHandler struct{}
+
+func (h *mockMultitenantSpanHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return &api_v2.PostSpansResponse{}, status.Errorf(codes.PermissionDenied, "missing tenant header")
+	}
+
+	tenants := md["x-tenant"]
+	if len(tenants) < 1 {
+		return &api_v2.PostSpansResponse{}, status.Errorf(codes.PermissionDenied, "missing tenant header")
+	} else if len(tenants) > 1 {
+		return &api_v2.PostSpansResponse{}, status.Errorf(codes.PermissionDenied, "extra tenant header")
+	}
+
+	return &api_v2.PostSpansResponse{}, nil
+}
+
+func TestReporter_MultitenantEmitBatch(t *testing.T) {
+	handler := &mockMultitenantSpanHandler{}
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
+	defer s.Stop()
+	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer func() { require.NoError(t, conn.Close()) }()
+	rep := NewReporter(conn, nil, zap.NewNop())
+
+	tm := time.Now()
+	tests := []struct {
+		in  *jThrift.Batch
+		err string
+	}{
+		{
+			in:  &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
+			err: "rpc error: code = PermissionDenied desc = missing tenant header",
+		},
+	}
+	for _, test := range tests {
+		err = rep.EmitBatch(context.Background(), test.in)
+		assert.EqualError(t, err, test.err)
+	}
 }

@@ -79,7 +79,7 @@ func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor,
 func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
 	tenant, err := c.validateTenant(ctx)
 	if err != nil {
-		c.logger.Error("rejecting spans (tenancy)", zap.Error(err))
+		c.logger.Debug("rejecting spans (tenancy)", zap.Error(err))
 		return err
 	}
 
