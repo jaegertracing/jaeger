@@ -20,6 +20,8 @@ import (
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
@@ -71,7 +73,12 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(ctx, req)
 	if err != nil {
-		r.logger.Error("Could not send spans over gRPC", zap.Error(err))
+		stat, ok := status.FromError(err)
+		if ok && stat.Code() == codes.PermissionDenied && stat.Message() == "missing tenant header" {
+			r.logger.Debug("Could not report untenanted spans over gRPC", zap.Error(err))
+		} else {
+			r.logger.Error("Could not send spans over gRPC", zap.Error(err))
+		}
 	}
 	return err
 }
