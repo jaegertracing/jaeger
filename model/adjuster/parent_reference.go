@@ -24,26 +24,24 @@ import (
 func ParentReference() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		for _, span := range trace.Spans {
-			if len(span.References) == 0 {
-				continue
-			}
-
-			for i := range span.References {
-				if i == 0 {
-					continue
-				}
-
-				if span.References[0].RefType == model.SpanRefType_CHILD_OF && span.References[0].TraceID == span.TraceID {
-					break
-				}
-
-				if span.References[0].TraceID != span.TraceID {
-					if span.References[i].TraceID == span.TraceID {
-						span.References[i], span.References[0] = span.References[0], span.References[i]
+			firstChildOfRef := -1
+			firstOtherRef := -1
+			for i := 1; i < len(span.References); i++ {
+				if span.References[i].TraceID == span.TraceID {
+					if span.References[i].RefType == model.SpanRefType_CHILD_OF {
+						firstChildOfRef = i
+						break
+					} else if firstOtherRef == -1 {
+						firstOtherRef = i
 					}
-				} else if span.References[0].RefType != model.ChildOf && span.References[i].RefType == model.ChildOf {
-					span.References[i], span.References[0] = span.References[0], span.References[i]
 				}
+			}
+			swap := firstChildOfRef
+			if swap == -1 {
+				swap = firstOtherRef
+			}
+			if swap != -1 {
+				span.References[swap], span.References[0] = span.References[0], span.References[swap]
 			}
 		}
 
