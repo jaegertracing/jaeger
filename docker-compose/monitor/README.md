@@ -1,6 +1,6 @@
-# Aggregated Trace Metrics Development/Demo Environment
+# Service Performance Monitoring (SPM) Development/Demo Environment
 
-Aggregated Trace Metrics (ATM) is an opt-in feature introduced to Jaeger that provides Request, Error and Duration (RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs. For more details on this feature, please refer to the [tracking Issue](https://github.com/jaegertracing/jaeger/issues/2954) documenting the proposal and status.
+Service Performance Monitoring (SPM) is an opt-in feature introduced to Jaeger that provides Request, Error and Duration (RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs. For more details on this feature, please refer to the [tracking Issue](https://github.com/jaegertracing/jaeger/issues/2954) documenting the proposal and status.
 
 The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack required to visualize RED metrics from simulated traces (or their own), much like Jaeger All-in-one.
 
