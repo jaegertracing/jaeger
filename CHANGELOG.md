@@ -13,7 +13,36 @@ next release
 
 ### UI Changes
 
-1.35.2 (2022-07-15)
+1.36.0 (2022-07-05)
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
+#### New Features
+* Add flag to enable span size metrics reporting ([@ymtdzzz](https://github.com/ymtdzzz) in [#3782](https://github.com/jaegertracing/jaeger/pull/3782))
+  * Span size metrics are enabled via the `--collector.enable-span-size-metrics` flag (even if `--collector.queue-size-memory` is disabled).
+* Add multi-tenancy support ([@esnible](https://github.com/esnible) in [#3688](https://github.com/jaegertracing/jaeger/pull/3688))
+  * Enabled when `--multi_tenancy.enabled=true` is passed to the collector.
+  * The header carrying the tenants can be specified via the `--multi_tenancy.header` flag, which defaults to `x-tenant`.
+  * The list of allowed tenants can be set via the `--multi_tenancy.tenants` flag, which defaults to an unrestricted list of tenants.
+
+#### Bug fixes, Minor Improvements
+* Introduce ParentReference adjuster ([@bobrik](https://github.com/bobrik) in [#3786](https://github.com/jaegertracing/jaeger/pull/3786))
+* Ignore the problem of self-reported spans when multi-tenant enabled ([@esnible](https://github.com/esnible) in [#3787](https://github.com/jaegertracing/jaeger/pull/3787))
+* Copy expvar metrics implementation from jaeger-lib ([@yurishkuro](https://github.com/yurishkuro) in [#3772](https://github.com/jaegertracing/jaeger/pull/3772))
+* Copy Prometheus metrics implementation from jaeger-lib ([@yurishkuro](https://github.com/yurishkuro) in [#3771](https://github.com/jaegertracing/jaeger/pull/3771))
+* Copy metrics API from jaeger-lib ([@yurishkuro](https://github.com/yurishkuro) in [#3767](https://github.com/jaegertracing/jaeger/pull/3767))
+* Use file move instead of overwriting content ([@yurishkuro](https://github.com/yurishkuro) in [#3726](https://github.com/jaegertracing/jaeger/pull/3726))
+* Refactor tenancy checking from gRPC to gRPC batch consumer ([@esnible](https://github.com/esnible) in [#3718](https://github.com/jaegertracing/jaeger/pull/3718))
+* Fix ineffectual `--skip-dependencies` flag in es-rollover ([@frzifus](https://github.com/frzifus) in [#3724](https://github.com/jaegertracing/jaeger/pull/3724))
+* Fix custom gogo codec to allow OTLP data ([@yurishkuro](https://github.com/yurishkuro) in [#3719](https://github.com/jaegertracing/jaeger/pull/3719))
+
+### UI Changes
+
+* UI pinned to version [1.25.0 - see the changelog](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1250-2022-07-03).
+
+1.35.2 (2022-06-15)
 -------------------
 ### Backend Changes
 
@@ -21,7 +50,7 @@ next release
 
 * fix: dependency flag not recognized ([@frzifus](https://github.com/frzifus) in [#3724](https://github.com/jaegertracing/jaeger/pull/3724))
 
-1.35.1 (2022-06-31)
+1.35.1 (2022-06-01)
 -------------------
 ### Backend Changes
 
