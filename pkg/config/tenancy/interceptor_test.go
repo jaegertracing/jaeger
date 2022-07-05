@@ -69,6 +69,12 @@ func TestTenancyInterceptor(t *testing.T) {
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme"}}),
 			errMsg:        "",
 		},
+		{
+			name:          "extra tenant header",
+			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme", "megacorp"}}),
+			errMsg:        "rpc error: code = PermissionDenied desc = extra tenant header",
+		},
 	}
 
 	for _, test := range tests {

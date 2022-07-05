@@ -92,6 +92,11 @@ func TestMetadataAnnotator(t *testing.T) {
 		requestHeaders map[string][]string
 	}{
 		{
+			name:           "missing tenant",
+			tenancyConfig:  NewTenancyConfig(&Options{Enabled: true}),
+			requestHeaders: map[string][]string{"x-tenant": {""}},
+		},
+		{
 			name:           "tenanted",
 			tenancyConfig:  NewTenancyConfig(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
