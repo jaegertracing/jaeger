@@ -13,7 +13,7 @@ next release
 
 ### UI Changes
 
-1.36.0 (2022-07-03)
+1.36.0 (2022-07-05)
 -------------------
 ### Backend Changes
 
