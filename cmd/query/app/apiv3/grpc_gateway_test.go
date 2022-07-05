@@ -84,7 +84,7 @@ func setupGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, c
 	router := &mux.Router{}
 	router = router.PathPrefix(basePath).Subrouter()
 	ctx, cancel := context.WithCancel(context.Background())
-	err := RegisterGRPCGatewayWithTenancy(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancyOptions)
+	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancyOptions)
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")

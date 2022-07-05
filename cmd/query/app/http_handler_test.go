@@ -905,3 +905,30 @@ func TestSearchTenancyHTTP(t *testing.T) {
 	assert.Len(t, response.Errors, 0)
 	assert.Len(t, response.Data, 2)
 }
+
+func TestSearchTenancyRejectionHTTP(t *testing.T) {
+	tenancyOptions := tenancy.Options{
+		Enabled: true,
+	}
+	ts := initializeTestServerWithOptions(
+		*tenancy.NewTenancyConfig(&tenancyOptions),
+		querysvc.QueryServiceOptions{})
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Twice()
+
+	req, err := http.NewRequest("GET", ts.server.URL+`/api/traces?traceID=1&traceID=2`, nil)
+	assert.NoError(t, err)
+	req.Header.Add("Accept", "application/json")
+	// We don't set tenant header
+	resp, err := httpClient.Do(req)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	tc := tenancy.NewTenancyConfig(&tenancyOptions)
+	req.Header.Set(tc.Header, "acme")
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	// Skip unmarshal of response; it is enough that it succeeded
+}

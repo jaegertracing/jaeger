@@ -31,15 +31,7 @@ import (
 )
 
 // RegisterGRPCGateway registers api_v3 endpoints into provided mux.
-func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options) error {
-	return RegisterGRPCGatewayWithTenancy(ctx, logger, r, basePath, grpcEndpoint, grpcTLS,
-		tenancy.Options{
-			Enabled: false,
-		},
-	)
-}
-
-func RegisterGRPCGatewayWithTenancy(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tenancyOptions tenancy.Options) error {
+func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tenancyOptions tenancy.Options) error {
 	jsonpb := &runtime.JSONPb{}
 
 	muxOpts := []runtime.ServeMuxOption{
