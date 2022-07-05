@@ -368,6 +368,10 @@ build-crossdock-fresh: build-crossdock-linux
 changelog:
 	python3 ./scripts/release-notes.py
 
+.PHONY: draft-release
+draft-release:
+	python3 ./scripts/draft-release.py
+
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.10.4
