@@ -2,7 +2,7 @@
 
 Service Performance Monitoring (SPM) is an opt-in feature introduced to Jaeger that provides Request, Error and Duration (RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs. For more details on this feature, please refer to the [tracking Issue](https://github.com/jaegertracing/jaeger/issues/2954) documenting the proposal and status.
 
-The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack required to visualize RED metrics from simulated traces (or their own), much like Jaeger All-in-one.
+The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack required to visualize RED metrics from simulated traces (or their own).
 
 This environment consists four backend components:
 
@@ -13,14 +13,25 @@ This environment consists four backend components:
 
 The following diagram illustrates the relationship between these components:
 
-![ATMDev (1)](https://user-images.githubusercontent.com/26584478/127763924-4ae2ce88-8fc2-4def-90c2-55358a433905.png)
+![SPM diagram](./diagram.png)
 
 # Getting Started
 
 ## Bring up/down the dev environment
+
 ```bash
 docker-compose up
 docker-compose down
+```
+
+**Tip:** Let the application run for a couple of minutes to ensure there is enough time series data to plot in the dashboard. Navigate to Jaeger UI at http://localhost:16686/ and inspect the Monitor tab. Select `redis` service from the dropdown to see more than one endpoint.
+
+**Warning:** The included [docker-compose.yml](./docker-compose.yml) file uses the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
+
+```bash
+docker rmi -f jaegertracing/all-in-one:latest
+docker rmi -f otel/opentelemetry-collector-contrib:latest
+docker rmi -f prom/prometheus:latest
 ```
 
 ## Example 1
