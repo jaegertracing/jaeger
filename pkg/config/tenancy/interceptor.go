@@ -35,7 +35,7 @@ func (tss *tenantedServerStream) Context() context.Context {
 	return tss.context
 }
 
-// NewGuardingStreamInterceptor blocks handling of streams whose tenancy header isn't doesn't meet tenancy requirements
+// NewGuardingStreamInterceptor blocks handling of streams whose tenancy header doesn't meet tenancy requirements.
 // It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingStreamInterceptor(tc *TenancyConfig) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
