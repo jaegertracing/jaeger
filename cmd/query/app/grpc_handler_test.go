@@ -149,8 +149,9 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQu
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
 	if tenancyConfig.Enabled {
-		grpcOpts = append(grpcOpts, grpc.StreamInterceptor(
-			tenancy.NewGuardingStreamInterceptor(tenancyConfig)),
+		grpcOpts = append(grpcOpts,
+			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tenancyConfig)),
+			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tenancyConfig)),
 		)
 	}
 	grpcServer := grpc.NewServer(grpcOpts...)
@@ -1030,6 +1031,25 @@ func TestSearchTenancyGRPC(t *testing.T) {
 		require.NotNil(t, spanResChunk.Spans)
 		require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
 		assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
+	})
+}
+
+func TestServicesTenancyGRPC(t *testing.T) {
+	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+		Enabled: true,
+	})
+	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+		expectedServices := []string{"trifle", "bling"}
+		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
+
+		// First try without tenancy header
+		_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
+		assertGRPCError(t, err, codes.PermissionDenied, "missing tenant header")
+
+		// Next try with tenancy
+		res, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tc.Header, "acme"), &api_v2.GetServicesRequest{})
+		require.NoError(t, err, "expecting gRPC to succeed with any tenancy header")
+		assert.Equal(t, expectedServices, res.Services)
 	})
 }
 

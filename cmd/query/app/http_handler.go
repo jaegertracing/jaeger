@@ -36,6 +36,7 @@ import (
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -84,6 +85,7 @@ type APIHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	queryParser         queryParser
+	tenancyConfig       *tenancy.TenancyConfig
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
@@ -112,6 +114,9 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 	if aH.tracer == nil {
 		aH.tracer = opentracing.NoopTracer{}
 	}
+	if aH.tenancyConfig == nil {
+		aH.tenancyConfig = &tenancy.TenancyConfig{}
+	}
 	return aH
 }
 
@@ -139,9 +144,14 @@ func (aH *APIHandler) handleFunc(
 	args ...interface{},
 ) *mux.Route {
 	route = aH.route(route, args...)
+	var handler http.Handler
+	handler = http.HandlerFunc(f)
+	if aH.tenancyConfig.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyConfig, handler, zap.NewNop())
+	}
 	traceMiddleware := nethttp.Middleware(
 		aH.tracer,
-		http.HandlerFunc(f),
+		handler,
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return route
 		}))

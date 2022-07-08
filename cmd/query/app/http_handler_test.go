@@ -893,7 +893,8 @@ func TestSearchTenancyHTTP(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.Equal(t, "401 error from server: missing tenant header", err.Error())
 	assert.Len(t, response.Errors, 0)
 	assert.Nil(t, response.Data)
 

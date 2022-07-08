@@ -67,8 +67,10 @@ func setupGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, c
 	}
 	if tenancyOptions.Enabled {
 		tc := tenancy.NewTenancyConfig(&tenancyOptions)
-		serverGRPCOpts = append(serverGRPCOpts, grpc.StreamInterceptor(
-			tenancy.NewGuardingStreamInterceptor(tc)))
+		serverGRPCOpts = append(serverGRPCOpts,
+			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tc)),
+			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tc)),
+		)
 	}
 	grpcServer := grpc.NewServer(serverGRPCOpts...)
 	h := &Handler{
