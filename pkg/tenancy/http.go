@@ -19,30 +19,13 @@ import (
 	"net/http"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
-
-	"github.com/jaegertracing/jaeger/storage"
 )
-
-var emptyMD = metadata.New(map[string]string{})
-
-func tenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
-	tenants := md.Get(tenancyHeader)
-	if len(tenants) < 1 {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
-	} else if len(tenants) > 1 {
-		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
-	}
-
-	return tenants[0], nil
-}
 
 // PropagationHandler returns a http.Handler containing the logic to extract
 // the tenancy header of the http.Request and insert the tenant into request.Context
-// for propagation. The token can be accessed via storage.GetTenant().
-func (tc *TenancyConfig) PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
+// for propagation. The token can be accessed via tenancy.GetTenant().
+func ExtractTenantHTTPHandler(tc *TenancyConfig, h http.Handler, logger *zap.Logger) http.Handler {
 	if !tc.Enabled {
 		return h
 	}
@@ -61,7 +44,7 @@ func (tc *TenancyConfig) PropagationHandler(logger *zap.Logger, h http.Handler) 
 			return
 		}
 
-		ctx := storage.WithTenant(r.Context(), tenant)
+		ctx := WithTenant(r.Context(), tenant)
 		h.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -72,7 +55,9 @@ func (tc *TenancyConfig) MetadataAnnotator() func(context.Context, *http.Request
 	return func(ctx context.Context, req *http.Request) metadata.MD {
 		tenant := req.Header.Get(tc.Header)
 		if tenant == "" {
-			return emptyMD
+			// The HTTP request lacked the tenancy header.  Pass along
+			// empty metadata -- the gRPC query service will reject later.
+			return metadata.Pairs()
 		}
 		return metadata.New(map[string]string{
 			tc.Header: tenant,

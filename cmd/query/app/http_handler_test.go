@@ -42,7 +42,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
-	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -115,7 +115,7 @@ func initializeTestServerWithOptions(tenancyConfig tenancy.TenancyConfig, queryO
 	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
 	return &testServer{
-		server:           httptest.NewServer(tenancyConfig.PropagationHandler(zap.NewNop(), r)),
+		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(&tenancyConfig, r, zap.NewNop())),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
 		handler:          handler,

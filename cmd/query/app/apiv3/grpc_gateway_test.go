@@ -35,9 +35,9 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -84,7 +84,7 @@ func setupGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, c
 	router := &mux.Router{}
 	router = router.PathPrefix(basePath).Subrouter()
 	ctx, cancel := context.WithCancel(context.Background())
-	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancyOptions)
+	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancy.NewTenancyConfig(&tenancyOptions))
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")

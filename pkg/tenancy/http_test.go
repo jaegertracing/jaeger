@@ -70,7 +70,7 @@ func TestProgationHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			handler := &testHttpHandler{}
-			propH := test.tenancyConfig.PropagationHandler(zap.NewNop(), handler)
+			propH := ExtractTenantHTTPHandler(test.tenancyConfig, handler, zap.NewNop())
 			req, err := http.NewRequest("GET", "/", strings.NewReader(""))
 			for k, vs := range test.requestHeaders {
 				for _, v := range vs {

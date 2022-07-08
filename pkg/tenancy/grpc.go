@@ -21,8 +21,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-
-	"github.com/jaegertracing/jaeger/storage"
 )
 
 // tenantedServerStream is a wrapper for ServerStream providing settable context
@@ -41,7 +39,7 @@ func NewGuardingStreamInterceptor(tc *TenancyConfig) grpc.StreamServerIntercepto
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx := ss.Context()
 		// Handle case where tenant is directly in the context
-		tenant := storage.GetTenant(ctx)
+		tenant := GetTenant(ctx)
 		if tenant != "" {
 			if !tc.Valid(tenant) {
 				return status.Errorf(codes.PermissionDenied, "unknown tenant header")
@@ -67,7 +65,18 @@ func NewGuardingStreamInterceptor(tc *TenancyConfig) grpc.StreamServerIntercepto
 		// Apply the tenant directly the context (in addition to metadata)
 		return handler(srv, &tenantedServerStream{
 			ServerStream: ss,
-			context:      storage.WithTenant(ctx, tenant),
+			context:      WithTenant(ctx, tenant),
 		})
 	}
+}
+
+func tenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
+	tenants := md.Get(tenancyHeader)
+	if len(tenants) < 1 {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	} else if len(tenants) > 1 {
+		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
+	}
+
+	return tenants[0], nil
 }

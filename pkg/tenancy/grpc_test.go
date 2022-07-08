@@ -22,8 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-
-	"github.com/jaegertracing/jaeger/storage"
 )
 
 func TestTenancyInterceptor(t *testing.T) {
@@ -42,13 +40,13 @@ func TestTenancyInterceptor(t *testing.T) {
 		{
 			name:          "invalid tenant context",
 			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
-			ctx:           storage.WithTenant(context.Background(), "acme"),
+			ctx:           WithTenant(context.Background(), "acme"),
 			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant header",
 		},
 		{
 			name:          "valid tenant context",
 			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
-			ctx:           storage.WithTenant(context.Background(), "acme"),
+			ctx:           WithTenant(context.Background(), "acme"),
 			errMsg:        "",
 		},
 		{
