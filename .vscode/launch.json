@@ -9,7 +9,8 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "cmd/all-in-one/main.go"
+            "program": "cmd/all-in-one/main.go",
+            "buildFlags": "-tags ui"
         }
     ]
 }
