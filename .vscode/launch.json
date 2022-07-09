@@ -10,7 +10,8 @@
             "request": "launch",
             "mode": "auto",
             "program": "cmd/all-in-one/main.go",
-            "buildFlags": "-tags ui"
+            "buildFlags": "-tags ui",
+            "preLaunchTask": "build-UI"
         }
     ]
 }
