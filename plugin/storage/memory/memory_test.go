@@ -128,6 +128,29 @@ var childSpan2_1 = &model.Span{
 	StartTime: time.Unix(300, 0),
 }
 
+var childSpan_withPeer = &model.Span{
+	TraceID: traceID,
+	SpanID:  model.NewSpanID(5),
+	Process: &model.Process{
+		ServiceName: "serviceName",
+		Tags:        model.KeyValues{},
+	},
+	OperationName: "childOperationName",
+	Tags: model.KeyValues{
+		model.String("peer.service", "peerService"),
+	},
+	Logs: []model.Log{
+		{
+			Timestamp: time.Now(),
+			Fields: []model.KeyValue{
+				model.String("logKey", "logValue"),
+			},
+		},
+	},
+	Duration:  time.Second * 5,
+	StartTime: time.Unix(300, 0),
+}
+
 // This kind of trace cannot be serialized
 var nonSerializableSpan = &model.Span{
 	Process: &model.Process{
@@ -160,17 +183,25 @@ func TestStoreGetDependencies(t *testing.T) {
 		assert.NoError(t, store.WriteSpan(context.Background(), childSpan1))
 		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2))
 		assert.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
+		assert.NoError(t, store.WriteSpan(context.Background(), childSpan_withPeer))
 		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 
 		links, err = store.GetDependencies(context.Background(), time.Unix(0, 0).Add(time.Hour), time.Hour)
 		assert.NoError(t, err)
-		assert.Equal(t, []model.DependencyLink{{
-			Parent:    "serviceName",
-			Child:     "childService",
-			CallCount: 2,
-		}}, links)
+		assert.Equal(t, []model.DependencyLink{
+			{
+				Parent:    "serviceName",
+				Child:     "childService",
+				CallCount: 2,
+			},
+			{
+				Parent:    "serviceName",
+				Child:     "peerService",
+				CallCount: 1,
+			},
+		}, links)
 	})
 }
 
