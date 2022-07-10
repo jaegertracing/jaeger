@@ -71,6 +71,20 @@ func (m *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback t
 		trace, _ := m.deduper.Adjust(orig)
 		if m.traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
+				// this finds unmanged peers of the service. So this are all external dependcies
+				peer := m.findPeer(s)
+				if peer != nil {
+					depKey := s.Process.ServiceName + "&&&" + peer.VStr
+					if _, ok := deps[depKey]; !ok {
+						deps[depKey] = &model.DependencyLink{
+							Parent:    s.Process.ServiceName,
+							Child:     peer.VStr,
+							CallCount: 1,
+						}
+					} else {
+						deps[depKey].CallCount++
+					}
+				}
 				parentSpan := m.findSpan(trace, s.ParentSpanID())
 				if parentSpan != nil {
 					if parentSpan.Process.ServiceName == s.Process.ServiceName {
@@ -101,6 +115,16 @@ func (m *Store) findSpan(trace *model.Trace, spanID model.SpanID) *model.Span {
 	for _, s := range trace.Spans {
 		if s.SpanID == spanID {
 			return s
+		}
+	}
+	return nil
+}
+
+// Finds external unmanged peers of the span, with the help of the tag `peer.service`
+func (m *Store) findPeer(span *model.Span) *model.KeyValue {
+	for _, t := range span.Tags {
+		if t.Key == "peer.service" {
+			return &t
 		}
 	}
 	return nil
