@@ -1134,3 +1134,77 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 		}
 	})
 }
+
+func TestTenancyContextFlowGRPC(t *testing.T) {
+	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+		Enabled: true,
+	})
+	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+		// Mock a storage backend with tenant 'acme' and 'megacorp'
+		allExpectedResults := map[string]struct {
+			expectedServices []string
+			expectedTrace    *model.Trace
+			expectedTraceErr error
+		}{
+			"acme":     {[]string{"trifle", "bling"}, mockTrace, nil},
+			"megacorp": {[]string{"grapefruit"}, nil, errStorageGRPC},
+		}
+
+		addTenantedGetServices := func(mockReader *spanstoremocks.Reader, tenant string, expectedServices []string) {
+			mockReader.On("GetServices", mock.MatchedBy(func(v interface{}) bool {
+				ctx, ok := v.(context.Context)
+				if !ok {
+					return false
+				}
+				if tenancy.GetTenant(ctx) != tenant {
+					return false
+				}
+				return true
+			})).Return(expectedServices, nil).Once()
+		}
+		addTenantedGetTrace := func(mockReader *spanstoremocks.Reader, tenant string, trace *model.Trace, err error) {
+			mockReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {
+				ctx, ok := v.(context.Context)
+				if !ok {
+					return false
+				}
+				if tenancy.GetTenant(ctx) != tenant {
+					return false
+				}
+				return true
+			}), mock.AnythingOfType("model.TraceID")).Return(trace, err).Once()
+		}
+
+		for tenant, expected := range allExpectedResults {
+			addTenantedGetServices(server.spanReader, tenant, expected.expectedServices)
+			addTenantedGetTrace(server.spanReader, tenant, expected.expectedTrace, expected.expectedTraceErr)
+		}
+
+		for tenant, expected := range allExpectedResults {
+			t.Run(tenant, func(t *testing.T) {
+
+				// Test context propagation to Unary method.
+				resGetServices, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tc.Header, tenant), &api_v2.GetServicesRequest{})
+				require.NoError(t, err, "expecting gRPC to succeed with %q tenancy header", tenant)
+				assert.Equal(t, expected.expectedServices, resGetServices.Services)
+
+				// Test context propagation to Streaming method.
+				resGetTrace, err := client.GetTrace(withOutgoingMetadata(t, context.Background(), tc.Header, tenant),
+					&api_v2.GetTraceRequest{
+						TraceID: mockTraceID,
+					})
+				require.NoError(t, err)
+				spanResChunk, err := resGetTrace.Recv()
+
+				if expected.expectedTrace != nil {
+					assert.Equal(t, expected.expectedTrace.Spans[0].TraceID, spanResChunk.Spans[0].TraceID)
+				}
+				if expected.expectedTraceErr != nil {
+					assert.Contains(t, err.Error(), expected.expectedTraceErr.Error())
+				}
+			})
+		}
+
+		server.spanReader.AssertExpectations(t)
+	})
+}
