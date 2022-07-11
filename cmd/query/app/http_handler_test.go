@@ -17,6 +17,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -932,4 +933,46 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	// Skip unmarshal of response; it is enough that it succeeded
+}
+
+func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
+	tenancyOptions := tenancy.Options{
+		Enabled: true,
+	}
+	ts := initializeTestServerWithOptions(
+		*tenancy.NewTenancyConfig(&tenancyOptions),
+		querysvc.QueryServiceOptions{})
+	defer ts.server.Close()
+	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {
+		ctx, ok := v.(context.Context)
+		if !ok || tenancy.GetTenant(ctx) != "acme" {
+			return false
+		}
+		return true
+	}), mock.AnythingOfType("model.TraceID")).Return(mockTrace, nil).Twice()
+	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {
+		ctx, ok := v.(context.Context)
+		if !ok || tenancy.GetTenant(ctx) != "megacorp" {
+			return false
+		}
+		return true
+	}), mock.AnythingOfType("model.TraceID")).Return(nil, errStorage).Once()
+
+	var responseAcme structuredResponse
+	err := getJSONCustomHeaders(
+		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
+		map[string]string{"x-tenant": "acme"},
+		&responseAcme)
+	assert.NoError(t, err)
+	assert.Len(t, responseAcme.Errors, 0)
+	assert.Len(t, responseAcme.Data, 2)
+
+	var responseMegacorp structuredResponse
+	err = getJSONCustomHeaders(
+		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
+		map[string]string{"x-tenant": "megacorp"},
+		&responseMegacorp)
+	assert.Contains(t, err.Error(), "storage error")
+	assert.Len(t, responseMegacorp.Errors, 0)
+	assert.Nil(t, responseMegacorp.Data)
 }

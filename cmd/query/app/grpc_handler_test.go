@@ -1182,7 +1182,6 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 
 		for tenant, expected := range allExpectedResults {
 			t.Run(tenant, func(t *testing.T) {
-
 				// Test context propagation to Unary method.
 				resGetServices, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tc.Header, tenant), &api_v2.GetServicesRequest{})
 				require.NoError(t, err, "expecting gRPC to succeed with %q tenancy header", tenant)
