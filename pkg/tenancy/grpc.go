@@ -81,7 +81,7 @@ func tenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
 	return tenants[0], nil
 }
 
-// NewGuardingStreamInterceptor blocks handling of streams whose tenancy header doesn't meet tenancy requirements.
+// NewGuardingUnaryInterceptor blocks handling of RPCs whose tenancy header doesn't meet tenancy requirements.
 // It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingUnaryInterceptor(tc *TenancyConfig) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
