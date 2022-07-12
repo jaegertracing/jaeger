@@ -202,47 +202,8 @@ func withMetricsQuery() testOption {
 	}
 }
 
-func initializeTestServerGRPCWithOptions(t *testing.T, options ...testOption) *grpcServer {
-	archiveSpanReader := &spanstoremocks.Reader{}
-	archiveSpanWriter := &spanstoremocks.Writer{}
-
-	spanReader := &spanstoremocks.Reader{}
-	dependencyReader := &depsmocks.Reader{}
-	disabledReader, err := disabled.NewMetricsReader()
-	require.NoError(t, err)
-
-	q := querysvc.NewQueryService(spanReader, dependencyReader,
-		querysvc.QueryServiceOptions{
-			ArchiveSpanReader: archiveSpanReader,
-			ArchiveSpanWriter: archiveSpanWriter,
-		})
-
-	tqs := &testQueryService{
-		// Disable metrics query by default.
-		metricsQueryService: disabledReader,
-	}
-	for _, opt := range options {
-		opt(tqs)
-	}
-
-	logger := zap.NewNop()
-	tracer := opentracing.NoopTracer{}
-
-	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, &tenancy.TenancyConfig{})
-
-	return &grpcServer{
-		server:              server,
-		lisAddr:             addr,
-		spanReader:          spanReader,
-		depReader:           dependencyReader,
-		metricsQueryService: tqs.metricsQueryService,
-		archiveSpanReader:   archiveSpanReader,
-		archiveSpanWriter:   archiveSpanWriter,
-	}
-}
-
 func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
-	server := initializeTestServerGRPCWithOptions(t, options...)
+	server := initializeTenantedTestServerGRPCWithOptions(t, &tenancy.TenancyConfig{}, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
