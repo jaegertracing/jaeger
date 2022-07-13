@@ -308,21 +308,19 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
 	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
-		regex="(jaeger-)(.*)"; \
-		component_prefix=""; \
+		regex="jaeger-(.*)"; \
 		component_suffix=$$component; \
 		if [[ $$component =~ $$regex ]]; then \
-			component_prefix="$${BASH_REMATCH[1]}"; \
-			component_suffix="$${BASH_REMATCH[2]}"; \
+			component_suffix="$${BASH_REMATCH[1]}"; \
 		fi; \
 		docker buildx build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/$$component_prefix$$component_suffix$(SUFFIX):${DOCKER_TAG} \
+			--tag $(DOCKER_NAMESPACE)/$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
 			--load \
-			cmd/$$component_suffix ; \
-		echo "Finished building $$component_suffix ==============" ; \
+			cmd/$$component_suffix; \
+		echo "Finished building $$component ==============" ; \
 	done; \
 
 .PHONY: docker-images-tracegen
