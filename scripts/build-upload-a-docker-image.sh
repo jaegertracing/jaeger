@@ -42,13 +42,13 @@ fi
 
 docker_file_arg="${dir_arg}/${docker_file_arg}"
 
-IMAGE_TAGS="--tag localhost:5000/${name_space}/${component_name}:latest"
+IMAGE_TAGS=$(bash scripts/compute-tags.sh "${name_space}/${component_name}")
 upload_flag=""
 
 if [[ "${local_test_only}" = "Y" ]]; then
+    IMAGE_TAGS="--tag localhost:5000/${name_space}/${component_name}:latest"
     PUSHTAG="type=image, push=true"
 else
-    IMAGE_TAGS=$(bash scripts/compute-tags.sh "${name_space}/${component_name}")
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P
     if [[ "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	    echo "build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
