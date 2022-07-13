@@ -1,4 +1,5 @@
-JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
+SHELL := /bin/bash
+JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 include docker/Makefile
@@ -306,26 +307,23 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
-	# Save the current Internal Field Separator (IFS) for later recovery, then set it to a comma-separator.
-	# The reason for using a comma-separator is to support the empty prefix required for all-in-one.
-	OLDIFS=$IFS; \
-	IFS=","; \
-	for pair in "jaeger,agent" "jaeger,collector" "jaeger,query" "jaeger,ingester" ",all-in-one" ; do \
-		set -- $$pair; \
-		prefix=$$1; \
-		component=$$2; \
+	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
+		regex="(jaeger-)(.*)"; \
+		component_prefix=""; \
+		component_suffix=$$component; \
+		if [[ $$component =~ $$regex ]]; then \
+			component_prefix="$${BASH_REMATCH[1]}"; \
+			component_suffix="$${BASH_REMATCH[2]}"; \
+		fi; \
 		docker buildx build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/$$prefix$$component$(SUFFIX):${DOCKER_TAG} \
+			--tag $(DOCKER_NAMESPACE)/$$component_prefix$$component_suffix$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
 			--load \
-			cmd/$$component ; \
-		echo "Finished building $$component ==============" ; \
+			cmd/$$component_suffix ; \
+		echo "Finished building $$component_suffix ==============" ; \
 	done; \
-
-	# Restore the old IFS.
-	IFS=$OLDIFS;
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
