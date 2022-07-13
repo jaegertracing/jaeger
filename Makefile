@@ -304,6 +304,7 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
 	# Save the current Internal Field Separator (IFS) for later recovery, then set it to a comma-separator.
+	# The reason for using a comma-separator is to support the empty prefix required for all-in-one.
 	OLDIFS=$IFS; \
 	IFS=","; \
 	for pair in "jaeger,agent" "jaeger,collector" "jaeger,query" "jaeger,ingester" ",all-in-one" ; do \
