@@ -41,7 +41,7 @@ func TestStreamingTenancyInterceptor(t *testing.T) {
 			name:          "invalid tenant context",
 			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           WithTenant(context.Background(), "acme"),
-			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant header",
+			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant",
 		},
 		{
 			name:          "valid tenant context",
@@ -114,7 +114,7 @@ func TestUnaryTenancyInterceptor(t *testing.T) {
 			name:          "invalid tenant context",
 			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           WithTenant(context.Background(), "acme"),
-			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant header",
+			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant",
 		},
 		{
 			name:          "valid tenant context",
