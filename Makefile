@@ -306,15 +306,26 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
-	for component in agent collector query ingester ; do \
-		docker build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
+	# Save the current Internal Field Separator (IFS) for later recovery, then set it to a comma-separator.
+	# The reason for using a comma-separator is to support the empty prefix required for all-in-one.
+	OLDIFS=$IFS; \
+	IFS=","; \
+	for pair in "jaeger,agent" "jaeger,collector" "jaeger,query" "jaeger,ingester" ",all-in-one" ; do \
+		set -- $$pair; \
+		prefix=$$1; \
+		component=$$2; \
+		docker buildx build --target $(TARGET) \
+			--tag $(DOCKER_NAMESPACE)/$$prefix$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
+			--load \
 			cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
-	done
+	done; \
+
+	# Restore the old IFS.
+	IFS=$OLDIFS;
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
