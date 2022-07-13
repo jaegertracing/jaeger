@@ -1,4 +1,5 @@
-JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
+SHELL := /bin/bash
+JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 include docker/Makefile
@@ -306,15 +307,21 @@ docker-images-jaeger-backend-debug: SUFFIX = -debug
 
 .PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
 docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
-	for component in agent collector query ingester ; do \
-		docker build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/jaeger-$$component$(SUFFIX):${DOCKER_TAG} \
+	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
+		regex="jaeger-(.*)"; \
+		component_suffix=$$component; \
+		if [[ $$component =~ $$regex ]]; then \
+			component_suffix="$${BASH_REMATCH[1]}"; \
+		fi; \
+		docker buildx build --target $(TARGET) \
+			--tag $(DOCKER_NAMESPACE)/$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
 			--build-arg debug_image=$(DEBUG_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
-			cmd/$$component ; \
+			--load \
+			cmd/$$component_suffix; \
 		echo "Finished building $$component ==============" ; \
-	done
+	done;
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
