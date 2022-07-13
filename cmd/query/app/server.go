@@ -157,7 +157,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
-		HandlerOptions.Tenancy(&queryOpts.Tenancy),
+		HandlerOptions.Tenancy(tenancy.NewTenancyConfig(&queryOpts.Tenancy)),
 	}
 
 	apiHandler := NewAPIHandler(

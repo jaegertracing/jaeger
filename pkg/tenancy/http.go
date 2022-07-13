@@ -18,14 +18,13 @@ import (
 	"context"
 	"net/http"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 )
 
 // PropagationHandler returns a http.Handler containing the logic to extract
 // the tenancy header of the http.Request and insert the tenant into request.Context
 // for propagation. The token can be accessed via tenancy.GetTenant().
-func ExtractTenantHTTPHandler(tc *TenancyConfig, h http.Handler, logger *zap.Logger) http.Handler {
+func ExtractTenantHTTPHandler(tc *TenancyConfig, h http.Handler) http.Handler {
 	if !tc.Enabled {
 		return h
 	}

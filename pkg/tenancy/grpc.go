@@ -33,39 +33,55 @@ func (tss *tenantedServerStream) Context() context.Context {
 	return tss.context
 }
 
+func getValidTenant(ctx context.Context, tc *TenancyConfig) (string, error) {
+	// Handle case where tenant is already directly in the context
+	tenant := GetTenant(ctx)
+	if tenant != "" {
+		if !tc.Valid(tenant) {
+			return tenant, status.Errorf(codes.PermissionDenied, "unknown tenant")
+		}
+		return tenant, nil
+	}
+
+	// Handle case where tenant is in the context metadata
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+	}
+
+	var err error
+	tenant, err = tenantFromMetadata(md, tc.Header)
+	if err != nil {
+		return "", err
+	}
+	if !tc.Valid(tenant) {
+		return tenant, status.Errorf(codes.PermissionDenied, "unknown tenant")
+	}
+
+	return tenant, nil
+}
+
+func directlyAttachedTenant(ctx context.Context) bool {
+	return GetTenant(ctx) != ""
+}
+
 // NewGuardingStreamInterceptor blocks handling of streams whose tenancy header doesn't meet tenancy requirements.
 // It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingStreamInterceptor(tc *TenancyConfig) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		ctx := ss.Context()
-		// Handle case where tenant is directly in the context
-		tenant := GetTenant(ctx)
-		if tenant != "" {
-			if !tc.Valid(tenant) {
-				return status.Errorf(codes.PermissionDenied, "unknown tenant header")
-			}
-			return handler(srv, ss)
-		}
-
-		// Handle case where tenant is in the context metadata
-		md, ok := metadata.FromIncomingContext(ctx)
-		if !ok {
-			return status.Errorf(codes.PermissionDenied, "missing tenant header")
-		}
-
-		var err error
-		tenant, err = tenantFromMetadata(md, tc.Header)
+		tenant, err := getValidTenant(ss.Context(), tc)
 		if err != nil {
 			return err
 		}
-		if !tc.Valid(tenant) {
-			return status.Errorf(codes.PermissionDenied, "unknown tenant")
+
+		if directlyAttachedTenant(ss.Context()) {
+			return handler(srv, ss)
 		}
 
-		// Apply the tenant directly the context (in addition to metadata)
+		// "upgrade" the tenant to be part of the context, rather than just incoming metadata
 		return handler(srv, &tenantedServerStream{
 			ServerStream: ss,
-			context:      WithTenant(ctx, tenant),
+			context:      WithTenant(ss.Context(), tenant),
 		})
 	}
 }
@@ -85,28 +101,13 @@ func tenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
 // It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingUnaryInterceptor(tc *TenancyConfig) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Handle case where tenant is directly in the context
-		tenant := GetTenant(ctx)
-		if tenant != "" {
-			if !tc.Valid(tenant) {
-				return nil, status.Errorf(codes.PermissionDenied, "unknown tenant header")
-			}
-			return handler(ctx, req)
-		}
-
-		// Handle case where tenant is in the context metadata
-		md, ok := metadata.FromIncomingContext(ctx)
-		if !ok {
-			return nil, status.Errorf(codes.PermissionDenied, "missing tenant header")
-		}
-
-		var err error
-		tenant, err = tenantFromMetadata(md, tc.Header)
+		tenant, err := getValidTenant(ctx, tc)
 		if err != nil {
 			return nil, err
 		}
-		if !tc.Valid(tenant) {
-			return nil, status.Errorf(codes.PermissionDenied, "unknown tenant")
+
+		if directlyAttachedTenant(ctx) {
+			return handler(ctx, req)
 		}
 
 		return handler(WithTenant(ctx, tenant), req)

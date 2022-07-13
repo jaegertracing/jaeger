@@ -116,7 +116,7 @@ func initializeTestServerWithOptions(tenancyConfig tenancy.TenancyConfig, queryO
 	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
 	return &testServer{
-		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(&tenancyConfig, r, zap.NewNop())),
+		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(&tenancyConfig, r)),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
 		handler:          handler,

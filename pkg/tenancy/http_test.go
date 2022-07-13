@@ -23,7 +23,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type testHttpHandler struct {
@@ -70,7 +69,7 @@ func TestProgationHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			handler := &testHttpHandler{}
-			propH := ExtractTenantHTTPHandler(test.tenancyConfig, handler, zap.NewNop())
+			propH := ExtractTenantHTTPHandler(test.tenancyConfig, handler)
 			req, err := http.NewRequest("GET", "/", strings.NewReader(""))
 			for k, vs := range test.requestHeaders {
 				for _, v := range vs {

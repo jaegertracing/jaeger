@@ -147,7 +147,7 @@ func (aH *APIHandler) handleFunc(
 	var handler http.Handler
 	handler = http.HandlerFunc(f)
 	if aH.tenancyConfig.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyConfig, handler, zap.NewNop())
+		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyConfig, handler)
 	}
 	traceMiddleware := nethttp.Middleware(
 		aH.tracer,
