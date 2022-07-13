@@ -321,7 +321,7 @@ docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg 
 			--load \
 			cmd/$$component_suffix; \
 		echo "Finished building $$component ==============" ; \
-	done; \
+	done;
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
