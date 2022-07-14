@@ -85,7 +85,7 @@ type APIHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	queryParser         queryParser
-	tenancyConfig       *tenancy.TenancyConfig
+	tenancyConfig       *tenancy.TenancyManager
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
@@ -115,7 +115,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 		aH.tracer = opentracing.NoopTracer{}
 	}
 	if aH.tenancyConfig == nil {
-		aH.tenancyConfig = &tenancy.TenancyConfig{}
+		aH.tenancyConfig = &tenancy.TenancyManager{}
 	}
 	return aH
 }

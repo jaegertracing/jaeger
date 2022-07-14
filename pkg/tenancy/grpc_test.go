@@ -27,49 +27,49 @@ import (
 func TestStreamingTenancyInterceptor(t *testing.T) {
 	tests := []struct {
 		name          string
-		tenancyConfig *TenancyConfig
+		tenancyConfig *TenancyManager
 		ctx           context.Context
 		errMsg        string
 	}{
 		{
 			name:          "missing tenant context",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true}),
 			ctx:           context.Background(),
 			errMsg:        "rpc error: code = PermissionDenied desc = missing tenant header",
 		},
 		{
 			name:          "invalid tenant context",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           WithTenant(context.Background(), "acme"),
 			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant",
 		},
 		{
 			name:          "valid tenant context",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx:           WithTenant(context.Background(), "acme"),
 			errMsg:        "",
 		},
 		{
 			name:          "invalid tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme"}}),
 			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant",
 		},
 		{
 			name:          "missing tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{}),
 			errMsg:        "rpc error: code = PermissionDenied desc = missing tenant header",
 		},
 		{
 			name:          "valid tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme"}}),
 			errMsg:        "",
 		},
 		{
 			name:          "extra tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme", "megacorp"}}),
 			errMsg:        "rpc error: code = PermissionDenied desc = extra tenant header",
 		},
@@ -100,49 +100,49 @@ func TestStreamingTenancyInterceptor(t *testing.T) {
 func TestUnaryTenancyInterceptor(t *testing.T) {
 	tests := []struct {
 		name          string
-		tenancyConfig *TenancyConfig
+		tenancyConfig *TenancyManager
 		ctx           context.Context
 		errMsg        string
 	}{
 		{
 			name:          "missing tenant context",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true}),
 			ctx:           context.Background(),
 			errMsg:        "rpc error: code = PermissionDenied desc = missing tenant header",
 		},
 		{
 			name:          "invalid tenant context",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           WithTenant(context.Background(), "acme"),
 			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant",
 		},
 		{
 			name:          "valid tenant context",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx:           WithTenant(context.Background(), "acme"),
 			errMsg:        "",
 		},
 		{
 			name:          "invalid tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme"}}),
 			errMsg:        "rpc error: code = PermissionDenied desc = unknown tenant",
 		},
 		{
 			name:          "missing tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{}),
 			errMsg:        "rpc error: code = PermissionDenied desc = missing tenant header",
 		},
 		{
 			name:          "valid tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme"}}),
 			errMsg:        "",
 		},
 		{
 			name:          "extra tenant header",
-			tenancyConfig: NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"acme"}}),
+			tenancyConfig: NewTenancyManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx:           metadata.NewIncomingContext(context.Background(), map[string][]string{"x-tenant": {"acme", "megacorp"}}),
 			errMsg:        "rpc error: code = PermissionDenied desc = extra tenant header",
 		},

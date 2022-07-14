@@ -36,31 +36,31 @@ func (thh *testHttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 func TestProgationHandler(t *testing.T) {
 	tests := []struct {
 		name           string
-		tenancyConfig  *TenancyConfig
+		tenancyConfig  *TenancyManager
 		shouldReach    bool
 		requestHeaders map[string][]string
 	}{
 		{
 			name:           "untenanted",
-			tenancyConfig:  NewTenancyConfig(&Options{}),
+			tenancyConfig:  NewTenancyManager(&Options{}),
 			requestHeaders: map[string][]string{},
 			shouldReach:    true,
 		},
 		{
 			name:           "missing tenant header",
-			tenancyConfig:  NewTenancyConfig(&Options{Enabled: true}),
+			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{},
 			shouldReach:    false,
 		},
 		{
 			name:           "valid tenant header",
-			tenancyConfig:  NewTenancyConfig(&Options{Enabled: true}),
+			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    true,
 		},
 		{
 			name:           "unauthorized tenant",
-			tenancyConfig:  NewTenancyConfig(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyConfig:  NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    false,
 		},
@@ -87,17 +87,17 @@ func TestProgationHandler(t *testing.T) {
 func TestMetadataAnnotator(t *testing.T) {
 	tests := []struct {
 		name           string
-		tenancyConfig  *TenancyConfig
+		tenancyConfig  *TenancyManager
 		requestHeaders map[string][]string
 	}{
 		{
 			name:           "missing tenant",
-			tenancyConfig:  NewTenancyConfig(&Options{Enabled: true}),
+			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{},
 		},
 		{
 			name:           "tenanted",
-			tenancyConfig:  NewTenancyConfig(&Options{Enabled: true}),
+			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 		},
 	}

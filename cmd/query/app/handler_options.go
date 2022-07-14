@@ -63,9 +63,9 @@ func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration)
 }
 
 // Tracer creates a HandlerOption that initializes tenancy
-func (handlerOptions) Tenancy(tc *tenancy.TenancyConfig) HandlerOption {
+func (handlerOptions) Tenancy(tm *tenancy.TenancyManager) HandlerOption {
 	return func(apiHandler *APIHandler) {
-		apiHandler.tenancyConfig = tc
+		apiHandler.tenancyConfig = tm
 	}
 }
 

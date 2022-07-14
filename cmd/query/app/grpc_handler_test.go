@@ -145,13 +145,13 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, tenancyConfig *tenancy.TenancyConfig) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, tenancyMgr *tenancy.TenancyManager) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
-	if tenancyConfig.Enabled {
+	if tenancyMgr.Enabled {
 		grpcOpts = append(grpcOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tenancyConfig)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tenancyConfig)),
+			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tenancyMgr)),
+			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tenancyMgr)),
 		)
 	}
 	grpcServer := grpc.NewServer(grpcOpts...)
@@ -203,7 +203,7 @@ func withMetricsQuery() testOption {
 }
 
 func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
-	server := initializeTenantedTestServerGRPCWithOptions(t, &tenancy.TenancyConfig{}, options...)
+	server := initializeTenantedTestServerGRPCWithOptions(t, &tenancy.TenancyManager{}, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
@@ -901,7 +901,7 @@ func TestMetricsQueryNilRequestGRPC(t *testing.T) {
 	assert.EqualError(t, err, errNilRequest.Error())
 }
 
-func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tc *tenancy.TenancyConfig, options ...testOption) *grpcServer {
+func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.TenancyManager, options ...testOption) *grpcServer {
 	archiveSpanReader := &spanstoremocks.Reader{}
 	archiveSpanWriter := &spanstoremocks.Writer{}
 
@@ -929,7 +929,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tc *tenancy.Tenan
 	logger := zap.NewNop()
 	tracer := opentracing.NoopTracer{}
 
-	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, tc)
+	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, tm)
 
 	return &grpcServer{
 		server:              server,
@@ -942,8 +942,8 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tc *tenancy.Tenan
 	}
 }
 
-func withTenantedServerAndClient(t *testing.T, tc *tenancy.TenancyConfig, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
-	server := initializeTenantedTestServerGRPCWithOptions(t, tc, options...)
+func withTenantedServerAndClient(t *testing.T, tm *tenancy.TenancyManager, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
+	server := initializeTenantedTestServerGRPCWithOptions(t, tm, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
@@ -960,10 +960,10 @@ func withOutgoingMetadata(t *testing.T, ctx context.Context, headerName, headerV
 }
 
 func TestSearchTenancyGRPC(t *testing.T) {
-	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+	tm := tenancy.NewTenancyManager(&tenancy.Options{
 		Enabled: true,
 	})
-	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
 
@@ -980,7 +980,7 @@ func TestSearchTenancyGRPC(t *testing.T) {
 
 		// Next try with tenancy
 		res, err = client.GetTrace(
-			withOutgoingMetadata(t, context.Background(), tc.Header, "acme"),
+			withOutgoingMetadata(t, context.Background(), tm.Header, "acme"),
 			&api_v2.GetTraceRequest{
 				TraceID: mockTraceID,
 			})
@@ -996,10 +996,10 @@ func TestSearchTenancyGRPC(t *testing.T) {
 }
 
 func TestServicesTenancyGRPC(t *testing.T) {
-	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+	tm := tenancy.NewTenancyManager(&tenancy.Options{
 		Enabled: true,
 	})
-	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
 		expectedServices := []string{"trifle", "bling"}
 		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
 
@@ -1008,19 +1008,19 @@ func TestServicesTenancyGRPC(t *testing.T) {
 		assertGRPCError(t, err, codes.PermissionDenied, "missing tenant header")
 
 		// Next try with tenancy
-		res, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tc.Header, "acme"), &api_v2.GetServicesRequest{})
+		res, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tm.Header, "acme"), &api_v2.GetServicesRequest{})
 		require.NoError(t, err, "expecting gRPC to succeed with any tenancy header")
 		assert.Equal(t, expectedServices, res.Services)
 	})
 }
 
 func TestSearchTenancyGRPCExplicitList(t *testing.T) {
-	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+	tm := tenancy.NewTenancyManager(&tenancy.Options{
 		Enabled: true,
 		Header:  "non-standard-tenant-header",
 		Tenants: []string{"mercury", "venus", "mars"},
 	})
-	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
 
@@ -1048,7 +1048,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 			},
 			{
 				name:           "missing tenant",
-				tenancyHeader:  tc.Header,
+				tenancyHeader:  tm.Header,
 				tenant:         "",
 				wantErr:        true,
 				failureCode:    codes.PermissionDenied,
@@ -1056,7 +1056,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 			},
 			{
 				name:           "invalid tenant",
-				tenancyHeader:  tc.Header,
+				tenancyHeader:  tm.Header,
 				tenant:         "some-other-tenant-not-in-the-list",
 				wantErr:        true,
 				failureCode:    codes.PermissionDenied,
@@ -1064,7 +1064,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 			},
 			{
 				name:          "valid tenant",
-				tenancyHeader: tc.Header,
+				tenancyHeader: tm.Header,
 				tenant:        "venus",
 			},
 		} {
@@ -1097,10 +1097,10 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 }
 
 func TestTenancyContextFlowGRPC(t *testing.T) {
-	tc := tenancy.NewTenancyConfig(&tenancy.Options{
+	tm := tenancy.NewTenancyManager(&tenancy.Options{
 		Enabled: true,
 	})
-	withTenantedServerAndClient(t, tc, func(server *grpcServer, client *grpcClient) {
+	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
 		// Mock a storage backend with tenant 'acme' and 'megacorp'
 		allExpectedResults := map[string]struct {
 			expectedServices []string
@@ -1144,12 +1144,12 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 		for tenant, expected := range allExpectedResults {
 			t.Run(tenant, func(t *testing.T) {
 				// Test context propagation to Unary method.
-				resGetServices, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tc.Header, tenant), &api_v2.GetServicesRequest{})
+				resGetServices, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tm.Header, tenant), &api_v2.GetServicesRequest{})
 				require.NoError(t, err, "expecting gRPC to succeed with %q tenancy header", tenant)
 				assert.Equal(t, expected.expectedServices, resGetServices.Services)
 
 				// Test context propagation to Streaming method.
-				resGetTrace, err := client.GetTrace(withOutgoingMetadata(t, context.Background(), tc.Header, tenant),
+				resGetTrace, err := client.GetTrace(withOutgoingMetadata(t, context.Background(), tm.Header, tenant),
 					&api_v2.GetTraceRequest{
 						TraceID: mockTraceID,
 					})

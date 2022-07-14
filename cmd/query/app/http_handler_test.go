@@ -93,7 +93,7 @@ type structuredTraceResponse struct {
 
 func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	return initializeTestServerWithOptions(
-		tenancy.TenancyConfig{},
+		&tenancy.TenancyManager{},
 		queryOptions,
 		append(
 			[]HandlerOption{
@@ -108,7 +108,7 @@ func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, 
 	)
 }
 
-func initializeTestServerWithOptions(tenancyConfig tenancy.TenancyConfig, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
+func initializeTestServerWithOptions(tenancyMgr *tenancy.TenancyManager, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
@@ -116,7 +116,7 @@ func initializeTestServerWithOptions(tenancyConfig tenancy.TenancyConfig, queryO
 	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
 	return &testServer{
-		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(&tenancyConfig, r)),
+		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(tenancyMgr, r)),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
 		handler:          handler,
@@ -135,7 +135,7 @@ type testServer struct {
 }
 
 func withTestServer(doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
-	ts := initializeTestServerWithOptions(tenancy.TenancyConfig{}, queryOptions, options...)
+	ts := initializeTestServerWithOptions(&tenancy.TenancyManager{}, queryOptions, options...)
 	defer ts.server.Close()
 	doTest(ts)
 }
@@ -404,7 +404,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	ts := initializeTestServerWithOptions(tenancy.TenancyConfig{}, querysvc.QueryServiceOptions{
+	ts := initializeTestServerWithOptions(&tenancy.TenancyManager{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
 	defer ts.server.Close()
@@ -447,7 +447,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 func TestSearchModelConversionFailure(t *testing.T) {
 	ts := initializeTestServerWithOptions(
-		tenancy.TenancyConfig{},
+		&tenancy.TenancyManager{},
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
@@ -886,7 +886,7 @@ func TestSearchTenancyHTTP(t *testing.T) {
 		Enabled: true,
 	}
 	ts := initializeTestServerWithOptions(
-		*tenancy.NewTenancyConfig(&tenancyOptions),
+		tenancy.NewTenancyManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -913,7 +913,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 		Enabled: true,
 	}
 	ts := initializeTestServerWithOptions(
-		*tenancy.NewTenancyConfig(&tenancyOptions),
+		tenancy.NewTenancyManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -927,8 +927,8 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
-	tc := tenancy.NewTenancyConfig(&tenancyOptions)
-	req.Header.Set(tc.Header, "acme")
+	tm := tenancy.NewTenancyManager(&tenancyOptions)
+	req.Header.Set(tm.Header, "acme")
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -940,7 +940,7 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		Enabled: true,
 	}
 	ts := initializeTestServerWithOptions(
-		*tenancy.NewTenancyConfig(&tenancyOptions),
+		tenancy.NewTenancyManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {

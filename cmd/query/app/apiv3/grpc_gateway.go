@@ -31,14 +31,14 @@ import (
 )
 
 // RegisterGRPCGateway registers api_v3 endpoints into provided mux.
-func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tc *tenancy.TenancyConfig) error {
+func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tm *tenancy.TenancyManager) error {
 	jsonpb := &runtime.JSONPb{}
 
 	muxOpts := []runtime.ServeMuxOption{
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, jsonpb),
 	}
-	if tc.Enabled {
-		muxOpts = append(muxOpts, runtime.WithMetadata(tc.MetadataAnnotator()))
+	if tm.Enabled {
+		muxOpts = append(muxOpts, runtime.WithMetadata(tm.MetadataAnnotator()))
 	}
 
 	grpcGatewayMux := runtime.NewServeMux(muxOpts...)
