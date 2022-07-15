@@ -85,7 +85,7 @@ type APIHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	queryParser         queryParser
-	tenancyConfig       *tenancy.TenancyManager
+	tenancyMgr          *tenancy.TenancyManager
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
@@ -93,13 +93,14 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns an APIHandler
-func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption) *APIHandler {
+func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.TenancyManager, options ...HandlerOption) *APIHandler {
 	aH := &APIHandler{
 		queryService: queryService,
 		queryParser: queryParser{
 			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
 			timeNow:                    time.Now,
 		},
+		tenancyMgr: tm,
 	}
 
 	for _, option := range options {
@@ -113,9 +114,6 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 	}
 	if aH.tracer == nil {
 		aH.tracer = opentracing.NoopTracer{}
-	}
-	if aH.tenancyConfig == nil {
-		aH.tenancyConfig = &tenancy.TenancyManager{}
 	}
 	return aH
 }
@@ -146,8 +144,8 @@ func (aH *APIHandler) handleFunc(
 	route = aH.route(route, args...)
 	var handler http.Handler
 	handler = http.HandlerFunc(f)
-	if aH.tenancyConfig.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyConfig, handler)
+	if aH.tenancyMgr.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyMgr, handler)
 	}
 	traceMiddleware := nethttp.Middleware(
 		aH.tracer,

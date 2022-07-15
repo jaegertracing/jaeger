@@ -36,31 +36,31 @@ func (thh *testHttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 func TestProgationHandler(t *testing.T) {
 	tests := []struct {
 		name           string
-		tenancyConfig  *TenancyManager
+		tenancyMgr     *TenancyManager
 		shouldReach    bool
 		requestHeaders map[string][]string
 	}{
 		{
 			name:           "untenanted",
-			tenancyConfig:  NewTenancyManager(&Options{}),
+			tenancyMgr:     NewTenancyManager(&Options{}),
 			requestHeaders: map[string][]string{},
 			shouldReach:    true,
 		},
 		{
 			name:           "missing tenant header",
-			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{},
 			shouldReach:    false,
 		},
 		{
 			name:           "valid tenant header",
-			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    true,
 		},
 		{
 			name:           "unauthorized tenant",
-			tenancyConfig:  NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyMgr:     NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    false,
 		},
@@ -69,7 +69,7 @@ func TestProgationHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			handler := &testHttpHandler{}
-			propH := ExtractTenantHTTPHandler(test.tenancyConfig, handler)
+			propH := ExtractTenantHTTPHandler(test.tenancyMgr, handler)
 			req, err := http.NewRequest("GET", "/", strings.NewReader(""))
 			for k, vs := range test.requestHeaders {
 				for _, v := range vs {
@@ -87,17 +87,17 @@ func TestProgationHandler(t *testing.T) {
 func TestMetadataAnnotator(t *testing.T) {
 	tests := []struct {
 		name           string
-		tenancyConfig  *TenancyManager
+		tenancyMgr     *TenancyManager
 		requestHeaders map[string][]string
 	}{
 		{
 			name:           "missing tenant",
-			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{},
 		},
 		{
 			name:           "tenanted",
-			tenancyConfig:  NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 		},
 	}
@@ -111,7 +111,7 @@ func TestMetadataAnnotator(t *testing.T) {
 				}
 			}
 			require.NoError(t, err)
-			annotator := test.tenancyConfig.MetadataAnnotator()
+			annotator := test.tenancyMgr.MetadataAnnotator()
 			md := annotator(context.Background(), req)
 			assert.Equal(t, len(test.requestHeaders), len(md))
 		})

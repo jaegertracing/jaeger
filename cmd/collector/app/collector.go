@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -94,6 +95,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		CollectorOpts:  options,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
+		TenancyMgr:     tenancy.NewTenancyManager(&options.GRPC.Tenancy),
 	}
 
 	var additionalProcessors []ProcessSpan

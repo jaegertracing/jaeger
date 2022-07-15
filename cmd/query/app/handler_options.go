@@ -22,7 +22,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -59,13 +58,6 @@ func (handlerOptions) Prefix(prefix string) HandlerOption {
 func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.queryParser.traceQueryLookbackDuration = queryLookbackDuration
-	}
-}
-
-// Tracer creates a HandlerOption that initializes tenancy
-func (handlerOptions) Tenancy(tm *tenancy.TenancyManager) HandlerOption {
-	return func(apiHandler *APIHandler) {
-		apiHandler.tenancyConfig = tm
 	}
 }
 

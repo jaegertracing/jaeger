@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 var _ component.Host = (*otelHost)(nil) // API check
@@ -45,6 +46,7 @@ func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, span
 		options,
 		logger,
 		spanProcessor,
+		tenancy.NewTenancyManager(&options.GRPC.Tenancy),
 		otlpFactory,
 		consumer.NewTraces,
 		otlpFactory.CreateTracesReceiver,
@@ -58,6 +60,7 @@ func startOTLPReceiver(
 	options *flags.CollectorOptions,
 	logger *zap.Logger,
 	spanProcessor processor.SpanProcessor,
+	tm *tenancy.TenancyManager,
 	// from here: params that can be mocked in tests
 	otlpFactory component.ReceiverFactory,
 	newTraces func(consume consumer.ConsumeTracesFunc, options ...consumer.Option) (consumer.Traces, error),
@@ -74,7 +77,7 @@ func startOTLPReceiver(
 		},
 	}
 
-	otlpConsumer := newConsumerDelegate(logger, spanProcessor)
+	otlpConsumer := newConsumerDelegate(logger, spanProcessor, tm)
 	// the following two constructors never return errors given non-nil arguments, so we ignore errors
 	nextConsumer, err := newTraces(otlpConsumer.consume)
 	if err != nil {
@@ -137,13 +140,13 @@ func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
 	}
 }
 
-func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor) *consumerDelegate {
+func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.TenancyManager) *consumerDelegate {
 	return &consumerDelegate{
 		batchConsumer: newBatchConsumer(logger,
 			spanProcessor,
 			processor.UnknownTransport, // could be gRPC or HTTP
 			processor.OTLPSpanFormat,
-			nil),
+			tm),
 		protoFromTraces: otlp2jaeger.ProtoFromTraces,
 	}
 }

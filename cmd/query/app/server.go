@@ -120,7 +120,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	if options.Tenancy.Enabled {
+	if tm.Enabled {
 		grpcOpts = append(grpcOpts,
 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
 			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
@@ -156,11 +156,11 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
-		HandlerOptions.Tenancy(tm),
 	}
 
 	apiHandler := NewAPIHandler(
 		querySvc,
+		tm,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {

@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -79,7 +80,7 @@ func TestConsumerDelegate(t *testing.T) {
 		t.Run(test.expectLog, func(t *testing.T) {
 			logger, logBuf := testutils.NewLogger()
 			spanProcessor := &mockSpanProcessor{expectedError: test.expectErr}
-			consumer := newConsumerDelegate(logger, spanProcessor)
+			consumer := newConsumerDelegate(logger, spanProcessor, &tenancy.TenancyManager{})
 
 			err := consumer.consume(context.Background(), makeTracesOneSpan())
 
@@ -106,7 +107,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 		return nil, errors.New("mock error")
 	}
 	f := otlpreceiver.NewFactory()
-	_, err = startOTLPReceiver(opts, logger, spanProcessor, f, newTraces, f.CreateTracesReceiver)
+	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.TenancyManager{}, f, newTraces, f.CreateTracesReceiver)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
@@ -115,7 +116,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	) (component.TracesReceiver, error) {
 		return nil, errors.New("mock error")
 	}
-	_, err = startOTLPReceiver(opts, logger, spanProcessor, f, consumer.NewTraces, createTracesReceiver)
+	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.TenancyManager{}, f, consumer.NewTraces, createTracesReceiver)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP receiver")
 }

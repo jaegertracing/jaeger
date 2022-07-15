@@ -62,9 +62,6 @@ type batchConsumer struct {
 }
 
 func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyMgr *tenancy.TenancyManager) batchConsumer {
-	if tenancyMgr == nil {
-		tenancyMgr = &tenancy.TenancyManager{}
-	}
 	return batchConsumer{
 		logger:        logger,
 		spanProcessor: spanProcessor,

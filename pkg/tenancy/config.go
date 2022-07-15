@@ -33,7 +33,7 @@ type Options struct {
 	Tenants []string
 }
 
-// NewTenancyManager creates a tenancy configuration for tenancy Options
+// NewTenancyManager creates a TenancyManager from tenancy Options
 func NewTenancyManager(options *Options) *TenancyManager {
 	// Default header value (although set by CLI flags, this helps tests and API users)
 	header := options.Header
