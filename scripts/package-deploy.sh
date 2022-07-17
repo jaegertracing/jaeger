@@ -46,6 +46,24 @@ function package {
     rm -rf $PACKAGE_STAGING_DIR
 }
 
+# package pulls built files for the platform ($1). If you pass in a file
+# extension ($2) it will be used on the binaries
+function package_zip {
+    local PLATFORM=$1
+    local FILE_EXTENSION=$2
+    # script start
+    local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM
+
+    mkdir $PACKAGE_STAGING_DIR
+
+    stage-platform-files $PLATFORM $PACKAGE_STAGING_DIR $FILE_EXTENSION
+
+    local ARCHIVE_NAME="$PACKAGE_STAGING_DIR.zip"
+    echo "Packaging into $ARCHIVE_NAME:"
+    zip -r ./deploy/$ARCHIVE_NAME $PACKAGE_STAGING_DIR
+    rm -rf $PACKAGE_STAGING_DIR
+}
+
 set -e
 
 DEPLOY_STAGING_DIR=./deploy-staging
@@ -60,7 +78,7 @@ mkdir $DEPLOY_STAGING_DIR
 package linux-amd64
 package darwin-amd64
 package darwin-arm64
-package windows-amd64 .exe
+package_zip windows-amd64 .exe
 package linux-s390x
 package linux-arm64
 package linux-ppc64le
