@@ -122,7 +122,7 @@ func (fd FromDomain) convertLogs(logs []model.Log) []Log {
 func (fd FromDomain) convertProcess(process *model.Process) Process {
 	tags, tagsMap := fd.convertKeyValuesString(process.GetTags())
 	return Process{
-		ServiceName: process.ServiceName,
+		ServiceName: process.GetServiceName(),
 		Tags:        tags,
 		Tag:         tagsMap,
 	}

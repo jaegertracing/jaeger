@@ -108,13 +108,18 @@ func TestTagMap(t *testing.T) {
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
 }
 
+<<<<<<< HEAD
 func TestConvertProcess(t *testing.T) {
+=======
+func TestNilProcess(t *testing.T) {
+>>>>>>> d21e22d0 (fix: check nil process to avoid nil pointer)
 	tags := []model.KeyValue{
 		model.String("foo", "foo"),
 		model.Bool("a", true),
 		model.Int64("b.b", 1),
 	}
 
+<<<<<<< HEAD
 	spanWithNilTags := model.Span{Tags: tags, Process: &model.Process{Tags: nil}}
 
 	converter := NewFromDomain(false, []string{}, ":")
@@ -126,6 +131,25 @@ func TestConvertProcess(t *testing.T) {
 	nilMap := map[string]interface{}(nil)
 	assert.Equal(t, nilMap, dbSpanWithNilTags.Tag)
 	assert.Equal(t, nilMap, dbSpanWithNilTags.Process.Tag)
+=======
+	spanWithNilProcessTags := model.Span{Tags: tags, Process: &model.Process{Tags: nil}}
+	spanWithNilProcess := model.Span{Tags: tags, Process: nil}
+
+	converter := NewFromDomain(false, nil, ":")
+	dbSpanWithNilTags := converter.FromDomainEmbedProcess(&spanWithNilProcessTags)
+	dbSpanWithNilProcess := converter.FromDomainEmbedProcess(&spanWithNilProcess)
+
+	assert.Equal(t, 3, len(dbSpanWithNilTags.Tags))
+	assert.Equal(t, 3, len(dbSpanWithNilProcess.Tags))
+	assert.Equal(t, 0, len(dbSpanWithNilTags.Process.Tags))
+	assert.Equal(t, 0, len(dbSpanWithNilProcess.Process.Tags))
+
+	tagsMap := map[string]interface{}(nil)
+	assert.Equal(t, tagsMap, dbSpanWithNilTags.Tag)
+	assert.Equal(t, tagsMap, dbSpanWithNilProcess.Tag)
+	assert.Equal(t, tagsMap, dbSpanWithNilTags.Process.Tag)
+	assert.Equal(t, tagsMap, dbSpanWithNilProcess.Process.Tag)
+>>>>>>> d21e22d0 (fix: check nil process to avoid nil pointer)
 }
 
 func TestConvertKeyValueValue(t *testing.T) {
