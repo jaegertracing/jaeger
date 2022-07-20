@@ -108,6 +108,32 @@ func TestTagMap(t *testing.T) {
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
 }
 
+func TestConvertProcess(t *testing.T) {
+	tags := []model.KeyValue{
+		model.String("foo", "foo"),
+		model.Bool("a", true),
+		model.Int64("b.b", 1),
+	}
+
+	spanWithNilTags := model.Span{Tags: tags, Process: &model.Process{Tags: nil}}
+	spanWithNilProcess := model.Span{Tags: tags, Process: nil}
+
+	converter := NewFromDomain(false, []string{}, ":")
+	dbSpanWithNilTags := converter.FromDomainEmbedProcess(&spanWithNilTags)
+	dbSpanWithNilProcess := converter.FromDomainEmbedProcess(&spanWithNilProcess)
+
+	assert.Equal(t, 3, len(dbSpanWithNilTags.Tags))
+	assert.Equal(t, 3, len(dbSpanWithNilProcess.Tags))
+	assert.Equal(t, 0, len(dbSpanWithNilTags.Process.Tags))
+	assert.Equal(t, 0, len(dbSpanWithNilProcess.Process.Tags))
+
+	tagsMap := map[string]interface{}(nil)
+	assert.Equal(t, tagsMap, dbSpanWithNilTags.Tag)
+	assert.Equal(t, tagsMap, dbSpanWithNilProcess.Tag)
+	assert.Equal(t, tagsMap, dbSpanWithNilTags.Process.Tag)
+	assert.Equal(t, tagsMap, dbSpanWithNilProcess.Process.Tag)
+}
+
 func TestConvertKeyValueValue(t *testing.T) {
 	longString := `Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
 	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
