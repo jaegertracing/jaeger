@@ -53,6 +53,7 @@ type Collector struct {
 	hCheck         *healthcheck.HealthCheck
 	spanProcessor  processor.SpanProcessor
 	spanHandlers   *SpanHandlers
+	tenancyMgr     *tenancy.TenancyManager
 
 	// state, read only
 	hServer                    *http.Server
@@ -73,6 +74,7 @@ type CollectorParams struct {
 	StrategyStore  strategystore.StrategyStore
 	Aggregator     strategystore.Aggregator
 	HealthCheck    *healthcheck.HealthCheck
+	TenancyMgr     *tenancy.TenancyManager
 }
 
 // New constructs a new collector component, ready to be started
@@ -85,6 +87,7 @@ func New(params *CollectorParams) *Collector {
 		strategyStore:  params.StrategyStore,
 		aggregator:     params.Aggregator,
 		hCheck:         params.HealthCheck,
+		tenancyMgr:     params.TenancyMgr,
 	}
 }
 
@@ -95,7 +98,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		CollectorOpts:  options,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
-		TenancyMgr:     tenancy.NewTenancyManager(&options.GRPC.Tenancy),
+		TenancyMgr:     c.tenancyMgr,
 	}
 
 	var additionalProcessors []ProcessSpan
@@ -154,7 +157,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	c.zkServer = zkServer
 
 	if options.OTLP.Enabled {
-		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor)
+		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
 		if err != nil {
 			return fmt.Errorf("could not start OTLP receiver: %w", err)
 		}

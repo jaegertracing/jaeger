@@ -156,6 +156,8 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
 
+			tm := tenancy.NewTenancyManager(&cOpts.GRPC.Tenancy)
+
 			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{
 				ServiceName:    "jaeger-collector",
@@ -165,6 +167,7 @@ by default uses only in-memory database.`,
 				StrategyStore:  strategyStore,
 				Aggregator:     aggregator,
 				HealthCheck:    svc.HC(),
+				TenancyMgr:     tm,
 			})
 			if err := c.Start(cOpts); err != nil {
 				log.Fatal(err)
@@ -193,7 +196,7 @@ by default uses only in-memory database.`,
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				metricsFactory,
+				metricsFactory, tm,
 			)
 
 			svc.RunAndThen(func() {
@@ -266,10 +269,10 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
+	tm *tenancy.TenancyManager,
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	tm := tenancy.NewTenancyManager(&qOpts.Tenancy)
 	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, opentracing.GlobalTracer())
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))

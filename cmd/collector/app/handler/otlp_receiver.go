@@ -40,13 +40,13 @@ import (
 var _ component.Host = (*otelHost)(nil) // API check
 
 // StartOTLPReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
-func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor) (component.TracesReceiver, error) {
+func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.TenancyManager) (component.TracesReceiver, error) {
 	otlpFactory := otlpreceiver.NewFactory()
 	return startOTLPReceiver(
 		options,
 		logger,
 		spanProcessor,
-		tenancy.NewTenancyManager(&options.GRPC.Tenancy),
+		tm,
 		otlpFactory,
 		consumer.NewTraces,
 		otlpFactory.CreateTracesReceiver,

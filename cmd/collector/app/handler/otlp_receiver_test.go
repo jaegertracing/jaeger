@@ -49,7 +49,8 @@ func optionsWithPorts(port string) *flags.CollectorOptions {
 func TestStartOtlpReceiver(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
-	rec, err := StartOTLPReceiver(optionsWithPorts(":0"), logger, spanProcessor)
+	tm := &tenancy.TenancyManager{}
+	rec, err := StartOTLPReceiver(optionsWithPorts(":0"), logger, spanProcessor, tm)
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, rec.Shutdown(context.Background()))
@@ -99,7 +100,8 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
 	opts := optionsWithPorts(":-1")
-	_, err := StartOTLPReceiver(opts, logger, spanProcessor)
+	tm := &tenancy.TenancyManager{}
+	_, err := StartOTLPReceiver(opts, logger, spanProcessor, tm)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not start the OTLP receiver")
 
