@@ -39,6 +39,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
@@ -64,7 +65,7 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
+func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.TenancyManager, tracer opentracing.Tracer) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
 		return nil, err
@@ -78,12 +79,12 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, logger, tracer)
+	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, logger, tracer)
 	if err != nil {
 		return nil, err
 	}
 
-	httpServer, closeGRPCGateway, err := createHTTPServer(querySvc, metricsQuerySvc, options, tracer, logger)
+	httpServer, closeGRPCGateway, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, tracer, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +107,7 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 	return s.unavailableChannel
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
+func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.TenancyManager, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.TLSGRPC.Enabled {
@@ -118,6 +119,12 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		creds := credentials.NewTLS(tlsCfg)
 
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+	if tm.Enabled {
+		grpcOpts = append(grpcOpts,
+			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
+			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+		)
 	}
 
 	server := grpc.NewServer(grpcOpts...)
@@ -144,7 +151,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	return server, nil
 }
 
-func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, context.CancelFunc, error) {
+func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, queryOpts *QueryOptions, tm *tenancy.TenancyManager, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, context.CancelFunc, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
@@ -153,6 +160,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 	apiHandler := NewAPIHandler(
 		querySvc,
+		tm,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -160,7 +168,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	}
 
 	ctx, closeGRPCGateway := context.WithCancel(context.Background())
-	if err := apiv3.RegisterGRPCGateway(ctx, logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, queryOpts.TLSGRPC); err != nil {
+	if err := apiv3.RegisterGRPCGateway(ctx, logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, queryOpts.TLSGRPC, tm); err != nil {
 		closeGRPCGateway()
 		return nil, nil, err
 	}

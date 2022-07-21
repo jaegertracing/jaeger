@@ -34,8 +34,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -184,7 +184,7 @@ func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error 
 		n.tenants = make(map[string]bool)
 	}
 
-	n.tenants[storage.GetTenant(ctx)] = true
+	n.tenants[tenancy.GetTenant(ctx)] = true
 
 	return n.err
 }

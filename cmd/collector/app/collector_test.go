@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
@@ -53,6 +54,7 @@ func TestNewCollector(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
+	tm := &tenancy.TenancyManager{}
 
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
@@ -61,6 +63,7 @@ func TestNewCollector(t *testing.T) {
 		SpanWriter:     spanWriter,
 		StrategyStore:  strategyStore,
 		HealthCheck:    hc,
+		TenancyMgr:     tm,
 	})
 
 	collectorOpts := optionsForEphemeralPorts()
@@ -77,6 +80,7 @@ func TestCollector_StartErrors(t *testing.T) {
 			baseMetrics := metricstest.NewFactory(time.Hour)
 			spanWriter := &fakeSpanWriter{}
 			strategyStore := &mockStrategyStore{}
+			tm := &tenancy.TenancyManager{}
 
 			c := New(&CollectorParams{
 				ServiceName:    "collector",
@@ -85,6 +89,7 @@ func TestCollector_StartErrors(t *testing.T) {
 				SpanWriter:     spanWriter,
 				StrategyStore:  strategyStore,
 				HealthCheck:    hc,
+				TenancyMgr:     tm,
 			})
 			err := c.Start(options)
 			require.Error(t, err)
@@ -130,6 +135,7 @@ func TestCollector_PublishOpts(t *testing.T) {
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
+	tm := &tenancy.TenancyManager{}
 
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
@@ -138,6 +144,7 @@ func TestCollector_PublishOpts(t *testing.T) {
 		SpanWriter:     spanWriter,
 		StrategyStore:  strategyStore,
 		HealthCheck:    hc,
+		TenancyMgr:     tm,
 	})
 	collectorOpts := optionsForEphemeralPorts()
 	collectorOpts.NumWorkers = 24
@@ -164,6 +171,7 @@ func TestAggregator(t *testing.T) {
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 	agg := &mockAggregator{}
+	tm := &tenancy.TenancyManager{}
 
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
@@ -173,6 +181,7 @@ func TestAggregator(t *testing.T) {
 		StrategyStore:  strategyStore,
 		HealthCheck:    hc,
 		Aggregator:     agg,
+		TenancyMgr:     tm,
 	})
 	collectorOpts := optionsForEphemeralPorts()
 	collectorOpts.NumWorkers = 10

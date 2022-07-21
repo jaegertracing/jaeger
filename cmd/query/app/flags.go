@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -79,6 +80,8 @@ type QueryOptions struct {
 	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
 	MaxClockSkewAdjust time.Duration
+	// Tenancy configures tenancy for query
+	Tenancy tenancy.Options
 }
 
 // AddFlags adds flags for QueryOptions
@@ -121,6 +124,11 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 		logger.Error("Failed to parse headers", zap.Strings("slice", stringSlice), zap.Error(err))
 	} else {
 		qOpts.AdditionalHeaders = headers
+	}
+	if tenancy, err := tenancy.InitFromViper(v); err == nil {
+		qOpts.Tenancy = tenancy
+	} else {
+		return qOpts, fmt.Errorf("failed to parse Tenancy options: %w", err)
 	}
 	return qOpts, nil
 }

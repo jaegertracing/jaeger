@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -124,7 +125,8 @@ func main() {
 				spanReader,
 				dependencyReader,
 				*queryServiceOptions)
-			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tracer)
+			tm := tenancy.NewTenancyManager(&queryOpts.Tenancy)
+			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, tracer)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
