@@ -26,6 +26,7 @@ import (
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
@@ -41,6 +42,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	builder := &SpanHandlerBuilder{
 		SpanWriter:    spanWriter,
 		CollectorOpts: cOpts,
+		TenancyMgr:    &tenancy.TenancyManager{},
 	}
 	assert.NotNil(t, builder.logger())
 	assert.NotNil(t, builder.metricsFactory())
@@ -50,6 +52,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 		CollectorOpts:  cOpts,
 		Logger:         zap.NewNop(),
 		MetricsFactory: metrics.NullFactory,
+		TenancyMgr:     &tenancy.TenancyManager{},
 	}
 
 	spanProcessor := builder.BuildSpanProcessor()

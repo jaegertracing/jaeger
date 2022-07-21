@@ -25,8 +25,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -36,6 +36,7 @@ type SpanHandlerBuilder struct {
 	CollectorOpts  *flags.CollectorOptions
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
+	TenancyMgr     *tenancy.TenancyManager
 }
 
 // SpanHandlers holds instances to the span handlers built by the SpanHandlerBuilder
@@ -76,7 +77,7 @@ func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor
 			zs.NewChainedSanitizer(zs.NewStandardSanitizers()...),
 		),
 		handler.NewJaegerSpanHandler(b.Logger, spanProcessor),
-		handler.NewGRPCHandler(b.Logger, spanProcessor, tenancy.NewTenancyConfig(&b.CollectorOpts.GRPC.Tenancy)),
+		handler.NewGRPCHandler(b.Logger, spanProcessor, b.TenancyMgr),
 	}
 }
 
