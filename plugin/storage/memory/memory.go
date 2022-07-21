@@ -74,7 +74,6 @@ func NewTenant(configuration config.Configuration) *Tenant {
 
 // GetTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
 func (st *Store) GetTenant(tenantID string) *Tenant {
-
 	tenant, ok := st.perTenant[tenantID]
 	if !ok {
 		// We do the lookup twice to skip locking on retrieval of existing tenant
