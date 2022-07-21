@@ -24,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -46,6 +47,32 @@ var testingSpan = &model.Span{
 			Timestamp: time.Now().UTC(),
 			Fields: []model.KeyValue{
 				model.String("logKey", "logValue"),
+			},
+		},
+	},
+	Duration:  time.Second * 5,
+	StartTime: time.Unix(300, 0).UTC(),
+}
+
+var traceID2 = model.NewTraceID(2, 3)
+
+var testingSpan2 = &model.Span{
+	TraceID: traceID2,
+	SpanID:  model.NewSpanID(1),
+	Process: &model.Process{
+		ServiceName: "serviceName2",
+		Tags:        []model.KeyValue(nil),
+	},
+	OperationName: "operationName2",
+	Tags: model.KeyValues{
+		model.String("tagKey", "tagValue2"),
+		model.String("span.kind", "client2"),
+	},
+	Logs: []model.Log{
+		{
+			Timestamp: time.Now().UTC(),
+			Fields: []model.KeyValue{
+				model.String("logKey", "logValue2"),
 			},
 		},
 	},
@@ -206,8 +233,8 @@ func TestStoreWithLimit(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, maxTraces, len(store.traces))
-	assert.Equal(t, maxTraces, len(store.ids))
+	assert.Equal(t, maxTraces, len(store.GetTenant("").traces))
+	assert.Equal(t, maxTraces, len(store.GetTenant("").ids))
 }
 
 func TestStoreGetTraceSuccess(t *testing.T) {
@@ -239,7 +266,7 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 
 func TestStoreGetTraceError(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		store.traces[testingSpan.TraceID] = &model.Trace{
+		store.GetTenant("").traces[testingSpan.TraceID] = &model.Trace{
 			Spans: []*model.Span{nonSerializableSpan},
 		}
 		_, err := store.GetTrace(context.Background(), testingSpan.TraceID)
@@ -461,5 +488,53 @@ func TestStore_FindTraceIDs(t *testing.T) {
 		traceIDs, err := store.FindTraceIDs(context.Background(), nil)
 		assert.Nil(t, traceIDs)
 		assert.EqualError(t, err, "not implemented")
+	})
+}
+
+func TestTenantStore(t *testing.T) {
+	withMemoryStore(func(store *Store) {
+		ctxAcme := tenancy.WithTenant(context.Background(), "acme")
+		ctxWonka := tenancy.WithTenant(context.Background(), "wonka")
+
+		assert.NoError(t, store.WriteSpan(ctxAcme, testingSpan))
+		assert.NoError(t, store.WriteSpan(ctxWonka, testingSpan2))
+
+		// Can we retrieve the spans with correct tenancy
+		trace1, err := store.GetTrace(ctxAcme, testingSpan.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace1.Spans, 1)
+		assert.Equal(t, testingSpan, trace1.Spans[0])
+
+		trace2, err := store.GetTrace(ctxWonka, testingSpan2.TraceID)
+		assert.NoError(t, err)
+		assert.Len(t, trace2.Spans, 1)
+		assert.Equal(t, testingSpan2, trace2.Spans[0])
+
+		// Can we query the spans with correct tenancy
+		traces1, err := store.FindTraces(ctxAcme, &spanstore.TraceQueryParameters{
+			ServiceName: "serviceName",
+		})
+		assert.NoError(t, err)
+		assert.Len(t, traces1, 1)
+		assert.Len(t, traces1[0].Spans, 1)
+		assert.Equal(t, testingSpan, traces1[0].Spans[0])
+
+		traces2, err := store.FindTraces(ctxWonka, &spanstore.TraceQueryParameters{
+			ServiceName: "serviceName2",
+		})
+		assert.NoError(t, err)
+		assert.Len(t, traces2, 1)
+		assert.Len(t, traces2[0].Spans, 1)
+		assert.Equal(t, testingSpan2, traces2[0].Spans[0])
+
+		// Do the spans fail with incorrect tenancy?
+		_, err = store.GetTrace(ctxAcme, testingSpan2.TraceID)
+		assert.Error(t, err)
+
+		_, err = store.GetTrace(ctxWonka, testingSpan.TraceID)
+		assert.Error(t, err)
+
+		_, err = store.GetTrace(context.Background(), testingSpan.TraceID)
+		assert.Error(t, err)
 	})
 }
