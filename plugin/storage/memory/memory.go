@@ -78,11 +78,11 @@ func (st *Store) GetTenant(tenantID string) *Tenant {
 	if !ok {
 		// We do the lookup twice to skip locking on retrieval of existing tenant
 		st.Lock()
+		defer st.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
 			tenant = NewTenant(st.config)
 			st.perTenant[tenantID] = tenant
-			defer st.Unlock()
 		}
 	}
 	return tenant
