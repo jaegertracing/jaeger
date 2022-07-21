@@ -36,6 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -98,6 +99,12 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 			}
+			collectorOpts, err := new(flags.CollectorOptions).InitFromViper(v, logger)
+			if err != nil {
+				logger.Fatal("Failed to initialize collector", zap.Error(err))
+			}
+			tm := tenancy.NewTenancyManager(&collectorOpts.GRPC.Tenancy)
+
 			collector := app.New(&app.CollectorParams{
 				ServiceName:    serviceName,
 				Logger:         logger,
@@ -106,11 +113,8 @@ func main() {
 				StrategyStore:  strategyStore,
 				Aggregator:     aggregator,
 				HealthCheck:    svc.HC(),
+				TenancyMgr:     tm,
 			})
-			collectorOpts, err := new(flags.CollectorOptions).InitFromViper(v, logger)
-			if err != nil {
-				logger.Fatal("Failed to initialize collector", zap.Error(err))
-			}
 			// Start all Collector services
 			if err := collector.Start(collectorOpts); err != nil {
 				logger.Fatal("Failed to start collector", zap.Error(err))
