@@ -46,12 +46,13 @@ type Tenant struct {
 	services   map[string]struct{}
 	operations map[string]map[spanstore.Operation]struct{}
 	deduper    adjuster.Adjuster
+	config     config.PerTenantConfiguration
 	index      int
 }
 
 // NewStore creates an unbounded in-memory store
 func NewStore() *Store {
-	return WithConfiguration(config.Configuration{MaxTraces: 0})
+	return WithConfiguration(config.Configuration{DefaultMaxTraces: 0})
 }
 
 // WithConfiguration creates a new in memory storage based on the given configuration
@@ -62,18 +63,19 @@ func WithConfiguration(configuration config.Configuration) *Store {
 	}
 }
 
-func NewTenant(configuration config.Configuration) *Tenant {
+func NewTenant(configuration config.PerTenantConfiguration) *Tenant {
 	return &Tenant{
 		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[spanstore.Operation]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
+		config:     configuration,
 	}
 }
 
-// GetTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
-func (st *Store) GetTenant(tenantID string) *Tenant {
+// getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
+func (st *Store) getTenant(tenantID string) *Tenant {
 	tenant, ok := st.perTenant[tenantID]
 	if !ok {
 		// We do the lookup twice to skip locking on retrieval of existing tenant
@@ -81,16 +83,23 @@ func (st *Store) GetTenant(tenantID string) *Tenant {
 		defer st.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
-			tenant = NewTenant(st.config)
+			tenant = NewTenant(tenantConfig(tenantID, st.config))
 			st.perTenant[tenantID] = tenant
 		}
 	}
 	return tenant
 }
 
+func tenantConfig(tenant string, c config.Configuration) config.PerTenantConfiguration {
+	// Every tenant gets the default
+	return config.PerTenantConfiguration{
+		MaxTraces: c.DefaultMaxTraces,
+	}
+}
+
 // GetDependencies returns dependencies between services
 func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	m := st.GetTenant(tenancy.GetTenant(ctx))
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
 	defer m.Unlock()
@@ -147,7 +156,7 @@ func traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model.Trace) boo
 
 // WriteSpan writes the given span
 func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
-	m := st.GetTenant(tenancy.GetTenant(ctx))
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
@@ -169,9 +178,9 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 		m.traces[span.TraceID] = &model.Trace{}
 
 		// if we have a limit, let's cleanup the oldest traces
-		if st.config.MaxTraces > 0 {
+		if m.config.MaxTraces > 0 {
 			// we only have to deal with this slice if we have a limit
-			m.index = (m.index + 1) % st.config.MaxTraces
+			m.index = (m.index + 1) % m.config.MaxTraces
 
 			// do we have an item already on this position? if so, we are overriding it,
 			// and we need to remove from the map
@@ -191,7 +200,7 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 
 // GetTrace gets a trace
 func (st *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	m := st.GetTenant(tenancy.GetTenant(ctx))
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	trace, ok := m.traces[traceID]
@@ -215,7 +224,7 @@ func copyTrace(trace *model.Trace) (*model.Trace, error) {
 
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
-	m := st.GetTenant(tenancy.GetTenant(ctx))
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []string
@@ -230,7 +239,7 @@ func (st *Store) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	m := st.GetTenant(tenancy.GetTenant(ctx))
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []spanstore.Operation
@@ -246,7 +255,7 @@ func (st *Store) GetOperations(
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
 func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	m := st.GetTenant(tenancy.GetTenant(ctx))
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []*model.Trace

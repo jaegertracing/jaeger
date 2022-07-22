@@ -28,5 +28,5 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts := Options{}
 	opts.InitFromViper(v)
 
-	assert.Equal(t, 100, opts.Configuration.MaxTraces)
+	assert.Equal(t, 100, opts.Configuration.DefaultMaxTraces)
 }

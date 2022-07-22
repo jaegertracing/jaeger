@@ -16,5 +16,10 @@ package config
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
+	DefaultMaxTraces int `yaml:"max-traces" mapstructure:"max_traces"`
+}
+
+// PerTenantConfiguration describes the options to customize the storage behavior of a single tenant
+type PerTenantConfiguration struct {
 	MaxTraces int `yaml:"max-traces" mapstructure:"max_traces"`
 }

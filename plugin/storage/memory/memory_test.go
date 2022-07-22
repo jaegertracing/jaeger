@@ -210,7 +210,7 @@ func TestStoreWriteSpan(t *testing.T) {
 
 func TestStoreWithLimit(t *testing.T) {
 	maxTraces := 100
-	store := WithConfiguration(config.Configuration{MaxTraces: maxTraces})
+	store := WithConfiguration(config.Configuration{DefaultMaxTraces: maxTraces})
 
 	for i := 0; i < maxTraces*2; i++ {
 		id := model.NewTraceID(1, uint64(i))
@@ -233,8 +233,8 @@ func TestStoreWithLimit(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, maxTraces, len(store.GetTenant("").traces))
-	assert.Equal(t, maxTraces, len(store.GetTenant("").ids))
+	assert.Equal(t, maxTraces, len(store.getTenant("").traces))
+	assert.Equal(t, maxTraces, len(store.getTenant("").ids))
 }
 
 func TestStoreGetTraceSuccess(t *testing.T) {
@@ -266,7 +266,7 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 
 func TestStoreGetTraceError(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		store.GetTenant("").traces[testingSpan.TraceID] = &model.Trace{
+		store.getTenant("").traces[testingSpan.TraceID] = &model.Trace{
 			Spans: []*model.Span{nonSerializableSpan},
 		}
 		_, err := store.GetTrace(context.Background(), testingSpan.TraceID)

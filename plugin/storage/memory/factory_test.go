@@ -57,7 +57,7 @@ func TestWithConfiguration(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, f.options.Configuration.MaxTraces, 100)
+	assert.Equal(t, f.options.Configuration.DefaultMaxTraces, 100)
 }
 
 func TestInitFromOptions(t *testing.T) {
@@ -80,6 +80,6 @@ func TestPublishOpts(t *testing.T) {
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "internal." + limit,
-		Value: f.options.Configuration.MaxTraces,
+		Value: f.options.Configuration.DefaultMaxTraces,
 	})
 }

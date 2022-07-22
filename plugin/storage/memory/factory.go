@@ -97,5 +97,5 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 func (f *Factory) publishOpts() {
 	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
 	internalFactory.Gauge(metrics.Options{Name: limit}).
-		Update(int64(f.options.Configuration.MaxTraces))
+		Update(int64(f.options.Configuration.DefaultMaxTraces))
 }
