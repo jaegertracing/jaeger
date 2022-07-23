@@ -34,8 +34,10 @@ import (
 // Store is an in-memory store of traces
 type Store struct {
 	sync.RWMutex
-	config    config.Configuration
-	perTenant map[string]*Tenant
+	// Each tenant gets a copy of default config.
+	// In the future this can be extended to contain per-tenant configuration.
+	defaultConfig config.Configuration
+	perTenant     map[string]*Tenant
 }
 
 // Tenant is an in-memory store of traces for a single tenant
@@ -46,55 +48,49 @@ type Tenant struct {
 	services   map[string]struct{}
 	operations map[string]map[spanstore.Operation]struct{}
 	deduper    adjuster.Adjuster
-	config     config.PerTenantConfiguration
+	config     config.Configuration
 	index      int
 }
 
 // NewStore creates an unbounded in-memory store
 func NewStore() *Store {
-	return WithConfiguration(config.Configuration{DefaultMaxTraces: 0})
+	return WithConfiguration(config.Configuration{MaxTraces: 0})
 }
 
 // WithConfiguration creates a new in memory storage based on the given configuration
 func WithConfiguration(configuration config.Configuration) *Store {
 	return &Store{
-		config:    configuration,
-		perTenant: make(map[string]*Tenant),
+		defaultConfig: configuration,
+		perTenant:     make(map[string]*Tenant),
 	}
 }
 
-func NewTenant(configuration config.PerTenantConfiguration) *Tenant {
+func (st *Store) newTenant() *Tenant {
 	return &Tenant{
-		ids:        make([]*model.TraceID, configuration.MaxTraces),
+		ids:        make([]*model.TraceID, st.defaultConfig.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[spanstore.Operation]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
-		config:     configuration,
+		config:     st.defaultConfig,
 	}
 }
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
 func (st *Store) getTenant(tenantID string) *Tenant {
+	st.RLock()
 	tenant, ok := st.perTenant[tenantID]
+	st.RUnlock()
 	if !ok {
-		// We do the lookup twice to skip locking on retrieval of existing tenant
 		st.Lock()
 		defer st.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
-			tenant = NewTenant(tenantConfig(tenantID, st.config))
+			tenant = st.newTenant()
 			st.perTenant[tenantID] = tenant
 		}
 	}
 	return tenant
-}
-
-func tenantConfig(tenant string, c config.Configuration) config.PerTenantConfiguration {
-	// Every tenant gets the default
-	return config.PerTenantConfiguration{
-		MaxTraces: c.DefaultMaxTraces,
-	}
 }
 
 // GetDependencies returns dependencies between services

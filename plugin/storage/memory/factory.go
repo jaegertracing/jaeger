@@ -63,7 +63,7 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
-	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.config))
+	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.defaultConfig))
 	f.publishOpts()
 
 	return nil
@@ -97,5 +97,5 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 func (f *Factory) publishOpts() {
 	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
 	internalFactory.Gauge(metrics.Options{Name: limit}).
-		Update(int64(f.options.Configuration.DefaultMaxTraces))
+		Update(int64(f.options.Configuration.MaxTraces))
 }

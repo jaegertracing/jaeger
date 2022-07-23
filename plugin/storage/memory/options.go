@@ -36,5 +36,5 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes the options struct with values from Viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.Configuration.DefaultMaxTraces = v.GetInt(limit)
+	opt.Configuration.MaxTraces = v.GetInt(limit)
 }
