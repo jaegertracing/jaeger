@@ -74,11 +74,11 @@ func (m *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback t
 				// this finds unmanged peers of the service. So this are all external dependcies
 				peer := m.findPeer(s)
 				if peer != nil {
-					depKey := s.Process.ServiceName + "&&&" + peer.VStr
+					depKey := s.Process.ServiceName + "&&&" + *peer.GetNodeName()
 					if _, ok := deps[depKey]; !ok {
 						deps[depKey] = &model.DependencyLink{
 							Parent:    s.Process.ServiceName,
-							Child:     peer.VStr,
+							Child:     *peer.GetNodeName(),
 							CallCount: 1,
 						}
 					} else {
@@ -120,14 +120,65 @@ func (m *Store) findSpan(trace *model.Trace, spanID model.SpanID) *model.Span {
 	return nil
 }
 
-// Finds external unmanged peers of the span, with the help of the tag `peer.service`
-func (m *Store) findPeer(span *model.Span) *model.KeyValue {
-	for _, t := range span.Tags {
-		if t.Key == "peer.service" {
-			return &t
-		}
+// a struct that represents a peer that is unkown
+type Peer struct {
+	Ip          string
+	Port        string
+	Name        string
+	ServiceName string
+}
+
+//Returns if the peer object is nil
+func (m *Peer) IsNull() bool {
+	// this ignors the property Port, because only the port doesn't matter
+	return len(m.Ip) == 0 && len(m.Name) == 0 && len(m.ServiceName) == 0
+}
+
+func (m *Peer) GetNodeName() *string {
+	if m.IsNull() {
+		return nil
+	}
+	if len(m.ServiceName) > 0 {
+		return &m.ServiceName
+	}
+	if len(m.Name) > 0 && len(m.Port) > 0 {
+		result := m.Name + ":" + m.Port
+		return &result
+	}
+	if len(m.Ip) > 0 && len(m.Port) > 0 {
+		result := m.Ip + ":" + m.Port
+		return &result
+	}
+	if len(m.Name) > 0 {
+		return &m.Name
+	}
+	if len(m.Ip) > 0 {
+		return &m.Ip
 	}
 	return nil
+}
+
+// Finds external unmanged peers of the span, with the help of the tag `peer.service`
+func (m *Store) findPeer(span *model.Span) *Peer {
+	var peer Peer
+
+	for _, t := range span.Tags {
+		switch t.Key {
+		case "peer.service":
+			peer.ServiceName = t.GetVStr()
+		case "net.peer.ip":
+			peer.Ip = t.GetVStr()
+		case "net.peer.port":
+			peer.Port = t.GetVStr()
+		case "net.peer.name":
+			peer.Name = t.GetVStr()
+		default:
+		}
+	}
+	if peer.IsNull() {
+		return nil
+	}
+	return &peer
 }
 
 func (m *Store) traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model.Trace) bool {
