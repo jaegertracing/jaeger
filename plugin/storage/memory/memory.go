@@ -65,14 +65,14 @@ func WithConfiguration(configuration config.Configuration) *Store {
 	}
 }
 
-func (st *Store) newTenant() *Tenant {
+func newTenant(cfg config.Configuration) *Tenant {
 	return &Tenant{
-		ids:        make([]*model.TraceID, st.defaultConfig.MaxTraces),
+		ids:        make([]*model.TraceID, cfg.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[spanstore.Operation]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
-		config:     st.defaultConfig,
+		config:     cfg,
 	}
 }
 
@@ -86,7 +86,7 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 		defer st.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
-			tenant = st.newTenant()
+			tenant = newTenant(st.defaultConfig)
 			st.perTenant[tenantID] = tenant
 		}
 	}
@@ -331,7 +331,8 @@ func validSpan(span *model.Span, query *spanstore.TraceQueryParameters) bool {
 }
 
 func flattenTags(span *model.Span) model.KeyValues {
-	retMe := span.Tags
+	retMe := []model.KeyValue{}
+	retMe = append(retMe, span.Tags...)
 	retMe = append(retMe, span.Process.Tags...)
 	for _, l := range span.Logs {
 		retMe = append(retMe, l.Fields...)

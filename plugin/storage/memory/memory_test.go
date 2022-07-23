@@ -28,57 +28,15 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var traceID = model.NewTraceID(1, 2)
+var (
+	traceID     = model.NewTraceID(1, 2)
+	testingSpan = makeTestingSpan(traceID, "")
+)
 
-var testingSpan = &model.Span{
-	TraceID: traceID,
-	SpanID:  model.NewSpanID(1),
-	Process: &model.Process{
-		ServiceName: "serviceName",
-		Tags:        []model.KeyValue(nil),
-	},
-	OperationName: "operationName",
-	Tags: model.KeyValues{
-		model.String("tagKey", "tagValue"),
-		model.String("span.kind", "client"),
-	},
-	Logs: []model.Log{
-		{
-			Timestamp: time.Now().UTC(),
-			Fields: []model.KeyValue{
-				model.String("logKey", "logValue"),
-			},
-		},
-	},
-	Duration:  time.Second * 5,
-	StartTime: time.Unix(300, 0).UTC(),
-}
-
-var traceID2 = model.NewTraceID(2, 3)
-
-var testingSpan2 = &model.Span{
-	TraceID: traceID2,
-	SpanID:  model.NewSpanID(1),
-	Process: &model.Process{
-		ServiceName: "serviceName2",
-		Tags:        []model.KeyValue(nil),
-	},
-	OperationName: "operationName2",
-	Tags: model.KeyValues{
-		model.String("tagKey", "tagValue2"),
-		model.String("span.kind", "client2"),
-	},
-	Logs: []model.Log{
-		{
-			Timestamp: time.Now().UTC(),
-			Fields: []model.KeyValue{
-				model.String("logKey", "logValue2"),
-			},
-		},
-	},
-	Duration:  time.Second * 5,
-	StartTime: time.Unix(300, 0).UTC(),
-}
+var (
+	traceID2     = model.NewTraceID(2, 3)
+	testingSpan2 = makeTestingSpan(traceID2, "2")
+)
 
 var childSpan1 = &model.Span{
 	TraceID:    traceID,
@@ -174,6 +132,7 @@ func withMemoryStore(f func(store *Store)) {
 }
 
 func TestStoreGetEmptyDependencies(t *testing.T) {
+	// assert.Equal(t, testingSpan, testingSpan1B) // @@@
 	withMemoryStore(func(store *Store) {
 		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
@@ -537,4 +496,30 @@ func TestTenantStore(t *testing.T) {
 		_, err = store.GetTrace(context.Background(), testingSpan.TraceID)
 		assert.Error(t, err)
 	})
+}
+
+func makeTestingSpan(traceID model.TraceID, suffix string) *model.Span {
+	return &model.Span{
+		TraceID: traceID,
+		SpanID:  model.NewSpanID(1),
+		Process: &model.Process{
+			ServiceName: "serviceName" + suffix,
+			Tags:        []model.KeyValue(nil),
+		},
+		OperationName: "operationName" + suffix,
+		Tags: model.KeyValues{
+			model.String("tagKey", "tagValue"+suffix),
+			model.String("span.kind", "client"+suffix),
+		},
+		Logs: []model.Log{
+			{
+				Timestamp: time.Now().UTC(),
+				Fields: []model.KeyValue{
+					model.String("logKey", "logValue"+suffix),
+				},
+			},
+		},
+		Duration:  time.Second * 5,
+		StartTime: time.Unix(300, 0).UTC(),
+	}
 }
