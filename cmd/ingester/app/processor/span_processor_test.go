@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/model"
 	umocks "github.com/jaegertracing/jaeger/pkg/kafka/mocks"
@@ -35,9 +36,11 @@ func TestNewSpanProcessor(t *testing.T) {
 func TestSpanProcessor_Process(t *testing.T) {
 	writer := &smocks.Writer{}
 	unmarshallerMock := &umocks.Unmarshaller{}
+	sanitizer := sanitizer.NewChainedSanitizer()
 	processor := &KafkaSpanProcessor{
 		unmarshaller: unmarshallerMock,
 		writer:       writer,
+		sanitizer:    sanitizer,
 	}
 
 	message := &cmocks.Message{}

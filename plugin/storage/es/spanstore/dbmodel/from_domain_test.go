@@ -116,22 +116,16 @@ func TestConvertProcess(t *testing.T) {
 	}
 
 	spanWithNilTags := model.Span{Tags: tags, Process: &model.Process{Tags: nil}}
-	spanWithNilProcess := model.Span{Tags: tags, Process: nil}
 
 	converter := NewFromDomain(false, []string{}, ":")
 	dbSpanWithNilTags := converter.FromDomainEmbedProcess(&spanWithNilTags)
-	dbSpanWithNilProcess := converter.FromDomainEmbedProcess(&spanWithNilProcess)
 
-	assert.Equal(t, 3, len(dbSpanWithNilTags.Tags))
-	assert.Equal(t, 3, len(dbSpanWithNilProcess.Tags))
-	assert.Equal(t, 0, len(dbSpanWithNilTags.Process.Tags))
-	assert.Equal(t, 0, len(dbSpanWithNilProcess.Process.Tags))
+	assert.Len(t, dbSpanWithNilTags.Tags, 3)
+	assert.Len(t, dbSpanWithNilTags.Process.Tags, 0)
 
-	tagsMap := map[string]interface{}(nil)
-	assert.Equal(t, tagsMap, dbSpanWithNilTags.Tag)
-	assert.Equal(t, tagsMap, dbSpanWithNilProcess.Tag)
-	assert.Equal(t, tagsMap, dbSpanWithNilTags.Process.Tag)
-	assert.Equal(t, tagsMap, dbSpanWithNilProcess.Process.Tag)
+	nilMap := map[string]interface{}(nil)
+	assert.Equal(t, nilMap, dbSpanWithNilTags.Tag)
+	assert.Equal(t, nilMap, dbSpanWithNilTags.Process.Tag)
 }
 
 func TestConvertKeyValueValue(t *testing.T) {

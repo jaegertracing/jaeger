@@ -20,6 +20,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
@@ -47,6 +48,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	spParams := processor.SpanProcessorParams{
 		Writer:       spanWriter,
 		Unmarshaller: unmarshaller,
+		Sanitizers:   sanitizer.NewStandardSanitizers(),
 	}
 	spanProcessor := processor.NewSpanProcessor(spParams)
 
