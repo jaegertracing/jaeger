@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/model"
@@ -33,25 +34,32 @@ func TestNewSpanProcessor(t *testing.T) {
 }
 
 func TestSpanProcessor_Process(t *testing.T) {
-	writer := &smocks.Writer{}
-	unmarshallerMock := &umocks.Unmarshaller{}
-	processor := &KafkaSpanProcessor{
-		unmarshaller: unmarshallerMock,
-		writer:       writer,
-	}
+	mockUnmarshaller := &umocks.Unmarshaller{}
+	mockWriter := &smocks.Writer{}
+	processor := NewSpanProcessor(SpanProcessorParams{
+		Unmarshaller: mockUnmarshaller,
+		Writer:       mockWriter,
+	})
 
 	message := &cmocks.Message{}
-	data := []byte("police")
-	span := &model.Span{}
+	data := []byte("irrelevant, mock unmarshaller should return the span")
+	span := &model.Span{
+		Process: nil, // we want to make sure sanitizers will fix this data issue.
+	}
 
 	message.On("Value").Return(data)
-	unmarshallerMock.On("Unmarshal", data).Return(span, nil)
-	writer.On("WriteSpan", context.Background(), span).Return(nil)
+	mockUnmarshaller.On("Unmarshal", data).Return(span, nil)
+	mockWriter.On("WriteSpan", context.Background(), span).
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			span := args[1].(*model.Span)
+			assert.NotNil(t, span.Process, "sanitizer must fix Process=nil data issue")
+		})
 
 	assert.Nil(t, processor.Process(message))
 
 	message.AssertExpectations(t)
-	writer.AssertExpectations(t)
+	mockWriter.AssertExpectations(t)
 }
 
 func TestSpanProcessor_ProcessError(t *testing.T) {
