@@ -180,7 +180,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
-			indices: []string{spanIndex + spanDataLayoutFormat, serviceIndex + serviceDataLayoutFormat},
+			indices: []string{spanIndex + spanDataLayoutFormat, "jaeger-span-saved", serviceIndex + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
@@ -194,7 +194,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndex + serviceDataLayoutFormat},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + spanDataLayoutFormat, "jaeger-span-saved", "foo:" + indexPrefixSeparator + serviceIndex + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
@@ -231,8 +231,11 @@ func TestSpanReaderIndices(t *testing.T) {
 			},
 			indices: []string{
 				spanIndex + spanDataLayoutFormat,
+				"jaeger-span-saved",
 				"cluster_one:" + spanIndex + spanDataLayoutFormat,
 				"cluster_two:" + spanIndex + spanDataLayoutFormat,
+				"cluster_one:jaeger-span-saved",
+				"cluster_two:jaeger-span-saved",
 				serviceIndex + serviceDataLayoutFormat,
 				"cluster_one:" + serviceIndex + serviceDataLayoutFormat,
 				"cluster_two:" + serviceIndex + serviceDataLayoutFormat,
@@ -353,7 +356,9 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		multiSearchService.On("Add", id1SearchSpanTime).Return(secondMultiSearch)
 
 		firstMultiSearch.On("Index", mock.AnythingOfType("string")).Return(firstMultiSearch)
+		firstMultiSearch.On("Index", mock.AnythingOfType("string"), "jaeger-span-saved").Return(firstMultiSearch)
 		secondMultiSearch.On("Index", mock.AnythingOfType("string")).Return(secondMultiSearch)
+		secondMultiSearch.On("Index", mock.AnythingOfType("string"), "jaeger-span-saved").Return(secondMultiSearch)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
 		fistMultiSearchMock := firstMultiSearch.On("Do", mock.AnythingOfType("*context.emptyCtx"))
@@ -558,6 +563,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			endTime:   today,
 			expected: []string{
 				indexWithDate(spanIndex, dateLayout, today),
+				"jaeger-span-saved",
 			},
 		},
 		{
@@ -566,6 +572,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			expected: []string{
 				indexWithDate(spanIndex, dateLayout, today),
 				indexWithDate(spanIndex, dateLayout, yesterday),
+				"jaeger-span-saved",
 			},
 		},
 		{
@@ -575,6 +582,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 				indexWithDate(spanIndex, dateLayout, today),
 				indexWithDate(spanIndex, dateLayout, yesterday),
 				indexWithDate(spanIndex, dateLayout, twoDaysAgo),
+				"jaeger-span-saved",
 			},
 		},
 	}

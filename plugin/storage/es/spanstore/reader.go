@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -227,6 +228,9 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)
+	if strings.Contains(indexName, "jaeger-span-") && !strings.Contains(indexName, "jaeger-span-saved") {
+		indices = append(indices, "jaeger-span-saved")
+	}
 	return indices
 }
 
