@@ -108,26 +108,6 @@ func TestTagMap(t *testing.T) {
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
 }
 
-func TestNilProcess(t *testing.T) {
-	tags := []model.KeyValue{
-		model.String("foo", "foo"),
-		model.Bool("a", true),
-		model.Int64("b.b", 1),
-	}
-
-	spanWithNilTags := model.Span{Tags: tags, Process: &model.Process{Tags: nil}}
-
-	converter := NewFromDomain(false, []string{}, ":")
-	dbSpanWithNilTags := converter.FromDomainEmbedProcess(&spanWithNilTags)
-
-	assert.Len(t, dbSpanWithNilTags.Tags, 3)
-	assert.Len(t, dbSpanWithNilTags.Process.Tags, 0)
-
-	nilMap := map[string]interface{}(nil)
-	assert.Equal(t, nilMap, dbSpanWithNilTags.Tag)
-	assert.Equal(t, nilMap, dbSpanWithNilTags.Process.Tag)
-}
-
 func TestConvertKeyValueValue(t *testing.T) {
 	longString := `Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
 	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues

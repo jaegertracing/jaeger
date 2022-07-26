@@ -41,7 +41,6 @@ type Message interface {
 type SpanProcessorParams struct {
 	Writer       spanstore.Writer
 	Unmarshaller kafka.Unmarshaller
-	Sanitizers   []sanitizer.SanitizeSpan
 }
 
 // KafkaSpanProcessor implements SpanProcessor for Kafka messages
@@ -57,7 +56,7 @@ func NewSpanProcessor(params SpanProcessorParams) *KafkaSpanProcessor {
 	return &KafkaSpanProcessor{
 		unmarshaller: params.Unmarshaller,
 		writer:       params.Writer,
-		sanitizer:    sanitizer.NewChainedSanitizer(params.Sanitizers...),
+		sanitizer:    sanitizer.NewChainedSanitizer(sanitizer.NewStandardSanitizers()...),
 	}
 }
 
