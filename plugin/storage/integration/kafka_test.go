@@ -16,8 +16,8 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -42,13 +42,12 @@ type KafkaIntegrationTestSuite struct {
 	logger *zap.Logger
 }
 
-func (s *KafkaIntegrationTestSuite) initialize() error {
+func (s *KafkaIntegrationTestSuite) initialize(encoding string) error {
 	s.logger, _ = testutils.NewLogger()
-	const encoding = "json"
 	const groupID = "kafka-integration-test"
 	const clientID = "kafka-integration-test"
 	// A new topic is generated per execution to avoid data overlap
-	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	topic := fmt.Sprintf("jaeger-kafka-integration-test-%s-%d", encoding, time.Now().UnixNano())
 
 	f := kafka.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
@@ -139,6 +138,10 @@ func TestKafkaStorage(t *testing.T) {
 		t.Skip("Integration test against kafka skipped; set STORAGE env var to kafka to run this")
 	}
 	s := &KafkaIntegrationTestSuite{}
-	require.NoError(t, s.initialize())
-	t.Run("GetTrace", s.testGetTrace)
+	require.NoError(t, s.initialize("json"))
+	t.Run("GetTraceJSON", s.testGetTrace)
+
+	s = &KafkaIntegrationTestSuite{}
+	require.NoError(t, s.initialize("proto"))
+	t.Run("GetTraceProto", s.testGetTrace)
 }
