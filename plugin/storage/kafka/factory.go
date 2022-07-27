@@ -86,7 +86,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	case EncodingJSON:
 		f.marshaller = newJSONMarshaller()
 	default:
-		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
+		return errors.New("kafka encoding '" + f.options.Encoding + "' is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
 	}
 	return nil
 }
