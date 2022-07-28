@@ -12,7 +12,8 @@ $ docker run jaegertracing/jaeger-tracegen -service abcd -traces 10
 Notice, however, that by default the generator uses the UDP exporter of `jaeger-client-go`,
 which sends data to `localhost`, i.e. inside the networking namespace of the container itself,
 which obviously doesn't go anywhere. You can use the environment variables supported by
-[jaeger-client-go][env] to instruct the SDK where to send the data.
+[jaeger-client-go][env] to instruct the SDK where to send the data, for example to switch
+to HTTP by setting `JAEGER_ENDPOINT`.
 
 See example in the included [docker-compose](./docker-compose.yml) file.
 
