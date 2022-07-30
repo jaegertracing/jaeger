@@ -1,0 +1,123 @@
+version: "2.1"
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper
+    ports:
+      - 2181:2181
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+  kafka:
+    image: 'bitnami/kafka:latest'
+    ports:
+      - '9092:9092'
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+    restart: always
+    depends_on:
+      - zookeeper
+    links:
+      - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --list --bootstrap-server 127.0.0.1:9092"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  cassandra:
+    image: cassandra:4.0
+    healthcheck:
+      test: ["CMD-SHELL", "[ $$(nodetool statusgossip) = running ]"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  cassandra-schema:
+    image: jaegertracing/jaeger-cassandra-schema
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    links:
+      - cassandra
+
+  jaeger-collector:
+    image: jaegertracing/jaeger-collector
+    command:
+      - "--log-level=debug"
+    ports:
+      - 4318:4318
+      - 14250:14250
+    environment:
+      - SPAN_STORAGE_TYPE=kafka
+      - KAFKA_PRODUCER_BROKERS=kafka:9092
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14269/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      kafka:
+        condition: service_healthy
+    links:
+      - kafka
+
+  jaeger-ingester:
+    image: jaegertracing/jaeger-ingester
+    command:
+      - "--cassandra.keyspace=jaeger_v1_dc1"
+      - "--cassandra.servers=cassandra"
+      - "--log-level=debug"
+    environment:
+      - SPAN_STORAGE_TYPE=cassandra
+      - KAFKA_CONSUMER_BROKERS=kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+      cassandra-schema:
+        condition: service_completed_successfully
+      jaeger-collector:
+        condition: service_healthy
+    links:
+      - kafka
+      - cassandra
+
+  jaeger-agent:
+    image: jaegertracing/jaeger-agent
+    command:
+      - "--reporter.grpc.host-port=jaeger-collector:14250"
+      - "--log-level=debug"
+    ports:
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+    restart: on-failure
+    depends_on:
+      jaeger-collector:
+        condition: service_healthy
+    links:
+      - jaeger-collector
+
+  jaeger-query:
+    image: jaegertracing/jaeger-query
+    command:
+      - "--cassandra.keyspace=jaeger_v1_dc1"
+      - "--cassandra.servers=cassandra"
+      - "--log-level=debug"
+    environment:
+      - JAEGER_AGENT_HOST=jaeger-agent
+    ports:
+      - "16686:16686"
+      - "16687"
+    restart: on-failure
+    depends_on:
+      cassandra-schema:
+        condition: service_completed_successfully
+    links:
+      - jaeger-agent
+      - cassandra

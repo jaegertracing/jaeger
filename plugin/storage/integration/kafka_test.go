@@ -35,7 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const defaultLocalKafkaBroker = "127.0.0.1:9092"
+const defaultLocalKafkaBroker = "localhost:9092"
 
 type KafkaIntegrationTestSuite struct {
 	StorageIntegration
