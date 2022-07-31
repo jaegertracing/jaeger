@@ -21,7 +21,6 @@ import (
 	"google.golang.org/grpc"
 
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 
 // Ensure plugin.GRPCPlugin API match.
@@ -39,27 +38,16 @@ type StorageGRPCPlugin struct {
 
 // RegisterHandlers registers the plugin with the server
 func (p *StorageGRPCPlugin) RegisterHandlers(s *grpc.Server) error {
-	server := &grpcServer{
-		Impl:        p.Impl,
-		ArchiveImpl: p.ArchiveImpl,
-		StreamImpl:  p.StreamImpl,
-	}
-	storage_v1.RegisterSpanReaderPluginServer(s, server)
-	storage_v1.RegisterSpanWriterPluginServer(s, server)
-	storage_v1.RegisterArchiveSpanReaderPluginServer(s, server)
-	storage_v1.RegisterArchiveSpanWriterPluginServer(s, server)
-	storage_v1.RegisterPluginCapabilitiesServer(s, server)
-	storage_v1.RegisterDependenciesReaderPluginServer(s, server)
-	storage_v1.RegisterStreamingSpanWriterPluginServer(s, server)
-	return nil
+	handler := NewGRPCHandlerWithPlugins(p.Impl, p.ArchiveImpl, p.StreamImpl)
+	return handler.Register(s)
 }
 
 // GRPCServer implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin server.
-func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+func (p *StorageGRPCPlugin) GRPCServer(_ *plugin.GRPCBroker, s *grpc.Server) error {
 	return p.RegisterHandlers(s)
 }
 
 // GRPCClient implements plugin.GRPCPlugin. It is used by go-plugin to create a grpc plugin client.
-func (*StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return NewGRPCClient(c), nil
+func (*StorageGRPCPlugin) GRPCClient(_ context.Context, _ *plugin.GRPCBroker, conn *grpc.ClientConn) (interface{}, error) {
+	return NewGRPCClient(conn), nil
 }
