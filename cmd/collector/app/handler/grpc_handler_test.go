@@ -30,7 +30,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
@@ -98,7 +98,7 @@ func newClient(t *testing.T, addr net.Addr) (api_v2.CollectorServiceClient, *grp
 func TestPostSpans(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyConfig{})
+		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyManager{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -133,7 +133,7 @@ func TestPostSpans(t *testing.T) {
 func TestGRPCCompressionEnabled(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyConfig{})
+		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyManager{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -171,7 +171,7 @@ func TestPostSpansWithError(t *testing.T) {
 			processor := &mockSpanProcessor{expectedError: test.processorError}
 			logger, logBuf := testutils.NewLogger()
 			server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-				handler := NewGRPCHandler(logger, processor, &tenancy.TenancyConfig{})
+				handler := NewGRPCHandler(logger, processor, &tenancy.TenancyManager{})
 				api_v2.RegisterCollectorServiceServer(s, handler)
 			})
 			defer server.Stop()
@@ -210,7 +210,7 @@ func TestPostTenantedSpans(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		handler := NewGRPCHandler(zap.NewNop(), processor,
-			tenancy.NewTenancyConfig(&tenancy.Options{
+			tenancy.NewTenancyManager(&tenancy.Options{
 				Enabled: true,
 				Header:  tenantHeader,
 				Tenants: []string{dummyTenant},
@@ -346,7 +346,7 @@ func TestGetTenant(t *testing.T) {
 
 	processor := &mockSpanProcessor{}
 	handler := NewGRPCHandler(zap.NewNop(), processor,
-		tenancy.NewTenancyConfig(&tenancy.Options{
+		tenancy.NewTenancyManager(&tenancy.Options{
 			Enabled: true,
 			Header:  tenantHeader,
 			Tenants: validTenants,

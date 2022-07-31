@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -45,6 +46,7 @@ type SpanProcessorParams struct {
 // KafkaSpanProcessor implements SpanProcessor for Kafka messages
 type KafkaSpanProcessor struct {
 	unmarshaller kafka.Unmarshaller
+	sanitizer    sanitizer.SanitizeSpan
 	writer       spanstore.Writer
 	io.Closer
 }
@@ -54,6 +56,7 @@ func NewSpanProcessor(params SpanProcessorParams) *KafkaSpanProcessor {
 	return &KafkaSpanProcessor{
 		unmarshaller: params.Unmarshaller,
 		writer:       params.Writer,
+		sanitizer:    sanitizer.NewChainedSanitizer(sanitizer.NewStandardSanitizers()...),
 	}
 }
 
@@ -63,6 +66,7 @@ func (s KafkaSpanProcessor) Process(message Message) error {
 	if err != nil {
 		return fmt.Errorf("cannot unmarshall byte array into span: %w", err)
 	}
+
 	// TODO context should be propagated from upstream components
-	return s.writer.WriteSpan(context.TODO(), span)
+	return s.writer.WriteSpan(context.TODO(), s.sanitizer(span))
 }

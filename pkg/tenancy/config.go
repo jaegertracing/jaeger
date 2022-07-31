@@ -14,8 +14,8 @@
 
 package tenancy
 
-// TenancyConfig holds the settings for multi-tenant Jaeger
-type TenancyConfig struct {
+// TenancyManager can check tenant usage for multi-tenant Jaeger configurations
+type TenancyManager struct {
 	Enabled bool
 	Header  string
 	guard   guard
@@ -33,16 +33,21 @@ type Options struct {
 	Tenants []string
 }
 
-// NewTenancyConfig creates a tenancy configuration for tenancy Options
-func NewTenancyConfig(options *Options) *TenancyConfig {
-	return &TenancyConfig{
+// NewTenancyManager creates a TenancyManager from tenancy Options
+func NewTenancyManager(options *Options) *TenancyManager {
+	// Default header value (although set by CLI flags, this helps tests and API users)
+	header := options.Header
+	if header == "" && options.Enabled {
+		header = "x-tenant"
+	}
+	return &TenancyManager{
 		Enabled: options.Enabled,
-		Header:  options.Header,
+		Header:  header,
 		guard:   tenancyGuardFactory(options),
 	}
 }
 
-func (tc *TenancyConfig) Valid(tenant string) bool {
+func (tc *TenancyManager) Valid(tenant string) bool {
 	return tc.guard.Valid(tenant)
 }
 

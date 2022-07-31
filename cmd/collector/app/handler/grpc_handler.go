@@ -25,7 +25,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -36,14 +36,14 @@ type GRPCHandler struct {
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyConfig *tenancy.TenancyConfig) *GRPCHandler {
+func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyMgr *tenancy.TenancyManager) *GRPCHandler {
 	return &GRPCHandler{
 		logger: logger,
 		batchConsumer: newBatchConsumer(logger,
 			spanProcessor,
 			processor.GRPCTransport,
 			processor.ProtoSpanFormat,
-			tenancyConfig),
+			tenancyMgr),
 	}
 }
 
@@ -58,13 +58,10 @@ type batchConsumer struct {
 	logger        *zap.Logger
 	spanProcessor processor.SpanProcessor
 	spanOptions   processor.SpansOptions
-	tenancyConfig tenancy.TenancyConfig
+	tenancyMgr    *tenancy.TenancyManager
 }
 
-func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyConfig *tenancy.TenancyConfig) batchConsumer {
-	if tenancyConfig == nil {
-		tenancyConfig = &tenancy.TenancyConfig{}
-	}
+func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyMgr *tenancy.TenancyManager) batchConsumer {
 	return batchConsumer{
 		logger:        logger,
 		spanProcessor: spanProcessor,
@@ -72,7 +69,7 @@ func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor,
 			InboundTransport: transport,
 			SpanFormat:       spanFormat,
 		},
-		tenancyConfig: *tenancyConfig,
+		tenancyMgr: tenancyMgr,
 	}
 }
 
@@ -104,7 +101,7 @@ func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
 }
 
 func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
-	if !c.tenancyConfig.Enabled {
+	if !c.tenancyMgr.Enabled {
 		return "", nil
 	}
 
@@ -113,14 +110,14 @@ func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	}
 
-	tenants := md[c.tenancyConfig.Header]
+	tenants := md.Get(c.tenancyMgr.Header)
 	if len(tenants) < 1 {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	} else if len(tenants) > 1 {
 		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
 	}
 
-	if !c.tenancyConfig.Valid(tenants[0]) {
+	if !c.tenancyMgr.Valid(tenants[0]) {
 		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
 	}
 

@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -45,21 +46,15 @@ import (
 var testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata/"
 
 func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, clientTLS tlscfg.Options) {
-	defer serverTLS.Close()
-	defer clientTLS.Close()
+	testGRPCGatewayWithTenancy(t, basePath, serverTLS, clientTLS,
+		tenancy.Options{
+			Enabled: false,
+		},
+		func(*http.Request) {})
+}
 
+func setupGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, clientTLS tlscfg.Options, tenancyOptions tenancy.Options) (*spanstoremocks.Reader, net.Listener, *grpc.Server, context.CancelFunc, *http.Server) {
 	r := &spanstoremocks.Reader{}
-	traceID := model.NewTraceID(150, 160)
-	r.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
-		&model.Trace{
-			Spans: []*model.Span{
-				{
-					TraceID:       traceID,
-					SpanID:        model.NewSpanID(180),
-					OperationName: "foobar",
-				},
-			},
-		}, nil).Once()
 
 	q := querysvc.NewQueryService(r, &dependencyStoreMocks.Reader{}, querysvc.QueryServiceOptions{})
 
@@ -69,6 +64,13 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 		require.NoError(t, err)
 		creds := credentials.NewTLS(config)
 		serverGRPCOpts = append(serverGRPCOpts, grpc.Creds(creds))
+	}
+	if tenancyOptions.Enabled {
+		tm := tenancy.NewTenancyManager(&tenancyOptions)
+		serverGRPCOpts = append(serverGRPCOpts,
+			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
+			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+		)
 	}
 	grpcServer := grpc.NewServer(serverGRPCOpts...)
 	h := &Handler{
@@ -80,13 +82,11 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 		err := grpcServer.Serve(lis)
 		require.NoError(t, err)
 	}()
-	defer grpcServer.Stop()
 
 	router := &mux.Router{}
 	router = router.PathPrefix(basePath).Subrouter()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS)
+	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancy.NewTenancyManager(&tenancyOptions))
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")
@@ -98,10 +98,39 @@ func testGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, cl
 		err = httpServer.Serve(httpLis)
 		require.Equal(t, http.ErrServerClosed, err)
 	}()
+	return r, httpLis, grpcServer, cancel, httpServer
+}
+
+func testGRPCGatewayWithTenancy(t *testing.T, basePath string, serverTLS tlscfg.Options, clientTLS tlscfg.Options,
+	tenancyOptions tenancy.Options,
+	setupRequest func(*http.Request),
+) {
+	defer serverTLS.Close()
+	defer clientTLS.Close()
+
+	reader, httpLis, grpcServer, cancel, httpServer := setupGRPCGateway(t, basePath, serverTLS, clientTLS, tenancyOptions)
+	defer grpcServer.Stop()
+	defer cancel()
 	defer httpServer.Shutdown(context.Background())
+
+	traceID := model.NewTraceID(150, 160)
+	reader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
+		&model.Trace{
+			Spans: []*model.Span{
+				{
+					TraceID:       traceID,
+					SpanID:        model.NewSpanID(180),
+					OperationName: "foobar",
+				},
+			},
+		}, nil).Once()
+
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
+	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	setupRequest(req)
 	response, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
 	buf := bytes.Buffer{}
 	_, err = buf.ReadFrom(response.Body)
 	require.NoError(t, err)
@@ -141,4 +170,57 @@ func TestGRPCGateway_TLS_with_base_path(t *testing.T) {
 // For more details why this is needed see https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
 type envelope struct {
 	Result json.RawMessage `json:"result"`
+}
+
+func TestTenancyGRPCGateway(t *testing.T) {
+	tenancyOptions := tenancy.Options{
+		Enabled: true,
+	}
+	tm := tenancy.NewTenancyManager(&tenancyOptions)
+	testGRPCGatewayWithTenancy(t, "/", tlscfg.Options{}, tlscfg.Options{},
+		// Configure the gateway to forward tenancy header from HTTP to GRPC
+		tenancyOptions,
+		// Add a tenancy header on outbound requests
+		func(req *http.Request) {
+			req.Header.Add(tm.Header, "dummy")
+		})
+}
+
+func TestTenancyGRPCRejection(t *testing.T) {
+	basePath := "/"
+	tenancyOptions := tenancy.Options{Enabled: true}
+	reader, httpLis, grpcServer, cancel, httpServer := setupGRPCGateway(t,
+		basePath, tlscfg.Options{}, tlscfg.Options{},
+		tenancyOptions)
+	defer grpcServer.Stop()
+	defer cancel()
+	defer httpServer.Shutdown(context.Background())
+
+	traceID := model.NewTraceID(150, 160)
+	reader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
+		&model.Trace{
+			Spans: []*model.Span{
+				{
+					TraceID:       traceID,
+					SpanID:        model.NewSpanID(180),
+					OperationName: "foobar",
+				},
+			},
+		}, nil).Once()
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	// We don't set tenant header
+	response, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusForbidden, response.StatusCode)
+
+	// Try again with tenant header set
+	tm := tenancy.NewTenancyManager(&tenancyOptions)
+	req.Header.Set(tm.Header, "acme")
+	response, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	// Skip unmarshal of response; it is enough that it succeeded
 }
