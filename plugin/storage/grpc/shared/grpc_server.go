@@ -51,10 +51,12 @@ type GRPCHandlerStorageImpls struct {
 	StreamingSpanWriter func() spanstore.Writer
 }
 
+// NewGRPCHandler creates a handler given individual storage implementations.
 func NewGRPCHandler(impls *GRPCHandlerStorageImpls) *GRPCHandler {
 	return &GRPCHandler{impl: impls}
 }
 
+// NewGRPCHandler creates a handler given implementations grouped by plugin services.
 func NewGRPCHandlerWithPlugins(
 	impl StoragePlugin,
 	archiveImpl ArchiveStoragePlugin,
