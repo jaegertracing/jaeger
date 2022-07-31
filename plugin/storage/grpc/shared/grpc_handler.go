@@ -36,11 +36,11 @@ type GRPCHandler struct {
 	// impl        StoragePlugin
 	// ArchiveImpl ArchiveStoragePlugin
 	// StreamImpl  StreamingSpanWriterPlugin
-	impl *GRPCHandlerStorageImpls
+	impl *GRPCHandlerStorageImpl
 }
 
-// GRPCHandlerStorageImpls contains accessors for various storage implementations needed by the handler.
-type GRPCHandlerStorageImpls struct {
+// GRPCHandlerStorageImpl contains accessors for various storage implementations needed by the handler.
+type GRPCHandlerStorageImpl struct {
 	SpanReader       func() spanstore.Reader
 	SpanWriter       func() spanstore.Writer
 	DependencyReader func() dependencystore.Reader
@@ -52,26 +52,33 @@ type GRPCHandlerStorageImpls struct {
 }
 
 // NewGRPCHandler creates a handler given individual storage implementations.
-func NewGRPCHandler(impls *GRPCHandlerStorageImpls) *GRPCHandler {
-	return &GRPCHandler{impl: impls}
+func NewGRPCHandler(impl *GRPCHandlerStorageImpl) *GRPCHandler {
+	return &GRPCHandler{impl: impl}
 }
 
 // NewGRPCHandler creates a handler given implementations grouped by plugin services.
 func NewGRPCHandlerWithPlugins(
-	impl StoragePlugin,
+	mainImpl StoragePlugin,
 	archiveImpl ArchiveStoragePlugin,
 	streamImpl StreamingSpanWriterPlugin,
 ) *GRPCHandler {
-	return &GRPCHandler{
-		impl: &GRPCHandlerStorageImpls{
-			SpanReader:          impl.SpanReader,
-			SpanWriter:          impl.SpanWriter,
-			DependencyReader:    impl.DependencyReader,
-			ArchiveSpanReader:   archiveImpl.ArchiveSpanReader,
-			ArchiveSpanWriter:   archiveImpl.ArchiveSpanWriter,
-			StreamingSpanWriter: streamImpl.StreamingSpanWriter,
-		},
+	impl := &GRPCHandlerStorageImpl{
+		SpanReader:       mainImpl.SpanReader,
+		SpanWriter:       mainImpl.SpanWriter,
+		DependencyReader: mainImpl.DependencyReader,
+
+		ArchiveSpanReader:   func() spanstore.Reader { return nil },
+		ArchiveSpanWriter:   func() spanstore.Writer { return nil },
+		StreamingSpanWriter: func() spanstore.Writer { return nil },
 	}
+	if archiveImpl != nil {
+		impl.ArchiveSpanReader = archiveImpl.ArchiveSpanReader
+		impl.ArchiveSpanWriter = archiveImpl.ArchiveSpanWriter
+	}
+	if streamImpl != nil {
+		impl.StreamingSpanWriter = streamImpl.StreamingSpanWriter
+	}
+	return NewGRPCHandler(impl)
 }
 
 // Register registers the server as gRPC methods handler.
