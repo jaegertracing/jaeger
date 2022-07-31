@@ -31,18 +31,26 @@ function stage-platform-files {
 # package pulls built files for the platform ($1). If you pass in a file
 # extension ($2) it will be used on the binaries
 function package {
-    local PLATFORM=$1
-    local FILE_EXTENSION=$2
+    
+    local COMPRESSION=$1
+    local PLATFORM=$2
+    local FILE_EXTENSION=$3
     # script start
     local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM
 
     mkdir $PACKAGE_STAGING_DIR
 
     stage-platform-files $PLATFORM $PACKAGE_STAGING_DIR $FILE_EXTENSION
-
-    local ARCHIVE_NAME="$PACKAGE_STAGING_DIR.tar.gz"
-    echo "Packaging into $ARCHIVE_NAME:"
-    tar -czvf ./deploy/$ARCHIVE_NAME $PACKAGE_STAGING_DIR
+    if [ "$COMPRESSION" == "zip" ]
+    then
+        local ARCHIVE_NAME="$PACKAGE_STAGING_DIR.zip"
+        echo "Packaging into $ARCHIVE_NAME:"
+        zip -r ./deploy/$ARCHIVE_NAME $PACKAGE_STAGING_DIR
+    else
+        local ARCHIVE_NAME="$PACKAGE_STAGING_DIR.tar.gz"
+        echo "Packaging into $ARCHIVE_NAME:"
+        tar -czvf ./deploy/$ARCHIVE_NAME $PACKAGE_STAGING_DIR
+    fi
     rm -rf $PACKAGE_STAGING_DIR
 }
 
@@ -57,10 +65,10 @@ rm -rf deploy $DEPLOY_STAGING_DIR
 mkdir deploy
 mkdir $DEPLOY_STAGING_DIR
 
-package linux-amd64
-package darwin-amd64
-package darwin-arm64
-package windows-amd64 .exe
-package linux-s390x
-package linux-arm64
-package linux-ppc64le
+package tar linux-amd64
+package tar darwin-amd64
+package tar darwin-arm64
+package zip windows-amd64 .exe 
+package tar linux-s390x
+package tar linux-arm64
+package tar linux-ppc64le
