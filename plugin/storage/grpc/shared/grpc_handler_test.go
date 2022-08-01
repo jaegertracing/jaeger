@@ -427,3 +427,20 @@ func TestGRPCServerCapabilities_NoStreamWriter(t *testing.T) {
 		assert.Equal(t, expected, capabilities)
 	})
 }
+
+func TestNewGRPCHandlerWithPlugins_Nils(t *testing.T) {
+	spanReader := new(spanStoreMocks.Reader)
+	spanWriter := new(spanStoreMocks.Writer)
+	depReader := new(dependencyStoreMocks.Reader)
+
+	impl := &mockStoragePlugin{
+		spanReader: spanReader,
+		spanWriter: spanWriter,
+		depsReader: depReader,
+	}
+
+	handler := NewGRPCHandlerWithPlugins(impl, nil, nil)
+	assert.Nil(t, handler.impl.ArchiveSpanReader())
+	assert.Nil(t, handler.impl.ArchiveSpanWriter())
+	assert.Nil(t, handler.impl.StreamingSpanWriter())
+}
