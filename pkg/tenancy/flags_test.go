@@ -93,8 +93,7 @@ func TestTenancyFlags(t *testing.T) {
 
 			err := command.ParseFlags(test.cmd)
 			require.NoError(t, err)
-			tenancyCfg, err := InitFromViper(v)
-			require.NoError(t, err)
+			tenancyCfg := InitFromViper(v)
 			assert.Equal(t, test.expected, tenancyCfg)
 		})
 	}
