@@ -65,6 +65,9 @@ func main() {
 			version.NewInfoMetrics(metricsFactory)
 
 			opts, err := new(app.Options).InitFromViper(v, logger)
+			if err != nil {
+				logger.Fatal("Failed to parse options", zap.Error(err))
+			}
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
