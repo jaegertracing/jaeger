@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2022 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +40,7 @@ import (
 const serviceName = "jaeger-remote-storage"
 
 func main() {
-	svc := flags.NewService(ports.RemoteStorageGRPC)
+	svc := flags.NewService(ports.RemoteStorageAdminHTTP)
 
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
@@ -71,15 +70,6 @@ func main() {
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
-			// spanReader, err := storageFactory.CreateSpanReader()
-			// if err != nil {
-			// 	logger.Fatal("Failed to create span reader", zap.Error(err))
-			// }
-			// spanReader = spanstoreMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
-			// dependencyReader, err := storageFactory.CreateDependencyReader()
-			// if err != nil {
-			// 	logger.Fatal("Failed to create dependency reader", zap.Error(err))
-			// }
 
 			tm := tenancy.NewTenancyManager(&opts.Tenancy)
 			server, err := app.NewServer(opts, tm, storageFactory, svc.Logger)

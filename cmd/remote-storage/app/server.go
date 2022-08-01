@@ -1,4 +1,4 @@
-// Copyright (c) 2019,2020 The Jaeger Authors.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,12 +100,14 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 func createGRPCServer(opts *Options, tm *tenancy.TenancyManager, handler *shared.GRPCHandler, logger *zap.Logger) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
-	tlsCfg, err := opts.TLSGRPC.Config(logger)
-	if err != nil {
-		return nil, err
+	if opts.TLSGRPC.Enabled {
+		tlsCfg, err := opts.TLSGRPC.Config(logger)
+		if err != nil {
+			return nil, err
+		}
+		creds := credentials.NewTLS(tlsCfg)
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	creds := credentials.NewTLS(tlsCfg)
-	grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	if tm.Enabled {
 		grpcOpts = append(grpcOpts,
 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),

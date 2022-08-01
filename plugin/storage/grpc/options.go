@@ -55,7 +55,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginBinary, "", "The location of the plugin binary")
 	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
 	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
-	flagSet.String(remoteServer, "", "The remote storage gRPC server address")
+	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
