@@ -51,18 +51,14 @@ func AddFlags(flagSet *flag.FlagSet) {
 	tenancy.AddFlags(flagSet)
 }
 
-// InitFromViper initializes QueryOptions with properties from viper
-func (qOpts *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Options, error) {
-	qOpts.GRPCHostPort = v.GetString(flagGRPCHostPort)
+// InitFromViper initializes Options with properties from CLI flags.
+func (o *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Options, error) {
+	o.GRPCHostPort = v.GetString(flagGRPCHostPort)
 	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
-		qOpts.TLSGRPC = tlsGrpc
+		o.TLSGRPC = tlsGrpc
 	} else {
-		return qOpts, fmt.Errorf("failed to process gRPC TLS options: %w", err)
+		return o, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	if tenancy, err := tenancy.InitFromViper(v); err == nil {
-		qOpts.Tenancy = tenancy
-	} else {
-		return qOpts, fmt.Errorf("failed to parse Tenancy options: %w", err)
-	}
-	return qOpts, nil
+	o.Tenancy = tenancy.InitFromViper(v)
+	return o, nil
 }
