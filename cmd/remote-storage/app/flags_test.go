@@ -27,7 +27,7 @@ import (
 func TestQueryBuilderFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
-		"--host-port=127.0.0.1:8081",
+		"--grpc.host-port=127.0.0.1:8081",
 	})
 	qOpts, err := new(Options).InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
@@ -37,11 +37,11 @@ func TestQueryBuilderFlags(t *testing.T) {
 func TestQueryOptions_FailedTLSFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	err := command.ParseFlags([]string{
-		"--tls.enabled=false",
-		"--tls.cert=blah", // invalid unless tls.enabled
+		"--grpc.tls.enabled=false",
+		"--grpc.tls.cert=blah", // invalid unless tls.enabled
 	})
 	require.NoError(t, err)
 	_, err = new(Options).InitFromViper(v, zap.NewNop())
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to process TLS options")
+	assert.Contains(t, err.Error(), "failed to process gRPC TLS options")
 }
