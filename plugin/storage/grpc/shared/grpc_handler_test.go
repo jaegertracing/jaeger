@@ -69,7 +69,7 @@ func (plugin *mockStoragePlugin) StreamingSpanWriter() spanstore.Writer {
 }
 
 type grpcServerTest struct {
-	server *grpcServer
+	server *GRPCHandler
 	impl   *mockStoragePlugin
 }
 
@@ -91,12 +91,8 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 	}
 
 	r := &grpcServerTest{
-		server: &grpcServer{
-			Impl:        impl,
-			ArchiveImpl: impl,
-			StreamImpl:  impl,
-		},
-		impl: impl,
+		server: NewGRPCHandlerWithPlugins(impl, impl, impl),
+		impl:   impl,
 	}
 	fn(r)
 }
@@ -324,7 +320,7 @@ func TestGRPCServerGetArchiveTrace_Error(t *testing.T) {
 
 func TestGRPCServerGetArchiveTrace_NoImpl(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.server.ArchiveImpl = nil
+		r.server.impl.ArchiveSpanReader = func() spanstore.Reader { return nil }
 		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
 
 		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
@@ -360,7 +356,7 @@ func TestGRPCServerGetArchiveTrace_StreamError(t *testing.T) {
 
 func TestGRPCServerWriteArchiveSpan_NoImpl(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.server.ArchiveImpl = nil
+		r.server.impl.ArchiveSpanWriter = func() spanstore.Writer { return nil }
 
 		_, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
 			Span: &mockTraceSpans[0],
@@ -404,20 +400,47 @@ func TestGRPCServerCapabilities(t *testing.T) {
 
 func TestGRPCServerCapabilities_NoArchive(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.server.ArchiveImpl = nil
+		r.server.impl.ArchiveSpanReader = func() spanstore.Reader { return nil }
+		r.server.impl.ArchiveSpanWriter = func() spanstore.Writer { return nil }
 
 		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		assert.NoError(t, err)
-		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: false, ArchiveSpanWriter: false, StreamingSpanWriter: true}, capabilities)
+		expected := &storage_v1.CapabilitiesResponse{
+			ArchiveSpanReader:   false,
+			ArchiveSpanWriter:   false,
+			StreamingSpanWriter: true,
+		}
+		assert.Equal(t, expected, capabilities)
 	})
 }
 
 func TestGRPCServerCapabilities_NoStreamWriter(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.server.StreamImpl = nil
+		r.server.impl.StreamingSpanWriter = func() spanstore.Writer { return nil }
 
 		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		assert.NoError(t, err)
-		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: true}, capabilities)
+		expected := &storage_v1.CapabilitiesResponse{
+			ArchiveSpanReader: true,
+			ArchiveSpanWriter: true,
+		}
+		assert.Equal(t, expected, capabilities)
 	})
+}
+
+func TestNewGRPCHandlerWithPlugins_Nils(t *testing.T) {
+	spanReader := new(spanStoreMocks.Reader)
+	spanWriter := new(spanStoreMocks.Writer)
+	depReader := new(dependencyStoreMocks.Reader)
+
+	impl := &mockStoragePlugin{
+		spanReader: spanReader,
+		spanWriter: spanWriter,
+		depsReader: depReader,
+	}
+
+	handler := NewGRPCHandlerWithPlugins(impl, nil, nil)
+	assert.Nil(t, handler.impl.ArchiveSpanReader())
+	assert.Nil(t, handler.impl.ArchiveSpanWriter())
+	assert.Nil(t, handler.impl.StreamingSpanWriter())
 }

@@ -15,9 +15,16 @@
 package memory
 
 import (
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+)
+
+var (
+	_ shared.StoragePlugin             = (*storagePlugin)(nil)
+	_ shared.ArchiveStoragePlugin      = (*storagePlugin)(nil)
+	_ shared.StreamingSpanWriterPlugin = (*storagePlugin)(nil)
 )
 
 type storagePlugin struct {
