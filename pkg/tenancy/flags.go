@@ -39,7 +39,7 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper creates tenancy.Options populated with values retrieved from Viper.
-func InitFromViper(v *viper.Viper) (Options, error) {
+func InitFromViper(v *viper.Viper) Options {
 	var p Options
 	p.Enabled = v.GetBool(flagTenancyEnabled)
 	p.Header = v.GetString(flagTenancyHeader)
@@ -50,5 +50,5 @@ func InitFromViper(v *viper.Viper) (Options, error) {
 		p.Tenants = []string{}
 	}
 
-	return p, nil
+	return p
 }
