@@ -24,7 +24,7 @@ import (
 // PropagationHandler returns a http.Handler containing the logic to extract
 // the tenancy header of the http.Request and insert the tenant into request.Context
 // for propagation. The token can be accessed via tenancy.GetTenant().
-func ExtractTenantHTTPHandler(tc *TenancyManager, h http.Handler) http.Handler {
+func ExtractTenantHTTPHandler(tc *Manager, h http.Handler) http.Handler {
 	if !tc.Enabled {
 		return h
 	}
@@ -50,7 +50,7 @@ func ExtractTenantHTTPHandler(tc *TenancyManager, h http.Handler) http.Handler {
 
 // MetadataAnnotator returns a function suitable for propagating tenancy
 // via github.com/grpc-ecosystem/grpc-gateway/runtime.NewServeMux
-func (tc *TenancyManager) MetadataAnnotator() func(context.Context, *http.Request) metadata.MD {
+func (tc *Manager) MetadataAnnotator() func(context.Context, *http.Request) metadata.MD {
 	return func(ctx context.Context, req *http.Request) metadata.MD {
 		tenant := req.Header.Get(tc.Header)
 		if tenant == "" {
