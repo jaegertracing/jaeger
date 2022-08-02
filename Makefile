@@ -216,8 +216,8 @@ rebuild-ui:
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
-build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
-build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug: SUFFIX = -debug
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
+build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: SUFFIX = -debug
 
 .PHONY: build-all-in-one build-all-in-one-debug
 build-all-in-one build-all-in-one-debug: build-ui
@@ -238,6 +238,10 @@ build-collector build-collector-debug:
 .PHONY: build-ingester build-ingester-debug
 build-ingester build-ingester-debug:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+
+.PHONY: build-remote-storage build-remote-storage-debug
+build-remote-storage build-remote-storage-debug:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/remote-storage/remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/remote-storage/main.go
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
@@ -276,7 +280,10 @@ build-platform-binaries: build-agent \
 	build-query-debug \
 	build-ingester \
 	build-ingester-debug \
+	build-remote-storage \
+	build-remote-storage-debug \
 	build-all-in-one \
+	build-all-in-one-debug \
 	build-examples \
 	build-tracegen \
 	build-anonymizer \
