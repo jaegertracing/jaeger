@@ -36,7 +36,7 @@ type SpanHandlerBuilder struct {
 	CollectorOpts  *flags.CollectorOptions
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
-	TenancyMgr     *tenancy.TenancyManager
+	TenancyMgr     *tenancy.Manager
 }
 
 // SpanHandlers holds instances to the span handlers built by the SpanHandlerBuilder

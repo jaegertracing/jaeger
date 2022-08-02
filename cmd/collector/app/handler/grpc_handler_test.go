@@ -98,7 +98,7 @@ func newClient(t *testing.T, addr net.Addr) (api_v2.CollectorServiceClient, *grp
 func TestPostSpans(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyManager{})
+		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.Manager{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -133,7 +133,7 @@ func TestPostSpans(t *testing.T) {
 func TestGRPCCompressionEnabled(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.TenancyManager{})
+		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.Manager{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -171,7 +171,7 @@ func TestPostSpansWithError(t *testing.T) {
 			processor := &mockSpanProcessor{expectedError: test.processorError}
 			logger, logBuf := testutils.NewLogger()
 			server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-				handler := NewGRPCHandler(logger, processor, &tenancy.TenancyManager{})
+				handler := NewGRPCHandler(logger, processor, &tenancy.Manager{})
 				api_v2.RegisterCollectorServiceServer(s, handler)
 			})
 			defer server.Stop()
@@ -210,7 +210,7 @@ func TestPostTenantedSpans(t *testing.T) {
 	processor := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		handler := NewGRPCHandler(zap.NewNop(), processor,
-			tenancy.NewTenancyManager(&tenancy.Options{
+			tenancy.NewManager(&tenancy.Options{
 				Enabled: true,
 				Header:  tenantHeader,
 				Tenants: []string{dummyTenant},
@@ -346,7 +346,7 @@ func TestGetTenant(t *testing.T) {
 
 	processor := &mockSpanProcessor{}
 	handler := NewGRPCHandler(zap.NewNop(), processor,
-		tenancy.NewTenancyManager(&tenancy.Options{
+		tenancy.NewManager(&tenancy.Options{
 			Enabled: true,
 			Header:  tenantHeader,
 			Tenants: validTenants,

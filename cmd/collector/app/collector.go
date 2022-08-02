@@ -53,7 +53,7 @@ type Collector struct {
 	hCheck         *healthcheck.HealthCheck
 	spanProcessor  processor.SpanProcessor
 	spanHandlers   *SpanHandlers
-	tenancyMgr     *tenancy.TenancyManager
+	tenancyMgr     *tenancy.Manager
 
 	// state, read only
 	hServer                    *http.Server
@@ -74,7 +74,7 @@ type CollectorParams struct {
 	StrategyStore  strategystore.StrategyStore
 	Aggregator     strategystore.Aggregator
 	HealthCheck    *healthcheck.HealthCheck
-	TenancyMgr     *tenancy.TenancyManager
+	TenancyMgr     *tenancy.Manager
 }
 
 // New constructs a new collector component, ready to be started

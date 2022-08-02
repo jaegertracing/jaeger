@@ -36,31 +36,31 @@ func (thh *testHttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 func TestProgationHandler(t *testing.T) {
 	tests := []struct {
 		name           string
-		tenancyMgr     *TenancyManager
+		tenancyMgr     *Manager
 		shouldReach    bool
 		requestHeaders map[string][]string
 	}{
 		{
 			name:           "untenanted",
-			tenancyMgr:     NewTenancyManager(&Options{}),
+			tenancyMgr:     NewManager(&Options{}),
 			requestHeaders: map[string][]string{},
 			shouldReach:    true,
 		},
 		{
 			name:           "missing tenant header",
-			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{},
 			shouldReach:    false,
 		},
 		{
 			name:           "valid tenant header",
-			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    true,
 		},
 		{
 			name:           "unauthorized tenant",
-			tenancyMgr:     NewTenancyManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			tenancyMgr:     NewManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    false,
 		},
@@ -87,17 +87,17 @@ func TestProgationHandler(t *testing.T) {
 func TestMetadataAnnotator(t *testing.T) {
 	tests := []struct {
 		name           string
-		tenancyMgr     *TenancyManager
+		tenancyMgr     *Manager
 		requestHeaders map[string][]string
 	}{
 		{
 			name:           "missing tenant",
-			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{},
 		},
 		{
 			name:           "tenanted",
-			tenancyMgr:     NewTenancyManager(&Options{Enabled: true}),
+			tenancyMgr:     NewManager(&Options{Enabled: true}),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 		},
 	}

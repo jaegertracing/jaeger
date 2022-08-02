@@ -57,7 +57,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 		return NewServer(
 			&Options{GRPCHostPort: ":0"},
 			factory,
-			tenancy.NewTenancyManager(&tenancy.Options{}),
+			tenancy.NewManager(&tenancy.Options{}),
 			zap.NewNop(),
 		)
 	}
@@ -128,7 +128,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 	_, err := NewServer(
 		&Options{GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
 		storageMocks.factory,
-		tenancy.NewTenancyManager(&tenancy.Options{}),
+		tenancy.NewManager(&tenancy.Options{}),
 		zap.NewNop(),
 	)
 	require.Error(t, err)
@@ -293,7 +293,7 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredentials, tm *tenancy.TenancyManager) *grpcClient {
+func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredentials, tm *tenancy.Manager) *grpcClient {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
@@ -329,7 +329,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			expectedServices := []string{"test"}
 			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
-			tm := tenancy.NewTenancyManager(&tenancy.Options{Enabled: true})
+			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
 			server, err := NewServer(
 				serverOptions,
 				storageMocks.factory,
@@ -393,7 +393,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	server, err := NewServer(
 		&Options{GRPCHostPort: ":0"},
 		storageMocks.factory,
-		tenancy.NewTenancyManager(&tenancy.Options{}),
+		tenancy.NewManager(&tenancy.Options{}),
 		flagsSvc.Logger,
 	)
 	require.Nil(t, err)
