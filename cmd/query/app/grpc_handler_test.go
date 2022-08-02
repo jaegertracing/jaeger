@@ -145,7 +145,7 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, tenancyMgr *tenancy.TenancyManager) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
 	if tenancyMgr.Enabled {
@@ -203,7 +203,7 @@ func withMetricsQuery() testOption {
 }
 
 func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
-	server := initializeTenantedTestServerGRPCWithOptions(t, &tenancy.TenancyManager{}, options...)
+	server := initializeTenantedTestServerGRPCWithOptions(t, &tenancy.Manager{}, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
@@ -901,7 +901,7 @@ func TestMetricsQueryNilRequestGRPC(t *testing.T) {
 	assert.EqualError(t, err, errNilRequest.Error())
 }
 
-func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.TenancyManager, options ...testOption) *grpcServer {
+func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manager, options ...testOption) *grpcServer {
 	archiveSpanReader := &spanstoremocks.Reader{}
 	archiveSpanWriter := &spanstoremocks.Writer{}
 
@@ -942,7 +942,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Tenan
 	}
 }
 
-func withTenantedServerAndClient(t *testing.T, tm *tenancy.TenancyManager, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
+func withTenantedServerAndClient(t *testing.T, tm *tenancy.Manager, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
 	server := initializeTenantedTestServerGRPCWithOptions(t, tm, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
@@ -960,7 +960,7 @@ func withOutgoingMetadata(t *testing.T, ctx context.Context, headerName, headerV
 }
 
 func TestSearchTenancyGRPC(t *testing.T) {
-	tm := tenancy.NewTenancyManager(&tenancy.Options{
+	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
 	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
@@ -996,7 +996,7 @@ func TestSearchTenancyGRPC(t *testing.T) {
 }
 
 func TestServicesTenancyGRPC(t *testing.T) {
-	tm := tenancy.NewTenancyManager(&tenancy.Options{
+	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
 	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
@@ -1015,7 +1015,7 @@ func TestServicesTenancyGRPC(t *testing.T) {
 }
 
 func TestSearchTenancyGRPCExplicitList(t *testing.T) {
-	tm := tenancy.NewTenancyManager(&tenancy.Options{
+	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 		Header:  "non-standard-tenant-header",
 		Tenants: []string{"mercury", "venus", "mars"},
@@ -1097,7 +1097,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 }
 
 func TestTenancyContextFlowGRPC(t *testing.T) {
-	tm := tenancy.NewTenancyManager(&tenancy.Options{
+	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
 	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {

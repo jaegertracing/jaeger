@@ -75,7 +75,7 @@ func main() {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
-			tm := tenancy.NewTenancyManager(&opts.Tenancy)
+			tm := tenancy.NewManager(&opts.Tenancy)
 			server, err := app.NewServer(opts, storageFactory, tm, svc.Logger)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))

@@ -42,7 +42,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	builder := &SpanHandlerBuilder{
 		SpanWriter:    spanWriter,
 		CollectorOpts: cOpts,
-		TenancyMgr:    &tenancy.TenancyManager{},
+		TenancyMgr:    &tenancy.Manager{},
 	}
 	assert.NotNil(t, builder.logger())
 	assert.NotNil(t, builder.metricsFactory())
@@ -52,7 +52,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 		CollectorOpts:  cOpts,
 		Logger:         zap.NewNop(),
 		MetricsFactory: metrics.NullFactory,
-		TenancyMgr:     &tenancy.TenancyManager{},
+		TenancyMgr:     &tenancy.Manager{},
 	}
 
 	spanProcessor := builder.BuildSpanProcessor()
