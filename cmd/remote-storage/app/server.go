@@ -15,6 +15,7 @@
 package app
 
 import (
+	"fmt"
 	"net"
 
 	"go.uber.org/zap"
@@ -104,7 +105,7 @@ func createGRPCServer(opts *Options, tm *tenancy.TenancyManager, handler *shared
 	if opts.TLSGRPC.Enabled {
 		tlsCfg, err := opts.TLSGRPC.Config(logger)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid TLS config: %w", err)
 		}
 		creds := credentials.NewTLS(tlsCfg)
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
@@ -138,11 +139,10 @@ func (s *Server) Start() error {
 	if err := s.initListener(); err != nil {
 		return err
 	}
+	s.logger.Info("Starting GRPC server", zap.Stringer("addr", s.grpcConn.Addr()))
 	go func() {
-		s.logger.Info("Starting GRPC server", zap.String("addr", s.opts.GRPCHostPort))
-
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
-			s.logger.Error("Could not start GRPC server", zap.Error(err))
+			s.logger.Error("GRPC server exited", zap.Error(err))
 		}
 		s.unavailableChannel <- healthcheck.Unavailable
 	}()
