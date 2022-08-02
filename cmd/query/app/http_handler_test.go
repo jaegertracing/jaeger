@@ -93,7 +93,7 @@ type structuredTraceResponse struct {
 
 func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	return initializeTestServerWithOptions(
-		&tenancy.TenancyManager{},
+		&tenancy.Manager{},
 		queryOptions,
 		append(
 			[]HandlerOption{
@@ -108,7 +108,7 @@ func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, 
 	)
 }
 
-func initializeTestServerWithOptions(tenancyMgr *tenancy.TenancyManager, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
+func initializeTestServerWithOptions(tenancyMgr *tenancy.Manager, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
@@ -135,7 +135,7 @@ type testServer struct {
 }
 
 func withTestServer(doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
-	ts := initializeTestServerWithOptions(&tenancy.TenancyManager{}, queryOptions, options...)
+	ts := initializeTestServerWithOptions(&tenancy.Manager{}, queryOptions, options...)
 	defer ts.server.Close()
 	doTest(ts)
 }
@@ -183,7 +183,7 @@ func TestLogOnServerError(t *testing.T) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(zap.New(l)),
 	}
-	h := NewAPIHandler(qs, &tenancy.TenancyManager{}, apiHandlerOptions...)
+	h := NewAPIHandler(qs, &tenancy.Manager{}, apiHandlerOptions...)
 	e := errors.New("test error")
 	h.handleError(&testHttp.TestResponseWriter{}, e, http.StatusInternalServerError)
 	require.Equal(t, 1, len(*l.logs))
@@ -404,7 +404,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	ts := initializeTestServerWithOptions(&tenancy.TenancyManager{}, querysvc.QueryServiceOptions{
+	ts := initializeTestServerWithOptions(&tenancy.Manager{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
 	defer ts.server.Close()
@@ -447,7 +447,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 func TestSearchModelConversionFailure(t *testing.T) {
 	ts := initializeTestServerWithOptions(
-		&tenancy.TenancyManager{},
+		&tenancy.Manager{},
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
@@ -886,7 +886,7 @@ func TestSearchTenancyHTTP(t *testing.T) {
 		Enabled: true,
 	}
 	ts := initializeTestServerWithOptions(
-		tenancy.NewTenancyManager(&tenancyOptions),
+		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -913,7 +913,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 		Enabled: true,
 	}
 	ts := initializeTestServerWithOptions(
-		tenancy.NewTenancyManager(&tenancyOptions),
+		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -927,7 +927,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
-	tm := tenancy.NewTenancyManager(&tenancyOptions)
+	tm := tenancy.NewManager(&tenancyOptions)
 	req.Header.Set(tm.Header, "acme")
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -940,7 +940,7 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		Enabled: true,
 	}
 	ts := initializeTestServerWithOptions(
-		tenancy.NewTenancyManager(&tenancyOptions),
+		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {

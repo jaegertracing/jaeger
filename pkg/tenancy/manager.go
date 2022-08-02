@@ -14,6 +14,13 @@
 
 package tenancy
 
+// Options describes the configuration properties for multitenancy
+type Options struct {
+	Enabled bool
+	Header  string
+	Tenants []string
+}
+
 // TenancyManager can check tenant usage for multi-tenant Jaeger configurations
 type TenancyManager struct {
 	Enabled bool
@@ -24,13 +31,6 @@ type TenancyManager struct {
 // Guard verifies a valid tenant when tenancy is enabled
 type guard interface {
 	Valid(candidate string) bool
-}
-
-// Options describes the configuration properties for multitenancy
-type Options struct {
-	Enabled bool
-	Header  string
-	Tenants []string
 }
 
 // NewTenancyManager creates a TenancyManager from tenancy Options

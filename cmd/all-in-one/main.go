@@ -156,7 +156,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
 
-			tm := tenancy.NewTenancyManager(&cOpts.GRPC.Tenancy)
+			tm := tenancy.NewManager(&cOpts.GRPC.Tenancy)
 
 			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{
@@ -269,7 +269,7 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
-	tm *tenancy.TenancyManager,
+	tm *tenancy.Manager,
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)

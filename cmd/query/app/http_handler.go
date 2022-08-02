@@ -85,7 +85,7 @@ type APIHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	queryParser         queryParser
-	tenancyMgr          *tenancy.TenancyManager
+	tenancyMgr          *tenancy.Manager
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
@@ -93,7 +93,7 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns an APIHandler
-func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.TenancyManager, options ...HandlerOption) *APIHandler {
+func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, options ...HandlerOption) *APIHandler {
 	aH := &APIHandler{
 		queryService: queryService,
 		queryParser: queryParser{

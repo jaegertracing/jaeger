@@ -125,7 +125,7 @@ func main() {
 				spanReader,
 				dependencyReader,
 				*queryServiceOptions)
-			tm := tenancy.NewTenancyManager(&queryOpts.Tenancy)
+			tm := tenancy.NewManager(&queryOpts.Tenancy)
 			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, tracer)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))

@@ -54,7 +54,7 @@ func TestNewCollector(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
-	tm := &tenancy.TenancyManager{}
+	tm := &tenancy.Manager{}
 
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
@@ -80,7 +80,7 @@ func TestCollector_StartErrors(t *testing.T) {
 			baseMetrics := metricstest.NewFactory(time.Hour)
 			spanWriter := &fakeSpanWriter{}
 			strategyStore := &mockStrategyStore{}
-			tm := &tenancy.TenancyManager{}
+			tm := &tenancy.Manager{}
 
 			c := New(&CollectorParams{
 				ServiceName:    "collector",
@@ -135,7 +135,7 @@ func TestCollector_PublishOpts(t *testing.T) {
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
-	tm := &tenancy.TenancyManager{}
+	tm := &tenancy.Manager{}
 
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
@@ -171,7 +171,7 @@ func TestAggregator(t *testing.T) {
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 	agg := &mockAggregator{}
-	tm := &tenancy.TenancyManager{}
+	tm := &tenancy.Manager{}
 
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
