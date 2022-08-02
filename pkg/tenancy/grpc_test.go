@@ -127,7 +127,7 @@ func TestClientUnaryInterceptor(t *testing.T) {
 		return fakeErr
 	}
 	ctx := WithTenant(context.Background(), "acme")
-	err := interceptor(ctx, "method", "request", "responce", nil, invoker)
+	err := interceptor(ctx, "method", "request", "response", nil, invoker)
 	assert.Equal(t, "acme", tenant)
 	assert.Same(t, fakeErr, err)
 }
