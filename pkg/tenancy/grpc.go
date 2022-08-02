@@ -113,3 +113,20 @@ func NewGuardingUnaryInterceptor(tc *TenancyManager) grpc.UnaryServerInterceptor
 		return handler(WithTenant(ctx, tenant), req)
 	}
 }
+
+// NewClientUnaryInterceptor injects tenant header into gRPC request metadata.
+func NewClientUnaryInterceptor(tc *TenancyManager) grpc.UnaryClientInterceptor {
+	return grpc.UnaryClientInterceptor(func(
+		ctx context.Context,
+		method string,
+		req, reply interface{},
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		if tenant := GetTenant(ctx); tenant != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, tc.Header, tenant)
+		}
+		return invoker(ctx, method, req, reply, cc, opts...)
+	})
+}

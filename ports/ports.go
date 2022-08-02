@@ -49,6 +49,11 @@ const (
 
 	// IngesterAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
 	IngesterAdminHTTP = 14270
+
+	// RemoteStorageGRPC is the default port of GRPC requests for Remote Storage
+	RemoteStorageGRPC = 17271
+	// RemoteStorageHTTP is the default admin HTTP port (health check, metrics, etc.)
+	RemoteStorageAdminHTTP = 17270
 )
 
 // PortToHostPort converts the port into a host:port address string
