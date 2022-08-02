@@ -43,7 +43,8 @@ func main() {
 	svc := flags.NewService(ports.RemoteStorageAdminHTTP)
 
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
-		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
+		os.Setenv(storage.SpanStorageTypeEnvVar, "memory")
+		// other storage types default to the same type as SpanStorage
 	}
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
@@ -75,7 +76,7 @@ func main() {
 			}
 
 			tm := tenancy.NewTenancyManager(&opts.Tenancy)
-			server, err := app.NewServer(opts, tm, storageFactory, svc.Logger)
+			server, err := app.NewServer(opts, storageFactory, tm, svc.Logger)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}

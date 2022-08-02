@@ -34,17 +34,17 @@ var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "grpc",
 }
 
-// Options holds configuration for query service
+// Options holds configuration for remote-storage service.
 type Options struct {
-	// GRPCHostPort is the host:port address where the service listens in on for gRPC requests
+	// GRPCHostPort is the host:port address for gRPC server
 	GRPCHostPort string
-	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
+	// TLSGRPC configures secure transport
 	TLSGRPC tlscfg.Options
-	// Tenancy configures tenancy for query
+	// Tenancy configuration
 	Tenancy tenancy.Options
 }
 
-// AddFlags adds flags for QueryOptions
+// AddFlags adds flags to flag set.
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(flagGRPCHostPort, ports.PortToHostPort(ports.RemoteStorageGRPC), "The host:port (e.g. 127.0.0.1:17271 or :17271) of the gRPC server")
 	tlsGRPCFlagsConfig.AddFlags(flagSet)

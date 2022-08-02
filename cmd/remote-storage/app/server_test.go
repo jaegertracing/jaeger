@@ -56,8 +56,8 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	f := func() (*Server, error) {
 		return NewServer(
 			&Options{GRPCHostPort: ":0"},
-			tenancy.NewTenancyManager(&tenancy.Options{}),
 			factory,
+			tenancy.NewTenancyManager(&tenancy.Options{}),
 			zap.NewNop(),
 		)
 	}
@@ -127,8 +127,8 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 	storageMocks := newStorageMocks()
 	_, err := NewServer(
 		&Options{GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
-		tenancy.NewTenancyManager(&tenancy.Options{}),
 		storageMocks.factory,
+		tenancy.NewTenancyManager(&tenancy.Options{}),
 		zap.NewNop(),
 	)
 	require.Error(t, err)
@@ -172,7 +172,6 @@ var testCases = []struct {
 	expectServerFail  bool
 }{
 	{
-		// this is a cross test for the "dedicated ports" use case without TLS
 		name: "should pass with insecure connection",
 		TLS: tlscfg.Options{
 			Enabled: false,
@@ -298,7 +297,9 @@ func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredent
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	dialOpts := []grpc.DialOption{grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tm))}
+	dialOpts := []grpc.DialOption{
+		grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tm)),
+	}
 	if creds != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 	} else {
@@ -315,19 +316,7 @@ func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredent
 }
 
 func TestServerGRPCTLS(t *testing.T) {
-	testlen := len(testCases)
-
-	tests := make([]struct {
-		name              string
-		TLS               tlscfg.Options
-		clientTLS         tlscfg.Options
-		expectError       bool
-		expectClientError bool
-		expectServerFail  bool
-	}, testlen)
-	copy(tests, testCases)
-
-	for _, test := range tests {
+	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			serverOptions := &Options{
 				GRPCHostPort: ":0",
@@ -343,8 +332,8 @@ func TestServerGRPCTLS(t *testing.T) {
 			tm := tenancy.NewTenancyManager(&tenancy.Options{Enabled: true})
 			server, err := NewServer(
 				serverOptions,
-				tm,
 				storageMocks.factory,
+				tm,
 				flagsSvc.Logger,
 			)
 			assert.Nil(t, err)
@@ -358,9 +347,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				for s := range server.HealthCheckStatus() {
 					flagsSvc.HC().Set(s)
 					if s == healthcheck.Unavailable {
-						once.Do(func() {
-							wg.Done()
-						})
+						once.Do(wg.Done)
 					}
 				}
 			}()
@@ -397,146 +384,6 @@ func TestServerGRPCTLS(t *testing.T) {
 	}
 }
 
-// func TestServerBadHostPort(t *testing.T) {
-// 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
-// 		&QueryOptions{HTTPHostPort: "8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
-// 		tenancy.NewTenancyManager(&tenancy.Options{}),
-// 		opentracing.NoopTracer{})
-
-// 	assert.NotNil(t, err)
-// 	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
-// 		&QueryOptions{HTTPHostPort: "127.0.0.1:8081", GRPCHostPort: "9123", BearerTokenPropagation: true},
-// 		tenancy.NewTenancyManager(&tenancy.Options{}),
-// 		opentracing.NoopTracer{})
-
-// 	assert.NotNil(t, err)
-// }
-
-// func TestServerInUseHostPort(t *testing.T) {
-// 	const availableHostPort = "127.0.0.1:0"
-// 	conn, err := net.Listen("tcp", availableHostPort)
-// 	require.NoError(t, err)
-// 	defer func() { require.NoError(t, conn.Close()) }()
-
-// 	testCases := []struct {
-// 		name         string
-// 		httpHostPort string
-// 		grpcHostPort string
-// 	}{
-// 		{"HTTP host port clash", conn.Addr().String(), availableHostPort},
-// 		{"GRPC host port clash", availableHostPort, conn.Addr().String()},
-// 	}
-// 	for _, tc := range testCases {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			server, err := NewServer(
-// 				zap.NewNop(),
-// 				&querysvc.QueryService{},
-// 				nil,
-// 				&QueryOptions{
-// 					HTTPHostPort:           tc.httpHostPort,
-// 					GRPCHostPort:           tc.grpcHostPort,
-// 					BearerTokenPropagation: true,
-// 				},
-// 				tenancy.NewTenancyManager(&tenancy.Options{}),
-// 				opentracing.NoopTracer{},
-// 			)
-// 			assert.NoError(t, err)
-
-// 			err = server.Start()
-// 			assert.Error(t, err)
-
-// 			if server.grpcConn != nil {
-// 				server.grpcConn.Close()
-// 			}
-// 			if server.httpConn != nil {
-// 				server.httpConn.Close()
-// 			}
-// 		})
-// 	}
-// }
-
-// func TestServerSinglePort(t *testing.T) {
-// 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-// 	flagsSvc.Logger = zap.NewNop()
-// 	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
-// 	spanReader := &spanstoremocks.Reader{}
-// 	dependencyReader := &depsmocks.Reader{}
-// 	expectedServices := []string{"test"}
-// 	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
-
-// 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-// 	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-// 		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
-// 		tenancy.NewTenancyManager(&tenancy.Options{}),
-// 		opentracing.NoopTracer{})
-// 	assert.Nil(t, err)
-// 	assert.NoError(t, server.Start())
-
-// 	var wg sync.WaitGroup
-// 	wg.Add(1)
-// 	once := sync.Once{}
-
-// 	go func() {
-// 		for s := range server.HealthCheckStatus() {
-// 			flagsSvc.HC().Set(s)
-// 			if s == healthcheck.Unavailable {
-// 				once.Do(func() {
-// 					wg.Done()
-// 				})
-// 			}
-
-// 		}
-// 		wg.Done()
-// 	}()
-
-// 	client := newGRPCClient(t, hostPort)
-// 	defer client.conn.Close()
-
-// 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-// 	defer cancel()
-
-// 	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, expectedServices, res.Services)
-
-// 	server.Close()
-// 	wg.Wait()
-// 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
-// }
-
-// func TestServerGracefulExit(t *testing.T) {
-// 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-
-// 	zapCore, logs := observer.New(zap.ErrorLevel)
-// 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
-
-// 	flagsSvc.Logger = zap.New(zapCore)
-// 	hostPort := ports.PortToHostPort(ports.QueryAdminHTTP)
-
-// 	querySvc := &querysvc.QueryService{}
-// 	tracer := opentracing.NoopTracer{}
-
-// 	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
-// 		tenancy.NewTenancyManager(&tenancy.Options{}), tracer)
-// 	assert.Nil(t, err)
-// 	assert.NoError(t, server.Start())
-// 	go func() {
-// 		for s := range server.HealthCheckStatus() {
-// 			flagsSvc.HC().Set(s)
-// 		}
-// 	}()
-
-// 	// Wait for servers to come up before we can call .Close()
-// 	// TODO Find a way to wait only as long as necessary. Unconditional sleep slows down the tests.
-// 	time.Sleep(1 * time.Second)
-// 	server.Close()
-
-// 	for _, logEntry := range logs.All() {
-// 		assert.True(t, logEntry.Level != zap.ErrorLevel,
-// 			"Error log found on server exit: %v", logEntry)
-// 	}
-// }
-
 func TestServerHandlesPortZero(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
@@ -545,8 +392,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	server, err := NewServer(
 		&Options{GRPCHostPort: ":0"},
-		tenancy.NewTenancyManager(&tenancy.Options{}),
 		storageMocks.factory,
+		tenancy.NewTenancyManager(&tenancy.Options{}),
 		flagsSvc.Logger,
 	)
 	require.Nil(t, err)

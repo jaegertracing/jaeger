@@ -42,8 +42,8 @@ type Server struct {
 	unavailableChannel chan healthcheck.Status // used to signal to admin server that gRPC server is unavailable
 }
 
-// NewServer creates and initializes Server
-func NewServer(options *Options, tm *tenancy.TenancyManager, storageFactory storage.Factory, logger *zap.Logger) (*Server, error) {
+// NewServer creates and initializes Server.
+func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.TenancyManager, logger *zap.Logger) (*Server, error) {
 	handler, err := createGRPCHandler(storageFactory, logger)
 	if err != nil {
 		return nil, err
@@ -124,22 +124,14 @@ func createGRPCServer(opts *Options, tm *tenancy.TenancyManager, handler *shared
 	return server, nil
 }
 
-// initListener initialises listeners of the server
-func (s *Server) initListener() error {
-	var err error
-	s.grpcConn, err = net.Listen("tcp", s.opts.GRPCHostPort)
+// Start gRPC server concurrently
+func (s *Server) Start() error {
+	listener, err := net.Listen("tcp", s.opts.GRPCHostPort)
 	if err != nil {
 		return err
 	}
-	return nil
-}
-
-// Start gRPC server concurrently
-func (s *Server) Start() error {
-	if err := s.initListener(); err != nil {
-		return err
-	}
-	s.logger.Info("Starting GRPC server", zap.Stringer("addr", s.grpcConn.Addr()))
+	s.logger.Info("Starting GRPC server", zap.Stringer("addr", listener.Addr()))
+	s.grpcConn = listener
 	go func() {
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.logger.Error("GRPC server exited", zap.Error(err))

@@ -24,7 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
-func TestQueryBuilderFlags(t *testing.T) {
+func TestFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
 		"--grpc.host-port=127.0.0.1:8081",
@@ -34,7 +34,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:8081", qOpts.GRPCHostPort)
 }
 
-func TestQueryOptions_FailedTLSFlags(t *testing.T) {
+func TestFailedTLSFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	err := command.ParseFlags([]string{
 		"--grpc.tls.enabled=false",
