@@ -16,6 +16,7 @@ package tenancy
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,4 +111,23 @@ func TestTenancyInterceptors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClientUnaryInterceptor(t *testing.T) {
+	tm := NewTenancyManager(&Options{Enabled: true, Tenants: []string{"acme"}})
+	interceptor := NewClientUnaryInterceptor(tm)
+	var tenant string
+	fakeErr := errors.New("foo")
+	invoker := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, opts ...grpc.CallOption) error {
+		md, ok := metadata.FromOutgoingContext(ctx)
+		assert.True(t, ok)
+		ten, err := tenantFromMetadata(md, tm.Header)
+		require.NoError(t, err)
+		tenant = ten
+		return fakeErr
+	}
+	ctx := WithTenant(context.Background(), "acme")
+	err := interceptor(ctx, "method", "request", "response", nil, invoker)
+	assert.Equal(t, "acme", tenant)
+	assert.Same(t, fakeErr, err)
 }
