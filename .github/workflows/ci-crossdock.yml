@@ -10,12 +10,7 @@ on:
 jobs:
   crossdock:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        steps:
-        - name: crossdock
-          cmd: bash scripts/build-crossdock.sh
-    name: ${{ matrix.steps.name }}
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -34,11 +29,11 @@ jobs:
 
     - name: Install tools
       run: make install-ci
-    
+
     - uses: docker/setup-qemu-action@v2
 
-    - name: Build, test, and publish ${{ matrix.steps.name }} image
-      run: ${{ matrix.steps.cmd }}
+    - name: Build, test, and publish crossdock image
+      run: bash scripts/build-crossdock.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
