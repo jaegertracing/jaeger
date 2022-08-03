@@ -30,21 +30,17 @@ services:
       retries: 3
       start_period: 5s
 
-  cassandra:
-    image: cassandra:4.0
+  jaeger-remote-storage:
+    image: jaegertracing/jaeger-remote-storage
+    ports:
+      - 17271:17271
+    environment:
+      - SPAN_STORAGE_TYPE=memory
     healthcheck:
-      test: ["CMD-SHELL", "[ $$(nodetool statusgossip) = running ]"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:17270/ || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 3
-
-  cassandra-schema:
-    image: jaegertracing/jaeger-cassandra-schema
-    depends_on:
-      cassandra:
-        condition: service_healthy
-    links:
-      - cassandra
 
   jaeger-collector:
     image: jaegertracing/jaeger-collector
@@ -70,22 +66,26 @@ services:
   jaeger-ingester:
     image: jaegertracing/jaeger-ingester
     command:
-      - "--cassandra.keyspace=jaeger_v1_dc1"
-      - "--cassandra.servers=cassandra"
+      - "--grpc-storage.server=jaeger-remote-storage:17271"
       - "--log-level=debug"
     environment:
-      - SPAN_STORAGE_TYPE=cassandra
+      - SPAN_STORAGE_TYPE=grpc-plugin
       - KAFKA_CONSUMER_BROKERS=kafka:9092
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14270/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
     depends_on:
       kafka:
         condition: service_healthy
-      cassandra-schema:
-        condition: service_completed_successfully
+      jaeger-remote-storage:
+        condition: service_healthy
       jaeger-collector:
         condition: service_healthy
     links:
       - kafka
-      - cassandra
+      - jaeger-remote-storage
 
   jaeger-agent:
     image: jaegertracing/jaeger-agent
@@ -97,6 +97,11 @@ services:
       - "6832:6832/udp"
       - "5778:5778"
     restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14271/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
     depends_on:
       jaeger-collector:
         condition: service_healthy
@@ -106,18 +111,23 @@ services:
   jaeger-query:
     image: jaegertracing/jaeger-query
     command:
-      - "--cassandra.keyspace=jaeger_v1_dc1"
-      - "--cassandra.servers=cassandra"
+      - "--grpc-storage.server=jaeger-remote-storage:17271"
       - "--log-level=debug"
     environment:
+      - SPAN_STORAGE_TYPE=grpc-plugin
       - JAEGER_AGENT_HOST=jaeger-agent
     ports:
       - "16686:16686"
       - "16687"
     restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:16687/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
     depends_on:
-      cassandra-schema:
-        condition: service_completed_successfully
+      jaeger-remote-storage:
+        condition: service_healthy
     links:
       - jaeger-agent
-      - cassandra
+      - jaeger-remote-storage
