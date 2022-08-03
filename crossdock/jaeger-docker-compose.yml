@@ -1,33 +1,46 @@
 version: '2'
 
 services:
+    jaeger-remote-storage:
+      image: jaegertracing/jaeger-remote-storage
+      command:
+        - "--log-level=debug"
+      environment:
+        - SPAN_STORAGE_TYPE=memory
+      ports:
+        - "17271:17271"
+
     jaeger-collector:
       image: jaegertracing/jaeger-collector
-      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200", "--collector.zipkin.host-port=:9411"]
+      command:
+        - "--grpc-storage.server=jaeger-remote-storage:17271"
+        - "--collector.zipkin.host-port=:9411"
+        - "--log-level=debug"
       ports:
         - "14269"
         - "14268:14268"
         - "14250"
         - "9411:9411"
       environment:
-        - SPAN_STORAGE_TYPE=elasticsearch
+        - SPAN_STORAGE_TYPE=grpc-plugin
         - LOG_LEVEL=debug
       restart: on-failure
       depends_on:
-        - elasticsearch
+        - jaeger-remote-storage
 
     jaeger-query:
       image: jaegertracing/jaeger-query
-      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200"]
+      command:
+        - "--grpc-storage.server=jaeger-remote-storage:17271"
+        - "--log-level=debug"
       ports:
         - "16686:16686"
         - "16687"
       environment:
-        - SPAN_STORAGE_TYPE=elasticsearch
-        - LOG_LEVEL=debug
+        - SPAN_STORAGE_TYPE=grpc-plugin
       restart: on-failure
       depends_on:
-        - elasticsearch
+        - jaeger-remote-storage
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
@@ -42,12 +55,3 @@ services:
       restart: on-failure
       depends_on:
         - jaeger-collector
-
-    elasticsearch:
-      image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.3
-      environment:
-        - discovery.type=single-node
-      ports:
-        - "9200:9200/tcp"
-
-

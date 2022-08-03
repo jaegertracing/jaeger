@@ -40,7 +40,7 @@ services:
         ports:
             - "8080-8082"
         depends_on:
-#        UDP sender needs to know agent's address
+            # UDP sender needs to know agent's address
             - jaeger-agent
 
     python:
