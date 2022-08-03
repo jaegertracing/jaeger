@@ -49,7 +49,7 @@ require (
 	github.com/xdg-go/scram v1.1.1
 	go.opentelemetry.io/collector v0.55.0
 	go.opentelemetry.io/collector/pdata v0.55.0
-	go.opentelemetry.io/collector/semconv v0.55.0
+	go.opentelemetry.io/collector/semconv v0.56.0
 	go.opentelemetry.io/otel v1.8.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.5.1
