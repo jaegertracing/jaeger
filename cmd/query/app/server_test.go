@@ -69,7 +69,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg},
-		tenancy.NewTenancyManager(&tenancy.Options{}), opentracing.NoopTracer{})
+		tenancy.NewManager(&tenancy.Options{}), opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 
@@ -83,7 +83,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
-		tenancy.NewTenancyManager(&tenancy.Options{}), opentracing.NoopTracer{})
+		tenancy.NewManager(&tenancy.Options{}), opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 
@@ -97,7 +97,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg},
-		tenancy.NewTenancyManager(&tenancy.Options{}), opentracing.NoopTracer{})
+		tenancy.NewManager(&tenancy.Options{}), opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 
@@ -339,7 +339,7 @@ func TestServerHTTPTLS(t *testing.T) {
 
 			querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-				serverOptions, tenancy.NewTenancyManager(&tenancy.Options{}),
+				serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				opentracing.NoopTracer{})
 			assert.Nil(t, err)
 			assert.NoError(t, server.Start())
@@ -499,7 +499,7 @@ func TestServerGRPCTLS(t *testing.T) {
 
 			querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-				serverOptions, tenancy.NewTenancyManager(&tenancy.Options{}),
+				serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				opentracing.NoopTracer{})
 			assert.Nil(t, err)
 			assert.NoError(t, server.Start())
@@ -554,13 +554,13 @@ func TestServerGRPCTLS(t *testing.T) {
 func TestServerBadHostPort(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: "8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
-		tenancy.NewTenancyManager(&tenancy.Options{}),
+		tenancy.NewManager(&tenancy.Options{}),
 		opentracing.NoopTracer{})
 
 	assert.NotNil(t, err)
 	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: "127.0.0.1:8081", GRPCHostPort: "9123", BearerTokenPropagation: true},
-		tenancy.NewTenancyManager(&tenancy.Options{}),
+		tenancy.NewManager(&tenancy.Options{}),
 		opentracing.NoopTracer{})
 
 	assert.NotNil(t, err)
@@ -591,7 +591,7 @@ func TestServerInUseHostPort(t *testing.T) {
 					GRPCHostPort:           tc.grpcHostPort,
 					BearerTokenPropagation: true,
 				},
-				tenancy.NewTenancyManager(&tenancy.Options{}),
+				tenancy.NewManager(&tenancy.Options{}),
 				opentracing.NoopTracer{},
 			)
 			assert.NoError(t, err)
@@ -621,7 +621,7 @@ func TestServerSinglePort(t *testing.T) {
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
-		tenancy.NewTenancyManager(&tenancy.Options{}),
+		tenancy.NewManager(&tenancy.Options{}),
 		opentracing.NoopTracer{})
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
@@ -671,7 +671,7 @@ func TestServerGracefulExit(t *testing.T) {
 	tracer := opentracing.NoopTracer{}
 
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
-		tenancy.NewTenancyManager(&tenancy.Options{}), tracer)
+		tenancy.NewManager(&tenancy.Options{}), tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
@@ -700,7 +700,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	tracer := opentracing.NoopTracer{}
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"},
-		tenancy.NewTenancyManager(&tenancy.Options{}),
+		tenancy.NewManager(&tenancy.Options{}),
 		tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
@@ -751,7 +751,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	tenancyMgr := tenancy.NewTenancyManager(&serverOptions.Tenancy)
+	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}

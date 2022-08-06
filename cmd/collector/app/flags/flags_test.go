@@ -120,7 +120,7 @@ func TestCollectorOptionsWithFlags_CheckSimpleTenancy(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
-		"--multi_tenancy.enabled=true",
+		"--multi-tenancy.enabled=true",
 	})
 	c.InitFromViper(v, zap.NewNop())
 
@@ -132,9 +132,9 @@ func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
-		"--multi_tenancy.enabled=true",
-		"--multi_tenancy.header=custom-tenant-header",
-		"--multi_tenancy.tenants=acme,hardware-store",
+		"--multi-tenancy.enabled=true",
+		"--multi-tenancy.header=custom-tenant-header",
+		"--multi-tenancy.tenants=acme,hardware-store",
 	})
 	c.InitFromViper(v, zap.NewNop())
 

@@ -13,6 +13,22 @@ next release
 
 ### UI Changes
 
+1.37.0 (2022-08-03)
+-------------------
+### Backend Changes
+
+* Add remote-storage service ([@yurishkuro](https://github.com/yurishkuro) in [#3836](https://github.com/jaegertracing/jaeger/pull/3836))
+
+#### Bug fixes, Minor Improvements
+
+* Fix ingester panic when span.process=nil ([@locmai](https://github.com/locmai) in [#3819](https://github.com/jaegertracing/jaeger/pull/3819))
+* Added windows zip file generation ([@adhithyasrinivasan](https://github.com/adhithyasrinivasan) in [#3817](https://github.com/jaegertracing/jaeger/pull/3817))
+* Refactor gRPC storage plugin for better composability ([@yurishkuro](https://github.com/yurishkuro) in [#3833](https://github.com/jaegertracing/jaeger/pull/3833))
+
+### UI Changes
+
+* UI pinned to version [1.26.0 - see the changelog](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1260-2022-08-03).
+
 1.36.0 (2022-07-05)
 -------------------
 ### Backend Changes

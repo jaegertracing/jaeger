@@ -40,7 +40,7 @@ func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartGRPCServer(&GRPCServerParams{
 		HostPort:      ":-1",
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.TenancyManager{}),
+		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 	})
@@ -57,7 +57,7 @@ func TestFailServe(t *testing.T) {
 
 	logger := zap.New(core)
 	serveGRPC(grpc.NewServer(), lis, &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.TenancyManager{}),
+		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 		OnError: func(e error) {
@@ -72,7 +72,7 @@ func TestFailServe(t *testing.T) {
 func TestSpanCollector(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.TenancyManager{}),
+		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore:           &mockSamplingStore{},
 		Logger:                  logger,
 		MaxReceiveMessageLength: 1024 * 1024,
@@ -97,7 +97,7 @@ func TestSpanCollector(t *testing.T) {
 func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.TenancyManager{}),
+		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 		TLSConfig: tlscfg.Options{
@@ -116,7 +116,7 @@ func TestCollectorStartWithTLS(t *testing.T) {
 func TestCollectorReflection(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.TenancyManager{}),
+		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 	}

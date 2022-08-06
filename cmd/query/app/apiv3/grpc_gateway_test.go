@@ -66,7 +66,7 @@ func setupGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, c
 		serverGRPCOpts = append(serverGRPCOpts, grpc.Creds(creds))
 	}
 	if tenancyOptions.Enabled {
-		tm := tenancy.NewTenancyManager(&tenancyOptions)
+		tm := tenancy.NewManager(&tenancyOptions)
 		serverGRPCOpts = append(serverGRPCOpts,
 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
 			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
@@ -86,7 +86,7 @@ func setupGRPCGateway(t *testing.T, basePath string, serverTLS tlscfg.Options, c
 	router := &mux.Router{}
 	router = router.PathPrefix(basePath).Subrouter()
 	ctx, cancel := context.WithCancel(context.Background())
-	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancy.NewTenancyManager(&tenancyOptions))
+	err := RegisterGRPCGateway(ctx, zap.NewNop(), router, basePath, lis.Addr().String(), clientTLS, tenancy.NewManager(&tenancyOptions))
 	require.NoError(t, err)
 
 	httpLis, err := net.Listen("tcp", ":0")
@@ -176,7 +176,7 @@ func TestTenancyGRPCGateway(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
-	tm := tenancy.NewTenancyManager(&tenancyOptions)
+	tm := tenancy.NewManager(&tenancyOptions)
 	testGRPCGatewayWithTenancy(t, "/", tlscfg.Options{}, tlscfg.Options{},
 		// Configure the gateway to forward tenancy header from HTTP to GRPC
 		tenancyOptions,
@@ -217,7 +217,7 @@ func TestTenancyGRPCRejection(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, response.StatusCode)
 
 	// Try again with tenant header set
-	tm := tenancy.NewTenancyManager(&tenancyOptions)
+	tm := tenancy.NewManager(&tenancyOptions)
 	req.Header.Set(tm.Header, "acme")
 	response, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)

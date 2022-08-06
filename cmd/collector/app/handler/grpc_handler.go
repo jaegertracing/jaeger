@@ -36,7 +36,7 @@ type GRPCHandler struct {
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyMgr *tenancy.TenancyManager) *GRPCHandler {
+func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyMgr *tenancy.Manager) *GRPCHandler {
 	return &GRPCHandler{
 		logger: logger,
 		batchConsumer: newBatchConsumer(logger,
@@ -58,10 +58,10 @@ type batchConsumer struct {
 	logger        *zap.Logger
 	spanProcessor processor.SpanProcessor
 	spanOptions   processor.SpansOptions
-	tenancyMgr    *tenancy.TenancyManager
+	tenancyMgr    *tenancy.Manager
 }
 
-func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyMgr *tenancy.TenancyManager) batchConsumer {
+func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyMgr *tenancy.Manager) batchConsumer {
 	return batchConsumer{
 		logger:        logger,
 		spanProcessor: spanProcessor,

@@ -23,31 +23,32 @@ import (
 )
 
 const (
-	tenancyEnabled = "multi_tenancy.enabled"
-	tenancyHeader  = "multi_tenancy.header"
-	validTenants   = "multi_tenancy.tenants"
+	flagPrefix         = "multi-tenancy"
+	flagTenancyEnabled = flagPrefix + ".enabled"
+	flagTenancyHeader  = flagPrefix + ".header"
+	flagValidTenants   = flagPrefix + ".tenants"
 )
 
 // AddFlags adds flags for tenancy to the FlagSet.
 func AddFlags(flags *flag.FlagSet) {
-	flags.Bool(tenancyEnabled, false, "Enable tenancy header when receiving or querying")
-	flags.String(tenancyHeader, "x-tenant", "HTTP header carrying tenant")
-	flags.String(validTenants, "",
+	flags.Bool(flagTenancyEnabled, false, "Enable tenancy header when receiving or querying")
+	flags.String(flagTenancyHeader, "x-tenant", "HTTP header carrying tenant")
+	flags.String(flagValidTenants, "",
 		fmt.Sprintf("comma-separated list of allowed values for --%s header.  (If not supplied, tenants are not restricted)",
-			tenancyHeader))
+			flagTenancyHeader))
 }
 
 // InitFromViper creates tenancy.Options populated with values retrieved from Viper.
-func InitFromViper(v *viper.Viper) (Options, error) {
+func InitFromViper(v *viper.Viper) Options {
 	var p Options
-	p.Enabled = v.GetBool(tenancyEnabled)
-	p.Header = v.GetString(tenancyHeader)
-	tenants := v.GetString(validTenants)
+	p.Enabled = v.GetBool(flagTenancyEnabled)
+	p.Header = v.GetString(flagTenancyHeader)
+	tenants := v.GetString(flagValidTenants)
 	if len(tenants) != 0 {
 		p.Tenants = strings.Split(tenants, ",")
 	} else {
 		p.Tenants = []string{}
 	}
 
-	return p, nil
+	return p
 }

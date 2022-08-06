@@ -33,8 +33,8 @@ func TestTenancyFlags(t *testing.T) {
 		{
 			name: "one tenant",
 			cmd: []string{
-				"--multi_tenancy.enabled=true",
-				"--multi_tenancy.tenants=acme",
+				"--multi-tenancy.enabled=true",
+				"--multi-tenancy.tenants=acme",
 			},
 			expected: Options{
 				Enabled: true,
@@ -45,8 +45,8 @@ func TestTenancyFlags(t *testing.T) {
 		{
 			name: "two tenants",
 			cmd: []string{
-				"--multi_tenancy.enabled=true",
-				"--multi_tenancy.tenants=acme,country-store",
+				"--multi-tenancy.enabled=true",
+				"--multi-tenancy.tenants=acme,country-store",
 			},
 			expected: Options{
 				Enabled: true,
@@ -57,9 +57,9 @@ func TestTenancyFlags(t *testing.T) {
 		{
 			name: "custom header",
 			cmd: []string{
-				"--multi_tenancy.enabled=true",
-				"--multi_tenancy.header=jaeger-tenant",
-				"--multi_tenancy.tenants=acme",
+				"--multi-tenancy.enabled=true",
+				"--multi-tenancy.header=jaeger-tenant",
+				"--multi-tenancy.tenants=acme",
 			},
 			expected: Options{
 				Enabled: true,
@@ -72,7 +72,7 @@ func TestTenancyFlags(t *testing.T) {
 			// "tenant header required, but any value will pass"
 			name: "no_tenants",
 			cmd: []string{
-				"--multi_tenancy.enabled=true",
+				"--multi-tenancy.enabled=true",
 			},
 			expected: Options{
 				Enabled: true,
@@ -93,8 +93,7 @@ func TestTenancyFlags(t *testing.T) {
 
 			err := command.ParseFlags(test.cmd)
 			require.NoError(t, err)
-			tenancyCfg, err := InitFromViper(v)
-			require.NoError(t, err)
+			tenancyCfg := InitFromViper(v)
 			assert.Equal(t, test.expected, tenancyCfg)
 		})
 	}

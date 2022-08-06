@@ -84,7 +84,7 @@ func TestTenancyValidity(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tc := NewTenancyManager(&test.options)
+			tc := NewManager(&test.options)
 			assert.Equal(t, test.valid, tc.Valid(test.tenant))
 		})
 	}
