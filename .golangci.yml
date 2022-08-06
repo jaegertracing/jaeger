@@ -1,4 +1,5 @@
 run:
+  go: '1.17'
   timeout: 10m
   skip-dirs:
     - mocks
