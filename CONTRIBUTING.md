@@ -185,10 +185,7 @@ requires connection to Cassandra
 ```
 
 ## Merging PRs
-For maintainers: before merging a PR make sure:
-* the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md)
-* pull request is assigned to the current release milestone
-* add `changelog:*` and other labels
+**For maintainers:** before merging a PR make sure the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md)
 
 Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
 After the merge make sure referenced issues were closed.
