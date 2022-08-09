@@ -53,7 +53,7 @@ require (
 	go.opentelemetry.io/otel v1.9.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.5.1
-	go.uber.org/zap v1.21.0
+	go.uber.org/zap v1.22.0
 	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 	google.golang.org/grpc v1.48.0
