@@ -200,10 +200,10 @@ run-all-in-one: build-ui
 build-ui: cmd/query/app/ui/actual/index.html.gz
 
 cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html
-	rm -rf cmd/query/app/ui/actual
-	mkdir cmd/query/app/ui/actual
+	# do not delete dot-files
+	rm -rf cmd/query/app/ui/actual/*
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
-	find cmd/query/app/ui/actual -type f | xargs gzip
+	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui
