@@ -47,6 +47,8 @@ type ConnBuilder struct {
 	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
 	Discoverer        discovery.Discoverer
+
+	AdditionalDialOptions []grpc.DialOption
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -96,6 +98,8 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
+	dialOptions = append(dialOptions, b.AdditionalDialOptions...)
+
 	conn, err := grpc.Dial(dialTarget, dialOptions...)
 	if err != nil {
 		return nil, err
