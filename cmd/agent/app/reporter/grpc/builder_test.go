@@ -395,3 +395,33 @@ func assertConnectionState(t *testing.T, conn *grpc.ClientConn, expectedState st
 		}
 	}
 }
+
+type fakeInterceptor struct {
+	isCalled bool
+}
+
+func (f *fakeInterceptor) intercept(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	f.isCalled = true
+	return invoker(ctx, method, req, reply, cc, opts...)
+}
+
+func (f *fakeInterceptor) assertCalled(t *testing.T) {
+	assert.True(t, f.isCalled)
+}
+
+func TestBuilderWithAdditionalDialOptions(t *testing.T) {
+	fi := fakeInterceptor{}
+	defer fi.assertCalled(t)
+
+	cb := ConnBuilder{
+		CollectorHostPorts:    []string{"127.0.0.1:14268"},
+		AdditionalDialOptions: []grpc.DialOption{grpc.WithUnaryInterceptor(fi.intercept)},
+	}
+
+	r, err := cb.CreateConnection(zap.NewNop(), metrics.NullFactory)
+	require.NoError(t, err)
+	assert.NotNil(t, r)
+
+	err = r.Invoke(context.Background(), "test", map[string]string{}, map[string]string{}, []grpc.CallOption{}...)
+	assert.Error(t, err, "should error because no server is running")
+}
