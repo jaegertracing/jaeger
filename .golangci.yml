@@ -39,6 +39,7 @@ linters:
     - gosec
     - govet
     - misspell
+    - bidichk
   disable:
     - errcheck
 
