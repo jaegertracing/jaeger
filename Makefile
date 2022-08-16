@@ -42,7 +42,7 @@ IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
-DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+DATE=$(shell date -u -d @$(shell git show -s --format=%ct) +'%Y-%m-%dT%H:%M:%SZ')
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
@@ -170,15 +170,15 @@ build-tracegen:
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/main.go
+	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/main.go
+	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/esmapping-generator/main.go
 
 .PHONY: build-esmapping-generator-linux
 build-esmapping-generator-linux:
-	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/main.go
+	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator $(BUILD_INFO) ./cmd/esmapping-generator/main.go
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:
