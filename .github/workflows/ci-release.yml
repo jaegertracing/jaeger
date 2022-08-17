@@ -44,7 +44,7 @@ jobs:
     - name: Upload binaries
       uses: svenstaro/upload-release-action@2.3.0
       with:
-        file: '{deploy/*.tar.gz,deploy/*.zip}'
+        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt}'
         file_glob: true
         tag: ${{ github.ref }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}

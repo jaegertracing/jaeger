@@ -40,3 +40,7 @@ crossdock/crossdock-*
 run-crossdock.log
 proto-gen/.patched-otel-proto/
 __pycache__
+.asset-manifest.json
+deploy/
+deploy-staging/
+sha256sum.combined.txt
