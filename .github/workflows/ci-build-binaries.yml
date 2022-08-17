@@ -49,3 +49,15 @@ jobs:
 
     - name: Build binaries
       run: make ${{ matrix.platform.task }}
+
+    - name: Collect checksums
+      run: make collect-sums
+
+    - name: Clean
+      run: make clean
+
+    - name: Build binaries
+      run: make ${{ matrix.platform.task }}
+
+    - name: Validate reproducibility
+      run: make test-checksums
