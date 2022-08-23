@@ -16,7 +16,7 @@ import (
 
 // ListOfSpans ListOfSpans
 //
-// A list of spans with possibly different trace ids, in no particular order
+// # A list of spans with possibly different trace ids, in no particular order
 //
 // swagger:model ListOfSpans
 type ListOfSpans []*Span

@@ -20,7 +20,6 @@ import (
 // Zipkin v1 core annotations such as "cs" and "sr" have been replaced with
 // Span.Kind, which interprets timestamp and duration.
 //
-//
 // swagger:model Annotation
 type Annotation struct {
 

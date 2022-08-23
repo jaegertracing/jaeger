@@ -22,7 +22,6 @@ import (
 
 // Hashable interface is for type that can participate in a hash computation
 // by writing their data into io.Writer, which is usually an instance of hash.Hash.
-//
 type Hashable interface {
 	Hash(w io.Writer) error
 }

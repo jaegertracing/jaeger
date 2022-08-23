@@ -22,8 +22,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 )
 
-//go:embed *.json
 // MAPPINGS contains embedded index templates.
+//
+//go:embed *.json
 var MAPPINGS embed.FS
 
 // MappingBuilder holds parameters required to render an elasticsearch index template

@@ -36,7 +36,6 @@ import (
 // the dead instance.
 //
 // This hack protects jaeger-ingester from issues described in  https://github.com/jaegertracing/jaeger/issues/1052
-//
 type deadlockDetector struct {
 	metricsFactory                metrics.Factory
 	logger                        *zap.Logger

@@ -31,7 +31,7 @@ import (
 // Factory defines an interface for a factory that can create implementations of different storage components.
 // Implementations are also encouraged to implement plugin.Configurable interface.
 //
-// See also
+// # See also
 //
 // plugin.Configurable
 type Factory interface {
@@ -78,7 +78,7 @@ type ArchiveFactory interface {
 // MetricsFactory defines an interface for a factory that can create implementations of different metrics storage components.
 // Implementations are also encouraged to implement plugin.Configurable interface.
 //
-// See also
+// # See also
 //
 // plugin.Configurable
 type MetricsFactory interface {

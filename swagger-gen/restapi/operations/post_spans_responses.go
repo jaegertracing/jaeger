@@ -14,7 +14,8 @@ import (
 // PostSpansAcceptedCode is the HTTP code returned for type PostSpansAccepted
 const PostSpansAcceptedCode int = 202
 
-/*PostSpansAccepted Accepted
+/*
+PostSpansAccepted Accepted
 
 swagger:response postSpansAccepted
 */
