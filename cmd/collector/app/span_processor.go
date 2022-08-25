@@ -177,6 +177,16 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 	sp.preProcessSpans(mSpans, options.Tenant)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
+
+	// Note: this is not the ideal place to do this because collector tags are added to Process.Tags,
+	// and Process can be shared between different spans in the batch, but we no longer know that,
+	// the relation is lost upstream and it's impossible in Go to dedupe pointers. But at least here
+	// we have a single thread updating all spans that may share the same Process, before concurrency
+	// kicks in.
+	for _, span := range mSpans {
+		sp.addCollectorTags(span)
+	}
+
 	for i, mSpan := range mSpans {
 		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport, options.Tenant)
 		if !ok && sp.reportBusy {
@@ -213,6 +223,8 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	typedTags.Sort()
 }
 
+// Note: spans may share the Process object, so no changes should be made to Process
+// in this function as it may cause race conditions.
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport, tenant string) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
@@ -224,9 +236,6 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 
 	// add format tag
 	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
-
-	// append the collector tags
-	sp.addCollectorTags(span)
 
 	item := &queueItem{
 		queuedTime: time.Now(),
