@@ -245,6 +245,20 @@ func TestGRPCServerWriteSpanStream(t *testing.T) {
 	})
 }
 
+func TestGRPCServerWriteSpanStreamWithGRPCError(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamServer)
+		stream.On("Recv").Return(&storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}, nil).Twice().
+			On("Recv").Return(nil, context.DeadlineExceeded).Once()
+		stream.On("SendAndClose", &storage_v1.WriteSpanResponse{}).Return(nil)
+		stream.On("Context").Return(context.Background())
+		r.impl.streamWriter.On("WriteSpan", context.Background(), &mockTraceSpans[0]).Return(nil)
+
+		err := r.server.WriteSpanStream(stream)
+		assert.ErrorContains(t, err, context.DeadlineExceeded.Error())
+	})
+}
+
 func TestGRPCServerGetDependencies(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
 		lookback := time.Duration(1 * time.Second)

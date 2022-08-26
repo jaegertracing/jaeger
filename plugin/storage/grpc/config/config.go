@@ -107,8 +107,9 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 	grpcClient := shared.NewGRPCClient(conn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
-			Store:        grpcClient,
-			ArchiveStore: grpcClient,
+			Store:               grpcClient,
+			ArchiveStore:        grpcClient,
+			StreamingSpanWriter: grpcClient,
 		},
 		Capabilities: grpcClient,
 	}, nil
