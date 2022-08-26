@@ -115,6 +115,9 @@ func (s *GRPCHandler) WriteSpanStream(stream storage_v1.StreamingSpanWriterPlugi
 		if err == io.EOF {
 			break
 		}
+		if err != nil {
+			return err
+		}
 		err = writer.WriteSpan(stream.Context(), in.Span)
 		if err != nil {
 			return err
