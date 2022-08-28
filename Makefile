@@ -241,7 +241,7 @@ build-collector build-collector-debug:
 
 .PHONY: build-ingester build-ingester-debug
 build-ingester build-ingester-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) ./cmd/ingester/main.go
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 
 .PHONY: build-remote-storage build-remote-storage-debug
 build-remote-storage build-remote-storage-debug:
@@ -603,19 +603,13 @@ certs:
 certs-dryrun:
 	cd pkg/config/tlscfg/testdata && ./gen-certs.sh -d
 
-.PHONY: collect-sums
-collect-sums:
-	find cmd -type f -executable -exec sha256sum {} \; | sort -k2 > sha256sum.combined.txt
-
-.PHONY: test-checksums
-test-checksums:
-	sha256sum --strict --check ./sha256sum.combined.txt
-
 .PHONY: repro-check
 repro-check:
+	# Check local reproducibility of generated executables.
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
-	$(MAKE) collect-sums
+	# Generate checksum for all executables under ./cmd
+	find cmd -type f -executable -exec sha256sum {} \; | sort -k2 > sha256sum.combined.txt
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
-	$(MAKE) test-checksums
+	sha256sum --strict --check ./sha256sum.combined.txt
