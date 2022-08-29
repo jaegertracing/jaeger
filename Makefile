@@ -163,6 +163,7 @@ lint:
 .PHONY: build-examples
 build-examples:
 	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
+	shasum -a 256 ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) > ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH).sha256
 
 .PHONY: build-tracegen
 build-tracegen:
