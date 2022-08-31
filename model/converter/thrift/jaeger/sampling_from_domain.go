@@ -72,6 +72,9 @@ func convertPerOperationFromDomain(s *api_v2.PerOperationSamplingStrategies) *sa
 		for i, k := range s.PerOperationStrategies {
 			r.PerOperationStrategies[i] = convertOperationFromDomain(k)
 		}
+	} else {
+		// Initialize to an empty array so that using json.Marshal results in [] instead of null.
+		r.PerOperationStrategies = make([]*sampling.OperationSamplingStrategy, 0)
 	}
 	return r
 }
