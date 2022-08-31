@@ -33,7 +33,7 @@ function package {
     mkdir $PACKAGE_STAGING_DIR
     stage-platform-files $PLATFORM $PACKAGE_STAGING_DIR $FILE_EXTENSION
     # Create a checksum file for all the files being packaged in the archive. Sorted by filename.
-    find $PACKAGE_STAGING_DIR -type f -exec sha256sum {} \; | sort -k2 | tee ./deploy/$PACKAGE_NAME.sha256sum.txt
+    find $PACKAGE_STAGING_DIR -type f -exec shasum -b -a 256 {} \; | sort -k2 | tee ./deploy/$PACKAGE_NAME.sha256sum.txt
 
     if [ "$COMPRESSION" == "zip" ]
     then
@@ -53,6 +53,12 @@ set -e
 
 readonly VERSION="$(make echo-version | awk 'match($0, /([0-9]*\.[0-9]*\.[0-9]*)$/) { print substr($0, RSTART, RLENGTH) }')"
 echo "Working on version: $VERSION"
+if [ -z "$VERSION" ]
+then
+    # We want to halt if for some reason the version string is empty as this is an obvious error case
+    >&2 echo 'Failed to detect a version string'
+    exit 1
+fi
 
 # make needed directories
 rm -rf deploy
@@ -67,4 +73,4 @@ package tar linux-s390x
 package tar linux-arm64
 package tar linux-ppc64le
 # Create a checksum file for all non-checksum files in the deploy directory. Strips the leading 'deploy/' directory from filepaths. Sort by filename.
-find deploy \( ! -name '*sha256sum.txt' \) -type f -exec sha256sum {} \; | sed -r 's#(\w+\s+)deploy/(.*)#\1\2#' | sort -k2 | tee ./deploy/jaeger-$VERSION.sha256sum.txt
+find deploy \( ! -name '*sha256sum.txt' \) -type f -exec shasum -b -a 256 {} \; | sed -r 's#(\w+\s+\*?)deploy/(.*)#\1\2#' | sort -k2 | tee ./deploy/jaeger-$VERSION.sha256sum.txt

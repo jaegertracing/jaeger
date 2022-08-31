@@ -609,7 +609,7 @@ repro-check:
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
 	# Generate checksum for all executables under ./cmd
-	find cmd -type f -executable -exec sha256sum {} \; | sort -k2 > sha256sum.combined.txt
+	find cmd -type f -executable -exec shasum -b -a 256 {} \; | sort -k2 | tee sha256sum.combined.txt
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
-	sha256sum --strict --check ./sha256sum.combined.txt
+	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
