@@ -33,8 +33,9 @@ else
 endif
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
-GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
-GOTEST=go test -v $(RACE)
+GOCACHE=$(abspath .gocache)
+GOBUILD=GOCACHE=$(GOCACHE) CGO_ENABLED=0 installsuffix=cgo go build -trimpath
+GOTEST=GOCACHE=$(GOCACHE) go test -v $(RACE)
 GOFMT=gofmt
 GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
@@ -82,6 +83,9 @@ go-gen:
 clean:
 	rm -rf cover.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
+	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
+	GOCACHE=$(GOCACHE) go clean -cache -testcache
+	find cmd -type f -executable | xargs -I{} sh -c '(git ls-files --error-unmatch {} 2>/dev/null || rm -v {})'
 
 .PHONY: test
 test: go-gen
@@ -203,7 +207,7 @@ cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.
 	# do not delete dot-files
 	rm -rf cmd/query/app/ui/actual/*
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
-	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip
+	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui
@@ -598,3 +602,14 @@ certs:
 .PHONY: certs-dryrun
 certs-dryrun:
 	cd pkg/config/tlscfg/testdata && ./gen-certs.sh -d
+
+.PHONY: repro-check
+repro-check:
+	# Check local reproducibility of generated executables.
+	$(MAKE) clean
+	$(MAKE) build-all-platforms
+	# Generate checksum for all executables under ./cmd
+	find cmd -type f -executable -exec shasum -b -a 256 {} \; | sort -k2 | tee sha256sum.combined.txt
+	$(MAKE) clean
+	$(MAKE) build-all-platforms
+	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
