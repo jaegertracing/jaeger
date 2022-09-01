@@ -67,11 +67,12 @@ func convertPerOperationFromDomain(s *api_v2.PerOperationSamplingStrategies) *sa
 		DefaultLowerBoundTracesPerSecond: s.GetDefaultLowerBoundTracesPerSecond(),
 		DefaultUpperBoundTracesPerSecond: &s.DefaultUpperBoundTracesPerSecond,
 	}
-	if s.GetPerOperationStrategies() != nil {
-		r.PerOperationStrategies = make([]*sampling.OperationSamplingStrategy, len(s.GetPerOperationStrategies()))
-		for i, k := range s.PerOperationStrategies {
-			r.PerOperationStrategies[i] = convertOperationFromDomain(k)
-		}
+
+	perOp := s.GetPerOperationStrategies()
+	// Default to empty array so that json.Marshal returns [] instead of null (Issue #3891).
+	r.PerOperationStrategies = make([]*sampling.OperationSamplingStrategy, len(perOp))
+	for i, k := range perOp {
+		r.PerOperationStrategies[i] = convertOperationFromDomain(k)
 	}
 	return r
 }

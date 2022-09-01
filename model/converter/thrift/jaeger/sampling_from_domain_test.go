@@ -116,7 +116,13 @@ func TestConvertPerOperationStrategyFromDomain(t *testing.T) {
 				PerOperationStrategies: []*sampling.OperationSamplingStrategy{{Operation: "fao"}},
 			},
 		},
-		{},
+		{
+			in: &api_v2.PerOperationSamplingStrategies{DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: a, DefaultLowerBoundTracesPerSecond: 2},
+			expected: &sampling.PerOperationSamplingStrategies{
+				DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: &a, DefaultLowerBoundTracesPerSecond: 2,
+				PerOperationStrategies: []*sampling.OperationSamplingStrategy{},
+			},
+		},
 	}
 	for _, test := range tests {
 		o := convertPerOperationFromDomain(test.in)
