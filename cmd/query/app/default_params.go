@@ -28,5 +28,12 @@ var (
 	defaultMetricsQueryLookbackDuration = time.Hour
 	defaultMetricsQueryStepDuration     = 5 * time.Second
 	defaultMetricsQueryRateDuration     = 10 * time.Minute
-	defaultMetricsSpanKinds             = []string{metrics.SpanKind_SPAN_KIND_SERVER.String()}
+	defaultMetricsSpanKinds             = []string{
+		metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(),
+		metrics.SpanKind_SPAN_KIND_INTERNAL.String(),
+		metrics.SpanKind_SPAN_KIND_SERVER.String(),
+		metrics.SpanKind_SPAN_KIND_CLIENT.String(),
+		metrics.SpanKind_SPAN_KIND_PRODUCER.String(),
+		metrics.SpanKind_SPAN_KIND_CONSUMER.String(),
+	}
 )
