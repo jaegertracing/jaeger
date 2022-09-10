@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -132,8 +133,9 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
 	errorLog, _ := zap.NewStdLogAt(s.logger, zapcore.ErrorLevel)
 	s.server = &http.Server{
-		Handler:  recoveryHandler(s.mux),
-		ErrorLog: errorLog,
+		Handler:           recoveryHandler(s.mux),
+		ErrorLog:          errorLog,
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 	if s.tlsCfg != nil {
 		s.server.TLSConfig = s.tlsCfg

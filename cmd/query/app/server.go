@@ -185,8 +185,9 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
 	server := &http.Server{
-		Handler:  recoveryHandler(handler),
-		ErrorLog: errorLog,
+		Handler:           recoveryHandler(handler),
+		ErrorLog:          errorLog,
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 
 	if queryOpts.TLSHTTP.Enabled {

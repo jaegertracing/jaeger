@@ -53,13 +53,16 @@ type IndicesClient struct {
 
 // GetJaegerIndices queries all Jaeger indices including the archive and rollover.
 // Jaeger daily indices are:
-//     jaeger-span-2019-01-01, jaeger-service-2019-01-01, jaeger-dependencies-2019-01-01
-//     jaeger-span-archive
+// - jaeger-span-2019-01-01
+// - jaeger-service-2019-01-01
+// - jaeger-dependencies-2019-01-01
+// - jaeger-span-archive
+//
 // Rollover indices:
-//     aliases: jaeger-span-read, jaeger-span-write, jaeger-service-read, jaeger-service-write
-//         indices: jaeger-span-000001, jaeger-service-000001 etc.
-//     aliases: jaeger-span-archive-read, jaeger-span-archive-write
-//         indices: jaeger-span-archive-000001
+// - aliases: jaeger-span-read, jaeger-span-write, jaeger-service-read, jaeger-service-write
+// - indices: jaeger-span-000001, jaeger-service-000001 etc.
+// - aliases: jaeger-span-archive-read, jaeger-span-archive-write
+// - indices: jaeger-span-archive-000001
 func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 	prefix += "jaeger-*"
 

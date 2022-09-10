@@ -46,7 +46,8 @@ var _ thrift.TTransport = (*TUDPTransport)(nil)
 // All writes are buffered and flushed in one UDP packet. If locHostPort is not "", it
 // will be used as the local address for the connection
 // Example:
-// 	trans, err := thriftudp.NewTUDPClientTransport("192.168.1.1:9090", "")
+//
+//	trans, err := thriftudp.NewTUDPClientTransport("192.168.1.1:9090", "")
 func NewTUDPClientTransport(destHostPort string, locHostPort string) (*TUDPTransport, error) {
 	destAddr, err := net.ResolveUDPAddr("udp", destHostPort)
 	if err != nil {
@@ -75,7 +76,8 @@ func createClient(destAddr, locAddr *net.UDPAddr) (*TUDPTransport, error) {
 // NewTUDPServerTransport creates a net.UDPConn-backed TTransport for Thrift servers
 // It will listen for incoming udp packets on the specified host/port
 // Example:
-// 	trans, err := thriftudp.NewTUDPClientTransport("localhost:9001")
+//
+//	trans, err := thriftudp.NewTUDPClientTransport("localhost:9001")
 func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 	addr, err := net.ResolveUDPAddr("udp", hostPort)
 	if err != nil {

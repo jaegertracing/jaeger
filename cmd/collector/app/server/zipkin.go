@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -61,8 +62,9 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 
 	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
 	server := &http.Server{
-		Addr:     params.HostPort,
-		ErrorLog: errorLog,
+		Addr:              params.HostPort,
+		ErrorLog:          errorLog,
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 	if params.TLSConfig.Enabled {
 		tlsCfg, err := params.TLSConfig.Config(params.Logger) // This checks if the certificates are correctly provided

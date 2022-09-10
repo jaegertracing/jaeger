@@ -17,6 +17,7 @@ package httpserver
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -39,8 +40,9 @@ func NewHTTPServer(hostPort string, manager configmanager.ClientConfigManager, m
 	handler.RegisterRoutes(r)
 	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
 	return &http.Server{
-		Addr:     hostPort,
-		Handler:  r,
-		ErrorLog: errorLog,
+		Addr:              hostPort,
+		Handler:           r,
+		ErrorLog:          errorLog,
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 }

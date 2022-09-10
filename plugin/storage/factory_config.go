@@ -47,12 +47,12 @@ type FactoryConfig struct {
 
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
 // DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
-//   * `cassandra` - built-in
-//   * `opensearch` - built-in
-//   * `elasticsearch` - built-in
-//   * `memory` - built-in
-//   * `kafka` - built-in
-//   * `plugin` - loads a dynamic plugin that implements storage.Factory interface (not supported at the moment)
+// * `cassandra` - built-in
+// * `opensearch` - built-in
+// * `elasticsearch` - built-in
+// * `memory` - built-in
+// * `kafka` - built-in
+// * `plugin` - loads a dynamic plugin that implements storage.Factory interface (not supported at the moment)
 //
 // For backwards compatibility it also parses the args looking for deprecated --span-storage.type flag.
 // If found, it writes a deprecation warning to the log.

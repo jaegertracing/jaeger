@@ -237,8 +237,8 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // AddPipelineFlags adds all the standard flags as well as the downsampling
-//  flags.  This is intended to be used in Jaeger pipeline services such as
-//  the collector or ingester.
+// flags. This is intended to be used in Jaeger pipeline services such as
+// the collector or ingester.
 func (f *Factory) AddPipelineFlags(flagSet *flag.FlagSet) {
 	f.AddFlags(flagSet)
 	f.addDownsamplingFlags(flagSet)

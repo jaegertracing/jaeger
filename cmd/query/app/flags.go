@@ -142,7 +142,7 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.Facto
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.
-//  Each string in the slice is expected to be in the format "key: value"
+// Each string in the slice is expected to be in the format "key: value"
 func stringSliceAsHeader(slice []string) (http.Header, error) {
 	if len(slice) == 0 {
 		return nil, nil

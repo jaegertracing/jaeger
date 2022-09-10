@@ -17,9 +17,9 @@ package config
 import "strings"
 
 // StringSlice implements the pflag.Value interface and allows for parsing multiple
-//  config values with the same name
-// It purposefully mimics pFlag.stringSliceValue (https://github.com/spf13/pflag/blob/master/string_slice.go)
-//  in order to be treated like a string slice by both viper and pflag cleanly
+// config values with the same name. It purposefully mimics pFlag.stringSliceValue
+// (https://github.com/spf13/pflag/blob/master/string_slice.go) in order to be
+// treated like a string slice by both viper and pflag cleanly.
 type StringSlice []string
 
 // String implements pflag.Value

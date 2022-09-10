@@ -29,11 +29,10 @@ func NewPostSpans(ctx *middleware.Context, handler PostSpansHandler) *PostSpans 
 	return &PostSpans{Context: ctx, Handler: handler}
 }
 
-/* PostSpans swagger:route POST /spans postSpans
+/*
+	PostSpans swagger:route POST /spans postSpans
 
 Uploads a list of spans encoded per content-type, for example json.
-
-
 */
 type PostSpans struct {
 	Context *middleware.Context

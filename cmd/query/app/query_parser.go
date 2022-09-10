@@ -101,30 +101,31 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 // parseTraceQueryParams takes a request and constructs a model of parameters.
 //
 // Why start/end parameters are expressed in microseconds:
-//     Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
-//     support for high accuracy in search query parameters is required.
-//     Microsecond precision is a legacy artifact from zipkin origins where timestamps and durations
-//     are in microseconds (see: https://zipkin.io/pages/instrumenting.html).
+// Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
+// support for high accuracy in search query parameters is required.
+// Microsecond precision is a legacy artifact from zipkin origins where timestamps and durations
+// are in microseconds (see: https://zipkin.io/pages/instrumenting.html).
 //
 // Why duration parameters are expressed as duration strings like "1ms":
-//     The search UI itself does not insist on exact units because it supports string like 1ms.
-//     Go makes parsing duration strings like "1ms" very easy, hence why parsing of such strings is
-//     deferred to the backend rather than Jaeger UI.
+// The search UI itself does not insist on exact units because it supports string like 1ms.
+// Go makes parsing duration strings like "1ms" very easy, hence why parsing of such strings is
+// deferred to the backend rather than Jaeger UI.
 //
 // Trace query syntax:
-//     query ::= param | param '&' query
-//     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
-//     service ::= 'service=' strValue
-//     operation ::= 'operation=' strValue
-//     limit ::= 'limit=' intValue
-//     start ::= 'start=' intValue in unix microseconds
-//     end ::= 'end=' intValue in unix microseconds
-//     minDuration ::= 'minDuration=' strValue (units are "ns", "us" (or "µs"), "ms", "s", "m", "h")
-//     maxDuration ::= 'maxDuration=' strValue (units are "ns", "us" (or "µs"), "ms", "s", "m", "h")
-//     tag ::= 'tag=' key | 'tag=' keyvalue
-//     key := strValue
-//     keyValue := strValue ':' strValue
-//     tags :== 'tags=' jsonMap
+//
+//	query ::= param | param '&' query
+//	param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
+//	service ::= 'service=' strValue
+//	operation ::= 'operation=' strValue
+//	limit ::= 'limit=' intValue
+//	start ::= 'start=' intValue in unix microseconds
+//	end ::= 'end=' intValue in unix microseconds
+//	minDuration ::= 'minDuration=' strValue (units are "ns", "us" (or "µs"), "ms", "s", "m", "h")
+//	maxDuration ::= 'maxDuration=' strValue (units are "ns", "us" (or "µs"), "ms", "s", "m", "h")
+//	tag ::= 'tag=' key | 'tag=' keyvalue
+//	key := strValue
+//	keyValue := strValue ':' strValue
+//	tags :== 'tags=' jsonMap
 func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
 	operation := r.FormValue(operationParam)
@@ -211,38 +212,39 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 // parseMetricsQueryParams takes a request and constructs a model of metrics query parameters.
 //
 // Why the API is designed using an end time (endTs) and lookback:
-//     The typical usage of the metrics APIs is to view the most recent metrics from now looking
-//     back a certain period of time, given the value of metrics generally degrades with time. As such, the API
-//     is also designed to mirror the user interface inputs.
+// The typical usage of the metrics APIs is to view the most recent metrics from now looking
+// back a certain period of time, given the value of metrics generally degrades with time. As such, the API
+// is also designed to mirror the user interface inputs.
 //
 // Why times are expressed as unix milliseconds:
-//     - The minimum step size for Prometheus-compliant metrics backends is 1ms,
-//       hence millisecond precision on times is sufficient.
-//     - The metrics API is designed with one primary client in mind, the Jaeger UI. As it is a React.js application,
-//       the maximum supported built-in time precision is milliseconds, making it a convenient precision to use for such a client.
+//   - The minimum step size for Prometheus-compliant metrics backends is 1ms,
+//     hence millisecond precision on times is sufficient.
+//   - The metrics API is designed with one primary client in mind, the Jaeger UI. As it is a React.js application,
+//     the maximum supported built-in time precision is milliseconds, making it a convenient precision to use for such a client.
 //
 // Why durations are expressed as unix milliseconds:
-//     - Given the endTs time is expressed as milliseconds, it follows that lookback durations should use the
-//       same time units to compute the start time.
-//     - As above, the minimum step size for Prometheus-compliant metrics backends is 1ms.
-//     - Other durations are in milliseconds to maintain consistency of units with other parameters in the metrics APIs.
-//     - As the primary client for the metrics API is the Jaeger UI, it is programmatically simpler to supply the
-//       integer representations of durations in milliseconds rather than the human-readable representation such as "1ms".
+//   - Given the endTs time is expressed as milliseconds, it follows that lookback durations should use the
+//     same time units to compute the start time.
+//   - As above, the minimum step size for Prometheus-compliant metrics backends is 1ms.
+//   - Other durations are in milliseconds to maintain consistency of units with other parameters in the metrics APIs.
+//   - As the primary client for the metrics API is the Jaeger UI, it is programmatically simpler to supply the
+//     integer representations of durations in milliseconds rather than the human-readable representation such as "1ms".
 //
 // Metrics query syntax:
-//     query ::= services , [ '&' optionalParams ]
-//     optionalParams := param | param '&' optionalParams
-//     param ::=  groupByOperation | endTs | lookback | step | ratePer | spanKinds
-//     services ::= service | service '&' services
-//     service ::= 'service=' strValue
-//     groupByOperation ::= 'groupByOperation=' boolValue
-//     endTs ::= 'endTs=' intValue in unix milliseconds
-//     lookback ::= 'lookback=' intValue duration in milliseconds
-//     step ::= 'step=' intValue duration in milliseconds
-//     ratePer ::= 'ratePer=' intValue duration in milliseconds
-//     spanKinds ::= spanKind | spanKind '&' spanKinds
-//     spanKind ::= 'spanKind=' spanKindType
-//     spanKindType ::= "unspecified" | "internal" | "server" | "client" | "producer" | "consumer"
+//
+//	query ::= services , [ '&' optionalParams ]
+//	optionalParams := param | param '&' optionalParams
+//	param ::=  groupByOperation | endTs | lookback | step | ratePer | spanKinds
+//	services ::= service | service '&' services
+//	service ::= 'service=' strValue
+//	groupByOperation ::= 'groupByOperation=' boolValue
+//	endTs ::= 'endTs=' intValue in unix milliseconds
+//	lookback ::= 'lookback=' intValue duration in milliseconds
+//	step ::= 'step=' intValue duration in milliseconds
+//	ratePer ::= 'ratePer=' intValue duration in milliseconds
+//	spanKinds ::= spanKind | spanKind '&' spanKinds
+//	spanKind ::= 'spanKind=' spanKindType
+//	spanKindType ::= "unspecified" | "internal" | "server" | "client" | "producer" | "consumer"
 func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
 	query := r.URL.Query()
 	services, ok := query[serviceParam]

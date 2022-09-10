@@ -16,7 +16,7 @@ import (
 
 // Endpoint Endpoint
 //
-// The network context of a node in the service graph
+// # The network context of a node in the service graph
 //
 // swagger:model Endpoint
 type Endpoint struct {

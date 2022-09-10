@@ -19,7 +19,6 @@ import (
 // A tag "sql.query" isn't searchable, but it can help in debugging when viewing
 // a trace.
 //
-//
 // swagger:model Tags
 type Tags map[string]string
 

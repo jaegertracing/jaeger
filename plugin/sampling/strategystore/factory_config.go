@@ -36,8 +36,8 @@ type FactoryConfig struct {
 }
 
 // FactoryConfigFromEnv reads the desired sampling type from the SAMPLING_CONFIG_TYPE environment variable. Allowed values:
-//   * `file` - built-in
-//   * `adaptive` - built-in
+// * `file` - built-in
+// * `adaptive` - built-in
 func FactoryConfigFromEnv(log io.Writer) (*FactoryConfig, error) {
 	strategyStoreType := getStrategyStoreTypeFromEnv(log)
 	if strategyStoreType != samplingTypeAdaptive &&

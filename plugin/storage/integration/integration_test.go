@@ -63,9 +63,9 @@ type StorageIntegration struct {
 
 // QueryFixtures and TraceFixtures are under ./fixtures/queries.json and ./fixtures/traces/*.json respectively.
 // Each query fixture includes:
-// 	Caption: describes the query we are testing
-// 	Query: the query we are testing
-//	ExpectedFixture: the trace fixture that we want back from these queries.
+// - Caption: describes the query we are testing
+// - Query: the query we are testing
+// - ExpectedFixture: the trace fixture that we want back from these queries.
 // Queries are not necessarily numbered, but since each query requires a service name,
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
