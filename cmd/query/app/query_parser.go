@@ -101,17 +101,15 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 // parseTraceQueryParams takes a request and constructs a model of parameters.
 //
 // Why start/end parameters are expressed in microseconds:
-//
-//	Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
-//	support for high accuracy in search query parameters is required.
-//	Microsecond precision is a legacy artifact from zipkin origins where timestamps and durations
-//	are in microseconds (see: https://zipkin.io/pages/instrumenting.html).
+// Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
+// support for high accuracy in search query parameters is required.
+// Microsecond precision is a legacy artifact from zipkin origins where timestamps and durations
+// are in microseconds (see: https://zipkin.io/pages/instrumenting.html).
 //
 // Why duration parameters are expressed as duration strings like "1ms":
-//
-//	The search UI itself does not insist on exact units because it supports string like 1ms.
-//	Go makes parsing duration strings like "1ms" very easy, hence why parsing of such strings is
-//	deferred to the backend rather than Jaeger UI.
+// The search UI itself does not insist on exact units because it supports string like 1ms.
+// Go makes parsing duration strings like "1ms" very easy, hence why parsing of such strings is
+// deferred to the backend rather than Jaeger UI.
 //
 // Trace query syntax:
 //
@@ -214,10 +212,9 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 // parseMetricsQueryParams takes a request and constructs a model of metrics query parameters.
 //
 // Why the API is designed using an end time (endTs) and lookback:
-//
-//	The typical usage of the metrics APIs is to view the most recent metrics from now looking
-//	back a certain period of time, given the value of metrics generally degrades with time. As such, the API
-//	is also designed to mirror the user interface inputs.
+// The typical usage of the metrics APIs is to view the most recent metrics from now looking
+// back a certain period of time, given the value of metrics generally degrades with time. As such, the API
+// is also designed to mirror the user interface inputs.
 //
 // Why times are expressed as unix milliseconds:
 //   - The minimum step size for Prometheus-compliant metrics backends is 1ms,

@@ -249,7 +249,7 @@ func (s *SpanID) UnmarshalJSON(data []byte) error {
 //
 // TODO: can be removed once this ticket is fixed:
 //
-//	https://github.com/gogo/protobuf/issues/411#issuecomment-393856837
+// https://github.com/gogo/protobuf/issues/411#issuecomment-393856837
 func (s *SpanID) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, b []byte) error {
 	return s.UnmarshalJSON(b)
 }
