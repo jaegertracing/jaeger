@@ -91,7 +91,6 @@ openssl x509 -req \
              -sha256 \
              -days 3650 \
              -in "$tmp_dir/example-server.csr" \
-             -signkey "$tmp_dir/example-server-key.pem" \
              -out "$tmp_dir/example-server-cert.pem" \
              -extensions req_ext \
              -CA "$tmp_dir/example-CA-cert.pem" \
@@ -102,7 +101,6 @@ openssl x509 -req \
              -sha256 \
              -days 3650 \
              -in "$tmp_dir/example-client.csr" \
-             -signkey "$tmp_dir/example-client-key.pem" \
              -out "$tmp_dir/example-client-cert.pem" \
              -extensions req_ext \
              -CA "$tmp_dir/example-CA-cert.pem" \
