@@ -277,6 +277,7 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 	for i := 1; i < 10008; i++ {
 		s := new(model.Span)
 		*s = *span
+		s.SpanID = model.SpanID(i)
 		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans = append(trace.Spans, s)
 	}
