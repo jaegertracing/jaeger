@@ -13,6 +13,28 @@ next release
 
 ### UI Changes
 
+1.38.0 (2022-09-16)
+-------------------
+### Backend Changes
+
+#### Breaking Changes
+
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+* fix: jaeger-agent sampling endpoint returns backwards incompatible JSON ([@vprithvi](https://github.com/vprithvi) in [#3897](https://github.com/jaegertracing/jaeger/pull/3897))
+* fix: streaming span writer is not working in grpc based remote storage plugin ([@arajkumar](https://github.com/arajkumar) in [#3887](https://github.com/jaegertracing/jaeger/pull/3887))
+* Fix race condition when adding collector tags ([@yurishkuro](https://github.com/yurishkuro) in [#3886](https://github.com/jaegertracing/jaeger/pull/3886))
+* Change build info date to commit timestamp ([@TripleDogDare](https://github.com/TripleDogDare) in [#3876](https://github.com/jaegertracing/jaeger/pull/3876))
+* Add 🚗 ([@yurishkuro](https://github.com/yurishkuro) in [55a8ca9](https://github.com/jaegertracing/jaeger/commit/55a8ca97e3772579b395ffbe4b937a4f5993b008))
+* Add AdditionalDialOptions to ConnBuilder ([@vprithvi](https://github.com/vprithvi) in [#3865](https://github.com/jaegertracing/jaeger/pull/3865))
+* Add sample docker-compose configuration using Kafka ([@yurishkuro](https://github.com/yurishkuro) in [7006e9f](https://github.com/jaegertracing/jaeger/commit/7006e9fe50c8467ad6b84f2072a3cf136bfbe4ec))
+
+### UI Changes
+
+* UI pinned to version [1.27.0 - see the changelog](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1270-2022-09-15).
+
 1.37.0 (2022-08-03)
 -------------------
 ### Backend Changes
