@@ -7,13 +7,13 @@
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "AAAAAAAAAAAAAAAAAAAA/w==",
+          "traceId": "AAAAAAAAAAAAAAAAAAAAEg==",
           "spanId": "AAAAAAAAAP8="
         },
         {
-          "refType": "CHILD_OF",
-          "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
-          "spanId": "AAAAAAAAAAI="
+          "refType": "FOLLOWS_FROM",
+          "traceId": "AAAAAAAAAAAAAAAAAAAAEg==",
+          "spanId": "AAAAAAAAAP8="
         },
         {
           "refType": "FOLLOWS_FROM",
