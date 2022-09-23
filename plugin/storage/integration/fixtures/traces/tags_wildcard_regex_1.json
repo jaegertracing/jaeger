@@ -3,7 +3,7 @@
     {
       "traceId": "AAAAAAAAAAAAAAAAAAAKEg==",
       "spanId": "AAAAAAAAAAQ=",
-      "operationName": "",
+      "operationName": "placeholder",
       "references": [
       ],
       "tags": [
