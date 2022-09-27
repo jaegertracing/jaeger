@@ -54,8 +54,8 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/zap v1.22.0
-	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
+	golang.org/x/net v0.0.0-20220926192436-02166a98028e
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
