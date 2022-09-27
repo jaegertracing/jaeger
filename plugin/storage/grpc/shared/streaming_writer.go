@@ -62,7 +62,7 @@ func (s *streamingSpanWriter) WriteSpan(ctx context.Context, span *model.Span) e
 }
 
 func (s *streamingSpanWriter) Close() error {
-	if !s.closed.CAS(false, true) {
+	if !s.closed.CompareAndSwap(false, true) {
 		return errors.New("already closed")
 	}
 	close(s.streamPool)
