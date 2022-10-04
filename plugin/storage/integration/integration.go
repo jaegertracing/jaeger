@@ -18,9 +18,10 @@ package integration
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
-	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,9 @@ const (
 	iterations = 100
 )
 
+//go:embed fixtures
+var fixtures embed.FS
+
 // StorageIntegration holds components for storage integration test
 type StorageIntegration struct {
 	SpanWriter       spanstore.Writer
@@ -48,8 +52,8 @@ type StorageIntegration struct {
 	Fixtures         []*QueryFixtures
 	// TODO: remove this flag after all storage plugins returns spanKind with operationNames
 	NotSupportSpanKindWithOperation bool
-	FixturesPath                    string
-
+	// List of tests which has to be skipped, it can be regex too.
+	SkipList []string
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func() error
@@ -84,6 +88,17 @@ func (s *StorageIntegration) refresh(t *testing.T) {
 	require.NoError(t, s.Refresh())
 }
 
+func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
+	for _, pat := range s.SkipList {
+		ok, err := regexp.MatchString(pat, t.Name())
+		assert.NoError(t, err)
+		if ok {
+			t.Skip()
+			return
+		}
+	}
+}
+
 func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
 	for i := 0; i < iterations; i++ {
 		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
@@ -96,6 +111,7 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 }
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
+	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
@@ -116,6 +132,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 }
 
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
+	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
 	t.Log("Testing Large Trace over 10K ...")
@@ -135,6 +152,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 }
 
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
+	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
 	var expected []spanstore.Operation
@@ -170,6 +188,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 }
 
 func (s *StorageIntegration) testGetTrace(t *testing.T) {
+	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
 	expected := s.loadParseAndWriteExampleTrace(t)
@@ -198,14 +217,11 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 }
 
 func (s *StorageIntegration) testFindTraces(t *testing.T) {
+	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	fixturesPath := s.FixturesPath
-	if s.FixturesPath == "" {
-		fixturesPath = "."
-	}
 	// Note: all cases include ServiceName + StartTime range
-	s.Fixtures = append(s.Fixtures, LoadAndParseQueryTestCases(t, fmt.Sprintf("%s/fixtures/queries.json", fixturesPath))...)
+	s.Fixtures = append(s.Fixtures, LoadAndParseQueryTestCases(t, "fixtures/queries.json")...)
 
 	// Each query test case only specifies matching traces, but does not provide counterexamples.
 	// To improve coverage we get all possible traces and store all of them before running queries.
@@ -228,6 +244,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	s.refresh(t)
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
+			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
 			actual := s.findTracesByQuery(t, queryTestCase.Query, expected)
 			CompareSliceOfTraces(t, expected, actual)
@@ -287,11 +304,7 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 }
 
 func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
-	fixturesPath := s.FixturesPath
-	if s.FixturesPath == "" {
-		fixturesPath = "."
-	}
-	fileName := fmt.Sprintf("%s/fixtures/traces/%s.json", fixturesPath, fixture)
+	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 	return getTraceFixtureExact(t, fileName)
 }
 
@@ -303,7 +316,7 @@ func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
 
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	// #nosec
-	inStr, err := os.ReadFile(path)
+	inStr, err := fixtures.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
@@ -318,7 +331,7 @@ func LoadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtur
 
 func loadAndParseJSON(t *testing.T, path string, object interface{}) {
 	// #nosec
-	inStr, err := os.ReadFile(path)
+	inStr, err := fixtures.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = json.Unmarshal(correctTime(inStr), object)
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
@@ -358,6 +371,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 		return
 	}
 
+	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
 	expected := []model.DependencyLink{
