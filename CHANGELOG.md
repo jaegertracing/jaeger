@@ -5,7 +5,7 @@ next release
 -------------------
 ### Backend Changes
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 #### New Features
 
@@ -13,13 +13,30 @@ next release
 
 ### UI Changes
 
-1.38.0 (2022-09-16)
+1.38.1 (2022-10-04)
 -------------------
 ### Backend Changes
 
-#### Breaking Changes
+#### Bug fixes, Minor Improvements
 
-#### New Features
+* Bump github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3939](https://github.com/jaegertracing/jaeger/pull/3939))
+* Bump github.com/apache/thrift from 0.16.0 to 0.17.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3936](https://github.com/jaegertracing/jaeger/pull/3936))
+* Bump github.com/hashicorp/go-hclog from 1.2.2 to 1.3.1 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3934](https://github.com/jaegertracing/jaeger/pull/3934))
+* Bump go.opentelemetry.io/otel from 1.9.0 to 1.10.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3932](https://github.com/jaegertracing/jaeger/pull/3932))
+* Bump github.com/hashicorp/go-plugin from 1.4.4 to 1.4.5 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3930](https://github.com/jaegertracing/jaeger/pull/3930))
+* Bump github.com/spf13/viper from 1.12.0 to 1.13.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3931](https://github.com/jaegertracing/jaeger/pull/3931))
+* Bump OTEL dependencies => v0.60.0 and grpc => v1.49.0 ([@yurishkuro](https://github.com/yurishkuro) in [#3928](https://github.com/jaegertracing/jaeger/pull/3928))
+* Bump golang.org/x/net to 2022-09-26 ([@yurishkuro](https://github.com/yurishkuro) in [#3927](https://github.com/jaegertracing/jaeger/pull/3927))
+* Bump codecov/codecov-action from 3.1.0 to 3.1.1 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3917](https://github.com/jaegertracing/jaeger/pull/3917))
+
+### UI Changes
+
+* UI pinned to version [1.27.1](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1271-2022-10-04) to bump dependencies.
+
+
+1.38.0 (2022-09-16)
+-------------------
+### Backend Changes
 
 #### Bug fixes, Minor Improvements
 
@@ -54,8 +71,6 @@ next release
 1.36.0 (2022-07-05)
 -------------------
 ### Backend Changes
-
-#### Breaking Changes
 
 #### New Features
 * Add flag to enable span size metrics reporting ([@ymtdzzz](https://github.com/ymtdzzz) in [#3782](https://github.com/jaegertracing/jaeger/pull/3782))
@@ -222,7 +237,7 @@ next release
 -------------------
 ### Backend Changes
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 * Remove deprecated `--badger.truncate` CLI flag ([@yurishkuro](https://github.com/yurishkuro) in [#3410](https://github.com/jaegertracing/jaeger/pull/3410))
 
@@ -333,7 +348,7 @@ next release
 -------------------
 ### Backend Changes
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 * Upgrade Badger from v1.6.2 to v3.2103.0 ([#3096](https://github.com/jaegertracing/jaeger/pull/3096), [@Ashmita152](https://github.com/Ashmita152)):
   * Deprecated `--badger.truncate` flag.
@@ -363,7 +378,7 @@ next release
 
 #### New Features
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 * Remove unused `--es-archive.max-span-age` flag ([#2865](https://github.com/jaegertracing/jaeger/pull/2865), [@albertteoh](https://github.com/albertteoh)):
 
@@ -391,7 +406,7 @@ next release
 
 ### Backend Changes
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 * Remove deprecated TLS flags ([#2790](https://github.com/jaegertracing/jaeger/issues/2790), [@albertteoh](https://github.com/albertteoh)):
     * `--cassandra.tls` is replaced by `--cassandra.tls.enabled`
@@ -514,7 +529,7 @@ next release
 
 ### Backend Changes
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 * Configurable ES doc count ([#2453](https://github.com/jaegertracing/jaeger/pull/2453), [@albertteoh](https://github.com/albertteoh))
 
     The `--es.max-num-spans` flag has been deprecated in favour of `--es.max-doc-count`.
@@ -639,7 +654,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 
 * CVE-2020-10750: jaegertracing/jaeger: credentials leaked to container logs ([@chlunde](https://github.com/chlunde))
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 #### New Features
 * Add ppc64le support ([#2293](https://github.com/jaegertracing/jaeger/pull/2293), [@Siddhesh-Ghadi](https://github.com/Siddhesh-Ghadi))
@@ -666,7 +681,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 
 ### Backend Changes
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 * Remove Tchannel between agent and collector ([#2115](https://github.com/jaegertracing/jaeger/pull/2115), [#2112](https://github.com/jaegertracing/jaeger/pull/2112), [@pavolloffay](https://github.com/pavolloffay))
 
@@ -796,7 +811,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
 
 ### Backend Changes
 
-#### Breaking Changes
+#### ⛔ Breaking Changes
 
 ##### List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [#1942](https://github.com/jaegertracing/jaeger/pull/1942), [#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693))
 
@@ -917,7 +932,7 @@ running curator would immediately remove the old index.
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 * The default value for the Ingester's flag `ingester.deadlockInterval` has been changed to `0` ([#1868](https://github.com/jaegertracing/jaeger/pull/1868), [@jpkrohling](https://github.com/jpkrohling))
 
@@ -955,7 +970,7 @@ running curator would immediately remove the old index.
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 * Create ES index templates instead of indices ([#1627](https://github.com/jaegertracing/jaeger/pull/1627), [@pavolloffay](https://github.com/pavolloffay))
 
@@ -1014,10 +1029,6 @@ running curator would immediately remove the old index.
 
 #### Backend Changes
 
-##### Breaking Changes
-
-##### New Features
-
 ##### Bug fixes, Minor Improvements
 
 * Change default for bearer-token-propagation to false ([#1642](https://github.com/jaegertracing/jaeger/pull/1642), [@wsoula](https://github.com/wsoula))
@@ -1029,7 +1040,7 @@ running curator would immediately remove the old index.
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 * The traces related metrics on collector now have a new tag `sampler_type` ([#1576](https://github.com/jaegertracing/jaeger/pull/1576), [@guanw](https://github.com/guanw))
 
@@ -1075,7 +1086,7 @@ running curator would immediately remove the old index.
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 - The `kafka` flags were removed in favor of `kafka.producer` and `kafka.consumer` flags ([#1424](https://github.com/jaegertracing/jaeger/pull/1424), [@ledor473](https://github.com/ledor473))
 
     The following flags have been **removed** in the Collector and the Ingester:
@@ -1144,7 +1155,7 @@ running curator would immediately remove the old index.
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 - Introduce `kafka.producer` and `kafka.consumer` flags to replace `kafka` flags ([#1360](https://github.com/jaegertracing/jaeger/pull/1360), [@ledor473](https://github.com/ledor473))
 
     The following flags have been deprecated in the Collector and the Ingester:
@@ -1192,10 +1203,6 @@ running curator would immediately remove the old index.
 
 - Discover dependencies table version automatically ([#1364](https://github.com/jaegertracing/jaeger/pull/1364), [@black-adder](https://github.com/black-adder))
 
-##### Breaking Changes
-
-##### New Features
-
 ##### Bug fixes, Minor Improvements
 
 - Separate query-service functionality from http handler ([#1312](https://github.com/jaegertracing/jaeger/pull/1312), [@annanay25](https://github.com/annanay25))
@@ -1208,7 +1215,7 @@ running curator would immediately remove the old index.
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 - Remove cassandra SASI indices ([#1328](https://github.com/jaegertracing/jaeger/pull/1328), [@black-adder](https://github.com/black-adder))
 
@@ -1247,7 +1254,7 @@ Users who wish to continue to use the v1 table don't have to do anything as the 
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 - Change Elasticsearch index prefix from `:` to `-` ([#1284](https://github.com/jaegertracing/jaeger/pull/1284), [@pavolloffay](https://github.com/pavolloffay))
 
@@ -1378,7 +1385,7 @@ jaeger_http_server_errors{source="collector-proxy",status="5xx"}
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 - Refactor agent configuration ([#1092](https://github.com/jaegertracing/jaeger/pull/1092), [@pavolloffay](https://github.com/pavolloffay))
 
@@ -1465,7 +1472,7 @@ jaeger_query_responses_bucket{operation="find_traces",le="0.005"} 2
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 - `jaeger-standalone` binary has been renamed to `jaeger-all-in-one`. This change also includes package rename from `standalone` to `all-in-one` ([#1062](https://github.com/jaegertracing/jaeger/pull/1062), [@pavolloffay](https://github.com/pavolloffay))
 
@@ -1484,7 +1491,7 @@ jaeger_query_responses_bucket{operation="find_traces",le="0.005"} 2
 
 #### Backend Changes
 
-##### Breaking Changes
+##### ⛔ Breaking Changes
 
 - The storage implementations no longer write the parentSpanID field to storage (#856).
   If you are upgrading to this version, **you must upgrade query service first**!
