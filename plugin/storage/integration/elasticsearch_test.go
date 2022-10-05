@@ -123,7 +123,8 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		IndexPrefix:     indexPrefix,
 		UseILM:          false,
 	}
-	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+
+	spanMapping, archiveMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
 		return err
 	}
@@ -137,10 +138,18 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 			TagDotReplacement: tagKeyDeDotChar,
 			Archive:           archive,
 		})
-	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
-	if err != nil {
-		return err
+	if archive {
+		err = w.CreateArchiveTemplate(archiveMapping, indexPrefix)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
+		if err != nil {
+			return err
+		}
 	}
+
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,

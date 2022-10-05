@@ -1,7 +1,6 @@
 {
   "template": [
-    "*jaeger-span-*",
-    "-jaeger-span-archive"
+    "jaeger-span-archive"
   ],
   "settings":{
     "index.number_of_shards": 3,

@@ -1,5 +1,8 @@
 {
-  "template": "*jaeger-span-*",
+  "template": [
+    "*jaeger-span-*",
+    "-jaeger-span-archive"
+  ],
   "settings":{
     "index.number_of_shards": {{ .Shards }},
     "index.number_of_replicas": {{ .Replicas }},
