@@ -214,6 +214,11 @@ Please see [ADOPTERS.md](./ADOPTERS.md) for some of the organizations using Jaeg
 If you would like to add your organization to the list, please comment on our
 [survey issue](https://github.com/jaegertracing/jaeger/issues/207).
 
+## Software Bill of Materials
+
+We publish a list of all the components Jaeger depends on and the corresponding
+versions and licenses [here](https://github.com/jaegertracing/jaeger/jaeger-sbom.json).
+
 ## License
 
 Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).
