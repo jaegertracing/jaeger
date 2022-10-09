@@ -8,7 +8,7 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
 
-expected_version="v10"
+expected_version="v16"
 version=$(node --version)
 major_version=${version%.*.*}
 if [ "$major_version" = "$expected_version" ] ; then
