@@ -40,5 +40,15 @@ services:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:
       - "9090:9090"
+  grafana:
+    networks:
+      - backend
+    image: grafana/grafana:latest
+    volumes:
+      - ./grafana.ini:/etc/grafana/grafana.ini
+      - ./datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
+    ports:
+      - 3000:3000
+
 networks:
   backend:
