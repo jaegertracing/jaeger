@@ -5,6 +5,7 @@
 [![Unit Tests][ci-img]][ci]
 [![Coverage Status][cov-img]][cov]
 [![FOSSA Status][fossa-img]][ci]
+[![Artifact Hub][artifacthub-img]
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
 <img src="https://github.com/cncf/artwork/blob/master/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
@@ -225,7 +226,8 @@ Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).
 [ci]: https://github.com/jaegertracing/jaeger/actions?query=branch%3Amain
 [cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/graph/badge.svg
 [cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/
-[fossa-img]: https://github.com/jaegertracing/jaeger/workflows/FOSSA/badge.svg?branch=main
+[fossa-img]: https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield
+[artifacthub-img]: https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/jaeger
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: https://uber.github.io
 [community-badge]: https://img.shields.io/badge/Project+Community-stats-blue.svg
