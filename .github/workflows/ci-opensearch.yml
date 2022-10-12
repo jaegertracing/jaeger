@@ -16,6 +16,9 @@ jobs:
         - major: 1.x
           image: 1.0.0
           distribution: opensearch
+        - major: 2.x
+          image: 2.3.0
+          distribution: opensearch
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
     steps:
     - uses: actions/checkout@v3

@@ -202,6 +202,10 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
 				esVersion = 7
 			}
+			if pingResult.Version.Number[0] == '2' {
+				logger.Info("OpenSearch 2.x detected, using ES 7.x index mappings")
+				esVersion = 7
+			}
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
 		c.Version = uint(esVersion)

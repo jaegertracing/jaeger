@@ -57,7 +57,7 @@ func (c *ClusterClient) Version() (uint, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid version format: %s", version[0])
 	}
-	if strings.Contains(info.TagLine, "OpenSearch") && major == 1 {
+	if strings.Contains(info.TagLine, "OpenSearch") && (major == 1 || major == 2) {
 		return 7, nil
 	}
 	return uint(major), nil
