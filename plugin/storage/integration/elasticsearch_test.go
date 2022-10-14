@@ -71,7 +71,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	}
 	// OpenSearch is based on ES 7.x
 	if strings.Contains(pingResult.TagLine, "OpenSearch") {
-		if pingResult.Version.Number[0] == '1' {
+		if pingResult.Version.Number[0] == '1' || pingResult.Version.Number[0] == '2' {
 			esVersion = 7
 		}
 	}
