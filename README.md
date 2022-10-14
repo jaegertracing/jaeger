@@ -4,8 +4,8 @@
 [![Project+Community stats][community-badge]][community-stats]
 [![Unit Tests][ci-img]][ci]
 [![Coverage Status][cov-img]][cov]
-[![FOSSA Status][fossa-img]][ci]
-[![Artifact Hub][artifacthub-img]
+[![FOSSA Status][fossa-img]](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield)
+[![Artifact Hub][artifacthub-img]](https://artifacthub.io/packages/helm/jaegertracing/jaeger)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
 <img src="https://github.com/cncf/artwork/blob/master/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
