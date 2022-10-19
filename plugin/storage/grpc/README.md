@@ -116,6 +116,35 @@ The plugin framework supports writing spans via gRPC stream, instead of unary me
 
 Note that using the streaming spanWriter may make the collector's `save_by_svr` metric inaccurate, in which case users will need to pay attention to the metrics provided by the plugin.
 
+Certifying compliance
+---------------
+A plugin implementation shall verify it's correctness with Jaeger storage protocol by running the storage integration tests from [integration package](https://github.com/jaegertracing/jaeger/blob/main/plugin/storage/integration/integration.go#L397).
+
+```golang
+import (
+	jaeger_integration_tests "github.com/jaegertracing/jaeger/plugin/storage/integration"
+)
+
+func TestJaegerStorageIntegration(t *testing.T) {
+        ...
+	si := jaeger_integration_tests.StorageIntegration{
+		SpanReader: createSpanReader(),
+		SpanWriter: createSpanWriter(),
+		CleanUp: func() error { ... },
+		Refresh: func() error { ... },
+		SkipList: []string {  // Skip any unsupported tests
+		},
+	}
+	// Runs all storage integration tests.
+	si.IntegrationTestAll(t)
+}
+```
+For more details, refer to one of the following implementations.
+
+1. [grpc-plugin](https://github.com/jaegertracing/jaeger/blob/cbceceb1e0cc308cdf0226b1fa19b9c531a3a2d3/plugin/storage/integration/grpc_test.go#L189-L203)
+2. [jaeger-clickhouse](https://github.com/jaegertracing/jaeger-clickhouse/blob/798c568c1e1a345536f35692fca71196a796811e/integration/grpc_test.go#L88-L107)
+3. [Timescale DB via Promscale](https://github.com/timescale/promscale/blob/ccde8accf5205450891e805e23566d9a11dbf8d3/pkg/tests/end_to_end_tests/jaeger_store_integration_test.go#L79-L97)
+
 Running with a plugin
 ---------------------
 A plugin can be run using the `all-in-one` application within the top level `cmd` package of the Jaeger project. To do this
