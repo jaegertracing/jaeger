@@ -116,9 +116,9 @@ The plugin framework supports writing spans via gRPC stream, instead of unary me
 
 Note that using the streaming spanWriter may make the collector's `save_by_svr` metric inaccurate, in which case users will need to pay attention to the metrics provided by the plugin.
 
-Compliance test
+Certifying compliance
 ---------------
-A plugin implementation shall verify it's correctness with Jaeger storage protocol by running the storage integration tests from [integration package](https://github.com/jaegertracing/jaeger/blob/cbceceb1e0cc308cdf0226b1fa19b9c531a3a2d3/plugin/storage/integration/integration.go#L397).
+A plugin implementation shall verify it's correctness with Jaeger storage protocol by running the storage integration tests from [integration package](https://github.com/jaegertracing/jaeger/blob/main/plugin/storage/integration/integration.go#L397).
 
 ```golang
 import (
@@ -139,7 +139,7 @@ func TestJaegerStorageIntegration(t *testing.T) {
 	si.IntegrationTestAll(t)
 }
 ```
-For more details, refer one of the following implementations.
+For more details, refer to one of the following implementations.
 
 1. [grpc-plugin](https://github.com/jaegertracing/jaeger/blob/cbceceb1e0cc308cdf0226b1fa19b9c531a3a2d3/plugin/storage/integration/grpc_test.go#L189-L203)
 2. [jaeger-clickhouse](https://github.com/jaegertracing/jaeger-clickhouse/blob/798c568c1e1a345536f35692fca71196a796811e/integration/grpc_test.go#L88-L107)

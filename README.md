@@ -81,14 +81,11 @@ The OpenTracing and OpenCensus projects have merged into a new CNCF project call
 
 ### Multiple storage backends
 
-Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
-There is also embedded database support using [Badger](https://github.com/dgraph-io/badger) and simple in-memory storage for testing setups.
-There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB, [Timescale DB via Promscale](https://www.timescale.com/promscale), [ClickHouse](https://github.com/jaegertracing/jaeger-clickhouse).
-
-Following are the list of external storage implementations which are known to complaint with Jaeger storage protocol,
-
-1. [jaeger-clickhouse](https://github.com/jaegertracing/jaeger-clickhouse/blob/798c568c1e1a345536f35692fca71196a796811e/integration/grpc_test.go#L88-L107)
-2. [Timescale DB via Promscale](https://github.com/timescale/promscale/blob/ccde8accf5205450891e805e23566d9a11dbf8d3/pkg/tests/end_to_end_tests/jaeger_store_integration_test.go#L79-L97)
+Jaeger can be used with a growing a number of storage backends:
+* It natively supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
+* It integrates via a gRPC API with other well known databases that have been certified to be Jaeger compliant: [TimescaleDB via Promscale](https://github.com/timescale/promscale), [ClickHouse](https://github.com/jaegertracing/jaeger-clickhouse).
+* There is embedded database support using [Badger](https://github.com/dgraph-io/badger) and simple in-memory storage for testing setups.
+* There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB.
 
 ### Modern Web UI
 
