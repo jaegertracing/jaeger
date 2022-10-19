@@ -69,3 +69,8 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: SBOM Generation
+      uses: anchore/sbom-action@v0
+      with:
+        artifact-name: jaeger-SBOM.spdx.json
