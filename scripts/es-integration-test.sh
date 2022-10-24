@@ -71,7 +71,7 @@ wait_for_it() {
   local counter=0
   local max_counter=60
   while [[ "$(curl ${params[@]} ${url})" != "200" && ${counter} -le ${max_counter} ]]; do
-    sleep 2
+    sleep 5
     counter=$((counter+1))
     echo "waiting for ${url} to be up..."
     if [ ${counter} -eq ${max_counter} ]; then
