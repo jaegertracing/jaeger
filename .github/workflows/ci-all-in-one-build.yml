@@ -11,7 +11,12 @@ jobs:
   all-in-one:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - name: Harden Runner
+      uses: step-security/harden-runner@2e205a28d0e1da00c5f53b161f4067b052c61f34
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
       with:
         submodules: true
 
@@ -19,11 +24,11 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@v3
+    - uses: actions/setup-go@268d8c0ca0432bb2cf416faae41297df9d262d7f
       with:
         go-version: 1.19.x
 
-    - uses: actions/setup-node@v3
+    - uses: actions/setup-node@969bd2663942d722d85b6a8626225850c2f7be4b
       with:
         node-version: '16'
 
@@ -33,7 +38,7 @@ jobs:
     - name: Install tools
       run: make install-ci
     
-    - uses: docker/setup-qemu-action@v2
+    - uses: docker/setup-qemu-action@8b122486cedac8393e77aa9734c3528886e4a1a8
 
     - name: Build, test, and publish all-in-one image
       run: bash scripts/build-all-in-one-image.sh
