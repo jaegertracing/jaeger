@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/plugin/storage/opensearch"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -122,7 +123,9 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 	switch factoryType {
 	case cassandraStorageType:
 		return cassandra.NewFactory(), nil
-	case elasticsearchStorageType, opensearchStorageType:
+	case opensearchStorageType:
+		return opensearch.NewFactory(), nil
+	case elasticsearchStorageType:
 		return es.NewFactory(), nil
 	case memoryStorageType:
 		return memory.NewFactory(), nil
