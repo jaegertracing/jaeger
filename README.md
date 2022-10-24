@@ -4,8 +4,8 @@
 [![Project+Community stats][community-badge]][community-stats]
 [![Unit Tests][ci-img]][ci]
 [![Coverage Status][cov-img]][cov]
-[![FOSSA Status][fossa-img]][ci]
-[![Artifact Hub][artifacthub-img]
+[![FOSSA Status][fossa-img]](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield)
+[![Artifact Hub][artifacthub-img]](https://artifacthub.io/packages/helm/jaegertracing/jaeger)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
 <img src="https://github.com/cncf/artwork/blob/master/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
@@ -81,10 +81,11 @@ The OpenTracing and OpenCensus projects have merged into a new CNCF project call
 
 ### Multiple storage backends
 
-Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
-There is also embedded database support using [Badger](https://github.com/dgraph-io/badger).
-There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB.
-Jaeger also ships with a simple in-memory storage for testing setups.
+Jaeger can be used with a growing a number of storage backends:
+* It natively supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
+* It integrates via a gRPC API with other well known databases that have been certified to be Jaeger compliant: [TimescaleDB via Promscale](https://github.com/timescale/promscale), [ClickHouse](https://github.com/jaegertracing/jaeger-clickhouse).
+* There is embedded database support using [Badger](https://github.com/dgraph-io/badger) and simple in-memory storage for testing setups.
+* There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB.
 
 ### Modern Web UI
 
