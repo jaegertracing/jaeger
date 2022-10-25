@@ -44,7 +44,7 @@ jobs:
     - name: Install tools
       run: make install-ci
 
-    - uses: docker/setup-qemu-action@8b122486cedac8393e77aa9734c3528886e4a1a8
+    - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18
 
     - name: Run opensearch integration tests
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
