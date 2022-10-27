@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -73,7 +74,8 @@ func startOTLPReceiver(
 	otlpReceiverSettings := component.ReceiverCreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
-			TracerProvider: otel.GetTracerProvider(), // TODO we may always want no-op here, not the global default
+			TracerProvider: otel.GetTracerProvider(),      // TODO we may always want no-op here, not the global default
+			MeterProvider:  metric.NewNoopMeterProvider(), // TODO wire this with jaegerlib metrics?
 		},
 	}
 
