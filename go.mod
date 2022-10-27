@@ -48,7 +48,7 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/xdg-go/scram v1.1.1
 	go.opentelemetry.io/collector v0.62.1
-	go.opentelemetry.io/collector/pdata v0.62.1
+	go.opentelemetry.io/collector/pdata v0.63.0
 	go.opentelemetry.io/collector/semconv v0.62.1
 	go.opentelemetry.io/otel v1.11.1
 	go.uber.org/atomic v1.10.0
