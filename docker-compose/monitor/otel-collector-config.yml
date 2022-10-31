@@ -4,6 +4,11 @@ receivers:
       thrift_http:
         endpoint: "0.0.0.0:14278"
 
+  otlp:
+    protocols:
+      grpc:
+      http:
+
   # Dummy receiver that's never used, because a pipeline is required to have one.
   otlp/spanmetrics:
     protocols:
@@ -27,7 +32,7 @@ processors:
 service:
   pipelines:
     traces:
-      receivers: [jaeger]
+      receivers: [otlp, jaeger]
       processors: [spanmetrics, batch]
       exporters: [jaeger]
     # The exporter name in this pipeline must match the spanmetrics.metrics_exporter name.
