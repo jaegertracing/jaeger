@@ -13,6 +13,48 @@ next release
 
 ### UI Changes
 
+1.39.0 (2022-10-31)
+-------------------
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+#### New Features
+
+* Add support for OpenSearch 2.x ([@gaurav-05](https://github.com/gaurav-05) in [#3966](https://github.com/jaegertracing/jaeger/pull/3966))
+
+#### Bug fixes, Minor Improvements
+
+* Pin SBOM action to commit ([@yurishkuro](https://github.com/yurishkuro) in [bb49249](https://github.com/jaegertracing/jaeger/commit/bb492490594c9d9321ed9242862ac2a8864ff771))
+* Bump github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger ([@dependabot[bot]](https://github.com/apps/dependabot) in [#4009](https://github.com/jaegertracing/jaeger/pull/4009))
+* don't require auth ([@joe-elliott](https://github.com/joe-elliott) in [#4005](https://github.com/jaegertracing/jaeger/pull/4005))
+* Bump github.com/spf13/cobra from 1.6.0 to 1.6.1 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#4004](https://github.com/jaegertracing/jaeger/pull/4004))
+* [StepSecurity] ci: Harden GitHub Actions ([@step-security-bot](https://github.com/step-security-bot) in [#3963](https://github.com/jaegertracing/jaeger/pull/3963))
+* Bump go.opentelemetry.io/otel from 1.11.0 to 1.11.1 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3991](https://github.com/jaegertracing/jaeger/pull/3991))
+* Increase sleep time when waiting for ES/OS backend ([@yurishkuro](https://github.com/yurishkuro) in [b9805f7](https://github.com/jaegertracing/jaeger/commit/b9805f7bc075224cfab37abab9df24ca51f38683))
+* Fix CVE-2022-32149 for gotlang.org/x/text package ([@mehta-ankit](https://github.com/mehta-ankit) in [#3992](https://github.com/jaegertracing/jaeger/pull/3992))
+* Expose otel configured thrift http port ([@albertteoh](https://github.com/albertteoh) in [#3986](https://github.com/jaegertracing/jaeger/pull/3986))
+* Bump go.opentelemetry.io/collector from 0.62.0 to 0.62.1 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3976](https://github.com/jaegertracing/jaeger/pull/3976))
+* Bump github.com/prometheus/client_model from 0.2.0 to 0.3.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3984](https://github.com/jaegertracing/jaeger/pull/3984))
+* Adding anchore for SBOM signing during release ([@jkowall](https://github.com/jkowall) in [#3987](https://github.com/jaegertracing/jaeger/pull/3987))
+* Bump go.opentelemetry.io/otel from 1.10.0 to 1.11.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3979](https://github.com/jaegertracing/jaeger/pull/3979))
+* Bump sarama to 1.33.0 ([@pavolloffay](https://github.com/pavolloffay) in [#3983](https://github.com/jaegertracing/jaeger/pull/3983))
+* Add note on jaeger grpc storage compliance ([@arajkumar](https://github.com/arajkumar) in [#3985](https://github.com/jaegertracing/jaeger/pull/3985))
+* Bump github.com/dgraph-io/badger/v3 from 3.2103.2 to 3.2103.3 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3981](https://github.com/jaegertracing/jaeger/pull/3981))
+* Bump google.golang.org/grpc from 1.50.0 to 1.50.1 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3980](https://github.com/jaegertracing/jaeger/pull/3980))
+* Added link to FOSSA and Artifact Hub to README ([@jkowall](https://github.com/jkowall) in [#3964](https://github.com/jaegertracing/jaeger/pull/3964))
+* Bump github.com/fsnotify/fsnotify from 1.5.4 to 1.6.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3973](https://github.com/jaegertracing/jaeger/pull/3973))
+* Bump github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3972](https://github.com/jaegertracing/jaeger/pull/3972))
+* Bump github.com/spf13/cobra from 1.5.0 to 1.6.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3967](https://github.com/jaegertracing/jaeger/pull/3967))
+* Bump github.com/kr/pretty from 0.3.0 to 0.3.1 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3961](https://github.com/jaegertracing/jaeger/pull/3961))
+* Add grafana container to monitor docker-compose ([@albertteoh](https://github.com/albertteoh) in [#3955](https://github.com/jaegertracing/jaeger/pull/3955))
+* Bump google.golang.org/grpc from 1.49.0 to 1.50.0 ([@dependabot[bot]](https://github.com/apps/dependabot) in [#3950](https://github.com/jaegertracing/jaeger/pull/3950))
+* Expose storage integration helpers as go pkg ([@arajkumar](https://github.com/arajkumar) in [#3944](https://github.com/jaegertracing/jaeger/pull/3944))
+
+### UI 
+
+* UI pinned to version [1.28.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#).
+
 1.38.1 (2022-10-04)
 -------------------
 ### Backend Changes
