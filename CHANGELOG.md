@@ -13,11 +13,9 @@ next release
 
 ### UI Changes
 
-1.39.0 (2022-10-31)
+1.39.0 (2022-11-01)
 -------------------
 ### Backend Changes
-
-#### ⛔ Breaking Changes
 
 #### New Features
 
