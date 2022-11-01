@@ -5,6 +5,9 @@ on:
     types:
       - published
 
+# See https://github.com/jaegertracing/jaeger/issues/4017
+permissions: read-all|write-all
+
 jobs:
   publish-release:
     runs-on: ubuntu-latest
