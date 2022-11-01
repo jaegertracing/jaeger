@@ -13,6 +13,32 @@ next release
 
 ### UI Changes
 
+1.39.0 (2022-11-01)
+-------------------
+### Backend Changes
+
+#### New Features
+
+* Add support for OpenSearch 2.x ([@gaurav-05](https://github.com/gaurav-05) in [#3966](https://github.com/jaegertracing/jaeger/pull/3966))
+
+#### Bug fixes, Minor Improvements
+
+* Pin SBOM action to commit ([@yurishkuro](https://github.com/yurishkuro) in [bb49249](https://github.com/jaegertracing/jaeger/commit/bb492490594c9d9321ed9242862ac2a8864ff771))
+* Remove auth requirement on monitor demo ([@joe-elliott](https://github.com/joe-elliott) in [#4005](https://github.com/jaegertracing/jaeger/pull/4005))
+* Increase sleep time when waiting for ES/OS backend ([@yurishkuro](https://github.com/yurishkuro) in [b9805f7](https://github.com/jaegertracing/jaeger/commit/b9805f7bc075224cfab37abab9df24ca51f38683))
+* Fix CVE-2022-32149 for gotlang.org/x/text package ([@mehta-ankit](https://github.com/mehta-ankit) in [#3992](https://github.com/jaegertracing/jaeger/pull/3992))
+* Expose otel configured thrift http port ([@albertteoh](https://github.com/albertteoh) in [#3986](https://github.com/jaegertracing/jaeger/pull/3986))
+* Adding anchore for SBOM signing during release ([@jkowall](https://github.com/jkowall) in [#3987](https://github.com/jaegertracing/jaeger/pull/3987))
+* Bump sarama to 1.33.0 ([@pavolloffay](https://github.com/pavolloffay) in [#3983](https://github.com/jaegertracing/jaeger/pull/3983))
+* Add note on jaeger grpc storage compliance ([@arajkumar](https://github.com/arajkumar) in [#3985](https://github.com/jaegertracing/jaeger/pull/3985))
+* Added link to FOSSA and Artifact Hub to README ([@jkowall](https://github.com/jkowall) in [#3964](https://github.com/jaegertracing/jaeger/pull/3964))
+* Add grafana container to monitor docker-compose ([@albertteoh](https://github.com/albertteoh) in [#3955](https://github.com/jaegertracing/jaeger/pull/3955))
+* Expose storage integration helpers as go pkg ([@arajkumar](https://github.com/arajkumar) in [#3944](https://github.com/jaegertracing/jaeger/pull/3944))
+
+### UI 
+
+* UI pinned to version [1.27.2](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1272-2022-11-01).
+
 1.38.1 (2022-10-04)
 -------------------
 ### Backend Changes
