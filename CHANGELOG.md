@@ -24,7 +24,7 @@ next release
 #### Bug fixes, Minor Improvements
 
 * Pin SBOM action to commit ([@yurishkuro](https://github.com/yurishkuro) in [bb49249](https://github.com/jaegertracing/jaeger/commit/bb492490594c9d9321ed9242862ac2a8864ff771))
-* don't require auth ([@joe-elliott](https://github.com/joe-elliott) in [#4005](https://github.com/jaegertracing/jaeger/pull/4005))
+* Remove auth requirement on monitor demo ([@joe-elliott](https://github.com/joe-elliott) in [#4005](https://github.com/jaegertracing/jaeger/pull/4005))
 * Increase sleep time when waiting for ES/OS backend ([@yurishkuro](https://github.com/yurishkuro) in [b9805f7](https://github.com/jaegertracing/jaeger/commit/b9805f7bc075224cfab37abab9df24ca51f38683))
 * Fix CVE-2022-32149 for gotlang.org/x/text package ([@mehta-ankit](https://github.com/mehta-ankit) in [#3992](https://github.com/jaegertracing/jaeger/pull/3992))
 * Expose otel configured thrift http port ([@albertteoh](https://github.com/albertteoh) in [#3986](https://github.com/jaegertracing/jaeger/pull/3986))
@@ -37,7 +37,7 @@ next release
 
 ### UI 
 
-* UI pinned to version [1.27.2](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1272-2022-11-01) to bump dependencies.
+* UI pinned to version [1.27.2](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1272-2022-11-01).
 
 1.38.1 (2022-10-04)
 -------------------
