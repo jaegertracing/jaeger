@@ -16,10 +16,16 @@
 package json
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/json"
+)
+
+const (
+	js_limit_max = 9007199254740991
+	js_limit_min = -9007199254740991
 )
 
 // FromDomain converts model.Trace into json.Trace format.
@@ -122,6 +128,10 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 			value = kv.Bool()
 		case model.Int64Type:
 			value = kv.Int64()
+			if kv.Int64() > js_limit_max || kv.Int64() < js_limit_min {
+				kv.VType = 0
+				value = fmt.Sprintf("%d", value)
+			}
 		case model.Float64Type:
 			value = kv.Float64()
 		case model.BinaryType:
