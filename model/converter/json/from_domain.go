@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	js_limit_max = 9007199254740991
-	js_limit_min = -9007199254740991
+	jsMaxSafeInteger = int64(1)<<53 - 1
+	jsMinSafeInteger = -jsMaxSafeInteger
 )
 
 // FromDomain converts model.Trace into json.Trace format.
@@ -128,7 +128,7 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 			value = kv.Bool()
 		case model.Int64Type:
 			value = kv.Int64()
-			if kv.Int64() > js_limit_max || kv.Int64() < js_limit_min {
+			if kv.Int64() > jsMaxSafeInteger || kv.Int64() < jsMinSafeInteger {
 				kv.VType = 0
 				value = fmt.Sprintf("%d", value)
 			}
