@@ -121,6 +121,10 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 	out := make([]json.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
 		var value interface{}
+		var jsflag bool = false
+		if kv.Int64() > jsMaxSafeInteger || kv.Int64() < jsMinSafeInteger {
+			jsflag = true
+		}
 		switch kv.VType {
 		case model.StringType:
 			value = kv.VStr
@@ -128,8 +132,7 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 			value = kv.Bool()
 		case model.Int64Type:
 			value = kv.Int64()
-			if kv.Int64() > jsMaxSafeInteger || kv.Int64() < jsMinSafeInteger {
-				kv.VType = 0
+			if jsflag {
 				value = fmt.Sprintf("%d", value)
 			}
 		case model.Float64Type:
