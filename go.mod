@@ -35,7 +35,7 @@ require (
 	github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df
 	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/prometheus/client_golang v1.13.1
+	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.37.0
 	github.com/rs/cors v1.8.2
