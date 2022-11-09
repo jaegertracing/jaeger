@@ -47,7 +47,7 @@ jobs:
       uses: crazy-max/ghaction-import-gpg@v1
       env:
         GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        PASSPHRASE: ${{ secrets.GPG_PASSWORD }}
+        PASSPHRASE: ${{ secrets. GPG_PASSPHRASE }}
 
     - name: Build binaries
       id: build-binaries
