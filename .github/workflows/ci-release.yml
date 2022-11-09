@@ -6,7 +6,9 @@ on:
       - published
 
 # See https://github.com/jaegertracing/jaeger/issues/4017
-permissions: read-all|write-all
+# and https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  deployments: write
 
 jobs:
   publish-release:
