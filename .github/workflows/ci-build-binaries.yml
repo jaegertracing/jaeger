@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [main]
 
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
 jobs:
   build-binaries:
     runs-on: ubuntu-latest
