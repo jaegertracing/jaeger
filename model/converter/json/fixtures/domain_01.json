@@ -58,6 +58,11 @@
           "vFloat64": 72.5
         },
         {
+          "key": "javascript_limit",
+          "vType": "INT64",
+          "vInt64": 9223372036854775222
+        },
+        {
           "key": "blob",
           "vType": "BINARY",
           "vBinary": "AAAwOQ=="
