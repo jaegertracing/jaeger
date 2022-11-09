@@ -7,13 +7,17 @@ on:
   pull_request:
     branches: [main]
 
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
 jobs:
   fossa-license-scan:
     runs-on: ubuntu-latest
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@2e205a28d0e1da00c5f53b161f4067b052c61f34
+        uses: step-security/harden-runner@ebacdc22ef6c2cfb85ee5ded8f2e640f4c776dd5
         with:
           egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -28,7 +32,7 @@ jobs:
           echo "GOPATH=$(go env GOPATH)"
           echo "GOPATH=$(go env GOPATH)" >>"$GITHUB_ENV"
           echo "$GOPATH/bin" >>"$GITHUB_PATH"
-          
+
       - name: Run FOSSA scan and upload report
         uses: fossa-contrib/fossa-action@6cffaa064112e1cf9b5798c6224f9487dc1ec316
         with:
