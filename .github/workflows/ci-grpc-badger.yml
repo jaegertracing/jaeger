@@ -7,6 +7,7 @@ on:
   pull_request:
     branches: [main]
 
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
