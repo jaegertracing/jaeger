@@ -43,9 +43,10 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 		logsFieldType FieldType
 	}{
 		{mappingType: "span", esVersion: 7, useILM: true, fixtureName: "jaeger-span-with-ilm-7"},
-		{mappingType: "span", esVersion: 7, logsFieldType: objectFieldType, fixtureName: "jaeger-span-with-object-fieldtype-logs-7"},
+		{mappingType: "span", esVersion: 7, logsFieldType: ObjectFieldType, fixtureName: "jaeger-span-with-object-fieldtype-logs-7"},
 		{mappingType: "span", esVersion: 7, useILM: false, fixtureName: "jaeger-span-7"},
 		{mappingType: "span", esVersion: 6, fixtureName: "jaeger-span"},
+		{mappingType: "span", esVersion: 6, logsFieldType: ObjectFieldType, fixtureName: "jaeger-span-with-object-fieldtype-logs"},
 		{mappingType: "service", esVersion: 7, useILM: true, fixtureName: "jaeger-service-with-ilm-7"},
 		{mappingType: "service", esVersion: 7, useILM: false, fixtureName: "jaeger-service-7"},
 		{mappingType: "service", esVersion: 6, fixtureName: "jaeger-service"},
@@ -55,7 +56,7 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		mapping := fmt.Sprintf("jaeger-%s", tt.mappingType)
-		testName := fmt.Sprintf("%s-%v-ilm-%v-log-filed-type-%v", mapping, tt.esVersion, tt.useILM, tt.logsFieldType)
+		testName := fmt.Sprintf("%s-%v-ilm-%v-log-field-type-%v", mapping, tt.esVersion, tt.useILM, tt.logsFieldType)
 		t.Run(testName, func(t *testing.T) {
 			mb := &MappingBuilder{
 				TemplateBuilder: es.TextTemplateBuilder{},
