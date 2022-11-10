@@ -32,6 +32,7 @@ func TestBindFlags(t *testing.T) {
 		"--es.ilm-policy-name=jaeger-ilm",
 		"--skip-dependencies=true",
 		"--adaptive-sampling=true",
+		"--disable-logs-field-search=true",
 	})
 	require.NoError(t, err)
 
@@ -44,4 +45,5 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
 	assert.True(t, c.SkipDependencies)
 	assert.True(t, c.AdaptiveSampling)
+	assert.True(t, c.DisableLogsFieldSearch)
 }

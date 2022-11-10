@@ -90,7 +90,7 @@ func Test_getMappingAsString(t *testing.T) {
 			wantErr: errors.New("parse error"),
 		},
 		{
-			name: "Parse bool error",
+			name: "Parse bool error for UseILM",
 			args: app.Options{
 				Mapping:       "jaeger-span",
 				EsVersion:     7,
@@ -99,6 +99,29 @@ func Test_getMappingAsString(t *testing.T) {
 				IndexPrefix:   "test-",
 				UseILM:        "foo",
 				ILMPolicyName: "jaeger-test-policy",
+			},
+			wantedMapping: &mappings.MappingBuilder{
+				EsVersion:      7,
+				Shards:         5,
+				Replicas:       1,
+				IndexPrefix:    "test-",
+				UseILM:         false,
+				ILMPolicyName:  "jaeger-test-policy",
+				LogsFieldsType: mappings.ObjectFieldType,
+			},
+			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
+		},
+		{
+			name: "Parse bool error for DisableLogsFieldSearch",
+			args: app.Options{
+				Mapping:       "jaeger-span",
+				EsVersion:     7,
+				Shards:        5,
+				Replicas:      1,
+				IndexPrefix:   "test-",
+				UseILM:        "false",
+				ILMPolicyName: "jaeger-test-policy",
+				DisableLogsFieldSearch : "foo",
 			},
 			wantedMapping: &mappings.MappingBuilder{
 				EsVersion:      7,

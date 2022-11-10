@@ -71,7 +71,7 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		&o.DisableLogsFieldSearch,
 		disableLogsFieldSearch,
 		"false",
-		"Set to `true` to disable searches on logs.field")
+		"Set to `true` to set type logs.field mapping to object")
 
 	// mark mapping flag as mandatory
 	command.MarkFlagRequired(mappingFlag)

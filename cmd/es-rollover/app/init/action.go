@@ -28,6 +28,10 @@ type Action struct {
 }
 
 func (c Action) getMapping(version uint, templateName string) (string, error) {
+	logFieldType := mappings.NestedFieldType
+	if c.Config.DisableLogsFieldSearch {
+		logFieldType = mappings.ObjectFieldType
+	}
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder:              es.TextTemplateBuilder{},
 		PrioritySpanTemplate:         int64(c.Config.PrioritySpanTemplate),
@@ -40,6 +44,7 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		UseILM:                       c.Config.UseILM,
 		ILMPolicyName:                c.Config.ILMPolicyName,
 		EsVersion:                    version,
+		LogsFieldsType:               logFieldType,
 	}
 	return mappingBuilder.GetMapping(templateName)
 }
