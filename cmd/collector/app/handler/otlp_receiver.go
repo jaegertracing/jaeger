@@ -20,7 +20,6 @@ import (
 
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -66,7 +65,7 @@ func startOTLPReceiver(
 	otlpFactory component.ReceiverFactory,
 	newTraces func(consume consumer.ConsumeTracesFunc, options ...consumer.Option) (consumer.Traces, error),
 	createTracesReceiver func(ctx context.Context, set component.ReceiverCreateSettings,
-		cfg config.Receiver, nextConsumer consumer.Traces) (component.TracesReceiver, error),
+		cfg component.ReceiverConfig, nextConsumer consumer.Traces) (component.TracesReceiver, error),
 ) (component.TracesReceiver, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
@@ -181,14 +180,14 @@ func (h *otelHost) ReportFatalError(err error) {
 	h.logger.Fatal("OTLP receiver error", zap.Error(err))
 }
 
-func (*otelHost) GetFactory(_ component.Kind, _ config.Type) component.Factory {
+func (*otelHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
 	return nil
 }
 
-func (*otelHost) GetExtensions() map[config.ComponentID]component.Extension {
+func (*otelHost) GetExtensions() map[component.ID]component.Extension {
 	return nil
 }
 
-func (*otelHost) GetExporters() map[config.DataType]map[config.ComponentID]component.Exporter {
+func (*otelHost) GetExporters() map[component.DataType]map[component.ID]component.Exporter {
 	return nil
 }
