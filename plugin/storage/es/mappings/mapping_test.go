@@ -17,6 +17,7 @@ package mappings
 import (
 	"embed"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -35,38 +36,42 @@ var FIXTURES embed.FS
 
 func TestMappingBuilder_GetMapping(t *testing.T) {
 	tests := []struct {
-		mapping   string
-		esVersion uint
+		esVersion   uint
+		useILM      bool
+		mappingType string
+		fixtureName string
 	}{
-		{mapping: "jaeger-span", esVersion: 7},
-		{mapping: "jaeger-span", esVersion: 6},
-		{mapping: "jaeger-service", esVersion: 7},
-		{mapping: "jaeger-service", esVersion: 6},
-		{mapping: "jaeger-dependencies", esVersion: 7},
-		{mapping: "jaeger-dependencies", esVersion: 6},
+		{mappingType: "span", esVersion: 7, useILM: true, fixtureName: "jaeger-span-with-ilm-7"},
+		{mappingType: "span", esVersion: 7, useILM: false, fixtureName: "jaeger-span-7"},
+		{mappingType: "span", esVersion: 6, fixtureName: "jaeger-span"},
+		{mappingType: "service", esVersion: 7, useILM: true, fixtureName: "jaeger-service-with-ilm-7"},
+		{mappingType: "service", esVersion: 7, useILM: false, fixtureName: "jaeger-service-7"},
+		{mappingType: "service", esVersion: 6, fixtureName: "jaeger-service"},
+		{mappingType: "dependencies", esVersion: 7, useILM: true, fixtureName: "jaeger-dependencies-with-ilm-7"},
+		{mappingType: "dependencies", esVersion: 7, useILM: false, fixtureName: "jaeger-dependencies-7"},
+		{mappingType: "dependencies", esVersion: 6, fixtureName: "jaeger-dependencies"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.mapping, func(t *testing.T) {
+		mapping := fmt.Sprintf("jaeger-%s", tt.mappingType)
+		testName := fmt.Sprintf("%s-%v-ilm-%v", mapping, tt.esVersion, tt.useILM)
+		t.Run(testName, func(t *testing.T) {
 			mb := &MappingBuilder{
 				TemplateBuilder: es.TextTemplateBuilder{},
 				Shards:          3,
 				Replicas:        3,
 				EsVersion:       tt.esVersion,
 				IndexPrefix:     "test-",
-				UseILM:          true,
+				UseILM:          tt.useILM,
 				ILMPolicyName:   "jaeger-test-policy",
 			}
-			got, err := mb.GetMapping(tt.mapping)
+
+			got, err := mb.GetMapping(mapping)
 			require.NoError(t, err)
-			var wantbytes []byte
-			if tt.esVersion == 7 {
-				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + "-7.json")
-				require.NoError(t, err)
-			} else {
-				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + ".json")
-				require.NoError(t, err)
-			}
-			want := string(wantbytes)
+
+			var wantBytes []byte
+			wantBytes, err = FIXTURES.ReadFile(fmt.Sprintf("fixtures/%s.json", tt.fixtureName))
+			want := string(wantBytes)
+			assert.NoError(t, err)
 			assert.Equal(t, got, want)
 		})
 	}
