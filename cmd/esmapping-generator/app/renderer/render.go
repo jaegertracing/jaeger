@@ -35,6 +35,16 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 		return "", err
 	}
 
+	logFieldType := mappings.NestedFieldType
+	disableLogsFieldSearch, err := strconv.ParseBool(opt.DisableLogsFieldSearch)
+	if err != nil {
+		return "", err
+	}
+
+	if disableLogsFieldSearch {
+		logFieldType = mappings.ObjectFieldType
+	}
+
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: builder,
 		Shards:          opt.Shards,
@@ -43,6 +53,7 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 		IndexPrefix:     opt.IndexPrefix,
 		UseILM:          enableILM,
 		ILMPolicyName:   opt.ILMPolicyName,
+		LogsFieldsType:  logFieldType,
 	}
 	return mappingBuilder.GetMapping(opt.Mapping)
 }
