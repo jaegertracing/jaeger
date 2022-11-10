@@ -14,11 +14,11 @@ func TestParseFieldType(t *testing.T) {
 	}{
 		{
 			fieldType: "nested",
-			expected:  nestedFieldType,
+			expected:  NestedFieldType,
 		},
 		{
 			fieldType: "object",
-			expected:  objectFieldType,
+			expected:  ObjectFieldType,
 		},
 	}
 
@@ -37,24 +37,24 @@ func TestFormat(t *testing.T) {
 		format string
 	}{
 		{
-			fieldType: nestedFieldType,
+			fieldType: NestedFieldType,
 			expected:  "0" ,
-			format: "%s",
+			format:    "%s",
 		},
 		{
-			fieldType: objectFieldType,
+			fieldType: ObjectFieldType,
 			expected:  "1" ,
-			format: "%s",
+			format:    "%s",
 		},
 		{
-			fieldType: objectFieldType,
+			fieldType: ObjectFieldType,
 			expected:  "object",
-			format: "%v",
+			format:    "%v",
 		},
 		{
-			fieldType: nestedFieldType,
+			fieldType: NestedFieldType,
 			expected:  "nested",
-			format: "%v",
+			format:    "%v",
 		},
 	}
 

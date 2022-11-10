@@ -10,16 +10,16 @@ type FieldType int
 func ParseFieldType(v string) FieldType {
 	switch v {
 	case "object":
-		return objectFieldType
+		return ObjectFieldType
 	default:
-		return nestedFieldType
+		return NestedFieldType
 	}
 }
 
 func (field FieldType) Format(f fmt.State, verb rune) {
 
 	str := "object"
-	if field == nestedFieldType {
+	if field == NestedFieldType {
 		str = "nested"
 	}
 
@@ -33,6 +33,6 @@ func (field FieldType) Format(f fmt.State, verb rune) {
 }
 
 const (
-	nestedFieldType FieldType = iota
-	objectFieldType
+	NestedFieldType FieldType = iota
+	ObjectFieldType
 )
