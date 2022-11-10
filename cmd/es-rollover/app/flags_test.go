@@ -42,6 +42,7 @@ func TestBindFlags(t *testing.T) {
 		"--es.use-ilm=true",
 		"--es.ilm-policy-name=jaeger-ilm",
 		"--skip-dependencies=true",
+		"--disable-logs-field-search=true",
 	})
 	require.NoError(t, err)
 
@@ -53,4 +54,5 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "qwerty123", c.Password)
 	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
 	assert.Equal(t, true, c.SkipDependencies)
+	assert.Equal(t, true, c.DisableLogsFieldSearch)
 }
