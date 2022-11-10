@@ -720,6 +720,8 @@ go.opentelemetry.io/collector/pdata v0.64.1 h1:8E06uHr0nnenGftFwhwdenA88QhVnF4dJ
 go.opentelemetry.io/collector/pdata v0.64.1/go.mod h1:IzvXUGQml2mrnvdb8zIlEW3qQs9oFLdD2hLwJdZ+pek=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.0 h1:z4kTdkSCzsbi9iH2jZ0twJrRkmfYqC8PfZ2vAIUclQk=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.0/go.mod h1:CoDUStGu6pmcRGwqsjm9/4HHXvDcSToWt5HMQuIvsrM=
+go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.1 h1:lOZUr4AzLeY4QJsoM3PQ8DRHCHVYeNXLxWd/nBTROvs=
+go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.1/go.mod h1:4rwNi9SeCKBP9XGLWNRFKPsWUV5NK4iqMvdj2WRMksQ=
 go.opentelemetry.io/collector/semconv v0.64.1 h1:2Y52fp3BfQ/4MmubuUYRKzDui/gNxRWz1wpdYWexvC0=
 go.opentelemetry.io/collector/semconv v0.64.1/go.mod h1:5o9yhOa+ABt7g2E5JABDxGZ1PQPbtfxrKNbYn+LOTXU=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.36.4 h1:PRXhsszxTt5bbPriTjmaweWUsAnJYeWBhUMLRetUgBU=
