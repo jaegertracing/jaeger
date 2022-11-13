@@ -71,7 +71,7 @@ pip install -r requirements.txt
 Then run this example a number of times to generate some traces: 
 
 ```shell
-./jaeger_example.py
+./otlp_exporter_example.py
 ```
 
 Navigate to Jaeger UI at http://localhost:16686/ and you should be able to see traces from this demo application

@@ -74,3 +74,5 @@ package tar linux-arm64
 package tar linux-ppc64le
 # Create a checksum file for all non-checksum files in the deploy directory. Strips the leading 'deploy/' directory from filepaths. Sort by filename.
 find deploy \( ! -name '*sha256sum.txt' \) -type f -exec shasum -b -a 256 {} \; | sed -r 's#(\w+\s+\*?)deploy/(.*)#\1\2#' | sort -k2 | tee ./deploy/jaeger-$VERSION.sha256sum.txt
+# Setup gpg and sign the keys to include the files in the package. Exclude the checksum files created.
+find deploy \( ! -name '*sha256sum.txt' \) -type f -exec gpg --armor --detach-sign {} \; | sed -r 's#(\w+\s+\*?)deploy/(.*)#\1\2#' | sort -k2 | tee ./deploy/jaeger-$VERSION.asc
