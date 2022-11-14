@@ -67,7 +67,6 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 				UseILM:          tt.useILM,
 				ILMPolicyName:   "jaeger-test-policy",
 				LogsFieldsType:  tt.logsFieldType,
-
 			}
 
 			got, err := mb.GetMapping(mapping)

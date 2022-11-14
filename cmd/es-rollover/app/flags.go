@@ -21,28 +21,28 @@ import (
 )
 
 const (
-	indexPrefix      = "index-prefix"
-	archive          = "archive"
-	username         = "es.username"
-	password         = "es.password"
-	useILM           = "es.use-ilm"
-	ilmPolicyName    = "es.ilm-policy-name"
-	timeout          = "timeout"
-	skipDependencies = "skip-dependencies"
+	indexPrefix            = "index-prefix"
+	archive                = "archive"
+	username               = "es.username"
+	password               = "es.password"
+	useILM                 = "es.use-ilm"
+	ilmPolicyName          = "es.ilm-policy-name"
+	timeout                = "timeout"
+	skipDependencies       = "skip-dependencies"
 	disableLogsFieldSearch = "disable-logs-field-search"
 )
 
 // Config holds the global configurations for the es rollover, common to all actions
 type Config struct {
-	IndexPrefix      string
-	Archive          bool
-	Username         string
-	Password         string
-	TLSEnabled       bool
-	ILMPolicyName    string
-	UseILM           bool
-	Timeout          int
-	SkipDependencies bool
+	IndexPrefix            string
+	Archive                bool
+	Username               string
+	Password               string
+	TLSEnabled             bool
+	ILMPolicyName          string
+	UseILM                 bool
+	Timeout                int
+	SkipDependencies       bool
 	DisableLogsFieldSearch bool
 }
 
