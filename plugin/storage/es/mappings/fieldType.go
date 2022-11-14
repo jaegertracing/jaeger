@@ -7,13 +7,21 @@ import (
 
 type FieldType int
 
-func ParseFieldType(v string) FieldType {
-	switch v {
-	case "object":
-		return ObjectFieldType
-	default:
+func ParseFieldType(v any) FieldType {
+	if value, ok := v.(bool); ok {
+		if value {
+			return ObjectFieldType
+		}
 		return NestedFieldType
+	} else if value, ok := v.(string); ok {
+		switch value {
+		case "object", "true":
+			return ObjectFieldType
+		default:
+			return NestedFieldType
+		}
 	}
+	return NestedFieldType
 }
 
 func (field FieldType) Format(f fmt.State, verb rune) {

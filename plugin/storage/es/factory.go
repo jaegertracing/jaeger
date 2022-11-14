@@ -236,6 +236,7 @@ func createSpanReader(
 		Logger:                        logger,
 		MetricsFactory:                mFactory,
 		Tracer:                        tp.Tracer("esSpanStore.SpanReader"),
+		DisableLogsFieldSearch:        cfg.DisableLogsFieldSearch,
 	}), nil
 }
 

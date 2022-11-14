@@ -69,13 +69,13 @@ func Test_getMappingAsString(t *testing.T) {
 		{
 			name: "Parse Error version 7",
 			args: app.Options{
-				Mapping:       "jaeger-span",
-				EsVersion:     7,
-				Shards:        5,
-				Replicas:      1,
-				IndexPrefix:   "test-",
-				UseILM:        "true",
-				ILMPolicyName: "jaeger-test-policy",
+				Mapping:                "jaeger-span",
+				EsVersion:              7,
+				Shards:                 5,
+				Replicas:               1,
+				IndexPrefix:            "test-",
+				UseILM:                 "true",
+				ILMPolicyName:          "jaeger-test-policy",
 				DisableLogsFieldSearch: "false",
 			},
 			wantedMapping: &mappings.MappingBuilder{
@@ -114,14 +114,14 @@ func Test_getMappingAsString(t *testing.T) {
 		{
 			name: "Parse bool error for DisableLogsFieldSearch",
 			args: app.Options{
-				Mapping:       "jaeger-span",
-				EsVersion:     7,
-				Shards:        5,
-				Replicas:      1,
-				IndexPrefix:   "test-",
-				UseILM:        "false",
-				ILMPolicyName: "jaeger-test-policy",
-				DisableLogsFieldSearch : "foo",
+				Mapping:                "jaeger-span",
+				EsVersion:              7,
+				Shards:                 5,
+				Replicas:               1,
+				IndexPrefix:            "test-",
+				UseILM:                 "false",
+				ILMPolicyName:          "jaeger-test-policy",
+				DisableLogsFieldSearch: "foo",
 			},
 			wantedMapping: &mappings.MappingBuilder{
 				EsVersion:      7,

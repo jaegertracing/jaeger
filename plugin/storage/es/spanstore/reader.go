@@ -76,7 +76,8 @@ var (
 
 	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldList                  = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldListWithoutLogsFields = []string{nestedTagsField, nestedProcessTagsField}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -99,6 +100,7 @@ type SpanReader struct {
 	useReadWriteAliases           bool
 	logger                        *zap.Logger
 	tracer                        trace.Tracer
+	DisableLogsFieldSearch        bool
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -115,6 +117,7 @@ type SpanReaderParams struct {
 	Archive                       bool
 	UseReadWriteAliases           bool
 	RemoteReadClusters            []string
+	DisableLogsFieldSearch        bool
 	MetricsFactory                metrics.Factory
 	Logger                        *zap.Logger
 	Tracer                        trace.Tracer
@@ -145,6 +148,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		useReadWriteAliases:           p.UseReadWriteAliases,
 		logger:                        p.Logger,
 		tracer:                        p.Tracer,
+		DisableLogsFieldSearch:        p.DisableLogsFieldSearch,
 	}
 }
 
@@ -660,13 +664,17 @@ func (*SpanReader) buildOperationNameQuery(operationName string) elastic.Query {
 
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	objectTagListLen := len(objectTagFieldList)
-	queries := make([]elastic.Query, len(nestedTagFieldList)+objectTagListLen)
+	nestedFields := nestedTagFieldList
+	if s.DisableLogsFieldSearch {
+		nestedFields = nestedTagFieldListWithoutLogsFields
+	}
+	queries := make([]elastic.Query, len(nestedFields)+objectTagListLen)
 	kd := s.spanConverter.ReplaceDot(k)
 	for i := range objectTagFieldList {
 		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
-	for i := range nestedTagFieldList {
-		queries[i+objectTagListLen] = s.buildNestedQuery(nestedTagFieldList[i], k, v)
+	for i := range nestedFields {
+		queries[i+objectTagListLen] = s.buildNestedQuery(nestedFields[i], k, v)
 	}
 
 	// but configuration can change over time
