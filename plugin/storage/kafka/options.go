@@ -34,6 +34,10 @@ const (
 	EncodingProto = "protobuf"
 	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
+	// EncodingOtlpJSON is used for spans encoded as OTLP JSON.
+	EncodingOtlpJSON = "otlp-json"
+	// EncodingOtlpProto is used for spans encoded as OTLP Proto.
+	EncodingOtlpProto = "otlp-proto"
 
 	configPrefix           = "kafka.producer"
 	suffixBrokers          = ".brokers"
