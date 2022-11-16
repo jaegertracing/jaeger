@@ -20,8 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // limit the size of cache for timers to avoid DDOS.
