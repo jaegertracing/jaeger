@@ -91,17 +91,25 @@ func newRequestDurations(metricsFactory metrics.Factory) *requestDurations {
 func (r *requestDurations) record(request recordedRequest) {
 	cacheKey := request.key
 
-	r.lock.RLock()
-	timer, ok := r.timers[cacheKey]
-	r.lock.RUnlock()
-	if !ok {
-		r.lock.Lock()
+	var timer metrics.Timer
+	var ok bool
+
+	func() {
+		r.lock.RLock()
+		defer r.lock.RUnlock()
 		timer, ok = r.timers[cacheKey]
-		if !ok {
-			timer = buildTimer(r.metrics, cacheKey)
-			r.timers[cacheKey] = timer
-		}
-		r.lock.Unlock()
+	}()
+
+	if !ok {
+		func() {
+			r.lock.Lock()
+			defer r.lock.Unlock()
+			timer, ok = r.timers[cacheKey]
+			if !ok {
+				timer = buildTimer(r.metrics, cacheKey)
+				r.timers[cacheKey] = timer
+			}
+		}()
 	}
 
 	timer.Record(request.duration)
