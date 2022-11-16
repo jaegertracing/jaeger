@@ -89,7 +89,7 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	cfgHandler.RegisterRoutes(r)
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
-	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory)
+	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory, params.Logger)
 	go func() {
 		var err error
 		if params.TLSConfig.Enabled {
