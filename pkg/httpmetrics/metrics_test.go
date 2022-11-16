@@ -21,8 +21,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestNewMetricsHandler(t *testing.T) {
@@ -33,7 +36,7 @@ func TestNewMetricsHandler(t *testing.T) {
 	})
 
 	mb := metricstest.NewFactory(time.Hour)
-	handler := Wrap(dummyHandlerFunc, mb)
+	handler := Wrap(dummyHandlerFunc, mb, zap.NewNop())
 
 	req, err := http.NewRequest(http.MethodGet, "/subdir/qwerty", nil)
 	assert.NoError(t, err)
@@ -48,4 +51,36 @@ func TestNewMetricsHandler(t *testing.T) {
 	}
 
 	assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
+}
+
+func TestMaxEntries(t *testing.T) {
+	mf := metricstest.NewFactory(time.Hour)
+	r := newRequestDurations(mf, zap.NewNop())
+	r.maxEntries = 1
+	r.record(recordedRequest{
+		key: recordedRequestKey{
+			path: "/foo",
+		},
+		duration: time.Millisecond,
+	})
+	r.lock.RLock()
+	size := len(r.timers)
+	r.lock.RUnlock()
+	assert.Equal(t, 1, size)
+}
+
+func TestIllegalPrometheusLabel(t *testing.T) {
+	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		time.Sleep(time.Millisecond)
+		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(http.StatusTeapot) // any subsequent statuses should be ignored
+	})
+
+	mf := prometheus.New().Namespace(metrics.NSOptions{})
+	handler := Wrap(dummyHandlerFunc, mf, zap.NewNop())
+
+	invalidUtf8 := []byte{0xC0, 0xAE, 0xC0, 0xAE}
+	req, err := http.NewRequest(http.MethodGet, string(invalidUtf8), nil)
+	assert.NoError(t, err)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
 }
