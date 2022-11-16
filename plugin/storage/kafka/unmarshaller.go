@@ -19,11 +19,11 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 // Unmarshaller decodes a byte array to a span
@@ -88,13 +88,18 @@ func NewOtlpJSONUnmarshaller() *OtlpJSONUnmarshaller {
 	return &OtlpJSONUnmarshaller{}
 }
 
-func (OtlpJSONUnmarshaller) Unmarshal(buf []byte) (ptrace.Traces, error) {
+func (OtlpJSONUnmarshaller) Unmarshal(buf []byte) (*model.Span, error) {
 	req := ptraceotlp.NewExportRequest()
 	err := req.UnmarshalJSON(buf)
 	if err != nil {
-		return ptrace.NewTraces(), err
+		return nil, err
 	}
-	return req.Traces(), nil
+
+	batch, err := otlp2jaeger.ProtoFromTraces(req.Traces())
+	if err != nil {
+		return nil, err
+	}
+	return batch[0].Spans[0], nil
 }
 
 type OtlpProtoUnmarshaller struct{}
@@ -103,11 +108,16 @@ func NewOtlpProtoUnmarshaller() *OtlpProtoUnmarshaller {
 	return &OtlpProtoUnmarshaller{}
 }
 
-func (h *OtlpProtoUnmarshaller) Unmarshal(buf []byte) (ptrace.Traces, error) {
+func (h *OtlpProtoUnmarshaller) Unmarshal(buf []byte) (*model.Span, error) {
 	req := ptraceotlp.NewExportRequest()
 	err := req.UnmarshalProto(buf)
 	if err != nil {
-		return ptrace.NewTraces(), err
+		return nil, err
 	}
-	return req.Traces(), nil
+
+	batch, err := otlp2jaeger.ProtoFromTraces(req.Traces())
+	if err != nil {
+		return nil, err
+	}
+	return batch[0].Spans[0], nil
 }
