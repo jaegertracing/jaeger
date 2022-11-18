@@ -26,11 +26,19 @@ dependencies_ttl=${DEPENDENCIES_TTL:-0}
 # $ cqlsh -e "show version"
 # [cqlsh 5.0.1 | Cassandra 3.11.11 | CQL spec 3.4.4 | Native protocol v4]
 #
-cas_version=$(cqlsh -e "show version" \
-    | awk -F "|" '{print $2}' \
-    | awk -F " " '{print $2}' \
-    | awk -F "." '{print $1}' \
-)
+if [ -z "$PASSWORD" ]; then
+  cas_version=$(cqlsh -e "show version" \
+      | awk -F "|" '{print $2}' \
+      | awk -F " " '{print $2}' \
+      | awk -F "." '{print $1}' \
+  )
+else
+  cas_version=$(cqlsh -u ${USER} -p ${PASSWORD} -e "show version" \
+      | awk -F "|" '{print $2}' \
+      | awk -F " " '{print $2}' \
+      | awk -F "." '{print $1}' \
+  )
+fi
 
 template=$1
 if [[ "$template" == "" ]]; then
@@ -54,7 +62,7 @@ elif [[ "$MODE" == "prod" ]]; then
     datacenter=$DATACENTER
     replication_factor=${REPLICATION_FACTOR:-2}
     replication="{'class': 'NetworkTopologyStrategy', '$datacenter': '${replication_factor}' }"
-elif [[ "$MODE" == "test" ]]; then 
+elif [[ "$MODE" == "test" ]]; then
     datacenter=${DATACENTER:-'test'}
     replication_factor=${REPLICATION_FACTOR:-1}
     replication="{'class': 'SimpleStrategy', 'replication_factor': '${replication_factor}'}"
