@@ -48,7 +48,7 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/xdg-go/scram v1.1.1
 	go.opentelemetry.io/collector v0.64.1
-	go.opentelemetry.io/collector/pdata v0.64.1
+	go.opentelemetry.io/collector/pdata v0.66.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.1
 	go.opentelemetry.io/collector/semconv v0.64.1
 	go.opentelemetry.io/otel v1.11.1
@@ -57,7 +57,7 @@ require (
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
-	golang.org/x/sys v0.0.0-20221010170243-090e33056c14
+	golang.org/x/sys v0.2.0
 	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
