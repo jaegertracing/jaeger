@@ -188,6 +188,6 @@ func (*otelHost) GetExtensions() map[component.ID]component.Extension {
 	return nil
 }
 
-func (*otelHost) GetExporters() map[component.DataType]map[component.ID]component.Exporter {
+func (*otelHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
 }
