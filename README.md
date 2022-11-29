@@ -96,9 +96,14 @@ traces with tens of thousands of spans (e.g. we tried a trace with 80,000 spans)
 ### Cloud Native Deployment
 
 Jaeger backend is distributed as a collection of Docker images. The binaries support various configuration methods,
-including command line options, environment variables, and configuration files in multiple formats (yaml, toml, etc.)
-Deployment to Kubernetes clusters is assisted by [Kubernetes templates](https://github.com/jaegertracing/jaeger-kubernetes)
-and a [Helm chart](https://github.com/jaegertracing/helm-charts).
+including command line options, environment variables, and configuration files in multiple formats (yaml, toml, etc.).
+
+The recommended way to deploy Jaeger in a production Kubernetes cluster is via the [Jaeger Operator](https://github.com/jaegertracing/jaeger-operator).
+
+The Jaeger Operator provides a [CLI to generate](https://github.com/jaegertracing/jaeger-operator#experimental-generate-kubernetes-manifest-file) Kubernetes manifests from the Jaeger CR.
+This can be considered as an alternative source over plain Kubernetes manifest files.
+
+The Jaeger ecosystem also provides a [Helm chart](https://github.com/jaegertracing/helm-charts) as an alternative way to deploy Jaeger.
 
 ### Observability
 
