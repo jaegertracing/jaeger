@@ -155,15 +155,13 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQu
 		)
 	}
 	grpcServer := grpc.NewServer(grpcOpts...)
-	grpcHandler := &GRPCHandler{
-		queryService:        q,
-		metricsQueryService: mq,
-		logger:              logger,
-		tracer:              tracer,
-		nowFn: func() time.Time {
+	grpcHandler := NewGRPCHandler(q, mq, GRPCHandlerOptions{
+		Logger: logger,
+		Tracer: tracer,
+		NowFn: func() time.Time {
 			return now
 		},
-	}
+	})
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 	metrics.RegisterMetricsQueryServiceServer(grpcServer, grpcHandler)
 

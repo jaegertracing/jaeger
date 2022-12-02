@@ -57,6 +57,39 @@ type GRPCHandler struct {
 	nowFn               func() time.Time
 }
 
+// GRPCHandlerOptions contains optional members of GRPCHandler.
+type GRPCHandlerOptions struct {
+	Logger *zap.Logger
+	Tracer opentracing.Tracer
+	NowFn  func() time.Time
+}
+
+// NewGRPCHandler returns a GRPCHandler.
+func NewGRPCHandler(queryService *querysvc.QueryService,
+	metricsQueryService querysvc.MetricsQueryService,
+	options GRPCHandlerOptions,
+) *GRPCHandler {
+	if options.Logger == nil {
+		options.Logger = zap.NewNop()
+	}
+
+	if options.Tracer == nil {
+		options.Tracer = opentracing.NoopTracer{}
+	}
+
+	if options.NowFn == nil {
+		options.NowFn = time.Now
+	}
+
+	return &GRPCHandler{
+		queryService:        queryService,
+		metricsQueryService: metricsQueryService,
+		logger:              options.Logger,
+		tracer:              options.Tracer,
+		nowFn:               options.NowFn,
+	}
+}
+
 var _ api_v2.QueryServiceServer = (*GRPCHandler)(nil)
 
 // GetTrace is the gRPC handler to fetch traces based on trace-id.
