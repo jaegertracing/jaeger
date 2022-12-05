@@ -473,10 +473,6 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 	case "debug":
 		lvl = zap.DebugLevel
 		setLogger = elastic.SetTraceLog
-
-		// Enables the "level":"debug" log field. Without this,
-		// the "level" field defaults to "info".
-		loggerOpts = append(loggerOpts, zapgrpc.WithDebug())
 	case "info":
 		lvl = zap.InfoLevel
 		setLogger = elastic.SetInfoLog
