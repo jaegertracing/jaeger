@@ -30,7 +30,7 @@ import (
 // NewLogger creates a new zap.Logger backed by a zaptest.Buffer, which is also returned.
 func NewLogger() (*zap.Logger, *Buffer) {
 	core, buf := newRecordingCore()
-	logger := zap.New(core, zap.OnFatal(zapcore.WriteThenPanic))
+	logger := zap.New(core, zap.WithFatalHook(zapcore.WriteThenPanic))
 	return logger, buf
 }
 
