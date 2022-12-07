@@ -16,15 +16,15 @@ USER=${CASSANDRA_USERNAME:-""}
 PASSWORD=${CASSANDRA_PASSWORD:-""}
 SCHEMA_SCRIPT=${SCHEMA_SCRIPT:-"/cassandra-schema/create.sh"}
 
-if [ -z "$PASSWORD" ]; then
-  CQLSH_CMD="${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT}"
-else
-  CQLSH_CMD="${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT} -u ${USER} -p ${PASSWORD}"
+CQLSH_CMD="${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT}"
+if [ ! -z "$PASSWORD" ]; then
+  CQLSH_CMD="${CQLSH_CMD} -u ${USER} -p ${PASSWORD}"
 fi
 
 total_wait=0
 while true
 do
+  echo "Checking if Cassandra is up at ${CQLSH_HOST}:${CQLSH_PORT}."
   ${CQLSH_CMD} -e "describe keyspaces"
   if (( $? == 0 )); then
     break
