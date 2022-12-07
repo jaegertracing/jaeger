@@ -466,7 +466,6 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 	prodConfig := zap.NewProductionConfig()
 
 	var lvl zapcore.Level
-	var loggerOpts []zapgrpc.Option
 	var setLogger func(logger elastic.Logger) elastic.ClientOptionFunc
 
 	switch logLevel {
@@ -490,7 +489,7 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 	}
 
 	// Elastic client requires a "Printf"-able logger.
-	l := zapgrpc.NewLogger(esLogger, loggerOpts...)
+	l := zapgrpc.NewLogger(esLogger)
 	options = append(options, setLogger(l))
 	return options, nil
 }

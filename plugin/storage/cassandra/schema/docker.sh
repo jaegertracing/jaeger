@@ -14,15 +14,18 @@ MODE=${MODE:-"test"}
 TEMPLATE=${TEMPLATE:-""}
 USER=${CASSANDRA_USERNAME:-""}
 PASSWORD=${CASSANDRA_PASSWORD:-""}
+SCHEMA_SCRIPT=${SCHEMA_SCRIPT:-"/cassandra-schema/create.sh"}
+
+CQLSH_CMD="${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT}"
+if [ ! -z "$PASSWORD" ]; then
+  CQLSH_CMD="${CQLSH_CMD} -u ${USER} -p ${PASSWORD}"
+fi
 
 total_wait=0
 while true
 do
-  if [ -z "$PASSWORD" ]; then
-    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT} -e "describe keyspaces"
-  else
-    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT} -u ${USER} -p ${PASSWORD} -e "describe keyspaces"
-  fi
+  echo "Checking if Cassandra is up at ${CQLSH_HOST}:${CQLSH_PORT}."
+  ${CQLSH_CMD} -e "describe keyspaces"
   if (( $? == 0 )); then
     break
   else
@@ -36,11 +39,20 @@ do
   fi
 done
 
-echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
-
-
-if [ -z "$PASSWORD" ]; then
-  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT}
-else
-  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} ${CQLSH_PORT} -u ${USER} -p ${PASSWORD}
+# Extract cassandra version
+#
+# $ cqlsh -e "show version"
+# [cqlsh 5.0.1 | Cassandra 3.11.11 | CQL spec 3.4.4 | Native protocol v4]
+VERSION=
+if [ -z "$TEMPLATE" ]; then
+  VERSION=$(${CQLSH_CMD} -e "show version" \
+      | awk -F "|" '{print $2}' \
+      | awk -F " " '{print $2}' \
+      | awk -F "." '{print $1}' \
+  )
+  echo "Cassandra version detected: ${VERSION}"
 fi
+
+echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}."
+
+MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" VERSION="${VERSION}" ${SCHEMA_SCRIPT} "${TEMPLATE}" | ${CQLSH_CMD}
