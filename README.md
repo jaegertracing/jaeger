@@ -15,11 +15,11 @@
 ```mermaid
 graph TD
     LIB --> |HTTP or gRPC| COLLECTOR
-    LIB[Jaeger Client] --> |UDP| AGENT[Jaeger Agent]
+    LIB["Jaeger Client (deprecated)"] --> |UDP| AGENT[Jaeger Agent]
     %% AGENT --> |HTTP/sampling| LIB
     AGENT --> |gRPC| COLLECTOR[Jaeger Collector]
     %% COLLECTOR --> |gRPC/sampling| AGENT
-    SDK[OpenTelemetry SDK] --> |UDP| AGENT
+    SDK["OpenTelemetry SDK (recommended)"] --> |UDP| AGENT
     SDK --> |HTTP or gRPC| COLLECTOR
     COLLECTOR --> STORE[Storage]
     COLLECTOR --> |gRPC| PLUGIN[Storage Plugin]
