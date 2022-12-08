@@ -13,6 +13,24 @@ next release
 
 ### UI Changes
 
+1.40.0 (2022-12-07)
+-------------------
+
+#### New Features
+
+* Release signing ([@jkowall](https://github.com/jkowall) in [#4033](https://github.com/jaegertracing/jaeger/pull/4033))
+
+#### Bug fixes, Minor Improvements
+
+* Fix cassandra schema scripts to be able to run from a remote node ([@yurishkuro](https://github.com/yurishkuro) in [#4087](https://github.com/jaegertracing/jaeger/pull/4087))
+* Catch panic from Prometheus client on invalid label strings ([@yurishkuro](https://github.com/yurishkuro) in [#4051](https://github.com/jaegertracing/jaeger/pull/4051))
+* Span tags of type int64 may lose precision ([@shubbham1215](https://github.com/shubbham1215) in [#4034](https://github.com/jaegertracing/jaeger/pull/4034))
+
+### UI 
+
+* UI pinned to version [1.27.3](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1273-2022-12-07).
+
+
 1.39.0 (2022-11-01)
 -------------------
 ### Backend Changes
