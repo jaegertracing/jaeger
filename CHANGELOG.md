@@ -24,7 +24,7 @@ next release
 
 * Fix cassandra schema scripts to be able to run from a remote node ([@yurishkuro](https://github.com/yurishkuro) in [#4087](https://github.com/jaegertracing/jaeger/pull/4087))
 * Catch panic from Prometheus client on invalid label strings ([@yurishkuro](https://github.com/yurishkuro) in [#4051](https://github.com/jaegertracing/jaeger/pull/4051))
-* [Bug]: span tags of type int64 may lose precision #3958 PR No 2 ([@shubbham1215](https://github.com/shubbham1215) in [#4034](https://github.com/jaegertracing/jaeger/pull/4034))
+* Span tags of type int64 may lose precision ([@shubbham1215](https://github.com/shubbham1215) in [#4034](https://github.com/jaegertracing/jaeger/pull/4034))
 
 ### UI 
 
