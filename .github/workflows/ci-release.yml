@@ -44,10 +44,11 @@ jobs:
       run: make install-ci
 
     - name: Configure GPG Key
+      id: import_gpg
       uses: crazy-max/ghaction-import-gpg@v5
-      env:
-        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        PASSPHRASE: ${{ secrets. GPG_PASSPHRASE }}
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets. GPG_PASSPHRASE }}
 
     - name: Build binaries
       id: build-binaries
