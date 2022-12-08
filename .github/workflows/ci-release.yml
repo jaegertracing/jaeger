@@ -9,7 +9,7 @@ on:
 # and https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
   deployments: write
-  contents: read,write
+  contents: write
 
 jobs:
   publish-release:
