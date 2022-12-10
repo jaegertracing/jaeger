@@ -61,6 +61,7 @@ setup_query() {
 
 wait_for_it() {
   local url=$1
+  local cid=$2
   local params=(
     --silent
     --output
@@ -76,6 +77,7 @@ wait_for_it() {
     echo "waiting for ${url} to be up..."
     if [ ${counter} -eq ${max_counter} ]; then
       echo "ERROR: elasticsearch/opensearch is down"
+      docker logs ${cid}
       exit 1
     fi
   done
@@ -108,7 +110,7 @@ run_integration_test() {
     echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
     usage
   fi
-  wait_for_it "http://localhost:9200"
+  wait_for_it "http://localhost:9200" ${cid}
   STORAGE=${distro} make storage-integration-test
   make index-cleaner-integration-test
   make index-rollover-integration-test
