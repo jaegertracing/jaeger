@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -113,8 +114,8 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
 	createTracesReceiver := func(
-		context.Context, component.ReceiverCreateSettings, component.ReceiverConfig, consumer.Traces,
-	) (component.TracesReceiver, error) {
+		context.Context, receiver.CreateSettings, component.Config, consumer.Traces,
+	) (receiver.Traces, error) {
 		return nil, errors.New("mock error")
 	}
 	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, consumer.NewTraces, createTracesReceiver)
