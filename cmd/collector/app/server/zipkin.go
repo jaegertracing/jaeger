@@ -93,7 +93,7 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	})
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
-	server.Handler = cors.Handler(httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory))
+	server.Handler = cors.Handler(httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory, params.Logger))
 	go func(listener net.Listener, server *http.Server) {
 		var err error
 		if params.TLSConfig.Enabled {

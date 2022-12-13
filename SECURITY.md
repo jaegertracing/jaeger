@@ -12,28 +12,38 @@ _The following is a copy of the [Report a security issue](https://www.jaegertrac
 
 If you find something suspicious and want to report it, we'd really appreciate!
 
-### Ways to report
+## Ways to report
 
-* It is preferable to always encrypt your message, no matter the channel you choose to report the issue
-* Contact us on our open chat room on [Slack][slack-room]
-* If you can't use Slack, send a message to [jaeger-tracing@googlegroups.com][mailing-list]
-* If you can't use Slack nor send an email, open a merge request on GitHub: fork the affected repository and send us a pull request. We really prefer if you'd talk to us before, though, as our repositories are public and we would like to give a heads up to our users before disclosing it publicly
+The easiest way to report a vulnerability is through the [Security tab on GitHub](https://github.com/jaegertracing/jaeger/security/advisories). This mechanism allows maintainers to communicate privately with you, and you do not need to encrypt your messages.
 
-### Our PGP key
+Alternatively, you can use one of the following public channels to send an **encrypted** message to maintainers:
 
-No matter what channel you choose to communicate with us, we would prefer you to encrypt your message using our [published key][published-key], available in all major key servers and which should match the one shown below. If you are new to PGP, you can run the following command to encrypt a file called "message.txt":
+* Chat room on the [#jaeger channel at the CNCF Slack][slack-room]
+* Send a message to [jaeger-tracing@googlegroups.com][mailing-list]
+* [Open an issue on GitHub](https://github.com/jaegertracing/jaeger/issues)
 
-1. Receive our keys from the key server:
+You can also submit a fix to the issue by forking the affected repository and sending us a pull request. However, we prefer you'd talk to us first, as our repositories are public and we would like to give a heads-up to our users before disclosing vulnerabilities publicly.
 
-    `gpg --keyserver pool.sks-keyservers.net --recv-keys C043A4D2B3F2AC31`
+## Our PGP key
 
-1. Encrypt a "message.txt" file into "message.txt.asc":
+If you choose a public channel to communicate with us, please **encrypt your message** using [our public key](#our-public-key) `ID=C043A4D2B3F2AC31`. It is available in all major key servers and should match the one shown below.
 
-    `gpg -ea -r C043A4D2B3F2AC31 message.txt`
+If you are new to PGP, you can run the following command to encrypt a file called "message.txt":
 
-1. Send us the resulting "message.txt.asc"
+```shell
+# Receive our keys from a key server:
+gpg --keyserver keyserver.ubuntu.com --recv-keys C043A4D2B3F2AC31
 
-**Our published key should match this one:**
+# Alternatively, copy the key below to file C043A4D2B3F2AC31.asc and import it:
+gpg --import C043A4D2B3F2AC31.asc
+
+# Encrypt a "message.txt" file into "message.txt.asc":
+gpg -ea -r C043A4D2B3F2AC31 message.txt
+
+# Send us the resulting "message.txt.asc"
+```
+
+### Our public key
 
 ```
 -----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -89,7 +99,6 @@ oF+qZY4uEvqFvYo8
 -----END PGP PUBLIC KEY BLOCK-----
 ```
 
-[published-key]: http://pool.sks-keyservers.net/pks/lookup?op=get&search=0xC043A4D2B3F2AC31
 [mailing-list]: https://groups.google.com/forum/#!forum/jaeger-tracing
 [slack-room]: https://cloud-native.slack.com/archives/CGG7NFUJ3
 

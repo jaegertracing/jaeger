@@ -15,11 +15,11 @@
 ```mermaid
 graph TD
     LIB --> |HTTP or gRPC| COLLECTOR
-    LIB[Jaeger Client] --> |UDP| AGENT[Jaeger Agent]
+    LIB["Jaeger Client (deprecated)"] --> |UDP| AGENT[Jaeger Agent]
     %% AGENT --> |HTTP/sampling| LIB
     AGENT --> |gRPC| COLLECTOR[Jaeger Collector]
     %% COLLECTOR --> |gRPC/sampling| AGENT
-    SDK[OpenTelemetry SDK] --> |UDP| AGENT
+    SDK["OpenTelemetry SDK (recommended)"] --> |UDP| AGENT
     SDK --> |HTTP or gRPC| COLLECTOR
     COLLECTOR --> STORE[Storage]
     COLLECTOR --> |gRPC| PLUGIN[Storage Plugin]
@@ -81,10 +81,11 @@ The OpenTracing and OpenCensus projects have merged into a new CNCF project call
 
 ### Multiple storage backends
 
-Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
-There is also embedded database support using [Badger](https://github.com/dgraph-io/badger).
-There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB.
-Jaeger also ships with a simple in-memory storage for testing setups.
+Jaeger can be used with a growing a number of storage backends:
+* It natively supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
+* It integrates via a gRPC API with other well known databases that have been certified to be Jaeger compliant: [TimescaleDB via Promscale](https://github.com/timescale/promscale), [ClickHouse](https://github.com/jaegertracing/jaeger-clickhouse).
+* There is embedded database support using [Badger](https://github.com/dgraph-io/badger) and simple in-memory storage for testing setups.
+* There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB.
 
 ### Modern Web UI
 
@@ -95,9 +96,14 @@ traces with tens of thousands of spans (e.g. we tried a trace with 80,000 spans)
 ### Cloud Native Deployment
 
 Jaeger backend is distributed as a collection of Docker images. The binaries support various configuration methods,
-including command line options, environment variables, and configuration files in multiple formats (yaml, toml, etc.)
-Deployment to Kubernetes clusters is assisted by [Kubernetes templates](https://github.com/jaegertracing/jaeger-kubernetes)
-and a [Helm chart](https://github.com/jaegertracing/helm-charts).
+including command line options, environment variables, and configuration files in multiple formats (yaml, toml, etc.).
+
+The recommended way to deploy Jaeger in a production Kubernetes cluster is via the [Jaeger Operator](https://github.com/jaegertracing/jaeger-operator).
+
+The Jaeger Operator provides a [CLI to generate](https://github.com/jaegertracing/jaeger-operator#experimental-generate-kubernetes-manifest-file) Kubernetes manifests from the Jaeger CR.
+This can be considered as an alternative source over plain Kubernetes manifest files.
+
+The Jaeger ecosystem also provides a [Helm chart](https://github.com/jaegertracing/helm-charts) as an alternative way to deploy Jaeger.
 
 ### Observability
 

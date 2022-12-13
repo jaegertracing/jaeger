@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"time"
 
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -59,7 +59,7 @@ type Collector struct {
 	hServer                    *http.Server
 	zkServer                   *http.Server
 	grpcServer                 *grpc.Server
-	otlpReceiver               component.TracesReceiver
+	otlpReceiver               receiver.Traces
 	tlsGRPCCertWatcherCloser   io.Closer
 	tlsHTTPCertWatcherCloser   io.Closer
 	tlsZipkinCertWatcherCloser io.Closer

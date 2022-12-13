@@ -63,6 +63,11 @@
           "value": 72.5
         },
         {
+          "key": "javascript_limit",
+          "type": "int64",
+          "value": "9223372036854775222"
+        },
+        {
           "key": "blob",
           "type": "binary",
           "value": "AAAwOQ=="

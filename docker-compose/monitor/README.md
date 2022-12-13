@@ -1,8 +1,15 @@
 # Service Performance Monitoring (SPM) Development/Demo Environment
 
-Service Performance Monitoring (SPM) is an opt-in feature introduced to Jaeger that provides Request, Error and Duration (RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs. For more details on this feature, please refer to the [tracking Issue](https://github.com/jaegertracing/jaeger/issues/2954) documenting the proposal and status.
+Service Performance Monitoring (SPM) is an opt-in feature introduced to Jaeger that provides Request, Error and Duration
+(RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically
+available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs.
 
-The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack required to visualize RED metrics from simulated traces (or their own).
+For more details on this feature, please refer to the [tracking Issue](https://github.com/jaegertracing/jaeger/issues/2954)
+documenting the proposal and status.
+
+The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications
+against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack
+required to visualize RED metrics from simulated traces or from their own application.
 
 This environment consists the following backend components:
 
@@ -41,7 +48,44 @@ docker rmi -f prom/prometheus:latest
 docker rmi -f grafana/grafana:latest
 ```
 
-## Example 1
+## Sending traces
+
+It is possible to send traces to this SPM Development Environment from your own application and viewing their RED metrics.
+
+For the purposes of this example, the Opentelemetry Collector of the [docker-compose.yml](./docker-compose.yml) file
+has been configured to listen on port `14278` for Thrift formatted traces sent directly from applications to the
+collector over HTTP.
+
+An example Python script has been provided to demonstrate sending individual traces to the Opentelemetry Collector running in
+this SPM Development Environment.
+
+### Setup
+
+Run the following commands to setup the Python virtual environment and install the Opentelemetry SDK:
+```shell
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Then run this example a number of times to generate some traces: 
+
+```shell
+./otlp_exporter_example.py
+```
+
+Navigate to Jaeger UI at http://localhost:16686/ and you should be able to see traces from this demo application
+under the `my_service` service:
+
+![My Service Traces](images/my_service_traces.png)
+
+Then navigate to the Monitor tab at http://localhost:16686/monitor to view the RED metrics:
+
+![My Service RED Metrics](images/my_service_metrics.png)
+
+## Querying the HTTP API
+
+### Example 1
 Fetch call rates for both the driver and frontend services, grouped by operation, from now,
 looking back 1 second with a sliding rate-calculation window of 1m and step size of 1 millisecond
 
@@ -50,7 +94,7 @@ curl "http://localhost:16686/api/metrics/calls?service=driver&service=frontend&g
 ```
 
 
-## Example 2
+### Example 2
 Fetch P95 latencies for both the driver and frontend services from now,
 looking back 1 second with a sliding rate-calculation window of 1m and step size of 1 millisecond, where the span kind is either "server" or "client".
 
@@ -58,19 +102,19 @@ looking back 1 second with a sliding rate-calculation window of 1m and step size
 curl "http://localhost:16686/api/metrics/latencies?service=driver&service=frontend&quantile=0.95&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000&spanKind=server&spanKind=client" | jq .
 ```
 
-## Example 3
+### Example 3
 Fetch error rates for both driver and frontend services using default parameters.
 ```bash
 curl "http://localhost:16686/api/metrics/errors?service=driver&service=frontend" | jq .
 ```
 
-## Example 4
+### Example 4
 Fetch the minimum step size supported by the underlying metrics store.
 ```bash
 curl "http://localhost:16686/api/metrics/minstep" | jq .
 ```
 
-# HTTP API
+# HTTP API Specification
 
 ## Query Metrics
 

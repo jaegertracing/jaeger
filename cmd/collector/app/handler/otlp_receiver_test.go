@@ -23,9 +23,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -114,8 +114,8 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
 	createTracesReceiver := func(
-		context.Context, component.ReceiverCreateSettings, config.Receiver, consumer.Traces,
-	) (component.TracesReceiver, error) {
+		context.Context, receiver.CreateSettings, component.Config, consumer.Traces,
+	) (receiver.Traces, error) {
 		return nil, errors.New("mock error")
 	}
 	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, consumer.NewTraces, createTracesReceiver)
@@ -148,7 +148,7 @@ func TestOtelHost_ReportFatalError(t *testing.T) {
 
 func TestOtelHost(t *testing.T) {
 	host := &otelHost{}
-	assert.Nil(t, host.GetFactory(component.KindReceiver, config.TracesDataType))
+	assert.Nil(t, host.GetFactory(component.KindReceiver, component.DataTypeTraces))
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
 }

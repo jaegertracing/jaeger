@@ -11,11 +11,7 @@ services:
       - METRICS_STORAGE_TYPE=prometheus
       - PROMETHEUS_SERVER_URL=http://prometheus:9090
     ports:
-      - "14250:14250"
-      - "14268:14268"
-      - "6831:6831/udp"
       - "16686:16686"
-      - "16685:16685"
   otel_collector:
     networks:
       - backend
@@ -23,6 +19,8 @@ services:
     volumes:
       - "./otel-collector-config.yml:/etc/otelcol/otel-collector-config.yml"
     command: --config /etc/otelcol/otel-collector-config.yml
+    ports:
+      - "4317:4317"
     depends_on:
       - jaeger
   microsim:
@@ -47,6 +45,10 @@ services:
     volumes:
       - ./grafana.ini:/etc/grafana/grafana.ini
       - ./datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
     ports:
       - 3000:3000
 

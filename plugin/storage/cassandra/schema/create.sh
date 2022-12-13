@@ -12,6 +12,7 @@ function usage {
     >&2 echo "  DEPENDENCIES_TTL   - time to live for dependencies data, in seconds (default: 0, no TTL)"
     >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_{datacenter})"
     >&2 echo "  REPLICATION_FACTOR - replication factor for prod (default: 2 for prod, 1 for test)"
+    >&2 echo "  VERSION            - Cassandra backend version, 3 or 4 (default: 4). Ignored if template is is provided."
     >&2 echo ""
     >&2 echo "The template-file argument must be fully qualified path to a v00#.cql.tmpl template file."
     >&2 echo "If omitted, the template file with the highest available version will be used."
@@ -20,17 +21,7 @@ function usage {
 
 trace_ttl=${TRACE_TTL:-172800}
 dependencies_ttl=${DEPENDENCIES_TTL:-0}
-
-# Extract cassandra version
-#
-# $ cqlsh -e "show version"
-# [cqlsh 5.0.1 | Cassandra 3.11.11 | CQL spec 3.4.4 | Native protocol v4]
-#
-cas_version=$(cqlsh -e "show version" \
-    | awk -F "|" '{print $2}' \
-    | awk -F " " '{print $2}' \
-    | awk -F "." '{print $1}' \
-)
+cas_version=${VERSION:-4}
 
 template=$1
 if [[ "$template" == "" ]]; then
@@ -54,7 +45,7 @@ elif [[ "$MODE" == "prod" ]]; then
     datacenter=$DATACENTER
     replication_factor=${REPLICATION_FACTOR:-2}
     replication="{'class': 'NetworkTopologyStrategy', '$datacenter': '${replication_factor}' }"
-elif [[ "$MODE" == "test" ]]; then 
+elif [[ "$MODE" == "test" ]]; then
     datacenter=${DATACENTER:-'test'}
     replication_factor=${REPLICATION_FACTOR:-1}
     replication="{'class': 'SimpleStrategy', 'replication_factor': '${replication_factor}'}"

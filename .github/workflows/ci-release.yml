@@ -5,12 +5,23 @@ on:
     types:
       - published
 
+# See https://github.com/jaegertracing/jaeger/issues/4017
+# and https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  deployments: write
+  contents: write
+
 jobs:
   publish-release:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Harden Runner
+      uses: step-security/harden-runner@ebacdc22ef6c2cfb85ee5ded8f2e640f4c776dd5
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b
       with:
         submodules: true
 
@@ -18,11 +29,11 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@v3
+    - uses: actions/setup-go@d0a58c1c4d2b25278816e339b944508c875f3613
       with:
         go-version: 1.19.x
 
-    - uses: actions/setup-node@v3
+    - uses: actions/setup-node@8c91899e586c5b171469028077307d293428b516
       with:
         node-version: '16'
 
@@ -31,6 +42,13 @@ jobs:
 
     - name: Install tools
       run: make install-ci
+
+    - name: Configure GPG Key
+      id: import_gpg
+      uses: crazy-max/ghaction-import-gpg@v5
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Build binaries
       id: build-binaries
@@ -42,15 +60,15 @@ jobs:
       if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
-      uses: svenstaro/upload-release-action@2.3.0
+      uses: svenstaro/upload-release-action@133984371c30d34e38222a64855679a414cb7575
       with:
-        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt}'
+        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
         tag: ${{ github.ref }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
       if: steps.package-binaries.outcome == 'success'
 
-    - uses: docker/setup-qemu-action@v2
+    - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18
 
     - name: Build and upload all docker images
       run: bash scripts/build-upload-docker-images.sh
@@ -69,3 +87,8 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: SBOM Generation
+      uses: anchore/sbom-action@06e109483e6aa305a2b2395eabae554e51530e1d
+      with:
+        artifact-name: jaeger-SBOM.spdx.json
