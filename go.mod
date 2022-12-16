@@ -8,7 +8,7 @@ require (
 	github.com/apache/thrift v0.17.0
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
-	github.com/dgraph-io/badger/v3 v3.2103.4
+	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-kit/kit v0.12.0
 	github.com/go-openapi/errors v0.20.2
