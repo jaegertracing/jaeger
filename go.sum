@@ -538,10 +538,10 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/onsi/gomega v1.13.0 h1:7lLHu94wT9Ij0o6EWWclhu0aOh32VxhkwEJvzuWPeak=
 github.com/onsi/gomega v1.13.0/go.mod h1:lRk9szgn8TxENtWd0Tp4c3wjlRfMTMH27I+3Je41yGY=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.67.0 h1:7KOh+5R4oMOuxpggc/pNOj+Z6RhmxwlXfdZd1l2dU/c=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.67.0/go.mod h1:QIq/nRK3UnaxLOsJbgi0+5X6+7jKEoIl+Juk4x+14cU=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.67.0 h1:mBASAXzQM2KHX5oqT8HSjHRmOOQYVwuEJ37WhGy7q5k=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.67.0/go.mod h1:bD6B4D7qrNgYcv5Ga1t07cRUqhurjHzapj7yq1Xger8=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.68.0 h1:l3RvyAu1bGY9fPBl0+gFo//DAupNWxKZKYw5ZVlB/yE=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.68.0/go.mod h1:Fgmw5VwswjZn4PrMmbj9KyYdMz+L7UjcQRs4juhtvS4=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.68.0 h1:pBaqq6c6osn3MeTbV2tx21e/jRLgKRhFDwLnfrwXKEw=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.68.0/go.mod h1:eDoCwC+kt+en/nz9GhNveg+EDCVxsXecddv2lHX7O/8=
 github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df h1:vdYtBU6zvL7v+Tr+0xFM/qhahw/EvY8DMMunZHKH6eE=
 github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df/go.mod h1:DYR5Eij8rJl8h7gblRrOZ8g0kW1umSpKqYIBTgeDtLo=
 github.com/opentracing-contrib/go-stdlib v1.0.0 h1:TBS7YuVotp8myLon4Pv7BtCBzOTo1DeZCld0Z63mW2w=
