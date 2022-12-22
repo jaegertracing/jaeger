@@ -1,4 +1,4 @@
-FROM --platform=${BUILDPLATFORM:-linux/amd64} cassandra:4.0
+FROM cassandra:4.0
 
 COPY schema/* /cassandra-schema/
 
