@@ -22,7 +22,7 @@ done
 
 bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
 bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-rollover -d cmd/es-rollover  -p "${platforms}" -t release
-bash scripts/build-upload-a-docker-image.sh -c jaeger-cassandra-schema -d plugin/storage/cassandra/
+bash scripts/build-upload-a-docker-image.sh -c jaeger-cassandra-schema -d plugin/storage/cassandra/ -p "${platforms}"
 
 # build/upload images for jaeger-tracegen and jaeger-anonymizer
 for component in tracegen anonymizer
