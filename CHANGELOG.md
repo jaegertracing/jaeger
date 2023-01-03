@@ -13,8 +13,22 @@ next release
 
 ### UI Changes
 
+1.41.0 (2023-01-04)
+-------------------
+### Backend Changes
+
+#### Bug fixes, Minor Improvements
+
+* Remove global platform arg in cassandra schema dockerfile ([@jkandasa](https://github.com/jkandasa) in [#4123](https://github.com/jaegertracing/jaeger/pull/4123))
+* Add multi arch support to cassandra-schema container ([@jkandasa](https://github.com/jkandasa) in [#4122](https://github.com/jaegertracing/jaeger/pull/4122))
+
+### UI
+
+* UI pinned to version [1.27.3](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1273-2022-12-07).
+
 1.40.0 (2022-12-07)
 -------------------
+### Backend Changes
 
 #### New Features
 
