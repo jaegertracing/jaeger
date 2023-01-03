@@ -13,6 +13,7 @@
         git checkout {new_version} //e.g. v1.5.0
         ```
       * Even if a submodule does not have a new release, it should be checked to see if there were any changes warranting cutting a new release and then including it.
+      * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
     * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
 2. After the PR is merged, create a release on Github:
     * Automated:

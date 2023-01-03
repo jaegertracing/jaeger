@@ -24,7 +24,7 @@ next release
 
 ### UI
 
-* UI pinned to version [1.27.3](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1273-2022-12-07).
+* No changes.
 
 1.40.0 (2022-12-07)
 -------------------
