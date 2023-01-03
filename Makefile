@@ -384,7 +384,7 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: changelog
 changelog:
-	python3 ./scripts/release-notes.py
+	python3 ./scripts/release-notes.py --exclude-dependabot
 
 .PHONY: draft-release
 draft-release:
