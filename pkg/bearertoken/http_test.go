@@ -32,6 +32,8 @@ func Test_PropagationHandler(t *testing.T) {
 
 	logger := zap.NewNop()
 	const bearerToken = "blah"
+	const tenantName = "jdoe"
+	const tenantHeader = "x-scope-orgid"
 
 	validTokenHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -43,11 +45,24 @@ func Test_PropagationHandler(t *testing.T) {
 		}
 	}
 
+	validTenantHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			tenant, ok := GetTenant(ctx)
+			assert.True(t, ok)
+			assert.Equal(t, tenantName, tenant)
+			stop.Done()
+		}
+	}
+
 	emptyHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			token, _ := GetBearerToken(ctx)
 			assert.Empty(t, token, bearerToken)
+			assert.Empty(t, token)
+			tenant, _ := GetTenant(ctx)
+			assert.Empty(t, tenant)
 			stop.Done()
 		}
 	}
@@ -65,13 +80,14 @@ func Test_PropagationHandler(t *testing.T) {
 		{name: "Basic Auth", sendHeader: true, headerName: "Authorization", headerValue: "Basic " + bearerToken, handler: emptyHandler},
 		{name: "X-Forwarded-Access-Token", headerName: "X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken, handler: validTokenHandler},
 		{name: "Invalid header", headerName: "X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken + " another stuff", handler: emptyHandler},
+		{name: "Tenant header", sendHeader: true, headerName: tenantHeader, headerValue: tenantName, handler: validTenantHandler},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			stop := sync.WaitGroup{}
 			stop.Add(1)
-			r := PropagationHandler(logger, testCase.handler(&stop))
+			r := PropagationHandler(logger, testCase.handler(&stop), tenantHeader)
 			server := httptest.NewServer(r)
 			defer server.Close()
 			req, err := http.NewRequest("GET", server.URL, nil)

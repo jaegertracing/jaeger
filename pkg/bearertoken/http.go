@@ -24,9 +24,18 @@ import (
 // PropagationHandler returns a http.Handler containing the logic to extract
 // the Bearer token from the Authorization header of the http.Request and insert it into request.Context
 // for propagation. The token can be accessed via GetBearerToken.
-func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
+// The handler as well extracts tenant header which can be accessed via GetTenantHeader.
+func PropagationHandler(logger *zap.Logger, h http.Handler, tenantHeader string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
+		if tenantHeader != "" {
+			header := r.Header.Get(tenantHeader)
+			if header != "" {
+				ctx = ContextWithTenant(ctx, header)
+			}
+		}
+
 		authHeaderValue := r.Header.Get("Authorization")
 		// If no Authorization header is present, try with X-Forwarded-Access-Token
 		if authHeaderValue == "" {

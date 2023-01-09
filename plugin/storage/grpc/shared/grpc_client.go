@@ -32,8 +32,12 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// BearerTokenKey is the key name for the bearer token context value.
-const BearerTokenKey = "bearer.token"
+const (
+	// BearerTokenKey is the key name for the bearer token context value.
+	BearerTokenKey = "bearer.token"
+	// TenantKey is the key name for the tenant name.
+	TenantKey = "tenant.name"
+)
 
 var (
 	_ StoragePlugin        = (*grpcClient)(nil)
@@ -85,16 +89,24 @@ func composeContextUpgradeFuncs(funcs ...ContextUpgradeFunc) ContextUpgradeFunc 
 // in the request metadata, if the original context has bearer token attached.
 // Otherwise returns original context.
 func upgradeContextWithBearerToken(ctx context.Context) context.Context {
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok {
+		md = metadata.New(nil)
+	}
+
+	headerValue, hasHeader := bearertoken.GetTenant(ctx)
+	if hasHeader {
+		md.Set(TenantKey, headerValue)
+	}
 	bearerToken, hasToken := bearertoken.GetBearerToken(ctx)
 	if hasToken {
-		md, ok := metadata.FromOutgoingContext(ctx)
-		if !ok {
-			md = metadata.New(nil)
-		}
 		md.Set(BearerTokenKey, bearerToken)
-		return metadata.NewOutgoingContext(ctx, md)
 	}
-	return ctx
+
+	if !hasHeader && !hasToken {
+		return ctx
+	}
+	return metadata.NewOutgoingContext(ctx, md)
 }
 
 // DependencyReader implements shared.StoragePlugin.

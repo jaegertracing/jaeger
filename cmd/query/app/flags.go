@@ -44,6 +44,7 @@ const (
 	queryStaticFiles        = "query.static-files"
 	queryUIConfig           = "query.ui-config"
 	queryTokenPropagation   = "query.bearer-token-propagation"
+	queryTenantPropagation  = "query.tenant-propagation"
 	queryAdditionalHeaders  = "query.additional-headers"
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 )
@@ -72,6 +73,8 @@ type QueryOptions struct {
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
+	// TenantHeaderPropagation activate/deactivate propagation of tenant header
+	TenantHeaderPropagation string
 	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
 	TLSGRPC tlscfg.Options
 	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
@@ -93,6 +96,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
+	flagSet.String(queryTenantPropagation, "", "Enables propagation of a tenant header")
 	flagSet.Duration(queryMaxClockSkewAdjust, 0, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
@@ -116,6 +120,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
+	qOpts.TenantHeaderPropagation = v.GetString(queryTenantPropagation)
 
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
