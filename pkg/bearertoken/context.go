@@ -14,11 +14,16 @@
 
 package bearertoken
 
-import "context"
+import (
+	"context"
+)
 
 type contextKeyType int
 
-const contextKey = contextKeyType(iota)
+const (
+	bearerTokenContextKey = contextKeyType(iota)
+	tenantHeaderContextKey
+)
 
 // StoragePropagationKey is a key for viper configuration to pass this option to storage plugins.
 const StoragePropagationKey = "storage.propagate.token"
@@ -28,11 +33,25 @@ func ContextWithBearerToken(ctx context.Context, token string) context.Context {
 	if token == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, contextKey, token)
+	return context.WithValue(ctx, bearerTokenContextKey, token)
 }
 
 // GetBearerToken from context, or empty string if there is no token.
 func GetBearerToken(ctx context.Context) (string, bool) {
-	val, ok := ctx.Value(contextKey).(string)
+	val, ok := ctx.Value(bearerTokenContextKey).(string)
+	return val, ok
+}
+
+// ContextWithTenant sets tenant into context.
+func ContextWithTenant(ctx context.Context, tenant string) context.Context {
+	if tenant == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, tenantHeaderContextKey, tenant)
+}
+
+// GetTenant returns tenant, or empty string if there is no tenant.
+func GetTenant(ctx context.Context) (string, bool) {
+	val, ok := ctx.Value(tenantHeaderContextKey).(string)
 	return val, ok
 }

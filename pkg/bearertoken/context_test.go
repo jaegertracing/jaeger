@@ -29,3 +29,12 @@ func Test_GetBearerToken(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, contextToken, token)
 }
+
+func Test_GetTenant(t *testing.T) {
+	const tenant = "jdoe"
+	ctx := context.Background()
+	ctx = ContextWithTenant(ctx, tenant)
+	contextTenant, ok := GetTenant(ctx)
+	assert.True(t, ok)
+	assert.Equal(t, contextTenant, tenant)
+}

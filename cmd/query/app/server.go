@@ -178,7 +178,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	var handler http.Handler = r
 	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
-		handler = bearertoken.PropagationHandler(logger, handler)
+		handler = bearertoken.PropagationHandler(logger, handler, queryOpts.TenantHeaderPropagation)
 	}
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
