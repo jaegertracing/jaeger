@@ -718,8 +718,8 @@ go.opentelemetry.io/collector/featuregate v0.68.0 h1:weK0hx7VTDChvIXO7/BUUiJvOlQ
 go.opentelemetry.io/collector/featuregate v0.68.0/go.mod h1:tewuFKJYalWBU0bmNKg++MC1ipINXUr6szYzOw2p1GI=
 go.opentelemetry.io/collector/pdata v1.0.0-rc2 h1:sNWuA5wlrT578sv+DhADQ3DCRFG+5+H0D2xCHtQmnis=
 go.opentelemetry.io/collector/pdata v1.0.0-rc2/go.mod h1:3gknzI1BqPVbEprOIbtaPQgPAYvjRf8kdkpGMJjv14E=
-go.opentelemetry.io/collector/receiver/otlpreceiver v0.68.0 h1:E+MEOguE/oXwgcDL9WDE8hd1LOoWKWtHRENmUgfZpNU=
-go.opentelemetry.io/collector/receiver/otlpreceiver v0.68.0/go.mod h1:gWzZ44PCS/RoPlpvWoEIYZDYz3FpCLFdZ6uXTOIV4Dw=
+go.opentelemetry.io/collector/receiver/otlpreceiver v0.69.0 h1:NplTjuUmJmdCjZEUVt3GIULJe477rQoTFIkuGknOLMA=
+go.opentelemetry.io/collector/receiver/otlpreceiver v0.69.0/go.mod h1:kFr4l2eBPcAbIHeDwHj3ojKD6hEK9u99rRb1qWzOCdI=
 go.opentelemetry.io/collector/semconv v0.68.0 h1:DUDowH6l4OFlecQg8zyffTmUrhu3N9qwr3wtS9Oy6pE=
 go.opentelemetry.io/collector/semconv v0.68.0/go.mod h1:5o9yhOa+ABt7g2E5JABDxGZ1PQPbtfxrKNbYn+LOTXU=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.37.0 h1:+uFejS4DCfNH6d3xODVIGsdhzgzhh45p9gpbHQMbdZI=
