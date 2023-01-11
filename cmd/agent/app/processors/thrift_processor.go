@@ -119,7 +119,7 @@ func (s *ThriftProcessor) processBuffer() {
 		protocol.Transport().Write(payload)
 		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
 
-		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok {
+		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok || err != nil {
 			s.logger.Error("Processor failed", zap.Error(err))
 			s.metrics.HandlerProcessError.Inc(1)
 		}

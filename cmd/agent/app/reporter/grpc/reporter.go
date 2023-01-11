@@ -80,8 +80,9 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 		} else {
 			r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 		}
+		err = fmt.Errorf("failed to export spans: %w", err)
 	}
-	return fmt.Errorf("failed to export spans: %w", err)
+	return err
 }
 
 // addTags appends jaeger tags for the agent to every span it sends to the collector.
