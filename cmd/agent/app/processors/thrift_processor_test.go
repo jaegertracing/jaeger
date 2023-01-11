@@ -153,7 +153,7 @@ func TestProcessor_HandlerError(t *testing.T) {
 	)
 }
 
-// TestJaegerProcessor instantiates a real UDP received and a real gRPC collector
+// TestJaegerProcessor instantiates a real UDP receiver and a real gRPC collector
 // and executes end-to-end batch submission.
 func TestJaegerProcessor(t *testing.T) {
 	tests := []struct {
@@ -222,7 +222,6 @@ func assertCollectorReceivedData(
 		"server should have received spans")
 	assert.Equal(t, testSpanName, nameF())
 
-	// wait for reporter to emit metrics
 	key := "reporter.spans.submitted|format=" + format
 	ok := assert.Eventuallyf(t,
 		func() bool {
@@ -238,7 +237,6 @@ func assertCollectorReceivedData(
 		t.Log("all metrics", c)
 	}
 
-	// agentReporter must emit metrics
 	metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 		{Name: "reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: 1},
 		{Name: "reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
