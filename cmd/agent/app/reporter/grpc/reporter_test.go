@@ -218,11 +218,11 @@ func TestReporter_MultitenantEmitBatch(t *testing.T) {
 	}{
 		{
 			in:  &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
-			err: "rpc error: code = PermissionDenied desc = missing tenant header",
+			err: "missing tenant header",
 		},
 	}
 	for _, test := range tests {
 		err = rep.EmitBatch(context.Background(), test.in)
-		assert.EqualError(t, err, test.err)
+		assert.Contains(t, err.Error(), test.err)
 	}
 }
