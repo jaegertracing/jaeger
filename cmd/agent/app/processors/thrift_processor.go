@@ -119,7 +119,9 @@ func (s *ThriftProcessor) processBuffer() {
 		protocol.Transport().Write(payload)
 		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
 
-		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok {
+		// NB: oddly, thrift-gen/agent/agent.go:L156 does this: `return true, thrift.WrapTException(err2)`
+		// So we check for both OK and error.
+		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok || err != nil {
 			s.logger.Error("Processor failed", zap.Error(err))
 			s.metrics.HandlerProcessError.Inc(1)
 		}
