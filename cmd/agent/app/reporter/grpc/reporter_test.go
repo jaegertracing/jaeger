@@ -131,12 +131,12 @@ func TestReporter_EmitBatch(t *testing.T) {
 }
 
 func TestReporter_SendFailure(t *testing.T) {
-	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial("invalid-host-name-blah:12345", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	rep := NewReporter(conn, nil, zap.NewNop())
 	err = rep.send(context.Background(), nil, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "transport: Error while dialing dial tcp: missing address")
+	assert.Contains(t, err.Error(), "failed to export spans:")
 }
 
 func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
