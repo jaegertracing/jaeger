@@ -163,6 +163,8 @@ func main() {
 		storageFactory.AddFlags,
 		app.AddFlags,
 		metricsReaderFactory.AddFlags,
+		// add tenancy flags here to avoid panic caused by double registration in all-in-one
+		tenancy.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
