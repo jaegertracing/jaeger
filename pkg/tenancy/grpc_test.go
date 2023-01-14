@@ -131,3 +131,23 @@ func TestClientUnaryInterceptor(t *testing.T) {
 	assert.Equal(t, "acme", tenant)
 	assert.Same(t, fakeErr, err)
 }
+
+func TestClientStreamInterceptor(t *testing.T) {
+	tm := NewManager(&Options{Enabled: true, Tenants: []string{"acme"}})
+	interceptor := NewClientStreamInterceptor(tm)
+	var tenant string
+	fakeErr := errors.New("foo")
+	ctx := WithTenant(context.Background(), "acme")
+	streamer := func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		md, ok := metadata.FromOutgoingContext(ctx)
+		assert.True(t, ok)
+		ten, err := tenantFromMetadata(md, tm.Header)
+		require.NoError(t, err)
+		tenant = ten
+		return nil, fakeErr
+	}
+	stream, err := interceptor(ctx, &grpc.StreamDesc{}, nil, "", streamer)
+	assert.Same(t, fakeErr, err)
+	require.Nil(t, stream)
+	assert.Equal(t, "acme", tenant)
+}

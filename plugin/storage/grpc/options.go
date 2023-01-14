@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 
@@ -71,5 +72,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
 	}
 	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
+	opt.Configuration.TenancyOpts = tenancy.InitFromViper(v)
 	return nil
 }
