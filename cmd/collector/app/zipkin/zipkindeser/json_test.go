@@ -13,44 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package zipkin
+package zipkindeser
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	m "github.com/jaegertracing/jaeger/cmd/collector/app/zipkin/zipkindeser/zipkindesermocks"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
-
-var (
-	endpointFmt = `{"serviceName": "%s", "ipv4": "%s", "ipv6": "%s", "port": %d}`
-	annoFmt     = `{"value": "%s", "timestamp": %d, "endpoint": %s}`
-	binaAnnoFmt = `{"key": "%s", "value": "%s", "endpoint": %s}`
-	spanFmt     = `[{"name": "%s", "id": "%s", "parentId": "%s", "traceId": "%s", "timestamp": %d, "duration": %d, "debug": %t, "annotations": [%s], "binaryAnnotations": [%s]}]`
-)
-
-func createEndpoint(serviveName string, ipv4 string, ipv6 string, port int) string {
-	return fmt.Sprintf(endpointFmt, serviveName, ipv4, ipv6, port)
-}
-
-func createAnno(val string, ts int, endpoint string) string {
-	return fmt.Sprintf(annoFmt, val, ts, endpoint)
-}
-
-func createBinAnno(key string, val string, endpoint string) string {
-	return fmt.Sprintf(binaAnnoFmt, key, val, endpoint)
-}
-
-func createSpan(name string, id string, parentID string, traceID string, ts int64, duration int64, debug bool,
-	anno string, binAnno string,
-) string {
-	return fmt.Sprintf(spanFmt, name, id, parentID, traceID, ts, duration, debug, anno, binAnno)
-}
 
 func TestDecodeWrongJson(t *testing.T) {
 	spans, err := DeserializeJSON([]byte(""))
@@ -60,7 +35,7 @@ func TestDecodeWrongJson(t *testing.T) {
 
 func TestUnmarshalEndpoint(t *testing.T) {
 	endp := &endpoint{}
-	err := json.Unmarshal([]byte(createEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)), endp)
+	err := json.Unmarshal([]byte(m.CreateEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)), endp)
 	require.NoError(t, err)
 	assert.Equal(t, "foo", endp.ServiceName)
 	assert.Equal(t, "127.0.0.1", endp.IPv4)
@@ -69,8 +44,8 @@ func TestUnmarshalEndpoint(t *testing.T) {
 
 func TestUnmarshalAnnotation(t *testing.T) {
 	anno := &annotation{}
-	endpointJSON := createEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
-	err := json.Unmarshal([]byte(createAnno("bar", 154, endpointJSON)), anno)
+	endpointJSON := m.CreateEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
+	err := json.Unmarshal([]byte(m.CreateAnno("bar", 154, endpointJSON)), anno)
 	require.NoError(t, err)
 	assert.Equal(t, "bar", anno.Value)
 	assert.Equal(t, int64(154), anno.Timestamp)
@@ -79,8 +54,8 @@ func TestUnmarshalAnnotation(t *testing.T) {
 
 func TestUnmarshalBinAnnotation(t *testing.T) {
 	binAnno := &binaryAnnotation{}
-	endpointJSON := createEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
-	err := json.Unmarshal([]byte(createBinAnno("foo", "bar", endpointJSON)), binAnno)
+	endpointJSON := m.CreateEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
+	err := json.Unmarshal([]byte(m.CreateBinAnno("foo", "bar", endpointJSON)), binAnno)
 	require.NoError(t, err)
 	assert.Equal(t, "foo", binAnno.Key)
 	assert.Equal(t, "bar", binAnno.Value.(string))
@@ -153,10 +128,10 @@ func TestUnmarshalBinAnnotationNumberValue(t *testing.T) {
 }
 
 func TestUnmarshalSpan(t *testing.T) {
-	endpJSON := createEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
-	annoJSON := createAnno("cs", 1515, endpJSON)
-	binAnnoJSON := createBinAnno("http.status_code", "200", endpJSON)
-	spanJSON := createSpan("bar", "1234567891234567", "1234567891234567", "1234567891234567", 156, 15145, false,
+	endpJSON := m.CreateEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
+	annoJSON := m.CreateAnno("cs", 1515, endpJSON)
+	binAnnoJSON := m.CreateBinAnno("http.status_code", "200", endpJSON)
+	spanJSON := m.CreateSpan("bar", "1234567891234567", "1234567891234567", "1234567891234567", 156, 15145, false,
 		annoJSON, binAnnoJSON)
 
 	spans, err := decode([]byte(spanJSON))
@@ -173,7 +148,7 @@ func TestUnmarshalSpan(t *testing.T) {
 	assert.Equal(t, 1, len(spans[0].Annotations))
 	assert.Equal(t, 1, len(spans[0].BinaryAnnotations))
 
-	spans, err = decode([]byte(createSpan("bar", "1234567891234567", "1234567891234567", "1234567891234567",
+	spans, err = decode([]byte(m.CreateSpan("bar", "1234567891234567", "1234567891234567", "1234567891234567",
 		156, 15145, false, "", "")))
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(spans))
@@ -183,34 +158,31 @@ func TestUnmarshalSpan(t *testing.T) {
 
 func TestIncorrectSpanIds(t *testing.T) {
 	// id missing
-	spanJSON := createSpan("bar", "", "1", "2", 156, 15145, false, "", "")
+	spanJSON := m.CreateSpan("bar", "", "1", "2", 156, 15145, false, "", "")
 	spans, err := DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Equal(t, "strconv.ParseUint: parsing \"\": invalid syntax", err.Error())
 	assert.Nil(t, spans)
 	// id longer than 32
-	spanJSON = createSpan("bar", "123456789123456712345678912345678", "1", "2",
+	spanJSON = m.CreateSpan("bar", "123456789123456712345678912345678", "1", "2",
 		156, 15145, false, "", "")
 	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Equal(t, "SpanID cannot be longer than 16 hex characters: 123456789123456712345678912345678", err.Error())
 	assert.Nil(t, spans)
 	// traceId missing
-	spanJSON = createSpan("bar", "2", "1", "", 156, 15145, false,
-		"", "")
+	spanJSON = m.CreateSpan("bar", "2", "1", "", 156, 15145, false, "", "")
 	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Equal(t, "strconv.ParseUint: parsing \"\": invalid syntax", err.Error())
 	assert.Nil(t, spans)
 	// 128 bit traceId
-	spanJSON = createSpan("bar", "2", "1", "12345678912345671234567891234567", 156, 15145, false,
-		"", "")
+	spanJSON = m.CreateSpan("bar", "2", "1", "12345678912345671234567891234567", 156, 15145, false, "", "")
 	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.NoError(t, err)
 	assert.NotNil(t, spans)
 	// wrong 128 bit traceId
-	spanJSON = createSpan("bar", "22", "12", "#2345678912345671234567891234562", 156, 15145, false,
-		"", "")
+	spanJSON = m.CreateSpan("bar", "22", "12", "#2345678912345671234567891234562", 156, 15145, false, "", "")
 	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Nil(t, spans)

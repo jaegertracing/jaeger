@@ -108,9 +108,13 @@ func NewZipkinSpanHandler(logger *zap.Logger, modelHandler processor.SpanProcess
 // SubmitZipkinBatch records a batch of spans already in Zipkin Thrift format.
 func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options SubmitBatchOptions) ([]*zipkincore.Response, error) {
 	mSpans := make([]*model.Span, 0, len(spans))
-	for _, span := range spans {
+	convCount := make([]int, len(spans))
+	for i, span := range spans {
 		sanitized := h.sanitizer.Sanitize(span)
-		mSpans = append(mSpans, convertZipkinToModel(sanitized, h.logger)...)
+		// conversion may return more than one span, e.g. when the input Zipkin span represents both client & server spans
+		converted := convertZipkinToModel(sanitized, h.logger)
+		convCount[i] = len(converted)
+		mSpans = append(mSpans, converted...)
 	}
 	bools, err := h.modelProcessor.ProcessSpans(mSpans, processor.SpansOptions{
 		InboundTransport: options.InboundTransport,
@@ -121,13 +125,23 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options 
 		return nil, err
 	}
 	responses := make([]*zipkincore.Response, len(spans))
-	for i, ok := range bools {
+	// at this point we may have len(spans) < len(bools) if conversion results in more spans
+	b := 0 // index through bools which we advance by convCount[i] for each iteration
+	for i := range spans {
 		res := zipkincore.NewResponse()
-		res.Ok = ok
+		res.Ok = true
+		for j := 0; j < convCount[i]; j++ {
+			res.Ok = res.Ok && bools[b]
+			b++
+		}
 		responses[i] = res
 	}
 
-	h.logger.Debug("Zipkin span batch processed by the collector.", zap.Int("span-count", len(spans)))
+	h.logger.Debug(
+		"Zipkin span batch processed by the collector.",
+		zap.Int("received-span-count", len(spans)),
+		zap.Int("processed-span-count", len(mSpans)),
+	)
 	return responses, nil
 }
 
