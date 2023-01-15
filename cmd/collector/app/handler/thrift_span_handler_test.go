@@ -20,8 +20,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/require"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
@@ -110,7 +110,7 @@ func TestZipkinSpanHandler(t *testing.T) {
 			h := NewZipkinSpanHandler(
 				logger,
 				&shouldIErrorProcessor{tc.expectedErr != nil},
-				zipkinsanitizer.NewParentIDSanitizer(),
+				zipkinsanitizer.NewChainedSanitizer(zipkinsanitizer.NewStandardSanitizers()...),
 			)
 			var spans []*zipkincore.Span
 			if tc.filename != "" {
@@ -138,7 +138,4 @@ func TestZipkinSpanHandler(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestZipkinSpanHandler_MergedSpans(t *testing.T) {
 }
