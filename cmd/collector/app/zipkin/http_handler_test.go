@@ -172,13 +172,13 @@ func TestZipkinJsonV1Format(t *testing.T) {
 			statusCode: http.StatusBadRequest,
 		},
 		{
-			name:       "ivalid span id",
+			name:       "invalid span id",
 			payload:    zm.CreateSpan("bar", "ZTA", "1", "1", 156, 15145, false, "", ""),
 			expected:   "Unable to process request body: strconv.ParseUint: parsing &#34;ZTA&#34;: invalid syntax\n",
 			statusCode: http.StatusBadRequest,
 		},
 		{
-			name:       "ivalid ipv4 address",
+			name:       "invalid ipv4 address",
 			payload:    zm.CreateSpan("bar", "1", "", "1", 156, 15145, false, "", zm.CreateAnno("cs", 1, endpErrJSON)),
 			expected:   "Unable to process request body: wrong ipv4\n",
 			statusCode: http.StatusBadRequest,
@@ -307,8 +307,8 @@ func TestSaveProtoSpansV2(t *testing.T) {
 	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
-	validID := randBytesOfLen(8)
-	validTraceID := randBytesOfLen(16)
+	validID := randBytesOfLen(t, 8)
+	validTraceID := randBytesOfLen(t, 16)
 	tests := []struct {
 		Span       zipkinProto.Span
 		StatusCode int
@@ -419,8 +419,10 @@ func postBytes(urlStr string, bytesBody []byte, header *http.Header) (int, strin
 	return res.StatusCode, string(body), nil
 }
 
-func randBytesOfLen(n int) []byte {
+func randBytesOfLen(t *testing.T, n int) []byte {
 	b := make([]byte, n)
-	rand.Read(b)
+	nn, err := rand.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, n, nn)
 	return b
 }

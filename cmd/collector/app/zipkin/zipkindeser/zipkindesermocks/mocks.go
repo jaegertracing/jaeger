@@ -39,8 +39,11 @@ func CreateBinAnno(key string, val string, endpoint string) string {
 }
 
 // CreateSpan builds span JSON.
-func CreateSpan(name string, id string, parentID string, traceID string, ts int64, duration int64, debug bool,
-	anno string, binAnno string,
+func CreateSpan(
+	name, id, parentID, traceID string,
+	ts, duration int64,
+	debug bool,
+	anno, binAnno string,
 ) string {
 	return fmt.Sprintf(spanFmt, name, id, parentID, traceID, ts, duration, debug, anno, binAnno)
 }
