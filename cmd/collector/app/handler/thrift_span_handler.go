@@ -120,14 +120,18 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options 
 		h.logger.Error("Collector failed to process Zipkin span batch", zap.Error(err))
 		return nil, err
 	}
-	responses := make([]*zipkincore.Response, len(spans))
+	responses := make([]*zipkincore.Response, len(mSpans))
 	for i, ok := range bools {
 		res := zipkincore.NewResponse()
 		res.Ok = ok
 		responses[i] = res
 	}
 
-	h.logger.Debug("Zipkin span batch processed by the collector.", zap.Int("span-count", len(spans)))
+	h.logger.Debug(
+		"Zipkin span batch processed by the collector.",
+		zap.Int("received-span-count", len(spans)),
+		zap.Int("processed-span-count", len(mSpans)),
+	)
 	return responses, nil
 }
 

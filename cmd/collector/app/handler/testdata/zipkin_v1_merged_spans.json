@@ -1,0 +1,53 @@
+[
+    {
+        "traceId": "4ed11df465275600",
+        "id": "4ed11df465275600",
+        "name": "get /",
+        "timestamp": 1633073248674949,
+        "duration": 14861,
+        "localEndpoint": {
+            "serviceName": "first_service",
+            "ipv4": "10.0.2.15"
+        },
+        "annotations": [
+            {
+                "timestamp": 1633073248674949,
+                "value": "sr"
+            },
+            {
+                "timestamp": 163307324868981,
+                "value": "ss"
+            }
+        ]
+    },
+    {
+        "traceId": "4ed11df465275600",
+        "parentId": "4ed11df465275600",
+        "id": "c943743e25dc2cdf",
+        "name": "get /api",
+        "timestamp": 1633073248678309,
+        "duration": 3360,
+        "localEndpoint": {
+            "serviceName": "first_service",
+            "ipv4": "10.0.2.15"
+        },
+        "annotations": [
+            {
+                "timestamp": 1633073248678309,
+                "value": "cs"
+            },
+            {
+                "timestamp": 1633073248681669,
+                "value": "sr"
+            },
+            {
+                "timestamp": 1633073248685029,
+                "value": "cr"
+            },
+            {
+                "timestamp": 1633073248688388,
+                "value": "ss"
+            }
+        ]
+    }
+]

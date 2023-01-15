@@ -17,13 +17,16 @@ package handler
 
 import (
 	"errors"
+	"io/ioutil"
 	"testing"
 
+	"github.com/crossdock/crossdock-go/require"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin/zipkindeser"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -82,31 +85,59 @@ func (s *shouldIErrorProcessor) Close() error {
 }
 
 func TestZipkinSpanHandler(t *testing.T) {
-	testChunks := []struct {
-		expectedErr error
+	tests := []struct {
+		expectedErr   error
+		expectedCount int
+		filename      string
+		inputCount    int // how many spans are expected in the input file
 	}{
 		{
-			expectedErr: nil,
+			expectedErr:   nil,
+			expectedCount: 1,
 		},
 		{
 			expectedErr: errTestError,
 		},
+		{
+			expectedErr:   nil,
+			filename:      "testdata/zipkin_v1_merged_spans.json",
+			inputCount:    2,
+			expectedCount: 3,
+		},
 	}
-	for _, tc := range testChunks {
+	for _, tc := range tests {
 		logger := zap.NewNop()
-		h := NewZipkinSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil}, zipkin.NewParentIDSanitizer())
-		res, err := h.SubmitZipkinBatch([]*zipkincore.Span{
-			{
-				ID: 12345,
-			},
-		}, SubmitBatchOptions{})
+		h := NewZipkinSpanHandler(
+			logger,
+			&shouldIErrorProcessor{tc.expectedErr != nil},
+			zipkinsanitizer.NewParentIDSanitizer(),
+		)
+		var spans []*zipkincore.Span
+		if tc.filename != "" {
+			data, err := ioutil.ReadFile(tc.filename)
+			require.NoError(t, err)
+			spans, err = zipkindeser.DeserializeJSON(data)
+			require.NoError(t, err)
+			require.EqualValues(t, tc.inputCount, len(spans))
+		} else {
+			spans = []*zipkincore.Span{
+				{
+					ID: 12345,
+				},
+			}
+		}
+		res, err := h.SubmitZipkinBatch(spans, SubmitBatchOptions{})
 		if tc.expectedErr != nil {
 			assert.Nil(t, res)
 			assert.Equal(t, tc.expectedErr, err)
 		} else {
-			assert.Len(t, res, 1)
+			assert.Len(t, res, tc.expectedCount)
 			assert.NoError(t, err)
 			assert.True(t, res[0].Ok)
 		}
 	}
+}
+
+func TestZipkinSpanHandler_MergedSpans(t *testing.T) {
+
 }
