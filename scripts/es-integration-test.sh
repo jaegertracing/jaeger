@@ -7,6 +7,17 @@ set -euxf -o pipefail
 db_is_up=
 db_cid=
 
+exit_trap_command="echo executing exit traps"
+function cleanup {
+    eval "$exit_trap_command"
+}
+trap cleanup EXIT
+
+function add_exit_trap {
+    local to_add=$1
+    exit_trap_command="$exit_trap_command; $to_add"
+}
+
 usage() {
   echo $"Usage: $0 <elasticsearch|opensearch> <version>"
   exit 1
@@ -48,6 +59,7 @@ setup_opensearch() {
   echo ${cid}
 }
 
+# bearer token propagaton test uses real query service, but starts a fake DB at 19200
 setup_query() {
   local distro=$1
   local os=$(go env GOOS)
@@ -55,15 +67,16 @@ setup_query() {
   local params=(
     --es.tls.enabled=false
     --es.version=7
-    --es.server-urls=http://127.0.0.1:9200
+    --es.server-urls=http://127.0.0.1:19200
     --query.bearer-token-propagation=true
   )
   SPAN_STORAGE_TYPE=${distro} ./cmd/query/query-${os}-${arch} ${params[@]}
 }
 
 wait_for_storage() {
-  local url=$1
-  local cid=$2
+  local distro=$1
+  local url=$2
+  local cid=$3
   local params=(
     --silent
     --output
@@ -81,12 +94,12 @@ wait_for_storage() {
   done
   # after the loop, do final verification and set status as global var
   if [[ "$(curl ${params[@]} ${url})" != "200" ]]; then
-    echo "ERROR: elasticsearch/opensearch is not reachable"
+    echo "ERROR: ${distro} is not ready"
     docker logs ${cid}
     docker kill ${cid}
     db_is_up=0
   else
-    echo "SUCCESS: elasticsearch/opensearch is reachable"
+    echo "SUCCESS: ${distro} is ready"
     db_is_up=1
   fi
 }
@@ -105,11 +118,11 @@ bring_up_storage() {
       echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
       usage
     fi
-    wait_for_storage "http://localhost:9200" ${cid}
+    wait_for_storage ${distro} "http://localhost:9200" ${cid}
     if [ ${db_is_up} = "1" ]; then
       break
     else
-      echo "ERROR: unable to start elasticsearch/opensearch"
+      echo "ERROR: unable to start ${distro}"
       exit 1
     fi
   done
@@ -143,8 +156,8 @@ run_token_propagation_test() {
   build_query
   setup_query ${distro} &
   local pid=$!
+  add_exit_trap "teardown_query ${pid}"
   make token-propagation-integration-test
-  teardown_query ${pid}
 }
 
 main() {
@@ -152,7 +165,7 @@ main() {
 
   echo "Preparing $1 $2"
   bring_up_storage "$1" "$2"
-  trap "teardown_storage ${db_cid}" EXIT
+  add_exit_trap "teardown_storage ${db_cid}"
 
   echo "Executing main integration tests"
   run_integration_test "$1"
