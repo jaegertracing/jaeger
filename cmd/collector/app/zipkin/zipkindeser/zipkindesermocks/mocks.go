@@ -23,18 +23,22 @@ var (
 	spanFmt     = `[{"name": "%s", "id": "%s", "parentId": "%s", "traceId": "%s", "timestamp": %d, "duration": %d, "debug": %t, "annotations": [%s], "binaryAnnotations": [%s]}]`
 )
 
-func CreateEndpoint(serviveName string, ipv4 string, ipv6 string, port int) string {
-	return fmt.Sprintf(endpointFmt, serviveName, ipv4, ipv6, port)
+// CreateEndpoint builds endpoint JSON.
+func CreateEndpoint(serviceName string, ipv4 string, ipv6 string, port int) string {
+	return fmt.Sprintf(endpointFmt, serviceName, ipv4, ipv6, port)
 }
 
+// CreateAnno builds annotation JSON.
 func CreateAnno(val string, ts int, endpoint string) string {
 	return fmt.Sprintf(annoFmt, val, ts, endpoint)
 }
 
+// CreateBinAnno builds binary annotation JSON.
 func CreateBinAnno(key string, val string, endpoint string) string {
 	return fmt.Sprintf(binaAnnoFmt, key, val, endpoint)
 }
 
+// CreateSpan builds span JSON.
 func CreateSpan(name string, id string, parentID string, traceID string, ts int64, duration int64, debug bool,
 	anno string, binAnno string,
 ) string {
