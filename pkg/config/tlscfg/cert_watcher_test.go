@@ -54,8 +54,16 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	require.NoError(t, tempFile.Close())
 
 	return tempFile, func() {
-		assert.NoError(t, os.Remove(tempFile.Name()))
+		// ignore error because some tests may remove the files earlier
+		_ = os.Remove(tempFile.Name())
 	}
+}
+
+func copyFile(t *testing.T, dest string, src string) {
+	certData, err := os.ReadFile(src)
+	require.NoError(t, err)
+	err = syncWrite(dest, certData, 0o644)
+	require.NoError(t, err)
 }
 
 func TestReload(t *testing.T) {
@@ -87,10 +95,7 @@ func TestReload(t *testing.T) {
 	assert.Equal(t, &cert, watcher.certificate())
 
 	// Write the client's public key.
-	certData, err := os.ReadFile(clientCert)
-	require.NoError(t, err)
-	err = syncWrite(certFile.Name(), certData, 0o644)
-	require.NoError(t, err)
+	copyFile(t, certFile.Name(), clientCert)
 
 	assertLogs(t,
 		func() bool {
@@ -101,10 +106,7 @@ func TestReload(t *testing.T) {
 		"Unable to locate 'Failed to load certificate pair' in log. All logs: %v", logObserver)
 
 	// Write the client's private key.
-	keyData, err := os.ReadFile(clientKey)
-	require.NoError(t, err)
-	err = syncWrite(keyFile.Name(), keyData, 0o644)
-	require.NoError(t, err)
+	copyFile(t, keyFile.Name(), clientKey)
 
 	assertLogs(t,
 		func() bool {
@@ -122,23 +124,10 @@ func TestReload(t *testing.T) {
 
 func TestReload_ca_certs(t *testing.T) {
 	// copy certs to temp so we can modify them
-	caFile, err := os.CreateTemp("", "cert.crt")
-	require.NoError(t, err)
-	defer os.Remove(caFile.Name())
-	caData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = caFile.Write(caData)
-	require.NoError(t, err)
-	caFile.Close()
-
-	clientCaFile, err := os.CreateTemp("", "key.crt")
-	require.NoError(t, err)
-	defer os.Remove(clientCaFile.Name())
-	clientCaData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = clientCaFile.Write(clientCaData)
-	require.NoError(t, err)
-	clientCaFile.Close()
+	caFile, caFileCloseFn := copyToTempFile(t, "cert.crt", caCert)
+	defer caFileCloseFn()
+	clientCaFile, clientCaFileClostFn := copyToTempFile(t, "key.crt", caCert)
+	defer clientCaFileClostFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
@@ -155,14 +144,8 @@ func TestReload_ca_certs(t *testing.T) {
 	go watcher.watchChangesLoop(certPool, certPool)
 
 	// update the content with different certs to trigger reload.
-	caData, err = os.ReadFile(wrongCaCert)
-	require.NoError(t, err)
-	err = syncWrite(caFile.Name(), caData, 0o644)
-	require.NoError(t, err)
-	clientCaData, err = os.ReadFile(wrongCaCert)
-	require.NoError(t, err)
-	err = syncWrite(clientCaFile.Name(), clientCaData, 0o644)
-	require.NoError(t, err)
+	copyFile(t, caFile.Name(), wrongCaCert)
+	copyFile(t, clientCaFile.Name(), wrongCaCert)
 
 	assertLogs(t,
 		func() bool {
@@ -179,23 +162,10 @@ func TestReload_ca_certs(t *testing.T) {
 
 func TestReload_err_cert_update(t *testing.T) {
 	// copy certs to temp so we can modify them
-	certFile, err := os.CreateTemp("", "cert.crt")
-	require.NoError(t, err)
-	defer os.Remove(certFile.Name())
-	certData, err := os.ReadFile(serverCert)
-	require.NoError(t, err)
-	_, err = certFile.Write(certData)
-	require.NoError(t, err)
-	certFile.Close()
-
-	keyFile, err := os.CreateTemp("", "key.crt")
-	require.NoError(t, err)
-	defer os.Remove(keyFile.Name())
-	keyData, err := os.ReadFile(serverKey)
-	require.NoError(t, err)
-	_, err = keyFile.Write(keyData)
-	require.NoError(t, err)
-	keyFile.Close()
+	certFile, certFileCloseFn := copyToTempFile(t, "cert.crt", serverCert)
+	defer certFileCloseFn()
+	keyFile, keyFileCloseFn := copyToTempFile(t, "cert.crt", serverKey)
+	defer keyFileCloseFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
@@ -217,15 +187,9 @@ func TestReload_err_cert_update(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &serverCert, watcher.certificate())
 
-	// update the content with client certs
-	certData, err = os.ReadFile(badCaCert)
-	require.NoError(t, err)
-	err = syncWrite(certFile.Name(), certData, 0o644)
-	require.NoError(t, err)
-	keyData, err = os.ReadFile(clientKey)
-	require.NoError(t, err)
-	err = syncWrite(keyFile.Name(), keyData, 0o644)
-	require.NoError(t, err)
+	// update the content with bad client certs
+	copyFile(t, certFile.Name(), badCaCert)
+	copyFile(t, keyFile.Name(), clientKey)
 
 	assertLogs(t,
 		func() bool {
@@ -422,23 +386,10 @@ func TestAddCertsToWatch_err(t *testing.T) {
 }
 
 func TestAddCertsToWatch_remove_ca(t *testing.T) {
-	caFile, err := os.CreateTemp("", "ca.crt")
-	require.NoError(t, err)
-	defer os.Remove(caFile.Name())
-	caData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = caFile.Write(caData)
-	require.NoError(t, err)
-	caFile.Close()
-
-	clientCaFile, err := os.CreateTemp("", "clientCa.crt")
-	require.NoError(t, err)
-	defer os.Remove(clientCaFile.Name())
-	clientCaData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = clientCaFile.Write(clientCaData)
-	require.NoError(t, err)
-	clientCaFile.Close()
+	caFile, caFileCloseFn := copyToTempFile(t, "cert.crt", caCert)
+	defer caFileCloseFn()
+	clientCaFile, clientCaFileClostFn := copyToTempFile(t, "key.crt", caCert)
+	defer clientCaFileClostFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
@@ -499,23 +450,10 @@ func syncWrite(filename string, data []byte, perm os.FileMode) error {
 
 func TestReload_err_ca_cert_update(t *testing.T) {
 	// copy certs to temp so we can modify them
-	caFile, err := os.CreateTemp("", "cert.crt")
-	require.NoError(t, err)
-	defer os.Remove(caFile.Name())
-	caData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = caFile.Write(caData)
-	require.NoError(t, err)
-	caFile.Close()
-
-	clientCaFile, err := os.CreateTemp("", "key.crt")
-	require.NoError(t, err)
-	defer os.Remove(clientCaFile.Name())
-	clientCaData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = clientCaFile.Write(clientCaData)
-	require.NoError(t, err)
-	clientCaFile.Close()
+	caFile, caFileCloseFn := copyToTempFile(t, "cert.crt", caCert)
+	defer caFileCloseFn()
+	clientCaFile, clientCaFileClostFn := copyToTempFile(t, "key.crt", caCert)
+	defer clientCaFileClostFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
@@ -532,11 +470,7 @@ func TestReload_err_ca_cert_update(t *testing.T) {
 	go watcher.watchChangesLoop(certPool, certPool)
 
 	// update the content with bad certs.
-	caData, err = os.ReadFile(badCaCert)
-	require.NoError(t, err)
-	err = syncWrite(caFile.Name(), caData, 0o644)
-	require.NoError(t, err)
-
+	copyFile(t, caFile.Name(), badCaCert)
 	assertLogs(t,
 		func() bool {
 			return logObserver.FilterMessage("Failed to load certificate").
@@ -544,11 +478,7 @@ func TestReload_err_ca_cert_update(t *testing.T) {
 		},
 		"Unable to locate 'certificate' in log. All logs: %v", logObserver)
 
-	clientCaData, err = os.ReadFile(badCaCert)
-	require.NoError(t, err)
-	err = syncWrite(clientCaFile.Name(), clientCaData, 0o644)
-	require.NoError(t, err)
-
+	copyFile(t, clientCaFile.Name(), badCaCert)
 	assertLogs(t,
 		func() bool {
 			return logObserver.FilterMessage("Failed to load certificate").
