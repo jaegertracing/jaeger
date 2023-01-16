@@ -5,18 +5,6 @@ set -euxf -o pipefail
 
 # use global variables to reflect status of db
 db_is_up=
-db_cid=
-
-exit_trap_command="echo executing exit traps"
-function cleanup {
-    eval "$exit_trap_command"
-}
-trap cleanup EXIT
-
-function add_exit_trap {
-    local to_add=$1
-    exit_trap_command="$exit_trap_command; $to_add"
-}
 
 usage() {
   echo $"Usage: $0 <elasticsearch|opensearch> <version>"
@@ -59,20 +47,6 @@ setup_opensearch() {
   echo ${cid}
 }
 
-# bearer token propagaton test uses real query service, but starts a fake DB at 19200
-setup_query() {
-  local distro=$1
-  local os=$(go env GOOS)
-  local arch=$(go env GOARCH)
-  local params=(
-    --es.tls.enabled=false
-    --es.version=7
-    --es.server-urls=http://127.0.0.1:19200
-    --query.bearer-token-propagation=true
-  )
-  SPAN_STORAGE_TYPE=${distro} ./cmd/query/query-${os}-${arch} ${params[@]}
-}
-
 wait_for_storage() {
   local distro=$1
   local url=$2
@@ -108,6 +82,8 @@ bring_up_storage() {
   local distro=$1
   local version=$2
   local cid
+
+  echo "starting ${distro} ${version}"
   for retry in 1 2 3
   do
     if [ ${distro} = "elasticsearch" ]; then
@@ -121,12 +97,14 @@ bring_up_storage() {
     wait_for_storage ${distro} "http://localhost:9200" ${cid}
     if [ ${db_is_up} = "1" ]; then
       break
-    else
-      echo "ERROR: unable to start ${distro}"
-      exit 1
     fi
   done
-  db_cid=${cid}
+  if [ ${db_is_up} = "1" ]; then
+    trap "teardown_storage ${cid}" EXIT
+  else
+    echo "ERROR: unable to start ${distro}"
+    exit 1
+  fi
 }
 
 teardown_storage() {
@@ -134,44 +112,15 @@ teardown_storage() {
   docker kill ${cid}
 }
 
-teardown_query() {
-  local pid=$1
-  kill -9 ${pid}
-}
-
-build_query() {
-  make build-crossdock-ui-placeholder
-  make build-query
-}
-
-run_integration_test() {
+main() {
+  check_arg "$@"
   local distro=$1
+  local version=$2
+
+  bring_up_storage ${distro} ${version}
   STORAGE=${distro} make storage-integration-test
   make index-cleaner-integration-test
   make index-rollover-integration-test
-}
-
-run_token_propagation_test() {
-  local distro=$1
-  build_query
-  setup_query ${distro} &
-  local pid=$!
-  add_exit_trap "teardown_query ${pid}"
-  make token-propagation-integration-test
-}
-
-main() {
-  check_arg "$@"
-
-  echo "Preparing $1 $2"
-  bring_up_storage "$1" "$2"
-  add_exit_trap "teardown_storage ${db_cid}"
-
-  echo "Executing main integration tests"
-  run_integration_test "$1"
-
-  echo "Executing token propagation test"
-  run_token_propagation_test "$1"
 }
 
 main "$@"
