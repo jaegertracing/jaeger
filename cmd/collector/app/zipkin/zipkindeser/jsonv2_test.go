@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package zipkin
+package zipkindeser
 
 import (
 	"os"
@@ -31,7 +31,7 @@ import (
 func TestFixtures(t *testing.T) {
 	var spans models.ListOfSpans
 	loadJSON(t, "fixtures/zipkin_01.json", &spans)
-	tSpans, err := spansV2ToThrift(spans)
+	tSpans, err := SpansV2ToThrift(spans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var pid int64 = 1
@@ -58,7 +58,7 @@ func TestFixtures(t *testing.T) {
 func TestLCFromLocalEndpoint(t *testing.T) {
 	var spans models.ListOfSpans
 	loadJSON(t, "fixtures/zipkin_02.json", &spans)
-	tSpans, err := spansV2ToThrift(spans)
+	tSpans, err := SpansV2ToThrift(spans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var ts int64 = 1
@@ -78,7 +78,7 @@ func TestLCFromLocalEndpoint(t *testing.T) {
 func TestMissingKafkaEndpoint(t *testing.T) {
 	var spans models.ListOfSpans
 	loadJSON(t, "fixtures/zipkin_03.json", &spans)
-	tSpans, err := spansV2ToThrift(spans)
+	tSpans, err := SpansV2ToThrift(spans)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(tSpans))
 	var ts int64 = 1597704629675602
@@ -197,7 +197,7 @@ func TestErrEndpoints(t *testing.T) {
 
 func TestErrSpans(t *testing.T) {
 	id := "z"
-	tSpans, err := spansV2ToThrift(models.ListOfSpans{&models.Span{ID: &id}})
+	tSpans, err := SpansV2ToThrift(models.ListOfSpans{&models.Span{ID: &id}})
 	require.Error(t, err)
 	require.Nil(t, tSpans)
 	assert.Equal(t, err.Error(), "strconv.ParseUint: parsing \"z\": invalid syntax")
