@@ -34,11 +34,11 @@ import (
 // The certificate and key can be obtained via certWatcher.certificate.
 // The consumers of this API should use GetCertificate or GetClientCertificate from tls.Config to supply the certificate to the config.
 type certWatcher struct {
+	mu           sync.RWMutex
 	opts         Options
+	logger       *zap.Logger
 	watcher      *fsnotify.Watcher
 	cert         *tls.Certificate
-	logger       *zap.Logger
-	mu           *sync.RWMutex
 	caHash       string
 	clientCAHash string
 	certHash     string
@@ -57,19 +57,20 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		}
 		cert = &c
 	}
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
 
 	w := &certWatcher{
-		cert:    cert,
 		opts:    opts,
-		watcher: watcher,
 		logger:  logger,
-		mu:      &sync.RWMutex{},
+		cert:    cert,
+		watcher: watcher,
 	}
-	if err := w.addWatches(watcher, opts); err != nil {
+
+	if err := w.setupWatchedPaths(); err != nil {
 		watcher.Close()
 		return nil, err
 	}
@@ -86,34 +87,72 @@ func (w *certWatcher) certificate() *tls.Certificate {
 	return w.cert
 }
 
+// setupWatchedPaths retrieves hashes of all configured certificates
+// and adds their parent directories to the watcher.
+func (w *certWatcher) setupWatchedPaths() error {
+	uniqueDirs := make(map[string]bool)
+	addPath := func(certPath string, hashPtr *string) error {
+		if certPath == "" {
+			return nil
+		}
+		if h, err := hashFile(certPath); err == nil {
+			*hashPtr = h
+		} else {
+			return err
+		}
+		dir := path.Dir(certPath)
+		if _, ok := uniqueDirs[dir]; !ok {
+			w.watcher.Add(dir)
+			uniqueDirs[dir] = true
+		}
+		return nil
+	}
+
+	if err := addPath(w.opts.CAPath, &w.caHash); err != nil {
+		return err
+	}
+	if err := addPath(w.opts.ClientCAPath, &w.clientCAHash); err != nil {
+		return err
+	}
+	if err := addPath(w.opts.CertPath, &w.certHash); err != nil {
+		return err
+	}
+	if err := addPath(w.opts.KeyPath, &w.keyHash); err != nil {
+		return err
+	}
+	return nil
+}
+
+// watchChangesLoop waits for notifications of changes in the watched directories
+// and attempts to reload all certificates that changed.
+//
+// Write and Rename events indicate that some files might have changed and reload might be necessary.
+// Remove event indicates that the file was deleted and we should write an error to log.
+//
+// Reasoning:
+//
+// Write event is sent if the file content is rewritten.
+//
+// Usually files are not rewritten, but they are updated by swapping them with new
+// ones by calling Rename. That avoids files being read while they are not yet
+// completely written but it also means that inotify on file level will not work:
+// watch is invalidated when the old file is deleted.
+//
+// If reading from Kubernetes Secret volumes the target files are symbolic links
+// to files in a different directory. That directory is swapped with a new one,
+// while the symbolic links remain the same. This guarantees atomic swap for all
+// files at once, but it also means any Rename event in the directory might
+// indicate that the files were replaced, even if event.Name is not any of the
+// files we are monitoring. We check the hashes of the files to detect if they
+// were really changed.
 func (w *certWatcher) watchChangesLoop(rootCAs, clientCAs *x509.CertPool) {
 	for {
 		select {
 		case event, ok := <-w.watcher.Events:
-			w.logger.Debug("Received event", zap.String("event", event.String()))
 			if !ok {
-				return
+				return // channel closed means the watcher is closed
 			}
-
-			// Write and Rename events indicate that some files might have changed and reload might be necessary.
-			// Remove event indicates that the file was deleted and we should write an error to log.
-			//
-			// Reasoning:
-			//
-			// Write event is sent if the file content is rewritten.
-			//
-			// Usually files are not rewritten, but they are updated by swapping them with new
-			// ones by calling Rename. That avoids files being read while they are not yet
-			// completely written but it also means that inotify on file level will not work:
-			// watch is invalidated when the old file is deleted.
-			//
-			// If reading from Kubernetes Secret volumes the target files are symbolic links
-			// to files in a different directory. That directory is swapped with a new one,
-			// while the symbolic links remain the same. This guarantees atomic swap for all
-			// files at once, but it also means any Rename event in the directory might
-			// indicate that the files were replaced, even if event.Name is not any of the
-			// files we are monitoring. We check the hashes of the files to detect if they
-			// were really changed.
+			w.logger.Debug("Received event", zap.String("event", event.String()))
 			if event.Op&fsnotify.Write == fsnotify.Write ||
 				event.Op&fsnotify.Rename == fsnotify.Rename ||
 				event.Op&fsnotify.Remove == fsnotify.Remove {
@@ -121,91 +160,23 @@ func (w *certWatcher) watchChangesLoop(rootCAs, clientCAs *x509.CertPool) {
 			}
 		case err, ok := <-w.watcher.Errors:
 			if !ok {
-				return
+				return // channel closed means the watcher is closed
 			}
 			w.logger.Error("Watcher got error", zap.Error(err))
 		}
 	}
 }
 
-func (w *certWatcher) addWatches(watcher *fsnotify.Watcher, opts Options) error {
-	// Get initial hashes of the files so that we can detect changes.
-	// Build a list of parent directories.
-	var dirs []string
-	var err error
-	if opts.CAPath != "" {
-		w.caHash, err = hashFile(opts.CAPath)
-		if err != nil {
-			return err
-		}
-		dirs = append(dirs, path.Dir(opts.CAPath))
-	}
-	if opts.ClientCAPath != "" {
-		w.clientCAHash, err = hashFile(opts.ClientCAPath)
-		if err != nil {
-			return err
-		}
-		dirs = append(dirs, path.Dir(opts.ClientCAPath))
-	}
-	if opts.CertPath != "" {
-		w.certHash, err = hashFile(opts.CertPath)
-		if err != nil {
-			return err
-		}
-		dirs = append(dirs, path.Dir(opts.CertPath))
-	}
-	if opts.KeyPath != "" {
-		w.keyHash, err = hashFile(opts.KeyPath)
-		if err != nil {
-			return err
-		}
-		dirs = append(dirs, path.Dir(opts.KeyPath))
-	}
-
-	// Find unique directories and add watches.
-	uniqueDirs := make(map[string]bool)
-	for _, p := range dirs {
-		if _, ok := uniqueDirs[p]; !ok {
-			err := watcher.Add(p)
-			if err != nil {
-				return err
-			}
-		}
-		uniqueDirs[p] = true
-	}
-	return nil
-}
-
 // attemptReload checks if the watched files have been modified and reloads them if necessary.
 func (w *certWatcher) attemptReload(rootCAs, clientCAs *x509.CertPool) {
-	if isModified, newHash := w.isModified(w.opts.CAPath, w.caHash); isModified {
-		err := addCertToPool(w.opts.CAPath, rootCAs)
-		if err != nil {
-			w.logger.Error("Failed to load certificate", zap.String("certificate", w.opts.CAPath), zap.Error(err))
-		} else {
-			w.caHash = newHash
-			w.logger.Info("Loaded modified certificate", zap.String("certificate", w.opts.CAPath))
-		}
-	}
-
-	if isModified, newHash := w.isModified(w.opts.ClientCAPath, w.clientCAHash); isModified {
-		err := addCertToPool(w.opts.ClientCAPath, clientCAs)
-		if err != nil {
-			w.logger.Error("Failed to load certificate", zap.String("certificate", w.opts.ClientCAPath), zap.Error(err))
-		} else {
-			w.clientCAHash = newHash
-			w.logger.Info("Loaded modified certificate", zap.String("certificate", w.opts.ClientCAPath))
-		}
-	}
+	w.reloadIfModified(w.opts.CAPath, &w.caHash, rootCAs)
+	w.reloadIfModified(w.opts.ClientCAPath, &w.clientCAHash, clientCAs)
 
 	isCertModified, newCertHash := w.isModified(w.opts.CertPath, w.certHash)
 	isKeyModified, newKeyHash := w.isModified(w.opts.KeyPath, w.keyHash)
 	if isCertModified || isKeyModified {
 		c, err := tls.LoadX509KeyPair(filepath.Clean(w.opts.CertPath), filepath.Clean(w.opts.KeyPath))
-		if err != nil {
-			w.logger.Error("Failed to load certificate",
-				zap.String("certificate", w.opts.CertPath), zap.String("key", w.opts.KeyPath), zap.Error(err))
-		} else {
+		if err == nil {
 			w.mu.Lock()
 			w.cert = &c
 			w.certHash = newCertHash
@@ -213,6 +184,26 @@ func (w *certWatcher) attemptReload(rootCAs, clientCAs *x509.CertPool) {
 			w.mu.Unlock()
 			w.logger.Info("Loaded modified certificate", zap.String("certificate", w.opts.CertPath))
 			w.logger.Info("Loaded modified certificate", zap.String("certificate", w.opts.KeyPath))
+		} else {
+			w.logger.Error(
+				"Failed to load certificate pair",
+				zap.String("certificate", w.opts.CertPath),
+				zap.String("key", w.opts.KeyPath),
+				zap.Error(err),
+			)
+		}
+	}
+}
+
+func (w *certWatcher) reloadIfModified(certPath string, certHash *string, certPool *x509.CertPool) {
+	if mod, newHash := w.isModified(certPath, *certHash); mod {
+		if err := addCertToPool(certPath, certPool); err == nil {
+			w.mu.Lock()
+			*certHash = newHash
+			w.mu.Unlock()
+			w.logger.Info("Loaded modified certificate", zap.String("certificate", certPath))
+		} else {
+			w.logger.Error("Failed to load certificate", zap.String("certificate", certPath), zap.Error(err))
 		}
 	}
 }
