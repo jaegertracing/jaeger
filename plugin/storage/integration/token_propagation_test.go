@@ -88,23 +88,25 @@ func TestBearTokenPropagation(t *testing.T) {
 
 	// Run elastic search mocked server in background..
 	// is not a full server, just mocked the necessary stuff for this test.
-	srv := &http.Server{Addr: ":9200"}
+	srv := &http.Server{Addr: ":19200"}
 	defer srv.Shutdown(context.Background())
 
 	go createElasticSearchMock(srv, t)
 
 	// Test cases.
 	for _, testCase := range testCases {
-		// Ask for services query, this should return 200
-		req, err := http.NewRequest("GET", queryUrl, nil)
-		require.NoError(t, err)
-		req.Header.Add(testCase.headerName, testCase.headerValue)
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		assert.NoError(t, err)
-		assert.NotNil(t, resp)
-		if err == nil && resp != nil {
-			assert.Equal(t, resp.StatusCode, http.StatusOK)
-		}
+		t.Run(testCase.name, func(t *testing.T) {
+			// Ask for services query, this should return 200
+			req, err := http.NewRequest("GET", queryUrl, nil)
+			require.NoError(t, err)
+			req.Header.Add(testCase.headerName, testCase.headerValue)
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			if err == nil && resp != nil {
+				assert.Equal(t, resp.StatusCode, http.StatusOK)
+			}
+		})
 	}
 }
