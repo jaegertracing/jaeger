@@ -99,12 +99,18 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 	command.ParseFlags([]string{
 		"--collector.grpc-server.max-connection-age=5m",
 		"--collector.grpc-server.max-connection-age-grace=1m",
+		"--collector.http-server.idle-timeout=5m",
+		"--collector.http-server.read-timeout=6m",
+		"--collector.http-server.read-header-timeout=5s",
 	})
 	_, err := c.InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
 
 	assert.Equal(t, 5*time.Minute, c.GRPC.MaxConnectionAge)
 	assert.Equal(t, time.Minute, c.GRPC.MaxConnectionAgeGrace)
+	assert.Equal(t, 5*time.Minute, c.HTTP.IdleTimeout)
+	assert.Equal(t, 6*time.Minute, c.HTTP.ReadTimeout)
+	assert.Equal(t, 5*time.Second, c.HTTP.ReadHeaderTimeout)
 }
 
 func TestCollectorOptionsWithFlags_CheckNoTenancy(t *testing.T) {
