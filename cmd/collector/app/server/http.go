@@ -42,6 +42,13 @@ type HTTPServerParams struct {
 	MetricsFactory metrics.Factory
 	HealthCheck    *healthcheck.HealthCheck
 	Logger         *zap.Logger
+
+	// ReadTimeout sets the respective parameter of http.Server
+	ReadTimeout time.Duration
+	// ReadHeaderTimeout sets the respective parameter of http.Server
+	ReadHeaderTimeout time.Duration
+	// IdleTimeout sets the respective parameter of http.Server
+	IdleTimeout time.Duration
 }
 
 // StartHTTPServer based on the given parameters
@@ -51,8 +58,10 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
 	server := &http.Server{
 		Addr:              params.HostPort,
+		ReadTimeout:       params.ReadTimeout,
+		ReadHeaderTimeout: params.ReadHeaderTimeout,
+		IdleTimeout:       params.IdleTimeout,
 		ErrorLog:          errorLog,
-		ReadHeaderTimeout: 2 * time.Second,
 	}
 	if params.TLSConfig.Enabled {
 		tlsCfg, err := params.TLSConfig.Config(params.Logger) // This checks if the certificates are correctly provided
