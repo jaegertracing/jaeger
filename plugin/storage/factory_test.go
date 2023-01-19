@@ -356,9 +356,6 @@ func (f *configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 func TestConfigurable(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
-
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)

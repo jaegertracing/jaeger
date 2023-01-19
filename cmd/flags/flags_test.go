@@ -17,7 +17,6 @@ package flags
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,11 +34,8 @@ func TestParseJaegerTags(t *testing.T) {
 		"envVar5=${envVar5:}",
 	)
 
-	os.Setenv("envKey1", "envVal1")
-	defer os.Unsetenv("envKey1")
-
-	os.Setenv("envKey4", "envVal4")
-	defer os.Unsetenv("envKey4")
+	t.Setenv("envKey1", "envVal1")
+	t.Setenv("envKey4", "envVal4")
 
 	expectedTags := map[string]string{
 		"key":     "value",
