@@ -17,22 +17,12 @@ package storage
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func clearEnv() {
-	os.Setenv(SpanStorageTypeEnvVar, "")
-	os.Setenv(DependencyStorageTypeEnvVar, "")
-	os.Setenv(SamplingStorageTypeEnvVar, "")
-}
-
 func TestFactoryConfigFromEnv(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
-
 	f := FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Equal(t, 1, len(f.SpanWriterTypes))
 	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
@@ -40,9 +30,9 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 	assert.Empty(t, f.SamplingStorageType)
 
-	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType)
-	os.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
-	os.Setenv(SamplingStorageTypeEnvVar, cassandraStorageType)
+	t.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType)
+	t.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
+	t.Setenv(SamplingStorageTypeEnvVar, cassandraStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Equal(t, 1, len(f.SpanWriterTypes))
@@ -51,14 +41,14 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 	assert.Equal(t, cassandraStorageType, f.SamplingStorageType)
 
-	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
+	t.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Equal(t, 2, len(f.SpanWriterTypes))
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 
-	os.Setenv(SpanStorageTypeEnvVar, badgerStorageType)
+	t.Setenv(SpanStorageTypeEnvVar, badgerStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, nil)
 	assert.Equal(t, 1, len(f.SpanWriterTypes))
@@ -67,8 +57,6 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
-	clearEnv()
-
 	testCases := []struct {
 		args  []string
 		log   bool

@@ -97,9 +97,6 @@ func (f *configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 func TestConfigurable(t *testing.T) {
-	clearEnv(t)
-	defer clearEnv(t)
-
 	f, err := NewFactory(withConfig(prometheusStorageType))
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
