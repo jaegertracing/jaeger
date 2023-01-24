@@ -32,6 +32,7 @@ import (
 	tSampling092 "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp/thrift-0.9.2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	api_v1 "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 type testServer struct {
@@ -251,13 +252,24 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	})
 }
 
-func TestMarshalProto(t *testing.T) {
+func TestEncodeProtoError(t *testing.T) {
 	withServer("", nil, nil, func(server *testServer) {
-		_, err := server.handler.marshalProto(nil)
+		_, err := server.handler.encodeProto(&api_v1.SamplingStrategyResponse{
+			StrategyType: -1,
+		})
 		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ConvertSamplingResponseToDomain failed")
 		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
 		}...)
+
+		_, err = server.handler.encodeProto(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "SamplingStrategyResponseToJSON failed")
+		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 2},
+		}...)
+
 	})
 }
 

@@ -28,7 +28,6 @@ import (
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	t2p "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	api_v1 "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
@@ -169,16 +168,12 @@ func (h *HTTPHandler) encodeProto(strategy *api_v1.SamplingStrategyResponse) ([]
 	pbs, err := t2p.ConvertSamplingResponseToDomain(strategy)
 	if err != nil {
 		h.metrics.BadProtoFailures.Inc(1)
-		return nil, err
+		return nil, fmt.Errorf("ConvertSamplingResponseToDomain failed: %w", err)
 	}
-	return h.marshalProto(pbs)
-}
-
-func (h *HTTPHandler) marshalProto(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
-	str, err := p2json.SamplingStrategyResponseToJSON(strategy)
+	str, err := p2json.SamplingStrategyResponseToJSON(pbs)
 	if err != nil {
 		h.metrics.BadProtoFailures.Inc(1)
-		return nil, err
+		return nil, fmt.Errorf("SamplingStrategyResponseToJSON failed: %w", err)
 	}
 	h.metrics.SamplingRequestSuccess.Inc(1)
 	return []byte(str), nil
