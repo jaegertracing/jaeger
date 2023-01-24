@@ -76,33 +76,43 @@ func withServer(
 
 func TestHTTPHandler(t *testing.T) {
 	testHTTPHandler(t, "")
+}
+
+func TestHTTPHandlerFoo(t *testing.T) {
 	testHTTPHandler(t, "/foo")
 }
 
 func testHTTPHandler(t *testing.T, basePath string) {
-	withServer(basePath, probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
-		for _, endpoint := range []string{"/", "/sampling"} {
-			t.Run("request against endpoint "+endpoint, func(t *testing.T) {
-				resp, err := http.Get(ts.server.URL + basePath + endpoint + "?service=Y")
+	withServer(basePath, rateLimiting(42), restrictions("luggage", 10), func(ts *testServer) {
+		tests := []struct {
+			endpoint  string
+			expOutput string
+		}{
+			{
+				endpoint:  basePath + "/",
+				expOutput: `{"strategyType":1,"rateLimitingSampling":{"maxTracesPerSecond":42}}`,
+			},
+			{
+				endpoint:  basePath + "/sampling",
+				expOutput: `{"strategyType":"RATE_LIMITING","rateLimitingSampling":{"maxTracesPerSecond":42}}`,
+			},
+		}
+		for _, test := range tests {
+			t.Run("endpoint="+test.endpoint, func(t *testing.T) {
+				resp, err := http.Get(ts.server.URL + test.endpoint + "?service=Y")
 				require.NoError(t, err)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				err = resp.Body.Close()
 				require.NoError(t, err)
-				if endpoint == "/" {
+				assert.Equal(t, test.expOutput, string(body))
+				if test.endpoint == "/" {
 					objResp := &tSampling092.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
 					assert.EqualValues(t,
 						ts.samplingStore.samplingResponse.GetStrategyType(),
 						objResp.GetStrategyType())
-					assert.Equal(t,
-						ts.samplingStore.samplingResponse.GetProbabilisticSampling().GetSamplingRate(),
-						objResp.GetProbabilisticSampling().GetSamplingRate())
-				} else {
-					objResp := &sampling.SamplingStrategyResponse{}
-					require.NoError(t, json.Unmarshal(body, objResp))
-					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
 				}
 			})
 		}
@@ -188,7 +198,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			mockSamplingResponse: probabilistic(math.NaN()),
 			url:                  "?service=Y",
 			statusCode:           http.StatusInternalServerError,
-			body:                 "cannot marshall Thrift to JSON\n",
+			body:                 "cannot marshall to JSON\n",
 			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
 			},
@@ -220,7 +230,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 
 			req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
 			w := &mockWriter{header: make(http.Header)}
-			handler.serveSamplingHTTP(w, req, false)
+			handler.serveSamplingHTTP(w, req, handler.encodeThriftLegacy)
 
 			ts.metricsFactory.AssertCounterMetrics(t,
 				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
@@ -232,6 +242,26 @@ func TestHTTPHandlerErrors(t *testing.T) {
 				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 2})
 		})
 	})
+}
+
+func TestMarshalProto(t *testing.T) {
+	withServer("", nil, nil, func(server *testServer) {
+		_, err := server.handler.marshalProto(nil)
+		require.Error(t, err)
+		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
+		}...)
+
+	})
+}
+
+func rateLimiting(rate int16) *sampling.SamplingStrategyResponse {
+	return &sampling.SamplingStrategyResponse{
+		StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
+		RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
+			MaxTracesPerSecond: rate,
+		},
+	}
 }
 
 func probabilistic(probability float64) *sampling.SamplingStrategyResponse {
