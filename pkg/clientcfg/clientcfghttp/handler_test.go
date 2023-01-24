@@ -269,7 +269,6 @@ func TestEncodeProtoError(t *testing.T) {
 		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 2},
 		}...)
-
 	})
 }
 
