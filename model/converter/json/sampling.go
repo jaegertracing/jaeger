@@ -26,12 +26,11 @@ import (
 // a JSON response from /sampling endpoints.
 func SamplingStrategyResponseToJSON(protoObj *api_v2.SamplingStrategyResponse) (string, error) {
 	// For backwards compatibility with Thrift-to-JSON encoding,
-	// we want the output to include "strategyType":"PROBABILISTIC" when approprite.
+	// we want the output to include "strategyType":"PROBABILISTIC" when appropriate.
 	// However, due to design oversight, the enum value for PROBABILISTIC is 0, so
 	// we need to set EmitDefaults=true. This in turns causes null fields to be emitted too,
 	// so we take care of them below.
 	jsonpbMarshaler := jsonpb.Marshaler{
-		// We need to set this to true, otherwise strategyType:PROBABILISTIC entry will be emitted since the enum value is 0
 		EmitDefaults: true,
 	}
 

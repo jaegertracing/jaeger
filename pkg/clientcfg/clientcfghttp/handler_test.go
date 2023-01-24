@@ -78,7 +78,7 @@ func TestHTTPHandler(t *testing.T) {
 	testHTTPHandler(t, "")
 }
 
-func TestHTTPHandlerFoo(t *testing.T) {
+func TestHTTPHandlerWithBasePath(t *testing.T) {
 	testHTTPHandler(t, "/foo")
 }
 
@@ -89,17 +89,17 @@ func testHTTPHandler(t *testing.T, basePath string) {
 			expOutput string
 		}{
 			{
-				endpoint:  basePath + "/",
+				endpoint:  "/",
 				expOutput: `{"strategyType":1,"rateLimitingSampling":{"maxTracesPerSecond":42}}`,
 			},
 			{
-				endpoint:  basePath + "/sampling",
+				endpoint:  "/sampling",
 				expOutput: `{"strategyType":"RATE_LIMITING","rateLimitingSampling":{"maxTracesPerSecond":42}}`,
 			},
 		}
 		for _, test := range tests {
 			t.Run("endpoint="+test.endpoint, func(t *testing.T) {
-				resp, err := http.Get(ts.server.URL + test.endpoint + "?service=Y")
+				resp, err := http.Get(ts.server.URL + basePath + test.endpoint + "?service=Y")
 				require.NoError(t, err)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
 				body, err := io.ReadAll(resp.Body)
@@ -113,6 +113,13 @@ func testHTTPHandler(t *testing.T, basePath string) {
 					assert.EqualValues(t,
 						ts.samplingStore.samplingResponse.GetStrategyType(),
 						objResp.GetStrategyType())
+					assert.Equal(t,
+						ts.samplingStore.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
+						objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
+				} else {
+					objResp := &sampling.SamplingStrategyResponse{}
+					require.NoError(t, json.Unmarshal(body, objResp))
+					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
 				}
 			})
 		}
@@ -251,7 +258,6 @@ func TestMarshalProto(t *testing.T) {
 		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
 		}...)
-
 	})
 }
 

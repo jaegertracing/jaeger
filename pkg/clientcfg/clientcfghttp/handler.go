@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gorilla/mux"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
@@ -79,17 +78,11 @@ type HTTPHandler struct {
 		// Number of failed response writes from http server
 		WriteFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=write"`
 	}
-	jsonpbMarshaler *jsonpb.Marshaler
 }
 
 // NewHTTPHandler creates new HTTPHandler.
 func NewHTTPHandler(params HTTPHandlerParams) *HTTPHandler {
-	handler := &HTTPHandler{
-		params: params,
-		jsonpbMarshaler: &jsonpb.Marshaler{
-			EmitDefaults: true,
-		},
-	}
+	handler := &HTTPHandler{params: params}
 	metrics.MustInit(&handler.metrics, params.MetricsFactory, nil)
 	return handler
 }

@@ -34,35 +34,48 @@ func TestSamplingStrategyResponseToJSON_Error(t *testing.T) {
 // the same string as Thrift-based JSON marshaler.
 func TestSamplingStrategyResponseToJSON(t *testing.T) {
 	t.Run("probabilistic", func(t *testing.T) {
-		s := &api_v1.ProbabilisticSamplingStrategy{SamplingRate: 0.42}
-		compareProtoAndThriftJSON(t, &api_v1.SamplingStrategyResponse{
-			StrategyType:          api_v1.SamplingStrategyType_PROBABILISTIC,
-			ProbabilisticSampling: s,
-		})
+		s := &api_v1.SamplingStrategyResponse{
+			StrategyType: api_v1.SamplingStrategyType_PROBABILISTIC,
+			ProbabilisticSampling: &api_v1.ProbabilisticSamplingStrategy{
+				SamplingRate: 0.42,
+			},
+		}
+		compareProtoAndThriftJSON(t, s)
 	})
 	t.Run("rateLimiting", func(t *testing.T) {
-		s := &api_v1.RateLimitingSamplingStrategy{MaxTracesPerSecond: 42}
-		compareProtoAndThriftJSON(t, &api_v1.SamplingStrategyResponse{
-			StrategyType:         api_v1.SamplingStrategyType_RATE_LIMITING,
-			RateLimitingSampling: s,
-		})
+		s := &api_v1.SamplingStrategyResponse{
+			StrategyType: api_v1.SamplingStrategyType_RATE_LIMITING,
+			RateLimitingSampling: &api_v1.RateLimitingSamplingStrategy{
+				MaxTracesPerSecond: 42,
+			},
+		}
+		compareProtoAndThriftJSON(t, s)
 	})
 	t.Run("operationSampling", func(t *testing.T) {
 		a := 11.2 // we need a pointer to value
-		s := &api_v1.PerOperationSamplingStrategies{
-			DefaultSamplingProbability:       0.42,
-			DefaultUpperBoundTracesPerSecond: &a,
-			DefaultLowerBoundTracesPerSecond: 2,
-			PerOperationStrategies: []*api_v1.OperationSamplingStrategy{
-				{Operation: "fao"},
+		s := &api_v1.SamplingStrategyResponse{
+			OperationSampling: &api_v1.PerOperationSamplingStrategies{
+				DefaultSamplingProbability:       0.42,
+				DefaultUpperBoundTracesPerSecond: &a,
+				DefaultLowerBoundTracesPerSecond: 2,
+				PerOperationStrategies: []*api_v1.OperationSamplingStrategy{
+					{
+						Operation: "foo",
+						ProbabilisticSampling: &api_v1.ProbabilisticSamplingStrategy{
+							SamplingRate: 0.42,
+						},
+					},
+					{
+						Operation: "bar",
+						ProbabilisticSampling: &api_v1.ProbabilisticSamplingStrategy{
+							SamplingRate: 0.42,
+						},
+					},
+				},
 			},
 		}
-
-		compareProtoAndThriftJSON(t, &api_v1.SamplingStrategyResponse{
-			OperationSampling: s,
-		})
+		compareProtoAndThriftJSON(t, s)
 	})
-
 }
 
 func compareProtoAndThriftJSON(t *testing.T, thriftObj *api_v1.SamplingStrategyResponse) {
