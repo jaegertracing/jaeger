@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	thriftconv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	api_v1 "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
@@ -89,4 +90,23 @@ func compareProtoAndThriftJSON(t *testing.T, thriftObj *api_v1.SamplingStrategyR
 	require.NoError(t, err)
 
 	assert.Equal(t, string(s1), s2)
+}
+
+func TestSamplingStrategyResponseFromJSON(t *testing.T) {
+	_, err := SamplingStrategyResponseFromJSON([]byte("broken"))
+	assert.Error(t, err)
+
+	s1 := &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+		ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
+			SamplingRate: 0.42,
+		},
+	}
+	json, err := SamplingStrategyResponseToJSON(s1)
+	require.NoError(t, err)
+
+	s2, err := SamplingStrategyResponseFromJSON([]byte(json))
+	require.NoError(t, err)
+	assert.Equal(t, s1.GetStrategyType(), s2.GetStrategyType())
+	assert.EqualValues(t, s1.GetProbabilisticSampling(), s2.GetProbabilisticSampling())
 }

@@ -16,7 +16,6 @@
 package services
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
+	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -80,7 +80,8 @@ func (h *testAgentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				},
 			},
 		}
-		body, _ = json.Marshal(response)
+		bodyStr, _ := p2json.SamplingStrategyResponseToJSON(&response)
+		body = []byte(bodyStr)
 	}
 	w.Write(body)
 }

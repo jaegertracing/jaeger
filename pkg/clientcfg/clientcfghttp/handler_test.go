@@ -16,7 +16,6 @@
 package clientcfghttp
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -25,12 +24,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	tSampling092 "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp/thrift-0.9.2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
@@ -119,8 +118,8 @@ func testHTTPHandler(t *testing.T, basePath string) {
 						ts.samplingStore.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
 						objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
 				} else {
-					objResp := &api_v2.SamplingStrategyResponse{}
-					require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), objResp))
+					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
+					require.NoError(t, err)
 					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
 				}
 			})

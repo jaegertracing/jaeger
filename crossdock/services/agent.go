@@ -16,7 +16,6 @@
 package services
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +23,7 @@ import (
 
 	"go.uber.org/zap"
 
+	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -65,11 +65,11 @@ func (s *agentService) GetSamplingRate(service, operation string) (float64, erro
 	}
 	s.logger.Info("Retrieved sampling rates from agent", zap.String("body", string(body)))
 
-	var response api_v2.SamplingStrategyResponse
-	if err = json.Unmarshal(body, &response); err != nil {
+	response, err := p2json.SamplingStrategyResponseFromJSON(body)
+	if err != nil {
 		return 0, err
 	}
-	return getSamplingRate(operation, &response)
+	return getSamplingRate(operation, response)
 }
 
 func getSamplingRate(operation string, response *api_v2.SamplingStrategyResponse) (float64, error) {
