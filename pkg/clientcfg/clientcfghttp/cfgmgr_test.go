@@ -22,15 +22,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 type mockSamplingStore struct {
-	samplingResponse *sampling.SamplingStrategyResponse
+	samplingResponse *api_v2.SamplingStrategyResponse
 }
 
-func (m *mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (m *mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
 	if m.samplingResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}
@@ -52,14 +52,14 @@ func TestConfigManager(t *testing.T) {
 	bgm := &mockBaggageMgr{}
 	mgr := &ConfigManager{
 		SamplingStrategyStore: &mockSamplingStore{
-			samplingResponse: &sampling.SamplingStrategyResponse{},
+			samplingResponse: &api_v2.SamplingStrategyResponse{},
 		},
 		BaggageManager: bgm,
 	}
 	t.Run("GetSamplingStrategy", func(t *testing.T) {
 		r, err := mgr.GetSamplingStrategy(context.Background(), "foo")
 		require.NoError(t, err)
-		assert.Equal(t, sampling.SamplingStrategyResponse{}, *r)
+		assert.Equal(t, api_v2.SamplingStrategyResponse{}, *r)
 	})
 	t.Run("GetBaggageRestrictions", func(t *testing.T) {
 		expResp := []*baggage.BaggageRestriction{}

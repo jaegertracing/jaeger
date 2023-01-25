@@ -28,7 +28,7 @@ import (
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	t2p "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	api_v1 "github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 const mimeTypeApplicationJSON = "application/json"
@@ -131,7 +131,7 @@ func (h *HTTPHandler) writeJSON(w http.ResponseWriter, json []byte) error {
 func (h *HTTPHandler) serveSamplingHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
-	encoder func(strategy *api_v1.SamplingStrategyResponse) ([]byte, error),
+	encoder func(strategy *api_v2.SamplingStrategyResponse) ([]byte, error),
 ) {
 	service, err := h.serviceFromRequest(w, r)
 	if err != nil {
@@ -153,8 +153,13 @@ func (h *HTTPHandler) serveSamplingHTTP(
 	}
 }
 
-func (h *HTTPHandler) encodeThriftLegacy(strategy *api_v1.SamplingStrategyResponse) ([]byte, error) {
-	jsonBytes, err := json.Marshal(strategy)
+func (h *HTTPHandler) encodeThriftLegacy(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
+	tStrategy, err := t2p.ConvertSamplingResponseFromDomain(strategy)
+	if err != nil {
+		h.metrics.BadThriftFailures.Inc(1)
+		return nil, fmt.Errorf("ConvertSamplingResponseFromDomain failed: %w", err)
+	}
+	jsonBytes, err := json.Marshal(tStrategy)
 	if err != nil {
 		h.metrics.BadThriftFailures.Inc(1)
 		return nil, err
@@ -164,13 +169,8 @@ func (h *HTTPHandler) encodeThriftLegacy(strategy *api_v1.SamplingStrategyRespon
 	return jsonBytes, nil
 }
 
-func (h *HTTPHandler) encodeProto(strategy *api_v1.SamplingStrategyResponse) ([]byte, error) {
-	pbs, err := t2p.ConvertSamplingResponseToDomain(strategy)
-	if err != nil {
-		h.metrics.BadProtoFailures.Inc(1)
-		return nil, fmt.Errorf("ConvertSamplingResponseToDomain failed: %w", err)
-	}
-	str, err := p2json.SamplingStrategyResponseToJSON(pbs)
+func (h *HTTPHandler) encodeProto(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
+	str, err := p2json.SamplingStrategyResponseToJSON(strategy)
 	if err != nil {
 		h.metrics.BadProtoFailures.Inc(1)
 		return nil, fmt.Errorf("SamplingStrategyResponseToJSON failed: %w", err)
@@ -198,9 +198,9 @@ func (h *HTTPHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
 	h.metrics.BaggageRequestSuccess.Inc(1)
 }
 
-var samplingStrategyTypes = []api_v1.SamplingStrategyType{
-	api_v1.SamplingStrategyType_PROBABILISTIC,
-	api_v1.SamplingStrategyType_RATE_LIMITING,
+var samplingStrategyTypes = []api_v2.SamplingStrategyType{
+	api_v2.SamplingStrategyType_PROBABILISTIC,
+	api_v2.SamplingStrategyType_RATE_LIMITING,
 }
 
 // Replace string enum values produced from Thrift 0.9.3 generated classes
