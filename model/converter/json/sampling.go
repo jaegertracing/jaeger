@@ -15,6 +15,7 @@
 package json
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -45,4 +46,13 @@ func SamplingStrategyResponseToJSON(protoObj *api_v2.SamplingStrategyResponse) (
 	str = strings.ReplaceAll(str, `,"operationSampling":null`, "")
 
 	return str, nil
+}
+
+// SamplingStrategyResponseFromJSON is the official way to parse strategy in JSON.
+func SamplingStrategyResponseFromJSON(json []byte) (*api_v2.SamplingStrategyResponse, error) {
+	var obj api_v2.SamplingStrategyResponse
+	if err := jsonpb.Unmarshal(bytes.NewReader(json), &obj); err != nil {
+		return nil, err
+	}
+	return &obj, nil
 }

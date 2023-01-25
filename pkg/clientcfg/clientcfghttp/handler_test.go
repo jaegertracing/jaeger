@@ -29,10 +29,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	tSampling092 "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp/thrift-0.9.2"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
-	api_v1 "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 type testServer struct {
@@ -45,7 +45,7 @@ type testServer struct {
 
 func withServer(
 	basePath string,
-	mockSamplingResponse *sampling.SamplingStrategyResponse,
+	mockSamplingResponse *api_v2.SamplingStrategyResponse,
 	mockBaggageResponse []*baggage.BaggageRestriction,
 	testFn func(server *testServer),
 ) {
@@ -114,12 +114,12 @@ func testHTTPHandler(t *testing.T, basePath string) {
 					assert.EqualValues(t,
 						ts.samplingStore.samplingResponse.GetStrategyType(),
 						objResp.GetStrategyType())
-					assert.Equal(t,
+					assert.EqualValues(t,
 						ts.samplingStore.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
 						objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
 				} else {
-					objResp := &sampling.SamplingStrategyResponse{}
-					require.NoError(t, json.Unmarshal(body, objResp))
+					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
+					require.NoError(t, err)
 					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
 				}
 			})
@@ -149,7 +149,7 @@ func testHTTPHandler(t *testing.T, basePath string) {
 func TestHTTPHandlerErrors(t *testing.T) {
 	testCases := []struct {
 		description          string
-		mockSamplingResponse *sampling.SamplingStrategyResponse
+		mockSamplingResponse *api_v2.SamplingStrategyResponse
 		mockBaggageResponse  []*baggage.BaggageRestriction
 		url                  string
 		statusCode           int
@@ -252,39 +252,39 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	})
 }
 
-func TestEncodeProtoError(t *testing.T) {
+func TestEncodeErrors(t *testing.T) {
 	withServer("", nil, nil, func(server *testServer) {
-		_, err := server.handler.encodeProto(&api_v1.SamplingStrategyResponse{
+		_, err := server.handler.encodeThriftLegacy(&api_v2.SamplingStrategyResponse{
 			StrategyType: -1,
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "ConvertSamplingResponseToDomain failed")
+		assert.Contains(t, err.Error(), "ConvertSamplingResponseFromDomain failed")
 		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
+			{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
 		}...)
 
 		_, err = server.handler.encodeProto(nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "SamplingStrategyResponseToJSON failed")
 		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 2},
+			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
 		}...)
 	})
 }
 
-func rateLimiting(rate int16) *sampling.SamplingStrategyResponse {
-	return &sampling.SamplingStrategyResponse{
-		StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
-		RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
+func rateLimiting(rate int32) *api_v2.SamplingStrategyResponse {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_RATE_LIMITING,
+		RateLimitingSampling: &api_v2.RateLimitingSamplingStrategy{
 			MaxTracesPerSecond: rate,
 		},
 	}
 }
 
-func probabilistic(probability float64) *sampling.SamplingStrategyResponse {
-	return &sampling.SamplingStrategyResponse{
-		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+func probabilistic(probability float64) *api_v2.SamplingStrategyResponse {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+		ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 			SamplingRate: probability,
 		},
 	}

@@ -20,34 +20,28 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-// SamplingManager returns sampling decisions from collector over gRPC.
-type SamplingManager struct {
+// ConfigManagerProxy returns sampling decisions from collector over gRPC.
+type ConfigManagerProxy struct {
 	client api_v2.SamplingManagerClient
 }
 
 // NewConfigManager creates gRPC sampling manager.
-func NewConfigManager(conn *grpc.ClientConn) *SamplingManager {
-	return &SamplingManager{
+func NewConfigManager(conn *grpc.ClientConn) *ConfigManagerProxy {
+	return &ConfigManagerProxy{
 		client: api_v2.NewSamplingManagerClient(conn),
 	}
 }
 
 // GetSamplingStrategy returns sampling strategies from collector.
-func (s *SamplingManager) GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	r, err := s.client.GetSamplingStrategy(ctx, &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
-	if err != nil {
-		return nil, err
-	}
-	return jaeger.ConvertSamplingResponseFromDomain(r)
+func (s *ConfigManagerProxy) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+	return s.client.GetSamplingStrategy(ctx, &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
 }
 
 // GetBaggageRestrictions returns baggage restrictions from collector.
-func (s *SamplingManager) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
+func (s *ConfigManagerProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
 	return nil, errors.New("baggage not implemented")
 }

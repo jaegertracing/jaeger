@@ -18,7 +18,6 @@ import (
 	"context"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
-	"github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -36,9 +35,5 @@ func NewGRPCHandler(store strategystore.StrategyStore) GRPCHandler {
 
 // GetSamplingStrategy returns sampling decision from store.
 func (s GRPCHandler) GetSamplingStrategy(ctx context.Context, param *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {
-	r, err := s.store.GetSamplingStrategy(ctx, param.GetServiceName())
-	if err != nil {
-		return nil, err
-	}
-	return jaeger.ConvertSamplingResponseToDomain(r)
+	return s.store.GetSamplingStrategy(ctx, param.GetServiceName())
 }
