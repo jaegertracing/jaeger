@@ -26,7 +26,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 func close(t *testing.T, c io.Closer) {
@@ -44,7 +43,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.NoError(t, err)
-	assert.Equal(t, &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}, resp)
+	assert.Equal(t, &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, resp)
 }
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {

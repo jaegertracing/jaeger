@@ -31,7 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 var _ (io.Closer) = (*Collector)(nil)
@@ -122,8 +122,8 @@ func TestCollector_StartErrors(t *testing.T) {
 
 type mockStrategyStore struct{}
 
-func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	return &sampling.SamplingStrategyResponse{}, nil
+func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
 func TestCollector_PublishOpts(t *testing.T) {

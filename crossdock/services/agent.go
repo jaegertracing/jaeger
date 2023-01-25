@@ -24,7 +24,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 var errSamplingRateMissing = errors.New("sampling rate is missing")
@@ -65,14 +65,14 @@ func (s *agentService) GetSamplingRate(service, operation string) (float64, erro
 	}
 	s.logger.Info("Retrieved sampling rates from agent", zap.String("body", string(body)))
 
-	var response sampling.SamplingStrategyResponse
+	var response api_v2.SamplingStrategyResponse
 	if err = json.Unmarshal(body, &response); err != nil {
 		return 0, err
 	}
 	return getSamplingRate(operation, &response)
 }
 
-func getSamplingRate(operation string, response *sampling.SamplingStrategyResponse) (float64, error) {
+func getSamplingRate(operation string, response *api_v2.SamplingStrategyResponse) (float64, error) {
 	if response.OperationSampling == nil {
 		return 0, errSamplingRateMissing
 	}

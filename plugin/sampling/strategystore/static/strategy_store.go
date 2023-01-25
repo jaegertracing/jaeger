@@ -30,7 +30,7 @@ import (
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // null represents "null" JSON value and
@@ -46,8 +46,8 @@ type strategyStore struct {
 }
 
 type storedStrategies struct {
-	defaultStrategy   *sampling.SamplingStrategyResponse
-	serviceStrategies map[string]*sampling.SamplingStrategyResponse
+	defaultStrategy   *api_v2.SamplingStrategyResponse
+	serviceStrategies map[string]*api_v2.SamplingStrategyResponse
 }
 
 type strategyLoader func() ([]byte, error)
@@ -80,7 +80,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 }
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
-func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
 	ss := h.storedStrategies.Load().(*storedStrategies)
 	serviceStrategies := ss.serviceStrategies
 	if strategy, ok := serviceStrategies[serviceName]; ok {
@@ -243,8 +243,8 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 
 // mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
 func mergePerOperationSamplingStrategies(
-	a, b []*sampling.OperationSamplingStrategy,
-) []*sampling.OperationSamplingStrategy {
+	a, b []*api_v2.OperationSamplingStrategy,
+) []*api_v2.OperationSamplingStrategy {
 	m := make(map[string]bool)
 	for _, aOp := range a {
 		m[aOp.Operation] = true
@@ -258,15 +258,15 @@ func mergePerOperationSamplingStrategies(
 	return a
 }
 
-func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampling.SamplingStrategyResponse {
+func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *api_v2.SamplingStrategyResponse {
 	resp := h.parseStrategy(&strategy.strategy)
 	if len(strategy.OperationStrategies) == 0 {
 		return resp
 	}
-	opS := &sampling.PerOperationSamplingStrategies{
+	opS := &api_v2.PerOperationSamplingStrategies{
 		DefaultSamplingProbability: defaultSamplingProbability,
 	}
-	if resp.StrategyType == sampling.SamplingStrategyType_PROBABILISTIC {
+	if resp.StrategyType == api_v2.SamplingStrategyType_PROBABILISTIC {
 		opS.DefaultSamplingProbability = resp.ProbabilisticSampling.SamplingRate
 	}
 	for _, operationStrategy := range strategy.OperationStrategies {
@@ -276,7 +276,7 @@ func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampl
 		}
 
 		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
-			&sampling.OperationSamplingStrategy{
+			&api_v2.OperationSamplingStrategy{
 				Operation:             operationStrategy.Operation,
 				ProbabilisticSampling: s.ProbabilisticSampling,
 			})
@@ -287,10 +287,10 @@ func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampl
 
 func (h *strategyStore) parseOperationStrategy(
 	strategy *operationStrategy,
-	parent *sampling.PerOperationSamplingStrategies,
-) (s *sampling.SamplingStrategyResponse, ok bool) {
+	parent *api_v2.PerOperationSamplingStrategies,
+) (s *api_v2.SamplingStrategyResponse, ok bool) {
 	s = h.parseStrategy(&strategy.strategy)
-	if s.StrategyType == sampling.SamplingStrategyType_RATE_LIMITING {
+	if s.StrategyType == api_v2.SamplingStrategyType_RATE_LIMITING {
 		// TODO OperationSamplingStrategy only supports probabilistic sampling
 		h.logger.Warn(
 			fmt.Sprintf(
@@ -303,20 +303,20 @@ func (h *strategyStore) parseOperationStrategy(
 	return s, true
 }
 
-func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {
+func (h *strategyStore) parseStrategy(strategy *strategy) *api_v2.SamplingStrategyResponse {
 	switch strategy.Type {
 	case samplerTypeProbabilistic:
-		return &sampling.SamplingStrategyResponse{
-			StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-			ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+		return &api_v2.SamplingStrategyResponse{
+			StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+			ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 				SamplingRate: strategy.Param,
 			},
 		}
 	case samplerTypeRateLimiting:
-		return &sampling.SamplingStrategyResponse{
-			StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
-			RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: int16(strategy.Param),
+		return &api_v2.SamplingStrategyResponse{
+			StrategyType: api_v2.SamplingStrategyType_RATE_LIMITING,
+			RateLimitingSampling: &api_v2.RateLimitingSamplingStrategy{
+				MaxTracesPerSecond: int32(strategy.Param),
 			},
 		}
 	default:
@@ -325,12 +325,12 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 	}
 }
 
-func deepCopy(s *sampling.SamplingStrategyResponse) *sampling.SamplingStrategyResponse {
+func deepCopy(s *api_v2.SamplingStrategyResponse) *api_v2.SamplingStrategyResponse {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	dec := gob.NewDecoder(&buf)
 	enc.Encode(*s)
-	var copy sampling.SamplingStrategyResponse
+	var copy api_v2.SamplingStrategyResponse
 	dec.Decode(&copy)
 	return &copy
 }
