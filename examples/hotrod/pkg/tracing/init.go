@@ -48,5 +48,6 @@ func Init(serviceName string, logger log.Factory) opentracing.Tracer {
 		)),
 	)
 	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
+	logger.Bg().Info("created OTEL->OT brige", zap.String("service-name", serviceName))
 	return otTracer
 }
