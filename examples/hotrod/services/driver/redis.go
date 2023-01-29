@@ -24,13 +24,13 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Redis is a simulator of remote Redis cache
@@ -40,9 +40,9 @@ type Redis struct {
 	errorSimulator
 }
 
-func newRedis(metricsFactory metrics.Factory, logger log.Factory) *Redis {
+func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Redis {
 	return &Redis{
-		tracer: tracing.Init("redis", metricsFactory, logger),
+		tracer: tracing.Init("redis", otelExporter, metricsFactory, logger),
 		logger: logger,
 	}
 }

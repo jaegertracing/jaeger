@@ -48,7 +48,7 @@ func assertMetrics(t *testing.T, actualMetrics map[string]int64, expectedMetrics
 		assert.EqualValues(t,
 			expected.Value,
 			actualMetrics[key],
-			"expected metric name: %s, tags: %+v", expected.Name, expected.Tags,
+			"expected metric name=%s tags: %+v; got: %+v", expected.Name, expected.Tags, actualMetrics,
 		)
 	}
 }

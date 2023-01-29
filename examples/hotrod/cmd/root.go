@@ -21,19 +21,20 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/uber/jaeger-lib/metrics"
-	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
-	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
+	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
+	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (
 	metricsBackend string
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
+	otelExporter   string // jaeger, otlp, stdout
 
 	fixDBConnDelay         time.Duration
 	fixDBConnDisableMutex  bool
@@ -66,6 +67,8 @@ func Execute() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
+	RootCmd.PersistentFlags().StringVarP(&otelExporter, "otel-exporter", "x", "jaeger", "OpenTelemetry exporter (jaeger|otlp|stdout)")
+
 	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average latency of MySQL DB query")
 	RootCmd.PersistentFlags().BoolVarP(&fixDBConnDisableMutex, "fix-disable-db-conn-mutex", "M", false, "Disables the mutex guarding db connection")
 	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")
@@ -92,10 +95,10 @@ func init() {
 func onInitialize() {
 	switch metricsBackend {
 	case "expvar":
-		metricsFactory = jexpvar.NewFactory(10) // 10 buckets for histograms
+		metricsFactory = expvar.NewFactory(10) // 10 buckets for histograms
 		logger.Info("Using expvar as metrics backend")
 	case "prometheus":
-		metricsFactory = jprom.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
+		metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 		logger.Info("Using Prometheus as metrics backend")
 	default:
 		logger.Fatal("unsupported metrics backend " + metricsBackend)
