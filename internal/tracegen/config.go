@@ -21,35 +21,37 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // Config describes the test scenario.
 type Config struct {
-	Workers  int
-	Traces   int
-	Marshal  bool
-	Debug    bool
-	Firehose bool
-	Pause    time.Duration
-	Duration time.Duration
-	Service  string
+	Workers       int
+	Traces        int
+	Marshal       bool
+	Debug         bool
+	Firehose      bool
+	Pause         time.Duration
+	Duration      time.Duration
+	Service       string
+	TraceExporter string
 }
 
 // Flags registers config flags.
 func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Workers, "workers", 1, "Number of workers (goroutines) to run")
 	fs.IntVar(&c.Traces, "traces", 1, "Number of traces to generate in each worker (ignored if duration is provided")
-	fs.BoolVar(&c.Marshal, "marshal", false, "Whether to marshal trace context via HTTP headers")
 	fs.BoolVar(&c.Debug, "debug", false, "Whether to set DEBUG flag on the spans to force sampling")
 	fs.BoolVar(&c.Firehose, "firehose", false, "Whether to set FIREHOSE flag on the spans to skip indexing")
 	fs.DurationVar(&c.Pause, "pause", time.Microsecond, "How long to pause before finishing trace")
 	fs.DurationVar(&c.Duration, "duration", 0, "For how long to run the test")
 	fs.StringVar(&c.Service, "service", "tracegen", "Service name to use")
+	fs.StringVar(&c.TraceExporter, "trace-exporter", "jaeger", "Trace exporter (jaeger|otlp|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
 }
 
 // Run executes the test scenario.
-func Run(c *Config, logger *zap.Logger) error {
+func Run(c *Config, tracer trace.Tracer, logger *zap.Logger) error {
 	if c.Duration > 0 {
 		c.Traces = 0
 	} else if c.Traces <= 0 {
@@ -62,6 +64,7 @@ func Run(c *Config, logger *zap.Logger) error {
 		wg.Add(1)
 		w := worker{
 			id:       i,
+			tracer:   tracer,
 			traces:   c.Traces,
 			marshal:  c.Marshal,
 			debug:    c.Debug,
