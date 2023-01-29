@@ -15,15 +15,19 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"net/http"
-	"time"
+	"fmt"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	jaegerConfig "github.com/uber/jaeger-client-go/config"
-	jaegerZap "github.com/uber/jaeger-client-go/log/zap"
-	"github.com/uber/jaeger-lib/metrics/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/tracegen"
@@ -37,38 +41,43 @@ func main() {
 	cfg.Flags(fs)
 	flag.Parse()
 
-	metricsFactory := prometheus.New()
-	traceCfg := &jaegerConfig.Configuration{
-		ServiceName: cfg.Service,
-		Sampler: &jaegerConfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		RPCMetrics: true,
-	}
-	traceCfg, err := traceCfg.FromEnv()
-	if err != nil {
-		logger.Fatal("failed to read tracer configuration", zap.Error(err))
-	}
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	tracer, tCloser, err := traceCfg.NewTracer(
-		jaegerConfig.Metrics(metricsFactory),
-		jaegerConfig.Logger(jaegerZap.NewLogger(logger)),
+	exp, err := createOtelExporter(cfg.TraceExporter)
+	if err != nil {
+		logger.Sugar().Fatalf("cannot create trace exporter %s: %w", cfg.TraceExporter, err)
+	}
+	logger.Sugar().Infof("using %s trace exporter", cfg.TraceExporter)
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(cfg.Service),
+		)),
 	)
-	if err != nil {
-		logger.Fatal("failed to create tracer", zap.Error(err))
+	defer tp.Shutdown(context.Background())
+
+	tracegen.Run(cfg, tp.Tracer("tracegen"), logger)
+}
+
+func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
+	var exporter sdktrace.SpanExporter
+	var err error
+	switch exporterType {
+	case "jaeger":
+		exporter, err = jaeger.New(
+			jaeger.WithCollectorEndpoint(),
+		)
+	case "otlp":
+		client := otlptracehttp.NewClient(
+			otlptracehttp.WithInsecure(),
+		)
+		exporter, err = otlptrace.New(context.Background(), client)
+	case "stdout":
+		exporter, err = stdouttrace.New()
+	default:
+		return nil, fmt.Errorf("unrecognized exporter type %s", exporterType)
 	}
-	defer tCloser.Close()
-
-	opentracing.InitGlobalTracer(tracer)
-	logger.Info("Initialized global tracer")
-
-	http.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(":2112", nil)
-	logger.Info("Initialized Prometheus endpoint at 2112")
-
-	tracegen.Run(cfg, logger)
-
-	logger.Info("Waiting 1.5sec for metrics to flush")
-	time.Sleep(3 * time.Second / 2)
+	return exporter, err
 }
