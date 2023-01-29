@@ -36,13 +36,13 @@ type Server struct {
 }
 
 // NewServer creates a new customer.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(hostPort string, otelExporter string, logger log.Factory) *Server {
 	return &Server{
 		hostPort: hostPort,
-		tracer:   tracer,
+		tracer:   tracing.Init("customer", otelExporter, logger),
 		logger:   logger,
 		database: newDatabase(
-			tracing.Init("mysql", logger),
+			tracing.Init("mysql", otelExporter, logger),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}

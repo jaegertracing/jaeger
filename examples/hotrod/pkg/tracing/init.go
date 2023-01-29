@@ -16,9 +16,18 @@
 package tracing
 
 import (
+	"context"
+	"fmt"
+	"sync"
+
 	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel"
 	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
@@ -27,21 +36,22 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )
 
+var once sync.Once
+
 // Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
 // to return an OpenTracing-compatible tracer.
-func Init(serviceName string, logger log.Factory) opentracing.Tracer {
+func Init(serviceName string, exporterType string, logger log.Factory) opentracing.Tracer {
+	once.Do(func() {
+		otel.SetTextMapPropagator(propagation.TraceContext{})
+	})
 
-	// Create the Jaeger exporter
-	exp, err := jaeger.New(
-		jaeger.WithCollectorEndpoint(
-			jaeger.WithEndpoint("http://localhost:14268/api/traces"),
-		),
-	)
+	exp, err := createOtelExporter(exporterType)
 	if err != nil {
-		logger.Bg().Fatal("cannot create Jaeger exporter", zap.Error(err))
+		logger.Bg().Fatal("cannot create exporter", zap.String("exporterType", exporterType), zap.Error(err))
 	}
+
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
+		sdktrace.WithBatcher(exp, sdktrace.WithMaxExportBatchSize(1)),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
 			semconv.ServiceNameKey.String(serviceName),
@@ -50,4 +60,25 @@ func Init(serviceName string, logger log.Factory) opentracing.Tracer {
 	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
 	logger.Bg().Info("created OTEL->OT brige", zap.String("service-name", serviceName))
 	return otTracer
+}
+
+func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
+	var exporter sdktrace.SpanExporter
+	var err error
+	switch exporterType {
+	case "jaeger":
+		exporter, err = jaeger.New(
+			jaeger.WithCollectorEndpoint(),
+		)
+	case "otlp":
+		client := otlptracehttp.NewClient(
+			otlptracehttp.WithInsecure(),
+		)
+		exporter, err = otlptrace.New(context.Background(), client)
+	case "stdout":
+		exporter, err = stdouttrace.New()
+	default:
+		err = fmt.Errorf("unrecognized exporter type %s", exporterType)
+	}
+	return exporter, err
 }

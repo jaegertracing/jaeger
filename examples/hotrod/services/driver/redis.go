@@ -39,9 +39,9 @@ type Redis struct {
 	errorSimulator
 }
 
-func newRedis(logger log.Factory) *Redis {
+func newRedis(otelExporter string, logger log.Factory) *Redis {
 	return &Redis{
-		tracer: tracing.Init("redis", logger),
+		tracer: tracing.Init("redis", otelExporter, logger),
 		logger: logger,
 	}
 }

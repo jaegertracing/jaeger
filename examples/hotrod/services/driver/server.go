@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 )
 
 // Server implements jaeger-demo-frontend service
@@ -39,7 +40,8 @@ type Server struct {
 var _ DriverServiceServer = (*Server)(nil)
 
 // NewServer creates a new driver.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(hostPort string, otelExporter string, logger log.Factory) *Server {
+	tracer := tracing.Init("driver", otelExporter, logger)
 	server := grpc.NewServer(grpc.UnaryInterceptor(
 		otgrpc.OpenTracingServerInterceptor(tracer)),
 		grpc.StreamInterceptor(
@@ -49,7 +51,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *
 		tracer:   tracer,
 		logger:   logger,
 		server:   server,
-		redis:    newRedis(logger),
+		redis:    newRedis(otelExporter, logger),
 	}
 }
 

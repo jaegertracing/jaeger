@@ -34,6 +34,7 @@ var (
 	metricsBackend string
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
+	otelExporter   string // jaeger, otlp, stdout
 
 	fixDBConnDelay         time.Duration
 	fixDBConnDisableMutex  bool
@@ -66,6 +67,8 @@ func Execute() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
+	RootCmd.PersistentFlags().StringVarP(&otelExporter, "otel-exporter", "x", "jaeger", "OpenTelemetry exporter (jaeger|otlp|stdout)")
+
 	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average latency of MySQL DB query")
 	RootCmd.PersistentFlags().BoolVarP(&fixDBConnDisableMutex, "fix-disable-db-conn-mutex", "M", false, "Disables the mutex guarding db connection")
 	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")

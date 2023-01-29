@@ -23,7 +23,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
-	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/driver"
 )
 
@@ -37,7 +36,7 @@ var driverCmd = &cobra.Command{
 		logger := log.NewFactory(zapLogger)
 		server := driver.NewServer(
 			net.JoinHostPort("0.0.0.0", strconv.Itoa(driverPort)),
-			tracing.Init("driver", logger),
+			otelExporter,
 			logger,
 		)
 		return logError(zapLogger, server.Run())
