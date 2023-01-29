@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
-
 	"github.com/opentracing/opentracing-go/ext"
 
 	u "github.com/jaegertracing/jaeger/internal/metricstest"
