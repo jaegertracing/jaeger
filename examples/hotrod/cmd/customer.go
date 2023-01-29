@@ -37,6 +37,7 @@ var customerCmd = &cobra.Command{
 		server := customer.NewServer(
 			net.JoinHostPort("0.0.0.0", strconv.Itoa(customerPort)),
 			otelExporter,
+			metricsFactory,
 			logger,
 		)
 		return logError(zapLogger, server.Run())

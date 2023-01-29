@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Server implements Customer service
@@ -36,13 +37,13 @@ type Server struct {
 }
 
 // NewServer creates a new customer.Server
-func NewServer(hostPort string, otelExporter string, logger log.Factory) *Server {
+func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
 	return &Server{
 		hostPort: hostPort,
-		tracer:   tracing.Init("customer", otelExporter, logger),
+		tracer:   tracing.Init("customer", otelExporter, metricsFactory, logger),
 		logger:   logger,
 		database: newDatabase(
-			tracing.Init("mysql", otelExporter, logger),
+			tracing.Init("mysql", otelExporter, metricsFactory, logger),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}

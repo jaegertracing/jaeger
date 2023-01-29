@@ -34,13 +34,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing/rpcmetrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var once sync.Once
 
 // Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
 // to return an OpenTracing-compatible tracer.
-func Init(serviceName string, exporterType string, logger log.Factory) opentracing.Tracer {
+func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
 	once.Do(func() {
 		otel.SetTextMapPropagator(propagation.TraceContext{})
 	})
@@ -49,9 +51,13 @@ func Init(serviceName string, exporterType string, logger log.Factory) opentraci
 	if err != nil {
 		logger.Bg().Fatal("cannot create exporter", zap.String("exporterType", exporterType), zap.Error(err))
 	}
+	logger.Bg().Info("using " + exporterType + " trace exporter")
+
+	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp, sdktrace.WithMaxExportBatchSize(1)),
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithSpanProcessor(rpcmetricsObserver),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
 			semconv.ServiceNameKey.String(serviceName),
@@ -78,7 +84,7 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	case "stdout":
 		exporter, err = stdouttrace.New()
 	default:
-		err = fmt.Errorf("unrecognized exporter type %s", exporterType)
+		return nil, fmt.Errorf("unrecognized exporter type %s", exporterType)
 	}
 	return exporter, err
 }
