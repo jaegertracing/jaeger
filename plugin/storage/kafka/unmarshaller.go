@@ -16,6 +16,7 @@ package kafka
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -69,7 +70,7 @@ func NewZipkinThriftUnmarshaller() *ZipkinThriftUnmarshaller {
 
 // Unmarshal decodes a json byte array to a span
 func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
-	tSpans, err := zipkin.DeserializeThrift(msg)
+	tSpans, err := zipkin.DeserializeThrift(context.Background(), msg)
 	if err != nil {
 		return nil, err
 	}
