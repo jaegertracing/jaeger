@@ -393,7 +393,7 @@ draft-release:
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.14.0
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.48.0
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 	go install mvdan.cc/gofumpt@latest
 
 .PHONY: install-ci

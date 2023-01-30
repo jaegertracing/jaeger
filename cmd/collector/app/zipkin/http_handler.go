@@ -92,7 +92,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 	var tSpans []*zipkincore.Span
 	switch contentType {
 	case "application/x-thrift":
-		tSpans, err = zipkin.DeserializeThrift(bodyBytes)
+		tSpans, err = zipkin.DeserializeThrift(r.Context(), bodyBytes)
 	case "application/json":
 		tSpans, err = zipkindeser.DeserializeJSON(bodyBytes)
 	default:
