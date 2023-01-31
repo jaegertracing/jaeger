@@ -7,6 +7,9 @@ next release
 
 #### ⛔ Breaking Changes
 
+* HotROD application is switched from Jaeger SDK to OpenTelemetry SDK in [#4187](https://github.com/jaegertracing/jaeger/pull/4187). Some environment variables previously accepted are no longer recognized. See PR for details.
+* `tracegen` utility is switched from Jaeger SDK to OpenTelemetry SDK in [#4189](https://github.com/jaegertracing/jaeger/pull/4189). Some environment variables previously accepted are no longer recognized. See PR for details.
+
 #### New Features
 
 #### Bug fixes, Minor Improvements
@@ -40,7 +43,7 @@ next release
 * Catch panic from Prometheus client on invalid label strings ([@yurishkuro](https://github.com/yurishkuro) in [#4051](https://github.com/jaegertracing/jaeger/pull/4051))
 * Span tags of type int64 may lose precision ([@shubbham1215](https://github.com/shubbham1215) in [#4034](https://github.com/jaegertracing/jaeger/pull/4034))
 
-### UI 
+### UI
 
 * UI pinned to version [1.27.3](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1273-2022-12-07).
 
@@ -67,7 +70,7 @@ next release
 * Add grafana container to monitor docker-compose ([@albertteoh](https://github.com/albertteoh) in [#3955](https://github.com/jaegertracing/jaeger/pull/3955))
 * Expose storage integration helpers as go pkg ([@arajkumar](https://github.com/arajkumar) in [#3944](https://github.com/jaegertracing/jaeger/pull/3944))
 
-### UI 
+### UI
 
 * UI pinned to version [1.27.2](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1272-2022-11-01).
 

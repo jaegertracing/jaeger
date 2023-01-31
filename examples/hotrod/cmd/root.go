@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
+	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -88,6 +89,7 @@ func init() {
 		zap.AddStacktrace(zapcore.FatalLevel),
 		zap.AddCallerSkip(1),
 	)
+	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 	cobra.OnInitialize(onInitialize)
 }
 
