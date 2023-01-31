@@ -30,6 +30,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/tracegen"
 )
 
@@ -42,6 +43,7 @@ func main() {
 	flag.Parse()
 
 	otel.SetTextMapPropagator(propagation.TraceContext{})
+	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
 	exp, err := createOtelExporter(cfg.TraceExporter)
 	if err != nil {
