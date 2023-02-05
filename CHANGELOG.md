@@ -7,14 +7,43 @@ next release
 
 #### ⛔ Breaking Changes
 
-* HotROD application is switched from Jaeger SDK to OpenTelemetry SDK in [#4187](https://github.com/jaegertracing/jaeger/pull/4187). Some environment variables previously accepted are no longer recognized. See PR for details.
-* `tracegen` utility is switched from Jaeger SDK to OpenTelemetry SDK in [#4189](https://github.com/jaegertracing/jaeger/pull/4189). Some environment variables previously accepted are no longer recognized. See PR for details.
-
 #### New Features
 
 #### Bug fixes, Minor Improvements
 
 ### UI Changes
+
+1.42.0 (2023-02-05)
+-------------------
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* HotROD 🚗 application is switched from Jaeger SDK to OpenTelemetry SDK ([@yurishkuro](https://github.com/yurishkuro) in [#4187](https://github.com/jaegertracing/jaeger/pull/4187)). Some environment variables previously accepted are no longer recognized. See PR for details.
+  * Map old env vars from Jaeger SDK to OTel SDK vars ([@yurishkuro](https://github.com/yurishkuro) in [#4200](https://github.com/jaegertracing/jaeger/pull/4200))
+  * Use patched version of github.com/opentracing-contrib/go-grpc in HotROD ([@yurishkuro](https://github.com/yurishkuro) in [#4210](https://github.com/jaegertracing/jaeger/pull/4210))
+* `tracegen` utility is switched from Jaeger SDK to OpenTelemetry SDK ([@yurishkuro](https://github.com/yurishkuro) in [#4189](https://github.com/jaegertracing/jaeger/pull/4189)). Some environment variables previously accepted are no longer recognized. See PR for details.
+
+#### New Features
+
+* Add CLI flags for controlling HTTP server timeouts ([@yurishkuro](https://github.com/yurishkuro) in [#4167](https://github.com/jaegertracing/jaeger/pull/4167))
+* Watch directories for certificate hot-reload ([@tsaarni](https://github.com/tsaarni) in [#4159](https://github.com/jaegertracing/jaeger/pull/4159))
+* Support tenant header propagation in query service and grpc-plugin ([@pavolloffay](https://github.com/pavolloffay) in [#4151](https://github.com/jaegertracing/jaeger/pull/4151))
+
+
+#### Bug fixes, Minor Improvements
+
+* Replace Thrift-gen with Proto-gen types for sampling strategies ([@yurishkuro](https://github.com/yurishkuro) in [#4181](https://github.com/jaegertracing/jaeger/pull/4181))
+* Use Protobuf-based JSON output for sampling strategies ([@yurishkuro](https://github.com/yurishkuro) in [#4173](https://github.com/jaegertracing/jaeger/pull/4173))
+* [tests]: Use `t.Setenv` to set env vars in tests ([@Juneezee](https://github.com/Juneezee) in [#4169](https://github.com/jaegertracing/jaeger/pull/4169))
+* ci(lint): bump golangci-lint to v1.50.1 ([@mmorel-35](https://github.com/mmorel-35) in [#4195](https://github.com/jaegertracing/jaeger/pull/4195))
+* Convert token propagation integration test to plain unit test ([@yurishkuro](https://github.com/yurishkuro) in [#4162](https://github.com/jaegertracing/jaeger/pull/4162))
+* Refactor scripts/es-integration-test.sh ([@yurishkuro](https://github.com/yurishkuro) in [#4161](https://github.com/jaegertracing/jaeger/pull/4161))
+* Fix "index out of range" when receiving a dual client/server Zipkin span ([@yurishkuro](https://github.com/yurishkuro) in [#4160](https://github.com/jaegertracing/jaeger/pull/4160))
+
+### UI Changes
+
+* No changes.
 
 1.41.0 (2023-01-04)
 -------------------
