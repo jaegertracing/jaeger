@@ -32,7 +32,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.70.0
-	github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df
+	github.com/opentracing-contrib/go-grpc v0.0.0-20230205024533-5ced129e5996
 	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.14.0
