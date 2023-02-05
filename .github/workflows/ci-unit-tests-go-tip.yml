@@ -1,0 +1,37 @@
+name: Unit Tests on Go Tip
+
+on:
+  push:
+    branches: [main]
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  unit-tests-go-tip:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@18bf8ad2ca49c14cbb28b91346d626ccfb00c518
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+
+    # From https://github.com/actions/setup-go/issues/21#issuecomment-997208686
+    - name: Install Go tip
+      run: |
+        curl -sL https://storage.googleapis.com/go-build-snap/go/linux-amd64/$(git ls-remote https://github.com/golang/go.git HEAD | awk '{print $1;}').tar.gz -o gotip.tar.gz
+        ls -lah gotip.tar.gz
+        mkdir -p ~/sdk/gotip
+        tar -C ~/sdk/gotip -xzf gotip.tar.gz
+        ~/sdk/gotip/bin/go version
+        echo "GOROOT=$HOME/sdk/gotip" >> $GITHUB_ENV
+        echo "PATH=$HOME/go/bin:$HOME/sdk/gotip/bin/:$PATH" >> $GITHUB_ENV
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Run unit tests
+      run: make test-ci
