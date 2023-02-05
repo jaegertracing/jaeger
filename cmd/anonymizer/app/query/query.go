@@ -80,7 +80,7 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 		if err != nil {
 			return nil, unwrapNotFoundErr(err)
 		}
-		spans = append(spans, received.Spans...) 
+		spans = append(spans, received.Spans...)
 	}
 
 	return spans, nil
