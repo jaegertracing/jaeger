@@ -172,8 +172,9 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 	var refs []dbmodel.SpanRef
 	var tags []dbmodel.KeyValue
 	var logs []dbmodel.Log
+	var warnings []string
 	retMe := &model.Trace{}
-	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess) {
+	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess, &warnings) {
 		dbSpan := dbmodel.Span{
 			TraceID:       traceIDFromSpan,
 			SpanID:        spanID,
@@ -186,6 +187,7 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 			Logs:          logs,
 			Refs:          refs,
 			Process:       dbProcess,
+			Warnings:      warnings,
 			ServiceName:   dbProcess.ServiceName,
 		}
 		span, err := dbmodel.ToDomain(&dbSpan)

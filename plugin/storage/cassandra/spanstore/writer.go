@@ -36,8 +36,8 @@ const (
 	insertSpan = `
 		INSERT
 		INTO traces(trace_id, span_id, span_hash, parent_id, operation_name, flags,
-				    start_time, duration, tags, logs, refs, process)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				    start_time, duration, tags, logs, refs, process, warnings)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	serviceNameIndex = `
 		INSERT
@@ -168,6 +168,7 @@ func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
 		ds.Logs,
 		ds.Refs,
 		ds.Process,
+		ds.Warnings,
 	)
 	if err := s.writerMetrics.traces.Exec(mainQuery, s.logger); err != nil {
 		return s.logError(ds, err, "Failed to insert span", s.logger)

@@ -49,6 +49,7 @@ type Span struct {
 	Logs          []Log
 	Refs          []SpanRef
 	Process       Process
+	Warnings      []string
 	ServiceName   string
 	SpanHash      int64
 }
