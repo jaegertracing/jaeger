@@ -16,20 +16,23 @@
 package tracing
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/propagation"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )
 
 // NewServeMux creates a new TracedServeMux.
-func NewServeMux(tracer opentracing.Tracer) *TracedServeMux {
+func NewServeMux(tracer opentracing.Tracer, logger log.Factory) *TracedServeMux {
 	return &TracedServeMux{
 		mux:    http.NewServeMux(),
 		tracer: tracer,
+		logger: logger,
 	}
 }
 
@@ -37,10 +40,12 @@ func NewServeMux(tracer opentracing.Tracer) *TracedServeMux {
 type TracedServeMux struct {
 	mux    *http.ServeMux
 	tracer opentracing.Tracer
+	logger log.Factory
 }
 
 // Handle implements http.ServeMux#Handle
 func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
+	tm.logger.Bg().Debug("registering traced handler", zap.String("endpoint", pattern))
 	middleware := nethttp.Middleware(
 		tm.tracer,
 		handler,
@@ -50,8 +55,9 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 		nethttp.MWSpanObserver(func(span opentracing.Span, r *http.Request) {
 			bag := baggage.FromContext(r.Context())
 			for _, m := range bag.Members() {
-				fmt.Printf("copying baggage to span: %s=%s\n", m.Key(), m.Value())
-				span.SetBaggageItem(m.Key(), m.Value())
+				if b := span.BaggageItem(m.Key()); b == "" {
+					span.SetBaggageItem(m.Key(), m.Value())
+				}
 			}
 		}),
 	)

@@ -59,7 +59,7 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) createServeMux() http.Handler {
-	mux := tracing.NewServeMux(s.tracer)
+	mux := tracing.NewServeMux(s.tracer, s.logger)
 	mux.Handle("/route", http.HandlerFunc(s.route))
 	mux.Handle("/debug/vars", expvar.Handler()) // expvar
 	mux.Handle("/metrics", promhttp.Handler())  // Prometheus

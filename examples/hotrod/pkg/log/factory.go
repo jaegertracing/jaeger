@@ -37,7 +37,7 @@ func NewFactory(logger *zap.Logger) Factory {
 
 // Bg creates a context-unaware logger.
 func (b Factory) Bg() Logger {
-	return logger(b)
+	return wrapper(b)
 }
 
 // For returns a context-aware Logger. If the context

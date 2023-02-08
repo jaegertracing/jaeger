@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"net/url"
 	"sync"
 	"time"
 
@@ -78,8 +77,7 @@ func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, erro
 	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", customer))
 
 	if span := opentracing.SpanFromContext(ctx); span != nil {
-		escaped := url.QueryEscape(customer.Name)
-		span.SetBaggageItem("customer", escaped)
+		span.SetBaggageItem("customer", customer.Name)
 	}
 
 	drivers, err := eta.driver.FindNearest(ctx, customer.Location)
