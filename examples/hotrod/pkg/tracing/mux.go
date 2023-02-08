@@ -52,6 +52,10 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return "HTTP " + r.Method + " " + pattern
 		}),
+		// Jaeger SDK was able to accept `jaeger-baggage` header even for requests without am active trace.
+		// OTEL Bridge does not support that, so we use Baggage propagator to manually extract the baggage
+		// into Context (in otelBaggageExtractor handler below), and once the Bridge creates a Span,
+		// we use this SpanObserver to copy OTEL baggage from Context into the Span.
 		nethttp.MWSpanObserver(func(span opentracing.Span, r *http.Request) {
 			bag := baggage.FromContext(r.Context())
 			for _, m := range bag.Members() {
@@ -64,11 +68,12 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	tm.mux.Handle(pattern, otelBaggageExtractor(middleware))
 }
 
-// ServeHTTP implements http.ServeMux#ServeHTTP
+// ServeHTTP implements http.ServeMux#ServeHTTP.
 func (tm *TracedServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tm.mux.ServeHTTP(w, r)
 }
 
+// Used with nethttp.MWSpanObserver above.
 func otelBaggageExtractor(next http.Handler) http.Handler {
 	propagator := propagation.Baggage{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
