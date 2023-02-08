@@ -28,24 +28,27 @@ import (
 )
 
 // NewServeMux creates a new TracedServeMux.
-func NewServeMux(tracer opentracing.Tracer, logger log.Factory) *TracedServeMux {
+func NewServeMux(copyBaggage bool, tracer opentracing.Tracer, logger log.Factory) *TracedServeMux {
 	return &TracedServeMux{
-		mux:    http.NewServeMux(),
-		tracer: tracer,
-		logger: logger,
+		mux:         http.NewServeMux(),
+		copyBaggage: copyBaggage,
+		tracer:      tracer,
+		logger:      logger,
 	}
 }
 
 // TracedServeMux is a wrapper around http.ServeMux that instruments handlers for tracing.
 type TracedServeMux struct {
-	mux    *http.ServeMux
-	tracer opentracing.Tracer
-	logger log.Factory
+	mux         *http.ServeMux
+	copyBaggage bool
+	tracer      opentracing.Tracer
+	logger      log.Factory
 }
 
-// Handle implements http.ServeMux#Handle
+// Handle implements http.ServeMux#Handle, which is used to register new handler.
 func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	tm.logger.Bg().Debug("registering traced handler", zap.String("endpoint", pattern))
+
 	middleware := nethttp.Middleware(
 		tm.tracer,
 		handler,
@@ -57,6 +60,9 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 		// into Context (in otelBaggageExtractor handler below), and once the Bridge creates a Span,
 		// we use this SpanObserver to copy OTEL baggage from Context into the Span.
 		nethttp.MWSpanObserver(func(span opentracing.Span, r *http.Request) {
+			if !tm.copyBaggage {
+				return
+			}
 			bag := baggage.FromContext(r.Context())
 			for _, m := range bag.Members() {
 				if b := span.BaggageItem(m.Key()); b == "" {
