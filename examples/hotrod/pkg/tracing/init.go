@@ -44,7 +44,11 @@ var once sync.Once
 // to return an OpenTracing-compatible tracer.
 func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
 	once.Do(func() {
-		otel.SetTextMapPropagator(propagation.TraceContext{})
+		otel.SetTextMapPropagator(
+			propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+			))
 	})
 
 	exp, err := createOtelExporter(exporterType)

@@ -69,7 +69,7 @@ $(".hotrod-button").click(function(evt) {
   var freshCar = $($("#hotrod-log").prepend('<div class="fresh-car"><em>Dispatching a car...[req: '+requestID+']</em></div>').children()[0]);
   var customer = evt.target.dataset.customer;
   var headers = {
-      'jaeger-baggage': 'session=' + clientUUID + ', request=' + requestID
+      'baggage': 'session=' + clientUUID + ', request=' + requestID
   };
   console.log(headers);
   var before = Date.now();

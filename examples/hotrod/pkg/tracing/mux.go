@@ -16,10 +16,13 @@
 package tracing
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // NewServeMux creates a new TracedServeMux.
@@ -43,11 +46,29 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 		handler,
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return "HTTP " + r.Method + " " + pattern
-		}))
-	tm.mux.Handle(pattern, middleware)
+		}),
+		nethttp.MWSpanObserver(func(span opentracing.Span, r *http.Request) {
+			bag := baggage.FromContext(r.Context())
+			for _, m := range bag.Members() {
+				fmt.Printf("copying baggage to span: %s=%s\n", m.Key(), m.Value())
+				span.SetBaggageItem(m.Key(), m.Value())
+			}
+		}),
+	)
+	tm.mux.Handle(pattern, otelBaggageExtractor(middleware))
 }
 
 // ServeHTTP implements http.ServeMux#ServeHTTP
 func (tm *TracedServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tm.mux.ServeHTTP(w, r)
+}
+
+func otelBaggageExtractor(next http.Handler) http.Handler {
+	propagator := propagation.Baggage{}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		carrier := propagation.HeaderCarrier(r.Header)
+		ctx := propagator.Extract(r.Context(), carrier)
+		r = r.WithContext(ctx)
+		next.ServeHTTP(w, r)
+	})
 }
