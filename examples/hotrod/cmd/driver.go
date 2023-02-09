@@ -46,5 +46,4 @@ var driverCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(driverCmd)
-
 }

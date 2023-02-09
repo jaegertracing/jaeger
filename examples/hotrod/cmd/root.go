@@ -36,6 +36,7 @@ var (
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 	otelExporter   string // jaeger, otlp, stdout
+	verbose        bool
 
 	fixDBConnDelay         time.Duration
 	fixDBConnDisableMutex  bool
@@ -84,17 +85,28 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&basepath, "basepath", "b", "", `Basepath for frontend service(default "/")`)
 	RootCmd.PersistentFlags().StringVarP(&jaegerUI, "jaeger-ui", "j", "http://localhost:16686", "Address of Jaeger UI to create [find trace] links")
 
-	rand.Seed(int64(time.Now().Nanosecond()))
-	logger, _ = zap.NewDevelopment(
-		zap.AddStacktrace(zapcore.FatalLevel),
-		zap.AddCallerSkip(1),
-	)
-	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
+	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enables debug logging")
+
 	cobra.OnInitialize(onInitialize)
 }
 
 // onInitialize is called before the command is executed.
 func onInitialize() {
+	rand.Seed(int64(time.Now().Nanosecond()))
+
+	zapOptions := []zap.Option{
+		zap.AddStacktrace(zapcore.FatalLevel),
+		zap.AddCallerSkip(1),
+	}
+	if !verbose {
+		zapOptions = append(zapOptions,
+			zap.IncreaseLevel(zap.LevelEnablerFunc(func(l zapcore.Level) bool { return l != zapcore.DebugLevel })),
+		)
+	}
+	logger, _ = zap.NewDevelopment(zapOptions...)
+
+	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
+
 	switch metricsBackend {
 	case "expvar":
 		metricsFactory = expvar.NewFactory(10) // 10 buckets for histograms

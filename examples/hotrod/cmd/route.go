@@ -46,5 +46,4 @@ var routeCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(routeCmd)
-
 }

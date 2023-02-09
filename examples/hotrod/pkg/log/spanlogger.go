@@ -31,6 +31,11 @@ type spanLogger struct {
 	spanFields []zapcore.Field
 }
 
+func (sl spanLogger) Debug(msg string, fields ...zapcore.Field) {
+	sl.logToSpan("Debug", msg, fields...)
+	sl.logger.Debug(msg, append(sl.spanFields, fields...)...)
+}
+
 func (sl spanLogger) Info(msg string, fields ...zapcore.Field) {
 	sl.logToSpan("info", msg, fields...)
 	sl.logger.Info(msg, append(sl.spanFields, fields...)...)
