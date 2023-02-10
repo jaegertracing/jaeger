@@ -54,7 +54,6 @@ func (c *Client) Get(ctx context.Context, customerID string) (*Customer, error) 
 	c.logger.For(ctx).Info("Getting customer", zap.String("customer_id", customerID))
 
 	url := fmt.Sprintf("http://"+c.hostPort+"/customer?customer=%s", customerID)
-	fmt.Println(url)
 	var customer Customer
 	if err := c.client.GetJSON(ctx, "/customer", url, &customer); err != nil {
 		return nil, err

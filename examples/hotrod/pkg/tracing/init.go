@@ -44,14 +44,18 @@ var once sync.Once
 // to return an OpenTracing-compatible tracer.
 func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
 	once.Do(func() {
-		otel.SetTextMapPropagator(propagation.TraceContext{})
+		otel.SetTextMapPropagator(
+			propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+			))
 	})
 
 	exp, err := createOtelExporter(exporterType)
 	if err != nil {
 		logger.Bg().Fatal("cannot create exporter", zap.String("exporterType", exporterType), zap.Error(err))
 	}
-	logger.Bg().Info("using " + exporterType + " trace exporter")
+	logger.Bg().Debug("using " + exporterType + " trace exporter")
 
 	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
 
@@ -64,7 +68,7 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 		)),
 	)
 	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
-	logger.Bg().Info("created OTEL->OT brige", zap.String("service-name", serviceName))
+	logger.Bg().Debug("created OTEL->OT brige", zap.String("service-name", serviceName))
 	return otTracer
 }
 
