@@ -20,6 +20,7 @@ import "github.com/fsnotify/fsnotify"
 // Primarily used for mocking the fsnotify lib.
 type Watcher interface {
 	Add(name string) error
+	Close() error
 	Events() chan fsnotify.Event
 	Errors() chan error
 }
@@ -32,6 +33,11 @@ type fsnotifyWatcherWrapper struct {
 // Add adds the filename to watch.
 func (f *fsnotifyWatcherWrapper) Add(name string) error {
 	return f.fsnotifyWatcher.Add(name)
+}
+
+// Close closes the watcher.
+func (f *fsnotifyWatcherWrapper) Close() error {
+	return f.fsnotifyWatcher.Close()
 }
 
 // Events returns the fsnotify.Watcher's Events chan.

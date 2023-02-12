@@ -23,12 +23,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 )
 
 const (
@@ -340,7 +341,7 @@ func createTimestampDir(t *testing.T, dir string, ca, cert, key string) {
 }
 
 func TestAddCertsToWatch_err(t *testing.T) {
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := fswatcher.NewWatcher()
 	require.NoError(t, err)
 	defer watcher.Close()
 	w := &certWatcher{
