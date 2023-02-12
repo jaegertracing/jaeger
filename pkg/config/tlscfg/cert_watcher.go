@@ -27,6 +27,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 )
 
 // certWatcher watches filesystem changes on certificates supplied via Options
@@ -37,7 +39,7 @@ type certWatcher struct {
 	mu           sync.RWMutex
 	opts         Options
 	logger       *zap.Logger
-	watcher      *fsnotify.Watcher
+	watcher      fswatcher.Watcher
 	cert         *tls.Certificate
 	caHash       string
 	clientCAHash string
@@ -58,7 +60,7 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		cert = &c
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := fswatcher.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +150,7 @@ func (w *certWatcher) setupWatchedPaths() error {
 func (w *certWatcher) watchChangesLoop(rootCAs, clientCAs *x509.CertPool) {
 	for {
 		select {
-		case event, ok := <-w.watcher.Events:
+		case event, ok := <-w.watcher.Events():
 			if !ok {
 				return // channel closed means the watcher is closed
 			}
@@ -158,7 +160,7 @@ func (w *certWatcher) watchChangesLoop(rootCAs, clientCAs *x509.CertPool) {
 				event.Op&fsnotify.Remove == fsnotify.Remove {
 				w.attemptReload(rootCAs, clientCAs)
 			}
-		case err, ok := <-w.watcher.Errors:
+		case err, ok := <-w.watcher.Errors():
 			if !ok {
 				return // channel closed means the watcher is closed
 			}
