@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"net"
 	"net/http"
 	"os"
@@ -26,6 +25,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/opentracing/opentracing-go"
 
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
@@ -287,7 +288,6 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 	}
 
 	return transport, nil
-
 }
 
 func loadToken(path string) (string, error) {

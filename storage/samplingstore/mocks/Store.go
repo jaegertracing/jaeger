@@ -39,6 +39,7 @@ func (_m *Store) InsertThroughput(throughput []*model.Throughput) error {
 
 	return r0
 }
+
 func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
 	ret := _m.Called(hostname, probabilities, qps)
 
@@ -51,6 +52,7 @@ func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.
 
 	return r0
 }
+
 func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Throughput, error) {
 	ret := _m.Called(start, end)
 
@@ -72,6 +74,7 @@ func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Through
 
 	return r0, r1
 }
+
 func (_m *Store) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ret := _m.Called()
 

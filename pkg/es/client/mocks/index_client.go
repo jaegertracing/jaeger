@@ -28,26 +28,32 @@ func (c *MockIndexAPI) GetJaegerIndices(prefix string) ([]client.Index, error) {
 	ret := c.Called(prefix)
 	return ret.Get(0).([]client.Index), ret.Error(1)
 }
+
 func (c *MockIndexAPI) DeleteIndices(indices []client.Index) error {
 	ret := c.Called(indices)
 	return ret.Error(0)
 }
+
 func (c *MockIndexAPI) CreateIndex(index string) error {
 	ret := c.Called(index)
 	return ret.Error(0)
 }
+
 func (c *MockIndexAPI) CreateAlias(aliases []client.Alias) error {
 	ret := c.Called(aliases)
 	return ret.Error(0)
 }
+
 func (c *MockIndexAPI) DeleteAlias(aliases []client.Alias) error {
 	ret := c.Called(aliases)
 	return ret.Error(0)
 }
+
 func (c *MockIndexAPI) CreateTemplate(template, name string) error {
 	ret := c.Called(template, name)
 	return ret.Error(0)
 }
+
 func (c *MockIndexAPI) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
 	ret := c.Called(rolloverTarget, conditions)
 	return ret.Error(0)

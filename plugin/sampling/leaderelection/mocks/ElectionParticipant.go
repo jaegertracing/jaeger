@@ -32,6 +32,7 @@ func (_m *ElectionParticipant) IsLeader() bool {
 
 	return r0
 }
+
 func (_m *ElectionParticipant) Start() error {
 	ret := _m.Called()
 
