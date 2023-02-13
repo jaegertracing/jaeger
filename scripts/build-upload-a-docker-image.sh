@@ -68,4 +68,6 @@ docker buildx build --output "${PUSHTAG}" \
 	${IMAGE_TAGS} \
 	${dir_arg}
 
+bash update-dockerhub-description.sh ${IMAGE_TAGS} ${dir_arg}
+
 echo "Finished building${upload_flag} ${component_name} =============="

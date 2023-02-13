@@ -2,29 +2,20 @@
 
 set -euxf -o pipefail
 
-if [ "${WORKFLOW}" == "ci-docker-build.yml" ]; then
-  binary="docker"
-elif [ "${WORKFLOW}" == "ci-all-in-one-build.yml" ]; then
-  binary="all-in-one"
-else
-  echo "Error: unknown workflow ${WORKFLOW}"
-  exit 1
-fi
+image_name="$1"
+readme_path="$2"
 
-# Check for a more specific README file
-binary_readme_path="./cmd/${binary}/README.md"
-if [ -f "$binary_readme_path" ]; then
-  readme_path="$binary_readme_path"
-else
-  readme_path="./README.md"
-fi
-
-image_name="$binary"
 dockerhub_repository="jaegertracing/$image_name"
 dockerhub_url="https://hub.docker.com/v2/repositories/$dockerhub_repository/"
 
 quay_repository="quay.io/jaegertracing/$image_name"
 quay_url="https://quay.io/api/v1/repository/$quay_repository/description"
+
+if [ ! -f "$readme_path" ]; then
+  echo "Warning: the dedicated README file for Docker image $image_name was not found at path $readme_path"
+  echo "It is recommended to have a dedicated README file for each Docker image"
+  exit 1
+fi
 
 tempfile=$(mktemp)
 cat $readme_path > $tempfile
