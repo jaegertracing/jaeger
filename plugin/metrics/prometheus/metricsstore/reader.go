@@ -18,13 +18,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/api"
@@ -252,9 +254,9 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 			return nil, err
 		}
 	}
-
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
 	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
+	var transport http.RoundTripper
 	httpTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -264,8 +266,34 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     ctlsConfig,
 	}
-	return bearertoken.RoundTripper{
-		Transport:       httpTransport,
-		OverrideFromCtx: true,
-	}, nil
+
+	token := ""
+	if c.TokenFilePath != "" {
+		if c.AllowTokenFromContext {
+			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
+		}
+		tokenFromFile, err := loadToken(c.TokenFilePath)
+		if err != nil {
+			return nil, err
+		}
+		token = tokenFromFile
+	}
+	if token != "" || c.AllowTokenFromContext {
+		transport = bearertoken.RoundTripper{
+			Transport:       httpTransport,
+			OverrideFromCtx: c.AllowTokenFromContext,
+			StaticToken:     token,
+		}
+	}
+
+	return transport, nil
+
+}
+
+func loadToken(path string) (string, error) {
+	b, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }
