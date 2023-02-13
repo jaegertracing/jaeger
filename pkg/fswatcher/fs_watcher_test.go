@@ -32,6 +32,9 @@ func TestFsWatcher(t *testing.T) {
 	err = w.Add("../../cmd/query/app/fixture/ui-config.json")
 	assert.NoError(t, err)
 
+	err = w.Close()
+	assert.NoError(t, err)
+
 	events := w.Events()
 	assert.NotZero(t, events)
 
