@@ -4,7 +4,8 @@ kind: Kustomization
 bases:
 # If you only want the hotrod application, uncomment this line and comment out jaeger-all-in-one
 #  - base/hotrod
-  - base/jaeger
+# Leaving this uncommented will install both hotrod and an example all-in-one
+  - base/jaeger-all-in-one
 
 namespace: example-hotrod
 
