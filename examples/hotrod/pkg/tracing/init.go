@@ -18,6 +18,8 @@ package tracing
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/opentracing/opentracing-go"
@@ -72,6 +74,13 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 	return otTracer
 }
 
+// withSecure instructs the client to use HTTPS scheme, instead of hotrod's desired default HTTP
+func withSecure() bool {
+	return strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") ||
+		strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) == "false"
+
+}
+
 func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	var exporter sdktrace.SpanExporter
 	var err error
@@ -81,10 +90,14 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 			jaeger.WithCollectorEndpoint(),
 		)
 	case "otlp":
-		client := otlptracehttp.NewClient(
-			otlptracehttp.WithInsecure(),
+		var opts []otlptracehttp.Option
+		if !withSecure() {
+			opts = []otlptracehttp.Option{otlptracehttp.WithInsecure()}
+		}
+		exporter, err = otlptrace.New(
+			context.Background(),
+			otlptracehttp.NewClient(opts...),
 		)
-		exporter, err = otlptrace.New(context.Background(), client)
 	case "stdout":
 		exporter, err = stdouttrace.New()
 	default:
