@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -38,6 +39,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -49,6 +51,7 @@ type Configuration struct {
 	Username                       string         `mapstructure:"username"`
 	Password                       string         `mapstructure:"password" json:"-"`
 	TokenFilePath                  string         `mapstructure:"token_file"`
+	PasswordFilePath               string         `mapstructure:"password_file"`
 	AllowTokenFromContext          bool           `mapstructure:"-"`
 	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
@@ -111,6 +114,7 @@ type ClientBuilder interface {
 	GetTagDotReplacement() string
 	GetUseReadWriteAliases() bool
 	GetTokenFilePath() string
+	GetPasswordFilePath() string
 	IsStorageEnabled() bool
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
@@ -382,6 +386,11 @@ func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
 }
 
+// GetPasswordFilePath returns file path containing the password
+func (c *Configuration) GetPasswordFilePath() string {
+	return c.PasswordFilePath
+}
+
 // IsStorageEnabled determines whether storage is enabled
 func (c *Configuration) IsStorageEnabled() bool {
 	return c.Enabled
@@ -439,6 +448,12 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		Timeout: c.Timeout,
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
+
+	passwordChan := make(chan string, 1)
+	e := watchPasswordFromFile(c.GetPasswordFilePath(), passwordChan)
+	if e != nil {
+		return nil, e
+	}
 	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 
 	if c.SendGetBodyAs != "" {
@@ -525,7 +540,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		if c.AllowTokenFromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := loadToken(c.TokenFilePath)
+		tokenFromFile, err := loadFileContent(c.TokenFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -541,7 +556,40 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	return transport, nil
 }
 
-func loadToken(path string) (string, error) {
+func watchPasswordFromFile(path string, passwordChan chan<- string) error {
+	var password string
+
+	watcher, err := fswatcher.NewWatcher()
+	if err != nil {
+		return err
+	}
+
+	watcher.Add(path)
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			if event.Op&fsnotify.Create == fsnotify.Create ||
+				event.Op&fsnotify.Write == fsnotify.Write ||
+				event.Op&fsnotify.Rename == fsnotify.Rename {
+				password, err = loadFileContent(path)
+				if err != nil {
+					return err
+				}
+				if password != "" {
+					passwordChan <- password
+				}
+			}
+			if event.Op&fsnotify.Remove == fsnotify.Remove {
+				close(passwordChan)
+			}
+		case err = <-watcher.Errors():
+			return err
+		}
+	}
+}
+
+func loadFileContent(path string) (string, error) {
 	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err
