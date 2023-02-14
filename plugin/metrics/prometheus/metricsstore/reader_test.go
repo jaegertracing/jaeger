@@ -457,3 +457,20 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
 	assert.Equal(t, float64(9223372036854), actualVal)
 }
+func TestLoadToken(t *testing.T) {
+	// Create a temporary file with a token
+	token := "my_token"
+	tmpFile, err := os.CreateTemp("", "token")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name()) // clean up
+	_, err = tmpFile.Write([]byte(token))
+	assert.NoError(t, err)
+	err = tmpFile.Close()
+	assert.NoError(t, err)
+
+	// Test loading the token from the temporary file
+	path := tmpFile.Name()
+	loadedToken, err := loadToken(path)
+	assert.NoError(t, err)
+	assert.Equal(t, token, loadedToken)
+}
