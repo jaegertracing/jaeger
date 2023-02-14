@@ -460,7 +460,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 func TestLoadToken(t *testing.T) {
 	// Create a temporary file with a token
-	token := "my_token"
+	token := "test_token"
 	tmpFile, err := os.CreateTemp("", "token")
 	assert.NoError(t, err)
 	defer os.Remove(tmpFile.Name()) // clean up
