@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -320,73 +321,78 @@ func TestGetRoundTripper(t *testing.T) {
 		TokenFilePath         string
 		AllowTokenFromContext bool
 	}{
-		{"tls enabled with token from file", true, "/", false},
+		{"tls enabled with token from file", true, "testdir/test_file.txt", false},
 		{"tls enabled with token from context", true, "", true},
-		{"tls disabled with token from file", false, "/", false},
+		{"tls enabled with token from file", true, "testdir/test_file.txt", true},
 		{"tls disabled with token from context", false, "", true},
 	} {
+
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
 			// Create temp file with token if TokenFilePath is provided
-			var token string
 			if tc.TokenFilePath != "" {
-				tmpFile, err := os.CreateTemp(tc.TokenFilePath, "token-*.txt")
-				require.NoError(t, err)
+				dir, file := filepath.Split(tc.TokenFilePath)
+				err := os.MkdirAll(dir, 0750)
+				assert.NoError(t, err)
+				err = os.WriteFile(filepath.Join(dir, file), []byte("test_token2"), 0660)
+				assert.NoError(t, err)
 				defer func() {
-					err = os.Remove(tmpFile.Name())
-					require.NoError(t, err)
+					err = os.RemoveAll(tc.TokenFilePath)
+					assert.NoError(t, err)
 				}()
-				token = "foo"
+
 			}
 
 			rt, err := getHTTPRoundTripper(&config.Configuration{
 				ServerURL:             "https://localhost:1234",
 				ConnectTimeout:        9 * time.Millisecond,
-				TLS:                   tlscfg.Options{Enabled: tc.tlsEnabled},
 				TokenFilePath:         tc.TokenFilePath,
 				AllowTokenFromContext: tc.AllowTokenFromContext,
+				TLS: tlscfg.Options{
+					Enabled: tc.tlsEnabled,
+				},
 			}, logger)
-
 			require.NoError(t, err)
-			server := httptest.NewServer(
+
+			server1 := httptest.NewServer(
 				http.HandlerFunc(
 					func(w http.ResponseWriter, r *http.Request) {
-						if tc.AllowTokenFromContext {
-							assert.Equal(t, "Bearer test_token", r.Header.Get("Authorization"))
-						} else {
-							assert.Equal(t, "Bearer "+token, r.Header.Get("Authorization"))
-						}
+						assert.Equal(t, "Bearer test_token1", r.Header.Get("Authorization"))
 					},
 				),
 			)
-			defer server.Close()
-
-			var req *http.Request
+			server2 := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, "Bearer test_token2", r.Header.Get("Authorization"))
+					},
+				),
+			)
+			defer server1.Close()
+			defer server2.Close()
 			if tc.AllowTokenFromContext {
-				req, err = http.NewRequestWithContext(
-					bearertoken.ContextWithBearerToken(context.Background(), "test_token"),
+				req, err := http.NewRequestWithContext(
+					bearertoken.ContextWithBearerToken(context.Background(), "test_token1"),
 					http.MethodGet,
-					server.URL,
-					nil,
-				)
-			} else {
-				req, err = http.NewRequest(
-					http.MethodGet,
-					server.URL,
+					server1.URL,
 					nil,
 				)
 				require.NoError(t, err)
-
-				if tc.TokenFilePath != "" {
-					req = req.WithContext(bearertoken.ContextWithBearerToken(req.Context(), tc.TokenFilePath))
-				} else {
-					req = req.WithContext(bearertoken.ContextWithBearerToken(req.Context(), token))
-				}
+				resp, err := rt.RoundTrip(req)
+				require.NoError(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+			} else {
+				req, err := http.NewRequestWithContext(
+					bearertoken.ContextWithBearerToken(context.Background(), "test_token2"),
+					http.MethodGet,
+					server2.URL,
+					nil,
+				)
+				require.NoError(t, err)
+				resp, err := rt.RoundTrip(req)
+				require.NoError(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
 			}
-
-			resp, err := rt.RoundTrip(req)
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
 }
