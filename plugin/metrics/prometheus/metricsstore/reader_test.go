@@ -17,7 +17,6 @@ package metricsstore
 import (
 	"context"
 	"fmt"
-	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"io"
 	"net"
 	"net/http"
@@ -28,6 +27,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -314,6 +315,7 @@ func TestWarningResponse(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, m)
 }
+
 func TestGetRoundTripper(t *testing.T) {
 	for _, tc := range []struct {
 		name                  string
@@ -326,15 +328,14 @@ func TestGetRoundTripper(t *testing.T) {
 		{"tls enabled with token from file", true, "testdir/test_file.txt", true},
 		{"tls disabled with token from context", false, "", true},
 	} {
-
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
 			// Create temp file with token if TokenFilePath is provided
 			if tc.TokenFilePath != "" {
 				dir, file := filepath.Split(tc.TokenFilePath)
-				err := os.MkdirAll(dir, 0750)
+				err := os.MkdirAll(dir, 0o750)
 				assert.NoError(t, err)
-				err = os.WriteFile(filepath.Join(dir, file), []byte("test_token2"), 0660)
+				err = os.WriteFile(filepath.Join(dir, file), []byte("test_token2"), 0o660)
 				assert.NoError(t, err)
 				defer func() {
 					err = os.RemoveAll(tc.TokenFilePath)
