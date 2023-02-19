@@ -90,7 +90,13 @@ func TestReload(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	onChange := func() {
+		watcher.attemptReload(certPool, certPool)
+	}
+	onRemove := onChange
+	watchedPaths, err := watcher.setupWatchedPaths()
+	require.NoError(t, err)
+	go watcher.watcher.WatchFiles(watchedPaths, onChange, onRemove)
 	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
 	assert.Equal(t, &cert, watcher.certificate())
@@ -142,7 +148,13 @@ func TestReload_ca_certs(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	onChange := func() {
+		watcher.attemptReload(certPool, certPool)
+	}
+	onRemove := onChange
+	watchedPaths, err := watcher.setupWatchedPaths()
+	require.NoError(t, err)
+	go watcher.watcher.WatchFiles(watchedPaths, onChange, onRemove)
 
 	// update the content with different certs to trigger reload.
 	copyFile(t, caFile.Name(), wrongCaCert)
@@ -183,7 +195,13 @@ func TestReload_err_cert_update(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	onChange := func() {
+		watcher.attemptReload(certPool, certPool)
+	}
+	onRemove := onChange
+	watchedPaths, err := watcher.setupWatchedPaths()
+	require.NoError(t, err)
+	go watcher.watcher.WatchFiles(watchedPaths, onChange, onRemove)
 	serverCert, err := tls.LoadX509KeyPair(filepath.Clean(serverCert), filepath.Clean(serverKey))
 	require.NoError(t, err)
 	assert.Equal(t, &serverCert, watcher.certificate())
@@ -253,7 +271,13 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	onChange := func() {
+		watcher.attemptReload(certPool, certPool)
+	}
+	onRemove := onChange
+	watchedPaths, err := watcher.setupWatchedPaths()
+	require.NoError(t, err)
+	go watcher.watcher.WatchFiles(watchedPaths, onChange, onRemove)
 
 	expectedCert, err := tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
@@ -380,7 +404,7 @@ func TestAddCertsToWatch_err(t *testing.T) {
 	}
 	for _, test := range tests {
 		w.opts = test.opts
-		err := w.setupWatchedPaths()
+		_, err := w.setupWatchedPaths()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no such file or directory")
 	}
@@ -404,7 +428,13 @@ func TestAddCertsToWatch_remove_ca(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	onChange := func() {
+		watcher.attemptReload(certPool, certPool)
+	}
+	onRemove := onChange
+	watchedPaths, err := watcher.setupWatchedPaths()
+	require.NoError(t, err)
+	go watcher.watcher.WatchFiles(watchedPaths, onChange, onRemove)
 
 	require.NoError(t, os.Remove(caFile.Name()))
 	require.NoError(t, os.Remove(clientCaFile.Name()))
@@ -468,7 +498,13 @@ func TestReload_err_ca_cert_update(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	onChange := func() {
+		watcher.attemptReload(certPool, certPool)
+	}
+	onRemove := onChange
+	watchedPaths, err := watcher.setupWatchedPaths()
+	require.NoError(t, err)
+	go watcher.watcher.WatchFiles(watchedPaths, onChange, onRemove)
 
 	// update the content with bad certs.
 	copyFile(t, caFile.Name(), badCaCert)

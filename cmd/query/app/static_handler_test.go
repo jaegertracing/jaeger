@@ -198,12 +198,12 @@ func TestWatcherError(t *testing.T) {
 			watcher.On("Errors").Return(errChan)
 
 			// Test
-			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+			w, err := fswatcher.NewWatcher()
+			assert.NoError(t, err)
+			_, err = NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
 				UIConfigPath: "fixture/ui-config-hotreload.json",
-				NewWatcher: func() (fswatcher.Watcher, error) {
-					return watcher, tc.newWatcherErr
-				},
-				Logger: logger,
+				watcher:      w,
+				Logger:       logger,
 			})
 
 			// Validate

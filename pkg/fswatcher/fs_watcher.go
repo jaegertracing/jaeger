@@ -16,13 +16,9 @@ package fswatcher
 
 import "github.com/fsnotify/fsnotify"
 
-// Watcher watches for Events and Errors once a resource is added to the watch list.
-// Primarily used for mocking the fsnotify lib.
 type Watcher interface {
-	Add(name string) error
+	WatchFiles(paths []string, onChange func(), onRemove func()) error
 	Close() error
-	Events() chan fsnotify.Event
-	Errors() chan error
 }
 
 // fsnotifyWatcherWrapper wraps the fsnotify.Watcher and implements Watcher.
@@ -30,24 +26,37 @@ type fsnotifyWatcherWrapper struct {
 	fsnotifyWatcher *fsnotify.Watcher
 }
 
-// Add adds the filename to watch.
-func (f *fsnotifyWatcherWrapper) Add(name string) error {
-	return f.fsnotifyWatcher.Add(name)
+func (f *fsnotifyWatcherWrapper) WatchFiles(paths []string, onChange func(), onRemove func()) error {
+	go func() error {
+		for {
+			select {
+			case event := <-f.fsnotifyWatcher.Events:
+				if event.Op&fsnotify.Create == fsnotify.Create ||
+					event.Op&fsnotify.Write == fsnotify.Write ||
+					event.Op&fsnotify.Rename == fsnotify.Rename {
+					onChange()
+				}
+				if event.Op&fsnotify.Remove == fsnotify.Remove {
+					onRemove()
+				}
+			case err := <-f.fsnotifyWatcher.Errors:
+				return err
+			}
+		}
+	}()
+
+	for _, p := range paths {
+		if err := f.fsnotifyWatcher.Add(p); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Close closes the watcher.
 func (f *fsnotifyWatcherWrapper) Close() error {
 	return f.fsnotifyWatcher.Close()
-}
-
-// Events returns the fsnotify.Watcher's Events chan.
-func (f *fsnotifyWatcherWrapper) Events() chan fsnotify.Event {
-	return f.fsnotifyWatcher.Events
-}
-
-// Errors returns the fsnotify.Watcher's Errors chan.
-func (f *fsnotifyWatcherWrapper) Errors() chan error {
-	return f.fsnotifyWatcher.Errors
 }
 
 // NewWatcher creates a new fsnotifyWatcherWrapper, wrapping the fsnotify.Watcher.

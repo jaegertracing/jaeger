@@ -27,7 +27,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
@@ -63,10 +62,10 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
-	options    StaticAssetsHandlerOptions
-	indexHTML  atomic.Value // stores []byte
-	assetsFS   http.FileSystem
-	newWatcher func() (fswatcher.Watcher, error)
+	options   StaticAssetsHandlerOptions
+	indexHTML atomic.Value // stores []byte
+	assetsFS  http.FileSystem
+	watcher   fswatcher.Watcher
 }
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
@@ -74,7 +73,7 @@ type StaticAssetsHandlerOptions struct {
 	BasePath     string
 	UIConfigPath string
 	Logger       *zap.Logger
-	NewWatcher   func() (fswatcher.Watcher, error)
+	watcher      fswatcher.Watcher
 }
 
 type loadedConfig struct {
@@ -93,8 +92,9 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		options.Logger = zap.NewNop()
 	}
 
-	if options.NewWatcher == nil {
-		options.NewWatcher = fswatcher.NewWatcher
+	w, err := fswatcher.NewWatcher()
+	if err != nil {
+		return nil, err
 	}
 
 	indexHTML, err := loadAndEnrichIndexHTML(assetsFS.Open, options)
@@ -103,13 +103,19 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	}
 
 	h := &StaticAssetsHandler{
-		options:    options,
-		assetsFS:   assetsFS,
-		newWatcher: options.NewWatcher,
+		options:  options,
+		assetsFS: assetsFS,
+		watcher:  w,
 	}
 
 	h.indexHTML.Store(indexHTML)
-	h.watch()
+	if h.options.UIConfigPath == "" {
+		h.options.Logger.Info("UI config path not provided, config file will not be watched")
+		return h, nil
+	}
+	if err = h.watcher.WatchFiles([]string{filepath.Dir(h.options.UIConfigPath)}, h.onChange, h.onRemove); err != nil {
+		h.options.Logger.Error("Cannot set up watched files", zap.Error(err))
+	}
 
 	return h, nil
 }
@@ -143,67 +149,18 @@ func loadAndEnrichIndexHTML(open func(string) (http.File, error), options Static
 	return indexBytes, nil
 }
 
-func (sH *StaticAssetsHandler) configListener(watcher fswatcher.Watcher) {
-	for {
-		select {
-		case event := <-watcher.Events():
-			// ignore if the event filename is not the UI configuration
-			if filepath.Base(event.Name) != filepath.Base(sH.options.UIConfigPath) {
-				continue
-			}
-			// ignore if the event is a chmod event (permission or owner changes)
-			if event.Op&fsnotify.Chmod == fsnotify.Chmod {
-				continue
-			}
-			if event.Op&fsnotify.Remove == fsnotify.Remove {
-				sH.options.Logger.Warn("the UI config file has been removed, using the last known version")
-				continue
-			}
-			// this will catch events for all files inside the same directory, which is OK if we don't have many changes
-			sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
-			content, err := loadAndEnrichIndexHTML(sH.assetsFS.Open, sH.options)
-			if err != nil {
-				sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
-			}
-			sH.indexHTML.Store(content)
-			sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.UIConfigPath))
-		case err, ok := <-watcher.Errors():
-			if !ok {
-				return
-			}
-			sH.options.Logger.Error("event", zap.Error(err))
-		}
+func (sH *StaticAssetsHandler) onChange() {
+	sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
+	content, err := loadAndEnrichIndexHTML(sH.assetsFS.Open, sH.options)
+	if err != nil {
+		sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
 	}
+	sH.indexHTML.Store(content)
+	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.UIConfigPath))
 }
 
-func (sH *StaticAssetsHandler) watch() {
-	if sH.options.UIConfigPath == "" {
-		sH.options.Logger.Info("UI config path not provided, config file will not be watched")
-		return
-	}
-
-	watcher, err := sH.newWatcher()
-	if err != nil {
-		sH.options.Logger.Error("failed to create a new watcher for the UI config", zap.Error(err))
-		return
-	}
-
-	go func() {
-		sH.configListener(watcher)
-	}()
-
-	if err := watcher.Add(sH.options.UIConfigPath); err != nil {
-		sH.options.Logger.Error("error adding watcher to file", zap.String("file", sH.options.UIConfigPath), zap.Error(err))
-	} else {
-		sH.options.Logger.Info("watching", zap.String("file", sH.options.UIConfigPath))
-	}
-
-	dir := filepath.Dir(sH.options.UIConfigPath)
-	if err := watcher.Add(dir); err != nil {
-		sH.options.Logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
-	} else {
-		sH.options.Logger.Info("watching", zap.String("dir", dir))
-	}
+func (sH *StaticAssetsHandler) onRemove() {
+	sH.options.Logger.Warn("the UI config file has been removed, using the last known version")
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {

@@ -114,7 +114,17 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		}
 	}
 
-	go p.certWatcher.watchChangesLoop(tlsCfg.RootCAs, tlsCfg.ClientCAs)
+	onChange := func() {
+		p.certWatcher.attemptReload(tlsCfg.RootCAs, tlsCfg.ClientCAs)
+	}
+	onRemove := onChange
+	if watchedPaths, err := p.certWatcher.setupWatchedPaths(); err != nil {
+		p.certWatcher.Close()
+		return nil, err
+	} else {
+		go p.certWatcher.watcher.WatchFiles(watchedPaths, onChange, onRemove)
+	}
+
 	return tlsCfg, nil
 }
 

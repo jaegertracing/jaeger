@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
@@ -60,7 +59,7 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		cert = &c
 	}
 
-	watcher, err := fswatcher.NewWatcher()
+	fsw, err := fswatcher.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
@@ -69,13 +68,9 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		opts:    opts,
 		logger:  logger,
 		cert:    cert,
-		watcher: watcher,
+		watcher: fsw,
 	}
 
-	if err := w.setupWatchedPaths(); err != nil {
-		watcher.Close()
-		return nil, err
-	}
 	return w, nil
 }
 
@@ -90,8 +85,9 @@ func (w *certWatcher) certificate() *tls.Certificate {
 }
 
 // setupWatchedPaths retrieves hashes of all configured certificates
-// and adds their parent directories to the watcher.
-func (w *certWatcher) setupWatchedPaths() error {
+// and adds their parent directories to watched paths.
+func (w *certWatcher) setupWatchedPaths() ([]string, error) {
+	watchedPaths := make([]string, 1)
 	uniqueDirs := make(map[string]bool)
 	addPath := func(certPath string, hashPtr *string) error {
 		if certPath == "" {
@@ -104,69 +100,25 @@ func (w *certWatcher) setupWatchedPaths() error {
 		}
 		dir := path.Dir(certPath)
 		if _, ok := uniqueDirs[dir]; !ok {
-			w.watcher.Add(dir)
+			watchedPaths = append(watchedPaths, dir)
 			uniqueDirs[dir] = true
 		}
 		return nil
 	}
 
 	if err := addPath(w.opts.CAPath, &w.caHash); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addPath(w.opts.ClientCAPath, &w.clientCAHash); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addPath(w.opts.CertPath, &w.certHash); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addPath(w.opts.KeyPath, &w.keyHash); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
-}
-
-// watchChangesLoop waits for notifications of changes in the watched directories
-// and attempts to reload all certificates that changed.
-//
-// Write and Rename events indicate that some files might have changed and reload might be necessary.
-// Remove event indicates that the file was deleted and we should write an error to log.
-//
-// Reasoning:
-//
-// Write event is sent if the file content is rewritten.
-//
-// Usually files are not rewritten, but they are updated by swapping them with new
-// ones by calling Rename. That avoids files being read while they are not yet
-// completely written but it also means that inotify on file level will not work:
-// watch is invalidated when the old file is deleted.
-//
-// If reading from Kubernetes Secret volumes the target files are symbolic links
-// to files in a different directory. That directory is swapped with a new one,
-// while the symbolic links remain the same. This guarantees atomic swap for all
-// files at once, but it also means any Rename event in the directory might
-// indicate that the files were replaced, even if event.Name is not any of the
-// files we are monitoring. We check the hashes of the files to detect if they
-// were really changed.
-func (w *certWatcher) watchChangesLoop(rootCAs, clientCAs *x509.CertPool) {
-	for {
-		select {
-		case event, ok := <-w.watcher.Events():
-			if !ok {
-				return // channel closed means the watcher is closed
-			}
-			w.logger.Debug("Received event", zap.String("event", event.String()))
-			if event.Op&fsnotify.Write == fsnotify.Write ||
-				event.Op&fsnotify.Rename == fsnotify.Rename ||
-				event.Op&fsnotify.Remove == fsnotify.Remove {
-				w.attemptReload(rootCAs, clientCAs)
-			}
-		case err, ok := <-w.watcher.Errors():
-			if !ok {
-				return // channel closed means the watcher is closed
-			}
-			w.logger.Error("Watcher got error", zap.Error(err))
-		}
-	}
+	return watchedPaths, nil
 }
 
 // attemptReload checks if the watched files have been modified and reloads them if necessary.
