@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -316,43 +317,82 @@ func TestWarningResponse(t *testing.T) {
 
 func TestGetRoundTripper(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		tlsEnabled bool
+		name                  string
+		tlsEnabled            bool
+		TokenFilePath         string
+		AllowTokenFromContext bool
 	}{
-		{"tls tlsEnabled", true},
-		{"tls disabled", false},
+		{"tls enabled with token from file", true, "testdir/test_file.txt", false},
+		{"tls enabled with token from context", true, "", true},
+		{"tls enabled with token from file", true, "testdir/test_file.txt", true},
+		{"tls disabled with token from context", false, "", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
+			// Create temp file with token if TokenFilePath is provided
+			if tc.TokenFilePath != "" {
+				dir, file := filepath.Split(tc.TokenFilePath)
+				err := os.MkdirAll(dir, 0o750)
+				assert.NoError(t, err)
+				err = os.WriteFile(filepath.Join(dir, file), []byte("test_token2"), 0o660)
+				assert.NoError(t, err)
+				defer func() {
+					err = os.RemoveAll(tc.TokenFilePath)
+					assert.NoError(t, err)
+				}()
+
+			}
+
 			rt, err := getHTTPRoundTripper(&config.Configuration{
-				ServerURL:      "https://localhost:1234",
-				ConnectTimeout: 9 * time.Millisecond,
+				ServerURL:             "https://localhost:1234",
+				ConnectTimeout:        9 * time.Millisecond,
+				TokenFilePath:         tc.TokenFilePath,
+				AllowTokenFromContext: tc.AllowTokenFromContext,
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
 				},
 			}, logger)
 			require.NoError(t, err)
 
-			server := httptest.NewServer(
+			server1 := httptest.NewServer(
 				http.HandlerFunc(
 					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "Bearer foo", r.Header.Get("Authorization"))
+						assert.Equal(t, "Bearer test_token1", r.Header.Get("Authorization"))
 					},
 				),
 			)
-			defer server.Close()
-
-			req, err := http.NewRequestWithContext(
-				bearertoken.ContextWithBearerToken(context.Background(), "foo"),
-				http.MethodGet,
-				server.URL,
-				nil,
+			server2 := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, "Bearer test_token2", r.Header.Get("Authorization"))
+					},
+				),
 			)
-			require.NoError(t, err)
-
-			resp, err := rt.RoundTrip(req)
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			defer server1.Close()
+			defer server2.Close()
+			if tc.AllowTokenFromContext {
+				req, err := http.NewRequestWithContext(
+					bearertoken.ContextWithBearerToken(context.Background(), "test_token1"),
+					http.MethodGet,
+					server1.URL,
+					nil,
+				)
+				require.NoError(t, err)
+				resp, err := rt.RoundTrip(req)
+				require.NoError(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+			} else {
+				req, err := http.NewRequestWithContext(
+					bearertoken.ContextWithBearerToken(context.Background(), "test_token2"),
+					http.MethodGet,
+					server2.URL,
+					nil,
+				)
+				require.NoError(t, err)
+				resp, err := rt.RoundTrip(req)
+				require.NoError(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+			}
 		})
 	}
 }
@@ -456,4 +496,22 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
 	assert.Equal(t, float64(9223372036854), actualVal)
+}
+
+func TestLoadToken(t *testing.T) {
+	// Create a temporary file with a token
+	token := "test_token"
+	tmpFile, err := os.CreateTemp("", "token")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name()) // clean up
+	_, err = tmpFile.Write([]byte(token))
+	assert.NoError(t, err)
+	err = tmpFile.Close()
+	assert.NoError(t, err)
+
+	// Test loading the token from the temporary file
+	path := tmpFile.Name()
+	loadedToken, err := loadToken(path)
+	assert.NoError(t, err)
+	assert.Equal(t, token, loadedToken)
 }
