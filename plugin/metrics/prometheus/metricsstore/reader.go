@@ -279,15 +279,12 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		}
 		token = tokenFromFile
 	}
-	if token != "" || c.AllowTokenFromContext {
-		transport = bearertoken.RoundTripper{
-			Transport:       httpTransport,
-			OverrideFromCtx: c.AllowTokenFromContext,
-			StaticToken:     token,
-		}
-	}
+	return bearertoken.RoundTripper{
+		Transport:       httpTransport,
+		OverrideFromCtx: c.AllowTokenFromContext,
+		StaticToken:     token,
+	}, nil
 
-	return transport, nil
 }
 
 func loadToken(path string) (string, error) {
