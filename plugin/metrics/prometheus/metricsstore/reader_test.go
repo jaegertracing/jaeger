@@ -324,7 +324,7 @@ func TestGetRoundTripper(t *testing.T) {
 		wantBearer            string
 	}{
 		{
-			"tls enabled with token from file will and token from context is not considered ",
+			"tls enabled with token from file and token from context is not considered ",
 			true,
 			"testdir/test_file.txt",
 			false,
