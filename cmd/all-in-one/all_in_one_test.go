@@ -68,7 +68,7 @@ func TestAllInOne(t *testing.T) {
 }
 
 func createTrace(t *testing.T) {
-	req, err := http.NewRequest("GET", getServicesURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getServicesURL, nil)
 	require.NoError(t, err)
 	req.Header.Add("jaeger-debug-id", "debug")
 
@@ -82,7 +82,7 @@ type response struct {
 }
 
 func getAPITrace(t *testing.T) {
-	req, err := http.NewRequest("GET", getTraceURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getTraceURL, nil)
 	require.NoError(t, err)
 
 	var queryResponse response
@@ -107,7 +107,7 @@ func getAPITrace(t *testing.T) {
 }
 
 func getSamplingStrategy(t *testing.T) {
-	req, err := http.NewRequest("GET", getSamplingStrategyURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getSamplingStrategyURL, nil)
 	require.NoError(t, err)
 
 	resp, err := httpClient.Do(req)
@@ -147,7 +147,7 @@ func faviconCheck(t *testing.T) {
 }
 
 func getServicesAPIV3(t *testing.T) {
-	req, err := http.NewRequest("GET", getServicesAPIV3URL, nil)
+	req, err := http.NewRequest(http.MethodGet, getServicesAPIV3URL, nil)
 	require.NoError(t, err)
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)

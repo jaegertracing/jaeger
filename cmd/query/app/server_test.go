@@ -405,7 +405,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				readMock := spanReader
 				readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return([]*model.Trace{mockTrace}, nil).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-				req, err := http.NewRequest("GET", "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
+				req, err := http.NewRequest(http.MethodGet, "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
 				assert.Nil(t, err)
 				req.Header.Add("Accept", "application/json")
 
@@ -769,7 +769,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 			require.NoError(t, clientError)
 
 			queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-			req, err := http.NewRequest("GET", "http://localhost:8080"+queryString, nil)
+			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+queryString, nil)
 			if test.tenant != "" {
 				req.Header.Add(tenancyMgr.Header, test.tenant)
 			}
