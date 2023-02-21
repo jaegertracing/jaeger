@@ -319,25 +319,49 @@ func TestGetRoundTripper(t *testing.T) {
 	for _, tc := range []struct {
 		name                  string
 		tlsEnabled            bool
-		TokenFilePath         string
-		AllowTokenFromContext bool
+		tokenFilePath         string
+		allowTokenFromContext bool
+		wantBearer            string
 	}{
-		{"tls enabled with token from file", true, "testdir/test_file.txt", false},
-		{"tls enabled with token from context", true, "", true},
-		{"tls enabled with token from file", true, "testdir/test_file.txt", true},
-		{"tls disabled with token from context", false, "", true},
+		{
+			"tls enabled with token from file will and token from context is not considered ",
+			true,
+			"testdir/test_file.txt",
+			false,
+			"token from file",
+		},
+		{
+			"tls enabled with token from context",
+			true,
+			"",
+			true,
+			"token from context",
+		},
+		{
+			"tls enabled with token from file with allowTokenFromContext should prefer using token from context",
+			true, "testdir/test_file.txt",
+			true,
+			"token from context",
+		},
+		{
+			"tls disabled with token from context",
+			false,
+			"",
+			true,
+			"token from context",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
-			// Create temp file with token if TokenFilePath is provided
-			if tc.TokenFilePath != "" {
-				dir, file := filepath.Split(tc.TokenFilePath)
+			// Create temp file with token if tokenFilePath is provided
+			if tc.tokenFilePath != "" {
+				dir, file := filepath.Split(tc.tokenFilePath)
 				err := os.MkdirAll(dir, 0o750)
-				assert.NoError(t, err)
-				err = os.WriteFile(filepath.Join(dir, file), []byte("test_token2"), 0o660)
+				require.NoError(t, err)
+				err = os.WriteFile(filepath.Join(dir, file), []byte("token from file"), 0o660)
 				assert.NoError(t, err)
 				defer func() {
-					err = os.RemoveAll(tc.TokenFilePath)
+					err = os.RemoveAll(tc.tokenFilePath)
 					assert.NoError(t, err)
 				}()
 
@@ -346,53 +370,36 @@ func TestGetRoundTripper(t *testing.T) {
 			rt, err := getHTTPRoundTripper(&config.Configuration{
 				ServerURL:             "https://localhost:1234",
 				ConnectTimeout:        9 * time.Millisecond,
-				TokenFilePath:         tc.TokenFilePath,
-				AllowTokenFromContext: tc.AllowTokenFromContext,
+				TokenFilePath:         tc.tokenFilePath,
+				AllowTokenFromContext: tc.allowTokenFromContext,
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
 				},
 			}, logger)
 			require.NoError(t, err)
 
-			server1 := httptest.NewServer(
+			server := httptest.NewServer(
 				http.HandlerFunc(
 					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "Bearer test_token1", r.Header.Get("Authorization"))
+						assert.Equal(t, "Bearer "+tc.wantBearer, r.Header.Get("Authorization"))
 					},
 				),
 			)
-			server2 := httptest.NewServer(
-				http.HandlerFunc(
-					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "Bearer test_token2", r.Header.Get("Authorization"))
-					},
-				),
-			)
-			defer server1.Close()
-			defer server2.Close()
-			if tc.AllowTokenFromContext {
-				req, err := http.NewRequestWithContext(
-					bearertoken.ContextWithBearerToken(context.Background(), "test_token1"),
-					http.MethodGet,
-					server1.URL,
-					nil,
-				)
-				require.NoError(t, err)
-				resp, err := rt.RoundTrip(req)
-				require.NoError(t, err)
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
-			} else {
-				req, err := http.NewRequestWithContext(
-					bearertoken.ContextWithBearerToken(context.Background(), "test_token2"),
-					http.MethodGet,
-					server2.URL,
-					nil,
-				)
-				require.NoError(t, err)
-				resp, err := rt.RoundTrip(req)
-				require.NoError(t, err)
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
+			defer server.Close()
+			ctx := context.Background()
+			if tc.allowTokenFromContext {
+				ctx = bearertoken.ContextWithBearerToken(ctx, "token from context")
 			}
+			req, err := http.NewRequestWithContext(
+				ctx,
+				http.MethodGet,
+				server.URL,
+				nil,
+			)
+			require.NoError(t, err)
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
 }
