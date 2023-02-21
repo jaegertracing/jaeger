@@ -60,12 +60,16 @@ func TestWithConfiguration(t *testing.T) {
 	err := command.ParseFlags([]string{
 		"--prometheus.server-url=http://localhost:1234",
 		"--prometheus.connect-timeout=5s",
+		"--prometheus.allow-token-from-context=true",
+		"--prometheus.token-file-path=testdir/test_file.txt",
 	})
 	require.NoError(t, err)
 
 	f.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:1234")
 	assert.Equal(t, f.options.Primary.ConnectTimeout, 5*time.Second)
+	assert.Equal(t, f.options.Primary.AllowTokenFromContext, true)
+	assert.Equal(t, f.options.Primary.TokenFilePath, "testdir/test_file.txt")
 }
 
 func TestFailedTLSOptions(t *testing.T) {
