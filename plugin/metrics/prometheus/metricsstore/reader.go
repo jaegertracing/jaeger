@@ -257,7 +257,6 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 	}
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
 	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
-	var transport http.RoundTripper
 	httpTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
