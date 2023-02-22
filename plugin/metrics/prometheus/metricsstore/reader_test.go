@@ -359,12 +359,11 @@ func TestGetRoundTripper(t *testing.T) {
 				err := os.MkdirAll(dir, 0o750)
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, file), []byte("token from file"), 0o660)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				defer func() {
 					err = os.RemoveAll(tc.tokenFilePath)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}()
-
 			}
 
 			rt, err := getHTTPRoundTripper(&config.Configuration{
@@ -509,7 +508,7 @@ func TestLoadToken(t *testing.T) {
 	// Create a temporary file with a token
 	token := "test_token"
 	tmpFile, err := os.CreateTemp("", "token")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name()) // clean up
 	_, err = tmpFile.Write([]byte(token))
 	assert.NoError(t, err)
