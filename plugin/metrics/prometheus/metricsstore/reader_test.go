@@ -511,13 +511,13 @@ func TestLoadToken(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name()) // clean up
 	_, err = tmpFile.Write([]byte(token))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = tmpFile.Close()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Test loading the token from the temporary file
 	path := tmpFile.Name()
 	loadedToken, err := loadToken(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, token, loadedToken)
 }
