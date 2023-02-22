@@ -60,7 +60,7 @@ jobs:
       if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
-      uses: svenstaro/upload-release-action@cc92c9093e5f785e23a3d654fe2671640b851b5f
+      uses: svenstaro/upload-release-action@7319e4733ec7a184d739a6f412c40ffc339b69c7
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
