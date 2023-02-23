@@ -52,7 +52,7 @@ require (
 	go.opentelemetry.io/collector/consumer v0.71.0
 	go.opentelemetry.io/collector/pdata v1.0.0-rc5
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.71.0
-	go.opentelemetry.io/collector/semconv v0.71.0
+	go.opentelemetry.io/collector/semconv v0.72.0
 	go.opentelemetry.io/otel v1.13.0
 	go.opentelemetry.io/otel/bridge/opentracing v1.13.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.13.0
