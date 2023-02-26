@@ -60,7 +60,7 @@ func (f *fsWatcherWrapper) WatchFiles(paths []string, onChange func(), log *zap.
 					if log == nil {
 						log = zap.NewNop()
 					}
-					log.Warn(event.Name + "has been removed.")
+					log.Warn(event.Name + " has been removed.")
 				}
 			case err := <-f.fsnotifyWatcher.Errors:
 				return err

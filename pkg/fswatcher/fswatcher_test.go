@@ -78,9 +78,9 @@ func TestWatchFilesChangeAndRemove(t *testing.T) {
 	os.Remove(testFile.Name())
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage(testFile.Name()+"has been removed.").Len() > 0
+			return logObserver.FilterMessage("./"+testFile.Name()+" has been removed.").Len() > 0
 		},
-		"Unable to locate 'Content changed' in log. All logs: %v", logObserver)
+		"Unable to locate './"+testFile.Name()+" has been removed."+"' in log. All logs: %v", logObserver)
 
 	err = w.Close()
 	assert.NoError(t, err)
