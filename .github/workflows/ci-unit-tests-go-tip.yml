@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@18bf8ad2ca49c14cbb28b91346d626ccfb00c518
+      uses: step-security/harden-runner@c8454efe5d0bdefd25384362fe217428ca277d57
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
