@@ -18,6 +18,7 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,39 @@ import (
 )
 
 func TestBindFlags(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+	v := viper.New()
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	err := command.ParseFlags([]string{
+		"--es.index-prefix=tenant1",
+		"--archive=true",
+		"--timeout=150",
+		"--es.username=admin",
+		"--es.password=qwerty123",
+		"--es.use-ilm=true",
+		"--es.ilm-policy-name=jaeger-ilm",
+		"--skip-dependencies=true",
+	})
+	require.NoError(t, err)
+
+	c.InitFromViper(v, logger)
+	assert.Equal(t, "tenant1-", c.IndexPrefix)
+	assert.Equal(t, true, c.Archive)
+	assert.Equal(t, 150, c.Timeout)
+	assert.Equal(t, "admin", c.Username)
+	assert.Equal(t, "qwerty123", c.Password)
+	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
+	assert.Equal(t, true, c.SkipDependencies)
+}
+
+func TestBindFlagsWithDeprecatedIndexFlag(t *testing.T) {
+	logger, _ := testutils.NewLogger()
 	v := viper.New()
 	c := &Config{}
 	command := cobra.Command{}
@@ -45,7 +79,7 @@ func TestBindFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	c.InitFromViper(v)
+	c.InitFromViper(v, logger)
 	assert.Equal(t, "tenant1-", c.IndexPrefix)
 	assert.Equal(t, true, c.Archive)
 	assert.Equal(t, 150, c.Timeout)

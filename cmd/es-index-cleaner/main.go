@@ -51,7 +51,7 @@ func main() {
 				return fmt.Errorf("could not parse NUM_OF_DAYS argument: %w", err)
 			}
 
-			cfg.InitFromViper(v)
+			cfg.InitFromViper(v, logger)
 			tlsOpts, err := tlsFlags.InitFromViper(v)
 			if err != nil {
 				return err

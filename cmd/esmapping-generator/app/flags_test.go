@@ -17,6 +17,7 @@ package app
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,8 @@ import (
 func TestOptionsWithDefaultFlags(t *testing.T) {
 	o := Options{}
 	c := cobra.Command{}
-	o.AddFlags(&c)
+	logger, _ := testutils.NewLogger()
+	o.AddFlags(&c, logger)
 
 	assert.Equal(t, "", o.Mapping)
 	assert.Equal(t, uint(7), o.EsVersion)
@@ -39,8 +41,34 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 func TestOptionsWithFlags(t *testing.T) {
 	o := Options{}
 	c := cobra.Command{}
+	logger, _ := testutils.NewLogger()
 
-	o.AddFlags(&c)
+	o.AddFlags(&c, logger)
+	err := c.ParseFlags([]string{
+		"--mapping=jaeger-span",
+		"--es-version=6",
+		"--shards=5",
+		"--replicas=1",
+		"--es.index-prefix=test",
+		"--use-ilm=true",
+		"--ilm-policy-name=jaeger-test-policy",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "jaeger-span", o.Mapping)
+	assert.Equal(t, uint(6), o.EsVersion)
+	assert.Equal(t, int64(5), o.Shards)
+	assert.Equal(t, int64(1), o.Replicas)
+	assert.Equal(t, "test", o.IndexPrefix)
+	assert.Equal(t, "true", o.UseILM)
+	assert.Equal(t, "jaeger-test-policy", o.ILMPolicyName)
+}
+
+func TestOptionsWithFlagsAndDeprecatedIndex(t *testing.T) {
+	o := Options{}
+	c := cobra.Command{}
+	logger, _ := testutils.NewLogger()
+
+	o.AddFlags(&c, logger)
 	err := c.ParseFlags([]string{
 		"--mapping=jaeger-span",
 		"--es-version=6",

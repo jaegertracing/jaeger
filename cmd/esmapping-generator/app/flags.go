@@ -16,6 +16,7 @@ package app
 
 import (
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 // Options represent configurable parameters for jaeger-esmapping-generator
@@ -30,17 +31,19 @@ type Options struct {
 }
 
 const (
-	mappingFlag       = "mapping"
-	esVersionFlag     = "es-version"
-	shardsFlag        = "shards"
-	replicasFlag      = "replicas"
-	indexPrefixFlag   = "index-prefix"
-	useILMFlag        = "use-ilm"
-	ilmPolicyNameFlag = "ilm-policy-name"
+	mappingFlag                  = "mapping"
+	esVersionFlag                = "es-version"
+	shardsFlag                   = "shards"
+	replicasFlag                 = "replicas"
+	indexPrefixFlag              = "es.index-prefix"
+	useILMFlag                   = "use-ilm"
+	ilmPolicyNameFlag            = "ilm-policy-name"
+	deprecatedIndexPrefix        = "index-prefix"
+	deprecatedIndexPrefixWarning = "(deprecated, will be removed after 2023-06-05 or in release v1.44.0, whichever is later)"
 )
 
 // AddFlags adds flags for esmapping-generator main program
-func (o *Options) AddFlags(command *cobra.Command) {
+func (o *Options) AddFlags(command *cobra.Command, logger *zap.Logger) {
 	command.Flags().StringVar(
 		&o.Mapping,
 		mappingFlag,
@@ -61,6 +64,15 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		replicasFlag,
 		1,
 		"The number of replicas per index in Elasticsearch")
+	command.Flags().StringVar(
+		&o.IndexPrefix,
+		deprecatedIndexPrefix,
+		"",
+		deprecatedIndexPrefixWarning+" see --"+indexPrefixFlag)
+
+	if o.IndexPrefix != "" {
+		logger.Warn(deprecatedIndexPrefix + " " + deprecatedIndexPrefixWarning + " see --" + indexPrefixFlag)
+	}
 	command.Flags().StringVar(
 		&o.IndexPrefix,
 		indexPrefixFlag,

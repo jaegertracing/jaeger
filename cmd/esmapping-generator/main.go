@@ -47,7 +47,7 @@ func main() {
 		},
 	}
 
-	options.AddFlags(command)
+	options.AddFlags(command, logger)
 
 	command.AddCommand(version.Command())
 
