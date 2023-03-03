@@ -28,8 +28,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 )
 
 const (
@@ -90,7 +88,9 @@ func TestReload(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	watcher.watchCertPair()
+	watcher.watchCert(watcher.opts.CAPath, certPool)
+	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
 	assert.Equal(t, &cert, watcher.certificate())
@@ -142,7 +142,8 @@ func TestReload_ca_certs(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	watcher.watchCert(watcher.opts.CAPath, certPool)
+	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	// update the content with different certs to trigger reload.
 	copyFile(t, caFile.Name(), wrongCaCert)
@@ -183,7 +184,9 @@ func TestReload_err_cert_update(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	watcher.watchCertPair()
+	watcher.watchCert(watcher.opts.CAPath, certPool)
+	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 	serverCert, err := tls.LoadX509KeyPair(filepath.Clean(serverCert), filepath.Clean(serverKey))
 	require.NoError(t, err)
 	assert.Equal(t, &serverCert, watcher.certificate())
@@ -204,10 +207,14 @@ func TestReload_err_watch(t *testing.T) {
 	opts := Options{
 		CAPath: "doesnotexists",
 	}
-	watcher, err := newCertWatcher(opts, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no such file or directory")
-	assert.Nil(t, watcher)
+	zcore, logObserver := observer.New(zapcore.InfoLevel)
+	watcher, _ := newCertWatcher(opts, zap.New(zcore))
+	watcher.watchCert(watcher.opts.CAPath, x509.NewCertPool())
+	assertLogs(t,
+		func() bool {
+			return logObserver.FilterMessage("Cannot set up watcher for certificate").
+				FilterField(zap.String("certificate", watcher.opts.CAPath)).Len() > 0
+		}, "Unable to locate 'Cannot set up watcher for certificate' in log. All logs: %v", logObserver)
 }
 
 func TestReload_kubernetes_secret_update(t *testing.T) {
@@ -253,7 +260,9 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	watcher.watchCertPair()
+	watcher.watchCert(watcher.opts.CAPath, certPool)
+	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	expectedCert, err := tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
@@ -341,13 +350,6 @@ func createTimestampDir(t *testing.T, dir string, ca, cert, key string) {
 }
 
 func TestAddCertsToWatch_err(t *testing.T) {
-	watcher, err := fswatcher.NewWatcher()
-	require.NoError(t, err)
-	defer watcher.Close()
-	w := &certWatcher{
-		watcher: watcher,
-	}
-
 	tests := []struct {
 		opts Options
 	}{
@@ -379,10 +381,16 @@ func TestAddCertsToWatch_err(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		w.opts = test.opts
-		err := w.setupWatchedPaths()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no such file or directory")
+		zcore, logObserver := observer.New(zapcore.InfoLevel)
+		watcher, _ := newCertWatcher(test.opts, zap.New(zcore))
+		certPool := x509.NewCertPool()
+		watcher.watchCertPair()
+		watcher.watchCert(watcher.opts.CAPath, certPool)
+		watcher.watchCert(watcher.opts.ClientCAPath, certPool)
+		assertLogs(t,
+			func() bool {
+				return logObserver.FilterMessage("Cannot set up watcher for certificate").Len() > 0
+			}, "Unable to locate 'Cannot set up watcher for certificate' in log. All logs: %v", logObserver)
 	}
 }
 
@@ -404,17 +412,18 @@ func TestAddCertsToWatch_remove_ca(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	watcher.watchCert(watcher.opts.CAPath, certPool)
+	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	require.NoError(t, os.Remove(caFile.Name()))
 	require.NoError(t, os.Remove(clientCaFile.Name()))
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("Certificate has been removed, using the last known version").Len() >= 2
+			return logObserver.FilterMessage("File has been removed, using the last known version").Len() >= 2
 		},
-		"Unable to locate 'Certificate has been removed' in log. All logs: %v", logObserver)
-	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", caFile.Name())).Len() > 0)
-	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0)
+		"Unable to locate 'File has been removed' in log. All logs: %v", logObserver)
+	assert.True(t, logObserver.FilterMessage("File has been removed, using the last known version").FilterField(zap.String("file", caFile.Name())).Len() > 0)
+	assert.True(t, logObserver.FilterMessage("File has been removed, using the last known version").FilterField(zap.String("file", clientCaFile.Name())).Len() > 0)
 }
 
 type delayedFormat struct {
@@ -468,7 +477,8 @@ func TestReload_err_ca_cert_update(t *testing.T) {
 
 	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
+	watcher.watchCert(watcher.opts.CAPath, certPool)
+	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	// update the content with bad certs.
 	copyFile(t, caFile.Name(), badCaCert)

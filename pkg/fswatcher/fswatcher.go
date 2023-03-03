@@ -26,47 +26,45 @@ import (
 	"go.uber.org/zap"
 )
 
-// FSWatcher watches for files' changes and errors.
-type FSWatcher interface {
-	WatchFiles(paths []string, onChange func(), log *zap.Logger) error
-	Close() error
+type FSWatcher struct {
+	watcher *fsnotify.Watcher
+	logger  *zap.Logger
 }
 
-// fsWatcherWrapper wraps the fsnotify.Watcher and implements FSWatcher.
-type fsWatcherWrapper struct {
-	fsnotifyWatcher *fsnotify.Watcher
-}
+// FSWatcher waits for notifications of changes in the watched directories
+// and attempts to reload all files that changed.
+//
+// Write and Rename events indicate that some files might have changed and reload might be necessary.
+// Remove event indicates that the file was deleted and we should write a warn to log.
+//
+// Reasoning:
+//
+// Write event is sent if the file content is rewritten.
+//
+// Usually files are not rewritten, but they are updated by swapping them with new
+// ones by calling Rename. That avoids files being read while they are not yet
+// completely written but it also means that inotify on file level will not work:
+// watch is invalidated when the old file is deleted.
+//
+// If reading from Kubernetes Secret volumes the target files are symbolic links
+// to files in a different directory. That directory is swapped with a new one,
+// while the symbolic links remain the same. This guarantees atomic swap for all
+// files at once, but it also means any Rename event in the directory might
+// indicate that the files were replaced, even if event.Name is not any of the
+// files we are monitoring. We check the hashes of the files to detect if they
+// were really changed.
+func NewFSWatcher(paths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return &FSWatcher{}, err
+	}
+	fsw := &FSWatcher{
+		watcher: watcher,
+		logger:  logger,
+	}
 
-// WatchFiles adds files' directories to the watcher, store each file's hashed content,
-// and watch for their changes and errors. If a file's hashed content changes, invoke onChange().
-func (f *fsWatcherWrapper) WatchFiles(paths []string, onChange func(), log *zap.Logger) error {
 	fileHashContentMap := make(map[string]string)
 	uniqueDirs := make(map[string]bool)
-
-	go func() error {
-		for {
-			select {
-			case event := <-f.fsnotifyWatcher.Events:
-				if event.Op&fsnotify.Create == fsnotify.Create ||
-					event.Op&fsnotify.Write == fsnotify.Write ||
-					event.Op&fsnotify.Rename == fsnotify.Rename {
-					ok, newHash := isModified(event.Name, fileHashContentMap[event.Name])
-					if ok {
-						fileHashContentMap[event.Name] = newHash
-						onChange()
-					}
-				}
-				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					if log == nil {
-						log = zap.NewNop()
-					}
-					log.Warn(event.Name + " has been removed.")
-				}
-			case err := <-f.fsnotifyWatcher.Errors:
-				return err
-			}
-		}
-	}()
 
 	for _, p := range paths {
 		if p == "" {
@@ -75,38 +73,55 @@ func (f *fsWatcherWrapper) WatchFiles(paths []string, onChange func(), log *zap.
 		if h, err := hashFile(p); err == nil {
 			fileHashContentMap[p] = h
 		} else {
-			return err
+			return &FSWatcher{}, err
 		}
 		dir := path.Dir(p)
 		if _, ok := uniqueDirs[dir]; !ok {
-			if err := f.fsnotifyWatcher.Add(dir); err != nil {
-				return err
+			if err := fsw.watcher.Add(dir); err != nil {
+				return &FSWatcher{}, err
 			}
 			uniqueDirs[dir] = true
 		}
 	}
 
-	return nil
+	go func() error {
+		for {
+			select {
+			case event := <-fsw.watcher.Events:
+				if event.Op&fsnotify.Create == fsnotify.Create ||
+					event.Op&fsnotify.Write == fsnotify.Write ||
+					event.Op&fsnotify.Rename == fsnotify.Rename ||
+					event.Op&fsnotify.Remove == fsnotify.Remove {
+					for file, hash := range fileHashContentMap {
+						ok, newHash := fsw.isModified(file, hash)
+						if ok {
+							fileHashContentMap[file] = newHash
+							onChange()
+						}
+					}
+				}
+			case err := <-fsw.watcher.Errors:
+				return err
+			}
+		}
+	}()
+
+	return fsw, nil
 }
 
 // Close closes the watcher.
-func (f *fsWatcherWrapper) Close() error {
-	return f.fsnotifyWatcher.Close()
-}
-
-// NewFSWatcher creates a new fsWatcherWrapper, wrapping the fsnotify.Watcher.
-func NewFSWatcher() (FSWatcher, error) {
-	w, err := fsnotify.NewWatcher()
-	return &fsWatcherWrapper{fsnotifyWatcher: w}, err
+func (f *FSWatcher) Close() error {
+	return f.watcher.Close()
 }
 
 // isModified returns true if the file has been modified since the last check.
-func isModified(file string, previousHash string) (bool, string) {
-	if file == "" {
+func (f *FSWatcher) isModified(filepath string, previousHash string) (bool, string) {
+	if filepath == "" {
 		return false, ""
 	}
-	hash, err := hashFile(file)
+	hash, err := hashFile(filepath)
 	if err != nil {
+		f.logger.Warn("File has been removed, using the last known version", zap.String("file", filepath))
 		return false, ""
 	}
 	return previousHash != hash, hash

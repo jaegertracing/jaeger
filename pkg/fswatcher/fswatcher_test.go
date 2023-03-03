@@ -27,32 +27,28 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestWatchFiles(t *testing.T) {
-	w, err := NewFSWatcher()
-	require.NoError(t, err)
-	assert.IsType(t, &fsWatcherWrapper{}, w)
-
-	err = w.WatchFiles([]string{"foo"}, nil, nil)
+func TestFSWatcherAddFiles(t *testing.T) {
+	w, err := NewFSWatcher([]string{"foo"}, nil, nil)
 	assert.Error(t, err)
+	assert.IsType(t, &FSWatcher{}, w)
 
-	err = w.WatchFiles([]string{"../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
+	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
 	assert.NoError(t, err)
+	assert.IsType(t, &FSWatcher{}, w)
 
-	err = w.WatchFiles([]string{"../../cmd/query/app/fixture/ui-config.json", "foo"}, nil, nil)
+	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json", "foo"}, nil, nil)
 	assert.Error(t, err)
+	assert.IsType(t, &FSWatcher{}, w)
 
-	err = w.WatchFiles([]string{"../../cmd/query/app/fixture/static/asset.txt", "../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
+	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/static/asset.txt", "../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
 	assert.NoError(t, err)
+	assert.IsType(t, &FSWatcher{}, w)
 
 	err = w.Close()
 	assert.NoError(t, err)
 }
 
-func TestWatchFilesChangeAndRemove(t *testing.T) {
-	w, err := NewFSWatcher()
-	require.NoError(t, err)
-	assert.IsType(t, &fsWatcherWrapper{}, w)
-
+func TestFSWatcherWatchFilesChangesAndRemoves(t *testing.T) {
 	testFile, err := os.Create("test.doc")
 	require.NoError(t, err)
 
@@ -60,13 +56,14 @@ func TestWatchFilesChangeAndRemove(t *testing.T) {
 	require.NoError(t, err)
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
-	log := zap.New(zcore)
-	onChange := func() {
-		log.Info("Content changed")
-	}
+	logger := zap.New(zcore)
 
-	err = w.WatchFiles([]string{testFile.Name()}, onChange, log)
+	onChange := func() {
+		logger.Info("Content changed")
+	}
+	w, err := NewFSWatcher([]string{testFile.Name()}, onChange, logger)
 	require.NoError(t, err)
+	require.IsType(t, &FSWatcher{}, w)
 
 	testFile.WriteString("test content changed")
 	assertLogs(t,
@@ -78,9 +75,10 @@ func TestWatchFilesChangeAndRemove(t *testing.T) {
 	os.Remove(testFile.Name())
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("./"+testFile.Name()+" has been removed.").Len() > 0
+			return logObserver.FilterMessage("File has been removed, using the last known version").Len() > 0
 		},
-		"Unable to locate './"+testFile.Name()+" has been removed."+"' in log. All logs: %v", logObserver)
+		"Unable to locate 'File has been removed' in log. All logs: %v", logObserver)
+	assert.True(t, logObserver.FilterMessage("File has been removed, using the last known version").FilterField(zap.String("file", testFile.Name())).Len() > 0)
 
 	err = w.Close()
 	assert.NoError(t, err)

@@ -114,7 +114,9 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		}
 	}
 
-	go p.certWatcher.watchChangesLoop(tlsCfg.RootCAs, tlsCfg.ClientCAs)
+	p.certWatcher.watchCertPair()
+	p.certWatcher.watchCert(p.certWatcher.opts.CAPath, tlsCfg.RootCAs)
+	p.certWatcher.watchCert(p.certWatcher.opts.ClientCAPath, tlsCfg.ClientCAs)
 	return tlsCfg, nil
 }
 
