@@ -42,7 +42,7 @@ type certWatcher struct {
 
 var _ io.Closer = (*certWatcher)(nil)
 
-func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
+func newCertWatcher(opts Options, logger *zap.Logger, tlsCfg *tls.Config) (*certWatcher, error) {
 	var cert *tls.Certificate
 	if opts.CertPath != "" && opts.KeyPath != "" {
 		// load certs at startup to catch missing certs error early
@@ -58,6 +58,10 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		logger: logger,
 		cert:   cert,
 	}
+
+	w.watchCertPair()
+	w.watchCert(w.opts.CAPath, tlsCfg.RootCAs)
+	w.watchCert(w.opts.ClientCAPath, tlsCfg.ClientCAs)
 
 	return w, nil
 }

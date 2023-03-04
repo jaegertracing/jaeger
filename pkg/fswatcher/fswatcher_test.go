@@ -48,7 +48,7 @@ func TestFSWatcherAddFiles(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestFSWatcherWatchFilesChangesAndRemoves(t *testing.T) {
+func TestFSWatcherWatchFileChangeAndRemove(t *testing.T) {
 	testFile, err := os.Create("test.doc")
 	require.NoError(t, err)
 

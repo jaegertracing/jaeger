@@ -81,16 +81,17 @@ func TestReload(t *testing.T) {
 		CertPath:     certFile.Name(),
 		KeyPath:      keyFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	tlsCfg := &tls.Config{
+		RootCAs:   certPool,
+		ClientCAs: certPool,
+	}
+	watcher, err := newCertWatcher(opts, logger, tlsCfg)
 	require.NoError(t, err)
 	assert.NotNil(t, watcher.certificate())
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	watcher.watchCertPair()
-	watcher.watchCert(watcher.opts.CAPath, certPool)
-	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
 	assert.Equal(t, &cert, watcher.certificate())
@@ -136,14 +137,16 @@ func TestReload_ca_certs(t *testing.T) {
 		CAPath:       caFile.Name(),
 		ClientCAPath: clientCaFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	tlsCfg := &tls.Config{
+		RootCAs:   certPool,
+		ClientCAs: certPool,
+	}
+	watcher, err := newCertWatcher(opts, logger, tlsCfg)
 	require.NoError(t, err)
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	watcher.watchCert(watcher.opts.CAPath, certPool)
-	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	// update the content with different certs to trigger reload.
 	copyFile(t, caFile.Name(), wrongCaCert)
@@ -177,16 +180,17 @@ func TestReload_err_cert_update(t *testing.T) {
 		CertPath:     certFile.Name(),
 		KeyPath:      keyFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	tlsCfg := &tls.Config{
+		RootCAs:   certPool,
+		ClientCAs: certPool,
+	}
+	watcher, err := newCertWatcher(opts, logger, tlsCfg)
 	require.NoError(t, err)
 	assert.NotNil(t, watcher.certificate())
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	watcher.watchCertPair()
-	watcher.watchCert(watcher.opts.CAPath, certPool)
-	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 	serverCert, err := tls.LoadX509KeyPair(filepath.Clean(serverCert), filepath.Clean(serverKey))
 	require.NoError(t, err)
 	assert.Equal(t, &serverCert, watcher.certificate())
@@ -208,8 +212,12 @@ func TestReload_err_watch(t *testing.T) {
 		CAPath: "doesnotexists",
 	}
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
-	watcher, _ := newCertWatcher(opts, zap.New(zcore))
-	watcher.watchCert(watcher.opts.CAPath, x509.NewCertPool())
+	certPool := x509.NewCertPool()
+	tlsCfg := &tls.Config{
+		RootCAs: certPool,
+	}
+	watcher, err := newCertWatcher(opts, zap.New(zcore), tlsCfg)
+	require.NoError(t, err)
 	assertLogs(t,
 		func() bool {
 			return logObserver.FilterMessage("Cannot set up watcher for certificate").
@@ -254,15 +262,18 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
-	watcher, err := newCertWatcher(opts, logger)
+
+	certPool := x509.NewCertPool()
+	tlsCfg := &tls.Config{
+		RootCAs:   certPool,
+		ClientCAs: certPool,
+	}
+
+	watcher, err := newCertWatcher(opts, logger, tlsCfg)
 	require.NoError(t, err)
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	watcher.watchCertPair()
-	watcher.watchCert(watcher.opts.CAPath, certPool)
-	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	expectedCert, err := tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
@@ -375,18 +386,19 @@ func TestAddCertsToWatch_err(t *testing.T) {
 			opts: Options{
 				CAPath:       caCert,
 				ClientCAPath: caCert,
-				CertPath:     serverCert,
 				KeyPath:      "doesnotexists",
 			},
 		},
 	}
 	for _, test := range tests {
 		zcore, logObserver := observer.New(zapcore.InfoLevel)
-		watcher, _ := newCertWatcher(test.opts, zap.New(zcore))
 		certPool := x509.NewCertPool()
-		watcher.watchCertPair()
-		watcher.watchCert(watcher.opts.CAPath, certPool)
-		watcher.watchCert(watcher.opts.ClientCAPath, certPool)
+		tlsCfg := &tls.Config{
+			RootCAs:   certPool,
+			ClientCAs: certPool,
+		}
+		_, err := newCertWatcher(test.opts, zap.New(zcore), tlsCfg)
+		assert.NoError(t, err)
 		assertLogs(t,
 			func() bool {
 				return logObserver.FilterMessage("Cannot set up watcher for certificate").Len() > 0
@@ -406,14 +418,17 @@ func TestAddCertsToWatch_remove_ca(t *testing.T) {
 		CAPath:       caFile.Name(),
 		ClientCAPath: clientCaFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	tlsCfg := &tls.Config{
+		RootCAs:   certPool,
+		ClientCAs: certPool,
+	}
+
+	watcher, err := newCertWatcher(opts, logger, tlsCfg)
 	require.NoError(t, err)
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	watcher.watchCert(watcher.opts.CAPath, certPool)
-	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	require.NoError(t, os.Remove(caFile.Name()))
 	require.NoError(t, os.Remove(clientCaFile.Name()))
@@ -471,14 +486,17 @@ func TestReload_err_ca_cert_update(t *testing.T) {
 		CAPath:       caFile.Name(),
 		ClientCAPath: clientCaFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	tlsCfg := &tls.Config{
+		RootCAs:   certPool,
+		ClientCAs: certPool,
+	}
+
+	watcher, err := newCertWatcher(opts, logger, tlsCfg)
 	require.NoError(t, err)
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	watcher.watchCert(watcher.opts.CAPath, certPool)
-	watcher.watchCert(watcher.opts.ClientCAPath, certPool)
 
 	// update the content with bad certs.
 	copyFile(t, caFile.Name(), badCaCert)

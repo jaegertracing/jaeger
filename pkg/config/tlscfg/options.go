@@ -95,7 +95,7 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	w, err := newCertWatcher(*p, logger)
+	w, err := newCertWatcher(*p, logger, tlsCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -114,9 +114,6 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		}
 	}
 
-	p.certWatcher.watchCertPair()
-	p.certWatcher.watchCert(p.certWatcher.opts.CAPath, tlsCfg.RootCAs)
-	p.certWatcher.watchCert(p.certWatcher.opts.ClientCAPath, tlsCfg.ClientCAs)
 	return tlsCfg, nil
 }
 
