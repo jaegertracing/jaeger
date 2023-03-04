@@ -56,5 +56,4 @@ var options frontend.ConfigOptions
 
 func init() {
 	RootCmd.AddCommand(frontendCmd)
-
 }

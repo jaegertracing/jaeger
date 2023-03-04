@@ -125,7 +125,7 @@ func testGRPCGatewayWithTenancy(t *testing.T, basePath string, serverTLS tlscfg.
 			},
 		}, nil).Once()
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	setupRequest(req)
@@ -208,7 +208,7 @@ func TestTenancyGRPCRejection(t *testing.T) {
 			},
 		}, nil).Once()
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	// We don't set tenant header

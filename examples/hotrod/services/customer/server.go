@@ -57,7 +57,7 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) createServeMux() http.Handler {
-	mux := tracing.NewServeMux(s.tracer)
+	mux := tracing.NewServeMux(false, s.tracer, s.logger)
 	mux.Handle("/customer", http.HandlerFunc(s.customer))
 	return mux
 }

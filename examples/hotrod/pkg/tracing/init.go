@@ -18,6 +18,8 @@ package tracing
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/opentracing/opentracing-go"
@@ -44,14 +46,18 @@ var once sync.Once
 // to return an OpenTracing-compatible tracer.
 func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
 	once.Do(func() {
-		otel.SetTextMapPropagator(propagation.TraceContext{})
+		otel.SetTextMapPropagator(
+			propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+			))
 	})
 
 	exp, err := createOtelExporter(exporterType)
 	if err != nil {
 		logger.Bg().Fatal("cannot create exporter", zap.String("exporterType", exporterType), zap.Error(err))
 	}
-	logger.Bg().Info("using " + exporterType + " trace exporter")
+	logger.Bg().Debug("using " + exporterType + " trace exporter")
 
 	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
 
@@ -64,8 +70,15 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 		)),
 	)
 	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
-	logger.Bg().Info("created OTEL->OT brige", zap.String("service-name", serviceName))
+	logger.Bg().Debug("created OTEL->OT brige", zap.String("service-name", serviceName))
 	return otTracer
+}
+
+// withSecure instructs the client to use HTTPS scheme, instead of hotrod's desired default HTTP
+func withSecure() bool {
+	return strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") ||
+		strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) == "false"
+
 }
 
 func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
@@ -77,10 +90,14 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 			jaeger.WithCollectorEndpoint(),
 		)
 	case "otlp":
-		client := otlptracehttp.NewClient(
-			otlptracehttp.WithInsecure(),
+		var opts []otlptracehttp.Option
+		if !withSecure() {
+			opts = []otlptracehttp.Option{otlptracehttp.WithInsecure()}
+		}
+		exporter, err = otlptrace.New(
+			context.Background(),
+			otlptracehttp.NewClient(opts...),
 		)
-		exporter, err = otlptrace.New(context.Background(), client)
 	case "stdout":
 		exporter, err = stdouttrace.New()
 	default:

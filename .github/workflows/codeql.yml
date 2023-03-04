@@ -31,7 +31,7 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@18bf8ad2ca49c14cbb28b91346d626ccfb00c518
+      uses: step-security/harden-runner@c8454efe5d0bdefd25384362fe217428ca277d57
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -40,7 +40,7 @@ jobs:
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@3ebbd71c74ef574dbc558c82f70e52732c8b44fe
+      uses: github/codeql-action/init@32dc499307d133bb5085bae78498c0ac2cf762d5
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -49,7 +49,7 @@ jobs:
         # queries: ./path/to/local/query, your-org/your-repo/queries@main
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@3ebbd71c74ef574dbc558c82f70e52732c8b44fe
+      uses: github/codeql-action/autobuild@32dc499307d133bb5085bae78498c0ac2cf762d5
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@3ebbd71c74ef574dbc558c82f70e52732c8b44fe
+      uses: github/codeql-action/analyze@32dc499307d133bb5085bae78498c0ac2cf762d5

@@ -76,7 +76,7 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) createServeMux() http.Handler {
-	mux := tracing.NewServeMux(s.tracer)
+	mux := tracing.NewServeMux(true, s.tracer, s.logger)
 	p := path.Join("/", s.basepath)
 	mux.Handle(p, http.StripPrefix(p, http.FileServer(s.assetFS)))
 	mux.Handle(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch))

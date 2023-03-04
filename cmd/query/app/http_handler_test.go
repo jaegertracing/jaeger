@@ -820,7 +820,7 @@ func getJSON(url string, out interface{}) error {
 }
 
 func getJSONCustomHeaders(url string, additionalHeaders map[string]string, out interface{}) error {
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
@@ -834,7 +834,7 @@ func postJSON(url string, req interface{}, out interface{}) error {
 	if err := encoder.Encode(req); err != nil {
 		return err
 	}
-	r, err := http.NewRequest("POST", url, buf)
+	r, err := http.NewRequest(http.MethodPost, url, buf)
 	if err != nil {
 		return err
 	}
@@ -919,7 +919,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
-	req, err := http.NewRequest("GET", ts.server.URL+`/api/traces?traceID=1&traceID=2`, nil)
+	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces?traceID=1&traceID=2`, nil)
 	assert.NoError(t, err)
 	req.Header.Add("Accept", "application/json")
 	// We don't set tenant header
