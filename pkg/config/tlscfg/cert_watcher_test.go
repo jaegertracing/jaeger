@@ -419,11 +419,11 @@ func TestAddCertsToWatch_remove_ca(t *testing.T) {
 	require.NoError(t, os.Remove(clientCaFile.Name()))
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("File has been removed, using the last known version").Len() >= 2
+			return logObserver.FilterMessage("Unable to read the file").Len() >= 2
 		},
-		"Unable to locate 'File has been removed' in log. All logs: %v", logObserver)
-	assert.True(t, logObserver.FilterMessage("File has been removed, using the last known version").FilterField(zap.String("file", caFile.Name())).Len() > 0)
-	assert.True(t, logObserver.FilterMessage("File has been removed, using the last known version").FilterField(zap.String("file", clientCaFile.Name())).Len() > 0)
+		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
+	assert.True(t, logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", caFile.Name())).Len() > 0)
+	assert.True(t, logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", clientCaFile.Name())).Len() > 0)
 }
 
 type delayedFormat struct {

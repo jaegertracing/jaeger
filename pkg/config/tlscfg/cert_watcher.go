@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
@@ -62,12 +63,11 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 }
 
 func (w *certWatcher) Close() error {
+	var err error
 	for _, w := range w.watchers {
-		if err := w.Close(); err != nil {
-			return err
-		}
+		err = multierr.Append(err, w.Close())
 	}
-	return nil
+	return err
 }
 
 func (w *certWatcher) certificate() *tls.Certificate {

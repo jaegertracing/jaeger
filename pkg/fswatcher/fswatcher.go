@@ -56,7 +56,7 @@ type FSWatcher struct {
 func NewFSWatcher(paths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return &FSWatcher{}, err
+		return nil, err
 	}
 	fsw := &FSWatcher{
 		watcher: watcher,
@@ -73,40 +73,47 @@ func NewFSWatcher(paths []string, onChange func(), logger *zap.Logger) (*FSWatch
 		if h, err := hashFile(p); err == nil {
 			fileHashContentMap[p] = h
 		} else {
-			return &FSWatcher{}, err
+			return nil, err
 		}
 		dir := path.Dir(p)
 		if _, ok := uniqueDirs[dir]; !ok {
 			if err := fsw.watcher.Add(dir); err != nil {
-				return &FSWatcher{}, err
+				return nil, err
 			}
 			uniqueDirs[dir] = true
 		}
 	}
 
-	go func() error {
-		for {
-			select {
-			case event := <-fsw.watcher.Events:
-				if event.Op&fsnotify.Create == fsnotify.Create ||
-					event.Op&fsnotify.Write == fsnotify.Write ||
-					event.Op&fsnotify.Rename == fsnotify.Rename ||
-					event.Op&fsnotify.Remove == fsnotify.Remove {
-					for file, hash := range fileHashContentMap {
-						ok, newHash := fsw.isModified(file, hash)
-						if ok {
-							fileHashContentMap[file] = newHash
-							onChange()
-						}
-					}
-				}
-			case err := <-fsw.watcher.Errors:
-				return err
-			}
-		}
-	}()
+	go fsw.watch(fileHashContentMap, onChange, logger)
 
 	return fsw, nil
+}
+
+// Watch watches for Events and Errors of files.
+// Each time an Event happen, all the files are checked for content change.
+// If a file's content changes, its hashed content is updated and onChange is invoked.
+func (f *FSWatcher) watch(fileHashContentMap map[string]string, onChange func(), logger *zap.Logger) {
+	for {
+		select {
+		case event, ok := <-f.watcher.Events:
+			if !ok {
+				return
+			}
+			logger.Info("Received event", zap.String("event", event.String()))
+			for file, hash := range fileHashContentMap {
+				changed, newHash := f.isModified(file, hash)
+				if changed {
+					fileHashContentMap[file] = newHash
+					onChange()
+				}
+			}
+		case err, ok := <-f.watcher.Errors:
+			if !ok {
+				return
+			}
+			logger.Error("Error", zap.Error(err))
+		}
+	}
 }
 
 // Close closes the watcher.
@@ -116,13 +123,10 @@ func (f *FSWatcher) Close() error {
 
 // isModified returns true if the file has been modified since the last check.
 func (f *FSWatcher) isModified(filepath string, previousHash string) (bool, string) {
-	if filepath == "" {
-		return false, ""
-	}
 	hash, err := hashFile(filepath)
 	if err != nil {
-		f.logger.Warn("File has been removed, using the last known version", zap.String("file", filepath))
-		return false, ""
+		f.logger.Warn("Unable to read the file", zap.String("file", filepath), zap.Error(err))
+		return true, ""
 	}
 	return previousHash != hash, hash
 }

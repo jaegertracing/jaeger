@@ -75,10 +75,9 @@ func TestFSWatcherWatchFilesChangesAndRemoves(t *testing.T) {
 	os.Remove(testFile.Name())
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("File has been removed, using the last known version").Len() > 0
+			return logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", testFile.Name())).Len() > 0
 		},
-		"Unable to locate 'File has been removed' in log. All logs: %v", logObserver)
-	assert.True(t, logObserver.FilterMessage("File has been removed, using the last known version").FilterField(zap.String("file", testFile.Name())).Len() > 0)
+		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
 
 	err = w.Close()
 	assert.NoError(t, err)
