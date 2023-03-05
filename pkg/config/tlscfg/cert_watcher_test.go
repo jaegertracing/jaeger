@@ -82,11 +82,7 @@ func TestReload(t *testing.T) {
 		KeyPath:      keyFile.Name(),
 	}
 	certPool := x509.NewCertPool()
-	tlsCfg := &tls.Config{
-		RootCAs:   certPool,
-		ClientCAs: certPool,
-	}
-	watcher, err := newCertWatcher(opts, logger, tlsCfg)
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	assert.NotNil(t, watcher.certificate())
 	defer watcher.Close()
@@ -138,11 +134,7 @@ func TestReload_ca_certs(t *testing.T) {
 		ClientCAPath: clientCaFile.Name(),
 	}
 	certPool := x509.NewCertPool()
-	tlsCfg := &tls.Config{
-		RootCAs:   certPool,
-		ClientCAs: certPool,
-	}
-	watcher, err := newCertWatcher(opts, logger, tlsCfg)
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	defer watcher.Close()
 
@@ -181,11 +173,7 @@ func TestReload_err_cert_update(t *testing.T) {
 		KeyPath:      keyFile.Name(),
 	}
 	certPool := x509.NewCertPool()
-	tlsCfg := &tls.Config{
-		RootCAs:   certPool,
-		ClientCAs: certPool,
-	}
-	watcher, err := newCertWatcher(opts, logger, tlsCfg)
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	assert.NotNil(t, watcher.certificate())
 	defer watcher.Close()
@@ -211,18 +199,10 @@ func TestReload_err_watch(t *testing.T) {
 	opts := Options{
 		CAPath: "doesnotexists",
 	}
-	zcore, logObserver := observer.New(zapcore.InfoLevel)
-	certPool := x509.NewCertPool()
-	tlsCfg := &tls.Config{
-		RootCAs: certPool,
-	}
-	watcher, err := newCertWatcher(opts, zap.New(zcore), tlsCfg)
-	require.NoError(t, err)
-	assertLogs(t,
-		func() bool {
-			return logObserver.FilterMessage("Cannot set up watcher for certificate").
-				FilterField(zap.String("certificate", watcher.opts.CAPath)).Len() > 0
-		}, "Unable to locate 'Cannot set up watcher for certificate' in log. All logs: %v", logObserver)
+	watcher, err := newCertWatcher(opts, nil, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no such file or directory")
+	assert.Nil(t, watcher)
 }
 
 func TestReload_kubernetes_secret_update(t *testing.T) {
@@ -264,12 +244,8 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 	logger := zap.New(zcore)
 
 	certPool := x509.NewCertPool()
-	tlsCfg := &tls.Config{
-		RootCAs:   certPool,
-		ClientCAs: certPool,
-	}
 
-	watcher, err := newCertWatcher(opts, logger, tlsCfg)
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	defer watcher.Close()
 
@@ -386,23 +362,16 @@ func TestAddCertsToWatch_err(t *testing.T) {
 			opts: Options{
 				CAPath:       caCert,
 				ClientCAPath: caCert,
+				CertPath:     serverCert,
 				KeyPath:      "doesnotexists",
 			},
 		},
 	}
 	for _, test := range tests {
-		zcore, logObserver := observer.New(zapcore.InfoLevel)
-		certPool := x509.NewCertPool()
-		tlsCfg := &tls.Config{
-			RootCAs:   certPool,
-			ClientCAs: certPool,
-		}
-		_, err := newCertWatcher(test.opts, zap.New(zcore), tlsCfg)
-		assert.NoError(t, err)
-		assertLogs(t,
-			func() bool {
-				return logObserver.FilterMessage("Cannot set up watcher for certificate").Len() > 0
-			}, "Unable to locate 'Cannot set up watcher for certificate' in log. All logs: %v", logObserver)
+		watcher, err := newCertWatcher(test.opts, nil, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such file or directory")
+		assert.Nil(t, watcher)
 	}
 }
 
@@ -419,12 +388,8 @@ func TestAddCertsToWatch_remove_ca(t *testing.T) {
 		ClientCAPath: clientCaFile.Name(),
 	}
 	certPool := x509.NewCertPool()
-	tlsCfg := &tls.Config{
-		RootCAs:   certPool,
-		ClientCAs: certPool,
-	}
 
-	watcher, err := newCertWatcher(opts, logger, tlsCfg)
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	defer watcher.Close()
 
@@ -487,12 +452,8 @@ func TestReload_err_ca_cert_update(t *testing.T) {
 		ClientCAPath: clientCaFile.Name(),
 	}
 	certPool := x509.NewCertPool()
-	tlsCfg := &tls.Config{
-		RootCAs:   certPool,
-		ClientCAs: certPool,
-	}
 
-	watcher, err := newCertWatcher(opts, logger, tlsCfg)
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	defer watcher.Close()
 
