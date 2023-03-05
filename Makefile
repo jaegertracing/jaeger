@@ -214,32 +214,8 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 .PHONY: rebuild-ui
 rebuild-ui:
-	cd jaeger-ui
+	./scripts/rebuild-ui.sh
 	
-	if git describe --exact-match --tags $(git rev-parse HEAD) >/dev/null 2>&1; then
-		# Get the release version from the tag
-		release_version=$(git describe --exact-match --tags $(git rev-parse HEAD) | cut -d "v" -f 2 | cut -d "-" -f 1)
-
-		# Check if the corresponding UI release has the assets.tar.gz file uploaded
-		release_url="https://github.com/jaegertracing/jaeger-ui/releases/download/v${release_version}/assets.tar.gz"
-
-		if curl --output /dev/null --silent --head --fail "$release_url"; then
-			# Download the file and unzip it into packages/build/
-			
-			curl -L -o assets.tar.gz "$release_url"
-			tar -xzvf assets.tar.gz -C packages/build/
-			
-
-		else
-			yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
-			
-		fi
-
-	else
-		yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
-		
-	fi
-
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
