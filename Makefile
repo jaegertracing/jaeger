@@ -214,7 +214,7 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 .PHONY: rebuild-ui
 rebuild-ui:
-	chmod u+x scripts/rebuild-ui.sh && ./scripts/rebuild-ui.sh
+	bash ./scripts/rebuild-ui.sh
 	
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
