@@ -214,8 +214,8 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 .PHONY: rebuild-ui
 rebuild-ui:
-	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
-
+	./scripts/rebuild-ui.sh
+	
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
