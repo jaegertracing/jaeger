@@ -315,37 +315,77 @@ func TestWarningResponse(t *testing.T) {
 	assert.NotNil(t, m)
 }
 
-func TestGetRoundTripper(t *testing.T) {
+func TestGetRoundTripperTlsConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		tlsEnabled bool
+		wantBearer string
+	}{
+		{"tls tlsEnabled", true, "foo"},
+		{"tls disabled", false, "foo"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := zap.NewNop()
+			rt, err := getHTTPRoundTripper(&config.Configuration{
+				ServerURL:      "https://localhost:1234",
+				ConnectTimeout: 9 * time.Millisecond,
+				TLS: tlscfg.Options{
+					Enabled: tc.tlsEnabled,
+				},
+			}, logger)
+			require.NoError(t, err)
+
+			server := httptest.NewServer(
+				http.HandlerFunc(
+					func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, "Bearer "+tc.wantBearer, r.Header.Get("Authorization"))
+					},
+				),
+			)
+			defer server.Close()
+
+			req, err := http.NewRequestWithContext(
+				bearertoken.ContextWithBearerToken(context.Background(), "foo"),
+				http.MethodGet,
+				server.URL,
+				nil,
+			)
+			require.NoError(t, err)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+	}
+}
+
+func TestGetRoundTripperToken(t *testing.T) {
 	for _, tc := range []struct {
 		name                  string
-		tlsEnabled            bool
 		tokenFilePath         string
 		allowTokenFromContext bool
 		wantBearer            string
 	}{
 		{
-			"tls enabled with token from file and token from context is not considered ",
-			true,
-			"testdir/test_file.txt",
+			"Token from file and token from context is not considered ",
+			"test/test_file.txt",
 			false,
 			"token from file",
 		},
 		{
-			"tls enabled with token from context",
-			true,
+			"Token from context",
 			"",
 			true,
 			"token from context",
 		},
 		{
-			"tls enabled with token from file with allowTokenFromContext should prefer using token from context",
-			true, "testdir/test_file.txt",
+			"Token from file with allowTokenFromContext should prefer using token from context",
+			"test/test_file.txt",
 			true,
 			"token from context",
 		},
 		{
-			"tls disabled with token from context",
-			false,
+			"Token from context",
 			"",
 			true,
 			"token from context",
@@ -371,9 +411,6 @@ func TestGetRoundTripper(t *testing.T) {
 				ConnectTimeout:        9 * time.Millisecond,
 				TokenFilePath:         tc.tokenFilePath,
 				AllowTokenFromContext: tc.allowTokenFromContext,
-				TLS: tlscfg.Options{
-					Enabled: tc.tlsEnabled,
-				},
 			}, logger)
 			require.NoError(t, err)
 
