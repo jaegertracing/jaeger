@@ -27,13 +27,12 @@ import (
 )
 
 const (
-	suffixServerURL              = ".server-url"
-	suffixConnectTimeout         = ".connect-timeout"
-	suffixTokenFilePath          = ".token-file"
-	defaultServerURL             = "http://localhost:9090"
-	defaultConnectTimeout        = 30 * time.Second
-	defaultAllowTokenFromContext = false
-	defaultTokenFilePath         = ""
+	suffixServerURL       = ".server-url"
+	suffixConnectTimeout  = ".connect-timeout"
+	suffixTokenFilePath   = ".token-file"
+	defaultServerURL      = "http://localhost:9090"
+	defaultConnectTimeout = 30 * time.Second
+	defaultTokenFilePath  = ""
 )
 
 type namespaceConfig struct {
@@ -75,7 +74,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg := &opt.Primary
 	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
-	cfg.AllowTokenFromContext = false
 	cfg.TokenFilePath = stripWhiteSpace(v.GetString(cfg.namespace + suffixTokenFilePath))
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
