@@ -214,8 +214,8 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 .PHONY: rebuild-ui
 rebuild-ui:
-	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
-
+	bash ./scripts/rebuild-ui.sh
+	
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
@@ -393,7 +393,7 @@ draft-release:
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.14.0
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.0
 	go install mvdan.cc/gofumpt@latest
 
 .PHONY: install-ci
