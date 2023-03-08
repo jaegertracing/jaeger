@@ -100,9 +100,8 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
-			// TODO: Need to figure out set enable/disable propagation on storage and prometheus plugins.
+			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
-			v.Set(bearertoken.PrometheusPropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
