@@ -319,10 +319,9 @@ func TestGetRoundTripperTlsConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		tlsEnabled bool
-		wantBearer string
 	}{
-		{"tls tlsEnabled", true, "foo"},
-		{"tls disabled", false, "foo"},
+		{"tls tlsEnabled", true},
+		{"tls disabled", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
@@ -332,13 +331,14 @@ func TestGetRoundTripperTlsConfig(t *testing.T) {
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
 				},
+				AllowTokenFromContext: true,
 			}, logger)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(
 				http.HandlerFunc(
 					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "Bearer "+tc.wantBearer, r.Header.Get("Authorization"))
+						assert.Equal(t, "Bearer foo", r.Header.Get("Authorization"))
 					},
 				),
 			)
@@ -358,7 +358,6 @@ func TestGetRoundTripperTlsConfig(t *testing.T) {
 		})
 	}
 }
-
 func TestGetRoundTripperToken(t *testing.T) {
 	for _, tc := range []struct {
 		name                  string
