@@ -315,7 +315,7 @@ func TestWarningResponse(t *testing.T) {
 	assert.NotNil(t, m)
 }
 
-func TestGetRoundTripperTlsConfig(t *testing.T) {
+func TestGetRoundTripperTLSConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		tlsEnabled bool
