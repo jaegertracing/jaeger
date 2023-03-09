@@ -331,7 +331,6 @@ func TestGetRoundTripperTlsConfig(t *testing.T) {
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
 				},
-				AllowTokenFromContext: true,
 			}, logger)
 			require.NoError(t, err)
 
@@ -360,34 +359,14 @@ func TestGetRoundTripperTlsConfig(t *testing.T) {
 }
 func TestGetRoundTripperToken(t *testing.T) {
 	for _, tc := range []struct {
-		name                  string
-		tokenFilePath         string
-		allowTokenFromContext bool
-		wantBearer            string
+		name          string
+		tokenFilePath string
+		wantBearer    string
 	}{
 		{
-			"Token from file and token from context is not considered ",
+			"Token from file",
 			"test/test_file.txt",
-			false,
 			"token from file",
-		},
-		{
-			"Token from context",
-			"",
-			true,
-			"token from context",
-		},
-		{
-			"Token from file with allowTokenFromContext should prefer using token from context",
-			"test/test_file.txt",
-			true,
-			"token from context",
-		},
-		{
-			"Token from context",
-			"",
-			true,
-			"token from context",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -397,7 +376,7 @@ func TestGetRoundTripperToken(t *testing.T) {
 				dir, file := filepath.Split(tc.tokenFilePath)
 				err := os.MkdirAll(dir, 0o750)
 				require.NoError(t, err)
-				err = os.WriteFile(filepath.Join(dir, file), []byte("token from file"), 0o660)
+				err = os.WriteFile(filepath.Join(dir, file), []byte(tc.wantBearer), 0o660)
 				require.NoError(t, err)
 				defer func() {
 					err = os.RemoveAll(tc.tokenFilePath)
@@ -406,10 +385,9 @@ func TestGetRoundTripperToken(t *testing.T) {
 			}
 
 			rt, err := getHTTPRoundTripper(&config.Configuration{
-				ServerURL:             "https://localhost:1234",
-				ConnectTimeout:        9 * time.Millisecond,
-				TokenFilePath:         tc.tokenFilePath,
-				AllowTokenFromContext: tc.allowTokenFromContext,
+				ServerURL:      "https://localhost:1234",
+				ConnectTimeout: 9 * time.Millisecond,
+				TokenFilePath:  tc.tokenFilePath,
 			}, logger)
 			require.NoError(t, err)
 
@@ -422,9 +400,6 @@ func TestGetRoundTripperToken(t *testing.T) {
 			)
 			defer server.Close()
 			ctx := context.Background()
-			if tc.allowTokenFromContext {
-				ctx = bearertoken.ContextWithBearerToken(ctx, "token from context")
-			}
 			req, err := http.NewRequestWithContext(
 				ctx,
 				http.MethodGet,
