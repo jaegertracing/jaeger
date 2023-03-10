@@ -28,28 +28,40 @@ import (
 )
 
 func TestFSWatcherAddFiles(t *testing.T) {
+	//Add an unreadable file
 	w, err := NewFSWatcher([]string{"foo"}, nil, nil)
 	assert.Error(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
 
+	//Add a readable file
 	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
 	assert.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
+	err = w.Close()
+	assert.NoError(t, err)
 
+	//Add a readable file and an unreadable file
 	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json", "foo"}, nil, nil)
 	assert.Error(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
 
+	//Add two readable files from two different repos
 	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/static/asset.txt", "../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
 	assert.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
+	err = w.Close()
+	assert.NoError(t, err)
 
+	//Add two readable files from one repo
+	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json", "../../cmd/query/app/fixture/ui-config.toml"}, nil, nil)
+	assert.NoError(t, err)
+	assert.IsType(t, &FSWatcher{}, w)
 	err = w.Close()
 	assert.NoError(t, err)
 }
 
 func TestFSWatcherWatchFileChangeAndRemove(t *testing.T) {
-	testFile, err := os.Create("test.doc")
+	testFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 
 	_, err = testFile.WriteString("test content")
@@ -59,16 +71,21 @@ func TestFSWatcherWatchFileChangeAndRemove(t *testing.T) {
 	logger := zap.New(zcore)
 
 	onChange := func() {
-		logger.Info("Content changed")
+		byteContent, err := os.ReadFile(testFile.Name())
+		require.NoError(t, err)
+		content := string(byteContent)
+		logger.Info("Content changed", zap.String("content", content))
 	}
+
 	w, err := NewFSWatcher([]string{testFile.Name()}, onChange, logger)
 	require.NoError(t, err)
 	require.IsType(t, &FSWatcher{}, w)
 
-	testFile.WriteString("test content changed")
+	testFile.WriteString(" changed")
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("Content changed").Len() > 0
+			return logObserver.FilterMessage("Content changed").
+				FilterField(zap.String("content", "test content changed")).Len() > 0
 		},
 		"Unable to locate 'Content changed' in log. All logs: %v", logObserver)
 

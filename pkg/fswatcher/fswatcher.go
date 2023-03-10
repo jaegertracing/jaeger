@@ -27,8 +27,10 @@ import (
 )
 
 type FSWatcher struct {
-	watcher *fsnotify.Watcher
-	logger  *zap.Logger
+	watcher            *fsnotify.Watcher
+	logger             *zap.Logger
+	fileHashContentMap map[string]string
+	onChange           func()
 }
 
 // FSWatcher waits for notifications of changes in the watched directories
@@ -53,79 +55,85 @@ type FSWatcher struct {
 // indicate that the files were replaced, even if event.Name is not any of the
 // files we are monitoring. We check the hashes of the files to detect if they
 // were really changed.
-func NewFSWatcher(paths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
+func NewFSWatcher(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
-	fsw := &FSWatcher{
-		watcher: watcher,
-		logger:  logger,
+	w := &FSWatcher{
+		watcher:            watcher,
+		logger:             logger,
+		fileHashContentMap: make(map[string]string),
+		onChange:           onChange,
 	}
 
-	fileHashContentMap := make(map[string]string)
 	uniqueDirs := make(map[string]bool)
 
-	for _, p := range paths {
+	for _, p := range filepaths {
 		if p == "" {
 			continue
 		}
 		if h, err := hashFile(p); err == nil {
-			fileHashContentMap[p] = h
+			w.fileHashContentMap[p] = h
 		} else {
 			return nil, err
 		}
 		dir := path.Dir(p)
 		if _, ok := uniqueDirs[dir]; !ok {
-			if err := fsw.watcher.Add(dir); err != nil {
+			if err := w.watcher.Add(dir); err != nil {
 				return nil, err
 			}
 			uniqueDirs[dir] = true
 		}
 	}
 
-	go fsw.watch(fileHashContentMap, onChange, logger)
+	go w.watch()
 
-	return fsw, nil
+	return w, nil
 }
 
 // Watch watches for Events and Errors of files.
 // Each time an Event happen, all the files are checked for content change.
-// If a file's content changes, its hashed content is updated and onChange is invoked.
-func (f *FSWatcher) watch(fileHashContentMap map[string]string, onChange func(), logger *zap.Logger) {
+// If a file's content changes, its hashed content is updated and
+// onChange is invoked after all file checks.
+func (w *FSWatcher) watch() {
 	for {
 		select {
-		case event, ok := <-f.watcher.Events:
+		case event, ok := <-w.watcher.Events:
 			if !ok {
 				return
 			}
-			logger.Info("Received event", zap.String("event", event.String()))
-			for file, hash := range fileHashContentMap {
-				changed, newHash := f.isModified(file, hash)
-				if changed {
-					fileHashContentMap[file] = newHash
-					onChange()
+			w.logger.Info("Received event", zap.String("event", event.String()))
+			var changed bool
+			for file, hash := range w.fileHashContentMap {
+				fileChanged, newHash := w.isModified(file, hash)
+				if fileChanged {
+					changed = fileChanged
+					w.fileHashContentMap[file] = newHash
 				}
 			}
-		case err, ok := <-f.watcher.Errors:
+			if changed {
+				w.onChange()
+			}
+		case err, ok := <-w.watcher.Errors:
 			if !ok {
 				return
 			}
-			logger.Error("Error", zap.Error(err))
+			w.logger.Error("Error", zap.Error(err))
 		}
 	}
 }
 
 // Close closes the watcher.
-func (f *FSWatcher) Close() error {
-	return f.watcher.Close()
+func (w *FSWatcher) Close() error {
+	return w.watcher.Close()
 }
 
 // isModified returns true if the file has been modified since the last check.
-func (f *FSWatcher) isModified(filepath string, previousHash string) (bool, string) {
+func (w *FSWatcher) isModified(filepath string, previousHash string) (bool, string) {
 	hash, err := hashFile(filepath)
 	if err != nil {
-		f.logger.Warn("Unable to read the file", zap.String("file", filepath), zap.Error(err))
+		w.logger.Warn("Unable to read the file", zap.String("file", filepath), zap.Error(err))
 		return true, ""
 	}
 	return previousHash != hash, hash

@@ -199,7 +199,7 @@ func TestReload_err_watch(t *testing.T) {
 	opts := Options{
 		CAPath: "doesnotexists",
 	}
-	watcher, err := newCertWatcher(opts, nil, nil, nil)
+	watcher, err := newCertWatcher(opts, zap.NewNop(), nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no such file or directory")
 	assert.Nil(t, watcher)
