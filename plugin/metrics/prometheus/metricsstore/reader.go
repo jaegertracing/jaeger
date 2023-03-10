@@ -27,7 +27,6 @@ import (
 	"unicode"
 
 	"github.com/opentracing/opentracing-go"
-
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/api"
