@@ -357,61 +357,48 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 		})
 	}
 }
+
 func TestGetRoundTripperToken(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		tokenFilePath string
-		wantBearer    string
-	}{
-		{
-			"Token from file",
-			"test/test_file.txt",
-			"token from file",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			logger := zap.NewNop()
-			// Create temp file with token if tokenFilePath is provided
-			if tc.tokenFilePath != "" {
-				dir, file := filepath.Split(tc.tokenFilePath)
-				err := os.MkdirAll(dir, 0o750)
-				require.NoError(t, err)
-				err = os.WriteFile(filepath.Join(dir, file), []byte(tc.wantBearer), 0o660)
-				require.NoError(t, err)
-				defer func() {
-					err = os.RemoveAll(tc.tokenFilePath)
-					require.NoError(t, err)
-				}()
-			}
+	tokenFilePath := "test/test.txt"
+	wantBearer := "token from file"
+	logger := zap.NewNop()
+	// Create temp file with token if tokenFilePath is provided
+	dir, file := filepath.Split(tokenFilePath)
+	err := os.MkdirAll(dir, 0o750)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, file), []byte(wantBearer), 0o660)
+	require.NoError(t, err)
+	defer func() {
+		err = os.RemoveAll(tokenFilePath)
+		require.NoError(t, err)
+	}()
 
-			rt, err := getHTTPRoundTripper(&config.Configuration{
-				ServerURL:      "https://localhost:1234",
-				ConnectTimeout: 9 * time.Millisecond,
-				TokenFilePath:  tc.tokenFilePath,
-			}, logger)
-			require.NoError(t, err)
+	rt, err := getHTTPRoundTripper(&config.Configuration{
+		ServerURL:      "https://localhost:1234",
+		ConnectTimeout: 9 * time.Millisecond,
+		TokenFilePath:  tokenFilePath,
+	}, logger)
+	require.NoError(t, err)
 
-			server := httptest.NewServer(
-				http.HandlerFunc(
-					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "Bearer "+tc.wantBearer, r.Header.Get("Authorization"))
-					},
-				),
-			)
-			defer server.Close()
-			ctx := context.Background()
-			req, err := http.NewRequestWithContext(
-				ctx,
-				http.MethodGet,
-				server.URL,
-				nil,
-			)
-			require.NoError(t, err)
-			resp, err := rt.RoundTrip(req)
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
-		})
-	}
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "Bearer "+wantBearer, r.Header.Get("Authorization"))
+			},
+		),
+	)
+	defer server.Close()
+	ctx := context.Background()
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL,
+		nil,
+	)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestInvalidCertFile(t *testing.T) {
@@ -528,6 +515,7 @@ func TestLoadToken(t *testing.T) {
 
 	// Test loading the token from the temporary file
 	path := tmpFile.Name()
+	fmt.Println("path--", path)
 	loadedToken, err := loadToken(path)
 	require.NoError(t, err)
 	assert.Equal(t, token, loadedToken)

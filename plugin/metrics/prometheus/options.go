@@ -74,7 +74,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg := &opt.Primary
 	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
-	cfg.TokenFilePath = stripWhiteSpace(v.GetString(cfg.namespace + suffixTokenFilePath))
+	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenFilePath)
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {
