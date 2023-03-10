@@ -20,9 +20,11 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 // Unmarshaller decodes a byte array to a span
@@ -79,4 +81,30 @@ func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 		return nil, err
 	}
 	return mSpans[0], err
+}
+
+type OtlpJSONUnmarshaller struct{}
+
+func NewOtlpJSONUnmarshaller() *OtlpJSONUnmarshaller {
+	return &OtlpJSONUnmarshaller{}
+}
+
+func (OtlpJSONUnmarshaller) Unmarshal(buf []byte) (*model.Span, error) {
+	req := ptraceotlp.NewExportRequest()
+	err := req.UnmarshalJSON(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	batch, err := otlp2jaeger.ProtoFromTraces(req.Traces())
+	if err != nil {
+		return nil, err
+	}
+
+	//  check span & raise err
+	// if span {
+
+	// }
+
+	return batch[0].Spans[0], nil
 }
