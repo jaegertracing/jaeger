@@ -44,7 +44,12 @@ jobs:
 
     - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18
 
+    - name: Build only linux/amd64 docker image for Pull Request
+      if: github.ref_name != 'main'
+      run: bash scripts/build-upload-docker-images.sh pr-only
+
     - name: Build and upload all docker images
+      if: github.ref_name == 'main'
       run: bash scripts/build-upload-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
