@@ -16,6 +16,7 @@
 package storage
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -24,7 +25,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -327,7 +327,7 @@ func (f *Factory) Close() error {
 			}
 		}
 	}
-	return multierror.Wrap(errs)
+	return errors.Join(errs...)
 }
 
 func (f *Factory) publishOpts() {
