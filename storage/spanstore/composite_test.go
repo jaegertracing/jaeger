@@ -48,10 +48,10 @@ func TestCompositeWriteSpanStoreSuccess(t *testing.T) {
 
 func TestCompositeWriteSpanStoreSecondFailure(t *testing.T) {
 	c := NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
-	assert.EqualError(t, c.WriteSpan(context.Background(), nil), fmt.Sprintf("[%s, %s]", errIWillAlwaysFail, errIWillAlwaysFail))
+	assert.EqualError(t, c.WriteSpan(context.Background(), nil), fmt.Sprintf("%s\n%s", errIWillAlwaysFail, errIWillAlwaysFail))
 }
 
 func TestCompositeWriteSpanStoreFirstFailure(t *testing.T) {
 	c := NewCompositeWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
-	assert.Equal(t, errIWillAlwaysFail, c.WriteSpan(context.Background(), nil))
+	assert.EqualError(t, c.WriteSpan(context.Background(), nil), errIWillAlwaysFail.Error())
 }
