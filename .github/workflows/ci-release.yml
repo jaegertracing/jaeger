@@ -16,79 +16,79 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@c8454efe5d0bdefd25384362fe217428ca277d57
-      with:
-        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+      - name: Harden Runner
+        uses: step-security/harden-runner@c8454efe5d0bdefd25384362fe217428ca277d57
+        with:
+          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
-      with:
-        submodules: true
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+        with:
+          submodules: true
 
-    - name: Fetch git tags
-      run: |
-        git fetch --prune --unshallow --tags
+      - name: Fetch git tags
+        run: |
+          git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
-      with:
-        go-version: 1.20.x
+      - uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
+        with:
+          go-version: 1.20.x
 
-    - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
-      with:
-        node-version: '16'
+      - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+        with:
+          node-version: '16'
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
+      - name: Export BRANCH variable
+        uses: ./.github/actions/setup-branch
 
-    - name: Install tools
-      run: make install-ci
+      - name: Install tools
+        run: make install-ci
 
-    - name: Configure GPG Key
-      id: import_gpg
-      uses: crazy-max/ghaction-import-gpg@v5
-      with:
-        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-        passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Configure GPG Key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v5
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-    - name: Build binaries
-      id: build-binaries
-      run: make build-all-platforms
+      - name: Build binaries
+        id: build-binaries
+        run: make build-all-platforms
 
-    - name: Package binaries
-      id: package-binaries
-      run: bash scripts/package-deploy.sh
-      if: steps.build-binaries.outcome == 'success'
+      - name: Package binaries
+        id: package-binaries
+        run: bash scripts/package-deploy.sh
+        if: steps.build-binaries.outcome == 'success'
 
-    - name: Upload binaries
-      uses: svenstaro/upload-release-action@7319e4733ec7a184d739a6f412c40ffc339b69c7
-      with:
-        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
-        file_glob: true
-        tag: ${{ github.ref }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-      if: steps.package-binaries.outcome == 'success'
+      - name: Upload binaries
+        uses: svenstaro/upload-release-action@7319e4733ec7a184d739a6f412c40ffc339b69c7
+        with:
+          file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
+          file_glob: true
+          tag: ${{ github.ref }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.package-binaries.outcome == 'success'
 
-    - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18
+      - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18
 
-    - name: Build and upload all docker images
-      run: bash scripts/build-upload-docker-images.sh
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      - name: Build and upload all docker images
+        run: bash scripts/build-upload-docker-images.sh
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish all-in-one image
-      run: bash scripts/build-all-in-one-image.sh
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      - name: Build, test, and publish all-in-one image
+        run: bash scripts/build-all-in-one-image.sh
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish hotrod image
-      run: bash scripts/hotrod-integration-test.sh
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      - name: Build, test, and publish hotrod image
+        run: bash scripts/hotrod-integration-test.sh
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: SBOM Generation
-      uses: anchore/sbom-action@07978da4bdb4faa726e52dfc6b1bed63d4b56479
-      with:
-        artifact-name: jaeger-SBOM.spdx.json
+      - name: SBOM Generation
+        uses: anchore/sbom-action@07978da4bdb4faa726e52dfc6b1bed63d4b56479
+        with:
+          artifact-name: jaeger-SBOM.spdx.json
