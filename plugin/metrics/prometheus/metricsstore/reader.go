@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -252,7 +254,6 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 			return nil, err
 		}
 	}
-
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
 	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
 	httpTransport := &http.Transport{
@@ -264,8 +265,26 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     ctlsConfig,
 	}
+
+	token := ""
+	if c.TokenFilePath != "" {
+		tokenFromFile, err := loadToken(c.TokenFilePath)
+		if err != nil {
+			return nil, err
+		}
+		token = tokenFromFile
+	}
 	return bearertoken.RoundTripper{
 		Transport:       httpTransport,
 		OverrideFromCtx: true,
+		StaticToken:     token,
 	}, nil
+}
+
+func loadToken(path string) (string, error) {
+	b, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }
