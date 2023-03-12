@@ -17,6 +17,7 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -25,7 +26,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
-	"github.com/jaegertracing/jaeger/pkg/multierror"
 )
 
 // certWatcher watches filesystem changes on certificates supplied via Options
@@ -79,7 +79,7 @@ func (w *certWatcher) Close() error {
 			errs = append(errs, err)
 		}
 	}
-	return multierror.Wrap(errs)
+	return errors.Join(errs...)
 }
 
 func (w *certWatcher) certificate() *tls.Certificate {
