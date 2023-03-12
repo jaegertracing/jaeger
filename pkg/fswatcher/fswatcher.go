@@ -68,6 +68,7 @@ func NewFSWatcher(filepaths []string, onChange func(), logger *zap.Logger) (*FSW
 	}
 
 	if err = w.setupWatchedPaths(filepaths); err != nil {
+		w.Close()
 		return nil, err
 	}
 
@@ -86,13 +87,11 @@ func (w *FSWatcher) setupWatchedPaths(filepaths []string) error {
 		if h, err := hashFile(p); err == nil {
 			w.fileHashContentMap[p] = h
 		} else {
-			w.Close()
 			return err
 		}
 		dir := path.Dir(p)
 		if _, ok := uniqueDirs[dir]; !ok {
 			if err := w.watcher.Add(dir); err != nil {
-				w.Close()
 				return err
 			}
 			uniqueDirs[dir] = true
