@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -314,7 +315,7 @@ func TestWarningResponse(t *testing.T) {
 	assert.NotNil(t, m)
 }
 
-func TestGetRoundTripper(t *testing.T) {
+func TestGetRoundTripperTLSConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		tlsEnabled bool
@@ -355,6 +356,49 @@ func TestGetRoundTripper(t *testing.T) {
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
+}
+
+func TestGetRoundTripperToken(t *testing.T) {
+	tokenFilePath := "test/test.txt"
+	wantBearer := "token from file"
+	logger := zap.NewNop()
+	// Create temp file with token if tokenFilePath is provided
+	dir, file := filepath.Split(tokenFilePath)
+	err := os.MkdirAll(dir, 0o750)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, file), []byte(wantBearer), 0o660)
+	require.NoError(t, err)
+	defer func() {
+		err = os.RemoveAll(tokenFilePath)
+		require.NoError(t, err)
+	}()
+
+	rt, err := getHTTPRoundTripper(&config.Configuration{
+		ServerURL:      "https://localhost:1234",
+		ConnectTimeout: 9 * time.Millisecond,
+		TokenFilePath:  tokenFilePath,
+	}, logger)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "Bearer "+wantBearer, r.Header.Get("Authorization"))
+			},
+		),
+	)
+	defer server.Close()
+	ctx := context.Background()
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL,
+		nil,
+	)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestInvalidCertFile(t *testing.T) {
@@ -456,4 +500,22 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
 	assert.Equal(t, float64(9223372036854), actualVal)
+}
+
+func TestLoadToken(t *testing.T) {
+	// Create a temporary file with a token
+	token := "test_token"
+	tmpFile, err := os.CreateTemp("", "token")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name()) // clean up
+	_, err = tmpFile.Write([]byte(token))
+	require.NoError(t, err)
+	err = tmpFile.Close()
+	require.NoError(t, err)
+
+	// Test loading the token from the temporary file
+	path := tmpFile.Name()
+	loadedToken, err := loadToken(path)
+	require.NoError(t, err)
+	assert.Equal(t, token, loadedToken)
 }

@@ -25,4 +25,5 @@ type Configuration struct {
 	ServerURL      string
 	ConnectTimeout time.Duration
 	TLS            tlscfg.Options
+	TokenFilePath  string
 }
