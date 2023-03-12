@@ -67,6 +67,16 @@ func NewFSWatcher(filepaths []string, onChange func(), logger *zap.Logger) (*FSW
 		onChange:           onChange,
 	}
 
+	if err = w.setupWatchedPaths(filepaths); err != nil {
+		return nil, err
+	}
+
+	go w.watch()
+
+	return w, nil
+}
+
+func (w *FSWatcher) setupWatchedPaths(filepaths []string) error {
 	uniqueDirs := make(map[string]bool)
 
 	for _, p := range filepaths {
@@ -76,20 +86,20 @@ func NewFSWatcher(filepaths []string, onChange func(), logger *zap.Logger) (*FSW
 		if h, err := hashFile(p); err == nil {
 			w.fileHashContentMap[p] = h
 		} else {
-			return nil, err
+			w.Close()
+			return err
 		}
 		dir := path.Dir(p)
 		if _, ok := uniqueDirs[dir]; !ok {
 			if err := w.watcher.Add(dir); err != nil {
-				return nil, err
+				w.Close()
+				return err
 			}
 			uniqueDirs[dir] = true
 		}
 	}
 
-	go w.watch()
-
-	return w, nil
+	return nil
 }
 
 // Watch watches for Events and Errors of files.
