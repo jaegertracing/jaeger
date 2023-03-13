@@ -28,7 +28,7 @@ import (
 
 // Unmarshaller decodes a byte array to a span
 type Unmarshaller interface {
-	Unmarshal([]byte) (*model.Span, error)
+	Unmarshal([]byte) ([]*model.Span, error)
 }
 
 // ProtobufUnmarshaller implements Unmarshaller
@@ -40,10 +40,12 @@ func NewProtobufUnmarshaller() *ProtobufUnmarshaller {
 }
 
 // Unmarshal decodes a protobuf byte array to a span
-func (h *ProtobufUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+func (h *ProtobufUnmarshaller) Unmarshal(msg []byte) ([]*model.Span, error) {
 	newSpan := &model.Span{}
+	spans := []*model.Span{newSpan}
 	err := proto.Unmarshal(msg, newSpan)
-	return newSpan, err
+
+	return spans, err
 }
 
 // JSONUnmarshaller implements Unmarshaller
@@ -55,10 +57,11 @@ func NewJSONUnmarshaller() *JSONUnmarshaller {
 }
 
 // Unmarshal decodes a json byte array to a span
-func (h *JSONUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+func (h *JSONUnmarshaller) Unmarshal(msg []byte) ([]*model.Span, error) {
 	newSpan := &model.Span{}
+	spans := []*model.Span{newSpan}
 	err := jsonpb.Unmarshal(bytes.NewReader(msg), newSpan)
-	return newSpan, err
+	return spans, err
 }
 
 // ZipkinThriftUnmarshaller implements Unmarshaller
@@ -70,7 +73,7 @@ func NewZipkinThriftUnmarshaller() *ZipkinThriftUnmarshaller {
 }
 
 // Unmarshal decodes a json byte array to a span
-func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) ([]*model.Span, error) {
 	tSpans, err := zipkin.DeserializeThrift(msg)
 	if err != nil {
 		return nil, err
@@ -79,7 +82,7 @@ func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mSpans[0], err
+	return mSpans, err
 }
 
 type OtlpJSONUnmarshaller struct{}
@@ -88,18 +91,25 @@ func NewOtlpJSONUnmarshaller() *OtlpJSONUnmarshaller {
 	return &OtlpJSONUnmarshaller{}
 }
 
-func (OtlpJSONUnmarshaller) Unmarshal(buf []byte) (*model.Span, error) {
+func (OtlpJSONUnmarshaller) Unmarshal(buf []byte) ([]*model.Span, error) {
 	req := ptraceotlp.NewExportRequest()
 	err := req.UnmarshalJSON(buf)
 	if err != nil {
 		return nil, err
 	}
 
-	batch, err := otlp2jaeger.ProtoFromTraces(req.Traces())
+	batches, err := otlp2jaeger.ProtoFromTraces(req.Traces())
 	if err != nil {
 		return nil, err
 	}
-	return batch[0].Spans[0], nil
+	spans := make([]*model.Span, 0)
+	for _, b := range batches {
+		for _, s := range b.Spans {
+			s.Process = b.Process
+			spans = append(spans, s)
+		}
+	}
+	return spans, nil
 }
 
 type OtlpProtoUnmarshaller struct{}
@@ -108,16 +118,23 @@ func NewOtlpProtoUnmarshaller() *OtlpProtoUnmarshaller {
 	return &OtlpProtoUnmarshaller{}
 }
 
-func (h *OtlpProtoUnmarshaller) Unmarshal(buf []byte) (*model.Span, error) {
+func (h *OtlpProtoUnmarshaller) Unmarshal(buf []byte) ([]*model.Span, error) {
 	req := ptraceotlp.NewExportRequest()
 	err := req.UnmarshalProto(buf)
 	if err != nil {
 		return nil, err
 	}
 
-	batch, err := otlp2jaeger.ProtoFromTraces(req.Traces())
+	batches, err := otlp2jaeger.ProtoFromTraces(req.Traces())
 	if err != nil {
 		return nil, err
 	}
-	return batch[0].Spans[0], nil
+	spans := make([]*model.Span, 0)
+	for _, b := range batches {
+		for _, s := range b.Spans {
+			s.Process = b.Process
+			spans = append(spans, s)
+		}
+	}
+	return spans, nil
 }
