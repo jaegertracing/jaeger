@@ -21,6 +21,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 
 	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
@@ -31,6 +32,7 @@ type FSWatcher struct {
 	logger             *zap.Logger
 	fileHashContentMap map[string]string
 	onChange           func()
+	mu                 sync.RWMutex
 }
 
 // FSWatcher waits for notifications of changes in the watched directories
@@ -118,7 +120,9 @@ func (w *FSWatcher) watch() {
 				fileChanged, newHash := w.isModified(file, hash)
 				if fileChanged {
 					changed = fileChanged
+					w.mu.Lock()
 					w.fileHashContentMap[file] = newHash
+					w.mu.Unlock()
 				}
 			}
 			if changed {

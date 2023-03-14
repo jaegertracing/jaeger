@@ -100,8 +100,10 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 	require.NoError(t, err)
 	newHash2, err := hashFile(testFile2.Name())
 	require.NoError(t, err)
+	w.mu.RLock()
 	assert.Equal(t, newHash1, w.fileHashContentMap[testFile1.Name()])
 	assert.Equal(t, newHash2, w.fileHashContentMap[testFile2.Name()])
+	w.mu.RUnlock()
 
 	// Test Remove event
 	os.Remove(testFile1.Name())

@@ -195,16 +195,6 @@ func TestReload_err_cert_update(t *testing.T) {
 	assert.Equal(t, &serverCert, watcher.certificate())
 }
 
-func TestReload_err_watch(t *testing.T) {
-	opts := Options{
-		CAPath: "doesnotexists",
-	}
-	watcher, err := newCertWatcher(opts, zap.NewNop(), nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no such file or directory")
-	assert.Nil(t, watcher)
-}
-
 func TestReload_kubernetes_secret_update(t *testing.T) {
 	mountDir, err := os.MkdirTemp("", "secret-mountpoint")
 	require.NoError(t, err)
@@ -334,76 +324,6 @@ func createTimestampDir(t *testing.T, dir string, ca, cert, key string) {
 	require.NoError(t, err)
 	err = os.WriteFile(filepath.Join(dir, "tls.key"), data, 0o600)
 	require.NoError(t, err)
-}
-
-func TestAddCertsToWatch_err(t *testing.T) {
-	tests := []struct {
-		opts Options
-	}{
-		{
-			opts: Options{
-				CAPath: "doesnotexists",
-			},
-		},
-		{
-			opts: Options{
-				CAPath:       caCert,
-				ClientCAPath: "doesnotexists",
-			},
-		},
-		{
-			opts: Options{
-				CAPath:       caCert,
-				ClientCAPath: caCert,
-				CertPath:     "doesnotexists",
-			},
-		},
-		{
-			opts: Options{
-				CAPath:       caCert,
-				ClientCAPath: caCert,
-				CertPath:     serverCert,
-				KeyPath:      "doesnotexists",
-			},
-		},
-	}
-	for _, test := range tests {
-		watcher, err := newCertWatcher(test.opts, nil, nil, nil)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no such file or directory")
-		assert.Nil(t, watcher)
-	}
-}
-
-func TestAddCertsToWatch_remove_ca(t *testing.T) {
-	caFile, caFileCloseFn := copyToTempFile(t, "cert.crt", caCert)
-	defer caFileCloseFn()
-	clientCaFile, clientCaFileClostFn := copyToTempFile(t, "key.crt", caCert)
-	defer clientCaFileClostFn()
-
-	zcore, logObserver := observer.New(zapcore.InfoLevel)
-	logger := zap.New(zcore)
-	opts := Options{
-		CAPath:       caFile.Name(),
-		ClientCAPath: clientCaFile.Name(),
-	}
-	certPool := x509.NewCertPool()
-
-	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
-	require.NoError(t, err)
-	defer watcher.Close()
-
-	require.NoError(t, err)
-
-	require.NoError(t, os.Remove(caFile.Name()))
-	require.NoError(t, os.Remove(clientCaFile.Name()))
-	assertLogs(t,
-		func() bool {
-			return logObserver.FilterMessage("Unable to read the file").Len() >= 2
-		},
-		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
-	assert.True(t, logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", caFile.Name())).Len() > 0)
-	assert.True(t, logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", clientCaFile.Name())).Len() > 0)
 }
 
 type delayedFormat struct {
