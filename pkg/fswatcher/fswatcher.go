@@ -116,15 +116,15 @@ func (w *FSWatcher) watch() {
 			}
 			w.logger.Info("Received event", zap.String("event", event.String()))
 			var changed bool
+			w.mu.Lock()
 			for file, hash := range w.fileHashContentMap {
 				fileChanged, newHash := w.isModified(file, hash)
 				if fileChanged {
 					changed = fileChanged
-					w.mu.Lock()
 					w.fileHashContentMap[file] = newHash
-					w.mu.Unlock()
 				}
 			}
+			w.mu.Unlock()
 			if changed {
 				w.onChange()
 			}

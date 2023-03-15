@@ -63,7 +63,7 @@ type StaticAssetsHandler struct {
 	options   StaticAssetsHandlerOptions
 	indexHTML atomic.Value // stores []byte
 	assetsFS  http.FileSystem
-	watcher   fswatcher.FSWatcher
+	watcher   *fswatcher.FSWatcher
 }
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
@@ -103,9 +103,8 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	watcher, err := fswatcher.NewFSWatcher([]string{options.UIConfigPath}, h.reloadUIConfig, h.options.Logger)
 	if err != nil {
 		return nil, err
-	} else {
-		h.watcher = *watcher
 	}
+	h.watcher = watcher
 
 	h.indexHTML.Store(indexHTML)
 

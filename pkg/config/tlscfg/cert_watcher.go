@@ -36,7 +36,7 @@ type certWatcher struct {
 	mu       sync.RWMutex
 	opts     Options
 	logger   *zap.Logger
-	watchers []fswatcher.FSWatcher
+	watchers []*fswatcher.FSWatcher
 	cert     *tls.Certificate
 }
 
@@ -91,7 +91,7 @@ func (w *certWatcher) certificate() *tls.Certificate {
 func (w *certWatcher) watchCertPair() error {
 	certPairWatcher, err := fswatcher.NewFSWatcher([]string{w.opts.CertPath, w.opts.KeyPath}, w.onCertPairChange, w.logger)
 	if err == nil {
-		w.watchers = append(w.watchers, *certPairWatcher)
+		w.watchers = append(w.watchers, certPairWatcher)
 	} else {
 		w.Close()
 	}
@@ -103,7 +103,7 @@ func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error 
 
 	certWatcher, err := fswatcher.NewFSWatcher([]string{certPath}, onCertChange, w.logger)
 	if err == nil {
-		w.watchers = append(w.watchers, *certWatcher)
+		w.watchers = append(w.watchers, certWatcher)
 	} else {
 		w.Close()
 	}
