@@ -38,14 +38,15 @@ import (
 )
 
 const (
-	queryHTTPHostPort       = "query.http-server.host-port"
-	queryGRPCHostPort       = "query.grpc-server.host-port"
-	queryBasePath           = "query.base-path"
-	queryStaticFiles        = "query.static-files"
-	queryUIConfig           = "query.ui-config"
-	queryTokenPropagation   = "query.bearer-token-propagation"
-	queryAdditionalHeaders  = "query.additional-headers"
-	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
+	queryHTTPHostPort          = "query.http-server.host-port"
+	queryGRPCHostPort          = "query.grpc-server.host-port"
+	queryBasePath              = "query.base-path"
+	queryStaticFiles           = "query.static-files"
+	queryLogStaticAssetsAccess = "query.log-static-assets-access"
+	queryUIConfig              = "query.ui-config"
+	queryTokenPropagation      = "query.bearer-token-propagation"
+	queryAdditionalHeaders     = "query.additional-headers"
+	queryMaxClockSkewAdjust    = "query.max-clock-skew-adjustment"
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -68,6 +69,8 @@ type QueryOptions struct {
 	BasePath string
 	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
 	StaticAssets string
+	// LogStaticAssetsAccess tells static handler to log access to static access, useful in debugging
+	LogStaticAssetsAccess bool
 	// UIConfig is the path to a configuration file for the UI
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
@@ -91,6 +94,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server")
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
+	flagSet.Bool(queryLogStaticAssetsAccess, false, "Log when static assets are accessed (for debugging)")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 	flagSet.Duration(queryMaxClockSkewAdjust, 0, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
@@ -114,6 +118,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	}
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
+	qOpts.LogStaticAssetsAccess = v.GetBool(queryLogStaticAssetsAccess)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 
