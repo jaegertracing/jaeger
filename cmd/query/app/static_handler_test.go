@@ -63,6 +63,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		basePath         string // input to the test
 		subroute         bool   // should we create a subroute?
 		baseURL          string // expected URL prefix
+		logAccess        bool
 		expectedBaseHTML string // substring to match in the home page
 		UIConfigPath     string // path to UI config
 		expectedUIConfig string // expected UI config
@@ -71,6 +72,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			basePath:         "",
 			baseURL:          "/",
 			expectedBaseHTML: `<base href="/"`,
+			logAccess:        true,
 			UIConfigPath:     "",
 			expectedUIConfig: "JAEGER_CONFIG=DEFAULT_CONFIG;",
 		},
@@ -95,15 +97,16 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run("basePath="+testCase.basePath, func(t *testing.T) {
-			logger, _ := testutils.NewLogger()
+			logger, logBuf := testutils.NewLogger()
 			r := mux.NewRouter()
 			if testCase.subroute {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
 			RegisterStaticHandler(r, logger, &QueryOptions{
-				StaticAssets: "fixture",
-				BasePath:     testCase.basePath,
-				UIConfig:     testCase.UIConfigPath,
+				StaticAssets:          "fixture",
+				BasePath:              testCase.basePath,
+				UIConfig:              testCase.UIConfigPath,
+				LogStaticAssetsAccess: testCase.logAccess,
 			})
 
 			server := httptest.NewServer(r)
@@ -128,6 +131,11 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
+			if testCase.logAccess {
+				assert.Contains(t, logBuf.String(), "static/asset.txt")
+			} else {
+				assert.NotContains(t, logBuf.String(), "static/asset.txt")
+			}
 		})
 	}
 }
