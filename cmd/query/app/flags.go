@@ -69,7 +69,7 @@ type QueryOptions struct {
 	BasePath string
 	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
 	StaticAssets string
-	// LogStaticAssetsAccess tells static handler to log access to static access, useful in debugging
+	// LogStaticAssetsAccess tells static handler to log access to static assets, useful in debugging
 	LogStaticAssetsAccess bool
 	// UIConfig is the path to a configuration file for the UI
 	UIConfig string
