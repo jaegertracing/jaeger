@@ -13,6 +13,31 @@ next release
 
 ### UI Changes
 
+1.43.0 (2023-03-15)
+-------------------
+### Backend Changes
+
+#### New Features
+
+* Support secure OTLP exporter config for hotrod ([@graphaelli](https://github.com/graphaelli) in [#4231](https://github.com/jaegertracing/jaeger/pull/4231))
+* Jaeger YugabyteDB(YCQL) support ([@HarshDaryani896](https://github.com/HarshDaryani896) in [#4220](https://github.com/jaegertracing/jaeger/pull/4220))
+
+#### Bug fixes, Minor Improvements
+
+* Replace pkg/multierror with standard errors.Join ([@ClementRepo](https://github.com/ClementRepo) in [#4293](https://github.com/jaegertracing/jaeger/pull/4293))
+* Remove pkg/multicloser ([@yurishkuro](https://github.com/yurishkuro) in [#4291](https://github.com/jaegertracing/jaeger/pull/4291))
+* Refactor build linux artifacts only for PR ([@Eileen-Yu](https://github.com/Eileen-Yu) in [#4286](https://github.com/jaegertracing/jaeger/pull/4286))
+* Speed-up CI by using published UI artifacts ([@shubbham1219](https://github.com/shubbham1219) in [#4251](https://github.com/jaegertracing/jaeger/pull/4251))
+* Update Go version to 1.20 ([@SaarthakMaini](https://github.com/SaarthakMaini) in [#4206](https://github.com/jaegertracing/jaeger/pull/4206))
+* Use http.MethodGet instead of "GET" ([@my-git9](https://github.com/my-git9) in [#4248](https://github.com/jaegertracing/jaeger/pull/4248))
+* Updating all-in-one path ([@bigfleet](https://github.com/bigfleet) in [#4234](https://github.com/jaegertracing/jaeger/pull/4234))
+* Migrate the use of fsnotify to fswatcher in cert_watcher.go ([@haanhvu](https://github.com/haanhvu) in [#4232](https://github.com/jaegertracing/jaeger/pull/4232))
+* Restore baggage support in HotROD 🚗 ([@yurishkuro](https://github.com/yurishkuro) in [#4225](https://github.com/jaegertracing/jaeger/pull/4225))
+
+### UI Changes
+
+* UI pinned to version [1.28.1](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1281-2023-03-15).
+
 1.42.0 (2023-02-05)
 -------------------
 ### Backend Changes
