@@ -60,7 +60,7 @@ func TestAllInOne(t *testing.T) {
 	// Check if the query service is available
 	healthCheck(t)
 
-	t.Run("Check if the favicon icon is available", faviconCheck)
+	t.Run("Check if the favicon icon is available", jaegerLogoCheck)
 	t.Run("createTrace", createTrace)
 	t.Run("getAPITrace", getAPITrace)
 	t.Run("getSamplingStrategy", getSamplingStrategy)
@@ -138,9 +138,9 @@ func healthCheck(t *testing.T) {
 	)
 }
 
-func faviconCheck(t *testing.T) {
+func jaegerLogoCheck(t *testing.T) {
 	t.Log("Checking favicon...")
-	resp, err := http.Get(queryURL + "/favicon.ico")
+	resp, err := http.Get(queryURL + "/static/jaeger-logo-ab11f618.svg")
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
