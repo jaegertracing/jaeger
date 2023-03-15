@@ -36,7 +36,7 @@ next release
 
 ### UI Changes
 
-* UI pinned to version [1.28.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1280-2023-03-15).
+* UI pinned to version [1.28.1](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1281-2023-03-15).
 
 1.42.0 (2023-02-05)
 -------------------
