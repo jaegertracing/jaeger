@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
@@ -68,9 +69,10 @@ func (s KafkaSpanProcessor) Process(message Message) error {
 	}
 
 	// TODO context should be propagated from upstream components
-	for _, span := range spans {
+	for i, span := range spans {
 		err = s.writer.WriteSpan(context.TODO(), s.sanitizer(span))
 		if err != nil {
+			log.Printf("failed to write %d out of %d spans", len(spans)-i, len(spans))
 			return err
 		}
 	}
