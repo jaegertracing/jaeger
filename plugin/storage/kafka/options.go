@@ -32,7 +32,7 @@ const (
 	EncodingJSON = "json"
 	// EncodingProto is used for spans encoded as Protobuf.
 	EncodingProto = "protobuf"
-	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
+	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift array.
 	EncodingZipkinThrift = "zipkin-thrift"
 	// EncodingOtlpJSON is used for spans encoded as OTLP JSON.
 	EncodingOtlpJSON = "otlp-json"
@@ -66,7 +66,7 @@ const (
 
 var (
 	// AllEncodings is a list of all supported encodings.
-	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
+	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift, EncodingOtlpProto, EncodingOtlpJSON}
 
 	// requiredAcks is mapping of sarama supported requiredAcks
 	requiredAcks = map[string]sarama.RequiredAcks{
