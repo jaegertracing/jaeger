@@ -962,7 +962,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
     to be implemented:
     For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
     * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):
-        If you don't run the migration script, nothing will break, the system will used the old table
+        If you don't run the migration script, nothing will break, the system will use the old table
         `operation_names` and set empty `spanKind` in the response.
         Steps to get the updated functionality:
         1.  You will need to run the command below on the host where you can use `cqlsh` to connect to Cassandra:
