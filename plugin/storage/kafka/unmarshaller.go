@@ -26,7 +26,7 @@ import (
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
-// Unmarshaller decodes a byte array to a span
+// Unmarshaller decodes a byte array to a span array
 type Unmarshaller interface {
 	Unmarshal([]byte) ([]*model.Span, error)
 }
@@ -39,13 +39,11 @@ func NewProtobufUnmarshaller() *ProtobufUnmarshaller {
 	return &ProtobufUnmarshaller{}
 }
 
-// Unmarshal decodes a protobuf byte array to a span
+// Unmarshal decodes a protobuf byte array to a span array
 func (h *ProtobufUnmarshaller) Unmarshal(msg []byte) ([]*model.Span, error) {
 	newSpan := &model.Span{}
-	spans := []*model.Span{newSpan}
 	err := proto.Unmarshal(msg, newSpan)
-
-	return spans, err
+	return []*model.Span{newSpan}, err
 }
 
 // JSONUnmarshaller implements Unmarshaller
@@ -56,12 +54,11 @@ func NewJSONUnmarshaller() *JSONUnmarshaller {
 	return &JSONUnmarshaller{}
 }
 
-// Unmarshal decodes a json byte array to a span
+// Unmarshal decodes a json byte array to a span array
 func (h *JSONUnmarshaller) Unmarshal(msg []byte) ([]*model.Span, error) {
 	newSpan := &model.Span{}
-	spans := []*model.Span{newSpan}
 	err := jsonpb.Unmarshal(bytes.NewReader(msg), newSpan)
-	return spans, err
+	return []*model.Span{newSpan}, err
 }
 
 // ZipkinThriftUnmarshaller implements Unmarshaller
@@ -72,7 +69,7 @@ func NewZipkinThriftUnmarshaller() *ZipkinThriftUnmarshaller {
 	return &ZipkinThriftUnmarshaller{}
 }
 
-// Unmarshal decodes a json byte array to a span
+// Unmarshal decodes a json byte array to a span array
 func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) ([]*model.Span, error) {
 	tSpans, err := zipkin.DeserializeThrift(msg)
 	if err != nil {
