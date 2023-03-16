@@ -426,7 +426,8 @@ next release
 -------------------
 ### Backend Changes
 #### New Features
-* Add cassandra v4 support ([@Ashmita152](https://github.com/Ashmita152) in [#3225](https://github.com/jaegertracing/jaeger/pull/3225))
+* Add cassandra v4 support ([@Ashmita152](https://github.com/Ashmita152) in [#3225](https://github.com/jaegertracing/jaeger/pull/3225)).
+  * **Note**: Users running on existing schema version [v3](https://github.com/jaegertracing/jaeger/blob/1d563f964da4b472a6f7e4cfdb85fe1167c30129/plugin/storage/cassandra/schema/v003.cql.tmpl) without issues, need not run an upgrade to [v4](https://github.com/jaegertracing/jaeger/blob/1d563f964da4b472a6f7e4cfdb85fe1167c30129/plugin/storage/cassandra/schema/v004.cql.tmpl). The new schema simply updates the table metadata, primarily removing `dclocal_read_repair_chance` deprecated table option, [which automatically gets ignored/removed when upgrading to Cassandra 4.0](https://issues.apache.org/jira/browse/CASSANDRA-13910).
 * Add es-index-cleaner golang implementation ([@pavolloffay](https://github.com/pavolloffay) in [#3204](https://github.com/jaegertracing/jaeger/pull/3204))
 * Add CLI Option for gRPC Max Receive Message Size ([@js8080](https://github.com/js8080) in [#3214](https://github.com/jaegertracing/jaeger/pull/3214) and [#3192](https://github.com/jaegertracing/jaeger/pull/3192))
 * Automatically detect OpenSearch version ([@pavolloffay](https://github.com/pavolloffay) in [#3198](https://github.com/jaegertracing/jaeger/pull/3198))
