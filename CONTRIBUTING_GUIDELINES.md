@@ -32,6 +32,14 @@ Discussing your proposed changes ahead of time will make the contribution
 process smooth for everyone. Once the approach is agreed upon, make your changes
 and open a pull request (PR).
 
+### Assigning Issues
+
+We do not assign issues to contributors. It's almost never the case that multiple
+people jump on the same issue, and practice showed that very often people who ask
+for an issue to be assigned to them later have a change in priorities and are unable
+to find time to finish it. So if you have a desire to work on an issue, feel free
+to mention it in the comment and just submit a PR.
+
 ### Creating a pull request
 
 If you are new to GitHub's contribution workflow, we recommend the following setup:
