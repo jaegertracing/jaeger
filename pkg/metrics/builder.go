@@ -68,7 +68,7 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 // If the metrics backend supports HTTP endpoint for scraping, it is stored in the builder and
 // can be later added by RegisterHandler function.
 func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
-	if b.Backend == "prometheus" {
+	if b.Backend == defaultMetricsBackend {
 		metricsFactory := jprom.New().Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
 		return metricsFactory, nil
