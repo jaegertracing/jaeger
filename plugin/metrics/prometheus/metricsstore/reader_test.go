@@ -361,7 +361,6 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 func TestGetRoundTripperToken(t *testing.T) {
 	tokenFilePath := "test/test.txt"
 	wantBearer := "token from file"
-	logger := zap.NewNop()
 	// Create temp file with token if tokenFilePath is provided
 	dir, file := filepath.Split(tokenFilePath)
 	err := os.MkdirAll(dir, 0o750)
@@ -377,7 +376,7 @@ func TestGetRoundTripperToken(t *testing.T) {
 		ServerURL:      "https://localhost:1234",
 		ConnectTimeout: 9 * time.Millisecond,
 		TokenFilePath:  tokenFilePath,
-	}, logger)
+	}, nil)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(
@@ -399,6 +398,20 @@ func TestGetRoundTripperToken(t *testing.T) {
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestGetRoundTripperTokenError(t *testing.T) {
+	tokenFilePath := "this file does not exist"
+
+	_, err := getHTTPRoundTripper(&config.Configuration{
+		TokenFilePath: tokenFilePath,
+	}, nil)
+
+	require.Error(t, err)
+
+	pathErr := &os.PathError{}
+	assert.ErrorAs(t, err, &pathErr)
+	assert.EqualError(t, pathErr, fmt.Sprintf("open %s: no such file or directory", tokenFilePath))
 }
 
 func TestInvalidCertFile(t *testing.T) {
