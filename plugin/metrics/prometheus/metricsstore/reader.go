@@ -284,7 +284,7 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 func loadToken(path string) (string, error) {
 	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		// wrap the error with a relevant message
+		// wrapping the error message
 		err = fmt.Errorf("failed to get token from file: %w", err)
 		return "", err
 	}
