@@ -75,9 +75,7 @@ func newCertWatcher(opts Options, logger *zap.Logger, rootCAs, clientCAs *x509.C
 func (w *certWatcher) Close() error {
 	var errs []error
 	for _, w := range w.watchers {
-		if err := w.Close(); err != nil {
-			errs = append(errs, err)
-		}
+		errs = append(errs, w.Close())
 	}
 	return errors.Join(errs...)
 }
