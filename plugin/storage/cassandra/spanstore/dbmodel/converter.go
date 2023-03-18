@@ -126,9 +126,9 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 }
 
 func (c converter) fromDBTags(tags []KeyValue) ([]model.KeyValue, error) {
-	var retMe []model.KeyValue
-	for _, tag := range tags {
-		kv, err := c.fromDBTag(&tag)
+	retMe := make([]model.KeyValue, 0, len(tags))
+	for i := range tags {
+		kv, err := c.fromDBTag(&tags[i])
 		if err != nil {
 			return nil, err
 		}
