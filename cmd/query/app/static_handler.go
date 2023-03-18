@@ -37,9 +37,6 @@ import (
 )
 
 var (
-	favoriteIcon    = "favicon.ico"
-	staticRootFiles = []string{favoriteIcon}
-
 	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
 	configJsPattern = regexp.MustCompile(`(?im)^\s*\/\/\s*JAEGER_CONFIG_JS.*\n.*`)
@@ -53,6 +50,7 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 		BasePath:     qOpts.BasePath,
 		UIConfigPath: qOpts.UIConfig,
 		Logger:       logger,
+		LogAccess:    qOpts.LogStaticAssetsAccess,
 	})
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
@@ -73,6 +71,7 @@ type StaticAssetsHandler struct {
 type StaticAssetsHandlerOptions struct {
 	BasePath     string
 	UIConfigPath string
+	LogAccess    bool
 	Logger       *zap.Logger
 	NewWatcher   func() (fswatcher.Watcher, error)
 }
@@ -259,17 +258,25 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	}
 }
 
+func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler {
+	if !sH.options.LogAccess {
+		return handler
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sH.options.Logger.Info("serving static asset", zap.Stringer("url", r.URL))
+		handler.ServeHTTP(w, r)
+	})
+}
+
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 	fileServer := http.FileServer(sH.assetsFS)
 	if sH.options.BasePath != "/" {
 		fileServer = http.StripPrefix(sH.options.BasePath+"/", fileServer)
 	}
-	router.PathPrefix("/static/").Handler(fileServer)
-	for _, file := range staticRootFiles {
-		router.Path("/" + file).Handler(fileServer)
-	}
-	router.NotFoundHandler = http.HandlerFunc(sH.notFound)
+	router.PathPrefix("/static/").Handler(sH.loggingHandler(fileServer))
+	// index.html is served by notFound handler
+	router.NotFoundHandler = sH.loggingHandler(http.HandlerFunc(sH.notFound))
 }
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {

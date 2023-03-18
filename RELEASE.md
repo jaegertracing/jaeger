@@ -58,3 +58,4 @@ Here are the release managers for future versions with the tentative release dat
 | 1.44.0  | @joe-elliott    | 5 April 2023           |
 | 1.45.0  | @albertteoh     | 3 May 2023             |
 | 1.46.0  | @yurishkuro     | 3 June 2023            |
+| 1.47.0  | @pavolloffay    | 5 July 2023            |

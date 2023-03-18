@@ -45,7 +45,7 @@ func TestSequences(t *testing.T) {
 	}{
 		{
 			adjuster:   adjuster.Sequence(adj, failingAdj, adj, failingAdj),
-			err:        fmt.Sprintf("[%s, %s]", adjErr, adjErr),
+			err:        fmt.Sprintf("%s\n%s", adjErr, adjErr),
 			lastSpanID: 2,
 		},
 		{

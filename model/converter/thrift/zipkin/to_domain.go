@@ -20,12 +20,12 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/opentracing/opentracing-go/ext"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
@@ -84,13 +84,13 @@ func ToDomainSpan(zSpan *zipkincore.Span) ([]*model.Span, error) {
 type toDomain struct{}
 
 func (td toDomain) ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
-	var errors []error
+	var errs []error
 	processes := newProcessHashtable()
 	trace := &model.Trace{}
 	for _, zSpan := range zSpans {
 		jSpans, err := td.ToDomainSpans(zSpan)
 		if err != nil {
-			errors = append(errors, err)
+			errs = append(errs, err)
 		}
 		for _, jSpan := range jSpans {
 			// remove duplicate Process instances
@@ -98,7 +98,7 @@ func (td toDomain) ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 			trace.Spans = append(trace.Spans, jSpan)
 		}
 	}
-	return trace, multierror.Wrap(errors)
+	return trace, errors.Join(errs...)
 }
 
 func (td toDomain) ToDomainSpans(zSpan *zipkincore.Span) ([]*model.Span, error) {
