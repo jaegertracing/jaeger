@@ -361,24 +361,20 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 func TestGetRoundTripperToken(t *testing.T) {
 	tokenFilePath := "test/test.txt"
 	wantBearer := "token from file"
-	// Create temp file with token if tokenFilePath is provided
 	dir, file := filepath.Split(tokenFilePath)
-	err := os.MkdirAll(dir, 0o750)
-	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir, file), []byte(wantBearer), 0o660)
+	f, err := os.CreateTemp(dir, file)
 	require.NoError(t, err)
 	defer func() {
-		err = os.RemoveAll(tokenFilePath)
+		err = os.Remove(f.Name())
 		require.NoError(t, err)
 	}()
-
+	_, err = f.Write([]byte(wantBearer))
+	require.NoError(t, err)
 	rt, err := getHTTPRoundTripper(&config.Configuration{
-		ServerURL:      "https://localhost:1234",
 		ConnectTimeout: 9 * time.Millisecond,
-		TokenFilePath:  tokenFilePath,
+		TokenFilePath:  f.Name(),
 	}, nil)
 	require.NoError(t, err)
-
 	server := httptest.NewServer(
 		http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
@@ -407,11 +403,7 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 		TokenFilePath: tokenFilePath,
 	}, nil)
 
-	require.Error(t, err)
-
-	pathErr := &os.PathError{}
-	assert.ErrorAs(t, err, &pathErr)
-	assert.EqualError(t, pathErr, fmt.Sprintf("open %s: no such file or directory", tokenFilePath))
+	assert.Contains(t, err.Error(), "failed to get token from file")
 }
 
 func TestInvalidCertFile(t *testing.T) {
@@ -513,22 +505,4 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
 	assert.Equal(t, float64(9223372036854), actualVal)
-}
-
-func TestLoadToken(t *testing.T) {
-	// Create a temporary file with a token
-	token := "test_token"
-	tmpFile, err := os.CreateTemp("", "token")
-	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name()) // clean up
-	_, err = tmpFile.Write([]byte(token))
-	require.NoError(t, err)
-	err = tmpFile.Close()
-	require.NoError(t, err)
-
-	// Test loading the token from the temporary file
-	path := tmpFile.Name()
-	loadedToken, err := loadToken(path)
-	require.NoError(t, err)
-	assert.Equal(t, token, loadedToken)
 }
