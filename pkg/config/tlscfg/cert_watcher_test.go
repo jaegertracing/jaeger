@@ -326,6 +326,45 @@ func createTimestampDir(t *testing.T, dir string, ca, cert, key string) {
 	require.NoError(t, err)
 }
 
+func TestAddCertsToWatch_err(t *testing.T) {
+	tests := []struct {
+		opts Options
+	}{
+		{
+			opts: Options{
+				CAPath: "doesnotexists",
+			},
+		},
+		{
+			opts: Options{
+				CAPath:       caCert,
+				ClientCAPath: "doesnotexists",
+			},
+		},
+		{
+			opts: Options{
+				CAPath:       caCert,
+				ClientCAPath: caCert,
+				CertPath:     "doesnotexists",
+			},
+		},
+		{
+			opts: Options{
+				CAPath:       caCert,
+				ClientCAPath: caCert,
+				CertPath:     serverCert,
+				KeyPath:      "doesnotexists",
+			},
+		},
+	}
+	for _, test := range tests {
+		watcher, err := newCertWatcher(test.opts, nil, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such file or directory")
+		assert.Nil(t, watcher)
+	}
+}
+
 type delayedFormat struct {
 	fn func() interface{}
 }

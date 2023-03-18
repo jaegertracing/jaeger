@@ -39,6 +39,12 @@ func TestFSWatcherAddFiles(t *testing.T) {
 	assert.IsType(t, &FSWatcher{}, w)
 	assert.NoError(t, w.Close())
 
+	// Add one empty-name file and one readable file
+	w, err = NewFSWatcher([]string{"", "../../cmd/query/app/fixture/ui-config.toml"}, nil, nil)
+	assert.NoError(t, err)
+	assert.IsType(t, &FSWatcher{}, w)
+	assert.NoError(t, w.Close())
+
 	// Add one readable file and one unreadable file
 	_, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json", "foo"}, nil, nil)
 	assert.Error(t, err)
