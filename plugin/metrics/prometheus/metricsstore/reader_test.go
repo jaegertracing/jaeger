@@ -326,7 +326,6 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
 			rt, err := getHTTPRoundTripper(&config.Configuration{
-				ServerURL:      "https://localhost:1234",
 				ConnectTimeout: 9 * time.Millisecond,
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
