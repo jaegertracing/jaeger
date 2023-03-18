@@ -401,7 +401,7 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 	_, err := getHTTPRoundTripper(&config.Configuration{
 		TokenFilePath: tokenFilePath,
 	}, nil)
-
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get token from file")
 }
 
