@@ -340,10 +340,7 @@ func TestFromDBWarnings(t *testing.T) {
 }
 
 func TestFailingFromDBWarnings(t *testing.T) {
-	span := getCustomSpan(badDBTags, someDBProcess, someDBLogs, someDBRefs)
-	warnings, err := converter{}.fromDBWarnings(span.Tags)
-
-	assert.Nil(t, warnings)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), notValidTagTypeErrStr)
+	badDBWarningTags := []KeyValue{{Key: warningStringPrefix + "1", ValueType: "invalidValueType"}}
+	span := getCustomSpan(badDBWarningTags, someDBProcess, someDBLogs, someDBRefs)
+	failingDBSpanTransform(t, span, notValidTagTypeErrStr)
 }

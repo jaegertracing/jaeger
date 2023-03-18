@@ -128,14 +128,14 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 func (c converter) fromDBTags(tags []KeyValue) ([]model.KeyValue, error) {
 	retMe := make([]model.KeyValue, 0, len(tags))
 	for i := range tags {
+		if strings.HasPrefix(tags[i].Key, warningStringPrefix) {
+			continue
+		}
 		kv, err := c.fromDBTag(&tags[i])
 		if err != nil {
 			return nil, err
 		}
-		// Ignore the warnings that were saved as tags.
-		if !strings.HasPrefix(kv.Key, warningStringPrefix) {
-			retMe = append(retMe, kv)
-		}
+		retMe = append(retMe, kv)
 	}
 	return retMe, nil
 }
@@ -143,13 +143,14 @@ func (c converter) fromDBTags(tags []KeyValue) ([]model.KeyValue, error) {
 func (c converter) fromDBWarnings(tags []KeyValue) ([]string, error) {
 	var retMe []string
 	for _, tag := range tags {
+		if !strings.HasPrefix(tag.Key, warningStringPrefix) {
+			continue
+		}
 		kv, err := c.fromDBTag(&tag)
 		if err != nil {
 			return nil, err
 		}
-		if strings.HasPrefix(kv.Key, warningStringPrefix) && kv.VType == model.StringType {
-			retMe = append(retMe, kv.VStr)
-		}
+		retMe = append(retMe, kv.VStr)
 	}
 	return retMe, nil
 }
