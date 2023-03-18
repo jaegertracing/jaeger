@@ -234,13 +234,9 @@ func (c converter) toDBWarnings(warnings []string) []KeyValue {
 	for i, w := range warnings {
 		kv := model.String(fmt.Sprintf("%s%d", warningStringPrefix, i+1), w)
 		retMe[i] = KeyValue{
-			Key:          kv.Key,
-			ValueType:    domainToDBValueTypeMap[kv.VType],
-			ValueString:  kv.VStr,
-			ValueBool:    kv.Bool(),
-			ValueInt64:   kv.Int64(),
-			ValueFloat64: kv.Float64(),
-			ValueBinary:  kv.Binary(),
+			Key:         kv.Key,
+			ValueType:   domainToDBValueTypeMap[kv.VType],
+			ValueString: kv.VStr,
 		}
 	}
 	return retMe

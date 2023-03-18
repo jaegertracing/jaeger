@@ -338,3 +338,12 @@ func TestFromDBWarnings(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, warnings, span.Warnings)
 }
+
+func TestFailingFromDBWarnings(t *testing.T) {
+	span := getCustomSpan(badDBTags, someDBProcess, someDBLogs, someDBRefs)
+	warnings, err := converter{}.fromDBWarnings(span.Tags)
+
+	assert.Nil(t, warnings)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), notValidTagTypeErrStr)
+}
