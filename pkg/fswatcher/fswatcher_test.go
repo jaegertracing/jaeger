@@ -28,36 +28,65 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
+func createTestFiles(t *testing.T) (file1 string, file2 string, file3 string, close func()) {
+	testDir1, err := os.MkdirTemp("", "test1_")
+	require.NoError(t, err)
+
+	file1 = filepath.Join(testDir1, "test1.doc")
+	err = os.WriteFile(file1, []byte("test data"), 0o600)
+	require.NoError(t, err)
+
+	file2 = filepath.Join(testDir1, "test2.doc")
+	err = os.WriteFile(file2, []byte("test data"), 0o600)
+	require.NoError(t, err)
+
+	testDir2, err := os.MkdirTemp("", "test2_")
+	require.NoError(t, err)
+
+	file3 = filepath.Join(testDir2, "test3.doc")
+	err = os.WriteFile(file3, []byte("test data"), 0o600)
+	require.NoError(t, err)
+
+	close = func() {
+		assert.NoError(t, os.RemoveAll(testDir1))
+		assert.NoError(t, os.RemoveAll(testDir2))
+	}
+	return
+}
+
 func TestFSWatcherAddFiles(t *testing.T) {
+	file1, file2, file3, close := createTestFiles(t)
+	defer close()
+
 	// Add one unreadable file
-	_, err := NewFSWatcher([]string{"foo"}, nil, nil)
-	assert.Error(t, err)
+	_, err := New([]string{"invalid-file-name"}, nil, nil)
+	require.Error(t, err)
 
 	// Add one readable file
-	w, err := NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
-	assert.NoError(t, err)
+	w, err := New([]string{file1}, nil, nil)
+	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
 	assert.NoError(t, w.Close())
 
 	// Add one empty-name file and one readable file
-	w, err = NewFSWatcher([]string{"", "../../cmd/query/app/fixture/ui-config.toml"}, nil, nil)
-	assert.NoError(t, err)
+	w, err = New([]string{"", file1}, nil, nil)
+	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
 	assert.NoError(t, w.Close())
 
 	// Add one readable file and one unreadable file
-	_, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json", "foo"}, nil, nil)
-	assert.Error(t, err)
+	_, err = New([]string{file1, "invalid-file-name"}, nil, nil)
+	require.Error(t, err)
 
-	// Add two readable files from one repo
-	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/ui-config.json", "../../cmd/query/app/fixture/ui-config.toml"}, nil, nil)
-	assert.NoError(t, err)
+	// Add two readable files from one dir
+	w, err = New([]string{file1, file2}, nil, nil)
+	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
 	assert.NoError(t, w.Close())
 
 	// Add two readable files from two different repos
-	w, err = NewFSWatcher([]string{"../../cmd/query/app/fixture/static/asset.txt", "../../cmd/query/app/fixture/ui-config.json"}, nil, nil)
-	assert.NoError(t, err)
+	w, err = New([]string{file1, file3}, nil, nil)
+	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
 	assert.NoError(t, w.Close())
 }
@@ -84,7 +113,7 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 		logger.Info("Change happens")
 	}
 
-	w, err := NewFSWatcher([]string{testFile1.Name(), testFile2.Name()}, onChange, logger)
+	w, err := New([]string{testFile1.Name(), testFile2.Name()}, onChange, logger)
 	require.NoError(t, err)
 	require.IsType(t, &FSWatcher{}, w)
 	defer w.Close()
@@ -149,7 +178,7 @@ func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
 
 	onChange := func() {}
 
-	w, err := NewFSWatcher([]string{filepath.Join(testDir, "test.doc")}, onChange, logger)
+	w, err := New([]string{filepath.Join(testDir, "test.doc")}, onChange, logger)
 	require.NoError(t, err)
 	require.IsType(t, &FSWatcher{}, w)
 	defer w.Close()

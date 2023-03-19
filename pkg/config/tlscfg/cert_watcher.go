@@ -87,9 +87,13 @@ func (w *certWatcher) certificate() *tls.Certificate {
 }
 
 func (w *certWatcher) watchCertPair() error {
-	certPairWatcher, err := fswatcher.NewFSWatcher([]string{w.opts.CertPath, w.opts.KeyPath}, w.onCertPairChange, w.logger)
+	watcher, err := fswatcher.New(
+		[]string{w.opts.CertPath, w.opts.KeyPath},
+		w.onCertPairChange,
+		w.logger,
+	)
 	if err == nil {
-		w.watchers = append(w.watchers, certPairWatcher)
+		w.watchers = append(w.watchers, watcher)
 	} else {
 		w.Close()
 	}
@@ -99,9 +103,9 @@ func (w *certWatcher) watchCertPair() error {
 func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error {
 	onCertChange := func() { w.onCertChange(certPath, certPool) }
 
-	certWatcher, err := fswatcher.NewFSWatcher([]string{certPath}, onCertChange, w.logger)
+	watcher, err := fswatcher.New([]string{certPath}, onCertChange, w.logger)
 	if err == nil {
-		w.watchers = append(w.watchers, certWatcher)
+		w.watchers = append(w.watchers, watcher)
 	} else {
 		w.Close()
 	}
@@ -109,27 +113,36 @@ func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error 
 }
 
 func (w *certWatcher) onCertPairChange() {
-	c, err := tls.LoadX509KeyPair(filepath.Clean(w.opts.CertPath), filepath.Clean(w.opts.KeyPath))
+	cert, err := tls.LoadX509KeyPair(filepath.Clean(w.opts.CertPath), filepath.Clean(w.opts.KeyPath))
 	if err == nil {
 		w.mu.Lock()
-		w.cert = &c
+		w.cert = &cert
 		w.mu.Unlock()
-		w.logger.Info("Loaded modified certificate", zap.String("certificate", w.opts.CertPath))
-		w.logger.Info("Loaded modified certificate", zap.String("certificate", w.opts.KeyPath))
+		w.logger.Info(
+			"Loaded modified key pair",
+			zap.String("key", w.opts.KeyPath),
+			zap.String("cert", w.opts.CertPath),
+		)
 	} else {
 		w.logger.Error(
 			"Failed to load certificate pair",
-			zap.String("certificate", w.opts.CertPath),
 			zap.String("key", w.opts.KeyPath),
+			zap.String("cert", w.opts.CertPath),
 			zap.Error(err),
 		)
 	}
 }
 
 func (w *certWatcher) onCertChange(certPath string, certPool *x509.CertPool) {
+	w.mu.Lock() // prevent concurrent updates to the same certPool
 	if err := addCertToPool(certPath, certPool); err == nil {
-		w.logger.Info("Loaded modified certificate", zap.String("certificate", certPath))
+		w.logger.Info("Loaded modified certificate", zap.String("cert", certPath))
 	} else {
-		w.logger.Error("Failed to load certificate", zap.String("certificate", certPath), zap.Error(err))
+		w.logger.Error(
+			"Failed to load certificate, using previous version",
+			zap.String("cert", certPath),
+			zap.Error(err),
+		)
 	}
+	w.mu.Unlock()
 }

@@ -57,7 +57,7 @@ type FSWatcher struct {
 // indicate that the files were replaced, even if event.Name is not any of the
 // files we are monitoring. We check the hashes of the files to detect if they
 // were really changed.
-func NewFSWatcher(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
+func New(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (w *FSWatcher) watch() {
 			if !ok {
 				return
 			}
-			w.logger.Error("Error", zap.Error(err))
+			w.logger.Error("fsnotifier reported an error", zap.Error(err))
 		}
 	}
 }

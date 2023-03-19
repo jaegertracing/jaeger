@@ -100,7 +100,7 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		assetsFS: assetsFS,
 	}
 
-	watcher, err := fswatcher.NewFSWatcher([]string{options.UIConfigPath}, h.reloadUIConfig, h.options.Logger)
+	watcher, err := fswatcher.New([]string{options.UIConfigPath}, h.reloadUIConfig, h.options.Logger)
 	if err != nil {
 		return nil, err
 	}
