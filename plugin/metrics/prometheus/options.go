@@ -27,11 +27,12 @@ import (
 )
 
 const (
-	suffixServerURL      = ".server-url"
-	suffixConnectTimeout = ".connect-timeout"
-
+	suffixServerURL       = ".server-url"
+	suffixConnectTimeout  = ".connect-timeout"
+	suffixTokenFilePath   = ".token-file"
 	defaultServerURL      = "http://localhost:9090"
 	defaultConnectTimeout = 30 * time.Second
+	defaultTokenFilePath  = ""
 )
 
 type namespaceConfig struct {
@@ -64,7 +65,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	nsConfig := &opt.Primary
 	flagSet.String(nsConfig.namespace+suffixServerURL, defaultServerURL, "The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090")
 	flagSet.Duration(nsConfig.namespace+suffixConnectTimeout, defaultConnectTimeout, "The period to wait for a connection to Prometheus when executing queries.")
-
+	flagSet.String(nsConfig.namespace+suffixTokenFilePath, defaultTokenFilePath, "The path to a file containing the bearer token which will be included when executing queries against the Prometheus API.")
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
 
@@ -73,6 +74,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg := &opt.Primary
 	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
+	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenFilePath)
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {
