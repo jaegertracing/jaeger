@@ -16,7 +16,6 @@ package kafka
 
 import (
 	"bytes"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -102,7 +101,9 @@ func (OtlpJSONUnmarshaller) Unmarshal(buf []byte) ([]*model.Span, error) {
 	spans := make([]*model.Span, 0)
 	for _, b := range batches {
 		for _, s := range b.Spans {
-			s.Process = b.Process
+			if s.Process == nil {
+				s.Process = b.Process
+			}
 			spans = append(spans, s)
 		}
 	}
@@ -129,7 +130,9 @@ func (h *OtlpProtoUnmarshaller) Unmarshal(buf []byte) ([]*model.Span, error) {
 	spans := make([]*model.Span, 0)
 	for _, b := range batches {
 		for _, s := range b.Spans {
-			s.Process = b.Process
+			if s.Process == nil {
+				s.Process = b.Process
+			}
 			spans = append(spans, s)
 		}
 	}
