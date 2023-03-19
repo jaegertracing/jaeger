@@ -28,6 +28,13 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 )
 
+const (
+	logMsgPairReloaded    = "Reloaded modified key pair"
+	logMsgCertReloaded    = "Reloaded modified certificate"
+	logMsgPairNotReloaded = "Failed to reload key pair, using previous versions"
+	logMsgCertNotReloaded = "Failed to reload certificate, using previous version"
+)
+
 // certWatcher watches filesystem changes on certificates supplied via Options
 // The changed RootCAs and ClientCAs certificates are added to x509.CertPool without invalidating the previously used certificate.
 // The certificate and key can be obtained via certWatcher.certificate.
@@ -94,10 +101,10 @@ func (w *certWatcher) watchCertPair() error {
 	)
 	if err == nil {
 		w.watchers = append(w.watchers, watcher)
-	} else {
-		w.Close()
+		return nil
 	}
-	return err
+	w.Close()
+	return fmt.Errorf("failed to watch key pair %s and %s: %w", w.opts.KeyPath, w.opts.CertPath, err)
 }
 
 func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error {
@@ -106,10 +113,10 @@ func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error 
 	watcher, err := fswatcher.New([]string{certPath}, onCertChange, w.logger)
 	if err == nil {
 		w.watchers = append(w.watchers, watcher)
-	} else {
-		w.Close()
+		return nil
 	}
-	return err
+	w.Close()
+	return fmt.Errorf("failed to watch cert %s: %w", certPath, err)
 }
 
 func (w *certWatcher) onCertPairChange() {
@@ -119,13 +126,13 @@ func (w *certWatcher) onCertPairChange() {
 		w.cert = &cert
 		w.mu.Unlock()
 		w.logger.Info(
-			"Loaded modified key pair",
+			logMsgPairReloaded,
 			zap.String("key", w.opts.KeyPath),
 			zap.String("cert", w.opts.CertPath),
 		)
 	} else {
 		w.logger.Error(
-			"Failed to load certificate pair",
+			logMsgPairNotReloaded,
 			zap.String("key", w.opts.KeyPath),
 			zap.String("cert", w.opts.CertPath),
 			zap.Error(err),
@@ -136,13 +143,9 @@ func (w *certWatcher) onCertPairChange() {
 func (w *certWatcher) onCertChange(certPath string, certPool *x509.CertPool) {
 	w.mu.Lock() // prevent concurrent updates to the same certPool
 	if err := addCertToPool(certPath, certPool); err == nil {
-		w.logger.Info("Loaded modified certificate", zap.String("cert", certPath))
+		w.logger.Info(logMsgCertReloaded, zap.String("cert", certPath))
 	} else {
-		w.logger.Error(
-			"Failed to load certificate, using previous version",
-			zap.String("cert", certPath),
-			zap.Error(err),
-		)
+		w.logger.Error(logMsgCertNotReloaded, zap.String("cert", certPath), zap.Error(err))
 	}
 	w.mu.Unlock()
 }
