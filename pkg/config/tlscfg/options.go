@@ -150,5 +150,8 @@ var _ io.Closer = (*Options)(nil)
 
 // Close shuts down the embedded certificate watcher.
 func (p *Options) Close() error {
-	return p.certWatcher.Close()
+	if p.certWatcher != nil {
+		return p.certWatcher.Close()
+	}
+	return nil
 }
