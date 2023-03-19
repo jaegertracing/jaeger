@@ -23,7 +23,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -358,20 +357,19 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 }
 
 func TestGetRoundTripperToken(t *testing.T) {
-	tokenFilePath := "test/test.txt"
-	wantBearer := "token from file"
-	dir, file := filepath.Split(tokenFilePath)
-	f, err := os.CreateTemp(dir, file)
+	const wantBearer = "token from file"
+
+	file, err := os.CreateTemp("", "token_")
 	require.NoError(t, err)
-	defer func() {
-		err = os.Remove(f.Name())
-		require.NoError(t, err)
-	}()
-	_, err = f.Write([]byte(wantBearer))
+	defer func() { assert.NoError(t, os.Remove(file.Name())) }()
+
+	_, err = file.Write([]byte(wantBearer))
 	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
 	rt, err := getHTTPRoundTripper(&config.Configuration{
-		ConnectTimeout: 9 * time.Millisecond,
-		TokenFilePath:  f.Name(),
+		ConnectTimeout: time.Second,
+		TokenFilePath:  file.Name(),
 	}, nil)
 	require.NoError(t, err)
 	server := httptest.NewServer(
