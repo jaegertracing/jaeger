@@ -94,14 +94,14 @@ func TestReloadKeyPair(t *testing.T) {
 	// Replace certificate part of the pair with client's cert, which should fail to load.
 	copyFile(t, certFile.Name(), clientCert)
 
-	assertLogs2(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
+	assertLogs(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
 	assert.Equal(t, &cert, watcher.certificate(), "key pair unchanged")
 	logObserver.TakeAll() // clean up logs
 
 	// Replace key part with client's private key. Valid pair, should reload.
 	copyFile(t, keyFile.Name(), clientKey)
 
-	assertLogs2(t, logObserver, logMsgPairReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
+	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
 	logObserver.TakeAll() // clean up logs
 
 	cert, err = tls.LoadX509KeyPair(filepath.Clean(clientCert), clientKey)
@@ -133,16 +133,16 @@ func TestReload_ca_certs(t *testing.T) {
 	copyFile(t, caFile.Name(), wrongCaCert)
 	copyFile(t, clientCaFile.Name(), wrongCaCert)
 
-	assertLogs2(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", caFile.Name()}})
-	assertLogs2(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", clientCaFile.Name()}})
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", caFile.Name()}})
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", clientCaFile.Name()}})
 	logObserver.TakeAll() // clean up logs
 
 	// update the content with invalid certs to trigger failed reload.
 	copyFile(t, caFile.Name(), badCaCert)
 	copyFile(t, clientCaFile.Name(), badCaCert)
 
-	assertLogs2(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", caFile.Name()}})
-	assertLogs2(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", clientCaFile.Name()}})
+	assertLogs(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", caFile.Name()}})
+	assertLogs(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", clientCaFile.Name()}})
 }
 
 func TestReload_err_cert_update(t *testing.T) {
@@ -175,7 +175,7 @@ func TestReload_err_cert_update(t *testing.T) {
 	copyFile(t, certFile.Name(), badCaCert)
 	copyFile(t, keyFile.Name(), clientKey)
 
-	assertLogs2(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
+	assertLogs(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
 	assert.Equal(t, &serverCert, watcher.certificate(), "values unchanged")
 }
 
@@ -259,8 +259,8 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 	err = os.RemoveAll(timestamp1Dir)
 	require.NoError(t, err)
 
-	assertLogs2(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
-	assertLogs2(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
+	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
 
 	expectedCert, err = tls.LoadX509KeyPair(clientCert, clientKey)
 	require.NoError(t, err)
@@ -279,8 +279,8 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 	err = os.RemoveAll(timestamp2Dir)
 	require.NoError(t, err)
 
-	assertLogs2(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
-	assertLogs2(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
+	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
 
 	expectedCert, err = tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
@@ -349,7 +349,7 @@ func TestAddCertsToWatch_err(t *testing.T) {
 	}
 }
 
-func assertLogs2(t *testing.T,
+func assertLogs(t *testing.T,
 	logs *observer.ObservedLogs,
 	logMsg string,
 	fields [][2]string,
@@ -371,29 +371,6 @@ func assertLogs2(t *testing.T,
 	ok := assert.Eventuallyf(t, fn, 5*time.Second, 10*time.Millisecond, errMsg)
 	if !ok {
 		for _, log := range logs.All() {
-			t.Log(log)
-		}
-	}
-}
-
-func assertLogs(t *testing.T, fn func() bool, errorMsg string, logObserver *observer.ObservedLogs) {
-	ok := assert.Eventuallyf(t, fn,
-		5*time.Second,
-		10*time.Millisecond,
-		errorMsg,
-		"see below",
-		// delayedFormat{
-		// 	fn: func() interface{} {
-		// 		var sb strings.Builder
-		// 		for _, log := range logObserver.All() {
-		// 			sb.WriteString(fmt.Sprintf("%v\n", log))
-		// 		}
-		// 		return logObserver.All()
-		// 	},
-		// },
-	)
-	if !ok {
-		for _, log := range logObserver.All() {
 			t.Log(log)
 		}
 	}
