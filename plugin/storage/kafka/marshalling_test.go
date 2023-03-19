@@ -15,12 +15,15 @@
 package kafka
 
 import (
+	"github.com/jaegertracing/jaeger/model"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 func TestProtobufMarshallerAndUnmarshaller(t *testing.T) {
@@ -40,7 +43,7 @@ func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarsha
 	resultSpan, err := unmarshaller.Unmarshal(bytes)
 
 	assert.NoError(t, err)
-	assert.Equal(t, sampleSpan, resultSpan)
+	assert.Equal(t, sampleSpan, resultSpan[0])
 }
 
 func TestZipkinThriftUnmarshaller(t *testing.T) {
@@ -55,10 +58,10 @@ func TestZipkinThriftUnmarshaller(t *testing.T) {
 		},
 	})
 	unmarshaller := NewZipkinThriftUnmarshaller()
-	resultSpan, err := unmarshaller.Unmarshal(bytes)
+	resultSpans, err := unmarshaller.Unmarshal(bytes)
 
 	assert.NoError(t, err)
-	assert.Equal(t, operationName, resultSpan.OperationName)
+	assert.Equal(t, operationName, resultSpans[0].OperationName)
 }
 
 func TestZipkinThriftUnmarshallerErrorNoService(t *testing.T) {
@@ -78,4 +81,26 @@ func TestZipkinThriftUnmarshallerErrorCorrupted(t *testing.T) {
 	unmarshaller := NewZipkinThriftUnmarshaller()
 	_, err := unmarshaller.Unmarshal(bytes)
 	assert.Error(t, err)
+}
+
+func TestOtlpJsonUmarshaller(t *testing.T) {
+	traces, _ := jaeger.ProtoToTraces([]*model.Batch{sampleBatch})
+	marshaler := ptrace.JSONMarshaler{}
+	bytes, _ := marshaler.MarshalTraces(traces)
+
+	unmarshaller := NewOtlpJSONUnmarshaller()
+	spans, err := unmarshaller.Unmarshal(bytes)
+	assert.NoError(t, err)
+	assert.Equal(t, sampleSpan, spans[0])
+}
+
+func TestOtlpProtoUmarshaller(t *testing.T) {
+	traces, _ := jaeger.ProtoToTraces([]*model.Batch{sampleBatch})
+	marshaler := ptrace.ProtoMarshaler{}
+	bytes, _ := marshaler.MarshalTraces(traces)
+
+	unmarshaller := NewOtlpProtoUnmarshaller()
+	spans, err := unmarshaller.Unmarshal(bytes)
+	assert.NoError(t, err)
+	assert.Equal(t, sampleSpan, spans[0])
 }

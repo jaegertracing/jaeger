@@ -25,15 +25,15 @@ type Unmarshaller struct {
 }
 
 // Unmarshal provides a mock function with given fields: _a0
-func (_m *Unmarshaller) Unmarshal(_a0 []byte) (*model.Span, error) {
+func (_m *Unmarshaller) Unmarshal(_a0 []byte) ([]*model.Span, error) {
 	ret := _m.Called(_a0)
 
-	var r0 *model.Span
+	var r0 []*model.Span
 	if rf, ok := ret.Get(0).(func([]byte) *model.Span); ok {
-		r0 = rf(_a0)
+		r0 = append(r0, rf(_a0))
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*model.Span)
+			r0 = append(r0, ret.Get(0).(*model.Span))
 		}
 	}
 

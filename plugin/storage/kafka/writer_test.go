@@ -47,7 +47,7 @@ var (
 				RefType: model.ChildOf,
 			},
 		},
-		Flags:     model.Flags(1),
+		Flags:     model.Flags(0),
 		StartTime: model.EpochMicrosecondsAsTime(55555),
 		Duration:  model.MicrosecondsAsDuration(50000),
 		Tags:      sampleTags,
@@ -57,6 +57,14 @@ var (
 				Fields:    sampleTags,
 			},
 		},
+		Process: &model.Process{
+			ServiceName: "someServiceName",
+			Tags:        sampleTags,
+		},
+	}
+
+	sampleBatch = &model.Batch{
+		Spans: []*model.Span{sampleSpan},
 		Process: &model.Process{
 			ServiceName: "someServiceName",
 			Tags:        sampleTags,
