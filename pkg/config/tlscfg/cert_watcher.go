@@ -17,7 +17,6 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -26,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 )
 
 const (
@@ -84,7 +84,7 @@ func (w *certWatcher) Close() error {
 	for _, w := range w.watchers {
 		errs = append(errs, w.Close())
 	}
-	return errors.Join(errs...)
+	return multierror.Wrap(errs)
 }
 
 func (w *certWatcher) certificate() *tls.Certificate {
