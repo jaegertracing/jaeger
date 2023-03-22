@@ -23,6 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -109,7 +110,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) 
 			writeErrors = append(writeErrors, err)
 		}
 	}
-	return errors.Join(writeErrors...)
+	return multierror.Wrap(writeErrors)
 }
 
 // Adjust applies adjusters to the trace.

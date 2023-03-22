@@ -16,9 +16,8 @@
 package adjuster
 
 import (
-	"errors"
-
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 )
 
 // Adjuster applies certain modifications to a Trace object.
@@ -57,7 +56,7 @@ type sequence struct {
 }
 
 func (c sequence) Adjust(trace *model.Trace) (*model.Trace, error) {
-	var errs []error
+	var errors []error
 	for _, adjuster := range c.adjusters {
 		var err error
 		trace, err = adjuster.Adjust(trace)
@@ -65,8 +64,8 @@ func (c sequence) Adjust(trace *model.Trace) (*model.Trace, error) {
 			if c.failFast {
 				return trace, err
 			}
-			errs = append(errs, err)
+			errors = append(errors, err)
 		}
 	}
-	return trace, errors.Join(errs...)
+	return trace, multierror.Wrap(errors)
 }

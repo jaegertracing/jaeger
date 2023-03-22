@@ -35,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -354,17 +355,17 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 }
 
 func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
-	var errs []error
+	var errors []error
 	if adjust {
 		var err error
 		trace, err = aH.queryService.Adjust(trace)
 		if err != nil {
-			errs = append(errs, err)
+			errors = append(errors, err)
 		}
 	}
 	uiTrace := uiconv.FromDomain(trace)
 	var uiError *structuredError
-	if err := errors.Join(errs...); err != nil {
+	if err := multierror.Wrap(errors); err != nil {
 		uiError = &structuredError{
 			Msg:     err.Error(),
 			TraceID: uiTrace.TraceID,

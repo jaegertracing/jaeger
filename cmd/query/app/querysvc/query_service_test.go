@@ -239,9 +239,10 @@ func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	joinErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	multiErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	assert.Len(t, multiErr, 2)
 	// There are two spans in the mockTrace, ArchiveTrace should return a wrapped error.
-	assert.EqualError(t, joinErr, "cannot save\ncannot save")
+	assert.EqualError(t, multiErr, "[cannot save, cannot save]")
 }
 
 // Test QueryService.ArchiveTrace() with correctly configured ArchiveSpanWriter.
