@@ -1,0 +1,48 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+env:
+  # Using upload token helps against rate limiting errors.
+  # Cannot define it as secret as we need it accessible from forks.
+  # See https://github.com/codecov/codecov-action/issues/837
+  CODECOV_TOKEN: f457b710-93af-4191-8678-bcf51281f98c
+
+jobs:
+  unit-tests-1.19:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@1f99358870fe1c846a3ccba386cc2b2246836776
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+
+    - uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+      with:
+        go-version: 1.19.x
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Run unit tests
+      run: make test-ci
+
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
+      with:
+        file: cover.out
+        verbose: true
+        flags: unittests
+        fail_ci_if_error: true
+        token: ${{ env.CODECOV_TOKEN }}
