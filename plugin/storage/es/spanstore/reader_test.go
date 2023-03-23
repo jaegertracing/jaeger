@@ -356,8 +356,8 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		secondMultiSearch.On("Index", mock.AnythingOfType("string")).Return(secondMultiSearch)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
-		fistMultiSearchMock := firstMultiSearch.On("Do", mock.AnythingOfType("*context.emptyCtx"))
-		secondMultiSearchMock := secondMultiSearch.On("Do", mock.AnythingOfType("*context.emptyCtx"))
+		fistMultiSearchMock := firstMultiSearch.On("Do", mock.Anything)
+		secondMultiSearchMock := secondMultiSearch.On("Do", mock.Anything)
 
 		// set TotalHits to two to trigger the follow up query
 		// the client will return only one span therefore the implementation
@@ -951,7 +951,7 @@ func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
 		mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
-	return multiSearchService.On("Do", mock.AnythingOfType("*context.valueCtx"))
+	return multiSearchService.On("Do", mock.Anything)
 }
 
 func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Call {
@@ -959,7 +959,7 @@ func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Ca
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
 	multiSearchService.On("Index", indexName).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
-	return multiSearchService.On("Do", mock.AnythingOfType("*context.valueCtx"))
+	return multiSearchService.On("Do", mock.Anything)
 }
 
 // matchTermsAggregation uses reflection to match the size attribute of the TermsAggregation; neither
@@ -981,10 +981,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
-	return searchService.On("Do", mock.MatchedBy(func(ctx context.Context) bool {
-		t := reflect.TypeOf(ctx).String()
-		return t == "*context.valueCtx" || t == "*context.emptyCtx"
-	}))
+	return searchService.On("Do", mock.Anything)
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
