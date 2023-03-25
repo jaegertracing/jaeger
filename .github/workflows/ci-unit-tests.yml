@@ -46,3 +46,6 @@ jobs:
         flags: unittests
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
+
+    - name: Lint
+      run: make lint

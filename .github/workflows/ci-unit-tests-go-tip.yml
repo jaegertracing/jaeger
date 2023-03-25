@@ -35,3 +35,6 @@ jobs:
 
     - name: Run unit tests
       run: make test-ci
+
+    - name: Lint
+      run: echo skip linting on Go tip
