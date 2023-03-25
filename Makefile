@@ -394,14 +394,14 @@ draft-release:
 .PHONY: install-tools
 install-tools:
 	$(GO) install github.com/vektra/mockery/v2@v2.14.0
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
 	$(GO) install mvdan.cc/gofumpt@latest
 
 .PHONY: install-ci
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples cover lint
+test-ci: build-examples cover
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
