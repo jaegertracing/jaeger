@@ -87,6 +87,7 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	}
 
 	if p.ClientCAPath != "" {
+		// TODO this should be moved to certWatcher, since it already loads key pair
 		certPool := x509.NewCertPool()
 		if err := addCertToPool(p.ClientCAPath, certPool); err != nil {
 			return nil, err
@@ -95,11 +96,11 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	w, err := newCertWatcher(*p, logger)
+	certWatcher, err := newCertWatcher(*p, logger, tlsCfg.RootCAs, tlsCfg.ClientCAs)
 	if err != nil {
 		return nil, err
 	}
-	p.certWatcher = w
+	p.certWatcher = certWatcher
 
 	if (p.CertPath == "" && p.KeyPath != "") || (p.CertPath != "" && p.KeyPath == "") {
 		return nil, fmt.Errorf("for client auth via TLS, either both client certificate and key must be supplied, or neither")
@@ -114,7 +115,6 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		}
 	}
 
-	go p.certWatcher.watchChangesLoop(tlsCfg.RootCAs, tlsCfg.ClientCAs)
 	return tlsCfg, nil
 }
 
@@ -148,7 +148,7 @@ func addCertToPool(caPath string, certPool *x509.CertPool) error {
 
 var _ io.Closer = (*Options)(nil)
 
-// Close closes Options.
+// Close shuts down the embedded certificate watcher.
 func (p *Options) Close() error {
 	if p.certWatcher != nil {
 		return p.certWatcher.Close()

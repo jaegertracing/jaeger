@@ -45,7 +45,7 @@ var frontendCmd = &cobra.Command{
 		logger := log.NewFactory(zapLogger)
 		server := frontend.NewServer(
 			options,
-			tracing.Init("frontend", metricsFactory, logger),
+			tracing.Init("frontend", otelExporter, metricsFactory, logger),
 			logger,
 		)
 		return logError(zapLogger, server.Run())
@@ -56,5 +56,4 @@ var options frontend.ConfigOptions
 
 func init() {
 	RootCmd.AddCommand(frontendCmd)
-
 }

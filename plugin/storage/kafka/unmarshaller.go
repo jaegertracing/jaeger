@@ -16,6 +16,8 @@ package kafka
 
 import (
 	"bytes"
+	"context"
+
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -68,9 +70,9 @@ func NewZipkinThriftUnmarshaller() *ZipkinThriftUnmarshaller {
 	return &ZipkinThriftUnmarshaller{}
 }
 
-// Unmarshal decodes a json byte array to a span array
+// Unmarshal decodes a json byte array to a span
 func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) ([]*model.Span, error) {
-	tSpans, err := zipkin.DeserializeThrift(msg)
+	tSpans, err := zipkin.DeserializeThrift(context.Background(), msg)
 	if err != nil {
 		return nil, err
 	}

@@ -24,7 +24,9 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
@@ -40,7 +42,7 @@ import (
 var _ component.Host = (*otelHost)(nil) // API check
 
 // StartOTLPReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
-func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) (component.TracesReceiver, error) {
+func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) (receiver.Traces, error) {
 	otlpFactory := otlpreceiver.NewFactory()
 	return startOTLPReceiver(
 		options,
@@ -62,15 +64,15 @@ func startOTLPReceiver(
 	spanProcessor processor.SpanProcessor,
 	tm *tenancy.Manager,
 	// from here: params that can be mocked in tests
-	otlpFactory component.ReceiverFactory,
+	otlpFactory receiver.Factory,
 	newTraces func(consume consumer.ConsumeTracesFunc, options ...consumer.Option) (consumer.Traces, error),
-	createTracesReceiver func(ctx context.Context, set component.ReceiverCreateSettings,
-		cfg component.ReceiverConfig, nextConsumer consumer.Traces) (component.TracesReceiver, error),
-) (component.TracesReceiver, error) {
+	createTracesReceiver func(ctx context.Context, set receiver.CreateSettings,
+		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
+) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
 	applyHTTPSettings(otlpReceiverConfig.HTTP, &options.OTLP.HTTP)
-	otlpReceiverSettings := component.ReceiverCreateSettings{
+	otlpReceiverSettings := receiver.CreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: otel.GetTracerProvider(),      // TODO we may always want no-op here, not the global default
@@ -184,10 +186,10 @@ func (*otelHost) GetFactory(_ component.Kind, _ component.Type) component.Factor
 	return nil
 }
 
-func (*otelHost) GetExtensions() map[component.ID]component.Extension {
+func (*otelHost) GetExtensions() map[component.ID]extension.Extension {
 	return nil
 }
 
-func (*otelHost) GetExporters() map[component.DataType]map[component.ID]component.Exporter {
+func (*otelHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
 }

@@ -130,3 +130,20 @@ func NewClientUnaryInterceptor(tc *Manager) grpc.UnaryClientInterceptor {
 		return invoker(ctx, method, req, reply, cc, opts...)
 	})
 }
+
+// NewClientStreamInterceptor injects tenant header into gRPC request metadata.
+func NewClientStreamInterceptor(tc *Manager) grpc.StreamClientInterceptor {
+	return grpc.StreamClientInterceptor(func(
+		ctx context.Context,
+		desc *grpc.StreamDesc,
+		cc *grpc.ClientConn,
+		method string,
+		streamer grpc.Streamer,
+		opts ...grpc.CallOption,
+	) (grpc.ClientStream, error) {
+		if tenant := GetTenant(ctx); tenant != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, tc.Header, tenant)
+		}
+		return streamer(ctx, desc, cc, method, opts...)
+	})
+}

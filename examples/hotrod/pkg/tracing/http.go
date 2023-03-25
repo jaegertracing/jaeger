@@ -35,7 +35,7 @@ type HTTPClient struct {
 // GetJSON executes HTTP GET against specified url and tried to parse
 // the response into out object.
 func (c *HTTPClient) GetJSON(ctx context.Context, endpoint string, url string, out interface{}) error {
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}

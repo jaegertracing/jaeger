@@ -28,8 +28,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 const (
@@ -97,7 +97,7 @@ type Processor struct {
 
 	// strategyResponses is the cache of the sampling strategies for every service, in Thrift format.
 	// TODO change this to work with protobuf model instead, to support gRPC endpoint.
-	strategyResponses map[string]*sampling.SamplingStrategyResponse
+	strategyResponses map[string]*api_v2.SamplingStrategyResponse
 
 	weightVectorCache *WeightVectorCache
 
@@ -138,7 +138,7 @@ func newProcessor(
 		probabilities:       make(model.ServiceOperationProbabilities),
 		qps:                 make(model.ServiceOperationQPS),
 		hostname:            hostname,
-		strategyResponses:   make(map[string]*sampling.SamplingStrategyResponse),
+		strategyResponses:   make(map[string]*api_v2.SamplingStrategyResponse),
 		logger:              logger,
 		electionParticipant: electionParticipant,
 		// TODO make weightsCache and probabilityCalculator configurable
@@ -152,7 +152,7 @@ func newProcessor(
 }
 
 // GetSamplingStrategy implements Thrift endpoint for retrieving sampling strategy for a service.
-func (p *Processor) GetSamplingStrategy(_ context.Context, service string) (*sampling.SamplingStrategyResponse, error) {
+func (p *Processor) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
 	p.RLock()
 	defer p.RUnlock()
 	if strategy, ok := p.strategyResponses[service]; ok {
@@ -501,14 +501,14 @@ func (p *Processor) isUsingAdaptiveSampling(
 // generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
 func (p *Processor) generateStrategyResponses() {
 	p.RLock()
-	strategies := make(map[string]*sampling.SamplingStrategyResponse)
+	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
 	for svc, opProbabilities := range p.probabilities {
-		opStrategies := make([]*sampling.OperationSamplingStrategy, len(opProbabilities))
+		opStrategies := make([]*api_v2.OperationSamplingStrategy, len(opProbabilities))
 		var idx int
 		for op, probability := range opProbabilities {
-			opStrategies[idx] = &sampling.OperationSamplingStrategy{
+			opStrategies[idx] = &api_v2.OperationSamplingStrategy{
 				Operation: op,
-				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 					SamplingRate: probability,
 				},
 			}
@@ -525,10 +525,10 @@ func (p *Processor) generateStrategyResponses() {
 	p.strategyResponses = strategies
 }
 
-func (p *Processor) generateDefaultSamplingStrategyResponse() *sampling.SamplingStrategyResponse {
-	return &sampling.SamplingStrategyResponse{
-		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-		OperationSampling: &sampling.PerOperationSamplingStrategies{
+func (p *Processor) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+		OperationSampling: &api_v2.PerOperationSamplingStrategies{
 			DefaultSamplingProbability:       p.InitialSamplingProbability,
 			DefaultLowerBoundTracesPerSecond: p.MinSamplesPerSecond,
 		},

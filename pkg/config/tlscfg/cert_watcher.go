@@ -17,13 +17,22 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
 
-	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
+)
+
+const (
+	logMsgPairReloaded    = "Reloaded modified key pair"
+	logMsgCertReloaded    = "Reloaded modified certificate"
+	logMsgPairNotReloaded = "Failed to reload key pair, using previous versions"
+	logMsgCertNotReloaded = "Failed to reload certificate, using previous version"
 )
 
 // certWatcher watches filesystem changes on certificates supplied via Options
@@ -31,16 +40,16 @@ import (
 // The certificate and key can be obtained via certWatcher.certificate.
 // The consumers of this API should use GetCertificate or GetClientCertificate from tls.Config to supply the certificate to the config.
 type certWatcher struct {
-	opts    Options
-	watcher *fsnotify.Watcher
-	cert    *tls.Certificate
-	logger  *zap.Logger
-	mu      *sync.RWMutex
+	mu       sync.RWMutex
+	opts     Options
+	logger   *zap.Logger
+	watchers []*fswatcher.FSWatcher
+	cert     *tls.Certificate
 }
 
 var _ io.Closer = (*certWatcher)(nil)
 
-func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
+func newCertWatcher(opts Options, logger *zap.Logger, rootCAs, clientCAs *x509.CertPool) (*certWatcher, error) {
 	var cert *tls.Certificate
 	if opts.CertPath != "" && opts.KeyPath != "" {
 		// load certs at startup to catch missing certs error early
@@ -50,25 +59,32 @@ func newCertWatcher(opts Options, logger *zap.Logger) (*certWatcher, error) {
 		}
 		cert = &c
 	}
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
+
+	w := &certWatcher{
+		opts:   opts,
+		logger: logger,
+		cert:   cert,
+	}
+
+	if err := w.watchCertPair(); err != nil {
 		return nil, err
 	}
-	if err := addCertsToWatch(watcher, opts); err != nil {
-		watcher.Close()
+	if err := w.watchCert(w.opts.CAPath, rootCAs); err != nil {
 		return nil, err
 	}
-	return &certWatcher{
-		cert:    cert,
-		opts:    opts,
-		watcher: watcher,
-		logger:  logger,
-		mu:      &sync.RWMutex{},
-	}, nil
+	if err := w.watchCert(w.opts.ClientCAPath, clientCAs); err != nil {
+		return nil, err
+	}
+
+	return w, nil
 }
 
 func (w *certWatcher) Close() error {
-	return w.watcher.Close()
+	var errs []error
+	for _, w := range w.watchers {
+		errs = append(errs, w.Close())
+	}
+	return errors.Join(errs...)
 }
 
 func (w *certWatcher) certificate() *tls.Certificate {
@@ -77,81 +93,59 @@ func (w *certWatcher) certificate() *tls.Certificate {
 	return w.cert
 }
 
-func (w *certWatcher) watchChangesLoop(rootCAs, clientCAs *x509.CertPool) {
-	for {
-		select {
-		case event, ok := <-w.watcher.Events:
-			if !ok {
-				return
-			}
-			// ignore if the event is a chmod event (permission or owner changes)
-			if event.Op&fsnotify.Chmod == fsnotify.Chmod {
-				continue
-			}
-			if event.Op&fsnotify.Remove == fsnotify.Remove {
-				w.logger.Warn("Certificate has been removed, using the last known version",
-					zap.String("certificate", event.Name))
-				continue
-			}
+func (w *certWatcher) watchCertPair() error {
+	watcher, err := fswatcher.New(
+		[]string{w.opts.CertPath, w.opts.KeyPath},
+		w.onCertPairChange,
+		w.logger,
+	)
+	if err == nil {
+		w.watchers = append(w.watchers, watcher)
+		return nil
+	}
+	w.Close()
+	return fmt.Errorf("failed to watch key pair %s and %s: %w", w.opts.KeyPath, w.opts.CertPath, err)
+}
 
-			w.logger.Info("Loading modified certificate",
-				zap.String("certificate", event.Name),
-				zap.String("event", event.Op.String()))
-			var err error
-			switch event.Name {
-			case w.opts.CAPath:
-				err = addCertToPool(w.opts.CAPath, rootCAs)
-			case w.opts.ClientCAPath:
-				err = addCertToPool(w.opts.ClientCAPath, clientCAs)
-			case w.opts.CertPath, w.opts.KeyPath:
-				w.mu.Lock()
-				c, e := tls.LoadX509KeyPair(filepath.Clean(w.opts.CertPath), filepath.Clean(w.opts.KeyPath))
-				if e == nil {
-					w.cert = &c
-				}
-				w.mu.Unlock()
-				err = e
-			}
-			if err == nil {
-				w.logger.Info("Loaded modified certificate",
-					zap.String("certificate", event.Name),
-					zap.String("event", event.Op.String()))
-			} else {
-				w.logger.Error("Failed to load certificate",
-					zap.String("certificate", event.Name),
-					zap.String("event", event.Op.String()),
-					zap.Error(err))
-			}
-		case err := <-w.watcher.Errors:
-			w.logger.Error("Watcher got error", zap.Error(err))
-		}
+func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error {
+	onCertChange := func() { w.onCertChange(certPath, certPool) }
+
+	watcher, err := fswatcher.New([]string{certPath}, onCertChange, w.logger)
+	if err == nil {
+		w.watchers = append(w.watchers, watcher)
+		return nil
+	}
+	w.Close()
+	return fmt.Errorf("failed to watch cert %s: %w", certPath, err)
+}
+
+func (w *certWatcher) onCertPairChange() {
+	cert, err := tls.LoadX509KeyPair(filepath.Clean(w.opts.CertPath), filepath.Clean(w.opts.KeyPath))
+	if err == nil {
+		w.mu.Lock()
+		w.cert = &cert
+		w.mu.Unlock()
+		w.logger.Info(
+			logMsgPairReloaded,
+			zap.String("key", w.opts.KeyPath),
+			zap.String("cert", w.opts.CertPath),
+		)
+	} else {
+		w.logger.Error(
+			logMsgPairNotReloaded,
+			zap.String("key", w.opts.KeyPath),
+			zap.String("cert", w.opts.CertPath),
+			zap.Error(err),
+		)
 	}
 }
 
-func addCertsToWatch(watcher *fsnotify.Watcher, opts Options) error {
-	if len(opts.CAPath) != 0 {
-		err := watcher.Add(opts.CAPath)
-		if err != nil {
-			return err
-		}
+func (w *certWatcher) onCertChange(certPath string, certPool *x509.CertPool) {
+	w.mu.Lock() // prevent concurrent updates to the same certPool
+	if err := addCertToPool(certPath, certPool); err == nil {
+		w.logger.Info(logMsgCertReloaded, zap.String("cert", certPath))
+	} else {
+		w.logger.Error(logMsgCertNotReloaded, zap.String("cert", certPath), zap.Error(err))
 	}
-	if len(opts.ClientCAPath) != 0 {
-		err := watcher.Add(opts.ClientCAPath)
-		if err != nil {
-			return err
-		}
-	}
-	if len(opts.CertPath) != 0 {
-		err := watcher.Add(opts.CertPath)
-		if err != nil {
-			return err
-		}
-	}
-	if len(opts.KeyPath) != 0 {
-		err := watcher.Add(opts.KeyPath)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	w.mu.Unlock()
 }

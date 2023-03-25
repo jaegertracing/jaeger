@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package zipkin
+package zipkindeser
 
 import (
 	"crypto/rand"
@@ -30,7 +30,7 @@ import (
 func TestProtoSpanFixtures(t *testing.T) {
 	var spans zipkinProto.ListOfSpans
 	loadJSON(t, "fixtures/zipkin_proto_01.json", &spans)
-	tSpans, err := protoSpansV2ToThrift(&spans)
+	tSpans, err := ProtoSpansV2ToThrift(&spans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var pid int64 = 1
@@ -57,7 +57,7 @@ func TestProtoSpanFixtures(t *testing.T) {
 func TestLCFromProtoSpanLocalEndpoint(t *testing.T) {
 	var spans zipkinProto.ListOfSpans
 	loadProto(t, "fixtures/zipkin_proto_02.json", &spans)
-	tSpans, err := protoSpansV2ToThrift(&spans)
+	tSpans, err := ProtoSpansV2ToThrift(&spans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var ts int64 = 1

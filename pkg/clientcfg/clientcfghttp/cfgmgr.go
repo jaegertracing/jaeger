@@ -19,8 +19,8 @@ import (
 	"errors"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 // ConfigManager implements ClientConfigManager.
@@ -30,7 +30,7 @@ type ConfigManager struct {
 }
 
 // GetSamplingStrategy implements ClientConfigManager.GetSamplingStrategy.
-func (c *ConfigManager) GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (c *ConfigManager) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
 	return c.SamplingStrategyStore.GetSamplingStrategy(ctx, serviceName)
 }
 

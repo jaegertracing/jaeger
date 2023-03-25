@@ -22,15 +22,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 func TestOptionsWithFlags(t *testing.T) {
 	opts := &Options{}
-	v, command := config.Viperize(opts.AddFlags)
+	v, command := config.Viperize(opts.AddFlags, tenancy.AddFlags)
 	err := command.ParseFlags([]string{
 		"--grpc-storage-plugin.binary=noop-grpc-plugin",
 		"--grpc-storage-plugin.configuration-file=config.json",
 		"--grpc-storage-plugin.log-level=debug",
+		"--multi-tenancy.header=x-scope-orgid",
 	})
 	assert.NoError(t, err)
 	opts.InitFromViper(v)
@@ -38,6 +40,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, opts.Configuration.PluginBinary, "noop-grpc-plugin")
 	assert.Equal(t, opts.Configuration.PluginConfigurationFile, "config.json")
 	assert.Equal(t, opts.Configuration.PluginLogLevel, "debug")
+	assert.Equal(t, false, opts.Configuration.TenancyOpts.Enabled)
+	assert.Equal(t, "x-scope-orgid", opts.Configuration.TenancyOpts.Header)
 }
 
 func TestRemoteOptionsWithFlags(t *testing.T) {

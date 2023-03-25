@@ -19,20 +19,21 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 const (
@@ -57,21 +58,17 @@ var httpClient = &http.Client{
 
 func TestAllInOne(t *testing.T) {
 	// Check if the query service is available
-	if err := healthCheck(); err != nil {
-		t.Fatal(err)
-	}
-	// Check if the favicon icon is available
-	if err := faviconCheck(); err != nil {
-		t.Fatal(err)
-	}
-	createTrace(t)
-	getAPITrace(t)
-	getSamplingStrategy(t)
-	getServicesAPIV3(t)
+	healthCheck(t)
+
+	t.Run("Check if the favicon icon is available", jaegerLogoCheck)
+	t.Run("createTrace", createTrace)
+	t.Run("getAPITrace", getAPITrace)
+	t.Run("getSamplingStrategy", getSamplingStrategy)
+	t.Run("getServicesAPIV3", getServicesAPIV3)
 }
 
 func createTrace(t *testing.T) {
-	req, err := http.NewRequest("GET", getServicesURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getServicesURL, nil)
 	require.NoError(t, err)
 	req.Header.Add("jaeger-debug-id", "debug")
 
@@ -85,7 +82,7 @@ type response struct {
 }
 
 func getAPITrace(t *testing.T) {
-	req, err := http.NewRequest("GET", getTraceURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getTraceURL, nil)
 	require.NoError(t, err)
 
 	var queryResponse response
@@ -110,16 +107,16 @@ func getAPITrace(t *testing.T) {
 }
 
 func getSamplingStrategy(t *testing.T) {
-	req, err := http.NewRequest("GET", getSamplingStrategyURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getSamplingStrategyURL, nil)
 	require.NoError(t, err)
 
-	var queryResponse sampling.SamplingStrategyResponse
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 
 	body, _ := io.ReadAll(resp.Body)
 
-	err = json.Unmarshal(body, &queryResponse)
+	var queryResponse api_v2.SamplingStrategyResponse
+	err = jsonpb.Unmarshal(bytes.NewReader(body), &queryResponse)
 	require.NoError(t, err)
 	resp.Body.Close()
 
@@ -127,33 +124,30 @@ func getSamplingStrategy(t *testing.T) {
 	assert.EqualValues(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate)
 }
 
-func healthCheck() error {
-	println("Health-checking all-in-one...")
-	for i := 0; i < 10; i++ {
-		if _, err := http.Get(queryURL); err == nil {
-			println("Health-check successful")
-			return nil
-		}
-		println("Health-check unsuccessful, waiting 1sec...")
-		time.Sleep(time.Second)
-	}
-	return fmt.Errorf("query service is not ready")
+func healthCheck(t *testing.T) {
+	t.Log("Health-checking all-in-one...")
+	require.Eventuallyf(
+		t,
+		func() bool {
+			_, err := http.Get(queryURL)
+			return err == nil
+		},
+		10*time.Second,
+		time.Second,
+		"expecting query endpoint to be healhty",
+	)
 }
 
-func faviconCheck() error {
-	println("Checking favicon...")
-	resp, err := http.Get(queryURL + "/favicon.ico")
-	if err == nil && resp.StatusCode == http.StatusOK {
-		println("Favicon check successful")
-		return nil
-	} else {
-		println("Favicon check failed")
-		return fmt.Errorf("all-in-one failed to serve favicon icon")
-	}
+func jaegerLogoCheck(t *testing.T) {
+	t.Log("Checking favicon...")
+	resp, err := http.Get(queryURL + "/static/jaeger-logo-ab11f618.svg")
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func getServicesAPIV3(t *testing.T) {
-	req, err := http.NewRequest("GET", getServicesAPIV3URL, nil)
+	req, err := http.NewRequest(http.MethodGet, getServicesAPIV3URL, nil)
 	require.NoError(t, err)
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)

@@ -18,7 +18,6 @@ package strategystore
 import (
 	"errors"
 	"flag"
-	"os"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -33,10 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
-
-func clearEnv() {
-	os.Setenv(SamplingTypeEnvVar, "static")
-}
 
 var (
 	_ ss.Factory          = new(Factory)
@@ -99,8 +94,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestConfigurable(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
+	t.Setenv(SamplingTypeEnvVar, "static")
 
 	f, err := NewFactory(FactoryConfig{StrategyStoreType: "file"})
 	require.NoError(t, err)

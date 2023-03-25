@@ -15,27 +15,16 @@
 package metrics
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func clearEnv(t *testing.T) {
-	err := os.Setenv(StorageTypeEnvVar, "")
-	require.NoError(t, err)
-}
-
 func TestFactoryConfigFromEnv(t *testing.T) {
-	clearEnv(t)
-	defer clearEnv(t)
-
 	fc := FactoryConfigFromEnv()
 	assert.Empty(t, fc.MetricsStorageType)
 
-	err := os.Setenv(StorageTypeEnvVar, prometheusStorageType)
-	require.NoError(t, err)
+	t.Setenv(StorageTypeEnvVar, prometheusStorageType)
 
 	fc = FactoryConfigFromEnv()
 	assert.Equal(t, prometheusStorageType, fc.MetricsStorageType)

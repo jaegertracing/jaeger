@@ -131,12 +131,12 @@ func TestReporter_EmitBatch(t *testing.T) {
 }
 
 func TestReporter_SendFailure(t *testing.T) {
-	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial("invalid-host-name-blah:12345", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	rep := NewReporter(conn, nil, zap.NewNop())
 	err = rep.send(context.Background(), nil, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "transport: Error while dialing dial tcp: missing address")
+	assert.Contains(t, err.Error(), "failed to export spans:")
 }
 
 func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
@@ -218,11 +218,11 @@ func TestReporter_MultitenantEmitBatch(t *testing.T) {
 	}{
 		{
 			in:  &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
-			err: "rpc error: code = PermissionDenied desc = missing tenant header",
+			err: "missing tenant header",
 		},
 	}
 	for _, test := range tests {
 		err = rep.EmitBatch(context.Background(), test.in)
-		assert.EqualError(t, err, test.err)
+		assert.Contains(t, err.Error(), test.err)
 	}
 }

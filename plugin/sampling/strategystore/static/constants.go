@@ -15,7 +15,7 @@
 package static
 
 import (
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 const (
@@ -34,10 +34,10 @@ const (
 
 // defaultStrategy is the default sampling strategy the Strategy Store will return
 // if none is provided.
-func defaultStrategyResponse() *sampling.SamplingStrategyResponse {
-	return &sampling.SamplingStrategyResponse{
-		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+func defaultStrategyResponse() *api_v2.SamplingStrategyResponse {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+		ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 			SamplingRate: defaultSamplingProbability,
 		},
 	}
@@ -45,7 +45,7 @@ func defaultStrategyResponse() *sampling.SamplingStrategyResponse {
 
 func defaultStrategies() *storedStrategies {
 	s := &storedStrategies{
-		serviceStrategies: make(map[string]*sampling.SamplingStrategyResponse),
+		serviceStrategies: make(map[string]*api_v2.SamplingStrategyResponse),
 	}
 	s.defaultStrategy = defaultStrategyResponse()
 	return s

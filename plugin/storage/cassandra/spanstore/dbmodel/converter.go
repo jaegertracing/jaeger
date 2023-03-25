@@ -17,8 +17,14 @@ package dbmodel
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jaegertracing/jaeger/model"
+)
+
+const (
+	// warningStringPrefix is a magic string prefix for tag names to store span warnings.
+	warningStringPrefix = "$$span.warning."
 )
 
 var (
@@ -57,10 +63,13 @@ type converter struct{}
 
 func (c converter) fromDomain(span *model.Span) *Span {
 	tags := c.toDBTags(span.Tags)
+	warnings := c.toDBWarnings(span.Warnings)
 	logs := c.toDBLogs(span.Logs)
 	refs := c.toDBRefs(span.References)
 	udtProcess := c.toDBProcess(span.Process)
 	spanHash, _ := model.HashCode(span)
+
+	tags = append(tags, warnings...)
 
 	return &Span{
 		TraceID:       TraceIDFromDomain(span.TraceID),
@@ -80,6 +89,10 @@ func (c converter) fromDomain(span *model.Span) *Span {
 
 func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 	tags, err := c.fromDBTags(dbSpan.Tags)
+	if err != nil {
+		return nil, err
+	}
+	warnings, err := c.fromDBWarnings(dbSpan.Tags)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +118,7 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 		StartTime:     model.EpochMicrosecondsAsTime(uint64(dbSpan.StartTime)),
 		Duration:      model.MicrosecondsAsDuration(uint64(dbSpan.Duration)),
 		Tags:          tags,
+		Warnings:      warnings,
 		Logs:          logs,
 		Process:       process,
 	}
@@ -112,13 +126,31 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 }
 
 func (c converter) fromDBTags(tags []KeyValue) ([]model.KeyValue, error) {
-	retMe := make([]model.KeyValue, len(tags))
+	retMe := make([]model.KeyValue, 0, len(tags))
 	for i := range tags {
+		if strings.HasPrefix(tags[i].Key, warningStringPrefix) {
+			continue
+		}
 		kv, err := c.fromDBTag(&tags[i])
 		if err != nil {
 			return nil, err
 		}
-		retMe[i] = kv
+		retMe = append(retMe, kv)
+	}
+	return retMe, nil
+}
+
+func (c converter) fromDBWarnings(tags []KeyValue) ([]string, error) {
+	var retMe []string
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag.Key, warningStringPrefix) {
+			continue
+		}
+		kv, err := c.fromDBTag(&tag)
+		if err != nil {
+			return nil, err
+		}
+		retMe = append(retMe, kv.VStr)
 	}
 	return retMe, nil
 }
@@ -193,6 +225,19 @@ func (c converter) toDBTags(tags []model.KeyValue) []KeyValue {
 			ValueInt64:   t.Int64(),
 			ValueFloat64: t.Float64(),
 			ValueBinary:  t.Binary(),
+		}
+	}
+	return retMe
+}
+
+func (c converter) toDBWarnings(warnings []string) []KeyValue {
+	retMe := make([]KeyValue, len(warnings))
+	for i, w := range warnings {
+		kv := model.String(fmt.Sprintf("%s%d", warningStringPrefix, i+1), w)
+		retMe[i] = KeyValue{
+			Key:         kv.Key,
+			ValueType:   domainToDBValueTypeMap[kv.VType],
+			ValueString: kv.VStr,
 		}
 	}
 	return retMe

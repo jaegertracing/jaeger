@@ -20,12 +20,12 @@ import (
 	"net/http"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Server implements Customer service
@@ -37,13 +37,13 @@ type Server struct {
 }
 
 // NewServer creates a new customer.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metrics.Factory, logger log.Factory) *Server {
+func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
 	return &Server{
 		hostPort: hostPort,
-		tracer:   tracer,
+		tracer:   tracing.Init("customer", otelExporter, metricsFactory, logger),
 		logger:   logger,
 		database: newDatabase(
-			tracing.Init("mysql", metricsFactory, logger),
+			tracing.Init("mysql", otelExporter, metricsFactory, logger),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}
@@ -57,7 +57,7 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) createServeMux() http.Handler {
-	mux := tracing.NewServeMux(s.tracer)
+	mux := tracing.NewServeMux(false, s.tracer, s.logger)
 	mux.Handle("/customer", http.HandlerFunc(s.customer))
 	return mux
 }

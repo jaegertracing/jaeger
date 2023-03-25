@@ -16,7 +16,6 @@
 package services
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,15 +23,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	p2json "github.com/jaegertracing/jaeger/model/converter/json"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-var testResponse = &sampling.SamplingStrategyResponse{
-	OperationSampling: &sampling.PerOperationSamplingStrategies{
-		PerOperationStrategies: []*sampling.OperationSamplingStrategy{
+var testResponse = &api_v2.SamplingStrategyResponse{
+	OperationSampling: &api_v2.PerOperationSamplingStrategies{
+		PerOperationStrategies: []*api_v2.OperationSamplingStrategy{
 			{
 				Operation: "op",
-				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 					SamplingRate: 0.01,
 				},
 			},
@@ -43,12 +43,12 @@ var testResponse = &sampling.SamplingStrategyResponse{
 func TestGetSamplingRateInternal(t *testing.T) {
 	tests := []struct {
 		operation string
-		response  *sampling.SamplingStrategyResponse
+		response  *api_v2.SamplingStrategyResponse
 		shouldErr bool
 		rate      float64
 	}{
-		{"op", &sampling.SamplingStrategyResponse{}, true, 0},
-		{"op", &sampling.SamplingStrategyResponse{OperationSampling: &sampling.PerOperationSamplingStrategies{}}, true, 0},
+		{"op", &api_v2.SamplingStrategyResponse{}, true, 0},
+		{"op", &api_v2.SamplingStrategyResponse{OperationSampling: &api_v2.PerOperationSamplingStrategies{}}, true, 0},
 		{"op", testResponse, false, 0.01},
 		{"nop", testResponse, true, 0},
 	}
@@ -58,7 +58,7 @@ func TestGetSamplingRateInternal(t *testing.T) {
 		if test.shouldErr {
 			assert.EqualError(t, err, errSamplingRateMissing.Error())
 		}
-		assert.Equal(t, test.rate, rate)
+		assert.EqualValues(t, test.rate, rate)
 	}
 }
 
@@ -68,19 +68,20 @@ func (h *testAgentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	svc := r.FormValue("service")
 	body := []byte("bad json")
 	if svc == "crossdock-svc" {
-		response := sampling.SamplingStrategyResponse{
-			OperationSampling: &sampling.PerOperationSamplingStrategies{
-				PerOperationStrategies: []*sampling.OperationSamplingStrategy{
+		response := api_v2.SamplingStrategyResponse{
+			OperationSampling: &api_v2.PerOperationSamplingStrategies{
+				PerOperationStrategies: []*api_v2.OperationSamplingStrategy{
 					{
 						Operation: "op",
-						ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+						ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 							SamplingRate: 1,
 						},
 					},
 				},
 			},
 		}
-		body, _ = json.Marshal(response)
+		bodyStr, _ := p2json.SamplingStrategyResponseToJSON(&response)
+		body = []byte(bodyStr)
 	}
 	w.Write(body)
 }

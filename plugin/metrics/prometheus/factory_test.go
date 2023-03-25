@@ -50,22 +50,35 @@ func TestPrometheusFactory(t *testing.T) {
 
 func TestWithDefaultConfiguration(t *testing.T) {
 	f := NewFactory()
-	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:9090")
-	assert.Equal(t, f.options.Primary.ConnectTimeout, 30*time.Second)
+	assert.Equal(t, "http://localhost:9090", f.options.Primary.ServerURL)
+	assert.Equal(t, 30*time.Second, f.options.Primary.ConnectTimeout)
 }
 
 func TestWithConfiguration(t *testing.T) {
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	err := command.ParseFlags([]string{
-		"--prometheus.server-url=http://localhost:1234",
-		"--prometheus.connect-timeout=5s",
+	t.Run("With custom configuration and no space in token file path", func(t *testing.T) {
+		f := NewFactory()
+		v, command := config.Viperize(f.AddFlags)
+		err := command.ParseFlags([]string{
+			"--prometheus.server-url=http://localhost:1234",
+			"--prometheus.connect-timeout=5s",
+			"--prometheus.token-file=test/test_file.txt",
+		})
+		require.NoError(t, err)
+		f.InitFromViper(v, zap.NewNop())
+		assert.Equal(t, "http://localhost:1234", f.options.Primary.ServerURL)
+		assert.Equal(t, 5*time.Second, f.options.Primary.ConnectTimeout)
+		assert.Equal(t, "test/test_file.txt", f.options.Primary.TokenFilePath)
 	})
-	require.NoError(t, err)
-
-	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, f.options.Primary.ServerURL, "http://localhost:1234")
-	assert.Equal(t, f.options.Primary.ConnectTimeout, 5*time.Second)
+	t.Run("With space in token file path", func(t *testing.T) {
+		f := NewFactory()
+		v, command := config.Viperize(f.AddFlags)
+		err := command.ParseFlags([]string{
+			"--prometheus.token-file=test/ test file.txt",
+		})
+		require.NoError(t, err)
+		f.InitFromViper(v, zap.NewNop())
+		assert.Equal(t, "test/ test file.txt", f.options.Primary.TokenFilePath)
+	})
 }
 
 func TestFailedTLSOptions(t *testing.T) {

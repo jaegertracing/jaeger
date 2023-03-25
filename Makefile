@@ -214,8 +214,8 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 .PHONY: rebuild-ui
 rebuild-ui:
-	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
-
+	bash ./scripts/rebuild-ui.sh
+	
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
@@ -384,7 +384,7 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: changelog
 changelog:
-	python3 ./scripts/release-notes.py
+	python3 ./scripts/release-notes.py --exclude-dependabot
 
 .PHONY: draft-release
 draft-release:
@@ -393,14 +393,14 @@ draft-release:
 .PHONY: install-tools
 install-tools:
 	go install github.com/vektra/mockery/v2@v2.14.0
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.48.0
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 	go install mvdan.cc/gofumpt@latest
 
 .PHONY: install-ci
 install-ci: install-tools
 
 .PHONY: test-ci
-test-ci: build-examples lint cover
+test-ci: build-examples cover lint
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image

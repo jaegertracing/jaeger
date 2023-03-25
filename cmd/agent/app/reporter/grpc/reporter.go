@@ -17,6 +17,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -79,6 +80,7 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 		} else {
 			r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 		}
+		err = fmt.Errorf("failed to export spans: %w", err)
 	}
 	return err
 }
