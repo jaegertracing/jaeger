@@ -274,8 +274,8 @@ func TestStartHTTPServerParams(t *testing.T) {
 	}
 
 	server, err := StartHTTPServer(params)
-	defer server.Close()
 	require.NoError(t, err)
+	defer server.Close()
 	assert.Equal(t, 5*time.Minute, server.IdleTimeout)
 	assert.Equal(t, 6*time.Minute, server.ReadTimeout)
 	assert.Equal(t, 7*time.Second, server.ReadHeaderTimeout)
