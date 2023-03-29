@@ -199,7 +199,9 @@ func TestGRPCClientGetTrace(t *testing.T) {
 			expectedSpans = append(expectedSpans, &mockTraceSpans[i])
 		}
 
-		s, err := r.client.GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.NoError(t, err)
 		assert.Equal(t, &model.Trace{
 			Spans: expectedSpans,
@@ -215,7 +217,9 @@ func TestGRPCClientGetTrace_StreamError(t *testing.T) {
 			TraceID: mockTraceID,
 		}).Return(traceClient, nil)
 
-		s, err := r.client.GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.Error(t, err)
 		assert.Nil(t, s)
 	})
@@ -227,7 +231,9 @@ func TestGRPCClientGetTrace_NoTrace(t *testing.T) {
 			TraceID: mockTraceID,
 		}).Return(nil, status.Errorf(codes.NotFound, ""))
 
-		s, err := r.client.GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, s)
 	})
@@ -243,7 +249,9 @@ func TestGRPCClientGetTrace_StreamErrorTraceNotFound(t *testing.T) {
 			TraceID: mockTraceID,
 		}).Return(traceClient, nil)
 
-		s, err := r.client.GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, s)
 	})
@@ -406,7 +414,9 @@ func TestGrpcClientGetArchiveTrace(t *testing.T) {
 			expectedSpans = append(expectedSpans, &mockTraceSpans[i])
 		}
 
-		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.NoError(t, err)
 		assert.Equal(t, &model.Trace{
 			Spans: expectedSpans,
@@ -422,7 +432,9 @@ func TestGrpcClientGetArchiveTrace_StreamError(t *testing.T) {
 			TraceID: mockTraceID,
 		}).Return(traceClient, nil)
 
-		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.Error(t, err)
 		assert.Nil(t, s)
 	})
@@ -434,7 +446,9 @@ func TestGrpcClientGetArchiveTrace_NoTrace(t *testing.T) {
 			TraceID: mockTraceID,
 		}).Return(nil, spanstore.ErrTraceNotFound)
 
-		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.Error(t, err)
 		assert.Nil(t, s)
 	})
@@ -448,7 +462,9 @@ func TestGrpcClientGetArchiveTrace_StreamErrorTraceNotFound(t *testing.T) {
 			TraceID: mockTraceID,
 		}).Return(traceClient, nil)
 
-		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), mockTraceID)
+		s, err := r.client.ArchiveSpanReader().GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: mockTraceID,
+		})
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, s)
 	})

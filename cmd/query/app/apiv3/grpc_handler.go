@@ -42,7 +42,21 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		return err
 	}
 
-	trace, err := h.QueryService.GetTrace(stream.Context(), traceID)
+	start, err := types.TimestampFromProto(request.GetStart())
+	if err != nil {
+		return err
+	}
+
+	end, err := types.TimestampFromProto(request.GetStart())
+	if err != nil {
+		return err
+	}
+
+	trace, err := h.QueryService.GetTrace(stream.Context(), &spanstore.TraceIDQueryParameters{
+		ID:    traceID,
+		Start: start,
+		End:   end,
+	})
 	if err != nil {
 		return err
 	}

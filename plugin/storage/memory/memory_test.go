@@ -198,7 +198,9 @@ func TestStoreWithLimit(t *testing.T) {
 
 func TestStoreGetTraceSuccess(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		trace, err := store.GetTrace(context.Background(), testingSpan.TraceID)
+		trace, err := store.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: testingSpan.TraceID,
+		})
 		assert.NoError(t, err)
 		assert.Len(t, trace.Spans, 1)
 		assert.Equal(t, testingSpan, trace.Spans[0])
@@ -207,7 +209,9 @@ func TestStoreGetTraceSuccess(t *testing.T) {
 
 func TestStoreGetAndMutateTrace(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		trace, err := store.GetTrace(context.Background(), testingSpan.TraceID)
+		trace, err := store.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: testingSpan.TraceID,
+		})
 		assert.NoError(t, err)
 		assert.Len(t, trace.Spans, 1)
 		assert.Equal(t, testingSpan, trace.Spans[0])
@@ -215,7 +219,9 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 
 		trace.Spans[0].Warnings = append(trace.Spans[0].Warnings, "the end is near")
 
-		trace, err = store.GetTrace(context.Background(), testingSpan.TraceID)
+		trace, err = store.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: testingSpan.TraceID,
+		})
 		assert.NoError(t, err)
 		assert.Len(t, trace.Spans, 1)
 		assert.Equal(t, testingSpan, trace.Spans[0])
@@ -228,14 +234,18 @@ func TestStoreGetTraceError(t *testing.T) {
 		store.getTenant("").traces[testingSpan.TraceID] = &model.Trace{
 			Spans: []*model.Span{nonSerializableSpan},
 		}
-		_, err := store.GetTrace(context.Background(), testingSpan.TraceID)
+		_, err := store.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: testingSpan.TraceID,
+		})
 		assert.Error(t, err)
 	})
 }
 
 func TestStoreGetTraceFailure(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		trace, err := store.GetTrace(context.Background(), model.TraceID{})
+		trace, err := store.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: model.TraceID{},
+		})
 		assert.EqualError(t, err, spanstore.ErrTraceNotFound.Error())
 		assert.Nil(t, trace)
 	})
@@ -459,12 +469,16 @@ func TestTenantStore(t *testing.T) {
 		assert.NoError(t, store.WriteSpan(ctxWonka, testingSpan2))
 
 		// Can we retrieve the spans with correct tenancy
-		trace1, err := store.GetTrace(ctxAcme, testingSpan.TraceID)
+		trace1, err := store.GetTrace(ctxAcme, &spanstore.TraceIDQueryParameters{
+			ID: testingSpan.TraceID,
+		})
 		assert.NoError(t, err)
 		assert.Len(t, trace1.Spans, 1)
 		assert.Equal(t, testingSpan, trace1.Spans[0])
 
-		trace2, err := store.GetTrace(ctxWonka, testingSpan2.TraceID)
+		trace2, err := store.GetTrace(ctxWonka, &spanstore.TraceIDQueryParameters{
+			ID: testingSpan2.TraceID,
+		})
 		assert.NoError(t, err)
 		assert.Len(t, trace2.Spans, 1)
 		assert.Equal(t, testingSpan2, trace2.Spans[0])
@@ -487,13 +501,19 @@ func TestTenantStore(t *testing.T) {
 		assert.Equal(t, testingSpan2, traces2[0].Spans[0])
 
 		// Do the spans fail with incorrect tenancy?
-		_, err = store.GetTrace(ctxAcme, testingSpan2.TraceID)
+		_, err = store.GetTrace(ctxAcme, &spanstore.TraceIDQueryParameters{
+			ID: testingSpan2.TraceID,
+		})
 		assert.Error(t, err)
 
-		_, err = store.GetTrace(ctxWonka, testingSpan.TraceID)
+		_, err = store.GetTrace(ctxWonka, &spanstore.TraceIDQueryParameters{
+			ID: testingSpan.TraceID,
+		})
 		assert.Error(t, err)
 
-		_, err = store.GetTrace(context.Background(), testingSpan.TraceID)
+		_, err = store.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: testingSpan.TraceID,
+		})
 		assert.Error(t, err)
 	})
 }

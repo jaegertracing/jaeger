@@ -40,8 +40,12 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetOperations", context.Background(), operationQuery).
 		Return([]spanstore.Operation{}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
-	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(&model.Trace{}, nil)
-	mrs.GetTrace(context.Background(), model.TraceID{})
+	mockReader.On("GetTrace", context.Background(), &spanstore.TraceIDQueryParameters{
+		ID: model.TraceID{},
+	}).Return(&model.Trace{}, nil)
+	mrs.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+		ID: model.TraceID{},
+	})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).
 		Return([]*model.Trace{}, nil)
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
@@ -108,9 +112,13 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetOperations", context.Background(), operationQuery).
 		Return(nil, errors.New("Failure"))
 	mrs.GetOperations(context.Background(), operationQuery)
-	mockReader.On("GetTrace", context.Background(), model.TraceID{}).
+	mockReader.On("GetTrace", context.Background(), &spanstore.TraceIDQueryParameters{
+		ID: model.TraceID{},
+	}).
 		Return(nil, errors.New("Failure"))
-	mrs.GetTrace(context.Background(), model.TraceID{})
+	mrs.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+		ID: model.TraceID{},
+	})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).
 		Return(nil, errors.New("Failure"))
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})

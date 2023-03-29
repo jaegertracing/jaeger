@@ -123,12 +123,12 @@ func (_m *Reader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetTrace provides a mock function with given fields: ctx, traceID
-func (_m *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	ret := _m.Called(ctx, traceID)
+func (_m *Reader) GetTrace(ctx context.Context, query *spanstore.TraceIDQueryParameters) (*model.Trace, error) {
+	ret := _m.Called(ctx, query)
 
 	var r0 *model.Trace
 	if rf, ok := ret.Get(0).(func(context.Context, model.TraceID) *model.Trace); ok {
-		r0 = rf(ctx, traceID)
+		r0 = rf(ctx, query.ID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*model.Trace)
@@ -137,7 +137,7 @@ func (_m *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.T
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, model.TraceID) error); ok {
-		r1 = rf(ctx, traceID)
+		r1 = rf(ctx, query.ID)
 	} else {
 		r1 = ret.Error(1)
 	}

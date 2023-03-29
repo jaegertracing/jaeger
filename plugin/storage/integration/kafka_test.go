@@ -111,8 +111,8 @@ type ingester struct {
 	traceStore *memory.Store
 }
 
-func (r *ingester) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	return r.traceStore.GetTrace(ctx, traceID)
+func (r *ingester) GetTrace(ctx context.Context, query *spanstore.TraceIDQueryParameters) (*model.Trace, error) {
+	return r.traceStore.GetTrace(ctx, query)
 }
 
 func (r *ingester) GetServices(ctx context.Context) ([]string, error) {

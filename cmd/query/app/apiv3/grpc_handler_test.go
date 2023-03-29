@@ -51,7 +51,7 @@ func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
 
 func TestGetTrace(t *testing.T) {
 	r := &spanstoremocks.Reader{}
-	r.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
+	r.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceIDQueryParameters")).Return(
 		&model.Trace{
 			Spans: []*model.Span{
 				{
@@ -83,7 +83,7 @@ func TestGetTrace(t *testing.T) {
 
 func TestGetTrace_storage_error(t *testing.T) {
 	r := &spanstoremocks.Reader{}
-	r.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
+	r.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.TraceIDQueryParameters")).Return(
 		nil, fmt.Errorf("storage_error")).Once()
 
 	q := querysvc.NewQueryService(r, &dependencyStoreMocks.Reader{}, querysvc.QueryServiceOptions{})

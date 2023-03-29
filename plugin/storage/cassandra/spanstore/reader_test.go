@@ -133,7 +133,9 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
-				trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+				trace, err := r.reader.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+					ID: model.TraceID{},
+				})
 				if testCase.expectedErr == "" {
 					assert.NoError(t, err)
 					assert.NotNil(t, trace)
@@ -159,7 +161,9 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 		r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
-		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+		trace, err := r.reader.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: model.TraceID{},
+		})
 		assert.Nil(t, trace)
 		assert.EqualError(t, err, "trace not found")
 	})

@@ -195,11 +195,11 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 }
 
 // GetTrace gets a trace
-func (st *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (st *Store) GetTrace(ctx context.Context, query *spanstore.TraceIDQueryParameters) (*model.Trace, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
-	trace, ok := m.traces[traceID]
+	trace, ok := m.traces[query.ID]
 	if !ok {
 		return nil, spanstore.ErrTraceNotFound
 	}

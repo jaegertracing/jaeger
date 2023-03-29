@@ -79,9 +79,11 @@ func TestWriteReadBack(t *testing.T) {
 		}
 
 		for i := 0; i < traces; i++ {
-			tr, err := sr.GetTrace(context.Background(), model.TraceID{
-				Low:  uint64(i),
-				High: 1,
+			tr, err := sr.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+				ID: model.TraceID{
+					Low:  uint64(i),
+					High: 1,
+				},
 			})
 			assert.NoError(t, err)
 
@@ -302,7 +304,9 @@ func TestFindNothing(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, trs, 0)
 
-		tr, err := sr.GetTrace(context.Background(), model.TraceID{High: 0, Low: 0})
+		tr, err := sr.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: model.TraceID{High: 0, Low: 0},
+		})
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, tr)
 	})
@@ -431,9 +435,11 @@ func TestPersist(t *testing.T) {
 	})
 
 	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader) {
-		trace, err := sr.GetTrace(context.Background(), model.TraceID{
-			Low:  uint64(1),
-			High: 1,
+		trace, err := sr.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: model.TraceID{
+				Low:  uint64(1),
+				High: 1,
+			},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "operation-p", trace.Spans[0].OperationName)
