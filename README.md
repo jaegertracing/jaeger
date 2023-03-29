@@ -85,7 +85,8 @@ Jaeger can be used with a growing a number of storage backends:
 * It natively supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
 * It integrates via a gRPC API with other well known databases that have been certified to be Jaeger compliant: [TimescaleDB via Promscale](https://github.com/timescale/promscale), [ClickHouse](https://github.com/jaegertracing/jaeger-clickhouse).
 * There is embedded database support using [Badger](https://github.com/dgraph-io/badger) and simple in-memory storage for testing setups.
-* There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB, YugabyteDB(YCQL).
+* It supports ScyllaDB as a drop-in replacement for Cassandra because ScyllaDB uses the same data model and query language as Cassandra.
+* There are ongoing community experiments using other databases, such as InfluxDB, Amazon DynamoDB, YugabyteDB(YCQL).
 
 ### Modern Web UI
 
