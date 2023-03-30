@@ -5,6 +5,7 @@ networks:
 
 services:
   collector:
+    restart: unless-stopped
     image: jaegertracing/jaeger-collector:1.43
     environment:
       SPAN_STORAGE_TYPE: cassandra
@@ -33,6 +34,8 @@ services:
   cassandra-schema:
     image: jaegertracing/jaeger-cassandra-schema:1.43
     environment:
+      CASSANDRA_PROTOCOL_VERSION: 4
+      CASSANDRA_VERSION: 4
       CQLSH_HOST: scylladb
       DATACENTER: test
       MODE: test

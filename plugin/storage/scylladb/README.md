@@ -1,4 +1,4 @@
-### ScyllaDB as a storage backend
+## ScyllaDB as a storage backend
 Jaeger could be configured to use ScyllaDB as a storage backend. This is an experimental feature and this is not an officially supported backend, meaning that Jaeger team will not proactively address any issues that may arise from incompatibilities between the ScyllaDB and Cassandra databases (the team may still accept PRs).
 
 ### Configuration
