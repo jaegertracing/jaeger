@@ -14,7 +14,7 @@ services:
     networks:
       - jaeger-scylladb
     depends_on:
-      - scylladb
+      - cassandra-schema
 
   web:
     image: jaegertracing/jaeger-query:1.43
@@ -29,7 +29,7 @@ services:
     networks:
       - jaeger-scylladb
     depends_on:
-      - scylladb
+      - cassandra-schema
 
   cassandra-schema:
     image: jaegertracing/jaeger-cassandra-schema:1.43
@@ -42,7 +42,8 @@ services:
     networks:
       - jaeger-scylladb
     depends_on:
-      - scylladb
+      scylladb:
+        condition: service_healthy
 
   scylladb:
     restart: always
@@ -54,8 +55,8 @@ services:
     networks:
       - jaeger-scylladb
     healthcheck:
-      test: ["CMD", "./scylla-healthcheck.sh"]
-      interval: 2s
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 1s
       retries: 120
       timeout: 1s
 
