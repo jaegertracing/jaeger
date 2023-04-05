@@ -148,3 +148,14 @@ func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
 	assert.Equal(t, "custom-tenant-header", c.GRPC.Tenancy.Header)
 	assert.Equal(t, []string{"acme", "hardware-store"}, c.GRPC.Tenancy.Tenants)
 }
+
+func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.zipkin.keep-alive=false",
+	})
+	c.InitFromViper(v, zap.NewNop())
+
+	assert.Equal(t, false, c.Zipkin.KeepAlive)
+}
