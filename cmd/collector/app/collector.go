@@ -150,6 +150,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		AllowedOrigins: options.Zipkin.AllowedOrigins,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
+		KeepAlive:      options.Zipkin.KeepAlive,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start Zipkin server: %w", err)
