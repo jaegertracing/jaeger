@@ -72,7 +72,7 @@ go run ./examples/hotrod/main.go all
 docker run \
   --rm \
   --link jaeger \
-  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces \
   -p8080-8083:8080-8083 \
   jaegertracing/example-hotrod:latest \
   all
