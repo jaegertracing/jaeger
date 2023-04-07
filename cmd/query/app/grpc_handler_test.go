@@ -1166,3 +1166,19 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 		server.spanReader.AssertExpectations(t)
 	})
 }
+
+func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
+	disabledReader, err := disabled.NewMetricsReader()
+	require.NoError(t, err)
+
+	q := querysvc.NewQueryService(
+		&spanstoremocks.Reader{},
+		&depsmocks.Reader{},
+		querysvc.QueryServiceOptions{})
+
+	handler := NewGRPCHandler(q, disabledReader, GRPCHandlerOptions{})
+
+	assert.NotNil(t, handler.logger)
+	assert.NotNil(t, handler.tracer)
+	assert.NotNil(t, handler.nowFn)
+}
