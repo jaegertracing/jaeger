@@ -17,7 +17,6 @@ package strategystore
 
 import (
 	"io"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,55 +25,60 @@ import (
 
 func TestFactoryConfigFromEnv(t *testing.T) {
 	tests := []struct {
+		name         string
 		env          string
 		envVar       string
 		expectedType Kind
 		expectsError bool
 	}{
-		// default
 		{
+			name:         "default",
 			expectedType: Kind("file"),
 		},
-		// file on both env vars
 		{
+			name:         "file on deprecatedSamplingTypeEnvVar",
 			env:          "file",
 			envVar:       deprecatedSamplingTypeEnvVar,
 			expectedType: Kind("file"),
 		},
 		{
+			name:         "file on SamplingTypeEnvVar",
 			env:          "file",
 			envVar:       SamplingTypeEnvVar,
 			expectedType: Kind("file"),
 		},
-		// static works on the deprecated env var, but fails on the new
 		{
+			name:         "static works on the deprecatedSamplingTypeEnvVar",
 			env:          "static",
 			envVar:       deprecatedSamplingTypeEnvVar,
 			expectedType: Kind("file"),
 		},
 		{
+			name:         "static fails on the SamplingTypeEnvVar",
 			env:          "static",
 			envVar:       SamplingTypeEnvVar,
 			expectsError: true,
 		},
-		// adaptive on both env vars
 		{
+			name:         "adaptive on deprecatedSamplingTypeEnvVar",
 			env:          "adaptive",
 			envVar:       deprecatedSamplingTypeEnvVar,
 			expectedType: Kind("adaptive"),
 		},
 		{
+			name:         "adaptive on SamplingTypeEnvVar",
 			env:          "adaptive",
 			envVar:       SamplingTypeEnvVar,
 			expectedType: Kind("adaptive"),
 		},
-		// unexpected string on both env vars
 		{
+			name:         "unexpected string on deprecatedSamplingTypeEnvVar",
 			env:          "??",
 			envVar:       deprecatedSamplingTypeEnvVar,
 			expectsError: true,
 		},
 		{
+			name:         "unexpected string on SamplingTypeEnvVar",
 			env:          "??",
 			envVar:       SamplingTypeEnvVar,
 			expectsError: true,
@@ -82,66 +86,64 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		// clear env
-		os.Setenv(SamplingTypeEnvVar, "")
-		os.Setenv(deprecatedSamplingTypeEnvVar, "")
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.envVar) != 0 {
+				t.Setenv(tc.envVar, tc.env)
+			}
 
-		if len(tc.envVar) != 0 {
-			err := os.Setenv(tc.envVar, tc.env)
+			f, err := FactoryConfigFromEnv(io.Discard)
+			if tc.expectsError {
+				assert.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
-		}
-
-		f, err := FactoryConfigFromEnv(io.Discard)
-		if tc.expectsError {
-			assert.Error(t, err)
-			continue
-		}
-
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedType, f.StrategyStoreType)
+			assert.Equal(t, tc.expectedType, f.StrategyStoreType)
+		})
 	}
 }
 
 func TestGetStrategyStoreTypeFromEnv(t *testing.T) {
 	tests := []struct {
+		name               string
 		deprecatedEnvValue string
 		currentEnvValue    string
 		expected           string
 	}{
-		// default to file
 		{
+			name:     "default to file",
 			expected: "file",
 		},
-		// current env var works
 		{
+			name:            "current env var works",
 			currentEnvValue: "foo",
 			expected:        "foo",
 		},
-		// current overrides deprecated
 		{
+			name:               "current overrides deprecated",
 			currentEnvValue:    "foo",
 			deprecatedEnvValue: "blerg",
 			expected:           "foo",
 		},
-		// deprecated accepted
 		{
+			name:               "deprecated accepted",
 			deprecatedEnvValue: "blerg",
 			expected:           "blerg",
 		},
-		// static is switched to file
 		{
+			name:               "static is switched to file",
 			deprecatedEnvValue: "static",
 			expected:           "file",
 		},
 	}
 
 	for _, tc := range tests {
-		err := os.Setenv(SamplingTypeEnvVar, tc.currentEnvValue)
-		require.NoError(t, err)
-		err = os.Setenv(deprecatedSamplingTypeEnvVar, tc.deprecatedEnvValue)
-		require.NoError(t, err)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(SamplingTypeEnvVar, tc.currentEnvValue)
+			t.Setenv(deprecatedSamplingTypeEnvVar, tc.deprecatedEnvValue)
 
-		actual := getStrategyStoreTypeFromEnv(io.Discard)
-		assert.Equal(t, actual, tc.expected)
+			actual := getStrategyStoreTypeFromEnv(io.Discard)
+			assert.Equal(t, actual, tc.expected)
+		})
 	}
 }

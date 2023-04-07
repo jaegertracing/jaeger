@@ -16,6 +16,7 @@
 package zipkin
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,20 +25,23 @@ import (
 )
 
 func TestDeserializeWithBadListStart(t *testing.T) {
-	spanBytes := SerializeThrift([]*zipkincore.Span{{}})
-	_, err := DeserializeThrift(append([]byte{0, 255, 255}, spanBytes...))
+	ctx := context.Background()
+	spanBytes := SerializeThrift(ctx, []*zipkincore.Span{{}})
+	_, err := DeserializeThrift(ctx, append([]byte{0, 255, 255}, spanBytes...))
 	assert.Error(t, err)
 }
 
 func TestDeserializeWithCorruptedList(t *testing.T) {
-	spanBytes := SerializeThrift([]*zipkincore.Span{{}})
+	ctx := context.Background()
+	spanBytes := SerializeThrift(ctx, []*zipkincore.Span{{}})
 	spanBytes[2] = 255
-	_, err := DeserializeThrift(spanBytes)
+	_, err := DeserializeThrift(ctx, spanBytes)
 	assert.Error(t, err)
 }
 
 func TestDeserialize(t *testing.T) {
-	spanBytes := SerializeThrift([]*zipkincore.Span{{}})
-	_, err := DeserializeThrift(spanBytes)
+	ctx := context.Background()
+	spanBytes := SerializeThrift(ctx, []*zipkincore.Span{{}})
+	_, err := DeserializeThrift(ctx, spanBytes)
 	assert.NoError(t, err)
 }

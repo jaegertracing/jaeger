@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
@@ -44,6 +45,7 @@ type Configuration struct {
 	RemoteServerAddr        string `yaml:"server" mapstructure:"server"`
 	RemoteTLS               tlscfg.Options
 	RemoteConnectTimeout    time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
+	TenancyOpts             tenancy.Options
 
 	pluginHealthCheck     *time.Ticker
 	pluginHealthCheckDone chan bool
@@ -99,6 +101,12 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.RemoteConnectTimeout)
 	defer cancel()
+
+	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
+	if tenancyMgr.Enabled {
+		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
+		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+	}
 	conn, err := grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
@@ -116,9 +124,19 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 }
 
 func (c *Configuration) buildPlugin(logger *zap.Logger) (*ClientPluginServices, error) {
+	opts := []grpc.DialOption{
+		grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
+		grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
+	}
+
+	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
+	if tenancyMgr.Enabled {
+		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
+		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+	}
+
 	// #nosec G204
 	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
-
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
@@ -129,10 +147,7 @@ func (c *Configuration) buildPlugin(logger *zap.Logger) (*ClientPluginServices, 
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Level: hclog.LevelFromString(c.PluginLogLevel),
 		}),
-		GRPCDialOptions: []grpc.DialOption{
-			grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
-			grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
-		},
+		GRPCDialOptions: opts,
 	})
 
 	runtime.SetFinalizer(client, func(c *plugin.Client) {

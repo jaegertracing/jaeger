@@ -15,6 +15,7 @@
 package kafka
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarsha
 
 func TestZipkinThriftUnmarshaller(t *testing.T) {
 	operationName := "foo"
-	bytes := zipkin.SerializeThrift([]*zipkincore.Span{
+	bytes := zipkin.SerializeThrift(context.Background(), []*zipkincore.Span{
 		{
 			ID:   12345,
 			Name: operationName,
@@ -62,7 +63,7 @@ func TestZipkinThriftUnmarshaller(t *testing.T) {
 }
 
 func TestZipkinThriftUnmarshallerErrorNoService(t *testing.T) {
-	bytes := zipkin.SerializeThrift([]*zipkincore.Span{
+	bytes := zipkin.SerializeThrift(context.Background(), []*zipkincore.Span{
 		{
 			ID:   12345,
 			Name: "foo",

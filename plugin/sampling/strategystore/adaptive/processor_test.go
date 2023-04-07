@@ -31,8 +31,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	epmocks "github.com/jaegertracing/jaeger/plugin/sampling/leaderelection/mocks"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 func testThroughputs() []*model.Throughput {
@@ -565,16 +565,16 @@ func TestGenerateStrategyResponses(t *testing.T) {
 	}
 	p.generateStrategyResponses()
 
-	expectedResponse := map[string]*sampling.SamplingStrategyResponse{
+	expectedResponse := map[string]*api_v2.SamplingStrategyResponse{
 		"svcA": {
-			StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-			OperationSampling: &sampling.PerOperationSamplingStrategies{
+			StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+			OperationSampling: &api_v2.PerOperationSamplingStrategies{
 				DefaultSamplingProbability:       0.001,
 				DefaultLowerBoundTracesPerSecond: 0.0001,
-				PerOperationStrategies: []*sampling.OperationSamplingStrategy{
+				PerOperationStrategies: []*api_v2.OperationSamplingStrategy{
 					{
 						Operation: "GET",
-						ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+						ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 							SamplingRate: 0.5,
 						},
 					},

@@ -9,12 +9,12 @@ The binary is available from the Releases page, as well as a Docker image:
 $ docker run jaegertracing/jaeger-tracegen -service abcd -traces 10
 ```
 
-Notice, however, that by default the generator uses the UDP exporter of `jaeger-client-go`,
-which sends data to `localhost`, i.e. inside the networking namespace of the container itself,
-which obviously doesn't go anywhere. You can use the environment variables supported by
-[jaeger-client-go][env] to instruct the SDK where to send the data, for example to switch
-to HTTP by setting `JAEGER_ENDPOINT`.
+The generator can be configured to export traces in different formats, via `-exporter` flag.
+By default, the exporters send data to `localhost`. If running in a container, this refers
+to the networking namespace of the container itself, so to export to another container
+(like Jaeger Collector), the exporters need to be provided with appropriate location.
+Exporters accept configuration via environment variables:
+  * Jaeger exporter: see https://github.com/open-telemetry/opentelemetry-go/blob/main/exporters/jaeger/README.md
+  * OTLP exporter: see https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
 
 See example in the included [docker-compose](./docker-compose.yml) file.
-
-[env]: https://github.com/jaegertracing/jaeger-client-go#environment-variables

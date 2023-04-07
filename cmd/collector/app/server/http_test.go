@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -201,7 +202,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
+			logger := zaptest.NewLogger(t)
 			params := &HTTPServerParams{
 				HostPort:       fmt.Sprintf(":%d", ports.CollectorHTTP),
 				Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
@@ -256,4 +257,26 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStartHTTPServerParams(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	params := &HTTPServerParams{
+		HostPort:          fmt.Sprintf(":%d", ports.CollectorHTTP),
+		Handler:           handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
+		SamplingStore:     &mockSamplingStore{},
+		MetricsFactory:    metricstest.NewFactory(time.Hour),
+		HealthCheck:       healthcheck.New(),
+		Logger:            logger,
+		IdleTimeout:       5 * time.Minute,
+		ReadTimeout:       6 * time.Minute,
+		ReadHeaderTimeout: 7 * time.Second,
+	}
+
+	server, err := StartHTTPServer(params)
+	require.NoError(t, err)
+	defer server.Close()
+	assert.Equal(t, 5*time.Minute, server.IdleTimeout)
+	assert.Equal(t, 6*time.Minute, server.ReadTimeout)
+	assert.Equal(t, 7*time.Second, server.ReadHeaderTimeout)
 }

@@ -44,6 +44,7 @@ type ZipkinServerParams struct {
 	HealthCheck    *healthcheck.HealthCheck
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
+	KeepAlive      bool
 }
 
 // StartZipkinServer based on the given parameters
@@ -73,6 +74,8 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 		}
 		server.TLSConfig = tlsCfg
 	}
+
+	server.SetKeepAlivesEnabled(params.KeepAlive)
 	serveZipkin(server, listener, params)
 
 	return server, nil

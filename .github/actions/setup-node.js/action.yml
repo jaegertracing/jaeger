@@ -1,0 +1,15 @@
+name: 'Setup Node.js'
+description: 'Setup Node.js version as required by jaeger-ui repo. Must be called after checkout with submodules.'
+runs:
+  using: "composite"
+  steps:
+    - name: Get Node.js version from jaeger-ui
+      shell: bash
+      run: |
+        echo "JAEGER_UI_NODE_JS_VERSION=$(cat jaeger-ui/.nvmrc)" >> ${GITHUB_ENV}
+
+    - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+      with:
+        node-version: ${{ env.JAEGER_UI_NODE_JS_VERSION }}
+        cache: 'yarn'
+        cache-dependency-path: jaeger-ui/yarn.lock

@@ -38,15 +38,20 @@ const (
 
 	flagSuffixHostPort = "host-port"
 
+	flagSuffixHTTPReadTimeout       = "read-timeout"
+	flagSuffixHTTPReadHeaderTimeout = "read-header-timeout"
+	flagSuffixHTTPIdleTimeout       = "idle-timeout"
+
 	flagSuffixGRPCMaxReceiveMessageLength = "max-message-size"
 	flagSuffixGRPCMaxConnectionAge        = "max-connection-age"
 	flagSuffixGRPCMaxConnectionAgeGrace   = "max-connection-age-grace"
 
 	flagCollectorOTLPEnabled = "collector.otlp.enabled"
 
-	flagZipkinHTTPHostPort   = "collector.zipkin.host-port"
-	flagZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
-	flagZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
+	flagZipkinHTTPHostPort     = "collector.zipkin.host-port"
+	flagZipkinAllowedHeaders   = "collector.zipkin.allowed-headers"
+	flagZipkinAllowedOrigins   = "collector.zipkin.allowed-origins"
+	flagZipkinKeepAliveEnabled = "collector.zipkin.keep-alive"
 
 	// DefaultNumWorkers is the default number of workers consuming from the processor queue
 	DefaultNumWorkers = 50
@@ -122,6 +127,8 @@ type CollectorOptions struct {
 		AllowedHeaders string
 		// TLS configures secure transport for Zipkin endpoint to collect spans
 		TLS tlscfg.Options
+		// KeepAlive configures allow Keep-Alive for Zipkin HTTP server
+		KeepAlive bool
 	}
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
@@ -140,6 +147,12 @@ type HTTPOptions struct {
 	HostPort string
 	// TLS configures secure transport for HTTP endpoint
 	TLS tlscfg.Options
+	// ReadTimeout sets the respective parameter of http.Server
+	ReadTimeout time.Duration
+	// ReadHeaderTimeout sets the respective parameter of http.Server
+	ReadHeaderTimeout time.Duration
+	// IdleTimeout sets the respective parameter of http.Server
+	IdleTimeout time.Duration
 }
 
 // GRPCOptions defines options for a gRPC server
@@ -178,6 +191,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(flagZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
 	flags.String(flagZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
+	flags.Bool(flagZipkinKeepAliveEnabled, true, "KeepAlive configures allow Keep-Alive for Zipkin HTTP server (enabled by default)")
 	tlsZipkinFlagsConfig.AddFlags(flags)
 
 	tenancy.AddFlags(flags)
@@ -185,6 +199,9 @@ func AddFlags(flags *flag.FlagSet) {
 
 func addHTTPFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort string) {
 	flags.String(cfg.prefix+"."+flagSuffixHostPort, defaultHostPort, "The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's HTTP server")
+	flags.Duration(cfg.prefix+"."+flagSuffixHTTPIdleTimeout, 0, "See https://pkg.go.dev/net/http#Server")
+	flags.Duration(cfg.prefix+"."+flagSuffixHTTPReadTimeout, 0, "See https://pkg.go.dev/net/http#Server")
+	flags.Duration(cfg.prefix+"."+flagSuffixHTTPReadHeaderTimeout, 2*time.Second, "See https://pkg.go.dev/net/http#Server")
 	cfg.tls.AddFlags(flags)
 }
 
@@ -210,6 +227,9 @@ func addGRPCFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort st
 
 func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg serverFlagsConfig) error {
 	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
+	opts.IdleTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPIdleTimeout)
+	opts.ReadTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadTimeout)
+	opts.ReadHeaderTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadHeaderTimeout)
 	if tlsOpts, err := cfg.tls.InitFromViper(v); err == nil {
 		opts.TLS = tlsOpts
 	} else {
@@ -259,6 +279,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 
 	cOpts.Zipkin.AllowedHeaders = v.GetString(flagZipkinAllowedHeaders)
 	cOpts.Zipkin.AllowedOrigins = v.GetString(flagZipkinAllowedOrigins)
+	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
 	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
 	if tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v); err == nil {
 		cOpts.Zipkin.TLS = tlsZipkin

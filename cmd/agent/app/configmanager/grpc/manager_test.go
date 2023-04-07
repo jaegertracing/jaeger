@@ -26,7 +26,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 func close(t *testing.T, c io.Closer) {
@@ -44,7 +43,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.NoError(t, err)
-	assert.Equal(t, &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}, resp)
+	assert.Equal(t, &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, resp)
 }
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
@@ -55,7 +54,7 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.Nil(t, resp)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Error while dialing dial tcp: address foo: missing port in address")
+	assert.Contains(t, err.Error(), "Error while dialing: dial tcp: address foo: missing port in address")
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {

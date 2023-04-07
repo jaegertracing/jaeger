@@ -9,7 +9,7 @@ on:
 # and https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
   deployments: write
-  content: read
+  contents: write
 
 jobs:
   publish-release:
@@ -17,11 +17,11 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@ebacdc22ef6c2cfb85ee5ded8f2e640f4c776dd5
+      uses: step-security/harden-runner@03bee3930647ebbf994244c21ddbc0d4933aab4f
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
+    - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3
       with:
         submodules: true
 
@@ -29,11 +29,11 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@c4a742cab115ed795e34d4513e2cf7d472deb55f
+    - uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
       with:
-        go-version: 1.19.x
+        go-version: 1.20.x
 
-    - uses: actions/setup-node@8c91899e586c5b171469028077307d293428b516
+    - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
       with:
         node-version: '16'
 
@@ -44,10 +44,11 @@ jobs:
       run: make install-ci
 
     - name: Configure GPG Key
+      id: import_gpg
       uses: crazy-max/ghaction-import-gpg@v5
-      env:
-        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        PASSPHRASE: ${{ secrets. GPG_PASSPHRASE }}
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Build binaries
       id: build-binaries
@@ -59,7 +60,7 @@ jobs:
       if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
-      uses: svenstaro/upload-release-action@133984371c30d34e38222a64855679a414cb7575
+      uses: svenstaro/upload-release-action@7319e4733ec7a184d739a6f412c40ffc339b69c7
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
@@ -88,6 +89,6 @@ jobs:
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: SBOM Generation
-      uses: anchore/sbom-action@06e109483e6aa305a2b2395eabae554e51530e1d
+      uses: anchore/sbom-action@422cb34a0f8b599678c41b21163ea6088edb2624
       with:
         artifact-name: jaeger-SBOM.spdx.json

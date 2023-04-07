@@ -314,7 +314,7 @@ func TestWarningResponse(t *testing.T) {
 	assert.NotNil(t, m)
 }
 
-func TestGetRoundTripper(t *testing.T) {
+func TestGetRoundTripperTLSConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		tlsEnabled bool
@@ -325,7 +325,6 @@ func TestGetRoundTripper(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
 			rt, err := getHTTPRoundTripper(&config.Configuration{
-				ServerURL:      "https://localhost:1234",
 				ConnectTimeout: 9 * time.Millisecond,
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
@@ -355,6 +354,53 @@ func TestGetRoundTripper(t *testing.T) {
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
+}
+
+func TestGetRoundTripperToken(t *testing.T) {
+	const wantBearer = "token from file"
+
+	file, err := os.CreateTemp("", "token_")
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, os.Remove(file.Name())) }()
+
+	_, err = file.Write([]byte(wantBearer))
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	rt, err := getHTTPRoundTripper(&config.Configuration{
+		ConnectTimeout: time.Second,
+		TokenFilePath:  file.Name(),
+	}, nil)
+	require.NoError(t, err)
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "Bearer "+wantBearer, r.Header.Get("Authorization"))
+			},
+		),
+	)
+	defer server.Close()
+	ctx := context.Background()
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL,
+		nil,
+	)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestGetRoundTripperTokenError(t *testing.T) {
+	tokenFilePath := "this file does not exist"
+
+	_, err := getHTTPRoundTripper(&config.Configuration{
+		TokenFilePath: tokenFilePath,
+	}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get token from file")
 }
 
 func TestInvalidCertFile(t *testing.T) {

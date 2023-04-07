@@ -18,7 +18,6 @@ package config
 import (
 	"flag"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -56,14 +55,11 @@ func TestEnv(t *testing.T) {
 	envFlag := "jaeger.test-flag"
 	actualEnvFlag := "JAEGER_TEST_FLAG"
 
-	tempEnv := os.Getenv(actualEnvFlag)
-	defer os.Setenv(actualEnvFlag, tempEnv)
-
 	addFlags := func(flagSet *flag.FlagSet) {
 		flagSet.String(envFlag, "", "")
 	}
 	expectedString := "string"
-	os.Setenv(actualEnvFlag, expectedString)
+	t.Setenv(actualEnvFlag, expectedString)
 
 	v, _ := Viperize(addFlags)
 	assert.Equal(t, expectedString, v.GetString(envFlag))

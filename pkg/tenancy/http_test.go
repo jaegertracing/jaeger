@@ -70,7 +70,7 @@ func TestProgationHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			handler := &testHttpHandler{}
 			propH := ExtractTenantHTTPHandler(test.tenancyMgr, handler)
-			req, err := http.NewRequest("GET", "/", strings.NewReader(""))
+			req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(""))
 			for k, vs := range test.requestHeaders {
 				for _, v := range vs {
 					req.Header.Add(k, v)
@@ -104,7 +104,7 @@ func TestMetadataAnnotator(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			req, err := http.NewRequest("GET", "/", strings.NewReader(""))
+			req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(""))
 			for k, vs := range test.requestHeaders {
 				for _, v := range vs {
 					req.Header.Add(k, v)

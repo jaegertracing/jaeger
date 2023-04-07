@@ -99,12 +99,18 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 	command.ParseFlags([]string{
 		"--collector.grpc-server.max-connection-age=5m",
 		"--collector.grpc-server.max-connection-age-grace=1m",
+		"--collector.http-server.idle-timeout=5m",
+		"--collector.http-server.read-timeout=6m",
+		"--collector.http-server.read-header-timeout=5s",
 	})
 	_, err := c.InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
 
 	assert.Equal(t, 5*time.Minute, c.GRPC.MaxConnectionAge)
 	assert.Equal(t, time.Minute, c.GRPC.MaxConnectionAgeGrace)
+	assert.Equal(t, 5*time.Minute, c.HTTP.IdleTimeout)
+	assert.Equal(t, 6*time.Minute, c.HTTP.ReadTimeout)
+	assert.Equal(t, 5*time.Second, c.HTTP.ReadHeaderTimeout)
 }
 
 func TestCollectorOptionsWithFlags_CheckNoTenancy(t *testing.T) {
@@ -141,4 +147,15 @@ func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
 	assert.Equal(t, true, c.GRPC.Tenancy.Enabled)
 	assert.Equal(t, "custom-tenant-header", c.GRPC.Tenancy.Header)
 	assert.Equal(t, []string{"acme", "hardware-store"}, c.GRPC.Tenancy.Tenants)
+}
+
+func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.zipkin.keep-alive=false",
+	})
+	c.InitFromViper(v, zap.NewNop())
+
+	assert.Equal(t, false, c.Zipkin.KeepAlive)
 }

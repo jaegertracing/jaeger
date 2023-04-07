@@ -3,14 +3,17 @@ version: '2'
 services:
     jaeger:
       image: jaegertracing/all-in-one:latest
+      environment:
+        - COLLECTOR_OTLP_ENABLED=true
       ports:
         - '16686:16686'
+        - '4318:4318'
 
     tracegen:
       image: jaegertracing/jaeger-tracegen:latest
       environment:
-        - JAEGER_AGENT_HOST=jaeger
-        - JAEGER_AGENT_PORT=6831
+        - OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+        - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=jaeger:4318
       command: ["-duration", "10s", "-workers", "3", "-pause", "250ms"]
       depends_on:
         - jaeger

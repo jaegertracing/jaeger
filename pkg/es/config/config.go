@@ -466,17 +466,12 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 	prodConfig := zap.NewProductionConfig()
 
 	var lvl zapcore.Level
-	var loggerOpts []zapgrpc.Option
 	var setLogger func(logger elastic.Logger) elastic.ClientOptionFunc
 
 	switch logLevel {
 	case "debug":
 		lvl = zap.DebugLevel
 		setLogger = elastic.SetTraceLog
-
-		// Enables the "level":"debug" log field. Without this,
-		// the "level" field defaults to "info".
-		loggerOpts = append(loggerOpts, zapgrpc.WithDebug())
 	case "info":
 		lvl = zap.InfoLevel
 		setLogger = elastic.SetInfoLog
@@ -494,7 +489,7 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 	}
 
 	// Elastic client requires a "Printf"-able logger.
-	l := zapgrpc.NewLogger(esLogger, loggerOpts...)
+	l := zapgrpc.NewLogger(esLogger)
 	options = append(options, setLogger(l))
 	return options, nil
 }

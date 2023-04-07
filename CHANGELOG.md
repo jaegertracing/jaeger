@@ -13,6 +13,95 @@ next release
 
 ### UI Changes
 
+1.43.0 (2023-03-15)
+-------------------
+### Backend Changes
+
+#### New Features
+
+* Support secure OTLP exporter config for hotrod ([@graphaelli](https://github.com/graphaelli) in [#4231](https://github.com/jaegertracing/jaeger/pull/4231))
+* Jaeger YugabyteDB(YCQL) support ([@HarshDaryani896](https://github.com/HarshDaryani896) in [#4220](https://github.com/jaegertracing/jaeger/pull/4220))
+
+#### Bug fixes, Minor Improvements
+
+* Replace pkg/multierror with standard errors.Join ([@ClementRepo](https://github.com/ClementRepo) in [#4293](https://github.com/jaegertracing/jaeger/pull/4293))
+* Remove pkg/multicloser ([@yurishkuro](https://github.com/yurishkuro) in [#4291](https://github.com/jaegertracing/jaeger/pull/4291))
+* Refactor build linux artifacts only for PR ([@Eileen-Yu](https://github.com/Eileen-Yu) in [#4286](https://github.com/jaegertracing/jaeger/pull/4286))
+* Speed-up CI by using published UI artifacts ([@shubbham1219](https://github.com/shubbham1219) in [#4251](https://github.com/jaegertracing/jaeger/pull/4251))
+* Update Go version to 1.20 ([@SaarthakMaini](https://github.com/SaarthakMaini) in [#4206](https://github.com/jaegertracing/jaeger/pull/4206))
+* Use http.MethodGet instead of "GET" ([@my-git9](https://github.com/my-git9) in [#4248](https://github.com/jaegertracing/jaeger/pull/4248))
+* Updating all-in-one path ([@bigfleet](https://github.com/bigfleet) in [#4234](https://github.com/jaegertracing/jaeger/pull/4234))
+* Migrate the use of fsnotify to fswatcher in cert_watcher.go ([@haanhvu](https://github.com/haanhvu) in [#4232](https://github.com/jaegertracing/jaeger/pull/4232))
+* Restore baggage support in HotROD 🚗 ([@yurishkuro](https://github.com/yurishkuro) in [#4225](https://github.com/jaegertracing/jaeger/pull/4225))
+
+### UI Changes
+
+* UI pinned to version [1.28.1](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1281-2023-03-15).
+
+1.42.0 (2023-02-05)
+-------------------
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* HotROD 🚗 application is switched from Jaeger SDK to OpenTelemetry SDK ([@yurishkuro](https://github.com/yurishkuro) in [#4187](https://github.com/jaegertracing/jaeger/pull/4187)). Some environment variables previously accepted are no longer recognized. See PR for details.
+  * Map old env vars from Jaeger SDK to OTel SDK vars ([@yurishkuro](https://github.com/yurishkuro) in [#4200](https://github.com/jaegertracing/jaeger/pull/4200))
+  * Use patched version of github.com/opentracing-contrib/go-grpc in HotROD ([@yurishkuro](https://github.com/yurishkuro) in [#4210](https://github.com/jaegertracing/jaeger/pull/4210))
+* `tracegen` utility is switched from Jaeger SDK to OpenTelemetry SDK ([@yurishkuro](https://github.com/yurishkuro) in [#4189](https://github.com/jaegertracing/jaeger/pull/4189)). Some environment variables previously accepted are no longer recognized. See PR for details.
+
+#### New Features
+
+* Add CLI flags for controlling HTTP server timeouts ([@yurishkuro](https://github.com/yurishkuro) in [#4167](https://github.com/jaegertracing/jaeger/pull/4167))
+* Watch directories for certificate hot-reload ([@tsaarni](https://github.com/tsaarni) in [#4159](https://github.com/jaegertracing/jaeger/pull/4159))
+* Support tenant header propagation in query service and grpc-plugin ([@pavolloffay](https://github.com/pavolloffay) in [#4151](https://github.com/jaegertracing/jaeger/pull/4151))
+
+
+#### Bug fixes, Minor Improvements
+
+* Replace Thrift-gen with Proto-gen types for sampling strategies ([@yurishkuro](https://github.com/yurishkuro) in [#4181](https://github.com/jaegertracing/jaeger/pull/4181))
+* Use Protobuf-based JSON output for sampling strategies ([@yurishkuro](https://github.com/yurishkuro) in [#4173](https://github.com/jaegertracing/jaeger/pull/4173))
+* [tests]: Use `t.Setenv` to set env vars in tests ([@Juneezee](https://github.com/Juneezee) in [#4169](https://github.com/jaegertracing/jaeger/pull/4169))
+* ci(lint): bump golangci-lint to v1.50.1 ([@mmorel-35](https://github.com/mmorel-35) in [#4195](https://github.com/jaegertracing/jaeger/pull/4195))
+* Convert token propagation integration test to plain unit test ([@yurishkuro](https://github.com/yurishkuro) in [#4162](https://github.com/jaegertracing/jaeger/pull/4162))
+* Refactor scripts/es-integration-test.sh ([@yurishkuro](https://github.com/yurishkuro) in [#4161](https://github.com/jaegertracing/jaeger/pull/4161))
+* Fix "index out of range" when receiving a dual client/server Zipkin span ([@yurishkuro](https://github.com/yurishkuro) in [#4160](https://github.com/jaegertracing/jaeger/pull/4160))
+
+### UI Changes
+
+* No changes.
+
+1.41.0 (2023-01-04)
+-------------------
+### Backend Changes
+
+#### Bug fixes, Minor Improvements
+
+* Remove global platform arg in cassandra schema dockerfile ([@jkandasa](https://github.com/jkandasa) in [#4123](https://github.com/jaegertracing/jaeger/pull/4123))
+* Add multi arch support to cassandra-schema container ([@jkandasa](https://github.com/jkandasa) in [#4122](https://github.com/jaegertracing/jaeger/pull/4122))
+
+### UI
+
+* No changes.
+
+1.40.0 (2022-12-07)
+-------------------
+### Backend Changes
+
+#### New Features
+
+* Release signing ([@jkowall](https://github.com/jkowall) in [#4033](https://github.com/jaegertracing/jaeger/pull/4033))
+
+#### Bug fixes, Minor Improvements
+
+* Fix cassandra schema scripts to be able to run from a remote node ([@yurishkuro](https://github.com/yurishkuro) in [#4087](https://github.com/jaegertracing/jaeger/pull/4087))
+* Catch panic from Prometheus client on invalid label strings ([@yurishkuro](https://github.com/yurishkuro) in [#4051](https://github.com/jaegertracing/jaeger/pull/4051))
+* Span tags of type int64 may lose precision ([@shubbham1215](https://github.com/shubbham1215) in [#4034](https://github.com/jaegertracing/jaeger/pull/4034))
+
+### UI
+
+* UI pinned to version [1.27.3](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1273-2022-12-07).
+
+
 1.39.0 (2022-11-01)
 -------------------
 ### Backend Changes
@@ -35,7 +124,7 @@ next release
 * Add grafana container to monitor docker-compose ([@albertteoh](https://github.com/albertteoh) in [#3955](https://github.com/jaegertracing/jaeger/pull/3955))
 * Expose storage integration helpers as go pkg ([@arajkumar](https://github.com/arajkumar) in [#3944](https://github.com/jaegertracing/jaeger/pull/3944))
 
-### UI 
+### UI
 
 * UI pinned to version [1.27.2](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1272-2022-11-01).
 
@@ -337,7 +426,8 @@ next release
 -------------------
 ### Backend Changes
 #### New Features
-* Add cassandra v4 support ([@Ashmita152](https://github.com/Ashmita152) in [#3225](https://github.com/jaegertracing/jaeger/pull/3225))
+* Add cassandra v4 support ([@Ashmita152](https://github.com/Ashmita152) in [#3225](https://github.com/jaegertracing/jaeger/pull/3225)).
+  * **Note**: Users running on existing schema version [v3](https://github.com/jaegertracing/jaeger/blob/1d563f964da4b472a6f7e4cfdb85fe1167c30129/plugin/storage/cassandra/schema/v003.cql.tmpl) without issues, need not run an upgrade to [v4](https://github.com/jaegertracing/jaeger/blob/1d563f964da4b472a6f7e4cfdb85fe1167c30129/plugin/storage/cassandra/schema/v004.cql.tmpl). The new schema simply updates the table metadata, primarily removing `dclocal_read_repair_chance` deprecated table option, [which automatically gets ignored/removed when upgrading to Cassandra 4.0](https://issues.apache.org/jira/browse/CASSANDRA-13910).
 * Add es-index-cleaner golang implementation ([@pavolloffay](https://github.com/pavolloffay) in [#3204](https://github.com/jaegertracing/jaeger/pull/3204))
 * Add CLI Option for gRPC Max Receive Message Size ([@js8080](https://github.com/js8080) in [#3214](https://github.com/jaegertracing/jaeger/pull/3214) and [#3192](https://github.com/jaegertracing/jaeger/pull/3192))
 * Automatically detect OpenSearch version ([@pavolloffay](https://github.com/pavolloffay) in [#3198](https://github.com/jaegertracing/jaeger/pull/3198))
@@ -873,7 +963,7 @@ The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aime
     to be implemented:
     For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
     * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):
-        If you don't run the migration script, nothing will break, the system will used the old table
+        If you don't run the migration script, nothing will break, the system will use the old table
         `operation_names` and set empty `spanKind` in the response.
         Steps to get the updated functionality:
         1.  You will need to run the command below on the host where you can use `cqlsh` to connect to Cassandra:

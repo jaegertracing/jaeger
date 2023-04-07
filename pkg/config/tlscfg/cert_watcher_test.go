@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -36,29 +35,42 @@ const (
 	clientCert = "./testdata/example-client-cert.pem"
 	clientKey  = "./testdata/example-client-key.pem"
 
-	caCert    = "./testdata/example-CA-cert.pem"
-	badCaCert = "./testdata/bad-CA-cert.txt"
+	caCert      = "./testdata/example-CA-cert.pem"
+	wrongCaCert = "./testdata/wrong-CA-cert.pem"
+	badCaCert   = "./testdata/bad-CA-cert.txt"
 )
 
-func TestReload(t *testing.T) {
-	// copy certs to temp so we can modify them
-	certFile, err := os.CreateTemp("", "cert.crt")
+func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.File, closeFn func()) {
+	tempFile, err := os.CreateTemp("", pattern+"_")
 	require.NoError(t, err)
-	defer os.Remove(certFile.Name())
-	certData, err := os.ReadFile(serverCert)
-	require.NoError(t, err)
-	_, err = certFile.Write(certData)
-	require.NoError(t, err)
-	certFile.Close()
 
-	keyFile, err := os.CreateTemp("", "key.crt")
+	data, err := os.ReadFile(filename)
 	require.NoError(t, err)
-	defer os.Remove(keyFile.Name())
-	keyData, err := os.ReadFile(serverKey)
+
+	_, err = tempFile.Write(data)
 	require.NoError(t, err)
-	_, err = keyFile.Write(keyData)
+	require.NoError(t, tempFile.Close())
+
+	return tempFile, func() {
+		// ignore error because some tests may remove the files earlier
+		_ = os.Remove(tempFile.Name())
+	}
+}
+
+func copyFile(t *testing.T, dest string, src string) {
+	certData, err := os.ReadFile(src)
 	require.NoError(t, err)
-	keyFile.Close()
+	err = syncWrite(dest, certData, 0o644)
+	require.NoError(t, err)
+}
+
+func TestReloadKeyPair(t *testing.T) {
+	// copy certs to temp so we can modify them
+	certFile, certFileCloseFn := copyToTempFile(t, "cert.crt", serverCert)
+	defer certFileCloseFn()
+
+	keyFile, keyFileCloseFn := copyToTempFile(t, "key.crt", serverKey)
+	defer keyFileCloseFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
@@ -68,52 +80,29 @@ func TestReload(t *testing.T) {
 		CertPath:     certFile.Name(),
 		KeyPath:      keyFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	assert.NotNil(t, watcher.certificate())
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
 	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
 	assert.Equal(t, &cert, watcher.certificate())
 
-	// Write the client's public key.
-	certData, err = os.ReadFile(clientCert)
-	require.NoError(t, err)
-	err = syncWrite(certFile.Name(), certData, 0o644)
-	require.NoError(t, err)
+	// Replace certificate part of the pair with client's cert, which should fail to load.
+	copyFile(t, certFile.Name(), clientCert)
 
-	waitUntil(func() bool {
-		// Logged when the cert is reloaded with mismatching client public key and existing server private key.
-		return logObserver.FilterMessage("Failed to load certificate").
-			FilterField(zap.String("certificate", certFile.Name())).Len() > 0
-	}, 2000, time.Millisecond*10)
+	assertLogs(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
+	assert.Equal(t, &cert, watcher.certificate(), "key pair unchanged")
+	logObserver.TakeAll() // clean up logs
 
-	assert.True(t, logObserver.
-		FilterMessage("Failed to load certificate").
-		FilterField(zap.String("certificate", certFile.Name())).Len() > 0,
-		"Unable to locate 'Failed to load certificate' in log. All logs: %v", logObserver.All())
+	// Replace key part with client's private key. Valid pair, should reload.
+	copyFile(t, keyFile.Name(), clientKey)
 
-	// Write the client's private key.
-	keyData, err = os.ReadFile(clientKey)
-	require.NoError(t, err)
-	err = syncWrite(keyFile.Name(), keyData, 0o644)
-	require.NoError(t, err)
-
-	waitUntil(func() bool {
-		// Logged when the client private key is modified in the cert which enables successful reloading of
-		// the cert as both private and public keys now match.
-		return logObserver.FilterMessage("Loaded modified certificate").
-			FilterField(zap.String("certificate", keyFile.Name())).Len() > 0
-	}, 2000, time.Millisecond*10)
-
-	assert.True(t, logObserver.
-		FilterMessage("Loaded modified certificate").
-		FilterField(zap.String("certificate", keyFile.Name())).Len() > 0,
-		"Unable to locate 'Loaded modified certificate' in log. All logs: %v", logObserver.All())
+	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
+	logObserver.TakeAll() // clean up logs
 
 	cert, err = tls.LoadX509KeyPair(filepath.Clean(clientCert), clientKey)
 	require.NoError(t, err)
@@ -122,23 +111,10 @@ func TestReload(t *testing.T) {
 
 func TestReload_ca_certs(t *testing.T) {
 	// copy certs to temp so we can modify them
-	caFile, err := os.CreateTemp("", "cert.crt")
-	require.NoError(t, err)
-	defer os.Remove(caFile.Name())
-	caData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = caFile.Write(caData)
-	require.NoError(t, err)
-	caFile.Close()
-
-	clientCaFile, err := os.CreateTemp("", "key.crt")
-	require.NoError(t, err)
-	defer os.Remove(clientCaFile.Name())
-	clientCaData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = clientCaFile.Write(clientCaData)
-	require.NoError(t, err)
-	clientCaFile.Close()
+	caFile, caFileCloseFn := copyToTempFile(t, "ca.crt", caCert)
+	defer caFileCloseFn()
+	clientCaFile, clientCaFileClostFn := copyToTempFile(t, "client-ca.crt", caCert)
+	defer clientCaFileClostFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
@@ -146,54 +122,35 @@ func TestReload_ca_certs(t *testing.T) {
 		CAPath:       caFile.Name(),
 		ClientCAPath: clientCaFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
-	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
-
-	// update the content with client certs
-	caData, err = os.ReadFile(caCert)
-	require.NoError(t, err)
-	err = syncWrite(caFile.Name(), caData, 0o644)
-	require.NoError(t, err)
-	clientCaData, err = os.ReadFile(caCert)
-	require.NoError(t, err)
-	err = syncWrite(clientCaFile.Name(), clientCaData, 0o644)
 	require.NoError(t, err)
 
-	waitUntil(func() bool {
-		return logObserver.FilterField(zap.String("certificate", caFile.Name())).Len() > 0
-	}, 100, time.Millisecond*200)
-	assert.True(t, logObserver.FilterField(zap.String("certificate", caFile.Name())).Len() > 0)
+	// update the content with different certs to trigger reload.
+	copyFile(t, caFile.Name(), wrongCaCert)
+	copyFile(t, clientCaFile.Name(), wrongCaCert)
 
-	waitUntil(func() bool {
-		return logObserver.FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0
-	}, 100, time.Millisecond*200)
-	assert.True(t, logObserver.FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0)
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", caFile.Name()}})
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", clientCaFile.Name()}})
+	logObserver.TakeAll() // clean up logs
+
+	// update the content with invalid certs to trigger failed reload.
+	copyFile(t, caFile.Name(), badCaCert)
+	copyFile(t, clientCaFile.Name(), badCaCert)
+
+	assertLogs(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", caFile.Name()}})
+	assertLogs(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", clientCaFile.Name()}})
 }
 
 func TestReload_err_cert_update(t *testing.T) {
 	// copy certs to temp so we can modify them
-	certFile, err := os.CreateTemp("", "cert.crt")
-	require.NoError(t, err)
-	defer os.Remove(certFile.Name())
-	certData, err := os.ReadFile(serverCert)
-	require.NoError(t, err)
-	_, err = certFile.Write(certData)
-	require.NoError(t, err)
-	certFile.Close()
-
-	keyFile, err := os.CreateTemp("", "key.crt")
-	require.NoError(t, err)
-	defer os.Remove(keyFile.Name())
-	keyData, err := os.ReadFile(serverKey)
-	require.NoError(t, err)
-	_, err = keyFile.Write(keyData)
-	require.NoError(t, err)
-	keyFile.Close()
+	certFile, certFileCloseFn := copyToTempFile(t, "cert.crt", serverCert)
+	defer certFileCloseFn()
+	keyFile, keyFileCloseFn := copyToTempFile(t, "key.crt", serverKey)
+	defer keyFileCloseFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
@@ -203,50 +160,157 @@ func TestReload_err_cert_update(t *testing.T) {
 		CertPath:     certFile.Name(),
 		KeyPath:      keyFile.Name(),
 	}
-	watcher, err := newCertWatcher(opts, logger)
+	certPool := x509.NewCertPool()
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	assert.NotNil(t, watcher.certificate())
 	defer watcher.Close()
 
-	certPool := x509.NewCertPool()
 	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
 	serverCert, err := tls.LoadX509KeyPair(filepath.Clean(serverCert), filepath.Clean(serverKey))
 	require.NoError(t, err)
 	assert.Equal(t, &serverCert, watcher.certificate())
 
-	// update the content with client certs
-	certData, err = os.ReadFile(badCaCert)
-	require.NoError(t, err)
-	err = syncWrite(certFile.Name(), certData, 0o644)
-	require.NoError(t, err)
-	keyData, err = os.ReadFile(clientKey)
-	require.NoError(t, err)
-	err = syncWrite(keyFile.Name(), keyData, 0o644)
-	require.NoError(t, err)
+	// update the content with bad client certs
+	copyFile(t, certFile.Name(), badCaCert)
+	copyFile(t, keyFile.Name(), clientKey)
 
-	waitUntil(func() bool {
-		return logObserver.FilterMessage("Failed to load certificate").Len() > 0
-	}, 100, time.Millisecond*200)
-	assert.True(t, logObserver.FilterField(zap.String("certificate", certFile.Name())).Len() > 0)
-	assert.Equal(t, &serverCert, watcher.certificate())
+	assertLogs(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
+	assert.Equal(t, &serverCert, watcher.certificate(), "values unchanged")
 }
 
-func TestReload_err_watch(t *testing.T) {
+func TestReload_kubernetes_secret_update(t *testing.T) {
+	mountDir, err := os.MkdirTemp("", "secret-mountpoint_")
+	require.NoError(t, err)
+	defer os.RemoveAll(mountDir)
+
+	// Create directory layout before update:
+	//
+	// /secret-mountpoint/ca.crt                # symbolic link to ..data/ca.crt
+	// /secret-mountpoint/tls.crt               # symbolic link to ..data/tls.crt
+	// /secret-mountpoint/tls.key               # symbolic link to ..data/tls.key
+	// /secret-mountpoint/..data                # symbolic link to ..timestamp-1
+	// /secret-mountpoint/..timestamp-1         # directory
+	// /secret-mountpoint/..timestamp-1/ca.crt  # initial version of ca.crt
+	// /secret-mountpoint/..timestamp-1/tls.crt # initial version of tls.crt
+	// /secret-mountpoint/..timestamp-1/tls.key # initial version of tls.key
+
+	err = os.Symlink("..timestamp-1", filepath.Join(mountDir, "..data"))
+	require.NoError(t, err)
+	err = os.Symlink(filepath.Join("..data", "ca.crt"), filepath.Join(mountDir, "ca.crt"))
+	require.NoError(t, err)
+	err = os.Symlink(filepath.Join("..data", "tls.crt"), filepath.Join(mountDir, "tls.crt"))
+	require.NoError(t, err)
+	err = os.Symlink(filepath.Join("..data", "tls.key"), filepath.Join(mountDir, "tls.key"))
+	require.NoError(t, err)
+
+	timestamp1Dir := filepath.Join(mountDir, "..timestamp-1")
+	createTimestampDir(t, timestamp1Dir, caCert, serverCert, serverKey)
+
 	opts := Options{
-		CAPath: "doesnotexists",
+		CAPath:       filepath.Join(mountDir, "ca.crt"),
+		ClientCAPath: filepath.Join(mountDir, "ca.crt"),
+		CertPath:     filepath.Join(mountDir, "tls.crt"),
+		KeyPath:      filepath.Join(mountDir, "tls.key"),
 	}
-	watcher, err := newCertWatcher(opts, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no such file or directory")
-	assert.Nil(t, watcher)
-}
 
-func TestAddCertsToWatch_err(t *testing.T) {
-	watcher, err := fsnotify.NewWatcher()
+	zcore, logObserver := observer.New(zapcore.InfoLevel)
+	logger := zap.New(zcore)
+
+	certPool := x509.NewCertPool()
+
+	watcher, err := newCertWatcher(opts, logger, certPool, certPool)
 	require.NoError(t, err)
 	defer watcher.Close()
 
+	require.NoError(t, err)
+
+	expectedCert, err := tls.LoadX509KeyPair(serverCert, serverKey)
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		expectedCert.Certificate,
+		watcher.certificate().Certificate,
+		"certificate should be updated: %v", logObserver.All(),
+	)
+
+	logObserver.TakeAll() // clean logs
+
+	// Create second dir with different key pair and CA.
+	// After the update, the directory looks like following:
+	//
+	// /secret-mountpoint/ca.crt                # symbolic link to ..data/ca.crt
+	// /secret-mountpoint/tls.crt               # symbolic link to ..data/tls.crt
+	// /secret-mountpoint/tls.key               # symbolic link to ..data/tls.key
+	// /secret-mountpoint/..data                # symbolic link to ..timestamp-2
+	// /secret-mountpoint/..timestamp-2         # new directory
+	// /secret-mountpoint/..timestamp-2/ca.crt  # new version of ca.crt
+	// /secret-mountpoint/..timestamp-2/tls.crt # new version of tls.crt
+	// /secret-mountpoint/..timestamp-2/tls.key # new version of tls.key
+
+	timestamp2Dir := filepath.Join(mountDir, "..timestamp-2")
+	createTimestampDir(t, timestamp2Dir, serverCert, clientCert, clientKey)
+
+	err = os.Symlink("..timestamp-2", filepath.Join(mountDir, "..data_tmp"))
+	require.NoError(t, err)
+
+	os.Rename(filepath.Join(mountDir, "..data_tmp"), filepath.Join(mountDir, "..data"))
+	require.NoError(t, err)
+	err = os.RemoveAll(timestamp1Dir)
+	require.NoError(t, err)
+
+	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
+
+	expectedCert, err = tls.LoadX509KeyPair(clientCert, clientKey)
+	require.NoError(t, err)
+	assert.Equal(t, expectedCert.Certificate, watcher.certificate().Certificate,
+		"certificate should be updated: %v", logObserver.All())
+
+	logObserver.TakeAll() // clean logs
+
+	// Make third update to make sure that the watcher is still working.
+	timestamp3Dir := filepath.Join(mountDir, "..timestamp-3")
+	createTimestampDir(t, timestamp3Dir, caCert, serverCert, serverKey)
+	err = os.Symlink("..timestamp-3", filepath.Join(mountDir, "..data_tmp"))
+	require.NoError(t, err)
+	os.Rename(filepath.Join(mountDir, "..data_tmp"), filepath.Join(mountDir, "..data"))
+	require.NoError(t, err)
+	err = os.RemoveAll(timestamp2Dir)
+	require.NoError(t, err)
+
+	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
+	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
+
+	expectedCert, err = tls.LoadX509KeyPair(serverCert, serverKey)
+	require.NoError(t, err)
+	assert.Equal(t,
+		expectedCert.Certificate,
+		watcher.certificate().Certificate,
+		"certificate should be updated",
+	)
+}
+
+func createTimestampDir(t *testing.T, dir string, ca, cert, key string) {
+	t.Helper()
+	err := os.MkdirAll(dir, 0o700)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(ca)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "ca.crt"), data, 0o600)
+	require.NoError(t, err)
+	data, err = os.ReadFile(cert)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "tls.crt"), data, 0o600)
+	require.NoError(t, err)
+	data, err = os.ReadFile(key)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "tls.key"), data, 0o600)
+	require.NoError(t, err)
+}
+
+func TestAddCertsToWatch_err(t *testing.T) {
 	tests := []struct {
 		opts Options
 	}{
@@ -278,60 +342,37 @@ func TestAddCertsToWatch_err(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		err := addCertsToWatch(watcher, test.opts)
+		watcher, err := newCertWatcher(test.opts, nil, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no such file or directory")
+		assert.Nil(t, watcher)
 	}
 }
 
-func TestAddCertsToWatch_remove_ca(t *testing.T) {
-	caFile, err := os.CreateTemp("", "ca.crt")
-	require.NoError(t, err)
-	defer os.Remove(caFile.Name())
-	caData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = caFile.Write(caData)
-	require.NoError(t, err)
-	caFile.Close()
-
-	clientCaFile, err := os.CreateTemp("", "clientCa.crt")
-	require.NoError(t, err)
-	defer os.Remove(clientCaFile.Name())
-	clientCaData, err := os.ReadFile(caCert)
-	require.NoError(t, err)
-	_, err = clientCaFile.Write(clientCaData)
-	require.NoError(t, err)
-	clientCaFile.Close()
-
-	zcore, logObserver := observer.New(zapcore.InfoLevel)
-	logger := zap.New(zcore)
-	opts := Options{
-		CAPath:       caFile.Name(),
-		ClientCAPath: clientCaFile.Name(),
+func assertLogs(t *testing.T,
+	logs *observer.ObservedLogs,
+	logMsg string,
+	fields [][2]string,
+) {
+	errMsg := "Expecting log '" + logMsg + "'"
+	for _, field := range fields {
+		errMsg = errMsg + " " + field[0] + "=" + field[1]
 	}
-	watcher, err := newCertWatcher(opts, logger)
-	require.NoError(t, err)
-	defer watcher.Close()
-
-	certPool := x509.NewCertPool()
-	require.NoError(t, err)
-	go watcher.watchChangesLoop(certPool, certPool)
-
-	require.NoError(t, os.Remove(caFile.Name()))
-	require.NoError(t, os.Remove(clientCaFile.Name()))
-	waitUntil(func() bool {
-		return logObserver.FilterMessage("Certificate has been removed, using the last known version").Len() >= 2
-	}, 100, time.Millisecond*100)
-	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", caFile.Name())).Len() > 0)
-	assert.True(t, logObserver.FilterMessage("Certificate has been removed, using the last known version").FilterField(zap.String("certificate", clientCaFile.Name())).Len() > 0)
-}
-
-func waitUntil(f func() bool, iterations int, sleepInterval time.Duration) {
-	for i := 0; i < iterations; i++ {
-		if f() {
-			return
+	fn := func() bool {
+		l := logs
+		if logMsg != "" {
+			l = l.FilterMessageSnippet(logMsg)
 		}
-		time.Sleep(sleepInterval)
+		for _, field := range fields {
+			l = l.FilterField(zap.String(field[0], field[1]))
+		}
+		return l.Len() > 0
+	}
+	ok := assert.Eventuallyf(t, fn, 5*time.Second, 10*time.Millisecond, errMsg)
+	if !ok {
+		for _, log := range logs.All() {
+			t.Log(log)
+		}
 	}
 }
 

@@ -26,17 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/mocks"
-	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -63,6 +59,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		basePath         string // input to the test
 		subroute         bool   // should we create a subroute?
 		baseURL          string // expected URL prefix
+		logAccess        bool
 		expectedBaseHTML string // substring to match in the home page
 		UIConfigPath     string // path to UI config
 		expectedUIConfig string // expected UI config
@@ -71,6 +68,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			basePath:         "",
 			baseURL:          "/",
 			expectedBaseHTML: `<base href="/"`,
+			logAccess:        true,
 			UIConfigPath:     "",
 			expectedUIConfig: "JAEGER_CONFIG=DEFAULT_CONFIG;",
 		},
@@ -95,15 +93,16 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run("basePath="+testCase.basePath, func(t *testing.T) {
-			logger, _ := testutils.NewLogger()
+			logger, logBuf := testutils.NewLogger()
 			r := mux.NewRouter()
 			if testCase.subroute {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
 			RegisterStaticHandler(r, logger, &QueryOptions{
-				StaticAssets: "fixture",
-				BasePath:     testCase.basePath,
-				UIConfig:     testCase.UIConfigPath,
+				StaticAssets:          "fixture",
+				BasePath:              testCase.basePath,
+				UIConfig:              testCase.UIConfigPath,
+				LogStaticAssetsAccess: testCase.logAccess,
 			})
 
 			server := httptest.NewServer(r)
@@ -121,9 +120,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 				return string(respByteArray)
 			}
 
-			respString := httpGet(favoriteIcon)
-			assert.Contains(t, respString, "Test Favicon") // this text is present in fixtures/favicon.ico
-
 			html := httpGet("") // get home page
 			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"","buildDate":""};`, "actual: %v", html)
@@ -131,6 +127,11 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
+			if testCase.logAccess {
+				assert.Contains(t, logBuf.String(), "static/asset.txt")
+			} else {
+				assert.NotContains(t, logBuf.String(), "static/asset.txt")
+			}
 		})
 	}
 }
@@ -143,100 +144,6 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
 		require.Errorf(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "invalid base path")
-	}
-}
-
-func TestWatcherError(t *testing.T) {
-	const totalWatcherAddCalls = 2
-
-	for _, tc := range []struct {
-		name                string
-		errorOnNthAdd       int
-		newWatcherErr       error
-		watcherAddErr       error
-		wantWatcherAddCalls int
-	}{
-		{
-			name:          "NewWatcher error",
-			newWatcherErr: fmt.Errorf("new watcher error"),
-		},
-		{
-			name:                "Watcher.Add first call error",
-			errorOnNthAdd:       0,
-			watcherAddErr:       fmt.Errorf("add first error"),
-			wantWatcherAddCalls: 2,
-		},
-		{
-			name:                "Watcher.Add second call error",
-			errorOnNthAdd:       1,
-			watcherAddErr:       fmt.Errorf("add second error"),
-			wantWatcherAddCalls: 2,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Prepare
-			zcore, logObserver := observer.New(zapcore.InfoLevel)
-			logger := zap.New(zcore)
-			defer func() {
-				if r := recover(); r != nil {
-					// Select loop exits without logging error, only containing previous error log.
-					assert.Equal(t, logObserver.FilterMessage("event").Len(), 1)
-					assert.Equal(t, "send on closed channel", fmt.Sprint(r))
-				}
-			}()
-
-			watcher := &mocks.Watcher{}
-			for i := 0; i < totalWatcherAddCalls; i++ {
-				var err error
-				if i == tc.errorOnNthAdd {
-					err = tc.watcherAddErr
-				}
-				watcher.On("Add", mock.Anything).Return(err).Once()
-			}
-			watcher.On("Events").Return(make(chan fsnotify.Event))
-			errChan := make(chan error)
-			watcher.On("Errors").Return(errChan)
-
-			// Test
-			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-				UIConfigPath: "fixture/ui-config-hotreload.json",
-				NewWatcher: func() (fswatcher.Watcher, error) {
-					return watcher, tc.newWatcherErr
-				},
-				Logger: logger,
-			})
-
-			// Validate
-
-			// Error logged but not returned
-			assert.NoError(t, err)
-			if tc.newWatcherErr != nil {
-				assert.Equal(t, logObserver.FilterField(zap.Error(tc.newWatcherErr)).Len(), 1)
-			} else {
-				assert.Zero(t, logObserver.FilterField(zap.Error(tc.newWatcherErr)).Len())
-			}
-
-			if tc.watcherAddErr != nil {
-				assert.Equal(t, logObserver.FilterField(zap.Error(tc.watcherAddErr)).Len(), 1)
-			} else {
-				assert.Zero(t, logObserver.FilterField(zap.Error(tc.watcherAddErr)).Len())
-			}
-
-			watcher.AssertNumberOfCalls(t, "Add", tc.wantWatcherAddCalls)
-
-			// Validate Events and Errors channels
-			if tc.newWatcherErr == nil {
-				errChan <- fmt.Errorf("first error")
-
-				waitUntil(t, func() bool {
-					return logObserver.FilterMessage("event").Len() > 0
-				}, 100, 10*time.Millisecond, "timed out waiting for error")
-				assert.Equal(t, logObserver.FilterMessage("event").Len(), 1)
-
-				close(errChan)
-				errChan <- fmt.Errorf("second error on closed chan")
-			}
-		})
 	}
 }
 

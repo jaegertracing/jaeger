@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"errors"
 	"io"
 
 	"go.uber.org/zap"
@@ -24,7 +25,6 @@ import (
 	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/multicloser"
 )
 
 // ProxyBuilder holds objects communicating with collector
@@ -74,5 +74,9 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
-	return multicloser.Wrap(b.reporter, b.tlsCloser, b.GetConn()).Close()
+	return errors.Join(
+		b.reporter.Close(),
+		b.tlsCloser.Close(),
+		b.GetConn().Close(),
+	)
 }

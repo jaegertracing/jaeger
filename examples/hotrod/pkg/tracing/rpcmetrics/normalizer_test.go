@@ -1,4 +1,5 @@
-// Copyright (c) 2021 The Jaeger Authors.
+// Copyright (c) 2023 The Jaeger Authors.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,29 +13,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fswatcher
+package rpcmetrics
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestFsWatcher(t *testing.T) {
-	w, err := NewWatcher()
-	require.NoError(t, err)
-	assert.IsType(t, &fsnotifyWatcherWrapper{}, w)
-
-	err = w.Add("foo")
-	assert.Error(t, err)
-
-	err = w.Add("../../cmd/query/app/fixture/ui-config.json")
-	assert.NoError(t, err)
-
-	events := w.Events()
-	assert.NotZero(t, events)
-
-	errs := w.Errors()
-	assert.NotZero(t, errs)
+func TestSimpleNameNormalizer(t *testing.T) {
+	n := &SimpleNameNormalizer{
+		SafeSets: []SafeCharacterSet{
+			&Range{From: 'a', To: 'z'},
+			&Char{'-'},
+		},
+		Replacement: '-',
+	}
+	assert.Equal(t, "ab-cd", n.Normalize("ab-cd"), "all valid")
+	assert.Equal(t, "ab-cd", n.Normalize("ab.cd"), "single mismatch")
+	assert.Equal(t, "a--cd", n.Normalize("aB-cd"), "range letter mismatch")
 }

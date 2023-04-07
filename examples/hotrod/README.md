@@ -6,6 +6,8 @@ to view the traces. A tutorial / walkthrough is available:
   * as a blog post [Take OpenTracing for a HotROD ride][hotrod-tutorial],
   * as a video [OpenShift Commons Briefing: Distributed Tracing with Jaeger & Prometheus on Kubernetes][hotrod-openshift].
 
+As of Jaeger v1.42.0 this application was upgraded to use OpenTelemetry SDK for traces.
+
 ## Features
 
 * Discover architecture of the whole system via data-driven dependency diagram
@@ -70,8 +72,7 @@ go run ./examples/hotrod/main.go all
 docker run \
   --rm \
   --link jaeger \
-  --env JAEGER_AGENT_HOST=jaeger \
-  --env JAEGER_AGENT_PORT=6831 \
+  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces \
   -p8080-8083:8080-8083 \
   jaegertracing/example-hotrod:latest \
   all

@@ -73,6 +73,7 @@ func main() {
 		}
 		handler.xHandler.ServeHTTP(w, r)
 	})
+	//nolint:gosec
 	http.ListenAndServe(":8080", nil)
 }
 

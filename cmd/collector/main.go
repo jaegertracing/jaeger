@@ -119,7 +119,7 @@ func main() {
 			if err := collector.Start(collectorOpts); err != nil {
 				logger.Fatal("Failed to start collector", zap.Error(err))
 			}
-			// Wait for shutfown
+			// Wait for shutdown
 			svc.RunAndThen(func() {
 				if err := collector.Close(); err != nil {
 					logger.Error("failed to cleanly close the collector", zap.Error(err))

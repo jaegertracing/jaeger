@@ -29,9 +29,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	tSampling092 "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp/thrift-0.9.2"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 type testServer struct {
@@ -44,7 +45,7 @@ type testServer struct {
 
 func withServer(
 	basePath string,
-	mockSamplingResponse *sampling.SamplingStrategyResponse,
+	mockSamplingResponse *api_v2.SamplingStrategyResponse,
 	mockBaggageResponse []*baggage.BaggageRestriction,
 	testFn func(server *testServer),
 ) {
@@ -76,32 +77,49 @@ func withServer(
 
 func TestHTTPHandler(t *testing.T) {
 	testHTTPHandler(t, "")
+}
+
+func TestHTTPHandlerWithBasePath(t *testing.T) {
 	testHTTPHandler(t, "/foo")
 }
 
 func testHTTPHandler(t *testing.T, basePath string) {
-	withServer(basePath, probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
-		for _, endpoint := range []string{"/", "/sampling"} {
-			t.Run("request against endpoint "+endpoint, func(t *testing.T) {
-				resp, err := http.Get(ts.server.URL + basePath + endpoint + "?service=Y")
+	withServer(basePath, rateLimiting(42), restrictions("luggage", 10), func(ts *testServer) {
+		tests := []struct {
+			endpoint  string
+			expOutput string
+		}{
+			{
+				endpoint:  "/",
+				expOutput: `{"strategyType":1,"rateLimitingSampling":{"maxTracesPerSecond":42}}`,
+			},
+			{
+				endpoint:  "/sampling",
+				expOutput: `{"strategyType":"RATE_LIMITING","rateLimitingSampling":{"maxTracesPerSecond":42}}`,
+			},
+		}
+		for _, test := range tests {
+			t.Run("endpoint="+test.endpoint, func(t *testing.T) {
+				resp, err := http.Get(ts.server.URL + basePath + test.endpoint + "?service=Y")
 				require.NoError(t, err)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				err = resp.Body.Close()
 				require.NoError(t, err)
-				if endpoint == "/" {
+				assert.Equal(t, test.expOutput, string(body))
+				if test.endpoint == "/" {
 					objResp := &tSampling092.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
 					assert.EqualValues(t,
 						ts.samplingStore.samplingResponse.GetStrategyType(),
 						objResp.GetStrategyType())
-					assert.Equal(t,
-						ts.samplingStore.samplingResponse.GetProbabilisticSampling().GetSamplingRate(),
-						objResp.GetProbabilisticSampling().GetSamplingRate())
+					assert.EqualValues(t,
+						ts.samplingStore.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
+						objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
 				} else {
-					objResp := &sampling.SamplingStrategyResponse{}
-					require.NoError(t, json.Unmarshal(body, objResp))
+					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
+					require.NoError(t, err)
 					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
 				}
 			})
@@ -131,7 +149,7 @@ func testHTTPHandler(t *testing.T, basePath string) {
 func TestHTTPHandlerErrors(t *testing.T) {
 	testCases := []struct {
 		description          string
-		mockSamplingResponse *sampling.SamplingStrategyResponse
+		mockSamplingResponse *api_v2.SamplingStrategyResponse
 		mockBaggageResponse  []*baggage.BaggageRestriction
 		url                  string
 		statusCode           int
@@ -188,7 +206,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			mockSamplingResponse: probabilistic(math.NaN()),
 			url:                  "?service=Y",
 			statusCode:           http.StatusInternalServerError,
-			body:                 "cannot marshall Thrift to JSON\n",
+			body:                 "cannot marshall to JSON\n",
 			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
 			},
@@ -220,7 +238,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 
 			req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
 			w := &mockWriter{header: make(http.Header)}
-			handler.serveSamplingHTTP(w, req, false)
+			handler.serveSamplingHTTP(w, req, handler.encodeThriftLegacy)
 
 			ts.metricsFactory.AssertCounterMetrics(t,
 				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
@@ -234,10 +252,39 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	})
 }
 
-func probabilistic(probability float64) *sampling.SamplingStrategyResponse {
-	return &sampling.SamplingStrategyResponse{
-		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+func TestEncodeErrors(t *testing.T) {
+	withServer("", nil, nil, func(server *testServer) {
+		_, err := server.handler.encodeThriftLegacy(&api_v2.SamplingStrategyResponse{
+			StrategyType: -1,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ConvertSamplingResponseFromDomain failed")
+		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+			{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
+		}...)
+
+		_, err = server.handler.encodeProto(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "SamplingStrategyResponseToJSON failed")
+		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
+		}...)
+	})
+}
+
+func rateLimiting(rate int32) *api_v2.SamplingStrategyResponse {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_RATE_LIMITING,
+		RateLimitingSampling: &api_v2.RateLimitingSamplingStrategy{
+			MaxTracesPerSecond: rate,
+		},
+	}
+}
+
+func probabilistic(probability float64) *api_v2.SamplingStrategyResponse {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+		ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 			SamplingRate: probability,
 		},
 	}

@@ -41,7 +41,7 @@ func StartGRPCCollector(t *testing.T) *GrpcCollector {
 	server := grpc.NewServer()
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
-	handler := &mockSpanHandler{}
+	handler := &mockSpanHandler{t: t}
 	api_v2.RegisterCollectorServiceServer(server, handler)
 	go func() {
 		require.NoError(t, server.Serve(lis))
@@ -65,6 +65,7 @@ func (c *GrpcCollector) Close() error {
 }
 
 type mockSpanHandler struct {
+	t        *testing.T
 	mux      sync.Mutex
 	requests []*api_v2.PostSpansRequest
 }
@@ -81,6 +82,7 @@ func (h *mockSpanHandler) GetJaegerBatches() []model.Batch {
 }
 
 func (h *mockSpanHandler) PostSpans(_ context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+	h.t.Logf("mockSpanHandler received %d spans", len(r.Batch.Spans))
 	h.mux.Lock()
 	defer h.mux.Unlock()
 	h.requests = append(h.requests, r)
