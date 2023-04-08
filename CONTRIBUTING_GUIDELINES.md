@@ -34,11 +34,11 @@ and open a pull request (PR).
 
 ### Assigning Issues
 
-We do not assign issues to contributors. It's almost never the case that multiple
-people jump on the same issue, and practice showed that very often people who ask
+We do not assign issues to contributors. It is almost never the case that multiple
+people jump on the same issue, and practice showed that occasionally people who ask
 for an issue to be assigned to them later have a change in priorities and are unable
-to find time to finish it. So if you have a desire to work on an issue, feel free
-to mention it in the comment and just submit a PR.
+to find time to finish it, which leaves the issue in limbo. 
+So if you have a desire to work on an issue, feel free to mention it in the comment and just submit a PR.
 
 ### Creating a pull request
 
