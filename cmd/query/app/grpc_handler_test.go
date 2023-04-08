@@ -155,15 +155,13 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQu
 		)
 	}
 	grpcServer := grpc.NewServer(grpcOpts...)
-	grpcHandler := &GRPCHandler{
-		queryService:        q,
-		metricsQueryService: mq,
-		logger:              logger,
-		tracer:              tracer,
-		nowFn: func() time.Time {
+	grpcHandler := NewGRPCHandler(q, mq, GRPCHandlerOptions{
+		Logger: logger,
+		Tracer: tracer,
+		NowFn: func() time.Time {
 			return now
 		},
-	}
+	})
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 	metrics.RegisterMetricsQueryServiceServer(grpcServer, grpcHandler)
 
@@ -1167,4 +1165,20 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 
 		server.spanReader.AssertExpectations(t)
 	})
+}
+
+func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
+	disabledReader, err := disabled.NewMetricsReader()
+	require.NoError(t, err)
+
+	q := querysvc.NewQueryService(
+		&spanstoremocks.Reader{},
+		&depsmocks.Reader{},
+		querysvc.QueryServiceOptions{})
+
+	handler := NewGRPCHandler(q, disabledReader, GRPCHandlerOptions{})
+
+	assert.NotNil(t, handler.logger)
+	assert.NotNil(t, handler.tracer)
+	assert.NotNil(t, handler.nowFn)
 }
