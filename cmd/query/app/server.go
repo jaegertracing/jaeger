@@ -130,13 +130,10 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	server := grpc.NewServer(grpcOpts...)
 	reflection.Register(server)
 
-	handler := &GRPCHandler{
-		queryService:        querySvc,
-		metricsQueryService: metricsQuerySvc,
-		logger:              logger,
-		tracer:              tracer,
-		nowFn:               time.Now,
-	}
+	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
+		Logger: logger,
+		Tracer: tracer,
+	})
 	healthServer := health.NewServer()
 
 	api_v2.RegisterQueryServiceServer(server, handler)
