@@ -1,5 +1,8 @@
 {
-  "index_patterns": "*test-jaeger-span-*",
+  "index_patterns": [
+    "*test-jaeger-span-*",
+    "-test-jaeger-span-archive"
+  ],
   "aliases": {
     "test-jaeger-span-read": {}
   },

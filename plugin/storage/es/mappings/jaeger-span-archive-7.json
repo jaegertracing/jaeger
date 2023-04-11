@@ -1,7 +1,6 @@
 {
   "index_patterns": [
-    "*{{ .IndexPrefix }}jaeger-span-*",
-    "-{{ .IndexPrefix }}jaeger-span-archive"
+    "{{ .IndexPrefix }}jaeger-span-archive"
   ],
   {{- if .UseILM }}
   "aliases": {

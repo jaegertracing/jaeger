@@ -188,7 +188,7 @@ func createSpanWriter(
 		UseILM:          cfg.GetUseILM(),
 	}
 
-	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+	spanMapping, archiveMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
 		return nil, err
 	}
@@ -208,9 +208,16 @@ func createSpanWriter(
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.IsCreateIndexTemplates() && !cfg.GetUseILM() {
-		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
-		if err != nil {
-			return nil, err
+		if archive {
+			err := writer.CreateArchiveTemplate(archiveMapping, cfg.GetIndexPrefix())
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return writer, nil

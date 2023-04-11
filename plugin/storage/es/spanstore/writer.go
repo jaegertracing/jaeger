@@ -118,6 +118,18 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 	return nil
 }
 
+// CreateTemplates creates index templates.
+func (s *SpanWriter) CreateArchiveTemplate(archiveTemplate, indexPrefix string) error {
+	if indexPrefix != "" && !strings.HasSuffix(indexPrefix, "-") {
+		indexPrefix += "-"
+	}
+	_, err := s.client.CreateTemplate(indexPrefix + "jaeger-span-archive").Body(archiveTemplate).Do(context.Background())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 

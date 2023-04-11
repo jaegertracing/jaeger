@@ -40,6 +40,8 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 	}{
 		{mapping: "jaeger-span", esVersion: 7},
 		{mapping: "jaeger-span", esVersion: 6},
+		{mapping: "jaeger-span-archive", esVersion: 7},
+		{mapping: "jaeger-span-archive", esVersion: 6},
 		{mapping: "jaeger-service", esVersion: 7},
 		{mapping: "jaeger-service", esVersion: 6},
 		{mapping: "jaeger-dependencies", esVersion: 7},
@@ -67,7 +69,7 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 				require.NoError(t, err)
 			}
 			want := string(wantbytes)
-			assert.Equal(t, got, want)
+			assert.Equal(t, want, got)
 		})
 	}
 }
@@ -299,7 +301,7 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 				UseILM:          test.args.useILM,
 				ILMPolicyName:   test.args.ilmPolicyName,
 			}
-			_, _, err := mappingBuilder.GetSpanServiceMappings()
+			_, _, _, err := mappingBuilder.GetSpanServiceMappings()
 			if test.err != "" {
 				assert.EqualError(t, err, test.err)
 			} else {
