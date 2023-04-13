@@ -101,7 +101,7 @@ func (s *Span) NormalizeTimestamps() {
 func (s *Span) ParentSpanID() SpanID {
 	for i := range s.References {
 		ref := &s.References[i]
-		if ref.TraceID == s.TraceID && ref.RefType == ChildOf {
+		if ref.TraceID == s.TraceID && (ref.RefType == ChildOf || ref.RefType == FollowsFrom) {
 			return ref.SpanID
 		}
 	}
