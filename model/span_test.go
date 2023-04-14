@@ -283,6 +283,7 @@ func TestParentSpanID(t *testing.T) {
 	assert.Equal(t, model.NewSpanID(777), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
+		model.NewFollowsFromRef(span.TraceID, model.NewSpanID(777)),
 		model.NewChildOfRef(span.TraceID, model.NewSpanID(888)),
 	}
 	assert.Equal(t, model.NewSpanID(888), span.ParentSpanID())
