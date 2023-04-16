@@ -42,6 +42,7 @@ type options struct {
 	extraFormatTypes       []processor.SpanFormat
 	collectorTags          map[string]string
 	spanSizeMetricsEnabled bool
+	onDroppedSpan          func(span *model.Span)
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -161,6 +162,13 @@ func (options) CollectorTags(extraTags map[string]string) Option {
 func (options) SpanSizeMetricsEnabled(spanSizeMetrics bool) Option {
 	return func(b *options) {
 		b.spanSizeMetricsEnabled = spanSizeMetrics
+	}
+}
+
+// OnDroppedSpan creates an Option that initializes the onDroppedSpan function
+func (options) OnDroppedSpan(onDroppedSpan func(span *model.Span)) Option {
+	return func(b *options) {
+		b.onDroppedSpan = onDroppedSpan
 	}
 }
 
