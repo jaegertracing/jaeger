@@ -332,7 +332,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 		},
 	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 
-	assert.Error(t, err, "expcting busy error")
+	assert.Error(t, err, "expecting busy error")
 	assert.Nil(t, res)
 }
 
@@ -652,4 +652,32 @@ func TestSpanProcessorContextPropagation(t *testing.T) {
 	assert.Equal(t, true, w.tenants[dummyTenant])
 	// Verify no other tenantKey context values made it to writer
 	assert.True(t, reflect.DeepEqual(w.tenants, map[string]bool{dummyTenant: true}))
+}
+
+func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
+	var droppedOperations []string
+	customOnDroppedSpan := func(span *model.Span) {
+		droppedOperations = append(droppedOperations, span.OperationName)
+	}
+
+	w := &blockingWriter{}
+	p := NewSpanProcessor(w,
+		nil,
+		Options.NumWorkers(1),
+		Options.QueueSize(1),
+		Options.OnDroppedSpan(customOnDroppedSpan),
+	).(*spanProcessor)
+	defer p.Close()
+	// block the writer so that the first span is read from the queue and blocks the processor, and followings are dropped.
+	w.Lock()
+	defer w.Unlock()
+
+	_, err := p.ProcessSpans([]*model.Span{
+		{OperationName: "op1"},
+		{OperationName: "op2"},
+		{OperationName: "op3"},
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"op2", "op3"}, droppedOperations)
 }

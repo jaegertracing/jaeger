@@ -13,6 +13,20 @@ next release
 
 ### UI Changes
 
+1.44.0 (2023-04-10)
+-------------------
+### Backend Changes
+
+#### Bug fixes, Minor Improvements
+
+* Store span warnings as tags in Cassandra ([@utsavoza](https://github.com/utsavoza) in [#4313](https://github.com/jaegertracing/jaeger/pull/4313))
+* Add Keep-Alive flag for Zipkin HTTP server ([@topjung3](https://github.com/topjung3) in [#4366](https://github.com/jaegertracing/jaeger/pull/4366))
+* Log access to static assets; remove favicon test ([@yurishkuro](https://github.com/yurishkuro) in [#4302](https://github.com/jaegertracing/jaeger/pull/4302))
+
+### UI Changes
+
+* UI pinned to version [1.29.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1290-2023-04-10).
+
 1.43.0 (2023-03-15)
 -------------------
 ### Backend Changes

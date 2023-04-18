@@ -95,6 +95,9 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 		options.extraFormatTypes)
 	droppedItemHandler := func(item interface{}) {
 		handlerMetrics.SpansDropped.Inc(1)
+		if options.onDroppedSpan != nil {
+			options.onDroppedSpan(item.(*queueItem).span)
+		}
 	}
 	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
