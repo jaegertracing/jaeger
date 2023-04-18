@@ -12,12 +12,12 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-kit/kit v0.12.0
 	github.com/go-openapi/errors v0.20.3
-	github.com/go-openapi/loads v0.21.1
-	github.com/go-openapi/runtime v0.25.0
-	github.com/go-openapi/spec v0.20.6
+	github.com/go-openapi/loads v0.21.2
+	github.com/go-openapi/runtime v0.26.0
+	github.com/go-openapi/spec v0.20.8
 	github.com/go-openapi/strfmt v0.21.7
-	github.com/go-openapi/swag v0.22.1
-	github.com/go-openapi/validate v0.22.0
+	github.com/go-openapi/swag v0.22.3
+	github.com/go-openapi/validate v0.22.1
 	github.com/gocql/gocql v1.3.2
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
@@ -58,8 +58,8 @@ require (
 	go.opentelemetry.io/otel/bridge/opentracing v1.14.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.14.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.14.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.14.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.14.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.14.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.14.0
 	go.opentelemetry.io/otel/metric v0.37.0
 	go.opentelemetry.io/otel/sdk v1.14.0
@@ -93,7 +93,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-openapi/analysis v0.21.2 // indirect
+	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/golang/glog v1.0.0 // indirect
