@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/propagation"
@@ -71,9 +72,14 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 		exporter, err = jaeger.New(
 			jaeger.WithCollectorEndpoint(),
 		)
-	case "otlp":
+	case "otlp", "otlp-http":
 		client := otlptracehttp.NewClient(
 			otlptracehttp.WithInsecure(),
+		)
+		exporter, err = otlptrace.New(context.Background(), client)
+	case "otlp-grpc":
+		client := otlptracegrpc.NewClient(
+			otlptracegrpc.WithInsecure(),
 		)
 		exporter, err = otlptrace.New(context.Background(), client)
 	case "stdout":
