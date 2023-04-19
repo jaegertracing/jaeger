@@ -36,7 +36,6 @@ import (
 var _ storage.Factory = new(Factory)
 
 type mockClientBuilder struct {
-	// escfg.Configuration
 	err                 error
 	createTemplateError error
 }
@@ -66,6 +65,7 @@ func TestElasticsearchFactory(t *testing.T) {
 	f.archiveConfig.Enabled = true
 	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 		// to test archive storage error, pretend that primary client creation is successful
+		// but override newClientFn so it fails for the next invocation
 		f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error2")}).NewClient
 		return (&mockClientBuilder{}).NewClient(c, logger, metricsFactory)
 	}
@@ -182,7 +182,7 @@ func TestTagKeysAsFields(t *testing.T) {
 
 func TestCreateTemplateError(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{Enabled: true, CreateIndexTemplates: true}
+	f.primaryConfig = &escfg.Configuration{CreateIndexTemplates: true}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
@@ -194,7 +194,7 @@ func TestCreateTemplateError(t *testing.T) {
 
 func TestILMDisableTemplateCreation(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{Enabled: true, UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
+	f.primaryConfig = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
