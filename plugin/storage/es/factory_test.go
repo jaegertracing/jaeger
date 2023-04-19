@@ -36,12 +36,11 @@ import (
 var _ storage.Factory = new(Factory)
 
 type mockClientBuilder struct {
-	escfg.Configuration
 	err                 error
 	createTemplateError error
 }
 
-func (m *mockClientBuilder) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func (m *mockClientBuilder) NewClient(_ *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if m.err == nil {
 		c := &mocks.Client{}
 		tService := &mocks.TemplateCreateService{}
@@ -60,16 +59,19 @@ func TestElasticsearchFactory(t *testing.T) {
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
 
-	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
-	// so we override it with a mock.
-	f.primaryConfig = &mockClientBuilder{err: errors.New("made-up error")}
+	f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error")}).NewClient
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
 
-	f.primaryConfig = &mockClientBuilder{}
-	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2"), Configuration: escfg.Configuration{Enabled: true}}
+	f.archiveConfig.Enabled = true
+	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+		// to test archive storage error, pretend that primary client creation is successful
+		// but override newClientFn so it fails for the next invocation
+		f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error2")}).NewClient
+		return (&mockClientBuilder{}).NewClient(c, logger, metricsFactory)
+	}
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create archive Elasticsearch client: made-up error2")
 
-	f.archiveConfig = &mockClientBuilder{}
+	f.newClientFn = (&mockClientBuilder{}).NewClient
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err := f.CreateSpanReader()
@@ -91,10 +93,13 @@ func TestElasticsearchFactory(t *testing.T) {
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	f := NewFactory()
-	mockConf := &mockClientBuilder{}
-	mockConf.Tags.File = "fixtures/tags_foo.txt"
-	f.primaryConfig = mockConf
-	f.archiveConfig = mockConf
+	f.primaryConfig = &escfg.Configuration{
+		Tags: escfg.TagsAsFields{
+			File: "fixtures/file-does-not-exist.txt",
+		},
+	}
+	f.archiveConfig = &escfg.Configuration{}
+	f.newClientFn = (&mockClientBuilder{}).NewClient
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	r, err := f.CreateSpanWriter()
 	require.Error(t, err)
@@ -103,10 +108,11 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f := NewFactory()
-	mockConf := &mockClientBuilder{}
-	mockConf.UseILM = true
-	f.primaryConfig = mockConf
-	f.archiveConfig = mockConf
+	f.primaryConfig = &escfg.Configuration{
+		UseILM: true,
+	}
+	f.archiveConfig = &escfg.Configuration{}
+	f.newClientFn = (&mockClientBuilder{}).NewClient
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	w, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -176,8 +182,9 @@ func TestTagKeysAsFields(t *testing.T) {
 
 func TestCreateTemplateError(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &mockClientBuilder{createTemplateError: errors.New("template-error"), Configuration: escfg.Configuration{Enabled: true, CreateIndexTemplates: true}}
-	f.archiveConfig = &mockClientBuilder{}
+	f.primaryConfig = &escfg.Configuration{CreateIndexTemplates: true}
+	f.archiveConfig = &escfg.Configuration{}
+	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	w, err := f.CreateSpanWriter()
@@ -187,8 +194,9 @@ func TestCreateTemplateError(t *testing.T) {
 
 func TestILMDisableTemplateCreation(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &mockClientBuilder{createTemplateError: errors.New("template-error"), Configuration: escfg.Configuration{Enabled: true, UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}}
-	f.archiveConfig = &mockClientBuilder{}
+	f.primaryConfig = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
+	f.archiveConfig = &escfg.Configuration{}
+	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	_, err = f.CreateSpanWriter()
@@ -197,7 +205,8 @@ func TestILMDisableTemplateCreation(t *testing.T) {
 
 func TestArchiveDisabled(t *testing.T) {
 	f := NewFactory()
-	f.archiveConfig = &mockClientBuilder{Configuration: escfg.Configuration{Enabled: false}}
+	f.archiveConfig = &escfg.Configuration{Enabled: false}
+	f.newClientFn = (&mockClientBuilder{}).NewClient
 	w, err := f.CreateArchiveSpanWriter()
 	assert.Nil(t, w)
 	assert.Nil(t, err)
@@ -208,8 +217,8 @@ func TestArchiveDisabled(t *testing.T) {
 
 func TestArchiveEnabled(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &mockClientBuilder{}
-	f.archiveConfig = &mockClientBuilder{Configuration: escfg.Configuration{Enabled: true}}
+	f.archiveConfig = &escfg.Configuration{Enabled: true}
+	f.newClientFn = (&mockClientBuilder{}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	w, err := f.CreateArchiveSpanWriter()
