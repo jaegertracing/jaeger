@@ -51,16 +51,19 @@ type Factory struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 
-	primaryConfig config.ClientBuilder
+	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+
+	primaryConfig *config.Configuration
 	primaryClient es.Client
-	archiveConfig config.ClientBuilder
+	archiveConfig *config.Configuration
 	archiveClient es.Client
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options: NewOptions(primaryNamespace, archiveNamespace),
+		Options:     NewOptions(primaryNamespace, archiveNamespace),
+		newClientFn: config.NewClient,
 	}
 }
 
@@ -89,13 +92,13 @@ func (f *Factory) InitFromOptions(o Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory)
+	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
 	if err != nil {
 		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
 	}
 	f.primaryClient = primaryClient
-	if f.archiveConfig.IsStorageEnabled() {
-		f.archiveClient, err = f.archiveConfig.NewClient(logger, metricsFactory)
+	if f.archiveConfig.Enabled {
+		f.archiveClient, err = f.newClientFn(f.archiveConfig, logger, metricsFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create archive Elasticsearch client: %w", err)
 		}
@@ -120,7 +123,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if !f.archiveConfig.IsStorageEnabled() {
+	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
 	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, f.archiveConfig, true)
@@ -128,7 +131,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if !f.archiveConfig.IsStorageEnabled() {
+	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
 	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, f.archiveConfig, true)
@@ -138,27 +141,27 @@ func createSpanReader(
 	mFactory metrics.Factory,
 	logger *zap.Logger,
 	client es.Client,
-	cfg config.ClientBuilder,
+	cfg *config.Configuration,
 	archive bool,
 ) (spanstore.Reader, error) {
-	if cfg.GetUseILM() && !cfg.GetUseReadWriteAliases() {
+	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
 		Client:                        client,
 		Logger:                        logger,
 		MetricsFactory:                mFactory,
-		MaxDocCount:                   cfg.GetMaxDocCount(),
-		MaxSpanAge:                    cfg.GetMaxSpanAge(),
-		IndexPrefix:                   cfg.GetIndexPrefix(),
-		SpanIndexDateLayout:           cfg.GetIndexDateLayoutSpans(),
-		ServiceIndexDateLayout:        cfg.GetIndexDateLayoutServices(),
+		MaxDocCount:                   cfg.MaxDocCount,
+		MaxSpanAge:                    cfg.MaxSpanAge,
+		IndexPrefix:                   cfg.IndexPrefix,
+		SpanIndexDateLayout:           cfg.IndexDateLayoutSpans,
+		ServiceIndexDateLayout:        cfg.IndexDateLayoutServices,
 		SpanIndexRolloverFrequency:    cfg.GetIndexRolloverFrequencySpansDuration(),
 		ServiceIndexRolloverFrequency: cfg.GetIndexRolloverFrequencyServicesDuration(),
-		TagDotReplacement:             cfg.GetTagDotReplacement(),
-		UseReadWriteAliases:           cfg.GetUseReadWriteAliases(),
+		TagDotReplacement:             cfg.Tags.DotReplacement,
+		UseReadWriteAliases:           cfg.UseReadWriteAliases,
 		Archive:                       archive,
-		RemoteReadClusters:            cfg.GetRemoteReadClusters(),
+		RemoteReadClusters:            cfg.RemoteReadClusters,
 	}), nil
 }
 
@@ -166,12 +169,12 @@ func createSpanWriter(
 	mFactory metrics.Factory,
 	logger *zap.Logger,
 	client es.Client,
-	cfg config.ClientBuilder,
+	cfg *config.Configuration,
 	archive bool,
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
-	if cfg.GetUseILM() && !cfg.GetUseReadWriteAliases() {
+	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	if tags, err = cfg.TagKeysAsFields(); err != nil {
@@ -181,11 +184,11 @@ func createSpanWriter(
 
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
-		Shards:          cfg.GetNumShards(),
-		Replicas:        cfg.GetNumReplicas(),
-		EsVersion:       cfg.GetVersion(),
-		IndexPrefix:     cfg.GetIndexPrefix(),
-		UseILM:          cfg.GetUseILM(),
+		Shards:          cfg.NumShards,
+		Replicas:        cfg.NumReplicas,
+		EsVersion:       cfg.Version,
+		IndexPrefix:     cfg.IndexPrefix,
+		UseILM:          cfg.UseILM,
 	}
 
 	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
@@ -196,19 +199,19 @@ func createSpanWriter(
 		Client:                 client,
 		Logger:                 logger,
 		MetricsFactory:         mFactory,
-		IndexPrefix:            cfg.GetIndexPrefix(),
-		SpanIndexDateLayout:    cfg.GetIndexDateLayoutSpans(),
-		ServiceIndexDateLayout: cfg.GetIndexDateLayoutServices(),
-		AllTagsAsFields:        cfg.GetAllTagsAsFields(),
+		IndexPrefix:            cfg.IndexPrefix,
+		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
+		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,
+		AllTagsAsFields:        cfg.Tags.AllAsFields,
 		TagKeysAsFields:        tags,
-		TagDotReplacement:      cfg.GetTagDotReplacement(),
+		TagDotReplacement:      cfg.Tags.DotReplacement,
 		Archive:                archive,
-		UseReadWriteAliases:    cfg.GetUseReadWriteAliases(),
+		UseReadWriteAliases:    cfg.UseReadWriteAliases,
 	})
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
-	if cfg.IsCreateIndexTemplates() && !cfg.GetUseILM() {
-		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.GetIndexPrefix())
+	if cfg.CreateIndexTemplates && !cfg.UseILM {
+		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -219,15 +222,15 @@ func createSpanWriter(
 func createDependencyReader(
 	logger *zap.Logger,
 	client es.Client,
-	cfg config.ClientBuilder,
+	cfg *config.Configuration,
 ) (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
 		Client:              client,
 		Logger:              logger,
-		IndexPrefix:         cfg.GetIndexPrefix(),
-		IndexDateLayout:     cfg.GetIndexDateLayoutDependencies(),
-		MaxDocCount:         cfg.GetMaxDocCount(),
-		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+		IndexPrefix:         cfg.IndexPrefix,
+		IndexDateLayout:     cfg.IndexDateLayoutDependencies,
+		MaxDocCount:         cfg.MaxDocCount,
+		UseReadWriteAliases: cfg.UseReadWriteAliases,
 	})
 	return reader, nil
 }
