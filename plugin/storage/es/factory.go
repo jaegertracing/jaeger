@@ -103,12 +103,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.primaryClient.Store(&primaryClient)
 
-	f.watchers = make([]*fswatcher.FSWatcher, 2)
+	f.watchers = make([]*fswatcher.FSWatcher, 0)
 	primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
 	if err != nil {
 		return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
 	}
-	f.watchers[0] = primaryWatcher
+	f.watchers = append(f.watchers, primaryWatcher)
 
 	if f.archiveConfig.Enabled {
 		archiveClient, err := f.newClientFn(f.archiveConfig, logger, metricsFactory)
@@ -121,7 +121,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		if err != nil {
 			return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
 		}
-		f.watchers[1] = archiveWatcher
+		f.watchers = append(f.watchers, archiveWatcher)
 	}
 
 	return nil
@@ -275,14 +275,16 @@ func (f *Factory) onPrimaryPasswordChange() {
 	primaryClient, err := f.newClientFn(f.primaryConfig, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate primary Elasticsearch client from new password", zap.Error(err))
+	} else {
+		f.primaryClient.Swap(&primaryClient)
 	}
-	f.primaryClient.Swap(&primaryClient)
 }
 
 func (f *Factory) onArchivePasswordChange() {
 	archiveClient, err := f.newClientFn(f.archiveConfig, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate archive Elasticsearch client from new password", zap.Error(err))
+	} else {
+		f.archiveClient.Swap(&archiveClient)
 	}
-	f.archiveClient.Swap(&archiveClient)
 }
