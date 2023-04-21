@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -51,7 +52,7 @@ func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn fun
 		logger:    logger,
 		logBuffer: logBuffer,
 		storage: NewDependencyStore(DependencyStoreParams{
-			Client:          client,
+			Client:          func() es.Client { return client },
 			Logger:          logger,
 			IndexPrefix:     indexPrefix,
 			IndexDateLayout: indexDateLayout,
@@ -78,7 +79,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
 		r := NewDependencyStore(DependencyStoreParams{
-			Client:          client,
+			Client:          func() es.Client { return client },
 			Logger:          zap.NewNop(),
 			IndexPrefix:     testCase.prefix,
 			IndexDateLayout: "2006-01-02",

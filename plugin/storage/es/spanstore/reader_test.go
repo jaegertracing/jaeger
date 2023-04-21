@@ -33,6 +33,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
@@ -97,7 +98,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		logger:    logger,
 		logBuffer: logBuffer,
 		reader: NewSpanReader(SpanReaderParams{
-			Client:            client,
+			Client:            func() es.Client { return client },
 			Logger:            zap.NewNop(),
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
@@ -116,7 +117,7 @@ func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 		logger:    logger,
 		logBuffer: logBuffer,
 		reader: NewSpanReader(SpanReaderParams{
-			Client:              client,
+			Client:              func() es.Client { return client },
 			Logger:              zap.NewNop(),
 			MaxSpanAge:          0,
 			IndexPrefix:         "",
@@ -163,6 +164,7 @@ func TestNewSpanReader(t *testing.T) {
 
 func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
+	clientFn := func() es.Client { return client }
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
@@ -177,56 +179,56 @@ func TestSpanReaderIndices(t *testing.T) {
 	}{
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
 			indices: []string{spanIndex + spanDataLayoutFormat, serviceIndex + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndex + "read", serviceIndex + "read"},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndex + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:-" + spanIndex + "read", "foo:-" + serviceIndex + "read"},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: true,
 			},
 			indices: []string{spanIndex + archiveIndexSuffix, serviceIndex + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", Archive: true,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndex + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndex + archiveReadIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"}, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
 			indices: []string{
@@ -240,7 +242,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
@@ -254,7 +256,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: false, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
@@ -268,7 +270,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: true, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{

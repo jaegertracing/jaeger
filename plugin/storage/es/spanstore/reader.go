@@ -92,7 +92,7 @@ var (
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	client es.Client
+	client func() es.Client
 	logger *zap.Logger
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
@@ -113,7 +113,7 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client                        es.Client
+	Client                        func() es.Client
 	Logger                        *zap.Logger
 	MaxSpanAge                    time.Duration
 	MaxDocCount                   int
@@ -401,7 +401,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		// set traceIDs to empty
 		traceIDs = nil
-		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
+		results, err := s.client().MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
 		if err != nil {
 			logErrorToSpan(childSpan, err)
 			return nil, err
@@ -563,7 +563,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.spanIndexDateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax, s.spanIndexRolloverFrequency)
 
-	searchService := s.client.Search(jaegerIndices...).
+	searchService := s.client().Search(jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
 		IgnoreUnavailable(true).

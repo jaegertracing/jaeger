@@ -49,6 +49,7 @@ type Configuration struct {
 	Username                       string         `mapstructure:"username"`
 	Password                       string         `mapstructure:"password" json:"-"`
 	TokenFilePath                  string         `mapstructure:"token_file"`
+	PasswordFilePath               string         `mapstructure:"password_file"`
 	AllowTokenFromContext          bool           `mapstructure:"-"`
 	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
@@ -296,6 +297,10 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+	if c.Password != "" && c.PasswordFilePath != "" {
+		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
+	}
+
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
 		// Disable health check when token from context is allowed, this is because at this time
@@ -310,6 +315,14 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		Timeout: c.Timeout,
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
+
+	if c.PasswordFilePath != "" {
+		passwordFromFile, err := loadFileContent(c.PasswordFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load password from file: %w", err)
+		}
+		c.Password = passwordFromFile
+	}
 	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 
 	if c.SendGetBodyAs != "" {
@@ -396,7 +409,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		if c.AllowTokenFromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := loadToken(c.TokenFilePath)
+		tokenFromFile, err := loadFileContent(c.TokenFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -412,7 +425,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	return transport, nil
 }
 
-func loadToken(path string) (string, error) {
+func loadFileContent(path string) (string, error) {
 	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err

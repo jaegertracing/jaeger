@@ -16,15 +16,18 @@
 package es
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"sync/atomic"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
@@ -54,9 +57,11 @@ type Factory struct {
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
 	primaryConfig *config.Configuration
-	primaryClient es.Client
+	primaryClient atomic.Pointer[es.Client]
 	archiveConfig *config.Configuration
-	archiveClient es.Client
+	archiveClient atomic.Pointer[es.Client]
+
+	watchers []*fswatcher.FSWatcher
 }
 
 // NewFactory creates a new Factory.
@@ -96,13 +101,29 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
 	}
-	f.primaryClient = primaryClient
+	f.primaryClient.Store(&primaryClient)
+
+	f.watchers = make([]*fswatcher.FSWatcher, 2)
+	primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
+	}
+	f.watchers[0] = primaryWatcher
+
 	if f.archiveConfig.Enabled {
-		f.archiveClient, err = f.newClientFn(f.archiveConfig, logger, metricsFactory)
+		archiveClient, err := f.newClientFn(f.archiveConfig, logger, metricsFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create archive Elasticsearch client: %w", err)
 		}
+		f.archiveClient.Store(&archiveClient)
+
+		archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.PasswordFilePath}, f.onArchivePasswordChange, f.logger)
+		if err != nil {
+			return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
+		}
+		f.watchers[1] = archiveWatcher
 	}
+
 	return nil
 }
 
@@ -140,7 +161,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 func createSpanReader(
 	mFactory metrics.Factory,
 	logger *zap.Logger,
-	client es.Client,
+	client atomic.Pointer[es.Client],
 	cfg *config.Configuration,
 	archive bool,
 ) (spanstore.Reader, error) {
@@ -148,7 +169,7 @@ func createSpanReader(
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
-		Client:                        client,
+		Client:                        func() es.Client { return *client.Load() },
 		Logger:                        logger,
 		MetricsFactory:                mFactory,
 		MaxDocCount:                   cfg.MaxDocCount,
@@ -168,7 +189,7 @@ func createSpanReader(
 func createSpanWriter(
 	mFactory metrics.Factory,
 	logger *zap.Logger,
-	client es.Client,
+	client atomic.Pointer[es.Client],
 	cfg *config.Configuration,
 	archive bool,
 ) (spanstore.Writer, error) {
@@ -196,7 +217,7 @@ func createSpanWriter(
 		return nil, err
 	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
-		Client:                 client,
+		Client:                 func() es.Client { return *client.Load() },
 		Logger:                 logger,
 		MetricsFactory:         mFactory,
 		IndexPrefix:            cfg.IndexPrefix,
@@ -221,11 +242,11 @@ func createSpanWriter(
 
 func createDependencyReader(
 	logger *zap.Logger,
-	client es.Client,
+	client atomic.Pointer[es.Client],
 	cfg *config.Configuration,
 ) (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
-		Client:              client,
+		Client:              func() es.Client { return *client.Load() },
 		Logger:              logger,
 		IndexPrefix:         cfg.IndexPrefix,
 		IndexDateLayout:     cfg.IndexDateLayoutDependencies,
@@ -239,8 +260,29 @@ var _ io.Closer = (*Factory)(nil)
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
-		cfg.TLS.Close()
+	var errs []error
+	for _, w := range f.watchers {
+		errs = append(errs, w.Close())
 	}
-	return f.Options.GetPrimary().TLS.Close()
+	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
+		errs = append(errs, cfg.TLS.Close())
+	}
+	errs = append(errs, f.Options.GetPrimary().TLS.Close())
+	return errors.Join(errs...)
+}
+
+func (f *Factory) onPrimaryPasswordChange() {
+	primaryClient, err := f.newClientFn(f.primaryConfig, f.logger, f.metricsFactory)
+	if err != nil {
+		f.logger.Error("failed to recreate primary Elasticsearch client from new password", zap.Error(err))
+	}
+	f.primaryClient.Swap(&primaryClient)
+}
+
+func (f *Factory) onArchivePasswordChange() {
+	archiveClient, err := f.newClientFn(f.archiveConfig, f.logger, f.metricsFactory)
+	if err != nil {
+		f.logger.Error("failed to recreate archive Elasticsearch client from new password", zap.Error(err))
+	}
+	f.archiveClient.Swap(&archiveClient)
 }
