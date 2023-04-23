@@ -70,7 +70,7 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 		)),
 	)
 	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
-	logger.Bg().Debug("created OTEL->OT brige", zap.String("service-name", serviceName))
+	logger.Bg().Debug("created OTEL->OT bridge", zap.String("service-name", serviceName))
 	return otTracer
 }
 
@@ -78,7 +78,6 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 func withSecure() bool {
 	return strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") ||
 		strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) == "false"
-
 }
 
 func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {

@@ -54,6 +54,7 @@ docker run \
   --name jaeger \
   -p6831:6831/udp \
   -p16686:16686 \
+  -p14268:14268 \
   jaegertracing/all-in-one:latest
 ```
 
