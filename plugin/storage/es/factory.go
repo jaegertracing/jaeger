@@ -103,7 +103,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.primaryClient.Store(&primaryClient)
 
-	f.watchers = make([]*fswatcher.FSWatcher, 0)
 	primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
 	if err != nil {
 		return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
@@ -129,17 +128,17 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.metricsFactory, f.logger, f.primaryClient, f.primaryConfig, false)
+	return createSpanReader(f.metricsFactory, f.logger, &f.primaryClient, f.primaryConfig, false)
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.metricsFactory, f.logger, f.primaryClient, f.primaryConfig, false)
+	return createSpanWriter(f.metricsFactory, f.logger, &f.primaryClient, f.primaryConfig, false)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.logger, f.primaryClient, f.primaryConfig)
+	return createDependencyReader(f.logger, &f.primaryClient, f.primaryConfig)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -147,7 +146,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, f.archiveConfig, true)
+	return createSpanReader(f.metricsFactory, f.logger, &f.archiveClient, f.archiveConfig, true)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -155,13 +154,13 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, f.archiveConfig, true)
+	return createSpanWriter(f.metricsFactory, f.logger, &f.archiveClient, f.archiveConfig, true)
 }
 
 func createSpanReader(
 	mFactory metrics.Factory,
 	logger *zap.Logger,
-	client atomic.Pointer[es.Client],
+	client *atomic.Pointer[es.Client],
 	cfg *config.Configuration,
 	archive bool,
 ) (spanstore.Reader, error) {
@@ -189,7 +188,7 @@ func createSpanReader(
 func createSpanWriter(
 	mFactory metrics.Factory,
 	logger *zap.Logger,
-	client atomic.Pointer[es.Client],
+	client *atomic.Pointer[es.Client],
 	cfg *config.Configuration,
 	archive bool,
 ) (spanstore.Writer, error) {
@@ -242,7 +241,7 @@ func createSpanWriter(
 
 func createDependencyReader(
 	logger *zap.Logger,
-	client atomic.Pointer[es.Client],
+	client *atomic.Pointer[es.Client],
 	cfg *config.Configuration,
 ) (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
