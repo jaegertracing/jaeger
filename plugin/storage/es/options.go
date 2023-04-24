@@ -375,7 +375,7 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 
 // stripWhiteSpace removes all whitespace characters from a string
 func stripWhiteSpace(str string) string {
-	return strings.Replace(str, " ", "", -1)
+	return strings.ReplaceAll(str, " ", "")
 }
 
 func initDateLayout(rolloverFreq, sep string) string {

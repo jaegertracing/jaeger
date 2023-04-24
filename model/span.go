@@ -182,7 +182,7 @@ func (f *Flags) SetFirehose() {
 }
 
 func (f *Flags) setFlags(bit Flags) {
-	*f = *f | bit
+	*f |= bit
 }
 
 // IsSampled returns true if the Flags denote sampling

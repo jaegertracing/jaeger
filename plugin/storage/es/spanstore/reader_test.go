@@ -659,14 +659,15 @@ func testGet(typ string, t *testing.T) {
 }
 
 func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
-	if typ == servicesAggregation {
+	switch typ {
+	case servicesAggregation:
 		return r.reader.GetServices(context.Background())
-	} else if typ == operationsAggregation {
+	case operationsAggregation:
 		return r.reader.GetOperations(
 			context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "someService"},
 		)
-	} else if typ == traceIDAggregation {
+	case traceIDAggregation:
 		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
