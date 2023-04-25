@@ -85,7 +85,7 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 	return err
 }
 
-// addTags appends jaeger tags for the agent to every span it sends to the collector.
+// addProcessTags appends jaeger tags for the agent to every span it sends to the collector.
 func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue) ([]*model.Span, *model.Process) {
 	if len(agentTags) == 0 {
 		return spans, process
