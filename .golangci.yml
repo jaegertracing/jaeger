@@ -3,16 +3,12 @@ issues:
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
-      linters:
-        - gosec
-    - linters:
-        - gocritic
+      linters: [gosec]
+    - linters: [gocritic]
       text: "dupArg"
-    - linters:
-        - gocritic
+    - linters: [gocritic]
       text: "exitAfterDefer"
-    - linters:
-        - gocritic
+    - linters: [gocritic]
       text: "appendAssign"
   max-issues-per-linter: 0
   max-same-issues: 0
