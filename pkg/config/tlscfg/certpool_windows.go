@@ -32,10 +32,7 @@ const (
 // workaround https://github.com/golang/go/issues/16736
 // fix borrowed from Sensu: https://github.com/sensu/sensu-go/pull/4018
 func appendCerts(rootCAs *x509.CertPool) (*x509.CertPool, error) {
-	name, err := syscall.UTF16PtrFromString("Root")
-	if err != nil {
-		return nil, err
-	}
+	name, _ := syscall.UTF16PtrFromString("Root")
 	storeHandle, err := syscall.CertOpenSystemStore(0, name)
 	if err != nil {
 		return nil, err
