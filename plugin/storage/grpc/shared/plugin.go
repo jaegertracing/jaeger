@@ -34,11 +34,12 @@ type StorageGRPCPlugin struct {
 	Impl        StoragePlugin
 	ArchiveImpl ArchiveStoragePlugin
 	StreamImpl  StreamingSpanWriterPlugin
+	MetricsImpl MetricsReaderPlugin
 }
 
 // RegisterHandlers registers the plugin with the server
 func (p *StorageGRPCPlugin) RegisterHandlers(s *grpc.Server) error {
-	handler := NewGRPCHandlerWithPlugins(p.Impl, p.ArchiveImpl, p.StreamImpl)
+	handler := NewGRPCHandlerWithPlugins(p.Impl, p.ArchiveImpl, p.StreamImpl, p.MetricsImpl)
 	return handler.Register(s)
 }
 

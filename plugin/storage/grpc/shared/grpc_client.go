@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -38,6 +39,7 @@ const BearerTokenKey = "bearer.token"
 var (
 	_ StoragePlugin        = (*grpcClient)(nil)
 	_ ArchiveStoragePlugin = (*grpcClient)(nil)
+	_ MetricsReaderPlugin  = (*grpcClient)(nil)
 	_ PluginCapabilities   = (*grpcClient)(nil)
 
 	// upgradeContext composites several steps of upgrading context
@@ -53,6 +55,7 @@ type grpcClient struct {
 	capabilitiesClient  storage_v1.PluginCapabilitiesClient
 	depsReaderClient    storage_v1.DependenciesReaderPluginClient
 	streamWriterClient  storage_v1.StreamingSpanWriterPluginClient
+	metricsReaderClient storage_v1.MetricsReaderPluginClient
 }
 
 func NewGRPCClient(c *grpc.ClientConn) *grpcClient {
@@ -64,6 +67,7 @@ func NewGRPCClient(c *grpc.ClientConn) *grpcClient {
 		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
 		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
 		streamWriterClient:  storage_v1.NewStreamingSpanWriterPluginClient(c),
+		metricsReaderClient: storage_v1.NewMetricsReaderPluginClient(c),
 	}
 }
 
@@ -122,6 +126,10 @@ func (c *grpcClient) ArchiveSpanReader() spanstore.Reader {
 
 func (c *grpcClient) ArchiveSpanWriter() spanstore.Writer {
 	return &archiveWriter{client: c.archiveWriterClient}
+}
+
+func (c *grpcClient) MetricsReader() metricsstore.Reader {
+	return &metricsReader{client: c.metricsReaderClient}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -286,6 +294,7 @@ func (c *grpcClient) Capabilities() (*Capabilities, error) {
 		ArchiveSpanReader:   capabilities.ArchiveSpanReader,
 		ArchiveSpanWriter:   capabilities.ArchiveSpanWriter,
 		StreamingSpanWriter: capabilities.StreamingSpanWriter,
+		MetricsReader:       capabilities.MetricsReader,
 	}, nil
 }
 

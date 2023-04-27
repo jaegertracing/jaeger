@@ -18,7 +18,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
+	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -49,6 +52,8 @@ type GRPCHandlerStorageImpl struct {
 	ArchiveSpanWriter func() spanstore.Writer
 
 	StreamingSpanWriter func() spanstore.Writer
+
+	MetricsReader func() metricsstore.Reader
 }
 
 // NewGRPCHandler creates a handler given individual storage implementations.
@@ -61,6 +66,7 @@ func NewGRPCHandlerWithPlugins(
 	mainImpl StoragePlugin,
 	archiveImpl ArchiveStoragePlugin,
 	streamImpl StreamingSpanWriterPlugin,
+	metricsImpl MetricsReaderPlugin,
 ) *GRPCHandler {
 	impl := &GRPCHandlerStorageImpl{
 		SpanReader:       mainImpl.SpanReader,
@@ -70,6 +76,8 @@ func NewGRPCHandlerWithPlugins(
 		ArchiveSpanReader:   func() spanstore.Reader { return nil },
 		ArchiveSpanWriter:   func() spanstore.Writer { return nil },
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
+
+		MetricsReader: func() metricsstore.Reader { return nil },
 	}
 	if archiveImpl != nil {
 		impl.ArchiveSpanReader = archiveImpl.ArchiveSpanReader
@@ -77,6 +85,9 @@ func NewGRPCHandlerWithPlugins(
 	}
 	if streamImpl != nil {
 		impl.StreamingSpanWriter = streamImpl.StreamingSpanWriter
+	}
+	if metricsImpl != nil {
+		impl.MetricsReader = metricsImpl.MetricsReader
 	}
 	return NewGRPCHandler(impl)
 }
@@ -90,6 +101,7 @@ func (s *GRPCHandler) Register(ss *grpc.Server) error {
 	storage_v1.RegisterPluginCapabilitiesServer(ss, s)
 	storage_v1.RegisterDependenciesReaderPluginServer(ss, s)
 	storage_v1.RegisterStreamingSpanWriterPluginServer(ss, s)
+	storage_v1.RegisterMetricsReaderPluginServer(ss, s)
 	return nil
 }
 
@@ -266,6 +278,7 @@ func (s *GRPCHandler) Capabilities(ctx context.Context, request *storage_v1.Capa
 		ArchiveSpanReader:   s.impl.ArchiveSpanReader() != nil,
 		ArchiveSpanWriter:   s.impl.ArchiveSpanWriter() != nil,
 		StreamingSpanWriter: s.impl.StreamingSpanWriter() != nil,
+		MetricsReader:       s.impl.MetricsReader() != nil,
 	}, nil
 }
 
@@ -300,4 +313,104 @@ func (s *GRPCHandler) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteS
 		return nil, err
 	}
 	return &storage_v1.WriteSpanResponse{}, nil
+}
+
+func (s *GRPCHandler) GetLatencies(ctx context.Context, request *storage_v1.GetLatenciesRequest) (*storage_v1.GetLatenciesResponse, error) {
+	reader := s.impl.MetricsReader()
+	if reader == nil {
+		return nil, status.Error(codes.Unimplemented, "not implemented")
+	}
+	params := &metricsstore.LatenciesQueryParameters{
+		BaseQueryParameters: baseQueryParametersFromProto(request.BaseQueryParameters),
+		Quantile:            float64(request.Quantile),
+	}
+
+	mf, err := reader.GetLatencies(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.GetLatenciesResponse{
+		MetricFamily: mf,
+	}, nil
+}
+
+func (s *GRPCHandler) GetCallRates(ctx context.Context, request *storage_v1.GetCallRatesRequest) (*storage_v1.GetCallRatesResponse, error) {
+	reader := s.impl.MetricsReader()
+	if reader == nil {
+		return nil, status.Error(codes.Unimplemented, "not implemented")
+	}
+	params := &metricsstore.CallRateQueryParameters{
+		BaseQueryParameters: baseQueryParametersFromProto(request.BaseQueryParameters),
+	}
+
+	mf, err := reader.GetCallRates(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.GetCallRatesResponse{
+		MetricFamily: mf,
+	}, nil
+}
+
+func (s *GRPCHandler) GetErrorRates(ctx context.Context, request *storage_v1.GetErrorRatesRequest) (*storage_v1.GetErrorRatesResponse, error) {
+	reader := s.impl.MetricsReader()
+	if reader == nil {
+		return nil, status.Error(codes.Unimplemented, "not implemented")
+	}
+	params := &metricsstore.ErrorRateQueryParameters{
+		BaseQueryParameters: baseQueryParametersFromProto(request.BaseQueryParameters),
+	}
+
+	mf, err := reader.GetErrorRates(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.GetErrorRatesResponse{
+		MetricFamily: mf,
+	}, nil
+}
+
+func (s *GRPCHandler) GetMinStepDuration(ctx context.Context, _ *storage_v1.GetMinStepDurationRequest) (*storage_v1.GetMinStepDurationResponse, error) {
+	reader := s.impl.MetricsReader()
+	if reader == nil {
+		return nil, status.Error(codes.Unimplemented, "not implemented")
+	}
+
+	minStep, err := reader.GetMinStepDuration(ctx, &metricsstore.MinStepDurationQueryParameters{})
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.GetMinStepDurationResponse{
+		MinStep: &types.Duration{
+			Seconds: int64(minStep / time.Second),
+			Nanos:   int32(minStep % time.Second),
+		},
+	}, nil
+}
+
+func baseQueryParametersFromProto(proto *storage_v1.MetricsBaseQueryParameters) metricsstore.BaseQueryParameters {
+	pogo := metricsstore.BaseQueryParameters{
+		ServiceNames:     proto.ServiceNames,
+		GroupByOperation: proto.GroupByOperation,
+		SpanKinds:        proto.SpanKinds,
+	}
+
+	if proto.EndTime != nil {
+		endTime := time.Unix(proto.EndTime.Seconds, int64(proto.EndTime.Nanos)).UTC()
+		pogo.EndTime = &endTime
+	}
+	if proto.Lookback != nil {
+		lookback := time.Duration(proto.Lookback.Seconds)*time.Second + time.Duration(proto.Lookback.Nanos)*time.Nanosecond
+		pogo.Lookback = &lookback
+	}
+	if proto.Step != nil {
+		step := time.Duration(proto.Step.Seconds)*time.Second + time.Duration(proto.Step.Nanos)*time.Nanosecond
+		pogo.Step = &step
+	}
+	if proto.RatePer != nil {
+		ratePer := time.Duration(proto.RatePer.Seconds)*time.Second + time.Duration(proto.RatePer.Nanos)*time.Nanosecond
+		pogo.RatePer = &ratePer
+	}
+
+	return pogo
 }

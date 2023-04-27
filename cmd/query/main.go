@@ -55,8 +55,7 @@ func main() {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
 
-	fc := metricsPlugin.FactoryConfigFromEnv()
-	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
+	metricsReaderFactory, err := metricsPlugin.NewFactory(metricsPlugin.FactoryConfigFromEnv())
 	if err != nil {
 		log.Fatalf("Cannot initialize metrics factory: %v", err)
 	}
@@ -179,12 +178,13 @@ func createMetricsQueryService(
 	logger *zap.Logger,
 	metricsReaderMetricsFactory metrics.Factory,
 ) (querysvc.MetricsQueryService, error) {
+	// Ensure default parameter values are loaded correctly.
+	metricsReaderFactory.InitFromViper(v, logger)
+
 	if err := metricsReaderFactory.Initialize(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
 
-	// Ensure default parameter values are loaded correctly.
-	metricsReaderFactory.InitFromViper(v, logger)
 	reader, err := metricsReaderFactory.CreateMetricsReader()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics reader: %w", err)

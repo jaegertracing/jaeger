@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/go-plugin"
 
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -53,6 +54,10 @@ type StreamingSpanWriterPlugin interface {
 	StreamingSpanWriter() spanstore.Writer
 }
 
+type MetricsReaderPlugin interface {
+	MetricsReader() metricsstore.Reader
+}
+
 // PluginCapabilities allow expose plugin its capabilities.
 type PluginCapabilities interface {
 	Capabilities() (*Capabilities, error)
@@ -63,6 +68,7 @@ type Capabilities struct {
 	ArchiveSpanReader   bool
 	ArchiveSpanWriter   bool
 	StreamingSpanWriter bool
+	MetricsReader       bool
 }
 
 // PluginServices defines services plugin can expose
@@ -70,4 +76,5 @@ type PluginServices struct {
 	Store               StoragePlugin
 	ArchiveStore        ArchiveStoragePlugin
 	StreamingSpanWriter StreamingSpanWriterPlugin
+	MetricsReader       MetricsReaderPlugin
 }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/plugin/metrics/grpc"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -33,6 +34,7 @@ const (
 	disabledStorageType = ""
 
 	prometheusStorageType = "prometheus"
+	grpcStorageType       = "grpc-plugin"
 )
 
 // AllStorageTypes defines all available storage backends.
@@ -67,6 +69,8 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, 
 	switch factoryType {
 	case prometheusStorageType:
 		return prometheus.NewFactory(), nil
+	case grpcStorageType:
+		return grpc.NewFactory(), nil
 	case disabledStorageType:
 		return disabled.NewFactory(), nil
 	}
@@ -76,7 +80,9 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, 
 // Initialize implements storage.MetricsFactory.
 func (f *Factory) Initialize(logger *zap.Logger) error {
 	for _, factory := range f.factories {
-		factory.Initialize(logger)
+		if err := factory.Initialize(logger); err != nil {
+			return err
+		}
 	}
 	return nil
 }

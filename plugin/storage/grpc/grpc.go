@@ -38,6 +38,7 @@ func ServeWithGRPCServer(services *shared.PluginServices, grpcServer func([]grpc
 					Impl:        services.Store,
 					ArchiveImpl: services.ArchiveStore,
 					StreamImpl:  services.StreamingSpanWriter,
+					MetricsImpl: services.MetricsReader,
 				},
 			},
 		},
