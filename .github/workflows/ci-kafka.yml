@@ -29,6 +29,10 @@ jobs:
     - name: Run kafka integration tests
       run: bash scripts/kafka-integration-test.sh
 
+    - name: Output Kafka logs
+      run: docker logs "${{ job.services.kafka.id }}"
+      if: ${{ failure() }}
+
     services:
       zookeeper:
         image: bitnami/zookeeper
