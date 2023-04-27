@@ -1,12 +1,31 @@
-run:
-  go: '1.20'
-  timeout: 10m
-  skip-dirs:
-    - mocks
-    - thrift-0.9.2
-    - .*-gen
-  skip-files:
-    - ".*.pb.go$"
+issues:
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters: [gosec]
+    - linters: [gocritic]
+      text: "dupArg"
+    - linters: [gocritic]
+      text: "exitAfterDefer"
+    - linters: [gocritic]
+      text: "appendAssign"
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  disable:
+    - errcheck
+  enable:
+    - bidichk
+    - contextcheck
+    - depguard
+    - gocritic
+    - gofumpt
+    - goimports
+    - gosec
+    - govet
+    - misspell
 
 linters-settings:
   depguard:
@@ -29,24 +48,12 @@ linters-settings:
   gosimple:
     go: "1.20"
 
-linters:
-  enable:
-    - contextcheck
-    - depguard
-    - gofmt
-    - gofumpt
-    - goimports
-    - gosec
-    - govet
-    - misspell
-    - bidichk
-  disable:
-    - errcheck
-
-issues:
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    # Exclude some linters from running on tests files.
-    - path: _test\.go
-      linters:
-        - gosec
+run:
+  go: "1.20"
+  timeout: 20m
+  skip-dirs:
+    - mocks
+    - thrift-0.9.2
+    - .*-gen
+  skip-files:
+    - ".*.pb.go$"
