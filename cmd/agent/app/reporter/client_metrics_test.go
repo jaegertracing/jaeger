@@ -42,11 +42,9 @@ func (tr *clientMetricsTest) assertLog(t *testing.T, msg, clientUUID string) {
 	logs := tr.logs.FilterMessageSnippet(msg)
 	if clientUUID == "" {
 		assert.Equal(t, 0, logs.Len(), "not expecting log '%s", msg)
-	} else {
-		if assert.Equal(t, 1, logs.Len(), "expecting one log '%s'", msg) {
-			field := logs.All()[0].ContextMap()["client-uuid"]
-			assert.Equal(t, clientUUID, field, "client-uuid should be logged")
-		}
+	} else if assert.Equal(t, 1, logs.Len(), "expecting one log '%s'", msg) {
+		field := logs.All()[0].ContextMap()["client-uuid"]
+		assert.Equal(t, clientUUID, field, "client-uuid should be logged")
 	}
 }
 

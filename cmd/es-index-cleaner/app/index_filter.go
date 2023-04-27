@@ -45,12 +45,13 @@ func (i *IndexFilter) Filter(indices []client.Index) []client.Index {
 
 func (i *IndexFilter) filter(indices []client.Index) []client.Index {
 	var reg *regexp.Regexp
-	if i.Archive {
+	switch {
+	case i.Archive:
 		// archive works only for rollover
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-span-archive-\\d{6}", i.IndexPrefix))
-	} else if i.Rollover {
+	case i.Rollover:
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies)-\\d{6}", i.IndexPrefix))
-	} else {
+	default:
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
 	}
 

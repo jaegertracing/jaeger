@@ -91,5 +91,5 @@ func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 
 // stripWhiteSpace removes all whitespace characters from a string.
 func stripWhiteSpace(str string) string {
-	return strings.Replace(str, " ", "", -1)
+	return strings.ReplaceAll(str, " ", "")
 }
