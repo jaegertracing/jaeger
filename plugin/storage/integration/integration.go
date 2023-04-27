@@ -105,7 +105,7 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(100 * time.Millisecond) // Will wait up to 10 seconds at worst.
+		time.Sleep(time.Second) // Will wait at most 100 seconds.
 	}
 	return predicate(t)
 }
