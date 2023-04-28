@@ -277,8 +277,8 @@ func TestPasswordFromFile(t *testing.T) {
 	expectedPrimaryClient.Store(&primaryClient)
 	assert.Equal(t, expectedPrimaryClient.Load(), f.primaryClient.Load())
 
-	err = os.WriteFile(f.primaryConfig.Load().PasswordFilePath, []byte("barbaz"), 0o600)
-	//f.onPrimaryPasswordChange()
+	_, err = passwordFile.WriteString("baz")
 	require.NoError(t, err)
+	f.onPrimaryPasswordChange()
 	assert.Equal(t, "barbaz", f.primaryConfig.Load().Password)
 }
