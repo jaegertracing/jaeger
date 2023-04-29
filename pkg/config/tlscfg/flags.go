@@ -113,5 +113,5 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 
 // stripWhiteSpace removes all whitespace characters from a string
 func stripWhiteSpace(str string) string {
-	return strings.Replace(str, " ", "", -1)
+	return strings.ReplaceAll(str, " ", "")
 }
