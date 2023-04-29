@@ -31,7 +31,7 @@ require (
 	github.com/hashicorp/go-plugin v1.4.8
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.75.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.76.3
 	github.com/opentracing-contrib/go-grpc v0.0.0-20230205024533-5ced129e5996
 	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
@@ -47,13 +47,13 @@ require (
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/xdg-go/scram v1.1.2
-	go.opentelemetry.io/collector v0.76.0
-	go.opentelemetry.io/collector/component v0.76.0
-	go.opentelemetry.io/collector/consumer v0.76.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc9
-	go.opentelemetry.io/collector/receiver v0.76.0
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.76.0
-	go.opentelemetry.io/collector/semconv v0.76.0
+	go.opentelemetry.io/collector v0.76.1
+	go.opentelemetry.io/collector/component v0.76.1
+	go.opentelemetry.io/collector/consumer v0.76.1
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011
+	go.opentelemetry.io/collector/receiver v0.76.1
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.76.1
+	go.opentelemetry.io/collector/semconv v0.76.1
 	go.opentelemetry.io/otel v1.14.0
 	go.opentelemetry.io/otel/bridge/opentracing v1.14.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.14.0
@@ -134,7 +134,7 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/onsi/ginkgo v1.16.4 // indirect
 	github.com/onsi/gomega v1.13.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.75.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.76.3 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
@@ -153,9 +153,9 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	go.mongodb.org/mongo-driver v1.11.3 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector/confmap v0.76.0 // indirect
-	go.opentelemetry.io/collector/exporter v0.76.0 // indirect
-	go.opentelemetry.io/collector/featuregate v0.76.0 // indirect
+	go.opentelemetry.io/collector/confmap v0.76.1 // indirect
+	go.opentelemetry.io/collector/exporter v0.76.1 // indirect
+	go.opentelemetry.io/collector/featuregate v0.76.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.14.0 // indirect
