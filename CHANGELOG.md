@@ -13,6 +13,24 @@ next release
 
 ### UI Changes
 
+
+1.45.0 (2023-05-03)
+-------------------
+### Backend Changes
+
+#### Bug fixes, Minor Improvements
+
+* Add HTTP post port mapping to docker command ([@albertteoh](https://github.com/albertteoh) in [#4407](https://github.com/jaegertracing/jaeger/pull/4407))
+* Simplify ES config and factory ([@yurishkuro](https://github.com/yurishkuro) in [#4396](https://github.com/jaegertracing/jaeger/pull/4396))
+* Add otlp-grpc for tracegen's trace-exporter ([@boysusu](https://github.com/boysusu) in [#4374](https://github.com/jaegertracing/jaeger/pull/4374))
+* Allow follows-from reference as a parent span id ([@kubarydz](https://github.com/kubarydz) in [#4382](https://github.com/jaegertracing/jaeger/pull/4382))
+* Expose drop span hook as an option in Collector SpanProcessor ([@ChenX1993](https://github.com/ChenX1993) in [#4387](https://github.com/jaegertracing/jaeger/pull/4387))
+
+### UI Changes
+
+* UI pinned to version [1.29.1](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1291-2023-05-03).
+
+
 1.44.0 (2023-04-10)
 -------------------
 ### Backend Changes
