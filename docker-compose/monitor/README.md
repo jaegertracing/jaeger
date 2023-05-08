@@ -29,8 +29,8 @@ The following diagram illustrates the relationship between these components:
 ## Bring up/down the dev environment
 
 ```bash
-docker-compose up
-docker-compose down
+docker compose up
+docker compose down
 ```
 
 **Tips:**
