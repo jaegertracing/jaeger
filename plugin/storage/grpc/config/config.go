@@ -46,6 +46,7 @@ type Configuration struct {
 	RemoteTLS               tlscfg.Options
 	RemoteConnectTimeout    time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 	TenancyOpts             tenancy.Options
+	MaxRecvMsgSize          int `yaml:"max-receive-message-size" mapstructure:"max-receive-message-size"`
 
 	pluginHealthCheck     *time.Ticker
 	pluginHealthCheckDone chan bool
@@ -84,6 +85,7 @@ func (c *Configuration) Close() error {
 
 func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(c.MaxRecvMsgSize)),
 		grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
 		grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
 		grpc.WithBlock(),
