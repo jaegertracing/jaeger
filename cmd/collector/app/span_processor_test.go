@@ -655,9 +655,9 @@ func TestSpanProcessorContextPropagation(t *testing.T) {
 }
 
 func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
-	var droppedOperations []string
+	hasDropped := false
 	customOnDroppedSpan := func(span *model.Span) {
-		droppedOperations = append(droppedOperations, span.OperationName)
+		hasDropped = true
 	}
 
 	w := &blockingWriter{}
@@ -668,7 +668,8 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 		Options.OnDroppedSpan(customOnDroppedSpan),
 	).(*spanProcessor)
 	defer p.Close()
-	// block the writer so that the first span is read from the queue and blocks the processor, and followings are dropped.
+	// Block the writer so that the first span is read from the queue and blocks the processor. Either the second or
+	// the third is dropped since the queue capacity is just 1, but which one to drop is not guaranteed.
 	w.Lock()
 	defer w.Unlock()
 
@@ -679,5 +680,5 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"op2", "op3"}, droppedOperations)
+	assert.True(t, hasDropped)
 }
