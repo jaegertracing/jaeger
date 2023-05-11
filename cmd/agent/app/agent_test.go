@@ -184,6 +184,36 @@ func TestStartStopRace(t *testing.T) {
 	t.Fatal("Expecting server exit log")
 }
 
+func TestStartStopWithSocketBufferSet(t *testing.T) {
+	resetDefaultPrometheusRegistry()
+	cfg := Builder{
+		Processors: []ProcessorConfiguration{
+			{
+				Model:    jaegerModel,
+				Protocol: compactProtocol,
+				Workers:  1,
+				Server: ServerConfiguration{
+					HostPort:         "127.0.0.1:0",
+					SocketBufferSize: 10,
+				},
+			},
+		},
+	}
+	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
+	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
+	require.NoError(t, err)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), mFactory)
+	require.NoError(t, err)
+
+	if err := agent.Run(); err != nil {
+		t.Fatalf("error from agent.Run(): %s", err)
+	}
+
+	t.Log("stopping agent")
+	agent.Stop()
+}
+
 func resetDefaultPrometheusRegistry() {
 	// Create and assign a new Prometheus Registerer/Gatherer for each test
 	registry := prometheus.NewRegistry()
