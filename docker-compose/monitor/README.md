@@ -110,7 +110,7 @@ Then navigate to the Monitor tab at http://localhost:16686/monitor to view the R
 
 ### Background
 
-A new [Connector](https://pkg.go.dev/go.opentelemetry.io/collector/connector#section-readme) component was introduced
+A new [Connector](https://pkg.go.dev/go.opentelemetry.io/collector/connector#section-readme) API was introduced
 to the OpenTelemetry Collector to provide a means of receiving and exporting between any type of telemetry.
 
 The existing [Span Metrics Processor][spanmetricsprocessor] was a good candidate to migrate over to the connector type,
