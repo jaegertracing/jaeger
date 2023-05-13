@@ -45,11 +45,15 @@ func TestToDomainMetricsFamily(t *testing.T) {
 	assert.Equal(t, "the_metric_description", mf.Help)
 	assert.Equal(t, metrics.MetricType_GAUGE, mf.Type)
 
-	assert.Len(t, mf.Metrics, 1)
-	assert.Equal(t, []*metrics.Label{
+	wantMetricLabels := []*metrics.Label{
 		{Name: "label_key", Value: "label_value"},
 		{Name: "operation", Value: "span_name_value"}, // assert the name is translated to a Jaeger-friendly label.
-	}, mf.Metrics[0].Labels)
+	}
+	assert.Len(t, mf.Metrics, 1)
+	for i, ml := range mf.Metrics[0].Labels {
+		assert.Equal(t, wantMetricLabels[i].Name, ml.Name)
+		assert.Equal(t, wantMetricLabels[i].Value, ml.Value)
+	}
 
 	wantMpValue := &metrics.MetricPoint_GaugeValue{
 		GaugeValue: &metrics.GaugeValue{
