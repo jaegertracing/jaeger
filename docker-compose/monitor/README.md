@@ -15,7 +15,7 @@ This environment consists the following backend components:
 
 - [MicroSim](https://github.com/yurishkuro/microsim): a program to simulate traces.
 - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single container image.
-- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics processor documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor).
+- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics processor documentation][spanmetricsprocessor].
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
 - [Grafana](https://grafana.com/): a metrics visualization, analytics & monitoring solution supporting multiple metrics databases.
 
@@ -26,11 +26,16 @@ The following diagram illustrates the relationship between these components:
 
 # Getting Started
 
-## Bring up/down the dev environment
+## Build jaeger-all-in-one docker image
+
+```shell
+make build
+```
+
+## Bring up the dev environment
 
 ```bash
-docker compose up
-docker compose down
+make run
 ```
 
 **Tips:**
@@ -42,10 +47,7 @@ docker compose down
 **Warning:** The included [docker-compose.yml](./docker-compose.yml) file uses the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
 
 ```bash
-docker rmi -f jaegertracing/all-in-one:latest
-docker rmi -f otel/opentelemetry-collector-contrib:latest
-docker rmi -f prom/prometheus:latest
-docker rmi -f grafana/grafana:latest
+make clean-all
 ```
 
 ## Sending traces
@@ -82,6 +84,40 @@ under the `my_service` service:
 Then navigate to the Monitor tab at http://localhost:16686/monitor to view the RED metrics:
 
 ![My Service RED Metrics](images/my_service_metrics.png)
+
+## Migrating to Span Metrics Connector 
+
+### Background
+
+A new [Connector](https://pkg.go.dev/go.opentelemetry.io/collector/connector#section-readme) component was introduced
+to the OpenTelemetry Collector to provide a means of receiving and exporting between any type of telemetry.
+
+The existing [Span Metrics Processor][spanmetricsprocessor] was a good candidate to migrate over to the connector type,
+resulting in the new [Span Metrics Connector][spanmetricsconnector] component.
+
+The Span Metrics Connector variant introduces some [breaking changes][processor-to-connector], and the following
+section aims to provide the instructions necessary to use the metrics produced by this component.
+
+### Migrating
+
+Assuming the OpenTelemetry Collector is running with the [Span Metrics Connector][spanmetricsconnector] correctly
+configured, the following configuration should be applied to jaeger-query or jaeger-all-in-one:
+
+As command line parameters:
+```shell
+--prometheus.query.namespace=span_metrics
+--prometheus.query.duration-metric-name=duration
+--prometheus.query.duration-unit=ms
+--prometheus.query.span-name-label=span_name
+```
+
+As environment variables:
+```shell
+PROMETHEUS_QUERY_NAMESPACE=span_metrics
+PROMETHEUS_QUERY_DURATION_METRIC_NAME=duration
+PROMETHEUS_QUERY_DURATION_UNIT=ms
+PROMETHEUS_QUERY_SPAN_NAME_LABEL=span_name
+```
 
 ## Querying the HTTP API
 
@@ -247,3 +283,7 @@ $ curl http://localhost:16686/api/metrics/minstep | jq .
   ]
 }
 ```
+
+[spanmetricsprocessor]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor
+[spanmetricsconnector]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector
+[processor-to-connector]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#span-to-metrics-processor-to-span-to-metrics-connector

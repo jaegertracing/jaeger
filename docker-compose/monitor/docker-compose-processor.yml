@@ -1,0 +1,59 @@
+version: "3.5"
+services:
+  jaeger:
+    networks:
+      - backend
+    image: jaegertracing/all-in-one:dev
+    volumes:
+      - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json"
+    command: --query.ui-config /etc/jaeger/jaeger-ui.json
+    environment:
+      - METRICS_STORAGE_TYPE=prometheus
+      - PROMETHEUS_SERVER_URL=http://prometheus:9090
+      - LOG_LEVEL=debug
+    ports:
+      - "16686:16686"
+  otel_collector:
+    networks:
+      - backend
+    # Fix to a version before the spanmetrics processor was deprecated and before the prometheusexporter
+    # changes that append units to latency/histogram metrics.
+    image: otel/opentelemetry-collector-contrib:0.70.0
+    volumes:
+      - "./otel-collector-config-processor.yml:/etc/otelcol/otel-collector-config.yml"
+    command: --config /etc/otelcol/otel-collector-config.yml
+    ports:
+      - "4317:4317"
+    depends_on:
+      - jaeger
+  microsim:
+    networks:
+      - backend
+    image: yurishkuro/microsim:0.2.0
+    command: "-j http://otel_collector:14278/api/traces -d 24h -s 500ms"
+    depends_on:
+      - otel_collector
+  prometheus:
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+  grafana:
+    networks:
+      - backend
+    image: grafana/grafana:latest
+    volumes:
+      - ./grafana.ini:/etc/grafana/grafana.ini
+      - ./datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - 3000:3000
+
+networks:
+  backend:

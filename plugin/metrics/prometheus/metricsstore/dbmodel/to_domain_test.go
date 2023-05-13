@@ -30,12 +30,13 @@ func TestToDomainMetricsFamily(t *testing.T) {
 	promMetrics := model.Matrix{}
 	nowSec := time.Now().Unix()
 	promMetrics = append(promMetrics, &model.SampleStream{
-		Metric: map[model.LabelName]model.LabelValue{"label_key": "label_value"},
+		Metric: map[model.LabelName]model.LabelValue{"label_key": "label_value", "span_name": "span_name_value"},
 		Values: []model.SamplePair{
 			{Timestamp: model.Time(nowSec * 1000), Value: 1234},
 		},
 	})
-	mf, err := ToDomainMetricsFamily("the_metric_name", "the_metric_description", promMetrics)
+	translator := New("span_name")
+	mf, err := translator.ToDomainMetricsFamily("the_metric_name", "the_metric_description", promMetrics)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, mf)
@@ -45,7 +46,10 @@ func TestToDomainMetricsFamily(t *testing.T) {
 	assert.Equal(t, metrics.MetricType_GAUGE, mf.Type)
 
 	assert.Len(t, mf.Metrics, 1)
-	assert.Equal(t, []*metrics.Label{{Name: "label_key", Value: "label_value"}}, mf.Metrics[0].Labels)
+	assert.Equal(t, []*metrics.Label{
+		{Name: "label_key", Value: "label_value"},
+		{Name: "operation", Value: "span_name_value"}, // assert the name is translated to a Jaeger-friendly label.
+	}, mf.Metrics[0].Labels)
 
 	wantMpValue := &metrics.MetricPoint_GaugeValue{
 		GaugeValue: &metrics.GaugeValue{
@@ -59,7 +63,8 @@ func TestToDomainMetricsFamily(t *testing.T) {
 
 func TestUnexpectedMetricsFamilyType(t *testing.T) {
 	promMetrics := model.Vector{}
-	mf, err := ToDomainMetricsFamily("the_metric_name", "the_metric_description", promMetrics)
+	translator := New("span_name")
+	mf, err := translator.ToDomainMetricsFamily("the_metric_name", "the_metric_description", promMetrics)
 
 	assert.NotNil(t, mf)
 	assert.Empty(t, mf)
