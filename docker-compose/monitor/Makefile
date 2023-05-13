@@ -5,15 +5,37 @@ build: clean-jaeger
 	make docker-images-jaeger-backend && \
 	docker tag jaegertracing/all-in-one:latest jaegertracing/all-in-one:dev
 
+# run starts up the system required for SPM using the latest jaeger and otel images.
 .PHONY: run
-run:
-	docker compose -f docker-compose-connector.yml up
+run: export JAEGER_IMAGE_TAG = latest
+run: _run-connector
 
-# This make target is setup to allow devs to run the older spanmetrics processor setup, for example,
+# run starts up the system required for SPM using the latest otel image and a development jaeger image.
+# Note: the jaeger "dev" image can be built with "make build".
+.PHONY: run-dev
+run-dev: export JAEGER_IMAGE_TAG = dev
+run-dev: _run-connector
+
+# _run-connector is the base target to bring up the system required for SPM using the new OTEL spanmetrics connector.
+.PHONY: _run-connector
+_run-connector: export OTEL_IMAGE_TAG = latest
+_run-connector: export OTEL_CONFIG_SRC = ./otel-collector-config-connector.yml
+_run-connector: export PROMETHEUS_QUERY_NAMESPACE = span_metrics
+_run-connector: export PROMETHEUS_QUERY_DURATION_METRIC_NAME = duration
+_run-connector: export PROMETHEUS_QUERY_DURATION_UNIT = ms
+_run-connector: export PROMETHEUS_QUERY_SPAN_NAME_LABEL = span_name
+_run-connector:
+	docker compose -f docker-compose.yml up
+
+# The run-dev-processor make target is setup to allow devs to run the older spanmetrics processor setup, for example,
 # to test backwards compatibility of Jaeger with spanmetrics processor.
-.PHONY: run-processor
-run-processor:
-	docker compose -f docker-compose-processor.yml up
+.PHONY: run-dev-processor
+run-dev-processor: export JAEGER_IMAGE_TAG = dev
+# Fix to a version before the breaking changes were introduced.
+run-dev-processor: export OTEL_IMAGE_TAG = 0.70.0
+run-dev-processor: export OTEL_CONFIG_SRC = ./otel-collector-config-processor.yml
+run-dev-processor:
+	docker compose -f docker-compose.yml up
 
 .PHONY: clean-jaeger
 clean-jaeger:

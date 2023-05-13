@@ -26,15 +26,12 @@ The following diagram illustrates the relationship between these components:
 
 # Getting Started
 
-## Build jaeger-all-in-one docker image
+## Quickstart
+
+This brings up the system necessary to use the SPM feature locally.
+It uses the latest image tags from both Jaeger and OpenTelemetry.
 
 ```shell
-make build
-```
-
-## Bring up the dev environment
-
-```bash
 make run
 ```
 
@@ -48,6 +45,30 @@ make run
 
 ```bash
 make clean-all
+```
+
+## Development
+
+These steps allow for running the system necessary for SPM, built from Jaeger's source.
+
+The primary use case is for testing source code changes to the SPM feature locally.
+
+### Build jaeger-all-in-one docker image
+
+```shell
+make build
+```
+
+## Bring up the dev environment
+
+```bash
+make run-dev
+```
+
+## Backwards compatibility testing with spanmetrics processor
+
+```bash
+make run-dev-processor
 ```
 
 ## Sending traces
