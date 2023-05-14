@@ -20,10 +20,9 @@ run-dev: _run-connector
 .PHONY: _run-connector
 _run-connector: export OTEL_IMAGE_TAG = latest
 _run-connector: export OTEL_CONFIG_SRC = ./otel-collector-config-connector.yml
+_run-connector: export PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR = true
 _run-connector: export PROMETHEUS_QUERY_NAMESPACE = span_metrics
-_run-connector: export PROMETHEUS_QUERY_DURATION_METRIC_NAME = duration
 _run-connector: export PROMETHEUS_QUERY_DURATION_UNIT = ms
-_run-connector: export PROMETHEUS_QUERY_SPAN_NAME_LABEL = span_name
 _run-connector:
 	docker compose -f docker-compose.yml up
 

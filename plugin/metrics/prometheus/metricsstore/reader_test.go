@@ -56,11 +56,9 @@ const defaultTimeout = 30 * time.Second
 
 // defaultConfig should consist of the default values for the prometheus.query.* command line options.
 var defaultConfig = config.Configuration{
-	MetricNamespace:   "",
-	CallsMetricName:   "calls",
-	LatencyMetricName: "latency",
-	LatencyUnit:       "",
-	OperationLabel:    "operation",
+	SupportSpanmetricsConnector: false,
+	MetricNamespace:             "",
+	LatencyUnit:                 "ms",
 }
 
 func TestNewMetricsReaderValidAddress(t *testing.T) {
@@ -185,10 +183,9 @@ func TestGetLatencies(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
-				cfg.LatencyMetricName = "myduration"
 				cfg.LatencyUnit = "s"
-				cfg.OperationLabel = "span_name"
 				return cfg
 			},
 			wantName:        "service_operation_latencies",
@@ -196,7 +193,7 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_myduration_seconds_bucket{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_seconds_bucket{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
 		},
 	} {
@@ -267,9 +264,8 @@ func TestGetCallRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
-				cfg.CallsMetricName = "mycalls"
-				cfg.OperationLabel = "span_name"
 				return cfg
 			},
 			wantName:        "service_operation_call_rate",
@@ -277,7 +273,7 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(span_metrics_mycalls_total{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `sum(rate(span_metrics_calls_total{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
@@ -350,9 +346,8 @@ func TestGetErrorRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
-				cfg.CallsMetricName = "mycalls"
-				cfg.OperationLabel = "span_name"
 				return cfg
 			},
 			wantName:        "service_operation_error_rate",
@@ -360,9 +355,9 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(span_metrics_mycalls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(span_metrics_calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
-				`sum(rate(span_metrics_mycalls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
+				`sum(rate(span_metrics_calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -389,7 +384,8 @@ func TestInvalidLatencyUnit(t *testing.T) {
 			t.Errorf("Expected a panic due to invalid latency unit")
 		}
 	}()
-	_, _ = NewMetricsReader(zap.NewNop(), config.Configuration{LatencyUnit: "something invalid"})
+	cfg := config.Configuration{SupportSpanmetricsConnector: true, LatencyUnit: "something invalid"}
+	_, _ = NewMetricsReader(zap.NewNop(), cfg)
 }
 
 func TestWarningResponse(t *testing.T) {

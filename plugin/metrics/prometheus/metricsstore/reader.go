@@ -42,15 +42,6 @@ import (
 
 const (
 	minStep = time.Millisecond
-
-	latenciesMetricName = "service_latencies"
-	latenciesMetricDesc = "%.2fth quantile latency, grouped by service"
-
-	callsMetricName = "service_call_rate"
-	callsMetricDesc = "calls/sec, grouped by service"
-
-	errorsMetricName = "service_error_rate"
-	errorsMetricDesc = "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service"
 )
 
 type (
@@ -97,14 +88,19 @@ func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsRea
 		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
+	operationLabel := "operation"
+	if cfg.SupportSpanmetricsConnector {
+		operationLabel = "span_name"
+	}
+
 	mr := &MetricsReader{
 		client: promapi.NewAPI(client),
 		logger: logger,
 
-		metricsTranslator: dbmodel.New(cfg.OperationLabel),
-		callsMetricName:   buildFullCallsMetricName(cfg.MetricNamespace, cfg.CallsMetricName),
-		latencyMetricName: buildFullLatencyMetricName(cfg.MetricNamespace, cfg.LatencyMetricName, cfg.LatencyUnit),
-		operationLabel:    cfg.OperationLabel,
+		metricsTranslator: dbmodel.New(operationLabel),
+		callsMetricName:   buildFullCallsMetricName(cfg),
+		latencyMetricName: buildFullLatencyMetricName(cfg),
+		operationLabel:    operationLabel,
 	}
 
 	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
@@ -116,8 +112,8 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricss
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		groupByHistBucket:   true,
-		metricName:          latenciesMetricName,
-		metricDesc:          fmt.Sprintf(latenciesMetricDesc, requestParams.Quantile),
+		metricName:          "service_latencies",
+		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", requestParams.Quantile),
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
@@ -134,23 +130,23 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricss
 	return m.executeQuery(ctx, metricsParams)
 }
 
-func buildFullLatencyMetricName(metricNamespace, latencyMetricName, latencyUnit string) string {
-	metricName := latencyMetricName
-	if metricNamespace != "" {
-		metricName = metricNamespace + "_" + metricName
-	}
-
-	// Maintain backwards compatibility where the unit was not appended to the metric name.
-	if latencyUnit == "" {
+func buildFullLatencyMetricName(cfg config.Configuration) string {
+	metricName := "latency"
+	if !cfg.SupportSpanmetricsConnector {
 		return metricName
+	}
+	metricName = "duration"
+
+	if cfg.MetricNamespace != "" {
+		metricName = cfg.MetricNamespace + "_" + metricName
 	}
 
 	// The long names are automatically appended to the metric name by OTEL's prometheus exporters and are defined in:
 	//   https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/translator/prometheus#metric-name
 	shortToLongName := map[string]string{"ms": "milliseconds", "s": "seconds"}
-	lname, ok := shortToLongName[latencyUnit]
+	lname, ok := shortToLongName[cfg.LatencyUnit]
 	if !ok {
-		panic("programming error: unknown latency unit: " + latencyUnit)
+		panic("programming error: unknown latency unit: " + cfg.LatencyUnit)
 	}
 	return metricName + "_" + lname
 }
@@ -159,8 +155,8 @@ func buildFullLatencyMetricName(metricNamespace, latencyMetricName, latencyUnit 
 func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
-		metricName:          callsMetricName,
-		metricDesc:          callsMetricDesc,
+		metricName:          "service_call_rate",
+		metricDesc:          "calls/sec, grouped by service",
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
@@ -176,10 +172,14 @@ func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricss
 	return m.executeQuery(ctx, metricsParams)
 }
 
-func buildFullCallsMetricName(metricNamespace, callsMetricName string) string {
-	metricName := callsMetricName
-	if metricNamespace != "" {
-		metricName = metricNamespace + "_" + metricName
+func buildFullCallsMetricName(cfg config.Configuration) string {
+	metricName := "calls"
+	if !cfg.SupportSpanmetricsConnector {
+		return metricName
+	}
+
+	if cfg.MetricNamespace != "" {
+		metricName = cfg.MetricNamespace + "_" + metricName
 	}
 	return metricName
 }
@@ -188,8 +188,8 @@ func buildFullCallsMetricName(metricNamespace, callsMetricName string) string {
 func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
-		metricName:          errorsMetricName,
-		metricDesc:          errorsMetricDesc,
+		metricName:          "service_error_rate",
+		metricDesc:          "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.

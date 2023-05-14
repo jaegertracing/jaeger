@@ -71,6 +71,10 @@ make run-dev
 make run-dev-processor
 ```
 
+For each "run" make target, you should expect to see the following in the Monitor tab after a few minutes:
+
+![Monitor Screenshot](https://github.com/jaegertracing/jaeger/assets/26584478/f0fd5d26-c486-4de6-892b-ac48c3e8e425)
+
 ## Sending traces
 
 It is possible to send traces to this SPM Development Environment from your own application and viewing their RED metrics.
@@ -122,22 +126,27 @@ section aims to provide the instructions necessary to use the metrics produced b
 ### Migrating
 
 Assuming the OpenTelemetry Collector is running with the [Span Metrics Connector][spanmetricsconnector] correctly
-configured, the following configuration should be applied to jaeger-query or jaeger-all-in-one:
+configured, the minimum configuration required for jaeger-query or jaeger-all-in-one are as follows:
 
-As command line parameters:
+as command line parameters:
 ```shell
---prometheus.query.namespace=span_metrics
---prometheus.query.duration-metric-name=duration
---prometheus.query.duration-unit=ms
---prometheus.query.span-name-label=span_name
+--prometheus.query.support-spanmetrics-connector=true
 ```
 
-As environment variables:
+as environment variables:
 ```shell
+PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true
+```
+
+If the Span Metrics Connector is configured with a namespace and/or an alternative duration unit,
+the following configuration options are available, as both command line and environment variables:
+
+```shell
+--prometheus.query.namespace=span_metrics
+--prometheus.query.duration-unit=s
+
 PROMETHEUS_QUERY_NAMESPACE=span_metrics
-PROMETHEUS_QUERY_DURATION_METRIC_NAME=duration
-PROMETHEUS_QUERY_DURATION_UNIT=ms
-PROMETHEUS_QUERY_SPAN_NAME_LABEL=span_name
+PROMETHEUS_QUERY_DURATION_UNIT=s
 ```
 
 ## Querying the HTTP API

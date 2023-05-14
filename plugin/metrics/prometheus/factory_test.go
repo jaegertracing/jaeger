@@ -54,11 +54,9 @@ func TestWithDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, 30*time.Second, f.options.Primary.ConnectTimeout)
 
 	// Ensure backwards compatibility with OTEL's spanmetricsprocessor.
+	assert.False(t, f.options.Primary.SupportSpanmetricsConnector)
 	assert.Empty(t, f.options.Primary.MetricNamespace)
-	assert.Empty(t, f.options.Primary.LatencyUnit)
-	assert.Equal(t, "calls", f.options.Primary.CallsMetricName)
-	assert.Equal(t, "latency", f.options.Primary.LatencyMetricName)
-	assert.Equal(t, "operation", f.options.Primary.OperationLabel)
+	assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
 }
 
 func TestWithConfiguration(t *testing.T) {
@@ -90,16 +88,14 @@ func TestWithConfiguration(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
 		err := command.ParseFlags([]string{
+			"--prometheus.query.support-spanmetrics-connector=true",
 			"--prometheus.query.namespace=mynamespace",
-			"--prometheus.query.calls-metric-name=mycalls",
-			"--prometheus.query.duration-metric-name=myduration",
 			"--prometheus.query.duration-unit=ms",
 		})
 		require.NoError(t, err)
 		f.InitFromViper(v, zap.NewNop())
+		assert.True(t, f.options.Primary.SupportSpanmetricsConnector)
 		assert.Equal(t, "mynamespace", f.options.Primary.MetricNamespace)
-		assert.Equal(t, "mycalls", f.options.Primary.CallsMetricName)
-		assert.Equal(t, "myduration", f.options.Primary.LatencyMetricName)
 		assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
 	})
 	t.Run("with invalid prometheus.query.duration-unit", func(t *testing.T) {
