@@ -204,8 +204,7 @@ func getSourceFn(archive bool, maxDocCount int) sourceFn {
 	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
 		s := elastic.NewSearchSource().
 			Query(query).
-			Size(maxDocCount).
-			TerminateAfter(maxDocCount)
+			Size(maxDocCount)
 		if !archive {
 			s.Sort("startTime", true).
 				SearchAfter(nextTime)
