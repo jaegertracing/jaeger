@@ -20,7 +20,6 @@ exporters:
 
 connectors:
   spanmetrics:
-    namespace: span.metrics
 
 processors:
   batch:
