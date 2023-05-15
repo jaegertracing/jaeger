@@ -73,7 +73,7 @@ make run-dev-processor
 
 For each "run" make target, you should expect to see the following in the Monitor tab after a few minutes:
 
-![Monitor Screenshot](https://github.com/jaegertracing/jaeger/assets/26584478/f0fd5d26-c486-4de6-892b-ac48c3e8e425)
+![Monitor Screenshot](images/startup-monitor-tab.png)
 
 ## Sending traces
 

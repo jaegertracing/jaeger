@@ -24,7 +24,7 @@ _run-connector: export PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR = true
 _run-connector:
 	docker compose -f docker-compose.yml up
 
-# The run-dev-processor make target is setup to allow devs to run the older spanmetrics processor setup, for example,
+# run the older spanmetrics processor setup, for example,
 # to test backwards compatibility of Jaeger with spanmetrics processor.
 .PHONY: run-dev-processor
 run-dev-processor: export JAEGER_IMAGE_TAG = dev
