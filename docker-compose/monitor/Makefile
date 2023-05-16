@@ -1,9 +1,9 @@
 .PHONY: build
+build: export DOCKER_TAG = dev
 build: clean-jaeger
 	cd ../../ && \
 	make build-all-in-one && \
-	make docker-images-jaeger-backend && \
-	docker tag jaegertracing/all-in-one:latest jaegertracing/all-in-one:dev
+	make docker-images-jaeger-backend
 
 # run starts up the system required for SPM using the latest jaeger and otel images.
 .PHONY: run
@@ -40,7 +40,7 @@ clean-jaeger:
 	docker system prune -f
 
 .PHONY: clean-all
-clean: clean-jaeger
+clean-all: clean-jaeger
 	docker rmi -f jaegertracing/all-in-one:dev ; \
 	docker rmi -f jaegertracing/all-in-one:latest ; \
 	docker rmi -f otel/opentelemetry-collector-contrib:latest ; \
