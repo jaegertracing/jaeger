@@ -200,9 +200,11 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		var err error
 		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		if err != nil {
-			t.Log(err)
+			t.Errorf("Failed to retrieve trace: %v", err)
 		}
 		return err == nil && len(actual.Spans) == len(expected.Spans)
+		if actual == nil {
+            t.Errorf("Expected trace to be found, but it was nil")
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
