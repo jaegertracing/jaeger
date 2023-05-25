@@ -54,6 +54,7 @@ docker run \
   --name jaeger \
   -p6831:6831/udp \
   -p16686:16686 \
+  -p14268:14268 \
   jaegertracing/all-in-one:latest
 ```
 
@@ -72,7 +73,7 @@ go run ./examples/hotrod/main.go all
 docker run \
   --rm \
   --link jaeger \
-  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces \
   -p8080-8083:8080-8083 \
   jaegertracing/example-hotrod:latest \
   all

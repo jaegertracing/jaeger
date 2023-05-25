@@ -47,7 +47,7 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.DurationVar(&c.Pause, "pause", time.Microsecond, "How long to pause before finishing trace")
 	fs.DurationVar(&c.Duration, "duration", 0, "For how long to run the test")
 	fs.StringVar(&c.Service, "service", "tracegen", "Service name to use")
-	fs.StringVar(&c.TraceExporter, "trace-exporter", "jaeger", "Trace exporter (jaeger|otlp|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
+	fs.StringVar(&c.TraceExporter, "trace-exporter", "jaeger", "Trace exporter (jaeger|otlp/otlp-http|otlp-grpc|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
 }
 
 // Run executes the test scenario.

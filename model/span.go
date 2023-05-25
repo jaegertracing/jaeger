@@ -97,13 +97,23 @@ func (s *Span) NormalizeTimestamps() {
 }
 
 // ParentSpanID returns ID of a parent span if it exists.
-// It searches for the first child-of reference pointing to the same trace ID.
+// It searches for the first child-of or follows-from reference pointing to the same trace ID.
 func (s *Span) ParentSpanID() SpanID {
+	var followsFromRef *SpanRef
 	for i := range s.References {
 		ref := &s.References[i]
-		if ref.TraceID == s.TraceID && ref.RefType == ChildOf {
+		if ref.TraceID != s.TraceID {
+			continue
+		}
+		if ref.RefType == ChildOf {
 			return ref.SpanID
 		}
+		if followsFromRef == nil && ref.RefType == FollowsFrom {
+			followsFromRef = ref
+		}
+	}
+	if followsFromRef != nil {
+		return followsFromRef.SpanID
 	}
 	return SpanID(0)
 }
@@ -172,7 +182,7 @@ func (f *Flags) SetFirehose() {
 }
 
 func (f *Flags) setFlags(bit Flags) {
-	*f = *f | bit
+	*f |= bit
 }
 
 // IsSampled returns true if the Flags denote sampling

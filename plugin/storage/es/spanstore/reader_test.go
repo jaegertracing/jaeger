@@ -671,14 +671,15 @@ func testGet(typ string, t *testing.T) {
 }
 
 func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
-	if typ == servicesAggregation {
+	switch typ {
+	case servicesAggregation:
 		return r.reader.GetServices(context.Background())
-	} else if typ == operationsAggregation {
+	case operationsAggregation:
 		return r.reader.GetOperations(
 			context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "someService"},
 		)
-	} else if typ == traceIDAggregation {
+	case traceIDAggregation:
 		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
@@ -1310,4 +1311,30 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 		q := buildTraceByIDQuery(test.traceID)
 		assert.Equal(t, test.query, q)
 	}
+}
+
+func TestTerminateAfterNotSet(t *testing.T) {
+	srcFn := getSourceFn(false, 99)
+	searchSource := srcFn(elastic.NewMatchAllQuery(), 1)
+	sp, err := searchSource.Source()
+	require.NoError(t, err)
+
+	searchParams, ok := sp.(map[string]interface{})
+	require.True(t, ok)
+
+	termAfter, ok := searchParams["terminate_after"]
+	require.False(t, ok)
+	assert.Nil(t, termAfter)
+
+	query, ok := searchParams["query"]
+	require.True(t, ok)
+
+	queryMap, ok := query.(map[string]interface{})
+	require.True(t, ok)
+	_, ok = queryMap["match_all"]
+	require.True(t, ok)
+
+	size, ok := searchParams["size"]
+	require.True(t, ok)
+	assert.Equal(t, 99, size)
 }
