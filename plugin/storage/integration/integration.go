@@ -288,6 +288,7 @@ func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.
 func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
 	span := trace.Spans[0]
+	span.SpanID = model.SpanID(20008)
 	spns := make([]*model.Span, 1, 10008)
 	trace.Spans = spns
 	trace.Spans[0] = span

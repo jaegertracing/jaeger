@@ -2,14 +2,14 @@
   "spans": [
     {
       "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
-      "spanId": "AAAAAAAAAAM=",
+      "spanId": "AAAA112AAAM=",
       "operationName": "query07-operation",
       "tags": [],
       "references": [
         {
           "refType": "CHILD_OF",
           "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
-          "spanId": "AAAAAAAAAAI="
+          "spanId": "AAAA121AAAM="
         }
       ],
       "startTime": "2017-01-26T16:46:31.639875Z",
@@ -22,7 +22,7 @@
     },
     {
       "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
-      "spanId": "AAAAAAAAAAI=",
+      "spanId": "AAAA121AAAM=",
       "operationName": "query07-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",

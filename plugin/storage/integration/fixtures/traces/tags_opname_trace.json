@@ -2,7 +2,7 @@
   "spans": [
     {
       "traceId": "AAAAAAAAAAAAAAAAAAAAEg==",
-      "spanId": "AAAAAAAAAAQ=",
+      "spanId": "AAAA126AAAM=",
       "operationName": "query12-operation",
       "references": [
         {
@@ -13,12 +13,12 @@
         {
           "refType": "CHILD_OF",
           "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
-          "spanId": "AAAAAAAAAAI="
+          "spanId": "AAAA122AAAM="
         },
         {
           "refType": "FOLLOWS_FROM",
           "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
-          "spanId": "AAAAAAAAAAI="
+          "spanId": "AAAA122AAAM="
         }
       ],
       "tags": [

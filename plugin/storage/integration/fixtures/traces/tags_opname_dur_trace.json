@@ -2,7 +2,7 @@
   "spans": [
     {
       "traceId": "AAAAAAAAAAAAAAAAAAAAFA==",
-      "spanId": "AAAAAAAAAAM=",
+      "spanId": "AAAA128AAAM=",
       "operationName": "query14-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",

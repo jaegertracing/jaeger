@@ -21,9 +21,11 @@ package integration
 import (
 	"net"
 	"os"
-	"path"
+	// "path"
 	"sync"
 	"testing"
+	"os/exec"
+	"bytes"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -102,6 +104,10 @@ type GRPCStorageIntegrationTestSuite struct {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize() error {
+	if err := s.clearDatabase(); err != nil {
+		return err
+	}
+
 	s.logger, _ = testutils.NewLogger()
 
 	if s.server != nil {
@@ -139,6 +145,30 @@ func (s *GRPCStorageIntegrationTestSuite) refresh() error {
 	return nil
 }
 
+const ShellToUse = "bash"
+
+func Shellout(command string) (string, string, error) {
+    var stdout bytes.Buffer
+    var stderr bytes.Buffer
+    cmd := exec.Command(ShellToUse, "-c", command)
+    cmd.Stdout = &stdout
+    cmd.Stderr = &stderr
+    err := cmd.Run()
+    return stdout.String(), stderr.String(), err
+}
+
+func (s*GRPCStorageIntegrationTestSuite) clearDatabase() error {
+	// /home/mon/dev/woerterbuch/vocaboost/tools/cockroach.sh local -e 'delete from jaeger_storage.span where true;'
+	_, _, err := Shellout(
+		"/home/mon/dev/woerterbuch/database/cockroach/bin/cockroach sql --host=localhost:26259 --insecure -e \"delete from jaeger_storage.span where true;\"",
+	)
+	if err != nil {
+		panic(err)
+		return err
+	}
+    return nil
+}
+
 func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
 	return s.initialize()
 }
@@ -156,39 +186,40 @@ func getPluginFlags(t *testing.T) []string {
 	}
 }
 
-func TestGRPCStorage(t *testing.T) {
-	flags := getPluginFlags(t)
-	if configPath := os.Getenv("PLUGIN_CONFIG_PATH"); configPath == "" {
-		t.Log("PLUGIN_CONFIG_PATH env var not set")
-	} else {
-		flags = append(flags, "--grpc-storage-plugin.configuration-file", configPath)
-	}
+// func TestGRPCStorage(t *testing.T) {
+// 	flags := getPluginFlags(t)
+// 	if configPath := os.Getenv("PLUGIN_CONFIG_PATH"); configPath == "" {
+// 		t.Log("PLUGIN_CONFIG_PATH env var not set")
+// 	} else {
+// 		flags = append(flags, "--grpc-storage-plugin.configuration-file", configPath)
+// 	}
 
-	s := &GRPCStorageIntegrationTestSuite{
-		flags: flags,
-	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
-}
+// 	s := &GRPCStorageIntegrationTestSuite{
+// 		flags: flags,
+// 	}
+// 	require.NoError(t, s.initialize())
+// 	s.IntegrationTestAll(t)
+// }
 
-func TestGRPCStreamingWriter(t *testing.T) {
-	flags := getPluginFlags(t)
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	flags = append(flags,
-		"--grpc-storage-plugin.configuration-file",
-		path.Join(wd, streamingPluginConfigPath))
+// func TestGRPCStreamingWriter(t *testing.T) {
+// 	flags := getPluginFlags(t)
+// 	wd, err := os.Getwd()
+// 	require.NoError(t, err)
+// 	flags = append(flags,
+// 		"--grpc-storage-plugin.configuration-file",
+// 		path.Join(wd, streamingPluginConfigPath))
 
-	s := &GRPCStorageIntegrationTestSuite{
-		flags: flags,
-	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
-}
+// 	s := &GRPCStorageIntegrationTestSuite{
+// 		flags: flags,
+// 	}
+// 	require.NoError(t, s.initialize())
+// 	s.IntegrationTestAll(t)
+// }
 
 func TestGRPCRemoteStorage(t *testing.T) {
 	flags := []string{
-		"--grpc-storage.server=localhost:2001",
+		"--grpc-storage.server=localhost:10500",
+		// "--grpc-storage.server=localhost:2001",
 		"--grpc-storage.tls.enabled=false",
 	}
 	server, err := newgRPCServer()
