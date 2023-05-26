@@ -151,7 +151,7 @@ require (
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
-	go.mongodb.org/mongo-driver v1.11.3 // indirect
+	go.mongodb.org/mongo-driver v1.11.6 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/confmap v0.76.1 // indirect
 	go.opentelemetry.io/collector/exporter v0.76.1 // indirect
