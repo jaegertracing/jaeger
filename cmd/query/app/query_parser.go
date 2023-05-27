@@ -326,7 +326,7 @@ func parseBool(r *http.Request, paramName string) (b bool, err error) {
 	return b, nil
 }
 
-// parseSpanKindParam parses the input span kinds to filter for in the metrics query.
+// parseSpanKinds parses the input span kinds to filter for in the metrics query.
 //
 // Valid input span kinds include:
 // - "unspecified": when no span kind specified in span.
