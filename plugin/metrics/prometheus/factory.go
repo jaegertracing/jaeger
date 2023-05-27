@@ -48,7 +48,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable.
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	if err := f.options.InitFromViper(v); err != nil {
-		logger.Fatal("Failed to initialize metrics storage factory", zap.Error(err))
+		logger.Panic("Failed to initialize metrics storage factory", zap.Error(err))
 	}
 }
 
