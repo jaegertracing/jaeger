@@ -4,6 +4,11 @@ issues:
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters: [gosec]
+
+    # See https://github.com/jaegertracing/jaeger/issues/4488
+    - path: internal/grpctest/
+      linters: [staticcheck]
+
     - linters: [gocritic]
       text: "dupArg"
     - linters: [gocritic]
