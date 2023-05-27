@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/resolver"
-	grpctest "google.golang.org/grpc/test/grpc_testing"
+	grpctest "google.golang.org/grpc/interop/grpc_testing"
 
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
