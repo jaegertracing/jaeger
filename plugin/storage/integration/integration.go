@@ -105,7 +105,7 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(100 * time.Millisecond) // Will wait up to 10 seconds at worst.
+		time.Sleep(time.Second) // Will wait at most 100 seconds.
 	}
 	return predicate(t)
 }
@@ -343,8 +343,8 @@ func correctTime(json []byte) []byte {
 	now := time.Now().UTC()
 	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 	twoDaysAgo := now.AddDate(0, 0, -2).Format("2006-01-02")
-	retString := strings.Replace(jsonString, "2017-01-26", yesterday, -1)
-	retString = strings.Replace(retString, "2017-01-25", twoDaysAgo, -1)
+	retString := strings.ReplaceAll(jsonString, "2017-01-26", yesterday)
+	retString = strings.ReplaceAll(retString, "2017-01-25", twoDaysAgo)
 	return []byte(retString)
 }
 

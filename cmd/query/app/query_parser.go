@@ -83,9 +83,7 @@ type (
 )
 
 func newDurationStringParser() durationParser {
-	return func(s string) (time.Duration, error) {
-		return time.ParseDuration(s)
-	}
+	return time.ParseDuration
 }
 
 func newDurationUnitsParser(units time.Duration) durationParser {

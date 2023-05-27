@@ -218,9 +218,7 @@ func TestParseDuration(t *testing.T) {
 	request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000", nil)
 	require.NoError(t, err)
 	parser := &queryParser{
-		timeNow: func() time.Time {
-			return time.Now()
-		},
+		timeNow: time.Now,
 	}
 	mqp, err := parser.parseMetricsQueryParams(request)
 	require.NoError(t, err)
@@ -231,9 +229,7 @@ func TestParseRepeatedServices(t *testing.T) {
 	request, err := http.NewRequest(http.MethodGet, "x?service=foo&service=bar", nil)
 	require.NoError(t, err)
 	parser := &queryParser{
-		timeNow: func() time.Time {
-			return time.Now()
-		},
+		timeNow: time.Now,
 	}
 	mqp, err := parser.parseMetricsQueryParams(request)
 	require.NoError(t, err)

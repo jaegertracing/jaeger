@@ -58,12 +58,12 @@ func (i *InMemoryReporter) EmitBatch(_ context.Context, batch *jaeger.Batch) (er
 func (i *InMemoryReporter) ZipkinSpans() []*zipkincore.Span {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
-	return i.zSpans[:]
+	return i.zSpans
 }
 
 // Spans returns accumulated spans as a copied slice
 func (i *InMemoryReporter) Spans() []*jaeger.Span {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
-	return i.jSpans[:]
+	return i.jSpans
 }

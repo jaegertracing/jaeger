@@ -146,7 +146,10 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 				defer msgProcessor.Close()
 			}
 
-			msgProcessor.Process(saramaMessageWrapper{msg})
+			err := msgProcessor.Process(saramaMessageWrapper{msg})
+			if err != nil {
+				c.logger.Error("Failed to process a Kafka message", zap.Error(err), zap.Int32("partition", msg.Partition), zap.Int64("offset", msg.Offset))
+			}
 
 		case <-deadlockDetector.closePartitionChannel():
 			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))
