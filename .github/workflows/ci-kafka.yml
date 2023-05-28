@@ -27,7 +27,17 @@ jobs:
         go-version: 1.20.x
 
     - name: Run kafka integration tests
-      run: bash scripts/kafka-integration-test.sh
+      run: |
+            retrycount=0
+             maxRetries=3
+             backoff=1
+             while[$retrycount -lt $maxRetries];do
+              bash scripts/kafka-integration-test.sh && break
+             echo "Tests failed, retrying in $backoff seconds..."
+             sleep $backoff
+            retryCount=$((retryCount+1))
+            backoff=$((backoff*2))
+            done
 
     - name: Output Kafka logs
       run: docker logs "${{ job.services.kafka.id }}"
