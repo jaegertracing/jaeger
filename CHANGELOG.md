@@ -20,6 +20,7 @@ next release
 
 #### ⛔ Breaking Changes
 
+* Make OTLP receiver enabled by default ([@yurishkuro](https://github.com/yurishkuro) in [#4494](https://github.com/jaegertracing/jaeger/pull/4494))
 
 #### New Features
 
