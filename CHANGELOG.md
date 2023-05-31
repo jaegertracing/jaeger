@@ -14,6 +14,20 @@ next release
 ### UI Changes
 
 
+1.46.0
+-------------------
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+### UI Changes
+
+
 1.45.0 (2023-05-03)
 -------------------
 ### Backend Changes
