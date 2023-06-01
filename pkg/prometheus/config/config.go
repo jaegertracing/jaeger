@@ -26,4 +26,8 @@ type Configuration struct {
 	ConnectTimeout time.Duration
 	TLS            tlscfg.Options
 	TokenFilePath  string
+
+	SupportSpanmetricsConnector bool
+	MetricNamespace             string
+	LatencyUnit                 string
 }

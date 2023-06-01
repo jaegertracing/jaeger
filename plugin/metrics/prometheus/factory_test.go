@@ -52,10 +52,15 @@ func TestWithDefaultConfiguration(t *testing.T) {
 	f := NewFactory()
 	assert.Equal(t, "http://localhost:9090", f.options.Primary.ServerURL)
 	assert.Equal(t, 30*time.Second, f.options.Primary.ConnectTimeout)
+
+	// Ensure backwards compatibility with OTEL's spanmetricsprocessor.
+	assert.False(t, f.options.Primary.SupportSpanmetricsConnector)
+	assert.Empty(t, f.options.Primary.MetricNamespace)
+	assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
 }
 
 func TestWithConfiguration(t *testing.T) {
-	t.Run("With custom configuration and no space in token file path", func(t *testing.T) {
+	t.Run("with custom configuration and no space in token file path", func(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
 		err := command.ParseFlags([]string{
@@ -69,7 +74,7 @@ func TestWithConfiguration(t *testing.T) {
 		assert.Equal(t, 5*time.Second, f.options.Primary.ConnectTimeout)
 		assert.Equal(t, "test/test_file.txt", f.options.Primary.TokenFilePath)
 	})
-	t.Run("With space in token file path", func(t *testing.T) {
+	t.Run("with space in token file path", func(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
 		err := command.ParseFlags([]string{
@@ -78,6 +83,36 @@ func TestWithConfiguration(t *testing.T) {
 		require.NoError(t, err)
 		f.InitFromViper(v, zap.NewNop())
 		assert.Equal(t, "test/ test file.txt", f.options.Primary.TokenFilePath)
+	})
+	t.Run("with custom configuration of prometheus.query", func(t *testing.T) {
+		f := NewFactory()
+		v, command := config.Viperize(f.AddFlags)
+		err := command.ParseFlags([]string{
+			"--prometheus.query.support-spanmetrics-connector=true",
+			"--prometheus.query.namespace=mynamespace",
+			"--prometheus.query.duration-unit=ms",
+		})
+		require.NoError(t, err)
+		f.InitFromViper(v, zap.NewNop())
+		assert.True(t, f.options.Primary.SupportSpanmetricsConnector)
+		assert.Equal(t, "mynamespace", f.options.Primary.MetricNamespace)
+		assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
+	})
+	t.Run("with invalid prometheus.query.duration-unit", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("Expected a panic due to invalid duration-unit")
+			}
+		}()
+
+		f := NewFactory()
+		v, command := config.Viperize(f.AddFlags)
+		err := command.ParseFlags([]string{
+			"--prometheus.query.duration-unit=milliseconds",
+		})
+		require.NoError(t, err)
+		f.InitFromViper(v, zap.NewNop())
+		require.Empty(t, f.options.Primary.LatencyUnit)
 	})
 }
 
