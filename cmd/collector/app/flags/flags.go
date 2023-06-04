@@ -184,7 +184,7 @@ func AddFlags(flags *flag.FlagSet) {
 	addHTTPFlags(flags, httpServerFlagsCfg, ports.PortToHostPort(ports.CollectorHTTP))
 	addGRPCFlags(flags, grpcServerFlagsCfg, ports.PortToHostPort(ports.CollectorGRPC))
 
-	flags.Bool(flagCollectorOTLPEnabled, false, "Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports")
+	flags.Bool(flagCollectorOTLPEnabled, true, "Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports")
 	addHTTPFlags(flags, otlpServerFlagsCfg.HTTP, "")
 	addGRPCFlags(flags, otlpServerFlagsCfg.GRPC, "")
 

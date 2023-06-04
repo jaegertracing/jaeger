@@ -14,6 +14,21 @@ next release
 ### UI Changes
 
 
+1.46.0
+-------------------
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Make OTLP receiver enabled by default ([@yurishkuro](https://github.com/yurishkuro) in [#4494](https://github.com/jaegertracing/jaeger/pull/4494))
+
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+### UI Changes
+
+
 1.45.0 (2023-05-03)
 -------------------
 ### Backend Changes
