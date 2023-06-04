@@ -7,7 +7,7 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
-
+mode=${1-main}
 expected_version="v16"
 version=$(node --version)
 major_version=${version%.*.*}
