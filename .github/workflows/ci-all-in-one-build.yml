@@ -44,7 +44,7 @@ jobs:
     - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18
 
     - name: Build, test, and publish all-in-one image
-      run: bash scripts/build-all-in-one-image.sh
+      run: bash scripts/build-all-in-one-image.sh pr-only
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

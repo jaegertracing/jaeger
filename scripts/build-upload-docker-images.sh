@@ -23,7 +23,10 @@ fi
 for component in agent collector query ingester remote-storage
 do
 	bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
-	bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
+	if ["$mode" != "pr-only"]; then 
+    #do not run debug image build when it is pr-only
+    bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
+  fi 
 done
 
 bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
