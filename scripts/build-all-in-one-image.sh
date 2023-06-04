@@ -11,7 +11,6 @@ GOARCH=${GOARCH:-$(go env GOARCH)}
 expected_version="v16"
 version=$(node --version)
 major_version=${version%.*.*}
-SKIP_DEBUG=$SKIP_DEBUG
 
 if [ "$major_version" = "$expected_version" ] ; then
   echo "Node version is as expected: $version"
@@ -48,7 +47,8 @@ run_integration_test localhost:5000/$repo
 bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 
-if [ "$SKIP_DEBUG" = true ] ; then
+#do not run debug image build when it is pr-only
+if ["$mode" != "pr-only"]; then 
   make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
   repo=${repo}-debug
   #build all-in-one-debug image locally for integration test
@@ -56,6 +56,4 @@ if [ "$SKIP_DEBUG" = true ] ; then
   run_integration_test localhost:5000/$repo
   #build all-in-one-debug image and upload to dockerhub/quay.io
   bash scripts/build-upload-a-docker-image.sh -b -c all-in-one-debug -d cmd/all-in-one -t debug
-else 
-  echo "Skipping debug commands"
 fi
