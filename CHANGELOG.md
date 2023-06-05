@@ -20,13 +20,32 @@ next release
 
 #### ⛔ Breaking Changes
 
-* Make OTLP receiver enabled by default ([@yurishkuro](https://github.com/yurishkuro) in [#4494](https://github.com/jaegertracing/jaeger/pull/4494))
+OTLP receiver is now enabled by default ([#4494](https://github.com/jaegertracing/jaeger/pull/4494)). This change follows the Jaeger's strategic direction of aligning closely with the OpenTelemetry project. This may cause port conflicts if  `jaeger-collector` is depoyed in host network namespace. The original `--collector.otlp.enabled` option is still available and MUST be set to `false` if OTLP receiver is not desired.
 
 #### New Features
 
+* Make OTLP receiver enabled by default ([@yurishkuro](https://github.com/yurishkuro) in [#4494](https://github.com/jaegertracing/jaeger/pull/4494))
+* [SPM] Add support for OpenTelemetry SpanMetrics Connector ([@albertteoh](https://github.com/albertteoh) in [#4452](https://github.com/jaegertracing/jaeger/pull/4452)). See [Migration README](https://github.com/jaegertracing/jaeger/blob/main/docker-compose/monitor/README.md#migrating).
+
 #### Bug fixes, Minor Improvements
 
+* Log processor error in Kafka consumer ([@pavolloffay](https://github.com/pavolloffay) in [#4399](https://github.com/jaegertracing/jaeger/pull/4399))
+* [bug] Remove TerminateAfter from Elasticsearch/Opensearch query resulting in incomplete span count/list ([@Jakob3xD](https://github.com/Jakob3xD) in [#4336](https://github.com/jaegertracing/jaeger/pull/4336))
+* [agent] Use RawConn.Control to get fd instead of Fd() to prevent deadlock on shutdown ([@ChenX1993](https://github.com/ChenX1993) in [#4449](https://github.com/jaegertracing/jaeger/pull/4449))
+* [SPM] Fix docker compose command ([@tqi-raurora](https://github.com/tqi-raurora) in [#4444](https://github.com/jaegertracing/jaeger/pull/4444))
+
+#### Maintenance
+
+* [test] Fix flaky test - TestSpanProcessorWithOnDroppedSpanOption ([@yurishkuro](https://github.com/yurishkuro) in [#4489](https://github.com/jaegertracing/jaeger/pull/4489))
+* [ci] Skip debug builds when not making a release ([@psk001](https://github.com/psk001) in [#4496](https://github.com/jaegertracing/jaeger/pull/4496))
+* Fix some function comments ([@cuishuang](https://github.com/cuishuang) in [#4410](https://github.com/jaegertracing/jaeger/pull/4410))
+* Increase dependabot open-pull-requests-limit=10 ([@yurishkuro](https://github.com/yurishkuro) in [04548fc](https://github.com/jaegertracing/jaeger/commit/04548fc339689f970da2de36b964fd3abfca41c2))
+* Add jkowall as release manger for July ([@jkowall](https://github.com/jkowall) in [#4446](https://github.com/jaegertracing/jaeger/pull/4446))
+* Fix versions in release schedule ([@yurishkuro](https://github.com/yurishkuro) in [8a9d13a](https://github.com/jaegertracing/jaeger/commit/8a9d13a31b477707cec73a9b7bf6242b27cec0ea))
+
 ### UI Changes
+
+* UI pinned to version [1.30.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1300-2023-06-05).
 
 
 1.45.0 (2023-05-03)
