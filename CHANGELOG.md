@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-next release
+next release (yyyy-mm-dd)
 -------------------
 ### Backend Changes
 
@@ -14,7 +14,7 @@ next release
 ### UI Changes
 
 
-1.46.0
+1.46.0 (2023-06-05)
 -------------------
 ### Backend Changes
 
