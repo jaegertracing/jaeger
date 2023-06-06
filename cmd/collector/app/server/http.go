@@ -99,6 +99,23 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
 	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory, params.Logger)
+	
+	// CORS handler
+	corsHandler := func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Required CORS headers
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+			// Recalling actual handler
+			h.ServeHTTP(w, r)
+		})
+	}
+
+	// Wrapping actual handler with CORS handler
+	server.Handler = corsHandler(server.Handler)
+
 	go func() {
 		var err error
 		if params.TLSConfig.Enabled {
