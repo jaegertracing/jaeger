@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
@@ -62,7 +63,7 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
+		sdktrace.WithBatcher(exp, sdktrace.WithBatchTimeout(1000*time.Millisecond)),
 		sdktrace.WithSpanProcessor(rpcmetricsObserver),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
