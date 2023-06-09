@@ -43,6 +43,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -304,9 +305,10 @@ func TestGetTrace(t *testing.T) {
 		t.Run(testCase.suffix, func(t *testing.T) {
 			reporter := jaeger.NewInMemoryReporter()
 			jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
+			jTracer := jtracer.OT(jaegerTracer)
 			defer jaegerCloser.Close()
 
-			ts := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
+			ts := initializeTestServer(HandlerOptions.Tracer(jTracer))
 			defer ts.server.Close()
 
 			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).

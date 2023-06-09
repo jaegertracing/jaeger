@@ -28,13 +28,13 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -88,7 +88,7 @@ type APIHandler struct {
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
-	tracer              opentracing.Tracer
+	tracer              jtracer.JTracer
 }
 
 // NewAPIHandler returns an APIHandler
@@ -111,8 +111,8 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 	if aH.logger == nil {
 		aH.logger = zap.NewNop()
 	}
-	if aH.tracer == nil {
-		aH.tracer = opentracing.NoopTracer{}
+	if aH.tracer.OT == nil {
+		aH.tracer = jtracer.NoOp()
 	}
 	return aH
 }
@@ -147,7 +147,7 @@ func (aH *APIHandler) handleFunc(
 		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyMgr, handler)
 	}
 	traceMiddleware := nethttp.Middleware(
-		aH.tracer,
+		aH.tracer.OT,
 		handler,
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return route

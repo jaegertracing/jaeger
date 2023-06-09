@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/olivere/elastic"
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -31,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -93,7 +93,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0", BearerTokenPropagation: true},
 		tenancy.NewManager(&tenancy.Options{}),
-		opentracing.NoopTracer{},
+		jtracer.NoOp(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
