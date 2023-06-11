@@ -87,8 +87,7 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.Bool(
 		configPrefix+kerberosPrefix+suffixKerberosDisablePAFXFAST,
 		defaultKerberosDisablePAFXFast,
-		"Disable FAST negotiation when not supported by KDC's like Active Directory")
-
+		"Disable FAST negotiation when not supported by KDC's like Active Directory. See https://github.com/jcmturner/gokrb5/blob/master/USAGE.md#active-directory-kdc-and-fast-negotiation.")
 }
 
 func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
