@@ -20,13 +20,14 @@ import (
 
 // KerberosConfig describes the configuration properties needed for Kerberos authentication with kafka consumer
 type KerberosConfig struct {
-	ServiceName string `mapstructure:"service_name"`
-	Realm       string `mapstructure:"realm"`
-	UseKeyTab   bool   `mapstructure:"use_keytab"`
-	Username    string `mapstructure:"username"`
-	Password    string `mapstructure:"password" json:"-"`
-	ConfigPath  string `mapstructure:"config_file"`
-	KeyTabPath  string `mapstructure:"keytab_file"`
+	ServiceName     string `mapstructure:"service_name"`
+	Realm           string `mapstructure:"realm"`
+	UseKeyTab       bool   `mapstructure:"use_keytab"`
+	Username        string `mapstructure:"username"`
+	Password        string `mapstructure:"password" json:"-"`
+	ConfigPath      string `mapstructure:"config_file"`
+	KeyTabPath      string `mapstructure:"keytab_file"`
+	DisablePAFXFast bool   `mapstructure:"disable_pa_fx_fast"`
 }
 
 func setKerberosConfiguration(config *KerberosConfig, saramaConfig *sarama.Config) {
@@ -43,4 +44,5 @@ func setKerberosConfiguration(config *KerberosConfig, saramaConfig *sarama.Confi
 	saramaConfig.Net.SASL.GSSAPI.Username = config.Username
 	saramaConfig.Net.SASL.GSSAPI.Realm = config.Realm
 	saramaConfig.Net.SASL.GSSAPI.ServiceName = config.ServiceName
+	saramaConfig.Net.SASL.GSSAPI.DisablePAFXFAST = config.DisablePAFXFast
 }
