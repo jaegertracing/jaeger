@@ -42,7 +42,7 @@ jobs:
     - name: Install tools
       run: make install-ci
 
-    - uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18
+    - uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7
 
     - name: Build only linux/amd64 docker image for Pull Request
       if: github.ref_name != 'main'
