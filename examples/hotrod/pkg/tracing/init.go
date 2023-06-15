@@ -34,6 +34,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -43,9 +44,28 @@ import (
 
 var once sync.Once
 
-// Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
+// InitOTEL initializes OpenTelemetry SDK
+// to return an Otel tracer.
+func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
+	_, oteltp := InitBOTH(serviceName, exporterType, metricsFactory, logger)
+	otel.SetTracerProvider(oteltp)
+
+	logger.Bg().Debug("Added OTEL tracer", zap.String("service-name", serviceName))
+	return oteltp
+}
+
+// InitOP initializes OTel-OpenTracing Bridge
 // to return an OpenTracing-compatible tracer.
-func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
+func InitOP(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
+	optracer, _ := InitBOTH(serviceName, exporterType, metricsFactory, logger)
+
+	logger.Bg().Debug("created OTEL->OT bridge", zap.String("service-name", serviceName))
+	return optracer
+}
+
+// Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
+// to return an OpenTracing-compatible tracer and Otel tracer.
+func InitBOTH(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) (opentracing.Tracer, trace.TracerProvider) {
 	once.Do(func() {
 		otel.SetTextMapPropagator(
 			propagation.NewCompositeTextMapPropagator(
@@ -71,8 +91,7 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 		)),
 	)
 	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
-	logger.Bg().Debug("created OTEL->OT bridge", zap.String("service-name", serviceName))
-	return otTracer
+	return otTracer, tp
 }
 
 // withSecure instructs the client to use HTTPS scheme, instead of hotrod's desired default HTTP

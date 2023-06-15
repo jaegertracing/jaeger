@@ -42,7 +42,7 @@ var _ DriverServiceServer = (*Server)(nil)
 
 // NewServer creates a new driver.Server
 func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
-	tracer := tracing.Init("driver", otelExporter, metricsFactory, logger)
+	tracer := tracing.InitOP("driver", otelExporter, metricsFactory, logger)
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
 		grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),

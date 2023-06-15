@@ -40,10 +40,10 @@ type Server struct {
 func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
 	return &Server{
 		hostPort: hostPort,
-		tracer:   tracing.Init("customer", otelExporter, metricsFactory, logger),
+		tracer:   tracing.InitOP("customer", otelExporter, metricsFactory, logger),
 		logger:   logger,
 		database: newDatabase(
-			tracing.Init("mysql", otelExporter, metricsFactory, logger),
+			tracing.InitOP("mysql", otelExporter, metricsFactory, logger),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}
