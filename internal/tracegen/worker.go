@@ -78,7 +78,19 @@ func (w *worker) simulateOneTrace(tracer trace.Tracer) {
 		trace.WithAttributes(attrs...),
 		trace.WithTimestamp(start),
 	)
+	w.simulateChildSpans(ctx, start, tracer)
 
+	if w.Pause != 0 {
+		parent.End()
+	} else {
+		totalDuration := time.Duration(w.ChildSpans) * fakeSpanDuration
+		parent.End(
+			trace.WithTimestamp(start.Add(totalDuration)),
+		)
+	}
+}
+
+func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer trace.Tracer) {
 	for c := 0; c < w.ChildSpans; c++ {
 		var attrs []attribute.KeyValue
 		for a := 0; a < w.Attributes; a++ {
@@ -91,29 +103,22 @@ func (w *worker) simulateOneTrace(tracer trace.Tracer) {
 			trace.WithSpanKind(trace.SpanKindClient),
 			trace.WithAttributes(attrs...),
 		}
-		// TODO if not using pause, figure out the right start time
+		childStart := start.Add(time.Duration(c) * fakeSpanDuration)
+		if w.Pause == 0 {
+			opts = append(opts, trace.WithTimestamp(childStart))
+		}
 		_, child := tracer.Start(
 			ctx,
 			fmt.Sprintf("child-span-%02d", c),
 			opts...,
 		)
-		// TODO attributes
 		if w.Pause != 0 {
 			time.Sleep(w.Pause)
 			child.End()
 		} else {
 			child.End(
-				trace.WithTimestamp(start.Add(fakeSpanDuration)),
+				trace.WithTimestamp(childStart.Add(fakeSpanDuration)),
 			)
 		}
-	}
-
-	if w.Pause != 0 {
-		parent.End()
-	} else {
-		totalDuration := time.Duration(w.ChildSpans) * fakeSpanDuration
-		parent.End(
-			trace.WithTimestamp(start.Add(totalDuration)),
-		)
 	}
 }
