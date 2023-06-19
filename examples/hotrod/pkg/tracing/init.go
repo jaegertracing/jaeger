@@ -44,27 +44,23 @@ import (
 
 var once sync.Once
 
-// InitOTEL initializes OpenTelemetry SDK
-// to return an Otel tracer.
+// InitOTEL initializes OpenTelemetry SDK.
 func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.Tracer {
 	_, oteltp := initBOTH(serviceName, exporterType, metricsFactory, logger)
-	otel.SetTracerProvider(oteltp)
 
-	logger.Bg().Debug("Added OTEL tracer", zap.String("service-name", serviceName))
+	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
 	return oteltp.Tracer(serviceName)
 }
 
-// InitOP initializes OTel-OpenTracing Bridge
-// to return an OpenTracing-compatible tracer.
+// Init returns OTel-OpenTracing Bridge.
 func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
-	optracer, _ := initBOTH(serviceName, exporterType, metricsFactory, logger)
+	otTracer, _ := initBOTH(serviceName, exporterType, metricsFactory, logger)
 
-	logger.Bg().Debug("created OTEL->OT bridge", zap.String("service-name", serviceName))
-	return optracer
+	logger.Bg().Debug("Created OTEL->OT bridge", zap.String("service-name", serviceName))
+	return otTracer
 }
 
-// Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-// to return an OpenTracing-compatible tracer and Otel tracer.
+// initBOTH initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
 func initBOTH(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) (opentracing.Tracer, trace.TracerProvider) {
 	once.Do(func() {
 		otel.SetTextMapPropagator(

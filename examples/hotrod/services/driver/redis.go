@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -49,18 +50,10 @@ func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Fa
 
 // FindDriverIDs finds IDs of drivers who are near the location.
 func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
-	_, span := r.tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := r.tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(attribute.Key("param.driver.location").String(location))
-
 	defer span.End()
 
-	/* if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := r.tracer.StartSpan("FindDriverIDs", opentracing.ChildOf(span.Context()))
-		span.SetTag("param.location", location)
-		ext.SpanKindRPCClient.Set(span)
-		defer span.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span)
-	} */
 	// simulate RPC delay
 	delay.Sleep(config.RedisFindDelay, config.RedisFindDelayStdDev)
 
@@ -75,22 +68,15 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 
 // GetDriver returns driver and the current car location
 func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) {
-	_, span := r.tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := r.tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(attribute.Key("param.driverID").String(driverID))
-
 	defer span.End()
 
-	/* if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := r.tracer.StartSpan("GetDriver", opentracing.ChildOf(span.Context()))
-		span.SetTag("param.driverID", driverID)
-		ext.SpanKindRPCClient.Set(span)
-		defer span.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span)
-	} */
 	// simulate RPC delay
 	delay.Sleep(config.RedisGetDelay, config.RedisGetDelayStdDev)
 	if err := r.checkError(); err != nil {
-		// trace.Span.RecordError(span, err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "An error occurred")
 		r.logger.For(ctx).Error("redis timeout", zap.String("driver_id", driverID), zap.Error(err))
 		return Driver{}, err
 	}
