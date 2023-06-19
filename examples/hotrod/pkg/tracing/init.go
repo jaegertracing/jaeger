@@ -46,18 +46,18 @@ var once sync.Once
 
 // InitOTEL initializes OpenTelemetry SDK
 // to return an Otel tracer.
-func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
-	_, oteltp := InitBOTH(serviceName, exporterType, metricsFactory, logger)
+func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.Tracer {
+	_, oteltp := initBOTH(serviceName, exporterType, metricsFactory, logger)
 	otel.SetTracerProvider(oteltp)
 
 	logger.Bg().Debug("Added OTEL tracer", zap.String("service-name", serviceName))
-	return oteltp
+	return oteltp.Tracer(serviceName)
 }
 
 // InitOP initializes OTel-OpenTracing Bridge
 // to return an OpenTracing-compatible tracer.
-func InitOP(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
-	optracer, _ := InitBOTH(serviceName, exporterType, metricsFactory, logger)
+func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
+	optracer, _ := initBOTH(serviceName, exporterType, metricsFactory, logger)
 
 	logger.Bg().Debug("created OTEL->OT bridge", zap.String("service-name", serviceName))
 	return optracer
@@ -65,7 +65,7 @@ func InitOP(serviceName string, exporterType string, metricsFactory metrics.Fact
 
 // Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
 // to return an OpenTracing-compatible tracer and Otel tracer.
-func InitBOTH(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) (opentracing.Tracer, trace.TracerProvider) {
+func initBOTH(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) (opentracing.Tracer, trace.TracerProvider) {
 	once.Do(func() {
 		otel.SetTextMapPropagator(
 			propagation.NewCompositeTextMapPropagator(
@@ -90,7 +90,7 @@ func InitBOTH(serviceName string, exporterType string, metricsFactory metrics.Fa
 			semconv.ServiceNameKey.String(serviceName),
 		)),
 	)
-	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
+	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(serviceName))
 	return otTracer, tp
 }
 

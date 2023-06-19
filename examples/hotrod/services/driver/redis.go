@@ -35,27 +35,25 @@ import (
 
 // Redis is a simulator of remote Redis cache
 type Redis struct {
-	tracer trace.TracerProvider // simulate redis as a separate process
+	tracer trace.Tracer // simulate redis as a separate process
 	logger log.Factory
 	errorSimulator
 }
 
 func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Redis {
 	return &Redis{
-		tracer: tracing.InitOTEL("redis", otelExporter, metricsFactory, logger),
+		tracer: tracing.InitOTEL("redis-manual", otelExporter, metricsFactory, logger),
 		logger: logger,
 	}
 }
 
 // FindDriverIDs finds IDs of drivers who are near the location.
 func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
-	tracer := r.tracer.Tracer("")
-	if _, span := tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient) /*...set child of option*/); span != nil {
-		span.SetAttributes(attribute.Key("param.location").String(location))
+	_, span := r.tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient))
+	span.SetAttributes(attribute.Key("param.driver.location").String(location))
 
-		defer span.End()
-		ctx = trace.ContextWithSpan(ctx, span)
-	}
+	defer span.End()
+
 	/* if span := opentracing.SpanFromContext(ctx); span != nil {
 		span := r.tracer.StartSpan("FindDriverIDs", opentracing.ChildOf(span.Context()))
 		span.SetTag("param.location", location)
@@ -77,13 +75,11 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 
 // GetDriver returns driver and the current car location
 func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) {
-	tracer := r.tracer.Tracer("")
-	if _, span := tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient) /*...set child of option*/); span != nil {
-		span.SetAttributes(attribute.Key("param.driverID").String(driverID))
+	_, span := r.tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient))
+	span.SetAttributes(attribute.Key("param.driverID").String(driverID))
 
-		defer span.End()
-		ctx = trace.ContextWithSpan(ctx, span)
-	}
+	defer span.End()
+
 	/* if span := opentracing.SpanFromContext(ctx); span != nil {
 		span := r.tracer.StartSpan("GetDriver", opentracing.ChildOf(span.Context()))
 		span.SetTag("param.driverID", driverID)
