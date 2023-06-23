@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -41,6 +42,8 @@ const (
 	flagSuffixHTTPReadTimeout       = "read-timeout"
 	flagSuffixHTTPReadHeaderTimeout = "read-header-timeout"
 	flagSuffixHTTPIdleTimeout       = "idle-timeout"
+	flagSuffixHTTPAllowedHeaders    = "allowed-headers"
+	flagSuffixHTTPAllowedOrigins    = "allowed-origins"
 
 	flagSuffixGRPCMaxReceiveMessageLength = "max-message-size"
 	flagSuffixGRPCMaxConnectionAge        = "max-connection-age"
@@ -153,6 +156,8 @@ type HTTPOptions struct {
 	ReadHeaderTimeout time.Duration
 	// IdleTimeout sets the respective parameter of http.Server
 	IdleTimeout time.Duration
+	// Allowed Origins
+	CORSSettings *confighttp.CORSSettings
 }
 
 // GRPCOptions defines options for a gRPC server
@@ -202,6 +207,8 @@ func addHTTPFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort st
 	flags.Duration(cfg.prefix+"."+flagSuffixHTTPIdleTimeout, 0, "See https://pkg.go.dev/net/http#Server")
 	flags.Duration(cfg.prefix+"."+flagSuffixHTTPReadTimeout, 0, "See https://pkg.go.dev/net/http#Server")
 	flags.Duration(cfg.prefix+"."+flagSuffixHTTPReadHeaderTimeout, 2*time.Second, "See https://pkg.go.dev/net/http#Server")
+	flags.String(cfg.prefix+"."+flagSuffixHTTPAllowedHeaders, "content-type", "Allowed headers for the OTLP HTTP port , default content-type")
+	flags.String(cfg.prefix+"."+flagSuffixHTTPAllowedOrigins, "*", "Allowed origins for the OTLP HTTP port , default accepts all")
 	cfg.tls.AddFlags(flags)
 }
 
@@ -235,6 +242,8 @@ func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 	} else {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
 	}
+	opts.CORSSettings.AllowedHeaders = v.GetStringSlice(cfg.prefix + "." + flagSuffixHTTPAllowedHeaders)
+	opts.CORSSettings.AllowedOrigins = v.GetStringSlice(cfg.prefix + "." + flagSuffixHTTPAllowedOrigins)
 	return nil
 }
 
