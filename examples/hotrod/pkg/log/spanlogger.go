@@ -66,7 +66,6 @@ func (sl otelSpanLogger) With(fields ...zapcore.Field) Logger {
 
 // See: https://github.com/open-telemetry/opentelemetry-go/blob/main/bridge/opentracing/bridge.go#L168
 func (sl otelSpanLogger) logToSpan(level string, msg string, fields ...zapcore.Field) {
-	fmt.Println("DEBUG: otelSpanLogger: Adding event: " + msg)
 	sl.span.AddEvent(
 		msg,
 		trace.WithAttributes(otLogFieldsToOTelAttrs(fields)...),
