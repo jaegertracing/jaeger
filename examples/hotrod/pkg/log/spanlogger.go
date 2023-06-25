@@ -67,9 +67,6 @@ func (sl otelSpanLogger) logToSpan(level string, msg string, fields ...zapcore.F
 		msg,
 		trace.WithAttributes(otLogFieldsToOTelAttrs(fields)...),
 	)
-	// TODO rather than always converting the fields, we could wrap them into a lazy logger
-	// fmt.Println("Add message: " + msg)
-	// sl.span.AddEvent(msg, trace.WithAttributes(attribute.String("level", level)))
 }
 
 func otLogFieldsToOTelAttrs(fields []zapcore.Field) []attribute.KeyValue {
