@@ -16,7 +16,14 @@
 package log
 
 import (
+	"fmt"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"go.opentelemetry.io/otel/codes"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/opentracing/opentracing-go"
 	tag "github.com/opentracing/opentracing-go/ext"
@@ -24,6 +31,235 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+type otelSpanLogger struct {
+	logger     *zap.Logger
+	span       trace.Span
+	spanFields []zapcore.Field
+}
+
+func (sl otelSpanLogger) Debug(msg string, fields ...zapcore.Field) {
+	sl.logToSpan("Debug", msg, fields...)
+	sl.logger.Debug(msg, append(sl.spanFields, fields...)...)
+}
+
+func (sl otelSpanLogger) Info(msg string, fields ...zapcore.Field) {
+	sl.logToSpan("info", msg, fields...)
+	sl.logger.Info(msg, append(sl.spanFields, fields...)...)
+}
+
+func (sl otelSpanLogger) Error(msg string, fields ...zapcore.Field) {
+	sl.logToSpan("error", msg, fields...)
+	sl.logger.Error(msg, append(sl.spanFields, fields...)...)
+}
+
+func (sl otelSpanLogger) Fatal(msg string, fields ...zapcore.Field) {
+	sl.logToSpan("fatal", msg, fields...)
+	sl.span.SetStatus(codes.Error, msg)
+	sl.logger.Fatal(msg, append(sl.spanFields, fields...)...)
+}
+
+// With creates a child logger, and optionally adds some context fields to that logger.
+func (sl otelSpanLogger) With(fields ...zapcore.Field) Logger {
+	return otelSpanLogger{logger: sl.logger.With(fields...), span: sl.span, spanFields: sl.spanFields}
+}
+
+// See: https://github.com/open-telemetry/opentelemetry-go/blob/main/bridge/opentracing/bridge.go#L168
+func (sl otelSpanLogger) logToSpan(level string, msg string, fields ...zapcore.Field) {
+	fmt.Println("DEBUG: otelSpanLogger: Adding event: " + msg)
+	sl.span.AddEvent(
+		msg,
+		trace.WithAttributes(otLogFieldsToOTelAttrs(fields)...),
+	)
+	// TODO rather than always converting the fields, we could wrap them into a lazy logger
+	// fmt.Println("Add message: " + msg)
+	// sl.span.AddEvent(msg, trace.WithAttributes(attribute.String("level", level)))
+}
+
+func otLogFieldsToOTelAttrs(fields []zapcore.Field) []attribute.KeyValue {
+	encoder := &bridgeFieldEncoder{}
+	for _, field := range fields {
+		field.AddTo(encoder)
+	}
+	return encoder.pairs
+}
+
+type bridgeFieldEncoder struct {
+	pairs []attribute.KeyValue
+}
+
+func (e *bridgeFieldEncoder) AddArray(key string, marshaler zapcore.ArrayMarshaler) error {
+	e.pairs = append(e.pairs, attribute.Key(key).String(fmt.Sprint(marshaler)))
+	return nil
+}
+
+func (e *bridgeFieldEncoder) AddObject(key string, marshaler zapcore.ObjectMarshaler) error {
+	// TODO implement me
+	panic("AddObject implement me")
+}
+
+func (e *bridgeFieldEncoder) AddBinary(key string, value []byte) {
+	// TODO implement me
+	panic("AddBinary implement me")
+}
+
+func (e *bridgeFieldEncoder) AddByteString(key string, value []byte) {
+	// TODO implement me
+	panic("AddByteString implement me")
+}
+
+func (e *bridgeFieldEncoder) AddBool(key string, value bool) {
+	// TODO implement me
+	panic("AddBool implement me")
+}
+
+func (e *bridgeFieldEncoder) AddComplex128(key string, value complex128) {
+	// TODO implement me
+	panic("AddComplex128 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddComplex64(key string, value complex64) {
+	// TODO implement me
+	panic("AddComplex64 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddDuration(key string, value time.Duration) {
+	// TODO implement me
+	panic("AddDuration implement me")
+}
+
+func (e *bridgeFieldEncoder) AddFloat64(key string, value float64) {
+	// TODO implement me
+	panic("AddFloat64 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddFloat32(key string, value float32) {
+	// TODO implement me
+	panic("AddFloat32 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddInt(key string, value int) {
+	// TODO implement me
+	panic("AddInt implement me")
+}
+
+func (e *bridgeFieldEncoder) AddInt64(key string, value int64) {
+	e.pairs = append(e.pairs, attribute.Key(key).Int64(value))
+}
+
+func (e *bridgeFieldEncoder) AddInt32(key string, value int32) {
+	// TODO implement me
+	panic("AddInt32 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddInt16(key string, value int16) {
+	// TODO implement me
+	panic("AddInt16 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddInt8(key string, value int8) {
+	// TODO implement me
+	panic("AddInt8 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddString(key, value string) {
+	e.pairs = append(e.pairs, attribute.Key(key).String(value))
+}
+
+func (e *bridgeFieldEncoder) AddTime(key string, value time.Time) {
+	// TODO implement me
+	panic("AddTime implement me")
+}
+
+func (e *bridgeFieldEncoder) AddUint(key string, value uint) {
+	// TODO implement me
+	panic("AddUint implement me")
+}
+
+func (e *bridgeFieldEncoder) AddUint64(key string, value uint64) {
+	// TODO implement me
+	panic("AddUint64 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddUint32(key string, value uint32) {
+	// TODO implement me
+	panic("AddUint32 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddUint16(key string, value uint16) {
+	// TODO implement me
+	panic("AddUint16 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddUint8(key string, value uint8) {
+	// TODO implement me
+	panic("AddUint8 implement me")
+}
+
+func (e *bridgeFieldEncoder) AddUintptr(key string, value uintptr) {
+	// TODO implement me
+	panic("AddUintptr implement me")
+}
+
+func (e *bridgeFieldEncoder) AddReflected(key string, value interface{}) error {
+	// TODO implement me
+	panic("AddReflected implement me")
+}
+
+func (e *bridgeFieldEncoder) OpenNamespace(key string) {
+	// TODO implement me
+	panic("OpenNamespace implement me")
+}
+
+// otTagToOTelAttr converts given key-value into attribute.KeyValue.
+// Note that some conversions are not obvious:
+// - int -> int64
+// - uint -> string
+// - int32 -> int64
+// - uint32 -> int64
+// - uint64 -> string
+// - float32 -> float64
+func otTagToOTelAttr(k string, v interface{}) attribute.KeyValue {
+	key := otTagToOTelAttrKey(k)
+	switch val := v.(type) {
+	case bool:
+		return key.Bool(val)
+	case int64:
+		return key.Int64(val)
+	case uint64:
+		return key.String(fmt.Sprintf("%d", val))
+	case float64:
+		return key.Float64(val)
+	case int8:
+		return key.Int64(int64(val))
+	case uint8:
+		return key.Int64(int64(val))
+	case int16:
+		return key.Int64(int64(val))
+	case uint16:
+		return key.Int64(int64(val))
+	case int32:
+		return key.Int64(int64(val))
+	case uint32:
+		return key.Int64(int64(val))
+	case float32:
+		return key.Float64(float64(val))
+	case int:
+		return key.Int(val)
+	case uint:
+		return key.String(fmt.Sprintf("%d", val))
+	case string:
+		return key.String(val)
+	default:
+		return key.String(fmt.Sprint(v))
+	}
+}
+
+func otTagToOTelAttrKey(k string) attribute.Key {
+	return attribute.Key(k)
+}
+
+// Open Tracing
 
 type spanLogger struct {
 	logger     *zap.Logger

@@ -17,6 +17,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 
 	ot "github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel/trace"
@@ -45,17 +46,28 @@ func (b Factory) Bg() Logger {
 // echo-ed into the span.
 func (b Factory) For(ctx context.Context) Logger {
 	if otSpan := ot.SpanFromContext(ctx); otSpan != nil {
+		fmt.Println("DEBUG: found OT span")
 		logger := spanLogger{span: otSpan, logger: b.logger}
 
 		if otelSpan := trace.SpanFromContext(ctx); otelSpan != nil {
+			fmt.Println("DEBUG: found OTEL span")
 			logger.spanFields = []zapcore.Field{
 				zap.String("trace_id", otelSpan.SpanContext().TraceID().String()),
 				zap.String("span_id", otelSpan.SpanContext().SpanID().String()),
 			}
 		}
-
 		return logger
 	}
+	if otelSpan := trace.SpanFromContext(ctx); otelSpan != nil {
+		fmt.Println("DEBUG: found OTEL span SECOND go")
+		logger := otelSpanLogger{span: otelSpan, logger: b.logger}
+		logger.spanFields = []zapcore.Field{
+			zap.String("trace_id", otelSpan.SpanContext().TraceID().String()),
+			zap.String("span_id", otelSpan.SpanContext().SpanID().String()),
+		}
+		return logger
+	}
+	fmt.Println("DEBUG: span NOT FOUND")
 	return b.Bg()
 }
 
