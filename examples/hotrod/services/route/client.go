@@ -20,8 +20,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -30,19 +29,26 @@ import (
 
 // Client is a remote client that implements route.Interface
 type Client struct {
-	tracer   opentracing.Tracer
 	logger   log.Factory
 	client   *tracing.HTTPClient
 	hostPort string
 }
 
+// Transport wraps a RoundTripper. If a request is being traced with
+// Tracer, Transport will inject the current span into the headers,
+// and set HTTP related tags on the span.
+type Transport struct {
+	// The actual RoundTripper to use for the request. A nil
+	// RoundTripper defaults to http.DefaultTransport.
+	http.RoundTripper
+}
+
 // NewClient creates a new route.Client
-func NewClient(tracer opentracing.Tracer, logger log.Factory, hostPort string) *Client {
+func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string) *Client {
 	return &Client{
-		tracer: tracer,
 		logger: logger,
 		client: &tracing.HTTPClient{
-			Client: &http.Client{Transport: &nethttp.Transport{}},
+			Client: &http.Client{Transport: Transport{}},
 			Tracer: tracer,
 		},
 		hostPort: hostPort,

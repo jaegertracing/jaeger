@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -47,7 +48,7 @@ type Response struct {
 	ETA    time.Duration
 }
 
-func newBestETA(tracer opentracing.Tracer, logger log.Factory, options ConfigOptions) *bestETA {
+func newBestETA(tracer trace.TracerProvider, logger log.Factory, options ConfigOptions) *bestETA {
 	return &bestETA{
 		customer: customer.NewClient(
 			tracer,

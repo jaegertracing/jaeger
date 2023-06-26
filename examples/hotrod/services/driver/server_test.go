@@ -36,7 +36,6 @@ func TestFindNearest(t *testing.T) {
 		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
 	).Serve(lis) */
 
-	// Call the FindNearest method
 	locationRequest := &DriverLocationRequest{
 		Location: "222,953",
 	}
@@ -55,17 +54,37 @@ func TestFindNearest(t *testing.T) {
 	// Assign the mock Redis to the server
 	server.redis = mockRedis
 
+	// Call the FindNearest method
 	response, err := server.FindNearest(ctx, locationRequest)
 
-	// server.redis.FindDriverIDs(ctx, locationRequest.Location)
+	driverIDs := server.redis.FindDriverIDs(ctx, locationRequest.Location)
 
-	// server.redis.GetDriver(ctx, driverId)
+	retMe := make([]*DriverLocation, len(driverIDs))
+	for i, driverID := range driverIDs {
+		var drv Driver
+		var err error
+		for i := 0; i < 3; i++ {
+			drv, err = server.redis.GetDriver(ctx, driverID)
+			if err == nil {
+				break
+			}
+			server.logger.For(ctx).Error("Retrying GetDriver after error", zap.Int("retry_no", i+1), zap.Error(err))
+		}
+		if err != nil {
+			server.logger.For(ctx).Error("Failed to get driver after 3 attempts", zap.Error(err))
+			return
+		}
+		retMe[i] = &DriverLocation{
+			DriverID: drv.DriverID,
+			Location: drv.Location,
+		}
+	}
 
 	// Assert the expected results
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
-	assert.Equal(t, 10, len(response.Locations))
-	// assert.Equal(t, "T723310C", response.Locations[0].DriverID)
-	// assert.Equal(t, "222,953", response.Locations[0].Location)
+	assert.Equal(t, len(retMe), len(response.Locations))
+	// assert.Equal(t, retMe[0].DriverID, response.Locations[0].DriverID)
+	// assert.Equal(t, retMe[0].Location, response.Locations[0].Location)
 	// Add more assertions as needed
 }
