@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -34,22 +35,13 @@ type Client struct {
 	hostPort string
 }
 
-// Transport wraps a RoundTripper. If a request is being traced with
-// Tracer, Transport will inject the current span into the headers,
-// and set HTTP related tags on the span.
-type Transport struct {
-	// The actual RoundTripper to use for the request. A nil
-	// RoundTripper defaults to http.DefaultTransport.
-	http.RoundTripper
-}
-
 // NewClient creates a new route.Client
 func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string) *Client {
 	return &Client{
 		logger: logger,
 		client: &tracing.HTTPClient{
-			Client: &http.Client{Transport: Transport{}},
-			Tracer: tracer,
+			Client:         &http.Client{Transport: &otelhttp.Transport{}},
+			TracerProvider: tracer,
 		},
 		hostPort: hostPort,
 	}
@@ -64,7 +56,7 @@ func (c *Client) FindRoute(ctx context.Context, pickup, dropoff string) (*Route,
 	v.Set("dropoff", dropoff)
 	url := "http://" + c.hostPort + "/route?" + v.Encode()
 	var route Route
-	if err := c.client.GetJSON(ctx, "/route", url, &route); err != nil {
+	if err := c.client.GetJson(ctx, url, &route); err != nil {
 		c.logger.For(ctx).Error("Error getting route", zap.Error(err))
 		return nil, err
 	}

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -31,6 +32,7 @@ import (
 // Server implements Customer service
 type Server struct {
 	hostPort string
+	mux      http.ServeMux
 	tracer   trace.TracerProvider
 	logger   log.Factory
 	database *database
@@ -53,13 +55,13 @@ func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Fact
 func (s *Server) Run() error {
 	mux := s.createServeMux()
 	s.logger.Bg().Info("Starting", zap.String("address", "http://"+s.hostPort))
-	return http.ListenAndServe(s.hostPort, mux)
+	return http.ListenAndServe(s.hostPort, otelhttp.NewHandler(mux, "/customer",
+		otelhttp.WithTracerProvider(s.tracer)))
 }
 
 func (s *Server) createServeMux() http.Handler {
-	mux := tracing.NewServeMux(false, s.tracer, s.logger)
-	mux.Handle("/customer", http.HandlerFunc(s.customer))
-	return mux
+	s.mux.Handle("/customer", otelhttp.WithRouteTag("/customer", http.HandlerFunc(s.customer)))
+	return &s.mux
 }
 
 func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
