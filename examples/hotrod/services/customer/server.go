@@ -45,7 +45,7 @@ func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Fact
 		tracer:   tracing.InitOTEL("customer", otelExporter, metricsFactory, logger),
 		logger:   logger,
 		database: newDatabase(
-			tracing.Init("mysql", otelExporter, metricsFactory, logger),
+			tracing.InitOTEL("mysql", otelExporter, metricsFactory, logger).Tracer("mysql"),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}

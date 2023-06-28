@@ -65,7 +65,7 @@ func (c *HTTPClient) GetJSON(ctx context.Context, endpoint string, url string, o
 	return decoder.Decode(out)
 }
 
-// GetJSON executes HTTP GET against specified url and tried to parse
+// GetJson executes HTTP GET against specified url and tried to parse
 // the response into out object.
 func (c *HTTPClient) GetJson(ctx context.Context, url string, out interface{}) error {
 	resp, err := otelhttp.Get(ctx, url)
