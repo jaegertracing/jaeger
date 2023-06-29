@@ -101,7 +101,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
 			`For example: `+
 			`"calls" (not normalized) -> "calls_total" (normalized), `+
-			`"duration_bucket" (not normalized) -> "duration_bucket_milliseconds (normalized)"`)
+			`"duration_bucket" (not normalized) -> "duration_milliseconds_bucket (normalized)"`)
 
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
