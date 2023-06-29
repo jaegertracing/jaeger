@@ -178,7 +178,7 @@ func TestGetLatencies(t *testing.T) {
 				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name,le))`,
 		},
 		{
-			name:             "override the default latency metric name",
+			name:             "enable support for spanmetrics connector with normalized metric name",
 			serviceNames:     []string{"emailservice"},
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
@@ -193,7 +193,26 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_seconds_bucket{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with normalized metric name",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.NormalizeDuration = true
+				cfg.LatencyUnit = "s"
+				return cfg
+			},
+			wantName:        "service_operation_latencies",
+			wantDescription: "0.95th quantile latency, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_seconds_bucket{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
 		},
 	} {
@@ -228,7 +247,7 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
 		},
 		{
@@ -242,7 +261,7 @@ func TestGetCallRates(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
 		},
 		{
@@ -255,11 +274,11 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "frontend|emailservice", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "frontend|emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name)`,
 		},
 		{
-			name:             "override the default call rate metric name",
+			name:             "enable support for spanmetrics connector with a namespace",
 			serviceNames:     []string{"emailservice"},
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
@@ -273,7 +292,25 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(span_metrics_calls_total{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with normalized metric name",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.NormalizeCalls = true
+				return cfg
+			},
+			wantName:        "service_operation_call_rate",
+			wantDescription: "calls/sec, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
@@ -307,9 +344,9 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
-				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
 		},
 		{
 			name:             "group by service and operation should be reflected in name/description and query group-by",
@@ -322,9 +359,9 @@ func TestGetErrorRates(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation) / ` +
-				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -336,12 +373,32 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "frontend|emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "frontend|emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name) / ` +
-				`sum(rate(calls_total{service_name =~ "frontend|emailservice", span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name)`,
+				`sum(rate(calls{service_name =~ "frontend|emailservice", span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name)`,
 		},
 		{
-			name:             "override the default error rate metric name",
+			name:             "neither metric namespace nor enabling normalized metric names have an impact when spanmetrics connector is not supported",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: false,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = false
+				cfg.MetricNamespace = "span_metrics"
+				cfg.NormalizeCalls = true
+				return cfg
+			},
+			wantName:        "service_error_rate",
+			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with a metric namespace",
 			serviceNames:     []string{"emailservice"},
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
@@ -355,9 +412,28 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(span_metrics_calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
-				`sum(rate(span_metrics_calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
+				`sum(rate(span_metrics_calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with normalized metric name",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.NormalizeCalls = true
+				return cfg
+			},
+			wantName:        "service_operation_error_rate",
+			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -384,7 +460,11 @@ func TestInvalidLatencyUnit(t *testing.T) {
 			t.Errorf("Expected a panic due to invalid latency unit")
 		}
 	}()
-	cfg := config.Configuration{SupportSpanmetricsConnector: true, LatencyUnit: "something invalid"}
+	cfg := config.Configuration{
+		SupportSpanmetricsConnector: true,
+		NormalizeDuration:           true,
+		LatencyUnit:                 "something invalid",
+	}
 	_, _ = NewMetricsReader(zap.NewNop(), cfg)
 }
 
