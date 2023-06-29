@@ -26,22 +26,24 @@ const (
 	defaultAuthentication = none
 
 	// Kerberos configuration options
-	kerberosPrefix            = ".kerberos"
-	suffixKerberosServiceName = ".service-name"
-	suffixKerberosRealm       = ".realm"
-	suffixKerberosUseKeyTab   = ".use-keytab"
-	suffixKerberosUsername    = ".username"
-	suffixKerberosPassword    = ".password"
-	suffixKerberosConfig      = ".config-file"
-	suffixKerberosKeyTab      = ".keytab-file"
+	kerberosPrefix                = ".kerberos"
+	suffixKerberosServiceName     = ".service-name"
+	suffixKerberosRealm           = ".realm"
+	suffixKerberosUseKeyTab       = ".use-keytab"
+	suffixKerberosUsername        = ".username"
+	suffixKerberosPassword        = ".password"
+	suffixKerberosConfig          = ".config-file"
+	suffixKerberosKeyTab          = ".keytab-file"
+	suffixKerberosDisablePAFXFAST = ".disable-fast-negotiation"
 
-	defaultKerberosConfig      = "/etc/krb5.conf"
-	defaultKerberosUseKeyTab   = false
-	defaultKerberosServiceName = "kafka"
-	defaultKerberosRealm       = ""
-	defaultKerberosPassword    = ""
-	defaultKerberosUsername    = ""
-	defaultKerberosKeyTab      = "/etc/security/kafka.keytab"
+	defaultKerberosConfig          = "/etc/krb5.conf"
+	defaultKerberosUseKeyTab       = false
+	defaultKerberosServiceName     = "kafka"
+	defaultKerberosRealm           = ""
+	defaultKerberosPassword        = ""
+	defaultKerberosUsername        = ""
+	defaultKerberosKeyTab          = "/etc/security/kafka.keytab"
+	defaultKerberosDisablePAFXFast = false
 
 	plainTextPrefix          = ".plaintext"
 	suffixPlainTextUsername  = ".username"
@@ -82,6 +84,10 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 		configPrefix+kerberosPrefix+suffixKerberosKeyTab,
 		defaultKerberosKeyTab,
 		"Path to keytab file. i.e /etc/security/kafka.keytab")
+	flagSet.Bool(
+		configPrefix+kerberosPrefix+suffixKerberosDisablePAFXFAST,
+		defaultKerberosDisablePAFXFast,
+		"Disable FAST negotiation when not supported by KDC's like Active Directory. See https://github.com/jcmturner/gokrb5/blob/master/USAGE.md#active-directory-kdc-and-fast-negotiation.")
 }
 
 func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {

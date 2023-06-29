@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
@@ -33,6 +34,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -42,9 +44,24 @@ import (
 
 var once sync.Once
 
-// Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-// to return an OpenTracing-compatible tracer.
+// InitOTEL initializes OpenTelemetry SDK.
+func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.Tracer {
+	_, oteltp := initBOTH(serviceName, exporterType, metricsFactory, logger)
+
+	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
+	return oteltp.Tracer(serviceName)
+}
+
+// Init returns OTel-OpenTracing Bridge.
 func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
+	otTracer, _ := initBOTH(serviceName, exporterType, metricsFactory, logger)
+
+	logger.Bg().Debug("Created OTEL->OT bridge", zap.String("service-name", serviceName))
+	return otTracer
+}
+
+// initBOTH initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
+func initBOTH(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) (opentracing.Tracer, trace.TracerProvider) {
 	once.Do(func() {
 		otel.SetTextMapPropagator(
 			propagation.NewCompositeTextMapPropagator(
@@ -62,16 +79,15 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
+		sdktrace.WithBatcher(exp, sdktrace.WithBatchTimeout(1000*time.Millisecond)),
 		sdktrace.WithSpanProcessor(rpcmetricsObserver),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
 			semconv.ServiceNameKey.String(serviceName),
 		)),
 	)
-	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
-	logger.Bg().Debug("created OTEL->OT bridge", zap.String("service-name", serviceName))
-	return otTracer
+	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(serviceName))
+	return otTracer, tp
 }
 
 // withSecure instructs the client to use HTTPS scheme, instead of hotrod's desired default HTTP

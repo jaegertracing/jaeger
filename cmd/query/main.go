@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics/jlibadapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -96,6 +97,7 @@ func main() {
 			}
 			defer closer.Close()
 			opentracing.SetGlobalTracer(tracer)
+			jtracer := jtracer.OT(tracer)
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
@@ -126,7 +128,7 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, tracer)
+			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, jtracer)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
