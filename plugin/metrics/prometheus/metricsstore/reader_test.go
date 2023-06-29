@@ -203,7 +203,7 @@ func TestGetLatencies(t *testing.T) {
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
 				cfg.SupportSpanmetricsConnector = true
-				cfg.NormalizeMetricNames = true
+				cfg.NormalizeDuration = true
 				cfg.LatencyUnit = "s"
 				return cfg
 			},
@@ -302,7 +302,7 @@ func TestGetCallRates(t *testing.T) {
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
 				cfg.SupportSpanmetricsConnector = true
-				cfg.NormalizeMetricNames = true
+				cfg.NormalizeCalls = true
 				return cfg
 			},
 			wantName:        "service_operation_call_rate",
@@ -385,7 +385,7 @@ func TestGetErrorRates(t *testing.T) {
 			updateConfig: func(cfg config.Configuration) config.Configuration {
 				cfg.SupportSpanmetricsConnector = false
 				cfg.MetricNamespace = "span_metrics"
-				cfg.NormalizeMetricNames = true
+				cfg.NormalizeCalls = true
 				return cfg
 			},
 			wantName:        "service_error_rate",
@@ -423,7 +423,7 @@ func TestGetErrorRates(t *testing.T) {
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
 				cfg.SupportSpanmetricsConnector = true
-				cfg.NormalizeMetricNames = true
+				cfg.NormalizeCalls = true
 				return cfg
 			},
 			wantName:        "service_operation_error_rate",
@@ -462,7 +462,7 @@ func TestInvalidLatencyUnit(t *testing.T) {
 	}()
 	cfg := config.Configuration{
 		SupportSpanmetricsConnector: true,
-		NormalizeMetricNames:        true,
+		NormalizeDuration:           true,
 		LatencyUnit:                 "something invalid",
 	}
 	_, _ = NewMetricsReader(zap.NewNop(), cfg)

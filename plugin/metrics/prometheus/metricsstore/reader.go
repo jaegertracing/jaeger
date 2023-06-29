@@ -141,7 +141,7 @@ func buildFullLatencyMetricName(cfg config.Configuration) string {
 		metricName = cfg.MetricNamespace + "_" + metricName
 	}
 
-	if !cfg.NormalizeMetricNames {
+	if !cfg.NormalizeDuration {
 		return metricName
 	}
 
@@ -186,7 +186,7 @@ func buildFullCallsMetricName(cfg config.Configuration) string {
 		metricName = cfg.MetricNamespace + "_" + metricName
 	}
 
-	if !cfg.NormalizeMetricNames {
+	if !cfg.NormalizeCalls {
 		return metricName
 	}
 
