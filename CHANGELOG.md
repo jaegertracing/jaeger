@@ -7,6 +7,12 @@ next release (yyyy-mm-dd)
 
 #### ⛔ Breaking Changes
 
+* [SPM] Due to a breaking change in OpenTelemetry's prometheus exporter ([details](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.80.0))
+  metric names will no longer be normalized by default, meaning that the expected metric names would be `calls` and
+  `duration_*`. Backwards compatibility with older OpenTelemetry Collector versions can be achieved through the following flags:
+  * `prometheus.query.normalize-calls`: Whether to normali
+
+
 #### New Features
 
 #### Bug fixes, Minor Improvements

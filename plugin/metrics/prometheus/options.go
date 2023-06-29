@@ -100,7 +100,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#configurations). `+
 			`This also helps jaeger-query determine the metric name when querying for "latency" metrics.`)
 	flagSet.Bool(nsConfig.namespace+suffixNormalizeCalls, defaultNormalizeCalls,
-		`Whether to normalize the "calls"" metric name according to `+
+		`Whether to normalize the "calls" metric name according to `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
 			`For example: `+
 			`"calls" (not normalized) -> "calls_total" (normalized), `)
