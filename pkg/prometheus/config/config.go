@@ -30,4 +30,5 @@ type Configuration struct {
 	SupportSpanmetricsConnector bool
 	MetricNamespace             string
 	LatencyUnit                 string
+	NormalizeMetricNames        bool
 }

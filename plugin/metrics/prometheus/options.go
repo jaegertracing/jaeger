@@ -34,6 +34,7 @@ const (
 	suffixSupportSpanmetricsConnector = ".query.support-spanmetrics-connector"
 	suffixMetricNamespace             = ".query.namespace"
 	suffixLatencyUnit                 = ".query.duration-unit"
+	suffixNormalizeMetricNames        = ".query.normalize-metric-names"
 
 	defaultServerURL      = "http://localhost:9090"
 	defaultConnectTimeout = 30 * time.Second
@@ -42,6 +43,7 @@ const (
 	defaultSupportSpanmetricsConnector = false
 	defaultMetricNamespace             = ""
 	defaultLatencyUnit                 = "ms"
+	defaultNormalizeMetricNames        = false
 )
 
 type namespaceConfig struct {
@@ -63,6 +65,7 @@ func NewOptions(primaryNamespace string) *Options {
 		SupportSpanmetricsConnector: false,
 		MetricNamespace:             defaultMetricNamespace,
 		LatencyUnit:                 defaultLatencyUnit,
+		NormalizeMetricNames:        defaultNormalizeMetricNames,
 	}
 
 	return &Options{
@@ -93,6 +96,12 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 			`histogram unit value set in the spanmetrics connector (see: `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#configurations). `+
 			`This also helps jaeger-query determine the metric name when querying for "latency" metrics.`)
+	flagSet.Bool(nsConfig.namespace+suffixNormalizeMetricNames, defaultNormalizeMetricNames,
+		`Whether to normalize the metric names according to `+
+			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
+			`For example: `+
+			`"calls" (not normalized) -> "calls_total" (normalized), `+
+			`"duration_bucket" (not normalized) -> "duration_bucket_milliseconds (normalized)"`)
 
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
@@ -107,6 +116,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg.SupportSpanmetricsConnector = v.GetBool(cfg.namespace + suffixSupportSpanmetricsConnector)
 	cfg.MetricNamespace = v.GetString(cfg.namespace + suffixMetricNamespace)
 	cfg.LatencyUnit = v.GetString(cfg.namespace + suffixLatencyUnit)
+	cfg.NormalizeMetricNames = v.GetBool(cfg.namespace + suffixNormalizeMetricNames)
 
 	isValidUnit := map[string]bool{"ms": true, "s": true}
 	if _, ok := isValidUnit[cfg.LatencyUnit]; !ok {
