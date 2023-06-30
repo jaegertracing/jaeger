@@ -18,56 +18,21 @@ package tracing
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // HTTPClient wraps an http.Client with tracing instrumentation.
 type HTTPClient struct {
-	Tracer         opentracing.Tracer
 	TracerProvider trace.TracerProvider
 	Client         *http.Client
 }
 
 // GetJSON executes HTTP GET against specified url and tried to parse
 // the response into out object.
-func (c *HTTPClient) GetJSON(ctx context.Context, endpoint string, url string, out interface{}) error {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	req = req.WithContext(ctx)
-	req, ht := nethttp.TraceRequest(c.Tracer, req, nethttp.OperationName("HTTP GET: "+endpoint))
-	defer ht.Finish()
-
-	res, err := c.Client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer res.Body.Close()
-
-	if res.StatusCode >= 400 {
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			return err
-		}
-		return errors.New(string(body))
-	}
-
-	decoder := json.NewDecoder(res.Body)
-	return decoder.Decode(out)
-}
-
-// GetJson executes HTTP GET against specified url and tried to parse
-// the response into out object.
-func (c *HTTPClient) GetJson(ctx context.Context, url string, out interface{}) error {
+func (c *HTTPClient) GetJSON(ctx context.Context, url string, out interface{}) error {
 	resp, err := otelhttp.Get(ctx, url)
 	if err != nil {
 		return err

@@ -53,7 +53,7 @@ func (c *Client) Get(ctx context.Context, customerID string) (*Customer, error) 
 
 	url := fmt.Sprintf("http://"+c.hostPort+"/customer?customer=%s", customerID)
 	var customer Customer
-	if err := c.client.GetJson(ctx, url, &customer); err != nil {
+	if err := c.client.GetJSON(ctx, url, &customer); err != nil {
 		return nil, err
 	}
 	return &customer, nil
