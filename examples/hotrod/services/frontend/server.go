@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/jaegertracing/jaeger/pkg/httpfs"
 )
 
@@ -36,7 +37,6 @@ var assetFS embed.FS
 // Server implements jaeger-demo-frontend service
 type Server struct {
 	hostPort string
-	mux      http.ServeMux
 	tracer   trace.TracerProvider
 	logger   log.Factory
 	bestETA  *bestETA
@@ -73,17 +73,16 @@ func NewServer(options ConfigOptions, tracer trace.TracerProvider, logger log.Fa
 func (s *Server) Run() error {
 	mux := s.createServeMux()
 	s.logger.Bg().Info("Starting", zap.String("address", "http://"+path.Join(s.hostPort, s.basepath)))
-	return http.ListenAndServe(s.hostPort, otelhttp.NewHandler(mux, s.basepath,
-		otelhttp.WithTracerProvider(s.tracer)))
+	return http.ListenAndServe(s.hostPort, mux)
 }
 
 func (s *Server) createServeMux() http.Handler {
-	// mux := tracing.NewServeMux(true, s.tracer, s.logger)
+	mux := tracing.NewServeMux(true, s.tracer, s.logger)
 	p := path.Join("/", s.basepath)
-	s.mux.Handle(p, otelhttp.WithRouteTag(p, http.StripPrefix(p, http.FileServer(s.assetFS))))
-	s.mux.Handle(path.Join(p, "/dispatch"), otelhttp.WithRouteTag(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch)))
-	s.mux.Handle(path.Join(p, "/config"), otelhttp.WithRouteTag(path.Join(p, "/config"), http.HandlerFunc(s.config)))
-	return &s.mux
+	mux.Handle(p, otelhttp.WithRouteTag(p, http.StripPrefix(p, http.FileServer(s.assetFS))))
+	mux.Handle(path.Join(p, "/dispatch"), otelhttp.WithRouteTag(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch)))
+	mux.Handle(path.Join(p, "/config"), otelhttp.WithRouteTag(path.Join(p, "/config"), http.HandlerFunc(s.config)))
+	return mux
 }
 
 func (s *Server) config(w http.ResponseWriter, r *http.Request) {
