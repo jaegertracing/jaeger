@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"path"
 
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -79,9 +78,9 @@ func (s *Server) Run() error {
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(true, s.tracer, s.logger)
 	p := path.Join("/", s.basepath)
-	mux.Handle(p, otelhttp.WithRouteTag(p, http.StripPrefix(p, http.FileServer(s.assetFS))))
-	mux.Handle(path.Join(p, "/dispatch"), otelhttp.WithRouteTag(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch)))
-	mux.Handle(path.Join(p, "/config"), otelhttp.WithRouteTag(path.Join(p, "/config"), http.HandlerFunc(s.config)))
+	mux.Handle(p, http.StripPrefix(p, http.FileServer(s.assetFS)))
+	mux.Handle(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch))
+	mux.Handle(path.Join(p, "/config"), http.HandlerFunc(s.config))
 	return mux
 }
 

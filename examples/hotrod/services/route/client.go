@@ -17,10 +17,8 @@ package route
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -31,18 +29,15 @@ import (
 // Client is a remote client that implements route.Interface
 type Client struct {
 	logger   log.Factory
-	client   *tracing.HTTPClient
+	client   tracing.HTTPClient
 	hostPort string
 }
 
 // NewClient creates a new route.Client
 func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string) *Client {
 	return &Client{
-		logger: logger,
-		client: &tracing.HTTPClient{
-			Client:         &http.Client{Transport: &otelhttp.Transport{}},
-			TracerProvider: tracer,
-		},
+		logger:   logger,
+		client:   tracing.NewHTTPClient(tracer),
 		hostPort: hostPort,
 	}
 }

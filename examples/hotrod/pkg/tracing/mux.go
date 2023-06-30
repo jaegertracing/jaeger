@@ -48,7 +48,7 @@ type TracedServeMux struct {
 func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	tm.logger.Bg().Debug("registering traced handler", zap.String("endpoint", pattern))
 
-	middleware := otelhttp.NewHandler(tm.mux, pattern,
+	middleware := otelhttp.NewHandler(handler, pattern,
 		otelhttp.WithTracerProvider(tm.tracer))
 	tm.mux.Handle(pattern, otelBaggageExtractor(middleware))
 }
@@ -58,7 +58,7 @@ func (tm *TracedServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tm.mux.ServeHTTP(w, r)
 }
 
-// Used with nethttp.MWSpanObserver above.
+// Used with otelhttp.NewHandler above.
 func otelBaggageExtractor(next http.Handler) http.Handler {
 	propagator := propagation.Baggage{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

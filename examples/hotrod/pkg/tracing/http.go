@@ -30,6 +30,13 @@ type HTTPClient struct {
 	Client         *http.Client
 }
 
+func NewHTTPClient(tp trace.TracerProvider) HTTPClient {
+	return HTTPClient{
+		TracerProvider: tp,
+		Client:         &http.Client{Transport: &otelhttp.Transport{}},
+	}
+}
+
 // GetJSON executes HTTP GET against specified url and tried to parse
 // the response into out object.
 func (c *HTTPClient) GetJSON(ctx context.Context, url string, out interface{}) error {

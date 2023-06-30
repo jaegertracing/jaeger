@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -44,7 +43,7 @@ func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Fact
 		tracer:   tracing.InitOTEL("customer", otelExporter, metricsFactory, logger),
 		logger:   logger,
 		database: newDatabase(
-			tracing.InitOTEL("mysql", otelExporter, metricsFactory, logger).Tracer("mysql"),
+			tracing.Init("mysql", otelExporter, metricsFactory, logger),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}
@@ -59,7 +58,7 @@ func (s *Server) Run() error {
 
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(false, s.tracer, s.logger)
-	mux.Handle("/customer", otelhttp.WithRouteTag("/customer", http.HandlerFunc(s.customer)))
+	mux.Handle("/customer", http.HandlerFunc(s.customer))
 	return mux
 }
 
