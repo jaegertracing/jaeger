@@ -33,22 +33,22 @@ type spanLogger struct {
 }
 
 func (sl spanLogger) Debug(msg string, fields ...zapcore.Field) {
-	sl.logToSpan(msg, fields...)
+	sl.logToSpan("debug", msg, fields...)
 	sl.logger.Debug(msg, append(sl.spanFields, fields...)...)
 }
 
 func (sl spanLogger) Info(msg string, fields ...zapcore.Field) {
-	sl.logToSpan(msg, fields...)
+	sl.logToSpan("info", msg, fields...)
 	sl.logger.Info(msg, append(sl.spanFields, fields...)...)
 }
 
 func (sl spanLogger) Error(msg string, fields ...zapcore.Field) {
-	sl.logToSpan(msg, fields...)
+	sl.logToSpan("error", msg, fields...)
 	sl.logger.Error(msg, append(sl.spanFields, fields...)...)
 }
 
 func (sl spanLogger) Fatal(msg string, fields ...zapcore.Field) {
-	sl.logToSpan(msg, fields...)
+	sl.logToSpan("fatal", msg, fields...)
 	sl.span.SetStatus(codes.Error, msg)
 	sl.logger.Fatal(msg, append(sl.spanFields, fields...)...)
 }
@@ -58,7 +58,8 @@ func (sl spanLogger) With(fields ...zapcore.Field) Logger {
 	return spanLogger{logger: sl.logger.With(fields...), span: sl.span, spanFields: sl.spanFields}
 }
 
-func (sl spanLogger) logToSpan(msg string, fields ...zapcore.Field) {
+func (sl spanLogger) logToSpan(level, msg string, fields ...zapcore.Field) {
+	fields = append(fields, zap.String("level", level))
 	sl.span.AddEvent(
 		msg,
 		trace.WithAttributes(logFieldsToOTelAttrs(fields)...),
