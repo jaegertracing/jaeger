@@ -58,7 +58,6 @@ func (sl spanLogger) With(fields ...zapcore.Field) Logger {
 	return spanLogger{logger: sl.logger.With(fields...), span: sl.span, spanFields: sl.spanFields}
 }
 
-// See: https://github.com/open-telemetry/opentelemetry-go/blob/main/bridge/opentracing/bridge.go#L168
 func (sl spanLogger) logToSpan(msg string, fields ...zapcore.Field) {
 	sl.span.AddEvent(
 		msg,
@@ -183,6 +182,8 @@ func (e *bridgeFieldEncoder) OpenNamespace(key string)                         {
 // - uint32 -> int64
 // - uint64 -> string
 // - float32 -> float64
+//
+// See: https://github.com/open-telemetry/opentelemetry-go/blob/main/bridge/opentracing/bridge.go#L538
 func otTagToOTelAttr(k string, v interface{}) attribute.KeyValue {
 	key := attribute.Key(k)
 	switch val := v.(type) {
