@@ -45,11 +45,11 @@ import (
 var once sync.Once
 
 // InitOTEL initializes OpenTelemetry SDK.
-func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
+func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.Tracer {
 	_, oteltp := initBOTH(serviceName, exporterType, metricsFactory, logger)
 
 	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
-	return oteltp
+	return oteltp.Tracer(serviceName)
 }
 
 // Init returns OTel-OpenTracing Bridge.
