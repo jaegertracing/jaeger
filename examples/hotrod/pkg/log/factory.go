@@ -44,7 +44,7 @@ func (b Factory) Bg() Logger {
 // echo-ed into the span.
 func (b Factory) For(ctx context.Context) Logger {
 	if otelSpan := trace.SpanFromContext(ctx); otelSpan != nil {
-		logger := otelSpanLogger{span: otelSpan, logger: b.logger}
+		logger := spanLogger{span: otelSpan, logger: b.logger}
 		logger.spanFields = []zapcore.Field{
 			zap.String("trace_id", otelSpan.SpanContext().TraceID().String()),
 			zap.String("span_id", otelSpan.SpanContext().SpanID().String()),
