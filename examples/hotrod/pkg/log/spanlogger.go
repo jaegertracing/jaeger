@@ -61,11 +61,11 @@ func (sl spanLogger) With(fields ...zapcore.Field) Logger {
 func (sl spanLogger) logToSpan(msg string, fields ...zapcore.Field) {
 	sl.span.AddEvent(
 		msg,
-		trace.WithAttributes(otLogFieldsToOTelAttrs(fields)...),
+		trace.WithAttributes(logFieldsToOTelAttrs(fields)...),
 	)
 }
 
-func otLogFieldsToOTelAttrs(fields []zapcore.Field) []attribute.KeyValue {
+func logFieldsToOTelAttrs(fields []zapcore.Field) []attribute.KeyValue {
 	encoder := &bridgeFieldEncoder{}
 	for _, field := range fields {
 		field.AddTo(encoder)
@@ -78,144 +78,98 @@ type bridgeFieldEncoder struct {
 }
 
 func (e *bridgeFieldEncoder) AddArray(key string, marshaler zapcore.ArrayMarshaler) error {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, marshaler))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(marshaler)))
 	return nil
 }
 
 func (e *bridgeFieldEncoder) AddObject(key string, marshaler zapcore.ObjectMarshaler) error {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, marshaler))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(marshaler)))
 	return nil
 }
 
 func (e *bridgeFieldEncoder) AddBinary(key string, value []byte) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
 func (e *bridgeFieldEncoder) AddByteString(key string, value []byte) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
 func (e *bridgeFieldEncoder) AddBool(key string, value bool) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Bool(key, value))
 }
 
 func (e *bridgeFieldEncoder) AddComplex128(key string, value complex128) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
 func (e *bridgeFieldEncoder) AddComplex64(key string, value complex64) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
 func (e *bridgeFieldEncoder) AddDuration(key string, value time.Duration) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
 func (e *bridgeFieldEncoder) AddFloat64(key string, value float64) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Float64(key, value))
 }
 
 func (e *bridgeFieldEncoder) AddFloat32(key string, value float32) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Float64(key, float64(value)))
 }
 
 func (e *bridgeFieldEncoder) AddInt(key string, value int) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int(key, value))
 }
 
 func (e *bridgeFieldEncoder) AddInt64(key string, value int64) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int64(key, value))
 }
 
 func (e *bridgeFieldEncoder) AddInt32(key string, value int32) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int64(key, int64(value)))
 }
 
 func (e *bridgeFieldEncoder) AddInt16(key string, value int16) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int64(key, int64(value)))
 }
 
 func (e *bridgeFieldEncoder) AddInt8(key string, value int8) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int64(key, int64(value)))
 }
 
 func (e *bridgeFieldEncoder) AddString(key, value string) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, value))
 }
 
 func (e *bridgeFieldEncoder) AddTime(key string, value time.Time) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
 func (e *bridgeFieldEncoder) AddUint(key string, value uint) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprintf("%d", value)))
 }
 
 func (e *bridgeFieldEncoder) AddUint64(key string, value uint64) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprintf("%d", value)))
 }
 
 func (e *bridgeFieldEncoder) AddUint32(key string, value uint32) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int64(key, int64(value)))
 }
 
 func (e *bridgeFieldEncoder) AddUint16(key string, value uint16) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int64(key, int64(value)))
 }
 
 func (e *bridgeFieldEncoder) AddUint8(key string, value uint8) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.Int64(key, int64(value)))
 }
 
 func (e *bridgeFieldEncoder) AddUintptr(key string, value uintptr) {
-	e.pairs = append(e.pairs, otTagToOTelAttr(key, value))
+	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
 func (e *bridgeFieldEncoder) AddReflected(key string, value interface{}) error { return nil }
 func (e *bridgeFieldEncoder) OpenNamespace(key string)                         {}
-
-// otTagToOTelAttr converts given key-value into attribute.KeyValue.
-// Note that some conversions are not obvious:
-// - int -> int64
-// - uint -> string
-// - int32 -> int64
-// - uint32 -> int64
-// - uint64 -> string
-// - float32 -> float64
-//
-// See: https://github.com/open-telemetry/opentelemetry-go/blob/main/bridge/opentracing/bridge.go#L538
-func otTagToOTelAttr(k string, v interface{}) attribute.KeyValue {
-	key := attribute.Key(k)
-	switch val := v.(type) {
-	case bool:
-		return key.Bool(val)
-	case int64:
-		return key.Int64(val)
-	case uint64:
-		return key.String(fmt.Sprintf("%d", val))
-	case float64:
-		return key.Float64(val)
-	case int8:
-		return key.Int64(int64(val))
-	case uint8:
-		return key.Int64(int64(val))
-	case int16:
-		return key.Int64(int64(val))
-	case uint16:
-		return key.Int64(int64(val))
-	case int32:
-		return key.Int64(int64(val))
-	case uint32:
-		return key.Int64(int64(val))
-	case float32:
-		return key.Float64(float64(val))
-	case int:
-		return key.Int(val)
-	case uint:
-		return key.String(fmt.Sprintf("%d", val))
-	case string:
-		return key.String(val)
-	default:
-		return key.String(fmt.Sprint(v))
-	}
-}
