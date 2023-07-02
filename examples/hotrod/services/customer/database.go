@@ -20,7 +20,7 @@ import (
 	"errors"
 
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -76,7 +76,7 @@ func (d *database) Get(ctx context.Context, customerID string) (*Customer, error
 	// simulate opentracing instrumentation of an SQL query
 	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
 	// #nosec
-	span.SetAttributes(semconv.RPCSystemKey.String("mysql"), attribute.Key("sql.query").String("SELECT * FROM customer WHERE customer_id=" + customerID))
+	span.SetAttributes(semconv.PeerServiceKey.String("mysql"), attribute.Key("sql.query").String("SELECT * FROM customer WHERE customer_id=" + customerID))
 	defer span.End()
 
 	if !config.MySQLMutexDisabled {
