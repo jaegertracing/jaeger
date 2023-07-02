@@ -19,8 +19,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/opentracing/opentracing-go"
-	tags "github.com/opentracing/opentracing-go/ext"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
@@ -31,13 +31,13 @@ import (
 
 // database simulates Customer repository implemented on top of an SQL database
 type database struct {
-	tracer    opentracing.Tracer
+	tracer    trace.Tracer
 	logger    log.Factory
 	customers map[string]*Customer
 	lock      *tracing.Mutex
 }
 
-func newDatabase(tracer opentracing.Tracer, logger log.Factory) *database {
+func newDatabase(tracer trace.Tracer, logger log.Factory) *database {
 	return &database{
 		tracer: tracer,
 		logger: logger,
@@ -73,15 +73,10 @@ func (d *database) Get(ctx context.Context, customerID string) (*Customer, error
 	d.logger.For(ctx).Info("Loading customer", zap.String("customer_id", customerID))
 
 	// simulate opentracing instrumentation of an SQL query
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := d.tracer.StartSpan("SQL SELECT", opentracing.ChildOf(span.Context()))
-		tags.SpanKindRPCClient.Set(span)
-		tags.PeerService.Set(span, "mysql")
-		// #nosec
-		span.SetTag("sql.query", "SELECT * FROM customer WHERE customer_id="+customerID)
-		defer span.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span)
-	}
+	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
+	// #nosec
+	span.SetAttributes(attribute.Key("sql.query").String("SELECT * FROM customer WHERE customer_id=" + customerID))
+	defer span.End()
 
 	if !config.MySQLMutexDisabled {
 		// simulate misconfigured connection pool that only gives one connection at a time
