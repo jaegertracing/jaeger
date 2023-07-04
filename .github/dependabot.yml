@@ -5,6 +5,21 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    # Groups are updated together in one pull request
+    groups:
+      otel:
+        patterns:
+          - "go.opentelemetry.io/otel*"
+      otel-collector:
+        patterns:
+          - "go.opentelemetry.io/collector*"
+          - "github.com/open-telemetry/opentelemetry-collector-contrib/*"
+      go-openapi:
+        patterns:
+          - "github.com/go-openapi/*"
+      hashicorp:
+        patterns:
+          - "github.com/hashicorp/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
