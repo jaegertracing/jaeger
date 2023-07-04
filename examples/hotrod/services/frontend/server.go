@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"path"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -110,6 +112,15 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return
+	}
+
+	ctx = r.Context()
+	span := trace.SpanFromContext(ctx)
+	bag := baggage.FromContext(ctx)
+	for _, m := range bag.Members() {
+		if span.SpanContext().HasSpanID() {
+			span.AddEvent("Handling Dispatch", trace.WithAttributes(attribute.Key(m.Key()).String(m.Value())))
+		}
 	}
 
 	s.writeResponse(response, w, r)
