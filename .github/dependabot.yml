@@ -13,7 +13,7 @@ updates:
       otel-collector:
         patterns:
           - "go.opentelemetry.io/collector*"
-          - "github.com/open-telemetry/opentelemetry-collector-contrib/*"
+          - "github.com/open-telemetry/o*-collector-contrib/*"
       go-openapi:
         patterns:
           - "github.com/go-openapi/*"
