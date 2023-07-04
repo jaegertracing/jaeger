@@ -141,6 +141,10 @@ func buildFullLatencyMetricName(cfg config.Configuration) string {
 		metricName = cfg.MetricNamespace + "_" + metricName
 	}
 
+	if !cfg.NormalizeDuration {
+		return metricName
+	}
+
 	// The long names are automatically appended to the metric name by OTEL's prometheus exporters and are defined in:
 	//   https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/translator/prometheus#metric-name
 	shortToLongName := map[string]string{"ms": "milliseconds", "s": "seconds"}
@@ -160,7 +164,7 @@ func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricss
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s_total{service_name =~ "%s", %s}[%s])) by (%s)`,
+				`sum(rate(%s{service_name =~ "%s", %s}[%s])) by (%s)`,
 				m.callsMetricName,
 				p.serviceFilter,
 				p.spanKindFilter,
@@ -181,7 +185,12 @@ func buildFullCallsMetricName(cfg config.Configuration) string {
 	if cfg.MetricNamespace != "" {
 		metricName = cfg.MetricNamespace + "_" + metricName
 	}
-	return metricName
+
+	if !cfg.NormalizeCalls {
+		return metricName
+	}
+
+	return metricName + "_total"
 }
 
 // GetErrorRates gets the error rate metrics for the given set of error rate query parameters.
@@ -193,7 +202,7 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s_total{service_name =~ "%s", status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s_total{service_name =~ "%s", %s}[%s])) by (%s)`,
+				`sum(rate(%s{service_name =~ "%s", status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ "%s", %s}[%s])) by (%s)`,
 				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
 				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
 			)
