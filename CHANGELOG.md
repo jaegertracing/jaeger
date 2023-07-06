@@ -1,6 +1,18 @@
 Changes by Version
 ==================
 
+next release (yyyy-mm-dd)
+-------------------
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+### UI Changes
+
 1.47.0 (2023-07-05)
 -------------------
 ### Backend Changes
