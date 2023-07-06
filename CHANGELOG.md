@@ -28,10 +28,10 @@ next release (yyyy-mm-dd)
 #### New Features
 * [Cassandra] Add Configuration.Close() to ensure TLS cert watcher is closed ([@kennyaz](https://github.com/kennyaz) in [#4515](https://github.com/jaegertracing/jaeger/pull/4515))
 * Add *.kerberos.disable-fast-negotiation option to Kafka consumer ([@pmuls99](https://github.com/pmuls99) in [#4520](https://github.com/jaegertracing/jaeger/pull/4520))
+* Support Prometheus normalization for specific metrics related to OpenTelemetry compatibility ([@albertteoh](https://github.com/albertteoh) in [#4555](https://github.com/jaegertracing/jaeger/pull/4555))
 
 #### Bug fixes, Minor Improvements
 
-* Support normalized metric names ([@albertteoh](https://github.com/albertteoh) in [#4555](https://github.com/jaegertracing/jaeger/pull/4555))
 * Add readme for memstore plugin ([@yurishkuro](https://github.com/yurishkuro) in [283bdd9](https://github.com/jaegertracing/jaeger/commit/283bdd93cbb4a467842625d8eb320722fcb83494))
 * Pass a wrapper instead of `opentracing.Tracer` to ease migration to OTEL in the future [part 1] ([@afzalbin64](https://github.com/afzalbin64) in [#4529](https://github.com/jaegertracing/jaeger/pull/4529))
 * [hotROD] Add OTEL instrumentation to customer svc ([@afzal442](https://github.com/afzal442) in [#4559](https://github.com/jaegertracing/jaeger/pull/4559))
