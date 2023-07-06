@@ -451,8 +451,8 @@ github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+o
 github.com/klauspost/compress v1.12.3/go.mod h1:8dP1Hq4DHOhN9w426knH3Rhby4rFm6D8eO+e+Dq5Gzg=
 github.com/klauspost/compress v1.13.6/go.mod h1:/3/Vjq9QcHkK5uEr5lBEmyoZ1iFhe47etQ6QUkpK6sk=
 github.com/klauspost/compress v1.15.0/go.mod h1:/3/Vjq9QcHkK5uEr5lBEmyoZ1iFhe47etQ6QUkpK6sk=
-github.com/klauspost/compress v1.16.6 h1:91SKEy4K37vkp255cJ8QesJhjyRO0hn9i9G0GoUwLsk=
-github.com/klauspost/compress v1.16.6/go.mod h1:ntbaceVETuRiXiv4DpjP66DpAtAGkEQskQzEyD//IeE=
+github.com/klauspost/compress v1.16.7 h1:2mk3MPGNzKyxErAw8YaohYh69+pa4sIQSC0fPGCFR9I=
+github.com/klauspost/compress v1.16.7/go.mod h1:ntbaceVETuRiXiv4DpjP66DpAtAGkEQskQzEyD//IeE=
 github.com/knadh/koanf v1.5.0 h1:q2TSd/3Pyc/5yP9ldIrSdIz26MCcyNQzW0pEAugLPNs=
 github.com/knadh/koanf v1.5.0/go.mod h1:Hgyjp4y8v44hpZtPzs7JZfRAW5AhN7KfZcwv1RYggDs=
 github.com/knadh/koanf/v2 v2.0.1 h1:1dYGITt1I23x8cfx8ZnldtezdyaZtfAuRtIFOiRzK7g=
@@ -554,10 +554,10 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/onsi/gomega v1.13.0 h1:7lLHu94wT9Ij0o6EWWclhu0aOh32VxhkwEJvzuWPeak=
 github.com/onsi/gomega v1.13.0/go.mod h1:lRk9szgn8TxENtWd0Tp4c3wjlRfMTMH27I+3Je41yGY=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.80.0 h1:oJTxSiEJggI5YcmK+SsPQWgml0EMGEzK8K7RWwPC39Q=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.80.0/go.mod h1:GezufcOBscYo2wdN7Thfw/ejsAWFAPHYYbpAqzNZIdQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.80.0 h1:EyVO3NMIv29jJPEuhpiH5pAZPQHdRW9MROakyo/unCk=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.80.0/go.mod h1:a5oxpN7VQb2qGD8lzjcl12dswOUTSLouMOW5gqgvF5I=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.81.0 h1:sPjCHuqjn5UYDJOai4FulMCfLP+7AbspjHfv0jAtmD0=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.81.0/go.mod h1:moQ6krtZ8dyziij2P+9eao5+gBfCJjiNDwN7n2MZZs4=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.81.0 h1:UCF4zWe24m1+yQeYGEQjzq5c9yNAf4d1lknbR7PAoH4=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.81.0/go.mod h1:/HK52N8ufi1rKuShEanBZVLVpOygLoIT9zqs0azKQ/s=
 github.com/opentracing-contrib/go-grpc v0.0.0-20230205024533-5ced129e5996 h1:cNKquGUykT1G88PgdGC8yEB7eU3H3GyuySp/jfJS49w=
 github.com/opentracing-contrib/go-grpc v0.0.0-20230205024533-5ced129e5996/go.mod h1:DYR5Eij8rJl8h7gblRrOZ8g0kW1umSpKqYIBTgeDtLo=
 github.com/opentracing-contrib/go-stdlib v1.0.0 h1:TBS7YuVotp8myLon4Pv7BtCBzOTo1DeZCld0Z63mW2w=
@@ -842,8 +842,8 @@ golang.org/x/exp v0.0.0-20191129062945-2f5052295587/go.mod h1:2RIsYlXP63K8oxa1u0
 golang.org/x/exp v0.0.0-20191227195350-da58074b4299/go.mod h1:2RIsYlXP63K8oxa1u096TMicItID8zy7Y6sNkU49FU4=
 golang.org/x/exp v0.0.0-20200119233911-0405dc783f0a/go.mod h1:2RIsYlXP63K8oxa1u096TMicItID8zy7Y6sNkU49FU4=
 golang.org/x/exp v0.0.0-20200207192155-f17229e696bd/go.mod h1:J/WKrq2StrnmMY6+EHIKF9dgMWnmCNThgcyBT1FY9mM=
-golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 h1:QE6XYQK6naiK1EPAe1g/ILLxN5RBoH5xkJk3CqlMI/Y=
 golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6/go.mod h1:3jZMyOhIsHpP37uCMkUooju7aAi5cS1Q23tOzKc+0MU=
+golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea h1:vLCWI/yYrdEHyN2JzIzPO3aaQJHQdp89IZBA/+azVC4=
 golang.org/x/image v0.0.0-20180708004352-c73c2afc3b81/go.mod h1:ux5Hcp/YLpHSI86hEcLt0YII63i6oz57MZXIpbrjZUs=
 golang.org/x/image v0.0.0-20190227222117-0694c2d4d067/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
 golang.org/x/image v0.0.0-20190802002840-cff245a6509b/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
