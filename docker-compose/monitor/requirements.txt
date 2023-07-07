@@ -3,7 +3,7 @@ certifi==2022.12.7
 charset-normalizer==2.1.1
 Deprecated==1.2.13
 googleapis-common-protos==1.56.2
-grpcio==1.50.0
+grpcio==1.53.0
 idna==3.4
 opentelemetry-api==1.13.0
 opentelemetry-exporter-otlp==1.13.0
