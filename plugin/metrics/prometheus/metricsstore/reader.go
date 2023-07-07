@@ -26,14 +26,16 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/opentracing/opentracing-go"
-	ottag "github.com/opentracing/opentracing-go/ext"
-	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	"go.opentelemetry.io/otel/trace"
+
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -225,7 +227,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	promQuery := m.buildPromQuery(p)
 
 	span, ctx := startSpanForQuery(ctx, p.metricName, promQuery)
-	defer span.Finish()
+	defer span.End()
 
 	queryRange := promapi.Range{
 		Start: p.EndTime.Add(-1 * *p.Lookback),
@@ -287,17 +289,20 @@ func promqlDurationString(d *time.Duration) string {
 	return string(b)
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string) (opentracing.Span, context.Context) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, metricName)
-	ottag.DBStatement.Set(span, query)
-	ottag.DBType.Set(span, "prometheus")
-	ottag.Component.Set(span, "promql")
+func startSpanForQuery(ctx context.Context, metricName, query string) (trace.Span, context.Context) {
+	tp, _ := jtracer.NewOTELProvider()
+	ctx, span := tp.Tracer("").Start(ctx, metricName)
+	span.SetAttributes(
+		attribute.Key(semconv.DBStatementKey).String(query),
+		attribute.Key("db.type").String("prometheus"),
+		attribute.Key("component").String("promql"),
+	)
 	return span, ctx
 }
 
-func logErrorToSpan(span opentracing.Span, err error) {
-	ottag.Error.Set(span, true)
-	span.LogFields(otlog.Error(err))
+func logErrorToSpan(span trace.Span, err error) {
+	// span.SetStatus(codes.Error, semconv.OTelStatusCodeError.Value.AsString())
+	span.AddEvent(err.Error(), trace.WithAttributes(semconv.OTelStatusCodeError))
 }
 
 func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.RoundTripper, err error) {
