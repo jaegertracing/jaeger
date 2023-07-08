@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
+	"go.opentelemetry.io/otel/trace"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -97,7 +98,7 @@ func main() {
 			}
 			defer closer.Close()
 			opentracing.SetGlobalTracer(tracer)
-			jtracer := jtracer.OT(tracer)
+			jtracer := jtracer.New(tracer, trace.NewNoopTracerProvider())
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))

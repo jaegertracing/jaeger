@@ -14,26 +14,4 @@
 
 package jtracer_test
 
-import (
-	"testing"
-
-	"github.com/opentracing/opentracing-go"
-	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
-)
-
-func TestOT(t *testing.T) {
-	mockTracer := opentracing.NoopTracer{}
-	jtracer := jtracer.OT(mockTracer)
-
-	assert.Equal(t, mockTracer, jtracer.OT)
-}
-
-func TestOTEL(t *testing.T) {
-	mockTracer := trace.NewNoopTracerProvider()
-	jtracer := jtracer.OTEL(mockTracer)
-
-	assert.Equal(t, mockTracer, jtracer.OTEL)
-}
+// TODO

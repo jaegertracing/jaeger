@@ -31,7 +31,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
-
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
@@ -226,7 +225,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	}
 	promQuery := m.buildPromQuery(p)
 
-	span, ctx := startSpanForQuery(ctx, p.metricName, promQuery)
+	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery)
 	defer span.End()
 
 	queryRange := promapi.Range{
@@ -289,15 +288,15 @@ func promqlDurationString(d *time.Duration) string {
 	return string(b)
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string) (trace.Span, context.Context) {
-	tp, _ := jtracer.NewOTELProvider()
-	ctx, span := tp.Tracer("").Start(ctx, metricName)
+func startSpanForQuery(ctx context.Context, metricName, query string) (context.Context, trace.Span) {
+	tp := jtracer.GetTracerProvider()
+	ctx, span := tp.Tracer("prom-metrics-reader").Start(ctx, metricName)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),
 		attribute.Key("db.type").String("prometheus"),
 		attribute.Key("component").String("promql"),
 	)
-	return span, ctx
+	return ctx, span
 }
 
 func logErrorToSpan(span trace.Span, err error) {
