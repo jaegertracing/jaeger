@@ -55,6 +55,7 @@ type (
 		latencyMetricName string
 		callsMetricName   string
 		operationLabel    string
+		tracer            jtracer.JTracer
 	}
 
 	promQueryParams struct {
@@ -102,6 +103,7 @@ func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsRea
 		callsMetricName:   buildFullCallsMetricName(cfg),
 		latencyMetricName: buildFullLatencyMetricName(cfg),
 		operationLabel:    operationLabel,
+		tracer:            jtracer.New(),
 	}
 
 	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
@@ -225,8 +227,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	}
 	promQuery := m.buildPromQuery(p)
 
-	tp := jtracer.New().OTEL
-	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, tp)
+	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, m.tracer.OTEL)
 	defer span.End()
 
 	queryRange := promapi.Range{
