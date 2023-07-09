@@ -36,7 +36,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-client-go"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -306,7 +305,7 @@ func TestGetTrace(t *testing.T) {
 		t.Run(testCase.suffix, func(t *testing.T) {
 			reporter := jaeger.NewInMemoryReporter()
 			jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
-			jTracer := jtracer.New(jaegerTracer, trace.NewNoopTracerProvider())
+			jTracer := jtracer.JTracer{OT: jaegerTracer}
 			defer jaegerCloser.Close()
 
 			ts := initializeTestServer(HandlerOptions.Tracer(jTracer))

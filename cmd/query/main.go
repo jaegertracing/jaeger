@@ -20,12 +20,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
-	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
-	"go.opentelemetry.io/otel/trace"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -35,7 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/status"
-	"github.com/jaegertracing/jaeger/internal/metrics/jlibadapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
@@ -77,28 +72,14 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
 
-			traceCfg := &jaegerClientConfig.Configuration{
-				ServiceName: "jaeger-query",
-				Sampler: &jaegerClientConfig.SamplerConfig{
-					Type:  "const",
-					Param: 1.0,
-				},
-				RPCMetrics: true,
-			}
-			traceCfg, err = traceCfg.FromEnv()
 			if err != nil {
 				logger.Fatal("Failed to read tracer configuration", zap.Error(err))
 			}
-			tracer, closer, err := traceCfg.NewTracer(
-				jaegerClientConfig.Metrics(jlibadapter.NewAdapter(svc.MetricsFactory)),
-				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
-			)
 			if err != nil {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
-			defer closer.Close()
-			opentracing.SetGlobalTracer(tracer)
-			jtracer := jtracer.New(tracer, trace.NewNoopTracerProvider())
+
+			jtracer := jtracer.New()
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))

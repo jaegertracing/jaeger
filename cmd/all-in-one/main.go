@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
-	"go.opentelemetry.io/otel/trace"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -275,8 +274,8 @@ func startQuery(
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	jtracer := jtracer.New(opentracing.GlobalTracer(), trace.NewNoopTracerProvider())
-	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, jtracer)
+	tracer := jtracer.New()
+	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, tracer)
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}

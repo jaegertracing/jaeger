@@ -289,7 +289,7 @@ func promqlDurationString(d *time.Duration) string {
 }
 
 func startSpanForQuery(ctx context.Context, metricName, query string) (context.Context, trace.Span) {
-	tp := jtracer.GetTracerProvider()
+	tp := jtracer.New().OTEL
 	ctx, span := tp.Tracer("prom-metrics-reader").Start(ctx, metricName)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),

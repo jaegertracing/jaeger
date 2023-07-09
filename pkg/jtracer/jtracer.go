@@ -17,9 +17,11 @@ package jtracer
 import (
 	"context"
 	"log"
+	"sync"
 
 	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
+	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -34,17 +36,32 @@ type JTracer struct {
 	OTEL trace.TracerProvider
 }
 
-var globalTracerProvider trace.TracerProvider
+var once sync.Once
 
-func New(t opentracing.Tracer, tp trace.TracerProvider) JTracer {
-	return JTracer{OT: t, OTEL: tp}
+func New() JTracer {
+	return JTracer{OT: initOT(), OTEL: initOTEL()}
 }
 
 func NoOp() JTracer {
 	return JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
 }
 
-func init() {
+// InitOTEL initializes OpenTelemetry SDK.
+func initOTEL() trace.TracerProvider {
+	_, oteltp := initBoth()
+
+	return oteltp
+}
+
+// Init returns OTel-OpenTracing Bridge.
+func initOT() opentracing.Tracer {
+	otTracer, _ := initBoth()
+
+	return otTracer
+}
+
+// initBOTH initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
+func initBoth() (opentracing.Tracer, trace.TracerProvider) {
 	opts := []otlptracehttp.Option{otlptracehttp.WithInsecure()}
 	traceExporter, err := otlptrace.New(
 		context.Background(),
@@ -57,7 +74,7 @@ func init() {
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
 	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
-	globalTracerProvider = sdktrace.NewTracerProvider(
+	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
@@ -65,14 +82,15 @@ func init() {
 		)),
 	)
 
-	otel.SetTracerProvider(globalTracerProvider)
-	otel.SetTextMapPropagator(
-		propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{},
-			propagation.Baggage{},
-		))
-}
+	once.Do(func() {
+		otel.SetTextMapPropagator(
+			propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+			))
+	})
 
-func GetTracerProvider() trace.TracerProvider {
-	return globalTracerProvider
+	otTracer, _ := otbridge.NewTracerPair(tracerProvider.Tracer(""))
+
+	return otTracer, tracerProvider
 }
