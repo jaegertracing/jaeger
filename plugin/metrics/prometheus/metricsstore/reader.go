@@ -225,7 +225,8 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	}
 	promQuery := m.buildPromQuery(p)
 
-	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery)
+	tp := jtracer.New().OTEL
+	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, tp)
 	defer span.End()
 
 	queryRange := promapi.Range{
@@ -288,8 +289,7 @@ func promqlDurationString(d *time.Duration) string {
 	return string(b)
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string) (context.Context, trace.Span) {
-	tp := jtracer.New().OTEL
+func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.TracerProvider) (context.Context, trace.Span) {
 	ctx, span := tp.Tracer("prom-metrics-reader").Start(ctx, metricName)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),
@@ -300,7 +300,6 @@ func startSpanForQuery(ctx context.Context, metricName, query string) (context.C
 }
 
 func logErrorToSpan(span trace.Span, err error) {
-	// span.SetStatus(codes.Error, semconv.OTelStatusCodeError.Value.AsString())
 	span.AddEvent(err.Error(), trace.WithAttributes(semconv.OTelStatusCodeError))
 }
 

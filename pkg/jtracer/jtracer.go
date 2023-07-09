@@ -39,28 +39,15 @@ type JTracer struct {
 var once sync.Once
 
 func New() JTracer {
-	return JTracer{OT: initOT(), OTEL: initOTEL()}
+	opentracingTracer, otelTracerProvider := initBoth()
+	return JTracer{OT: opentracingTracer, OTEL: otelTracerProvider}
 }
 
 func NoOp() JTracer {
 	return JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
 }
 
-// InitOTEL initializes OpenTelemetry SDK.
-func initOTEL() trace.TracerProvider {
-	_, oteltp := initBoth()
-
-	return oteltp
-}
-
-// Init returns OTel-OpenTracing Bridge.
-func initOT() opentracing.Tracer {
-	otTracer, _ := initBoth()
-
-	return otTracer
-}
-
-// initBOTH initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
+// initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
 func initBoth() (opentracing.Tracer, trace.TracerProvider) {
 	opts := []otlptracehttp.Option{otlptracehttp.WithInsecure()}
 	traceExporter, err := otlptrace.New(
@@ -90,7 +77,14 @@ func initBoth() (opentracing.Tracer, trace.TracerProvider) {
 			))
 	})
 
-	otTracer, _ := otbridge.NewTracerPair(tracerProvider.Tracer(""))
+	// Use the bridgeTracer as your OpenTracing tracer(otTrace).
+	otTracer, wrapperTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
 
-	return otTracer, tracerProvider
+	// Shutdown the tracerProvider to clean up resources
+	err = tracerProvider.Shutdown(context.Background())
+	if err != nil {
+		log.Fatal("failed to shutdown tracerProvider: ", err)
+	}
+
+	return otTracer, wrapperTracerProvider
 }

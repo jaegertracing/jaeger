@@ -274,7 +274,7 @@ func startQuery(
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	tracer := jtracer.New()
+	tracer := jtracer.JTracer{OT: opentracing.GlobalTracer()}
 	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, tracer)
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
