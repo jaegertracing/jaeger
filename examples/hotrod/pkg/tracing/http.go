@@ -18,6 +18,8 @@ package tracing
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -40,11 +42,27 @@ func NewHTTPClient(tp trace.TracerProvider) *HTTPClient {
 // GetJSON executes HTTP GET against specified url and tried to parse
 // the response into out object.
 func (c *HTTPClient) GetJSON(ctx context.Context, url string, out interface{}) error {
-	resp, err := otelhttp.Get(ctx, url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req = req.WithContext(ctx)
+
+	res, err := c.Client.Do(req)
 	if err != nil {
 		return err
 	}
 
-	decoder := json.NewDecoder(resp.Body)
+	defer res.Body.Close()
+
+	if res.StatusCode >= 400 {
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		return errors.New(string(body))
+	}
+
+	decoder := json.NewDecoder(res.Body)
 	return decoder.Decode(out)
 }
