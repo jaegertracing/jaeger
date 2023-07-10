@@ -46,7 +46,6 @@ func (c *HTTPClient) GetJSON(ctx context.Context, url string, out interface{}) e
 	if err != nil {
 		return err
 	}
-	req = req.WithContext(ctx)
 
 	res, err := c.Client.Do(req)
 	if err != nil {
