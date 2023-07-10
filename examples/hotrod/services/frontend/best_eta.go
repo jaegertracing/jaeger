@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -79,9 +78,7 @@ func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, erro
 	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", customer))
 
 	span := trace.SpanFromContext(ctx)
-	bag := baggage.FromContext(ctx)
-	m := bag.Member(customer.Name)
-	span.SetAttributes(attribute.Key(m.Key()).String(m.Value()))
+	span.SetAttributes(attribute.String("customer", customer.Name))
 
 	drivers, err := eta.driver.FindNearest(ctx, customer.Location)
 	if err != nil {
