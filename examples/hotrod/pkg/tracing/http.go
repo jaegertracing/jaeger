@@ -35,13 +35,18 @@ type HTTPClient struct {
 func NewHTTPClient(tp trace.TracerProvider) *HTTPClient {
 	return &HTTPClient{
 		TracerProvider: tp,
-		Client:         &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport, otelhttp.WithTracerProvider(tp))},
+		Client: &http.Client{
+			Transport: otelhttp.NewTransport(
+				http.DefaultTransport,
+				otelhttp.WithTracerProvider(tp),
+			),
+		},
 	}
 }
 
 // GetJSON executes HTTP GET against specified url and tried to parse
 // the response into out object.
-func (c *HTTPClient) GetJSON(ctx context.Context, url string, out interface{}) error {
+func (c *HTTPClient) GetJSON(ctx context.Context, endpoint string, url string, out interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err

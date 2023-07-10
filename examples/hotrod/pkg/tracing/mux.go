@@ -47,10 +47,11 @@ type TracedServeMux struct {
 func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	tm.logger.Bg().Debug("registering traced handler", zap.String("endpoint", pattern))
 
-	handler = otelhttp.WithRouteTag(pattern, handler)
-
-	middleware := otelhttp.NewHandler(handler, pattern,
+	middleware := otelhttp.NewHandler(
+		otelhttp.WithRouteTag(pattern, handler),
+		pattern,
 		otelhttp.WithTracerProvider(tm.tracer))
+
 	tm.mux.Handle(pattern, middleware)
 }
 
