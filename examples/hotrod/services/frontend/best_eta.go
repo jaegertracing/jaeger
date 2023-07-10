@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -76,9 +75,6 @@ func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, erro
 		return nil, err
 	}
 	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", customer))
-
-	span := trace.SpanFromContext(ctx)
-	span.AddEvent("customer", trace.WithAttributes(attribute.Key(customer.Name).String(customer.Location)))
 
 	drivers, err := eta.driver.FindNearest(ctx, customer.Location)
 	if err != nil {

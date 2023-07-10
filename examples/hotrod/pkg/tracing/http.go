@@ -30,10 +30,10 @@ type HTTPClient struct {
 	Client         *http.Client
 }
 
-func NewHTTPClient(tp trace.TracerProvider) HTTPClient {
-	return HTTPClient{
+func NewHTTPClient(tp trace.TracerProvider) *HTTPClient {
+	return &HTTPClient{
 		TracerProvider: tp,
-		Client:         &http.Client{Transport: &otelhttp.Transport{}},
+		Client:         &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport, otelhttp.WithTracerProvider(tp))},
 	}
 }
 

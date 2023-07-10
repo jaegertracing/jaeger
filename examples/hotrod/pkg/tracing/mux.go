@@ -26,24 +26,28 @@ import (
 )
 
 // NewServeMux creates a new TracedServeMux.
-func NewServeMux(tracer trace.TracerProvider, logger log.Factory) *TracedServeMux {
+func NewServeMux(copyBaggage bool, tracer trace.TracerProvider, logger log.Factory) *TracedServeMux {
 	return &TracedServeMux{
-		mux:    http.NewServeMux(),
-		tracer: tracer,
-		logger: logger,
+		mux:         http.NewServeMux(),
+		copyBaggage: copyBaggage,
+		tracer:      tracer,
+		logger:      logger,
 	}
 }
 
 // TracedServeMux is a wrapper around http.ServeMux that instruments handlers for tracing.
 type TracedServeMux struct {
-	mux    *http.ServeMux
-	tracer trace.TracerProvider
-	logger log.Factory
+	mux         *http.ServeMux
+	copyBaggage bool
+	tracer      trace.TracerProvider
+	logger      log.Factory
 }
 
 // Handle implements http.ServeMux#Handle, which is used to register new handler.
 func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	tm.logger.Bg().Debug("registering traced handler", zap.String("endpoint", pattern))
+
+	otelhttp.WithRouteTag(pattern, handler)
 
 	middleware := otelhttp.NewHandler(handler, pattern,
 		otelhttp.WithTracerProvider(tm.tracer))

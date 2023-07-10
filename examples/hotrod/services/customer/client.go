@@ -29,7 +29,7 @@ import (
 // Client is a remote client that implements customer.Interface
 type Client struct {
 	logger   log.Factory
-	client   tracing.HTTPClient
+	client   *tracing.HTTPClient
 	hostPort string
 }
 
