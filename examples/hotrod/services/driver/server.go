@@ -19,8 +19,7 @@ import (
 	"context"
 	"net"
 
-	otgrpc "github.com/opentracing-contrib/go-grpc"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -32,7 +31,6 @@ import (
 // Server implements jaeger-demo-frontend service
 type Server struct {
 	hostPort string
-	tracer   opentracing.Tracer
 	logger   log.Factory
 	redis    *Redis
 	server   *grpc.Server
@@ -42,14 +40,13 @@ var _ DriverServiceServer = (*Server)(nil)
 
 // NewServer creates a new driver.Server
 func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
-	tracer := tracing.Init("driver", otelExporter, metricsFactory, logger)
+	tracerProvider := tracing.InitOTEL("driver", otelExporter, metricsFactory, logger)
 	server := grpc.NewServer(
-		grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
-		grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
+		grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
 	)
 	return &Server{
 		hostPort: hostPort,
-		tracer:   tracer,
 		logger:   logger,
 		server:   server,
 		redis:    newRedis(otelExporter, metricsFactory, logger),

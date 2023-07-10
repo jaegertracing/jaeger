@@ -18,7 +18,6 @@ package log
 import (
 	"context"
 
-	ot "github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -44,16 +43,12 @@ func (b Factory) Bg() Logger {
 // contains an OpenTracing span, all logging calls are also
 // echo-ed into the span.
 func (b Factory) For(ctx context.Context) Logger {
-	if otSpan := ot.SpanFromContext(ctx); otSpan != nil {
-		logger := spanLogger{span: otSpan, logger: b.logger}
-
-		if otelSpan := trace.SpanFromContext(ctx); otelSpan != nil {
-			logger.spanFields = []zapcore.Field{
-				zap.String("trace_id", otelSpan.SpanContext().TraceID().String()),
-				zap.String("span_id", otelSpan.SpanContext().SpanID().String()),
-			}
+	if otelSpan := trace.SpanFromContext(ctx); otelSpan != nil {
+		logger := spanLogger{span: otelSpan, logger: b.logger}
+		logger.spanFields = []zapcore.Field{
+			zap.String("trace_id", otelSpan.SpanContext().TraceID().String()),
+			zap.String("span_id", otelSpan.SpanContext().SpanID().String()),
 		}
-
 		return logger
 	}
 	return b.Bg()

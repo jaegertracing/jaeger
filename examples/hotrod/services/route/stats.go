@@ -20,28 +20,30 @@ import (
 	"expvar"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 )
 
 var routeCalcByCustomer = expvar.NewMap("route.calc.by.customer.sec")
 var routeCalcBySession = expvar.NewMap("route.calc.by.session.sec")
 
 var stats = []struct {
-	expvar  *expvar.Map
-	baggage string
+	expvar     *expvar.Map
+	baggageKey string
 }{
-	{routeCalcByCustomer, "customer"},
-	{routeCalcBySession, "session"},
+	{
+		expvar:     routeCalcByCustomer,
+		baggageKey: "customer",
+	},
+	{
+		expvar:     routeCalcBySession,
+		baggageKey: "session",
+	},
 }
 
 func updateCalcStats(ctx context.Context, delay time.Duration) {
-	span := opentracing.SpanFromContext(ctx)
-	if span == nil {
-		return
-	}
 	delaySec := float64(delay/time.Millisecond) / 1000.0
 	for _, s := range stats {
-		key := span.BaggageItem(s.baggage)
+		key := tracing.BaggageItem(ctx, s.baggageKey)
 		if key != "" {
 			s.expvar.AddFloat(key, delaySec)
 		}
