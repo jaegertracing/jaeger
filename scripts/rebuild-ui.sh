@@ -4,6 +4,9 @@ set -euxf -o pipefail
 
 cd jaeger-ui
 
+git fetch --all --tags
+git log --oneline --decorate=full -n 10 | cat
+
 LAST_TAG=$(git describe --tags --dirty 2>/dev/null)
 
 if [[ "$LAST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
