@@ -73,7 +73,7 @@ func NewGRPCHandler(queryService *querysvc.QueryService,
 		options.Logger = zap.NewNop()
 	}
 
-	if options.Tracer.OT == nil {
+	if options.Tracer.OTEL == nil {
 		options.Tracer = jtracer.NoOp()
 	}
 
