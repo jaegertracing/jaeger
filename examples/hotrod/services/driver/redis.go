@@ -42,8 +42,9 @@ type Redis struct {
 }
 
 func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Redis {
+	tp := tracing.InitOTEL("redis-manual", otelExporter, metricsFactory, logger)
 	return &Redis{
-		tracer: tracing.InitOTEL("redis-manual", otelExporter, metricsFactory, logger),
+		tracer: tp.Tracer("redis-manual"),
 		logger: logger,
 	}
 }
