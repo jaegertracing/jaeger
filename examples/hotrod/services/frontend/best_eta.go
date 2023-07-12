@@ -77,9 +77,15 @@ func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, erro
 	}
 	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", customer))
 
-	m, _ := baggage.NewMember("customer", customer.Name)
+	m, err := baggage.NewMember("customer", customer.Name)
+	if err != nil {
+		eta.logger.For(ctx).Error("cannot create baggage member", zap.Error(err))
+	}
 	bag := baggage.FromContext(ctx)
-	bag, _ = bag.SetMember(m)
+	bag, err = bag.SetMember(m)
+	if err != nil {
+		eta.logger.For(ctx).Error("cannot set baggage member", zap.Error(err))
+	}
 	ctx = baggage.ContextWithBaggage(ctx, bag)
 
 	drivers, err := eta.driver.FindNearest(ctx, customer.Location)
