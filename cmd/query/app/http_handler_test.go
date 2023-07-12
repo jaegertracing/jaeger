@@ -35,7 +35,9 @@ import (
 	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-client-go"
+	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -303,10 +305,14 @@ func TestGetTrace(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.suffix, func(t *testing.T) {
-			reporter := jaeger.NewInMemoryReporter()
-			jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
-			jTracer := jtracer.JTracer{OT: jaegerTracer}
-			defer jaegerCloser.Close()
+			exporter := tracetest.NewInMemoryExporter()
+			tracerProvider := sdktrace.NewTracerProvider(
+				sdktrace.WithSyncer(exporter),
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			)
+			// Use the bridgeTracer as OpenTracing tracer(otTrace).
+			otTracer, _ := otbridge.NewTracerPair(tracerProvider.Tracer(""))
+			jTracer := jtracer.JTracer{OT: otTracer}
 
 			ts := initializeTestServer(HandlerOptions.Tracer(jTracer))
 			defer ts.server.Close()
@@ -319,8 +325,8 @@ func TestGetTrace(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, response.Errors, 0)
 
-			assert.Len(t, reporter.GetSpans(), 1, "HTTP request was traced and span reported")
-			assert.Equal(t, "/api/traces/{traceID}", reporter.GetSpans()[0].(*jaeger.Span).OperationName())
+			assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
+			assert.Equal(t, "/api/traces/{traceID}", exporter.GetSpans()[0].Name)
 
 			traces := extractTraces(t, &response)
 			assert.Len(t, traces[0].Spans, 2)
