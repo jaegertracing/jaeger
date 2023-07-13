@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -274,7 +275,7 @@ func startQuery(
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	tracer := jtracer.JTracer{OT: opentracing.GlobalTracer()}
+	tracer := jtracer.New()
 	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, tracer)
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
@@ -287,6 +288,10 @@ func startQuery(
 	if err := server.Start(); err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
+	if err = tracer.Close(context.Background()); err != nil {
+		svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
+	}
+
 	return server
 }
 

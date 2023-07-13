@@ -81,7 +81,6 @@ func main() {
 			}
 
 			jtracer := jtracer.New()
-			defer jtracer.Close(context.Background())
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
@@ -133,6 +132,9 @@ func main() {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
 			})
+			if err = jtracer.Close(context.Background()); err != nil {
+				svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
+			}
 			return nil
 		},
 	}

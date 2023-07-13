@@ -17,7 +17,6 @@ package jtracer
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/go-logr/zapr"
@@ -30,20 +29,38 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 type JTracer struct {
-	OT   opentracing.Tracer
-	OTEL *sdktrace.TracerProvider
-	log  *zap.Logger
+	OT     opentracing.Tracer
+	OTEL   trace.TracerProvider
+	log    *zap.Logger
+	closer func() error
 }
 
 var once sync.Once
 
 func New() JTracer {
 	jt := JTracer{}
+	opentracingTracer, otelTracerProvider, logger, closed := jt.initBoth()
+
+	return JTracer{
+		OT:     opentracingTracer,
+		OTEL:   otelTracerProvider,
+		log:    logger,
+		closer: closed,
+	}
+}
+
+func NoOp() JTracer {
+	return JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
+}
+
+// initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
+func (jt JTracer) initBoth() (opentracing.Tracer, trace.TracerProvider, *zap.Logger, func() error) {
 	zc := zap.NewDevelopmentConfig()
 	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-8)) // level used by OTEL's Debug()
 	logger, err := zc.Build()
@@ -52,20 +69,9 @@ func New() JTracer {
 	}
 	otel.SetLogger(zapr.NewLogger(logger))
 
-	opentracingTracer, otelTracerProvider := jt.initBoth()
-
-	return JTracer{OT: opentracingTracer, OTEL: otelTracerProvider, log: logger}
-}
-
-func NoOp() JTracer {
-	return JTracer{OT: opentracing.NoopTracer{}, OTEL: &sdktrace.TracerProvider{}}
-}
-
-// initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-func (jt JTracer) initBoth() (opentracing.Tracer, *sdktrace.TracerProvider) {
-	traceExporter, err := newExporter()
+	traceExporter, err := otelExporter()
 	if err != nil {
-		jt.log.Sugar().Fatalf("failed to create exporter", zap.Any("error", err))
+		logger.Sugar().Fatalf("failed to create exporter", zap.Any("error", err))
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
@@ -88,17 +94,19 @@ func (jt JTracer) initBoth() (opentracing.Tracer, *sdktrace.TracerProvider) {
 	})
 
 	// Use the bridgeTracer as your OpenTracing tracer(otTrace).
-	otTracer, _ := otbridge.NewTracerPair(tracerProvider.Tracer(""))
+	otTracer, wrapperTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
 
-	return otTracer, tracerProvider
+	closer := func() error {
+		return tracerProvider.Shutdown(context.Background())
+	}
+
+	return otTracer, wrapperTracerProvider, logger, closer
 }
 
-// newExporter returns a console exporter.
-func newExporter() (sdktrace.SpanExporter, error) {
+func otelExporter() (sdktrace.SpanExporter, error) {
 	client := otlptracegrpc.NewClient(
 		otlptracegrpc.WithInsecure(),
 	)
-	// Set up a otlp-trace exporter
 	traceExporter, err := otlptrace.New(context.Background(), client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
@@ -108,9 +116,6 @@ func newExporter() (sdktrace.SpanExporter, error) {
 }
 
 // Shutdown the tracerProvider to clean up resources
-func (jt JTracer) Close(ctx context.Context) {
-	err := jt.OTEL.Shutdown(ctx)
-	if err != nil {
-		log.Fatalf("Error shutting down tracer provider: %v", err)
-	}
+func (jt JTracer) Close(ctx context.Context) error {
+	return jt.closer()
 }

@@ -29,7 +29,6 @@ import (
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.opentelemetry.io/otel/attribute"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -230,7 +229,9 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 
 	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, m.tracer.OTEL)
 	defer span.End()
-	defer m.tracer.Close(ctx)
+	if err := m.tracer.Close(context.Background()); err != nil {
+		m.logger.Error("Error shutting down tracer provider", zap.Error(err))
+	}
 
 	queryRange := promapi.Range{
 		Start: p.EndTime.Add(-1 * *p.Lookback),
@@ -292,7 +293,7 @@ func promqlDurationString(d *time.Duration) string {
 	return string(b)
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string, tp *sdktrace.TracerProvider) (context.Context, trace.Span) {
+func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.TracerProvider) (context.Context, trace.Span) {
 	ctx, span := tp.Tracer("prom-metrics-reader").Start(ctx, metricName)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),
