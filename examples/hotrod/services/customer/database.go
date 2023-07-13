@@ -49,22 +49,22 @@ func newDatabase(tracer trace.Tracer, logger log.Factory) *database {
 		customers: map[string]*Customer{
 			"123": {
 				ID:       "123",
-				Name:     "Rachel's Floral Designs",
+				Name:     "Rachel's_Floral_Designs",
 				Location: "115,277",
 			},
 			"567": {
 				ID:       "567",
-				Name:     "Amazing Coffee Roasters",
+				Name:     "Amazing_Coffee_Roasters",
 				Location: "211,653",
 			},
 			"392": {
 				ID:       "392",
-				Name:     "Trom Chocolatier",
+				Name:     "Trom_Chocolatier",
 				Location: "577,322",
 			},
 			"731": {
 				ID:       "731",
-				Name:     "Japanese Desserts",
+				Name:     "Japanese_Desserts",
 				Location: "728,326",
 			},
 		},
