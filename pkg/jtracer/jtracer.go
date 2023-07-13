@@ -18,41 +18,43 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"sync"
-	"time"
 
+	"github.com/go-logr/zapr"
 	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
 	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"go.uber.org/zap/zapcore"
 )
 
 type JTracer struct {
 	OT   opentracing.Tracer
 	OTEL *sdktrace.TracerProvider
-	// logger *zap.Logger
+	log  *zap.Logger
 }
 
 var once sync.Once
 
 func New() JTracer {
-	opentracingTracer, otelTracerProvider := initBoth()
+	jt := JTracer{}
+	zc := zap.NewDevelopmentConfig()
+	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-8)) // level used by OTEL's Debug()
+	logger, err := zc.Build()
+	if err != nil {
+		panic(err)
+	}
+	otel.SetLogger(zapr.NewLogger(logger))
 
-	// Shutdown the tracerProvider to clean up resources
-	defer func() {
-		if err := otelTracerProvider.Shutdown(context.Background()); err != nil {
-			log.Fatal("Error shutting down tracer provider: %w", err)
-		}
-	}()
-	return JTracer{OT: opentracingTracer, OTEL: otelTracerProvider}
+	opentracingTracer, otelTracerProvider := jt.initBoth()
+
+	return JTracer{OT: opentracingTracer, OTEL: otelTracerProvider, log: logger}
 }
 
 func NoOp() JTracer {
@@ -60,16 +62,15 @@ func NoOp() JTracer {
 }
 
 // initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-func initBoth() (opentracing.Tracer, *sdktrace.TracerProvider) {
-	ctx := context.Background()
-	traceExporter, err := newExporter(ctx)
+func (jt JTracer) initBoth() (opentracing.Tracer, *sdktrace.TracerProvider) {
+	traceExporter, err := newExporter()
 	if err != nil {
-		log.Fatal("failed to create exporter", zap.Any("error", err))
+		jt.log.Sugar().Fatalf("failed to create exporter", zap.Any("error", err))
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
-	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
+	bsp := sdktrace.NewBatchSpanProcessor(traceExporter, sdktrace.WithBlocking())
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(resource.NewWithAttributes(
@@ -93,30 +94,23 @@ func initBoth() (opentracing.Tracer, *sdktrace.TracerProvider) {
 }
 
 // newExporter returns a console exporter.
-func newExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	server := grpc.NewServer()
-
-	lis, _ := net.Listen("tcp", ":0")
-	go func() {
-		err := server.Serve(lis)
-		log.Fatal("failed to create gRPC server connection: %w", err)
-
-	}()
-	conn, err := grpc.DialContext(ctx, lis.Addr().String(),
-		// Note the use of insecure transport here. TLS is recommended in production.
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
+func newExporter() (sdktrace.SpanExporter, error) {
+	client := otlptracegrpc.NewClient(
+		otlptracegrpc.WithInsecure(),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)
-	}
-
-	// Set up a trace exporter
-	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	// Set up a otlp-trace exporter
+	traceExporter, err := otlptrace.New(context.Background(), client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
 	}
+
 	return traceExporter, nil
+}
+
+// Shutdown the tracerProvider to clean up resources
+func (jt JTracer) Close(ctx context.Context) {
+	err := jt.OTEL.Shutdown(ctx)
+	if err != nil {
+		log.Fatalf("Error shutting down tracer provider: %v", err)
+	}
 }

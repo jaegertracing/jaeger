@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -80,6 +81,7 @@ func main() {
 			}
 
 			jtracer := jtracer.New()
+			defer jtracer.Close(context.Background())
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))

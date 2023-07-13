@@ -230,6 +230,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 
 	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, m.tracer.OTEL)
 	defer span.End()
+	defer m.tracer.Close(ctx)
 
 	queryRange := promapi.Range{
 		Start: p.EndTime.Add(-1 * *p.Lookback),
