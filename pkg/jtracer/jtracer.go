@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -95,7 +96,15 @@ func initBoth() (opentracing.Tracer, *sdktrace.TracerProvider) {
 func newExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, "otel_collector:4317",
+	server := grpc.NewServer()
+
+	lis, _ := net.Listen("tcp", ":0")
+	go func() {
+		err := server.Serve(lis)
+		log.Fatal("failed to create gRPC server connection: %w", err)
+
+	}()
+	conn, err := grpc.DialContext(ctx, lis.Addr().String(),
 		// Note the use of insecure transport here. TLS is recommended in production.
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
