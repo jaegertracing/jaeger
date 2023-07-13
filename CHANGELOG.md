@@ -1,8 +1,13 @@
 Changes by Version
 ==================
 
+### A message to people of Russia 🇷🇺
+
+If you currently live in Russia, please read [this message](./_To_People_of_Russia).
+
 next release (yyyy-mm-dd)
 -------------------
+
 ### Backend Changes
 
 #### ⛔ Breaking Changes
