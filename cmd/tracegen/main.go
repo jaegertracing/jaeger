@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/go-logr/zapr"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -32,14 +33,21 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/tracegen"
 )
 
-var logger, _ = zap.NewDevelopment()
-
 func main() {
+	zc := zap.NewDevelopmentConfig()
+	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-8)) // level used by OTEL's Debug()
+	logger, err := zc.Build()
+	if err != nil {
+		panic(err)
+	}
+	otel.SetLogger(zapr.NewLogger(logger))
+
 	fs := flag.CommandLine
 	cfg := new(tracegen.Config)
 	cfg.Flags(fs)
@@ -48,13 +56,13 @@ func main() {
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
-	tracers, shutdown := createTracers(cfg)
+	tracers, shutdown := createTracers(cfg, logger)
 	defer shutdown(context.Background())
 
 	tracegen.Run(cfg, tracers, logger)
 }
 
-func createTracers(cfg *tracegen.Config) ([]trace.Tracer, func(context.Context) error) {
+func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, func(context.Context) error) {
 	if cfg.Services < 1 {
 		cfg.Services = 1
 	}
@@ -73,7 +81,7 @@ func createTracers(cfg *tracegen.Config) ([]trace.Tracer, func(context.Context) 
 		logger.Sugar().Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
 
 		tp := sdktrace.NewTracerProvider(
-			sdktrace.WithBatcher(exp),
+			sdktrace.WithBatcher(exp, sdktrace.WithBlocking()),
 			sdktrace.WithResource(resource.NewWithAttributes(
 				semconv.SchemaURL,
 				semconv.ServiceNameKey.String(svc),

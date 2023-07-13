@@ -34,6 +34,8 @@ const (
 	suffixSupportSpanmetricsConnector = ".query.support-spanmetrics-connector"
 	suffixMetricNamespace             = ".query.namespace"
 	suffixLatencyUnit                 = ".query.duration-unit"
+	suffixNormalizeCalls              = ".query.normalize-calls"
+	suffixNormalizeDuration           = ".query.normalize-duration"
 
 	defaultServerURL      = "http://localhost:9090"
 	defaultConnectTimeout = 30 * time.Second
@@ -42,6 +44,8 @@ const (
 	defaultSupportSpanmetricsConnector = false
 	defaultMetricNamespace             = ""
 	defaultLatencyUnit                 = "ms"
+	defaultNormalizeCalls              = false
+	defaultNormalizeDuration           = false
 )
 
 type namespaceConfig struct {
@@ -63,6 +67,8 @@ func NewOptions(primaryNamespace string) *Options {
 		SupportSpanmetricsConnector: false,
 		MetricNamespace:             defaultMetricNamespace,
 		LatencyUnit:                 defaultLatencyUnit,
+		NormalizeCalls:              defaultNormalizeCalls,
+		NormalizeDuration:           defaultNormalizeCalls,
 	}
 
 	return &Options{
@@ -93,6 +99,16 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 			`histogram unit value set in the spanmetrics connector (see: `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#configurations). `+
 			`This also helps jaeger-query determine the metric name when querying for "latency" metrics.`)
+	flagSet.Bool(nsConfig.namespace+suffixNormalizeCalls, defaultNormalizeCalls,
+		`Whether to normalize the "calls" metric name according to `+
+			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
+			`For example: `+
+			`"calls" (not normalized) -> "calls_total" (normalized), `)
+	flagSet.Bool(nsConfig.namespace+suffixNormalizeDuration, defaultNormalizeDuration,
+		`Whether to normalize the "duration" metric name according to `+
+			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
+			`For example: `+
+			`"duration_bucket" (not normalized) -> "duration_milliseconds_bucket (normalized)"`)
 
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
@@ -107,6 +123,8 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg.SupportSpanmetricsConnector = v.GetBool(cfg.namespace + suffixSupportSpanmetricsConnector)
 	cfg.MetricNamespace = v.GetString(cfg.namespace + suffixMetricNamespace)
 	cfg.LatencyUnit = v.GetString(cfg.namespace + suffixLatencyUnit)
+	cfg.NormalizeCalls = v.GetBool(cfg.namespace + suffixNormalizeCalls)
+	cfg.NormalizeDuration = v.GetBool(cfg.namespace + suffixNormalizeDuration)
 
 	isValidUnit := map[string]bool{"ms": true, "s": true}
 	if _, ok := isValidUnit[cfg.LatencyUnit]; !ok {

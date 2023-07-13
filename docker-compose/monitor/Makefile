@@ -18,7 +18,7 @@ run-dev: _run-connector
 
 # _run-connector is the base target to bring up the system required for SPM using the new OTEL spanmetrics connector.
 .PHONY: _run-connector
-_run-connector: export OTEL_IMAGE_TAG = latest
+_run-connector: export OTEL_IMAGE_TAG = 0.80.0
 _run-connector: export OTEL_CONFIG_SRC = ./otel-collector-config-connector.yml
 _run-connector: export PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR = true
 _run-connector:
