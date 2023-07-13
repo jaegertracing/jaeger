@@ -312,7 +312,7 @@ func TestGetTrace(t *testing.T) {
 			)
 			// Use the bridgeTracer as OpenTracing tracer(otTrace).
 			otTracer, _ := otbridge.NewTracerPair(tracerProvider.Tracer(""))
-			jTracer := jtracer.JTracer{OT: otTracer}
+			jTracer := jtracer.JTracer{OT: otTracer, OTEL: tracerProvider}
 
 			ts := initializeTestServer(HandlerOptions.Tracer(jTracer))
 			defer ts.server.Close()

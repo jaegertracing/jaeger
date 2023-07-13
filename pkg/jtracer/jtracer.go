@@ -16,46 +16,54 @@ package jtracer
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
 	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type JTracer struct {
 	OT   opentracing.Tracer
-	OTEL trace.TracerProvider
+	OTEL *sdktrace.TracerProvider
+	// logger *zap.Logger
 }
 
 var once sync.Once
 
 func New() JTracer {
 	opentracingTracer, otelTracerProvider := initBoth()
+
+	// Shutdown the tracerProvider to clean up resources
+	defer func() {
+		if err := otelTracerProvider.Shutdown(context.Background()); err != nil {
+			log.Fatal("Error shutting down tracer provider: %w", err)
+		}
+	}()
 	return JTracer{OT: opentracingTracer, OTEL: otelTracerProvider}
 }
 
 func NoOp() JTracer {
-	return JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
+	return JTracer{OT: opentracing.NoopTracer{}, OTEL: &sdktrace.TracerProvider{}}
 }
 
 // initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-func initBoth() (opentracing.Tracer, trace.TracerProvider) {
-	opts := []otlptracehttp.Option{otlptracehttp.WithInsecure()}
-	traceExporter, err := otlptrace.New(
-		context.Background(),
-		otlptracehttp.NewClient(opts...),
-	)
+func initBoth() (opentracing.Tracer, *sdktrace.TracerProvider) {
+	ctx := context.Background()
+	traceExporter, err := newExporter(ctx)
 	if err != nil {
-		log.Fatal("failed to create exporter: %w", err)
+		log.Fatal("failed to create exporter", zap.Any("error", err))
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
@@ -78,13 +86,28 @@ func initBoth() (opentracing.Tracer, trace.TracerProvider) {
 	})
 
 	// Use the bridgeTracer as your OpenTracing tracer(otTrace).
-	otTracer, wrapperTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
+	otTracer, _ := otbridge.NewTracerPair(tracerProvider.Tracer(""))
 
-	// Shutdown the tracerProvider to clean up resources
-	err = tracerProvider.Shutdown(context.Background())
+	return otTracer, tracerProvider
+}
+
+// newExporter returns a console exporter.
+func newExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, "otel_collector:4317",
+		// Note the use of insecure transport here. TLS is recommended in production.
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
 	if err != nil {
-		log.Fatal("failed to shutdown tracerProvider: ", err)
+		return nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)
 	}
 
-	return otTracer, wrapperTracerProvider
+	// Set up a trace exporter
+	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
+	}
+	return traceExporter, nil
 }

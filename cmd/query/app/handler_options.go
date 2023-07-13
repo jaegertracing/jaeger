@@ -65,6 +65,7 @@ func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration)
 func (handlerOptions) Tracer(tracer jtracer.JTracer) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.tracer.OT = tracer.OT
+		apiHandler.tracer.OTEL = tracer.OTEL
 	}
 }
 
