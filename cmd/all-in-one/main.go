@@ -22,11 +22,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
-	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -44,7 +41,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
-	"github.com/jaegertracing/jaeger/internal/metrics/jlibadapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -104,7 +100,7 @@ by default uses only in-memory database.`,
 				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(metricsFactory)
 
-			tracerCloser := initTracer(svc)
+			tracerCloser := initTracer()
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -195,7 +191,7 @@ by default uses only in-memory database.`,
 			agent := startAgent(cp, aOpts, logger, metricsFactory)
 
 			// query
-			querySrv, tracer := startQuery(
+			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
 				metricsFactory, tm,
@@ -214,10 +210,9 @@ by default uses only in-memory database.`,
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
-				if err = tracer.Close(context.Background()); err != nil {
-					svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
+				if tracerCloser != nil {
+					logger.Fatal("Error shutting down tracer provider", zap.Error(err))
 				}
-				_ = tracerCloser.Close()
 			})
 			return nil
 		},
@@ -275,10 +270,10 @@ func startQuery(
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
 	tm *tenancy.Manager,
-) (*queryApp.Server, jtracer.JTracer) {
+) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	tracer := jtracer.New()
+	tracer := jtracer.NoOp()
 	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, tracer)
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
@@ -292,32 +287,15 @@ func startQuery(
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
 
-	return server, tracer
+	return server
 }
 
-func initTracer(svc *flags.Service) io.Closer {
-	logger := svc.Logger
-	traceCfg := &jaegerClientConfig.Configuration{
-		ServiceName: "jaeger-query",
-		Sampler: &jaegerClientConfig.SamplerConfig{
-			Type:  "const",
-			Param: 1.0,
-		},
-		RPCMetrics: true,
-	}
-	traceCfg, err := traceCfg.FromEnv()
+func initTracer() error {
+	tracer, err := jtracer.New()
 	if err != nil {
-		logger.Fatal("Failed to read tracer configuration", zap.Error(err))
+		log.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	tracer, closer, err := traceCfg.NewTracer(
-		jaegerClientConfig.Metrics(jlibadapter.NewAdapter(svc.MetricsFactory)),
-		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
-	)
-	if err != nil {
-		logger.Fatal("Failed to initialize tracer", zap.Error(err))
-	}
-	opentracing.SetGlobalTracer(tracer)
-	return closer
+	return tracer.Close(context.Background())
 }
 
 func createMetricsQueryService(

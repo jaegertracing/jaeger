@@ -35,21 +35,19 @@ type JTracer struct {
 	OT     opentracing.Tracer
 	OTEL   trace.TracerProvider
 	closer func() error
-	err    error
 }
 
 var once sync.Once
 
-func New() JTracer {
+func New() (*JTracer, error) {
 	jt := JTracer{}
-	opentracingTracer, otelTracerProvider, closed, error := jt.initBoth()
+	opentracingTracer, otelTracerProvider, closed, error := jt.initBoth(context.Background())
 
-	return JTracer{
+	return &JTracer{
 		OT:     opentracingTracer,
 		OTEL:   otelTracerProvider,
 		closer: closed,
-		err:    error,
-	}
+	}, error
 }
 
 func NoOp() JTracer {
@@ -57,10 +55,10 @@ func NoOp() JTracer {
 }
 
 // initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-func (jt JTracer) initBoth() (opentracing.Tracer, trace.TracerProvider, func() error, error) {
-	traceExporter, err := otelExporter()
+func (jt JTracer) initBoth(ctx context.Context) (opentracing.Tracer, trace.TracerProvider, func() error, error) {
+	traceExporter, err := otelExporter(ctx)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create exporter: %w", err)
+		return nil, nil, nil, err
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
@@ -86,17 +84,17 @@ func (jt JTracer) initBoth() (opentracing.Tracer, trace.TracerProvider, func() e
 	otTracer, wrapperTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
 
 	closer := func() error {
-		return tracerProvider.Shutdown(context.Background())
+		return tracerProvider.Shutdown(ctx)
 	}
 
 	return otTracer, wrapperTracerProvider, closer, nil
 }
 
-func otelExporter() (sdktrace.SpanExporter, error) {
+func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	client := otlptracegrpc.NewClient(
 		otlptracegrpc.WithInsecure(),
 	)
-	traceExporter, err := otlptrace.New(context.Background(), client)
+	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
 	}

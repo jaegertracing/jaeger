@@ -95,6 +95,11 @@ func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsRea
 		operationLabel = "span_name"
 	}
 
+	jtracer, err := jtracer.New()
+	if err != nil {
+		logger.Fatal("Failed to create exporter:", zap.Error(err))
+	}
+
 	mr := &MetricsReader{
 		client: promapi.NewAPI(client),
 		logger: logger,
@@ -103,7 +108,7 @@ func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsRea
 		callsMetricName:   buildFullCallsMetricName(cfg),
 		latencyMetricName: buildFullLatencyMetricName(cfg),
 		operationLabel:    operationLabel,
-		tracer:            jtracer.New(),
+		tracer:            *jtracer,
 	}
 
 	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
@@ -229,7 +234,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 
 	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, m.tracer.OTEL)
 	defer span.End()
-	if err := m.tracer.Close(context.Background()); err != nil {
+	if err := m.tracer.Close(ctx); err != nil {
 		m.logger.Error("Error shutting down tracer provider", zap.Error(err))
 	}
 

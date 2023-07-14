@@ -72,7 +72,10 @@ func main() {
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
-			jtracer := jtracer.New()
+			jtracer, err := jtracer.New()
+			if err != nil {
+				logger.Fatal("Failed to create exporter:", zap.Error(err))
+			}
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
@@ -103,7 +106,7 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, jtracer)
+			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, *jtracer)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
@@ -124,7 +127,7 @@ func main() {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
 				if err = jtracer.Close(context.Background()); err != nil {
-					svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
+					logger.Fatal("Error shutting down tracer provider", zap.Error(err))
 				}
 			})
 			return nil
