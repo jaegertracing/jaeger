@@ -15,6 +15,7 @@
 package consumer
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -77,8 +78,8 @@ func (c *Consumer) Start() {
 	c.deadlockDetector.start()
 	c.doneWg.Add(1)
 	go func() {
+		defer c.doneWg.Done()
 		c.logger.Info("Starting main loop")
-		c.doneWg.Done()
 		for pc := range c.internalConsumer.Partitions() {
 			c.partitionMapLock.Lock()
 			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
@@ -96,7 +97,9 @@ func (c *Consumer) Start() {
 func (c *Consumer) Close() error {
 	// Close the internal consumer, which will close each partition consumers' message and error channels.
 	c.logger.Info("Closing parent consumer")
+	// close(c.internalConsumer.Partitions())
 	err := c.internalConsumer.Close()
+	fmt.Println(err)
 
 	c.logger.Debug("Closing deadlock detector")
 	c.deadlockDetector.close()
