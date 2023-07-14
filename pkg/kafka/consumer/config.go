@@ -71,6 +71,5 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	// that does not set saramaConfig.Consumer.Offsets.CommitInterval to its default value 1s.
 	// then the samara-cluster fails if the default interval is not 1s.
 	saramaConfig.Consumer.Offsets.CommitInterval = time.Second
-
 	return cluster.NewConsumer(c.Brokers, c.GroupID, []string{c.Topic}, saramaConfig)
 }
