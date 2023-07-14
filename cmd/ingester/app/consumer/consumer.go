@@ -75,8 +75,10 @@ func New(params Params) (*Consumer, error) {
 // Start begins consuming messages in a go routine
 func (c *Consumer) Start() {
 	c.deadlockDetector.start()
+	c.doneWg.Add(1)
 	go func() {
 		c.logger.Info("Starting main loop")
+		c.doneWg.Done()
 		for pc := range c.internalConsumer.Partitions() {
 			c.partitionMapLock.Lock()
 			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
