@@ -195,7 +195,7 @@ by default uses only in-memory database.`,
 			agent := startAgent(cp, aOpts, logger, metricsFactory)
 
 			// query
-			querySrv := startQuery(
+			querySrv, tracer := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
 				metricsFactory, tm,
@@ -213,6 +213,9 @@ by default uses only in-memory database.`,
 				}
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
+				if err = tracer.Close(context.Background()); err != nil {
+					svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
 				}
 				_ = tracerCloser.Close()
 			})
@@ -272,7 +275,7 @@ func startQuery(
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
 	tm *tenancy.Manager,
-) *queryApp.Server {
+) (*queryApp.Server, jtracer.JTracer) {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 	tracer := jtracer.New()
@@ -288,11 +291,8 @@ func startQuery(
 	if err := server.Start(); err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
-	if err = tracer.Close(context.Background()); err != nil {
-		svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
-	}
 
-	return server
+	return server, tracer
 }
 
 func initTracer(svc *flags.Service) io.Closer {

@@ -72,14 +72,6 @@ func main() {
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
-
-			if err != nil {
-				logger.Fatal("Failed to read tracer configuration", zap.Error(err))
-			}
-			if err != nil {
-				logger.Fatal("Failed to initialize tracer", zap.Error(err))
-			}
-
 			jtracer := jtracer.New()
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
