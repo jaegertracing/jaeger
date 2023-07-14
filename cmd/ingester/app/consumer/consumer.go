@@ -15,7 +15,6 @@
 package consumer
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -97,9 +96,7 @@ func (c *Consumer) Start() {
 func (c *Consumer) Close() error {
 	// Close the internal consumer, which will close each partition consumers' message and error channels.
 	c.logger.Info("Closing parent consumer")
-	// close(c.internalConsumer.Partitions())
 	err := c.internalConsumer.Close()
-	fmt.Println(err)
 
 	c.logger.Debug("Closing deadlock detector")
 	c.deadlockDetector.close()
