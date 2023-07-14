@@ -131,10 +131,10 @@ func main() {
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
+				if err = jtracer.Close(context.Background()); err != nil {
+					svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
+				}
 			})
-			if err = jtracer.Close(context.Background()); err != nil {
-				svc.Logger.Fatal("Error shutting down tracer provider", zap.Error(err))
-			}
 			return nil
 		},
 	}

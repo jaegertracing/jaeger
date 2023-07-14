@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-logr/zapr"
 	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
 	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
@@ -30,28 +29,26 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type JTracer struct {
 	OT     opentracing.Tracer
 	OTEL   trace.TracerProvider
-	log    *zap.Logger
 	closer func() error
+	err    error
 }
 
 var once sync.Once
 
 func New() JTracer {
 	jt := JTracer{}
-	opentracingTracer, otelTracerProvider, logger, closed := jt.initBoth()
+	opentracingTracer, otelTracerProvider, closed, error := jt.initBoth()
 
 	return JTracer{
 		OT:     opentracingTracer,
 		OTEL:   otelTracerProvider,
-		log:    logger,
 		closer: closed,
+		err:    error,
 	}
 }
 
@@ -60,18 +57,10 @@ func NoOp() JTracer {
 }
 
 // initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-func (jt JTracer) initBoth() (opentracing.Tracer, trace.TracerProvider, *zap.Logger, func() error) {
-	zc := zap.NewDevelopmentConfig()
-	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-8)) // level used by OTEL's Debug()
-	logger, err := zc.Build()
-	if err != nil {
-		panic(err)
-	}
-	otel.SetLogger(zapr.NewLogger(logger))
-
+func (jt JTracer) initBoth() (opentracing.Tracer, trace.TracerProvider, func() error, error) {
 	traceExporter, err := otelExporter()
 	if err != nil {
-		logger.Sugar().Fatalf("failed to create exporter", zap.Any("error", err))
+		return nil, nil, nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
@@ -100,7 +89,7 @@ func (jt JTracer) initBoth() (opentracing.Tracer, trace.TracerProvider, *zap.Log
 		return tracerProvider.Shutdown(context.Background())
 	}
 
-	return otTracer, wrapperTracerProvider, logger, closer
+	return otTracer, wrapperTracerProvider, closer, nil
 }
 
 func otelExporter() (sdktrace.SpanExporter, error) {
