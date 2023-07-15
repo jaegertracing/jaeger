@@ -72,7 +72,7 @@ func main() {
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
-			jtracer, err := jtracer.New()
+			jtracer, err := jtracer.New("jaeger-query")
 			if err != nil {
 				logger.Fatal("Failed to create exporter:", zap.Error(err))
 			}

@@ -100,7 +100,10 @@ by default uses only in-memory database.`,
 				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(metricsFactory)
 
-			tracer := initTracer()
+			tracer, err := jtracer.New("query-service")
+			if err != nil {
+				logger.Fatal("Failed to initialize tracer", zap.Error(err))
+			}
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -194,7 +197,7 @@ by default uses only in-memory database.`,
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				metricsFactory, tm, tracer,
+				metricsFactory, tm, *tracer,
 			)
 
 			svc.RunAndThen(func() {
@@ -210,7 +213,7 @@ by default uses only in-memory database.`,
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
-				if tracer.Close(context.Background()) != nil {
+				if err := tracer.Close(context.Background()); err != nil {
 					logger.Error("Error shutting down tracer provider", zap.Error(err))
 				}
 			})
@@ -269,7 +272,8 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
-	tm *tenancy.Manager, jt jtracer.JTracer,
+	tm *tenancy.Manager,
+	jt jtracer.JTracer,
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
@@ -287,14 +291,6 @@ func startQuery(
 	}
 
 	return server
-}
-
-func initTracer() jtracer.JTracer {
-	tracer, err := jtracer.New()
-	if err != nil {
-		log.Fatal("Failed to initialize tracer", zap.Error(err))
-	}
-	return *tracer
 }
 
 func createMetricsQueryService(

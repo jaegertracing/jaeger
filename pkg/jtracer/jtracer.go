@@ -34,31 +34,41 @@ import (
 type JTracer struct {
 	OT     opentracing.Tracer
 	OTEL   trace.TracerProvider
-	closer func() error
+	closer func(ctx context.Context) error
 }
 
 var once sync.Once
 
-func New() (*JTracer, error) {
-	jt := JTracer{}
-	opentracingTracer, otelTracerProvider, closed, error := jt.initBoth(context.Background())
+func New(serviceName string) (*JTracer, error) {
+	ctx := context.Background()
+	tracerProvider, err := initOTEL(ctx, serviceName)
+	if err != nil {
+		return nil, err
+	}
+	// Use the bridgeTracer as your OpenTracing tracer(otTrace).
+	otelTracer := tracerProvider.Tracer("github.com/jaegertracing/jaeger/pkg/jtracer")
+	otTracer, wrappedTracerProvider := otbridge.NewTracerPair(otelTracer)
+
+	closer := func(ctx context.Context) error {
+		return tracerProvider.Shutdown(ctx)
+	}
 
 	return &JTracer{
-		OT:     opentracingTracer,
-		OTEL:   otelTracerProvider,
-		closer: closed,
-	}, error
+		OT:     otTracer,
+		OTEL:   wrappedTracerProvider,
+		closer: closer,
+	}, nil
 }
 
 func NoOp() JTracer {
 	return JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
 }
 
-// initBoth initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-func (jt JTracer) initBoth(ctx context.Context) (opentracing.Tracer, trace.TracerProvider, func() error, error) {
+// initOTEL initializes OTEL Tracer
+func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error) {
 	traceExporter, err := otelExporter(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
@@ -68,7 +78,7 @@ func (jt JTracer) initBoth(ctx context.Context) (opentracing.Tracer, trace.Trace
 		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("otlp"),
+			semconv.ServiceNameKey.String(svc),
 		)),
 	)
 
@@ -80,14 +90,7 @@ func (jt JTracer) initBoth(ctx context.Context) (opentracing.Tracer, trace.Trace
 			))
 	})
 
-	// Use the bridgeTracer as your OpenTracing tracer(otTrace).
-	otTracer, wrapperTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
-
-	closer := func() error {
-		return tracerProvider.Shutdown(ctx)
-	}
-
-	return otTracer, wrapperTracerProvider, closer, nil
+	return tracerProvider, nil
 }
 
 func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
@@ -104,5 +107,5 @@ func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 
 // Shutdown the tracerProvider to clean up resources
 func (jt JTracer) Close(ctx context.Context) error {
-	return jt.closer()
+	return jt.closer(ctx)
 }
