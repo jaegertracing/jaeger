@@ -70,7 +70,7 @@ func newBestETA(tracer trace.TracerProvider, logger log.Factory, options ConfigO
 	}
 }
 
-func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, error) {
+func (eta *bestETA) Get(ctx context.Context, customerID int) (*Response, error) {
 	customer, err := eta.customer.Get(ctx, customerID)
 	if err != nil {
 		return nil, err

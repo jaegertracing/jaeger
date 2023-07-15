@@ -18,6 +18,7 @@ package customer
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -70,9 +71,14 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerID := r.Form.Get("customer")
-	if customerID == "" {
+	customer := r.Form.Get("customer")
+	if customer == "" {
 		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
+		return
+	}
+	customerID, err := strconv.Atoi(customer)
+	if err != nil {
+		http.Error(w, "Parameter 'customer' is not an integer", http.StatusBadRequest)
 		return
 	}
 
