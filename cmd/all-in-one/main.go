@@ -100,7 +100,7 @@ by default uses only in-memory database.`,
 				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(metricsFactory)
 
-			tracerCloser := initTracer()
+			tracer := initTracer()
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -194,7 +194,7 @@ by default uses only in-memory database.`,
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				metricsFactory, tm,
+				metricsFactory, tm, tracer,
 			)
 
 			svc.RunAndThen(func() {
@@ -210,8 +210,8 @@ by default uses only in-memory database.`,
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
-				if tracerCloser != nil {
-					logger.Fatal("Error shutting down tracer provider", zap.Error(err))
+				if tracer.Close(context.Background()) != nil {
+					logger.Error("Error shutting down tracer provider", zap.Error(err))
 				}
 			})
 			return nil
@@ -269,12 +269,11 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
-	tm *tenancy.Manager,
+	tm *tenancy.Manager, jt jtracer.JTracer,
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	tracer := jtracer.NoOp()
-	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, tracer)
+	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, jt)
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
@@ -290,12 +289,12 @@ func startQuery(
 	return server
 }
 
-func initTracer() error {
+func initTracer() jtracer.JTracer {
 	tracer, err := jtracer.New()
 	if err != nil {
 		log.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	return tracer.Close(context.Background())
+	return *tracer
 }
 
 func createMetricsQueryService(
