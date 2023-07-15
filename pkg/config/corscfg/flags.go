@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2023 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,18 +26,18 @@ const (
 	corsAllowedOrigins = corsPrefix + ".allowed-origins"
 )
 
-type CorsFlagsConfig struct {
+type Flags struct {
 	Prefix string
 }
 
-func (c CorsFlagsConfig) AddFlags(flags *flag.FlagSet) {
+func (c Flags) AddFlags(flags *flag.FlagSet) {
 	flags.String(c.Prefix+corsAllowedHeaders, "content-type", "Allowed headers for the HTTP port , default content-type")
 	flags.String(c.Prefix+corsAllowedOrigins, "*", "Allowed origins for the HTTP port , default accepts all")
 }
 
-func (c CorsFlagsConfig) InitFromViper(v *viper.Viper) (Settings, error) {
-	var p Settings
+func (c Flags) InitFromViper(v *viper.Viper) Options {
+	var p Options
 	p.AllowedHeaders = v.GetStringSlice(c.Prefix + corsAllowedHeaders)
 	p.AllowedOrigins = v.GetStringSlice(c.Prefix + corsAllowedOrigins)
-	return p, nil
+	return p
 }

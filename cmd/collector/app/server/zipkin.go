@@ -39,7 +39,7 @@ type ZipkinServerParams struct {
 	TLSConfig      tlscfg.Options
 	HostPort       string
 	Handler        handler.ZipkinSpansHandler
-	CORSSettings   corscfg.Settings
+	CORSSettings   corscfg.Options
 	HealthCheck    *healthcheck.HealthCheck
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
