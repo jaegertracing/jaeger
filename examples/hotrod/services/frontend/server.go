@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
@@ -36,7 +36,7 @@ var assetFS embed.FS
 // Server implements jaeger-demo-frontend service
 type Server struct {
 	hostPort string
-	tracer   opentracing.Tracer
+	tracer   trace.TracerProvider
 	logger   log.Factory
 	bestETA  *bestETA
 	assetFS  http.FileSystem
@@ -56,7 +56,7 @@ type ConfigOptions struct {
 }
 
 // NewServer creates a new frontend.Server
-func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(options ConfigOptions, tracer trace.TracerProvider, logger log.Factory) *Server {
 	return &Server{
 		hostPort: options.FrontendHostPort,
 		tracer:   tracer,
