@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2023 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 package corscfg
 
-type Settings struct {
+type Options struct {
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
 	AllowedHeaders []string `mapstructure:"allowed_headers"`
 }
