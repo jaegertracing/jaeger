@@ -85,7 +85,6 @@ $(".hotrod-button").click(function(evt) {
       'baggage': 'session=' + clientUUID + ', request=' + requestID
   };
   console.log('sending headers', headers);
-  const before = Date.now();
 
   // Use current URI as basepath for ajax requests
   var pathPrefix = window.location.pathname;
@@ -96,12 +95,12 @@ $(".hotrod-button").click(function(evt) {
   $.ajax(pathPrefix + '/config?nonse=' + Math.random(), {
     method: 'GET',
     success: function(data, textStatus) {
-      const after = Date.now();
       console.log('config', data);
       config = data;
     },
   });
 
+  const before = Date.now();
   $.ajax(pathPrefix + '/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
     headers: headers,
     method: 'GET',
