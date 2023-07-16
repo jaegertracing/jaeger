@@ -19,6 +19,7 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -48,7 +49,7 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	tm.logger.Bg().Debug("registering traced handler", zap.String("endpoint", pattern))
 
 	middleware := otelhttp.NewHandler(
-		otelhttp.WithRouteTag(pattern, handler),
+		otelhttp.WithRouteTag(pattern, traceResponseHandler(handler)),
 		pattern,
 		otelhttp.WithTracerProvider(tm.tracer))
 
@@ -58,4 +59,19 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 // ServeHTTP implements http.ServeMux#ServeHTTP.
 func (tm *TracedServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tm.mux.ServeHTTP(w, r)
+}
+
+// Returns a handler that generates a traceresponse header.
+// https://github.com/w3c/trace-context/blob/main/spec/21-http_response_header_format.md
+func traceResponseHandler(handler http.Handler) http.Handler {
+	// We use the standard TraceContext propagator, since the formats are identical.
+	// But the propagator uses "traceparent" header name, so we inject it into a map
+	// `carrier` and then use the result to set the "tracereponse" header.
+	var prop propagation.TraceContext
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		carrier := make(map[string]string)
+		prop.Inject(r.Context(), propagation.MapCarrier(carrier))
+		w.Header().Add("traceresponse", carrier["traceparent"])
+		handler.ServeHTTP(w, r)
+	})
 }
