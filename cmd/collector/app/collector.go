@@ -146,7 +146,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
 		TLSConfig:      options.Zipkin.TLS,
 		HealthCheck:    c.hCheck,
-		CORSSettings:   options.Zipkin.CORSSettings,
+		CORSConfig:     options.Zipkin.CORS,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
 		KeepAlive:      options.Zipkin.KeepAlive,

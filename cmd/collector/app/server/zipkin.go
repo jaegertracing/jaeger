@@ -39,7 +39,7 @@ type ZipkinServerParams struct {
 	TLSConfig      tlscfg.Options
 	HostPort       string
 	Handler        handler.ZipkinSpansHandler
-	CORSSettings   corscfg.Options
+	CORSConfig     corscfg.Options
 	HealthCheck    *healthcheck.HealthCheck
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
@@ -86,9 +86,9 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	zHandler.RegisterRoutes(r)
 
 	cors := cors.New(cors.Options{
-		AllowedOrigins: params.CORSSettings.AllowedOrigins,
+		AllowedOrigins: params.CORSConfig.AllowedOrigins,
 		AllowedMethods: []string{"POST"}, // Allowing only POST, because that's the only handled one
-		AllowedHeaders: params.CORSSettings.AllowedHeaders,
+		AllowedHeaders: params.CORSConfig.AllowedHeaders,
 	})
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)

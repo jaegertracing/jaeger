@@ -128,8 +128,8 @@ func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptio
 	if opts.TLS.Enabled {
 		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
 	}
-	cfg.CORS.AllowedHeaders = opts.CORSSettings.AllowedHeaders
-	cfg.CORS.AllowedOrigins = opts.CORSSettings.AllowedOrigins
+	cfg.CORS.AllowedHeaders = opts.CORS.AllowedHeaders
+	cfg.CORS.AllowedOrigins = opts.CORS.AllowedOrigins
 }
 
 func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
