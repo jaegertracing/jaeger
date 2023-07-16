@@ -116,13 +116,11 @@ $(".hotrod-button").click(function(evt) {
       var traceLink = '';
       if (config && config['jaeger']) {
         const jaeger = config['jaeger'];
-        const traceURL = function() {
-          if (traceID) {
-            return `/trace/${traceID}`;
-          }
-          return `/search?limit=20&lookback=1h&service=frontend&tags=%7B%22driver%22%3A%22${data.Driver}%22%7D`;
-        }();
-        traceLink = ` [<a href="${jaeger}${traceURL}" target="_blank">find trace</a>]`;
+        const findURL = `/search?limit=20&lookback=1h&service=frontend&tags=%7B%22driver%22%3A%22${data.Driver}%22%7D`;
+        traceLink = ` [<a href="${jaeger}${findURL}" target="_blank">find trace</a>]`;
+        if (traceID) {
+          traceLink += ` [<a href="${jaeger}/trace/${traceID}" target="_blank">open trace</a>]`;
+        }
       }
       freshCar.html(`HotROD <b>${data.Driver}</b> arriving in ${duration} [req: ${requestID}, latency: ${after-before}ms] ${traceLink}`);
     },
