@@ -23,9 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
-	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -46,22 +44,6 @@ var once sync.Once
 
 // InitOTEL initializes OpenTelemetry SDK.
 func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
-	_, oteltp := initBOTH(serviceName, exporterType, metricsFactory, logger)
-
-	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
-	return oteltp
-}
-
-// Init returns OTel-OpenTracing Bridge.
-func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
-	otTracer, _ := initBOTH(serviceName, exporterType, metricsFactory, logger)
-
-	logger.Bg().Debug("Created OTEL->OT bridge", zap.String("service-name", serviceName))
-	return otTracer
-}
-
-// initBOTH initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-func initBOTH(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) (opentracing.Tracer, trace.TracerProvider) {
 	once.Do(func() {
 		otel.SetTextMapPropagator(
 			propagation.NewCompositeTextMapPropagator(
@@ -86,8 +68,8 @@ func initBOTH(serviceName string, exporterType string, metricsFactory metrics.Fa
 			semconv.ServiceNameKey.String(serviceName),
 		)),
 	)
-	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(serviceName))
-	return otTracer, tp
+	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
+	return tp
 }
 
 // withSecure instructs the client to use HTTPS scheme, instead of hotrod's desired default HTTP
