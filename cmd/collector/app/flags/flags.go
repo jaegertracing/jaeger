@@ -127,8 +127,8 @@ type CollectorOptions struct {
 		HTTPHostPort string
 		// TLS configures secure transport for Zipkin endpoint to collect spans
 		TLS tlscfg.Options
-		// CORSSettings allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
-		CORSSettings corscfg.Options
+		// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
+		CORS corscfg.Options
 		// KeepAlive configures allow Keep-Alive for Zipkin HTTP server
 		KeepAlive bool
 	}
@@ -155,8 +155,8 @@ type HTTPOptions struct {
 	ReadHeaderTimeout time.Duration
 	// IdleTimeout sets the respective parameter of http.Server
 	IdleTimeout time.Duration
-	// CORSSettings allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
-	CORSSettings corscfg.Options
+	// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
+	CORS corscfg.Options
 }
 
 // GRPCOptions defines options for a gRPC server
@@ -277,7 +277,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	if err := cOpts.OTLP.HTTP.initFromViper(v, logger, otlpServerFlagsCfg.HTTP); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
 	}
-	cOpts.OTLP.HTTP.CORSSettings = corsOTLPFlags.InitFromViper(v)
+	cOpts.OTLP.HTTP.CORS = corsOTLPFlags.InitFromViper(v)
 	if err := cOpts.OTLP.GRPC.initFromViper(v, logger, otlpServerFlagsCfg.GRPC); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}
@@ -289,7 +289,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	} else {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
-	cOpts.Zipkin.CORSSettings = corsZipkinFlags.InitFromViper(v)
+	cOpts.Zipkin.CORS = corsZipkinFlags.InitFromViper(v)
 
 	return cOpts, nil
 }
