@@ -75,12 +75,12 @@ func newDatabase(tracer trace.Tracer, logger log.Factory) *database {
 func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
 	d.logger.For(ctx).Info("Loading customer", zap.Int("customer_id", customerID))
 
-	// simulate opentracing instrumentation of an SQL query
 	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
-	// #nosec
 	span.SetAttributes(
 		semconv.PeerServiceKey.String("mysql"),
-		attribute.Key("sql.query").String(fmt.Sprintf("SELECT * FROM customer WHERE customer_id=%d", customerID)),
+		attribute.
+			Key("sql.query").
+			String(fmt.Sprintf("SELECT * FROM customer WHERE customer_id=%d", customerID)),
 	)
 	defer span.End()
 
