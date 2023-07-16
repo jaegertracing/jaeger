@@ -18,6 +18,7 @@ package customer
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
@@ -34,7 +35,7 @@ import (
 type database struct {
 	tracer    trace.Tracer
 	logger    log.Factory
-	customers map[string]*Customer
+	customers map[int]*Customer
 	lock      *tracing.Mutex
 }
 
@@ -46,40 +47,40 @@ func newDatabase(tracer trace.Tracer, logger log.Factory) *database {
 			SessionBaggageKey: "request",
 			LogFactory:        logger,
 		},
-		customers: map[string]*Customer{
-			"123": {
+		customers: map[int]*Customer{
+			123: {
 				ID:       "123",
-				Name:     "Rachel's Floral Designs",
+				Name:     "Rachel's_Floral_Designs",
 				Location: "115,277",
 			},
-			"567": {
+			567: {
 				ID:       "567",
-				Name:     "Amazing Coffee Roasters",
+				Name:     "Amazing_Coffee_Roasters",
 				Location: "211,653",
 			},
-			"392": {
+			392: {
 				ID:       "392",
-				Name:     "Trom Chocolatier",
+				Name:     "Trom_Chocolatier",
 				Location: "577,322",
 			},
-			"731": {
+			731: {
 				ID:       "731",
-				Name:     "Japanese Desserts",
+				Name:     "Japanese_Desserts",
 				Location: "728,326",
 			},
 		},
 	}
 }
 
-func (d *database) Get(ctx context.Context, customerID string) (*Customer, error) {
-	d.logger.For(ctx).Info("Loading customer", zap.String("customer_id", customerID))
+func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
+	d.logger.For(ctx).Info("Loading customer", zap.Int("customer_id", customerID))
 
 	// simulate opentracing instrumentation of an SQL query
 	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
 	// #nosec
 	span.SetAttributes(
 		semconv.PeerServiceKey.String("mysql"),
-		attribute.Key("sql.query").String("SELECT * FROM customer WHERE customer_id="+customerID),
+		attribute.Key("sql.query").String(fmt.Sprintf("SELECT * FROM customer WHERE customer_id=%d", customerID)),
 	)
 	defer span.End()
 

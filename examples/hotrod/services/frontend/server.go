@@ -20,8 +20,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"path"
+	"strconv"
 
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
@@ -36,7 +37,7 @@ var assetFS embed.FS
 // Server implements jaeger-demo-frontend service
 type Server struct {
 	hostPort string
-	tracer   opentracing.Tracer
+	tracer   trace.TracerProvider
 	logger   log.Factory
 	bestETA  *bestETA
 	assetFS  http.FileSystem
@@ -56,7 +57,7 @@ type ConfigOptions struct {
 }
 
 // NewServer creates a new frontend.Server
-func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(options ConfigOptions, tracer trace.TracerProvider, logger log.Factory) *Server {
 	return &Server{
 		hostPort: options.FrontendHostPort,
 		tracer:   tracer,
@@ -99,9 +100,14 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerID := r.Form.Get("customer")
-	if customerID == "" {
+	customer := r.Form.Get("customer")
+	if customer == "" {
 		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
+		return
+	}
+	customerID, err := strconv.Atoi(customer)
+	if err != nil {
+		http.Error(w, "Parameter 'customer' is not an integer", http.StatusBadRequest)
 		return
 	}
 
