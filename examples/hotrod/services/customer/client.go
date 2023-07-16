@@ -43,10 +43,10 @@ func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string)
 }
 
 // Get implements customer.Interface#Get as an RPC
-func (c *Client) Get(ctx context.Context, customerID string) (*Customer, error) {
-	c.logger.For(ctx).Info("Getting customer", zap.String("customer_id", customerID))
+func (c *Client) Get(ctx context.Context, customerID int) (*Customer, error) {
+	c.logger.For(ctx).Info("Getting customer", zap.Int("customer_id", customerID))
 
-	url := fmt.Sprintf("http://"+c.hostPort+"/customer?customer=%s", customerID)
+	url := fmt.Sprintf("http://"+c.hostPort+"/customer?customer=%d", customerID)
 	var customer Customer
 	if err := c.client.GetJSON(ctx, "/customer", url, &customer); err != nil {
 		return nil, err
