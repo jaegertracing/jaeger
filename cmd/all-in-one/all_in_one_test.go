@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,11 +47,12 @@ const (
 	agentURL      = "http://" + agentHostPort
 
 	getServicesURL         = queryURL + "/api/services"
-	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
 	getSamplingStrategyURL = agentURL + "/sampling?service=whatever"
 
 	getServicesAPIV3URL = queryURL + "/api/v3/services"
 )
+
+var getTraceURL = queryURL + "/api/traces/"
 
 var httpClient = &http.Client{
 	Timeout: time.Second,
@@ -70,10 +72,15 @@ func TestAllInOne(t *testing.T) {
 func createTrace(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, getServicesURL, nil)
 	require.NoError(t, err)
-	req.Header.Add("jaeger-debug-id", "debug")
 
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
+	traceResponse := resp.Header.Get("traceresponse")
+	parts := strings.Split(traceResponse, "-")
+	traceID := parts[1]
+	req.Header.Set("trace-id", traceID)
+	// Update the URL with the traceID
+	getTraceURL += traceID
 	resp.Body.Close()
 }
 
@@ -121,7 +128,7 @@ func getSamplingStrategy(t *testing.T) {
 	resp.Body.Close()
 
 	assert.NotNil(t, queryResponse.ProbabilisticSampling)
-	assert.EqualValues(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate)
+	assert.EqualValues(t, 0.001, queryResponse.ProbabilisticSampling.SamplingRate)
 }
 
 func healthCheck(t *testing.T) {
