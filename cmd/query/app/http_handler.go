@@ -27,7 +27,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -111,7 +112,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 	if aH.logger == nil {
 		aH.logger = zap.NewNop()
 	}
-	if aH.tracer.OT == nil {
+	if aH.tracer.OTEL == nil {
 		aH.tracer = jtracer.NoOp()
 	}
 	return aH
@@ -146,12 +147,10 @@ func (aH *APIHandler) handleFunc(
 	if aH.tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyMgr, handler)
 	}
-	traceMiddleware := nethttp.Middleware(
-		aH.tracer.OT,
-		handler,
-		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return route
-		}))
+	traceMiddleware := otelhttp.NewHandler(
+		otelhttp.WithRouteTag(route, traceResponseHandler(handler)),
+		route,
+		otelhttp.WithTracerProvider(aH.tracer.OTEL))
 	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 
@@ -522,4 +521,19 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 	if err := marshal(w, response); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
 	}
+}
+
+// Returns a handler that generates a traceresponse header.
+// https://github.com/w3c/trace-context/blob/main/spec/21-http_response_header_format.md
+func traceResponseHandler(handler http.Handler) http.Handler {
+	// We use the standard TraceContext propagator, since the formats are identical.
+	// But the propagator uses "traceparent" header name, so we inject it into a map
+	// `carrier` and then use the result to set the "tracereponse" header.
+	var prop propagation.TraceContext
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		carrier := make(map[string]string)
+		prop.Inject(r.Context(), propagation.MapCarrier(carrier))
+		w.Header().Add("traceresponse", carrier["traceparent"])
+		handler.ServeHTTP(w, r)
+	})
 }
