@@ -100,7 +100,7 @@ by default uses only in-memory database.`,
 				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(metricsFactory)
 
-			tracer, err := jtracer.New("query-service")
+			tracer, err := jtracer.New("jaeger-query")
 			if err != nil {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
