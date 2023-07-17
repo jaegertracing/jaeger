@@ -79,6 +79,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 	saramaClusterConsumer.On("Partitions").Return((<-chan cluster.PartitionConsumer)(pcha))
 	saramaClusterConsumer.On("Close").Return(nil).Run(func(args mock.Arguments) {
 		mc.Close()
+		close(pcha)
 	})
 	saramaClusterConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	return saramaClusterConsumer

@@ -17,27 +17,10 @@ package tracing
 import (
 	"context"
 
-	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel/baggage"
 )
 
 func BaggageItem(ctx context.Context, key string) string {
-	val := opentracingBaggageItem(ctx, key)
-	if val != "" {
-		return val
-	}
-	return otelBaggageItem(ctx, key)
-}
-
-func opentracingBaggageItem(ctx context.Context, key string) string {
-	span := opentracing.SpanFromContext(ctx)
-	if span == nil {
-		return ""
-	}
-	return span.BaggageItem(key)
-}
-
-func otelBaggageItem(ctx context.Context, key string) string {
 	b := baggage.FromContext(ctx)
 	m := b.Member(key)
 	return m.Value()

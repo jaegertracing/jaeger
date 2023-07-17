@@ -18,17 +18,16 @@ package tracing
 import (
 	"net/http"
 
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
-	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )
 
 // NewServeMux creates a new TracedServeMux.
-func NewServeMux(copyBaggage bool, tracer opentracing.Tracer, logger log.Factory) *TracedServeMux {
+func NewServeMux(copyBaggage bool, tracer trace.TracerProvider, logger log.Factory) *TracedServeMux {
 	return &TracedServeMux{
 		mux:         http.NewServeMux(),
 		copyBaggage: copyBaggage,
@@ -41,7 +40,7 @@ func NewServeMux(copyBaggage bool, tracer opentracing.Tracer, logger log.Factory
 type TracedServeMux struct {
 	mux         *http.ServeMux
 	copyBaggage bool
-	tracer      opentracing.Tracer
+	tracer      trace.TracerProvider
 	logger      log.Factory
 }
 
@@ -49,29 +48,12 @@ type TracedServeMux struct {
 func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	tm.logger.Bg().Debug("registering traced handler", zap.String("endpoint", pattern))
 
-	middleware := nethttp.Middleware(
-		tm.tracer,
-		handler,
-		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return "HTTP " + r.Method + " " + pattern
-		}),
-		// Jaeger SDK was able to accept `jaeger-baggage` header even for requests without am active trace.
-		// OTEL Bridge does not support that, so we use Baggage propagator to manually extract the baggage
-		// into Context (in otelBaggageExtractor handler below), and once the Bridge creates a Span,
-		// we use this SpanObserver to copy OTEL baggage from Context into the Span.
-		nethttp.MWSpanObserver(func(span opentracing.Span, r *http.Request) {
-			if !tm.copyBaggage {
-				return
-			}
-			bag := baggage.FromContext(r.Context())
-			for _, m := range bag.Members() {
-				if b := span.BaggageItem(m.Key()); b == "" {
-					span.SetBaggageItem(m.Key(), m.Value())
-				}
-			}
-		}),
-	)
-	tm.mux.Handle(pattern, otelBaggageExtractor(middleware))
+	middleware := otelhttp.NewHandler(
+		otelhttp.WithRouteTag(pattern, traceResponseHandler(handler)),
+		pattern,
+		otelhttp.WithTracerProvider(tm.tracer))
+
+	tm.mux.Handle(pattern, middleware)
 }
 
 // ServeHTTP implements http.ServeMux#ServeHTTP.
@@ -79,13 +61,17 @@ func (tm *TracedServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tm.mux.ServeHTTP(w, r)
 }
 
-// Used with nethttp.MWSpanObserver above.
-func otelBaggageExtractor(next http.Handler) http.Handler {
-	propagator := propagation.Baggage{}
+// Returns a handler that generates a traceresponse header.
+// https://github.com/w3c/trace-context/blob/main/spec/21-http_response_header_format.md
+func traceResponseHandler(handler http.Handler) http.Handler {
+	// We use the standard TraceContext propagator, since the formats are identical.
+	// But the propagator uses "traceparent" header name, so we inject it into a map
+	// `carrier` and then use the result to set the "tracereponse" header.
+	var prop propagation.TraceContext
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		carrier := propagation.HeaderCarrier(r.Header)
-		ctx := propagator.Extract(r.Context(), carrier)
-		r = r.WithContext(ctx)
-		next.ServeHTTP(w, r)
+		carrier := make(map[string]string)
+		prop.Inject(r.Context(), propagation.MapCarrier(carrier))
+		w.Header().Add("traceresponse", carrier["traceparent"])
+		handler.ServeHTTP(w, r)
 	})
 }

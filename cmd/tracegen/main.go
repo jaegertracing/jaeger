@@ -81,7 +81,7 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 		logger.Sugar().Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
 
 		tp := sdktrace.NewTracerProvider(
-			sdktrace.WithBatcher(exp),
+			sdktrace.WithBatcher(exp, sdktrace.WithBlocking()),
 			sdktrace.WithResource(resource.NewWithAttributes(
 				semconv.SchemaURL,
 				semconv.ServiceNameKey.String(svc),
