@@ -197,7 +197,7 @@ by default uses only in-memory database.`,
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				metricsFactory, tm, *tracer,
+				metricsFactory, tm, tracer,
 			)
 
 			svc.RunAndThen(func() {
@@ -273,11 +273,11 @@ func startQuery(
 	metricsQueryService querysvc.MetricsQueryService,
 	baseFactory metrics.Factory,
 	tm *tenancy.Manager,
-	jt jtracer.JTracer,
+	jt *jtracer.JTracer,
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, jt)
+	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, *jt)
 	if err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}

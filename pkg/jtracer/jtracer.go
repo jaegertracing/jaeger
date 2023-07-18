@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -106,6 +106,6 @@ func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 }
 
 // Shutdown the tracerProvider to clean up resources
-func (jt JTracer) Close(ctx context.Context) error {
+func (jt *JTracer) Close(ctx context.Context) error {
 	return jt.closer(ctx)
 }

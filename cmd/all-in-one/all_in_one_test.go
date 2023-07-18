@@ -126,7 +126,7 @@ func getSamplingStrategy(t *testing.T) {
 	resp.Body.Close()
 
 	assert.NotNil(t, queryResponse.ProbabilisticSampling)
-	assert.EqualValues(t, 1, queryResponse.ProbabilisticSampling.SamplingRate)
+	assert.EqualValues(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate)
 }
 
 func healthCheck(t *testing.T) {
