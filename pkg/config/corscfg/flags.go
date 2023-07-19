@@ -33,7 +33,7 @@ type Flags struct {
 
 func (c Flags) AddFlags(flags *flag.FlagSet) {
 	flags.String(c.Prefix+corsAllowedHeaders, "", "Comma-separated CORS allowed headers. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers")
-	flags.String(c.Prefix+corsAllowedOrigins, "", "Comma-separated CORS allowed headers. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin")
+	flags.String(c.Prefix+corsAllowedOrigins, "", "Comma-separated CORS allowed origins. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin")
 }
 
 func (c Flags) InitFromViper(v *viper.Viper) Options {
