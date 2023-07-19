@@ -144,7 +144,7 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 			deadlockDetector.incrementMsgCount()
 
 			if msgProcessor == nil {
-				msgProcessor = c.processorFactory.new(pc.Partition(), msg.Offset-1)
+				msgProcessor = c.processorFactory.new(pc.Topic(), pc.Partition(), msg.Offset-1)
 				defer msgProcessor.Close()
 			}
 

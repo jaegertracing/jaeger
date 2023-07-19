@@ -98,7 +98,6 @@ func newConsumer(
 		Logger:           logger,
 		InternalConsumer: consumer,
 		ProcessorFactory: ProcessorFactory{
-			topic:          topic,
 			consumer:       consumer,
 			metricsFactory: metricsFactory,
 			logger:         logger,
