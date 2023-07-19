@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/pkg/config/corscfg"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -49,8 +50,6 @@ const (
 	flagCollectorOTLPEnabled = "collector.otlp.enabled"
 
 	flagZipkinHTTPHostPort     = "collector.zipkin.host-port"
-	flagZipkinAllowedHeaders   = "collector.zipkin.allowed-headers"
-	flagZipkinAllowedOrigins   = "collector.zipkin.allowed-origins"
 	flagZipkinKeepAliveEnabled = "collector.zipkin.keep-alive"
 
 	// DefaultNumWorkers is the default number of workers consuming from the processor queue
@@ -99,6 +98,14 @@ var tlsZipkinFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "collector.zipkin",
 }
 
+var corsZipkinFlags = corscfg.Flags{
+	Prefix: "collector.zipkin",
+}
+
+var corsOTLPFlags = corscfg.Flags{
+	Prefix: "collector.otlp.http",
+}
+
 // CollectorOptions holds configuration for collector
 type CollectorOptions struct {
 	// DynQueueSizeMemory determines how much memory to use for the queue
@@ -121,12 +128,10 @@ type CollectorOptions struct {
 	Zipkin struct {
 		// HTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
 		HTTPHostPort string
-		// ZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
-		AllowedOrigins string
-		// ZipkinAllowedHeaders is a list of headers that the Zipkin collector service allowes the client to use with cross-domain requests
-		AllowedHeaders string
 		// TLS configures secure transport for Zipkin endpoint to collect spans
 		TLS tlscfg.Options
+		// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
+		CORS corscfg.Options
 		// KeepAlive configures allow Keep-Alive for Zipkin HTTP server
 		KeepAlive bool
 	}
@@ -153,6 +158,8 @@ type HTTPOptions struct {
 	ReadHeaderTimeout time.Duration
 	// IdleTimeout sets the respective parameter of http.Server
 	IdleTimeout time.Duration
+	// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
+	CORS corscfg.Options
 }
 
 // GRPCOptions defines options for a gRPC server
@@ -186,13 +193,13 @@ func AddFlags(flags *flag.FlagSet) {
 
 	flags.Bool(flagCollectorOTLPEnabled, true, "Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports")
 	addHTTPFlags(flags, otlpServerFlagsCfg.HTTP, "")
+	corsOTLPFlags.AddFlags(flags)
 	addGRPCFlags(flags, otlpServerFlagsCfg.GRPC, "")
 
-	flags.String(flagZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
-	flags.String(flagZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 	flags.Bool(flagZipkinKeepAliveEnabled, true, "KeepAlive configures allow Keep-Alive for Zipkin HTTP server (enabled by default)")
 	tlsZipkinFlagsConfig.AddFlags(flags)
+	corsZipkinFlags.AddFlags(flags)
 
 	tenancy.AddFlags(flags)
 }
@@ -273,12 +280,11 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	if err := cOpts.OTLP.HTTP.initFromViper(v, logger, otlpServerFlagsCfg.HTTP); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
 	}
+	cOpts.OTLP.HTTP.CORS = corsOTLPFlags.InitFromViper(v)
 	if err := cOpts.OTLP.GRPC.initFromViper(v, logger, otlpServerFlagsCfg.GRPC); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}
 
-	cOpts.Zipkin.AllowedHeaders = v.GetString(flagZipkinAllowedHeaders)
-	cOpts.Zipkin.AllowedOrigins = v.GetString(flagZipkinAllowedOrigins)
 	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
 	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
 	if tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v); err == nil {
@@ -286,6 +292,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	} else {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
+	cOpts.Zipkin.CORS = corsZipkinFlags.InitFromViper(v)
 
 	return cOpts, nil
 }
