@@ -76,8 +76,9 @@ func createTrace(t *testing.T) {
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 	traceResponse := resp.Header.Get("traceresponse")
-	traceID := strings.Split(traceResponse, "-")[1]
-	// Update the URL with the traceID
+	parts := strings.Split(traceResponse, "-")
+	require.Len(t, parts, 4) // [version] [trace-id] [child-id] [trace-flags]
+	traceID := parts[1]
 	getTraceURL += traceID
 	resp.Body.Close()
 }
