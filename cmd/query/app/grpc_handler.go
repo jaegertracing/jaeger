@@ -53,7 +53,7 @@ type GRPCHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	logger              *zap.Logger
-	tracer              jtracer.JTracer
+	tracer              *jtracer.JTracer
 	nowFn               func() time.Time
 }
 
@@ -85,7 +85,7 @@ func NewGRPCHandler(queryService *querysvc.QueryService,
 		queryService:        queryService,
 		metricsQueryService: metricsQueryService,
 		logger:              options.Logger,
-		tracer:              *options.Tracer,
+		tracer:              options.Tracer,
 		nowFn:               options.NowFn,
 	}
 }
