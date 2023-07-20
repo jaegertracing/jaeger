@@ -35,7 +35,6 @@ import (
 	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
@@ -310,8 +309,7 @@ func TestGetTrace(t *testing.T) {
 				sdktrace.WithSyncer(exporter),
 				sdktrace.WithSampler(sdktrace.AlwaysSample()),
 			)
-			otTracer, wrappedTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
-			jTracer := jtracer.JTracer{OT: otTracer, OTEL: wrappedTracerProvider}
+			jTracer := jtracer.JTracer{OTEL: tracerProvider}
 			defer tracerProvider.Shutdown(context.Background())
 
 			ts := initializeTestServer(HandlerOptions.Tracer(&jTracer))
