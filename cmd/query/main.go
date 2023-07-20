@@ -74,7 +74,7 @@ func main() {
 			version.NewInfoMetrics(metricsFactory)
 			jtracer, err := jtracer.New("jaeger-query")
 			if err != nil {
-				logger.Fatal("Failed to create exporter:", zap.Error(err))
+				logger.Fatal("Failed to create tracer:", zap.Error(err))
 			}
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
@@ -106,7 +106,7 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, *jtracer)
+			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, jtracer)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}

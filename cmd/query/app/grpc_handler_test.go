@@ -927,7 +927,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 	logger := zap.NewNop()
 	tracer := jtracer.NoOp()
 
-	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, tm)
+	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, *tracer, tm)
 
 	return &grpcServer{
 		server:              server,

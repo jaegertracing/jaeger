@@ -313,8 +313,9 @@ func TestGetTrace(t *testing.T) {
 			// Use the bridgeTracer as OpenTracing tracer(otTrace).
 			otTracer, wrappedTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
 			jTracer := jtracer.JTracer{OT: otTracer, OTEL: wrappedTracerProvider}
+			defer tracerProvider.Shutdown(context.Background())
 
-			ts := initializeTestServer(HandlerOptions.Tracer(jTracer))
+			ts := initializeTestServer(HandlerOptions.Tracer(&jTracer))
 			defer ts.server.Close()
 
 			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).

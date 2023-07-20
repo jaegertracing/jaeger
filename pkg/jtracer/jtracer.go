@@ -60,8 +60,8 @@ func New(serviceName string) (*JTracer, error) {
 	}, nil
 }
 
-func NoOp() JTracer {
-	return JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
+func NoOp() *JTracer {
+	return &JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
 }
 
 // initOTEL initializes OTEL Tracer
@@ -73,7 +73,7 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
-	bsp := sdktrace.NewBatchSpanProcessor(traceExporter, sdktrace.WithBlocking())
+	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(resource.NewWithAttributes(

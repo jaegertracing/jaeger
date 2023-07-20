@@ -113,7 +113,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 		aH.logger = zap.NewNop()
 	}
 	if aH.tracer.OTEL == nil {
-		aH.tracer = jtracer.NoOp()
+		aH.tracer = *jtracer.NoOp()
 	}
 	return aH
 }
