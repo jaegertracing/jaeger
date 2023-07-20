@@ -310,7 +310,6 @@ func TestGetTrace(t *testing.T) {
 				sdktrace.WithSyncer(exporter),
 				sdktrace.WithSampler(sdktrace.AlwaysSample()),
 			)
-			// Use the bridgeTracer as OpenTracing tracer(otTrace).
 			otTracer, wrappedTracerProvider := otbridge.NewTracerPair(tracerProvider.Tracer(""))
 			jTracer := jtracer.JTracer{OT: otTracer, OTEL: wrappedTracerProvider}
 			defer tracerProvider.Shutdown(context.Background())

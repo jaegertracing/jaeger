@@ -89,7 +89,7 @@ type APIHandler struct {
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
-	tracer              jtracer.JTracer
+	tracer              *jtracer.JTracer
 }
 
 // NewAPIHandler returns an APIHandler
@@ -112,8 +112,8 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 	if aH.logger == nil {
 		aH.logger = zap.NewNop()
 	}
-	if aH.tracer.OTEL == nil {
-		aH.tracer = *jtracer.NoOp()
+	if aH.tracer == nil {
+		aH.tracer = jtracer.NoOp()
 	}
 	return aH
 }

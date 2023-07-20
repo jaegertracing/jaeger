@@ -145,7 +145,7 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer jtracer.JTracer, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer *jtracer.JTracer, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
 	if tenancyMgr.Enabled {
@@ -927,7 +927,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 	logger := zap.NewNop()
 	tracer := jtracer.NoOp()
 
-	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, *tracer, tm)
+	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, tm)
 
 	return &grpcServer{
 		server:              server,
