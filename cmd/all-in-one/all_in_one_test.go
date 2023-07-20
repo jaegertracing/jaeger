@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,11 +47,12 @@ const (
 	agentURL      = "http://" + agentHostPort
 
 	getServicesURL         = queryURL + "/api/services"
-	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
 	getSamplingStrategyURL = agentURL + "/sampling?service=whatever"
 
 	getServicesAPIV3URL = queryURL + "/api/v3/services"
 )
+
+var getTraceURL = queryURL + "/api/traces/"
 
 var httpClient = &http.Client{
 	Timeout: time.Second,
@@ -70,11 +72,15 @@ func TestAllInOne(t *testing.T) {
 func createTrace(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, getServicesURL, nil)
 	require.NoError(t, err)
-	req.Header.Add("jaeger-debug-id", "debug")
 
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
-	resp.Body.Close()
+	defer resp.Body.Close()
+	traceResponse := resp.Header.Get("traceresponse")
+	parts := strings.Split(traceResponse, "-")
+	require.Len(t, parts, 4) // [version] [trace-id] [child-id] [trace-flags]
+	traceID := parts[1]
+	getTraceURL += traceID
 }
 
 type response struct {
@@ -157,5 +163,5 @@ func getServicesAPIV3(t *testing.T) {
 	jsonpb := runtime.JSONPb{}
 	err = jsonpb.Unmarshal(body, &servicesResponse)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"jaeger-query"}, servicesResponse.GetServices())
+	assert.Equal(t, []string{"jaeger-all-in-one"}, servicesResponse.GetServices())
 }

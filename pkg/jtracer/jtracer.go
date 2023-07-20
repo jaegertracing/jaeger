@@ -14,16 +14,98 @@
 
 package jtracer
 
-import "github.com/opentracing/opentracing-go"
+import (
+	"context"
+	"fmt"
+	"sync"
+
+	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel"
+	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	"go.opentelemetry.io/otel/trace"
+)
 
 type JTracer struct {
-	OT opentracing.Tracer
+	OT     opentracing.Tracer
+	OTEL   trace.TracerProvider
+	closer func(ctx context.Context) error
 }
 
-func OT(t opentracing.Tracer) JTracer {
-	return JTracer{OT: t}
+var once sync.Once
+
+func New(serviceName string) (*JTracer, error) {
+	ctx := context.Background()
+	tracerProvider, err := initOTEL(ctx, serviceName)
+	if err != nil {
+		return nil, err
+	}
+	// Use the bridgeTracer as your OpenTracing tracer(otTrace).
+	otelTracer := tracerProvider.Tracer("github.com/jaegertracing/jaeger/pkg/jtracer")
+	otTracer, wrappedTracerProvider := otbridge.NewTracerPair(otelTracer)
+
+	closer := func(ctx context.Context) error {
+		return tracerProvider.Shutdown(ctx)
+	}
+
+	return &JTracer{
+		OT:     otTracer,
+		OTEL:   wrappedTracerProvider,
+		closer: closer,
+	}, nil
 }
 
-func NoOp() JTracer {
-	return JTracer{OT: opentracing.NoopTracer{}}
+func NoOp() *JTracer {
+	return &JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
+}
+
+// initOTEL initializes OTEL Tracer
+func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error) {
+	traceExporter, err := otelExporter(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Register the trace exporter with a TracerProvider, using a batch
+	// span processor to aggregate spans before export.
+	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(bsp),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(svc),
+		)),
+	)
+
+	once.Do(func() {
+		otel.SetTextMapPropagator(
+			propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+			))
+	})
+
+	return tracerProvider, nil
+}
+
+func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
+	client := otlptracegrpc.NewClient(
+		otlptracegrpc.WithInsecure(),
+	)
+	traceExporter, err := otlptrace.New(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create trace exporter: %w", err)
+	}
+
+	return traceExporter, nil
+}
+
+// Shutdown the tracerProvider to clean up resources
+func (jt *JTracer) Close(ctx context.Context) error {
+	return jt.closer(ctx)
 }

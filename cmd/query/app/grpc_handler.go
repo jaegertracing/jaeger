@@ -53,14 +53,14 @@ type GRPCHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	logger              *zap.Logger
-	tracer              jtracer.JTracer
+	tracer              *jtracer.JTracer
 	nowFn               func() time.Time
 }
 
 // GRPCHandlerOptions contains optional members of GRPCHandler.
 type GRPCHandlerOptions struct {
 	Logger *zap.Logger
-	Tracer jtracer.JTracer
+	Tracer *jtracer.JTracer
 	NowFn  func() time.Time
 }
 
@@ -73,7 +73,7 @@ func NewGRPCHandler(queryService *querysvc.QueryService,
 		options.Logger = zap.NewNop()
 	}
 
-	if options.Tracer.OT == nil {
+	if options.Tracer == nil {
 		options.Tracer = jtracer.NoOp()
 	}
 
