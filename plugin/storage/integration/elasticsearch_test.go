@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
+	jaegerSpanStore "github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -256,7 +257,9 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
+		actual, err = s.SpanReader.GetTrace(context.Background(), &jaegerSpanStore.TraceIDQueryParameters{
+			ID: tID,
+		})
 		return err == nil && len(actual.Spans) == 1
 	})
 	if !assert.True(t, found) {

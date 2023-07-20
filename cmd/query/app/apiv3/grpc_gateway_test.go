@@ -114,7 +114,7 @@ func testGRPCGatewayWithTenancy(t *testing.T, basePath string, serverTLS tlscfg.
 	defer httpServer.Shutdown(context.Background())
 
 	traceID := model.NewTraceID(150, 160)
-	reader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
+	reader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.TraceIDQueryParameters")).Return(
 		&model.Trace{
 			Spans: []*model.Span{
 				{
@@ -197,7 +197,7 @@ func TestTenancyGRPCRejection(t *testing.T) {
 	defer httpServer.Shutdown(context.Background())
 
 	traceID := model.NewTraceID(150, 160)
-	reader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).Return(
+	reader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.TraceIDQueryParameters")).Return(
 		&model.Trace{
 			Spans: []*model.Span{
 				{

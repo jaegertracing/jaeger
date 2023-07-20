@@ -36,7 +36,7 @@ type Reader interface {
 	// GetTrace retrieves the trace with a given id.
 	//
 	// If no spans are stored for this trace, it returns ErrTraceNotFound.
-	GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
+	GetTrace(ctx context.Context, query *TraceIDQueryParameters) (*model.Trace, error)
 
 	// GetServices returns all service names known to the backend from spans
 	// within its retention period.
@@ -59,6 +59,13 @@ type Reader interface {
 	//
 	// If no matching traces are found, the function returns (nil, nil).
 	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
+}
+
+// TraceIDQueryParameters contains parameters of a trace id query.
+type TraceIDQueryParameters struct {
+	ID    model.TraceID
+	Start time.Time
+	End   time.Time
 }
 
 // TraceQueryParameters contains parameters of a trace query.

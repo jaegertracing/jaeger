@@ -264,7 +264,9 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 	var errors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		if trace, err := aH.queryService.GetTrace(ctx, traceID); err != nil {
+		if trace, err := aH.queryService.GetTrace(ctx, &spanstore.TraceIDQueryParameters{
+			ID: traceID,
+		}); err != nil {
 			if err != spanstore.ErrTraceNotFound {
 				return nil, nil, err
 			}
@@ -427,7 +429,9 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	trace, err := aH.queryService.GetTrace(r.Context(), traceID)
+	trace, err := aH.queryService.GetTrace(r.Context(), &spanstore.TraceIDQueryParameters{
+		ID: traceID,
+	})
 	if err == spanstore.ErrTraceNotFound {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
@@ -466,7 +470,9 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// QueryService.ArchiveTrace can now archive this traceID.
-	err := aH.queryService.ArchiveTrace(r.Context(), traceID)
+	err := aH.queryService.ArchiveTrace(r.Context(), &spanstore.TraceIDQueryParameters{
+		ID: traceID,
+	})
 	if err == spanstore.ErrTraceNotFound {
 		aH.handleError(w, err, http.StatusNotFound)
 		return

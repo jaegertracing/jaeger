@@ -40,7 +40,9 @@ func TestEncodingTypes(t *testing.T) {
 		err := sw.WriteSpan(context.Background(), &testSpan)
 		assert.NoError(t, err)
 
-		tr, err := rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
+		tr, err := rw.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: model.TraceID{Low: 0, High: 1},
+		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(tr.Spans))
 	})
@@ -83,7 +85,9 @@ func TestEncodingTypes(t *testing.T) {
 			return nil
 		})
 
-		_, err = rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
+		_, err = rw.GetTrace(context.Background(), &spanstore.TraceIDQueryParameters{
+			ID: model.TraceID{Low: 0, High: 1},
+		})
 		assert.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 }

@@ -157,8 +157,8 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	traces, err := r.getTraces([]model.TraceID{traceID})
+func (r *TraceReader) GetTrace(ctx context.Context, query *spanstore.TraceIDQueryParameters) (*model.Trace, error) {
+	traces, err := r.getTraces([]model.TraceID{query.ID})
 	if err != nil {
 		return nil, err
 	}

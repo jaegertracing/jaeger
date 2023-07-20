@@ -149,7 +149,9 @@ func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterReques
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
-	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
+	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), &spanstore.TraceIDQueryParameters{
+		ID: r.TraceID,
+	})
 	if err == spanstore.ErrTraceNotFound {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
@@ -274,7 +276,9 @@ func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stor
 	if reader == nil {
 		return status.Error(codes.Unimplemented, "not implemented")
 	}
-	trace, err := reader.GetTrace(stream.Context(), r.TraceID)
+	trace, err := reader.GetTrace(stream.Context(), &spanstore.TraceIDQueryParameters{
+		ID: r.TraceID,
+	})
 	if err == spanstore.ErrTraceNotFound {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
