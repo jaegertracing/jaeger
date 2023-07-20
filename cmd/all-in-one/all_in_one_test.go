@@ -162,5 +162,5 @@ func getServicesAPIV3(t *testing.T) {
 	jsonpb := runtime.JSONPb{}
 	err = jsonpb.Unmarshal(body, &servicesResponse)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"jaeger-query"}, servicesResponse.GetServices())
+	assert.Equal(t, []string{"jaeger-all-in-one"}, servicesResponse.GetServices())
 }
