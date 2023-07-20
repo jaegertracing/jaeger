@@ -279,7 +279,7 @@ func startQuery(
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, jt)
 	if err != nil {
-		svc.Logger.Fatal("Could not start jaeger-all-in-one service", zap.Error(err))
+		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}
 	go func() {
 		for s := range server.HealthCheckStatus() {
@@ -287,7 +287,7 @@ func startQuery(
 		}
 	}()
 	if err := server.Start(); err != nil {
-		svc.Logger.Fatal("Could not start jaeger-all-in-one service", zap.Error(err))
+		svc.Logger.Fatal("Could not start jaeger-query", zap.Error(err))
 	}
 
 	return server
