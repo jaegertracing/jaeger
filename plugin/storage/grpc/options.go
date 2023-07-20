@@ -33,6 +33,7 @@ const (
 	remotePrefix             = "grpc-storage"
 	remoteServer             = remotePrefix + ".server"
 	remoteConnectionTimeout  = remotePrefix + ".connection-timeout"
+	grpcMaxRecvMsgSize       = remotePrefix + ".max-recv-msg-size"
 	defaultPluginLogLevel    = "warn"
 	defaultConnectionTimeout = time.Duration(5 * time.Second)
 )
@@ -58,6 +59,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
 	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
+	flagSet.Int(grpcMaxRecvMsgSize, 4<<20, "The maximum receivable message size to receive from the remote storage gRPC server")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -73,5 +75,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	}
 	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
 	opt.Configuration.TenancyOpts = tenancy.InitFromViper(v)
+	opt.Configuration.MaxRecvMsgSize = v.GetInt(grpcMaxRecvMsgSize)
 	return nil
 }
