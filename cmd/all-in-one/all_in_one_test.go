@@ -75,12 +75,12 @@ func createTrace(t *testing.T) {
 
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	traceResponse := resp.Header.Get("traceresponse")
 	parts := strings.Split(traceResponse, "-")
 	require.Len(t, parts, 4) // [version] [trace-id] [child-id] [trace-flags]
 	traceID := parts[1]
 	getTraceURL += traceID
-	resp.Body.Close()
 }
 
 type response struct {

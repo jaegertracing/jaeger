@@ -99,7 +99,7 @@ func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	)
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
+		return nil, fmt.Errorf("Failed to create trace exporter: %w", err)
 	}
 
 	return traceExporter, nil
