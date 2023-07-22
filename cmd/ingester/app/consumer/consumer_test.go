@@ -151,8 +151,8 @@ func TestGroupConsumer(t *testing.T) {
 
 	logger, logBuf := testutils.NewLogger()
 	factoryParams := ProcessorFactoryParams{
-		Topic:          topic,
 		Parallelism:    1,
+		Topic:          topic,
 		SaramaConsumer: saramaConsumer,
 		BaseProcessor:  spanProcessor,
 		Logger:         logger,
@@ -289,8 +289,8 @@ func TestGroupConsumerWithDeadlockDetector(t *testing.T) {
 
 	logger, logBuf := testutils.NewLogger()
 	factoryParams := ProcessorFactoryParams{
-		Topic:          topic,
 		Parallelism:    1,
+		Topic:          topic,
 		SaramaConsumer: saramaConsumer,
 		BaseProcessor:  spanProcessor,
 		Logger:         logger,

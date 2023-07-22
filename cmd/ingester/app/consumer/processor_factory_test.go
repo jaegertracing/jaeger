@@ -126,8 +126,8 @@ func Test_New(t *testing.T) {
 	processor.On("Close").Return(nil)
 
 	factoryParams := ProcessorFactoryParams{
-		Topic:         "fake_msg_test",
 		Parallelism:   1,
+		Topic:         "fake_msg_test",
 		BaseProcessor: processor,
 		Logger:        logger,
 		Factory:       metrics.NullFactory,

@@ -65,11 +65,13 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 
 	factoryParams := consumer.ProcessorFactoryParams{
 		Parallelism:    options.Parallelism,
+		Topic:          options.Topic,
 		SaramaConsumer: saramaConsumer,
 		BaseProcessor:  spanProcessor,
 		Logger:         logger,
 		Factory:        metricsFactory,
 	}
+
 	processorFactory, err := consumer.NewProcessorFactory(factoryParams)
 	if err != nil {
 		return nil, err
