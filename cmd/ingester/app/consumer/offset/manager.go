@@ -75,19 +75,27 @@ func (m *Manager) Start() {
 		for {
 			select {
 			case <-time.After(resetInterval):
-				offset := m.list.setToHighestContiguous()
-				if lastCommittedOffset != offset {
-					m.offsetCommitCount.Inc(1)
-					m.lastCommittedOffset.Update(offset)
-					m.markOffsetFunction(offset)
-					lastCommittedOffset = offset
-				}
+				m.offsetCommit(&lastCommittedOffset)
 			case <-m.close:
+				m.offsetCommit(&lastCommittedOffset)
 				m.isClosed.Done()
 				return
 			}
 		}
 	}()
+}
+
+func (m *Manager) offsetCommit(lastCommittedOffset *int64) {
+	offset := m.list.setToHighestContiguous()
+
+	if *lastCommittedOffset == offset {
+		return
+	}
+
+	m.offsetCommitCount.Inc(1)
+	m.lastCommittedOffset.Update(offset)
+	m.markOffsetFunction(offset)
+	*lastCommittedOffset = offset
 }
 
 // Close closes the Manager

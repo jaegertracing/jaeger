@@ -17,7 +17,7 @@ package producer
 import (
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"

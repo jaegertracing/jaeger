@@ -46,6 +46,15 @@ type ProcessorFactory struct {
 	retryOptions   []decorator.RetryOption
 }
 
+type ConsumerGroupSession interface {
+	MarkOffset(topic string, partition int32, offset int64, metadata string)
+}
+
+type ConsumerGroupClaim interface {
+	Topic() string
+	Partition() int32
+}
+
 // NewProcessorFactory constructs a new ProcessorFactory
 func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, error) {
 	return &ProcessorFactory{
@@ -58,14 +67,18 @@ func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, erro
 	}, nil
 }
 
-func (c *ProcessorFactory) new(topic string, partition int32, minOffset int64) processor.SpanProcessor {
-	c.logger.Info("Creating new processors", zap.Int32("partition", partition))
+func (c *ProcessorFactory) new(
+	session ConsumerGroupSession,
+	claim ConsumerGroupClaim,
+	minOffset int64,
+) processor.SpanProcessor {
+	c.logger.Info("Creating new processor", zap.Int32("partition", claim.Partition()))
 
-	markOffset := func(offset int64) {
-		c.consumer.MarkPartitionOffset(topic, partition, offset, "")
+	markOffsetFunc := func(offset int64) {
+		session.MarkOffset(claim.Topic(), claim.Partition(), offset, "")
 	}
 
-	om := offset.NewManager(minOffset, markOffset, partition, c.metricsFactory)
+	om := offset.NewManager(minOffset, markOffsetFunc, claim.Partition(), c.metricsFactory)
 
 	retryProcessor := decorator.NewRetryingProcessor(c.metricsFactory, c.baseProcessor, c.retryOptions...)
 	cp := NewCommittingProcessor(retryProcessor, om)

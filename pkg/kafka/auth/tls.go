@@ -17,7 +17,7 @@ package auth
 import (
 	"fmt"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"

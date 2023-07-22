@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
-	saramaMocks "github.com/Shopify/sarama/mocks"
+	"github.com/IBM/sarama"
+	saramaMocks "github.com/IBM/sarama/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
