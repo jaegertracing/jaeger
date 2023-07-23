@@ -21,16 +21,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/opentracing/opentracing-go"
-	ottag "github.com/opentracing/opentracing-go/ext"
-	otlog "github.com/opentracing/opentracing-go/log"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -109,6 +109,7 @@ type SpanReader struct {
 	sourceFn                      sourceFn
 	maxDocCount                   int
 	useReadWriteAliases           bool
+	tracer                        *jtracer.JTracer
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -127,6 +128,7 @@ type SpanReaderParams struct {
 	Archive                       bool
 	UseReadWriteAliases           bool
 	RemoteReadClusters            []string
+	Tracer                        *jtracer.JTracer
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -136,6 +138,14 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
 		maxSpanAge = rolloverMaxSpanAge
+	}
+	jt, err := jtracer.New("spanstore")
+	if err != nil {
+		log.Fatal("Failed to initialise tracer", zap.Error(err))
+	}
+	p.Tracer = jt
+	if err := p.Tracer.Close(context.Background()); err != nil {
+		log.Fatal("Error shutting down tracer provider", zap.Error(err))
 	}
 	return &SpanReader{
 		client:                        p.Client,
@@ -153,6 +163,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		sourceFn:                      getSourceFn(p.Archive, p.MaxDocCount),
 		maxDocCount:                   p.MaxDocCount,
 		useReadWriteAliases:           p.UseReadWriteAliases,
+		tracer:                        p.Tracer,
 	}
 }
 
@@ -238,8 +249,8 @@ func indexNames(prefix, index string) string {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "GetTrace")
-	defer span.Finish()
+	ctx, span := s.tracer.OTEL.Tracer("spanreader").Start(ctx, "GetTrace")
+	defer span.End()
 	currentTime := time.Now()
 	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, currentTime.Add(-s.maxSpanAge), currentTime)
 	if err != nil {
@@ -283,8 +294,8 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "GetServices")
-	defer span.Finish()
+	ctx, span := s.tracer.OTEL.Tracer("spanreader").Start(ctx, "GetService")
+	defer span.End()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
@@ -295,8 +306,8 @@ func (s *SpanReader) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
-	defer span.Finish()
+	ctx, span := s.tracer.OTEL.Tracer("spanreader").Start(ctx, "GetOperations")
+	defer span.End()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
@@ -329,8 +340,8 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraces")
-	defer span.Finish()
+	ctx, span := s.tracer.OTEL.Tracer("spanreader").Start(ctx, "GetOperations")
+	defer span.End()
 
 	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
@@ -341,8 +352,8 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
 func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
-	defer span.Finish()
+	ctx, span := s.tracer.OTEL.Tracer("spanreader").Start(ctx, "FindTraceIDs")
+	defer span.End()
 
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
@@ -360,9 +371,9 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 }
 
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
-	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
-	childSpan.LogFields(otlog.Object("trace_ids", traceIDs))
-	defer childSpan.Finish()
+	ctx, childSpan := s.tracer.OTEL.Tracer("spanreader").Start(ctx, "multiRead")
+	childSpan.AddEvent("trace_ids", trace.WithAttributes())
+	defer childSpan.End()
 
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil
@@ -503,8 +514,8 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 }
 
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
-	childSpan, _ := opentracing.StartSpanFromContext(ctx, "findTraceIDs")
-	defer childSpan.Finish()
+	ctx, childSpan := s.tracer.OTEL.Tracer("spanreader").Start(ctx, "findTraceIDs")
+	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
 	//      "size": 0,
@@ -686,7 +697,6 @@ func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.
 	return elastic.NewBoolQuery().Must(keyQuery)
 }
 
-func logErrorToSpan(span opentracing.Span, err error) {
-	ottag.Error.Set(span, true)
-	span.LogFields(otlog.Error(err))
+func logErrorToSpan(span trace.Span, err error) {
+	span.RecordError(err)
 }
