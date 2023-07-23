@@ -144,7 +144,9 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	if err != nil {
 		log.Fatal("Failed to initialise tracer", zap.Error(err))
 	}
-	defer jt.Close(context.Background())
+	if err := jt.Close(context.Background()); err != nil {
+		log.Fatal("Error shutting down tracer provider", zap.Error(err))
+	}
 	return &SpanReader{
 		client:                        p.Client,
 		logger:                        p.Logger,
