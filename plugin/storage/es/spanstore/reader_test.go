@@ -171,7 +171,7 @@ func TestSpanReaderIndices(t *testing.T) {
 	serviceDataLayout := "2006-01-02"
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
-	tracer := jtracer.NoOp()
+	tracer := jtracer.NoOp().OTEL.Tracer("")
 
 	testCases := []struct {
 		indices []string
