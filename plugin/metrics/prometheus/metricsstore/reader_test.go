@@ -33,6 +33,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -63,20 +64,22 @@ var defaultConfig = config.Configuration{
 
 func TestNewMetricsReaderValidAddress(t *testing.T) {
 	logger := zap.NewNop()
+	tracer := jtracer.NoOp()
 	reader, err := NewMetricsReader(logger, config.Configuration{
 		ServerURL:      "http://localhost:1234",
 		ConnectTimeout: defaultTimeout,
-	})
+	}, tracer)
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
 
 func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 	logger := zap.NewNop()
+	tracer := jtracer.NoOp()
 	reader, err := NewMetricsReader(logger, config.Configuration{
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
-	})
+	}, tracer)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize prometheus client")
 	assert.Nil(t, reader)
@@ -85,6 +88,7 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 func TestGetMinStepDuration(t *testing.T) {
 	params := metricsstore.MinStepDurationQueryParameters{}
 	logger := zap.NewNop()
+	tracer := jtracer.NoOp()
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
@@ -92,7 +96,7 @@ func TestGetMinStepDuration(t *testing.T) {
 	reader, err := NewMetricsReader(logger, config.Configuration{
 		ServerURL:      "http://" + listener.Addr().String(),
 		ConnectTimeout: defaultTimeout,
-	})
+	}, tracer)
 	require.NoError(t, err)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
@@ -121,11 +125,12 @@ func TestMetricsServerError(t *testing.T) {
 	defer mockPrometheus.Close()
 
 	logger := zap.NewNop()
+	tracer := jtracer.NoOp()
 	address := mockPrometheus.Listener.Addr().String()
 	reader, err := NewMetricsReader(logger, config.Configuration{
 		ServerURL:      "http://" + address,
 		ConnectTimeout: defaultTimeout,
-	})
+	}, tracer)
 	require.NoError(t, err)
 
 	m, err := reader.GetCallRates(context.Background(), &params)
@@ -465,7 +470,7 @@ func TestInvalidLatencyUnit(t *testing.T) {
 		NormalizeDuration:           true,
 		LatencyUnit:                 "something invalid",
 	}
-	_, _ = NewMetricsReader(zap.NewNop(), cfg)
+	_, _ = NewMetricsReader(zap.NewNop(), cfg, jtracer.NoOp())
 }
 
 func TestWarningResponse(t *testing.T) {
@@ -571,6 +576,7 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 
 func TestInvalidCertFile(t *testing.T) {
 	logger := zap.NewNop()
+	tracer := jtracer.NoOp()
 	reader, err := NewMetricsReader(logger, config.Configuration{
 		ServerURL:      "https://localhost:1234",
 		ConnectTimeout: defaultTimeout,
@@ -578,7 +584,7 @@ func TestInvalidCertFile(t *testing.T) {
 			Enabled: true,
 			CAPath:  "foo",
 		},
-	})
+	}, tracer)
 	require.Error(t, err)
 	assert.Nil(t, reader)
 }
@@ -639,12 +645,13 @@ func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wa
 	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
+	tracer := jtracer.NoOp()
 	address := mockPrometheus.Listener.Addr().String()
 
 	config.ServerURL = "http://" + address
 	config.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(logger, config)
+	reader, err := NewMetricsReader(logger, config, tracer)
 	require.NoError(t, err)
 
 	return reader, mockPrometheus
