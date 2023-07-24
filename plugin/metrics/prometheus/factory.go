@@ -16,12 +16,10 @@ package prometheus
 
 import (
 	"flag"
-	"log"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/plugin"
 	prometheusstore "github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -33,18 +31,12 @@ var _ plugin.Configurable = (*Factory)(nil)
 type Factory struct {
 	options *Options
 	logger  *zap.Logger
-	tracer  *jtracer.JTracer
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
-	jt, err := jtracer.New("metricsreader")
-	if err != nil {
-		log.Fatal("Failed to initialize tracer: %w", err)
-	}
 	return &Factory{
 		options: NewOptions("prometheus"),
-		tracer:  jt,
 	}
 }
 
@@ -68,5 +60,5 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	return prometheusstore.NewMetricsReader(f.logger, f.options.Primary.Configuration, f.tracer)
+	return prometheusstore.NewMetricsReader(f.logger, f.options.Primary.Configuration)
 }

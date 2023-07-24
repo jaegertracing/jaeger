@@ -28,13 +28,13 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -55,7 +55,6 @@ type (
 		latencyMetricName string
 		callsMetricName   string
 		operationLabel    string
-		tracer            *jtracer.JTracer
 	}
 
 	promQueryParams struct {
@@ -75,7 +74,7 @@ type (
 )
 
 // NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(logger *zap.Logger, cfg config.Configuration, jt *jtracer.JTracer) (*MetricsReader, error) {
+func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsReader, error) {
 	logger.Info("Creating metrics reader", zap.Any("configuration", cfg))
 
 	roundTripper, err := getHTTPRoundTripper(&cfg, logger)
@@ -103,7 +102,6 @@ func NewMetricsReader(logger *zap.Logger, cfg config.Configuration, jt *jtracer.
 		callsMetricName:   buildFullCallsMetricName(cfg),
 		latencyMetricName: buildFullLatencyMetricName(cfg),
 		operationLabel:    operationLabel,
-		tracer:            jt,
 	}
 
 	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
@@ -227,11 +225,8 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	}
 	promQuery := m.buildPromQuery(p)
 
-	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, m.tracer.OTEL)
+	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery)
 	defer span.End()
-	if err := m.tracer.Close(ctx); err != nil {
-		m.logger.Error("Error shutting down tracer provider", zap.Error(err))
-	}
 
 	queryRange := promapi.Range{
 		Start: p.EndTime.Add(-1 * *p.Lookback),
@@ -293,18 +288,19 @@ func promqlDurationString(d *time.Duration) string {
 	return string(b)
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.TracerProvider) (context.Context, trace.Span) {
+func startSpanForQuery(ctx context.Context, metricName, query string) (context.Context, trace.Span) {
+	tp := otel.GetTracerProvider()
 	ctx, span := tp.Tracer("prom-metrics-reader").Start(ctx, metricName)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),
-		attribute.Key("db.type").String("prometheus"),
+		attribute.Key(semconv.DBSystemKey).String("prometheus"),
 		attribute.Key("component").String("promql"),
 	)
 	return ctx, span
 }
 
 func logErrorToSpan(span trace.Span, err error) {
-	span.AddEvent(err.Error(), trace.WithAttributes(semconv.OTelStatusCodeError))
+	span.RecordError(err, trace.WithAttributes(semconv.OTelStatusCodeError))
 }
 
 func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.RoundTripper, err error) {
