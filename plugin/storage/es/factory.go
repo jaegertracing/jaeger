@@ -21,6 +21,7 @@ import (
 	"io"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -162,6 +163,7 @@ func createSpanReader(
 		UseReadWriteAliases:           cfg.UseReadWriteAliases,
 		Archive:                       archive,
 		RemoteReadClusters:            cfg.RemoteReadClusters,
+		Tracer:                        otel.GetTracerProvider().Tracer("span-reader"),
 	}), nil
 }
 

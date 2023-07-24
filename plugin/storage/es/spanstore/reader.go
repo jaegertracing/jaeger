@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -140,13 +138,6 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	if p.UseReadWriteAliases {
 		maxSpanAge = rolloverMaxSpanAge
 	}
-	jt, err := jtracer.New("spanstore")
-	if err != nil {
-		log.Fatal("Failed to initialise tracer", zap.Error(err))
-	}
-	if err := jt.Close(context.Background()); err != nil {
-		log.Fatal("Error shutting down tracer provider", zap.Error(err))
-	}
 	return &SpanReader{
 		client:                        p.Client,
 		logger:                        p.Logger,
@@ -163,7 +154,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		sourceFn:                      getSourceFn(p.Archive, p.MaxDocCount),
 		maxDocCount:                   p.MaxDocCount,
 		useReadWriteAliases:           p.UseReadWriteAliases,
-		tracer:                        jt.OTEL.Tracer("spanreader"),
+		tracer:                        p.Tracer,
 	}
 }
 
@@ -372,8 +363,15 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
-	childSpan.SetAttributes(attribute.Key("trace_ids").String(""))
 	defer childSpan.End()
+
+	tracesIDs := make([]string, len(traceIDs))
+	if childSpan.IsRecording() {
+		for i, traceID := range traceIDs {
+			tracesIDs[i] = traceID.String()
+		}
+	}
+	childSpan.SetAttributes(attribute.Key("trace_ids").StringSlice(tracesIDs))
 
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil
