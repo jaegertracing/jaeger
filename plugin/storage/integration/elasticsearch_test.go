@@ -152,7 +152,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
-		Tracer:            jtracer.NoOp().OTEL.Tracer(""),
+		Tracer:            jtracer.NoOp().OTEL.Tracer("test"),
 	})
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          client,

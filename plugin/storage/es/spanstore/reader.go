@@ -92,7 +92,6 @@ var (
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	client es.Client
-	logger *zap.Logger
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge                    time.Duration
@@ -108,16 +107,15 @@ type SpanReader struct {
 	sourceFn                      sourceFn
 	maxDocCount                   int
 	useReadWriteAliases           bool
+	logger                        *zap.Logger
 	tracer                        trace.Tracer
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
 	Client                        es.Client
-	Logger                        *zap.Logger
 	MaxSpanAge                    time.Duration
 	MaxDocCount                   int
-	MetricsFactory                metrics.Factory
 	IndexPrefix                   string
 	SpanIndexDateLayout           string
 	ServiceIndexDateLayout        string
@@ -127,6 +125,8 @@ type SpanReaderParams struct {
 	Archive                       bool
 	UseReadWriteAliases           bool
 	RemoteReadClusters            []string
+	MetricsFactory                metrics.Factory
+	Logger                        *zap.Logger
 	Tracer                        trace.Tracer
 }
 
@@ -140,7 +140,6 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 	return &SpanReader{
 		client:                        p.Client,
-		logger:                        p.Logger,
 		maxSpanAge:                    maxSpanAge,
 		serviceOperationStorage:       NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:               indexNames(p.IndexPrefix, spanIndex),
@@ -154,6 +153,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		sourceFn:                      getSourceFn(p.Archive, p.MaxDocCount),
 		maxDocCount:                   p.MaxDocCount,
 		useReadWriteAliases:           p.UseReadWriteAliases,
+		logger:                        p.Logger,
 		tracer:                        p.Tracer,
 	}
 }
@@ -365,13 +365,13 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()
 
-	tracesIDs := make([]string, len(traceIDs))
 	if childSpan.IsRecording() {
+		tracesIDs := make([]string, len(traceIDs))
 		for i, traceID := range traceIDs {
 			tracesIDs[i] = traceID.String()
 		}
+		childSpan.SetAttributes(attribute.Key("trace_ids").StringSlice(tracesIDs))
 	}
-	childSpan.SetAttributes(attribute.Key("trace_ids").StringSlice(tracesIDs))
 
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil

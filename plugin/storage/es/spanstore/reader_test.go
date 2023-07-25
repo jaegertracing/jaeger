@@ -164,14 +164,14 @@ func TestNewSpanReader(t *testing.T) {
 
 func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
-	logger, _ := testutils.NewLogger()
-	metricsFactory := metricstest.NewFactory(0)
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 	spanDataLayout := "2006-01-02-15"
 	serviceDataLayout := "2006-01-02"
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
-	tracer := jtracer.NoOp().OTEL.Tracer("")
+	metricsFactory := metricstest.NewFactory(0)
+	logger, _ := testutils.NewLogger()
+	tracer := jtracer.NoOp().OTEL
 
 	testCases := []struct {
 		indices []string
@@ -273,13 +273,10 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase.params = SpanReaderParams{
-			Client: client,
-			Logger: logger,
-			MetricsFactory: metricsFactory,
-			Tracer: tracer,
-
-		}
+		testCase.params.Client = client
+		testCase.params.Logger = logger
+		testCase.params.MetricsFactory = metricsFactory
+		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
 
 		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndexDateLayout, date, date, -1*time.Hour)
