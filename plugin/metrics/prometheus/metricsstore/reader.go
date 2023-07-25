@@ -28,7 +28,6 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
@@ -50,6 +49,7 @@ type (
 	MetricsReader struct {
 		client promapi.API
 		logger *zap.Logger
+		tracer trace.Tracer
 
 		metricsTranslator dbmodel.Translator
 		latencyMetricName string
@@ -74,7 +74,7 @@ type (
 )
 
 // NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsReader, error) {
+func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
 	logger.Info("Creating metrics reader", zap.Any("configuration", cfg))
 
 	roundTripper, err := getHTTPRoundTripper(&cfg, logger)
@@ -97,6 +97,7 @@ func NewMetricsReader(logger *zap.Logger, cfg config.Configuration) (*MetricsRea
 	mr := &MetricsReader{
 		client: promapi.NewAPI(client),
 		logger: logger,
+		tracer: tracer.Tracer("prom-metrics-reader"),
 
 		metricsTranslator: dbmodel.New(operationLabel),
 		callsMetricName:   buildFullCallsMetricName(cfg),
@@ -225,7 +226,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 	}
 	promQuery := m.buildPromQuery(p)
 
-	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery)
+	ctx, span := startSpanForQuery(ctx, p.metricName, promQuery, m.tracer)
 	defer span.End()
 
 	queryRange := promapi.Range{
@@ -288,9 +289,8 @@ func promqlDurationString(d *time.Duration) string {
 	return string(b)
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string) (context.Context, trace.Span) {
-	tp := otel.GetTracerProvider()
-	ctx, span := tp.Tracer("prom-metrics-reader").Start(ctx, metricName)
+func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
+	ctx, span := tp.Start(ctx, metricName)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),
 		attribute.Key(semconv.DBSystemKey).String("prometheus"),

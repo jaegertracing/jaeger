@@ -29,6 +29,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
@@ -61,22 +64,36 @@ var defaultConfig = config.Configuration{
 	LatencyUnit:                 "ms",
 }
 
+func createTracingProvider() trace.TracerProvider {
+	exporter, err := stdout.New(stdout.WithPrettyPrint())
+	if err != nil {
+		panic(err)
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+	)
+	return tp
+}
+
 func TestNewMetricsReaderValidAddress(t *testing.T) {
 	logger := zap.NewNop()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	tracer := createTracingProvider()
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://localhost:1234",
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
 
 func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 	logger := zap.NewNop()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	tracer := createTracingProvider()
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize prometheus client")
 	assert.Nil(t, reader)
@@ -85,14 +102,15 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 func TestGetMinStepDuration(t *testing.T) {
 	params := metricsstore.MinStepDurationQueryParameters{}
 	logger := zap.NewNop()
+	tracer := createTracingProvider()
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
 
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://" + listener.Addr().String(),
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.NoError(t, err)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
@@ -121,11 +139,12 @@ func TestMetricsServerError(t *testing.T) {
 	defer mockPrometheus.Close()
 
 	logger := zap.NewNop()
+	tracer := createTracingProvider()
 	address := mockPrometheus.Listener.Addr().String()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://" + address,
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.NoError(t, err)
 
 	m, err := reader.GetCallRates(context.Background(), &params)
@@ -460,12 +479,13 @@ func TestInvalidLatencyUnit(t *testing.T) {
 			t.Errorf("Expected a panic due to invalid latency unit")
 		}
 	}()
+	tracer := createTracingProvider()
 	cfg := config.Configuration{
 		SupportSpanmetricsConnector: true,
 		NormalizeDuration:           true,
 		LatencyUnit:                 "something invalid",
 	}
-	_, _ = NewMetricsReader(zap.NewNop(), cfg)
+	_, _ = NewMetricsReader(cfg, zap.NewNop(), tracer)
 }
 
 func TestWarningResponse(t *testing.T) {
@@ -571,14 +591,15 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 
 func TestInvalidCertFile(t *testing.T) {
 	logger := zap.NewNop()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	tracer := createTracingProvider()
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "https://localhost:1234",
 		ConnectTimeout: defaultTimeout,
 		TLS: tlscfg.Options{
 			Enabled: true,
 			CAPath:  "foo",
 		},
-	})
+	}, logger, tracer)
 	require.Error(t, err)
 	assert.Nil(t, reader)
 }
@@ -639,12 +660,13 @@ func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wa
 	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
+	tracer := createTracingProvider()
 	address := mockPrometheus.Listener.Addr().String()
 
 	config.ServerURL = "http://" + address
 	config.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(logger, config)
+	reader, err := NewMetricsReader(config, logger, tracer)
 	require.NoError(t, err)
 
 	return reader, mockPrometheus
