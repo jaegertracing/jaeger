@@ -1,5 +1,5 @@
 backoff==2.2.1
-certifi==2022.12.7
+certifi==2023.7.22
 charset-normalizer==2.1.1
 Deprecated==1.2.13
 googleapis-common-protos==1.56.2
