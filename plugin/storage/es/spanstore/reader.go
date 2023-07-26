@@ -331,7 +331,7 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	ctx, span := s.tracer.Start(ctx, "GetOperations")
+	ctx, span := s.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
 	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)

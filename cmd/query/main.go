@@ -23,6 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -76,6 +77,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create tracer:", zap.Error(err))
 			}
+			otel.SetTracerProvider(jtracer.OTEL)
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
