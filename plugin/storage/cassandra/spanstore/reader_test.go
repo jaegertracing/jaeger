@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -52,11 +53,12 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
+	tracer := jtracer.NoOp().OTEL
 	r := &spanReaderTest{
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		reader:    NewSpanReader(session, metricsFactory, logger),
+		reader:    NewSpanReader(session, metricsFactory, logger, tracer.Tracer("test")),
 	}
 	fn(r)
 }

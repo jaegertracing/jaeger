@@ -19,6 +19,7 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -44,8 +45,9 @@ func main() {
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
+	tracer := otel.GetTracerProvider()
 	spanStore := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
-	spanReader := cSpanStore.NewSpanReader(cqlSession, noScope, logger)
+	spanReader := cSpanStore.NewSpanReader(cqlSession, noScope, logger, tracer.Tracer("cSpanStore.SpanReader"))
 	ctx := context.Background()
 	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))

@@ -24,6 +24,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -110,6 +111,7 @@ type SpanReader struct {
 	operationNamesReader operationNamesReader
 	metrics              spanReaderMetrics
 	logger               *zap.Logger
+	tracer               trace.Tracer
 }
 
 // NewSpanReader returns a new SpanReader.
@@ -117,6 +119,7 @@ func NewSpanReader(
 	session cassandra.Session,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	tracer trace.Tracer,
 ) *SpanReader {
 	readFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "read", Tags: nil})
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
@@ -134,6 +137,7 @@ func NewSpanReader(
 			queryServiceNameIndex:      casMetrics.NewTable(readFactory, "service_name_index"),
 		},
 		logger: logger,
+		tracer: tracer,
 	}
 }
 
