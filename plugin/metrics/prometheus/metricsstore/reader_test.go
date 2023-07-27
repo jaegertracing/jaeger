@@ -83,9 +83,9 @@ func TestNewMetricsReaderValidAddress(t *testing.T) {
 		ServerURL:      "http://localhost:1234",
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
+	defer closer()
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
-	defer closer()
 }
 
 func TestNewMetricsReaderInvalidAddress(t *testing.T) {
@@ -95,10 +95,10 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
+	defer closer()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize prometheus client")
 	assert.Nil(t, reader)
-	defer closer()
 }
 
 func TestGetMinStepDuration(t *testing.T) {
@@ -113,12 +113,12 @@ func TestGetMinStepDuration(t *testing.T) {
 		ServerURL:      "http://" + listener.Addr().String(),
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
+	defer closer()
 	require.NoError(t, err)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
-	defer closer()
 }
 
 func TestMetricsServerError(t *testing.T) {
@@ -148,15 +148,15 @@ func TestMetricsServerError(t *testing.T) {
 		ServerURL:      "http://" + address,
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
+	assert.NotEmpty(t, exp.GetSpans(), "Expected spans are recorded")
+	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+	defer closer()
 	require.NoError(t, err)
 
 	m, err := reader.GetCallRates(context.Background(), &params)
 	assert.NotNil(t, m)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed executing metrics query")
-	assert.NotEmpty(t, exp.GetSpans(), "Expected spans are recorded")
-	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-	defer closer()
 }
 
 func TestGetLatencies(t *testing.T) {
@@ -254,11 +254,11 @@ func TestGetLatencies(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetLatencies(context.Background(), &params)
-			require.NoError(t, err)
 			assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			defer closer()
+			require.NoError(t, err)
+			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 		})
 	}
 }
@@ -355,11 +355,11 @@ func TestGetCallRates(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetCallRates(context.Background(), &params)
-			require.NoError(t, err)
 			assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			defer closer()
+			require.NoError(t, err)
+			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 		})
 	}
 }
@@ -481,11 +481,11 @@ func TestGetErrorRates(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetErrorRates(context.Background(), &params)
-			require.NoError(t, err)
 			assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			defer closer()
+			require.NoError(t, err)
+			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 		})
 	}
 }
@@ -515,11 +515,11 @@ func TestWarningResponse(t *testing.T) {
 	defer mockPrometheus.Close()
 
 	m, err := reader.GetErrorRates(context.Background(), &params)
+	defer closer()
 	require.NoError(t, err)
 	assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 	assert.NotNil(t, m)
-	defer closer()
 }
 
 func TestGetRoundTripperTLSConfig(t *testing.T) {
@@ -622,9 +622,9 @@ func TestInvalidCertFile(t *testing.T) {
 			CAPath:  "foo",
 		},
 	}, logger, tracer)
+	defer closer()
 	require.Error(t, err)
 	assert.Nil(t, reader)
-	defer closer()
 }
 
 func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarnings []string) *httptest.Server {
