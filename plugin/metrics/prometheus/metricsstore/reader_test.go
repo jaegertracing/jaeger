@@ -79,11 +79,11 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 func TestNewMetricsReaderValidAddress(t *testing.T) {
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
+	defer closer()
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://localhost:1234",
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
-	defer closer()
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
@@ -91,11 +91,11 @@ func TestNewMetricsReaderValidAddress(t *testing.T) {
 func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
+	defer closer()
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
-	defer closer()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize prometheus client")
 	assert.Nil(t, reader)
@@ -105,6 +105,7 @@ func TestGetMinStepDuration(t *testing.T) {
 	params := metricsstore.MinStepDurationQueryParameters{}
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
+	defer closer()
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
@@ -113,7 +114,6 @@ func TestGetMinStepDuration(t *testing.T) {
 		ServerURL:      "http://" + listener.Addr().String(),
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
-	defer closer()
 	require.NoError(t, err)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
@@ -143,17 +143,16 @@ func TestMetricsServerError(t *testing.T) {
 
 	logger := zap.NewNop()
 	tracer, exp, closer := tracerProvider(t)
+	defer closer()
 	address := mockPrometheus.Listener.Addr().String()
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://" + address,
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
 	require.NoError(t, err)
-
 	m, err := reader.GetCallRates(context.Background(), &params)
-	assert.NotEmpty(t, exp.GetSpans(), "Expected spans are recorded")
+	assert.NotNil(t, exp.GetSpans()[0].Status)
 	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-	defer closer()
 	assert.NotNil(t, m)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed executing metrics query")
@@ -246,6 +245,7 @@ func TestGetLatencies(t *testing.T) {
 				Quantile:            0.95,
 			}
 			tracer, exp, closer := tracerProvider(t)
+			defer closer()
 			cfg := defaultConfig
 			if tc.updateConfig != nil {
 				cfg = tc.updateConfig(cfg)
@@ -254,9 +254,7 @@ func TestGetLatencies(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetLatencies(context.Background(), &params)
-			assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-			defer closer()
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 		})
@@ -347,6 +345,7 @@ func TestGetCallRates(t *testing.T) {
 				BaseQueryParameters: buildTestBaseQueryParametersFrom(tc),
 			}
 			tracer, exp, closer := tracerProvider(t)
+			defer closer()
 			cfg := defaultConfig
 			if tc.updateConfig != nil {
 				cfg = tc.updateConfig(cfg)
@@ -355,9 +354,7 @@ func TestGetCallRates(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetCallRates(context.Background(), &params)
-			assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-			defer closer()
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 		})
@@ -473,6 +470,7 @@ func TestGetErrorRates(t *testing.T) {
 				BaseQueryParameters: buildTestBaseQueryParametersFrom(tc),
 			}
 			tracer, exp, closer := tracerProvider(t)
+			defer closer()
 			cfg := defaultConfig
 			if tc.updateConfig != nil {
 				cfg = tc.updateConfig(cfg)
@@ -481,9 +479,7 @@ func TestGetErrorRates(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetErrorRates(context.Background(), &params)
-			assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-			defer closer()
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 		})
@@ -497,13 +493,13 @@ func TestInvalidLatencyUnit(t *testing.T) {
 		}
 	}()
 	tracer, _, closer := tracerProvider(t)
+	defer closer()
 	cfg := config.Configuration{
 		SupportSpanmetricsConnector: true,
 		NormalizeDuration:           true,
 		LatencyUnit:                 "something invalid",
 	}
 	_, _ = NewMetricsReader(cfg, zap.NewNop(), tracer)
-	defer closer()
 }
 
 func TestWarningResponse(t *testing.T) {
@@ -511,14 +507,13 @@ func TestWarningResponse(t *testing.T) {
 		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{serviceNames: []string{"foo"}}),
 	}
 	tracer, exp, closer := tracerProvider(t)
+	defer closer()
 	reader, mockPrometheus := prepareMetricsReaderAndServer(t, config.Configuration{}, "", []string{"warning0", "warning1"}, tracer)
 	defer mockPrometheus.Close()
 
 	m, err := reader.GetErrorRates(context.Background(), &params)
-	defer closer()
-	require.NoError(t, err)
-	assert.NotEmpty(t, exp.GetSpans(), "Spans recorded during the test.")
 	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+	require.NoError(t, err)
 	assert.NotNil(t, m)
 }
 
@@ -614,6 +609,7 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 func TestInvalidCertFile(t *testing.T) {
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
+	defer closer()
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "https://localhost:1234",
 		ConnectTimeout: defaultTimeout,
@@ -622,7 +618,6 @@ func TestInvalidCertFile(t *testing.T) {
 			CAPath:  "foo",
 		},
 	}, logger, tracer)
-	defer closer()
 	require.Error(t, err)
 	assert.Nil(t, reader)
 }
