@@ -28,12 +28,14 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
@@ -59,6 +61,18 @@ type ESStorageIntegration struct {
 	client        *elastic.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
+}
+
+func tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func() error) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),
+	)
+	closer := func() error {
+		return tp.Shutdown(context.Background())
+	}
+	return tp, exporter, closer
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -142,6 +156,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
+	tracer, _, closer := tracerProvider()
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
@@ -152,7 +167,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
-		Tracer:            jtracer.NoOp().OTEL.Tracer("test"),
+		Tracer:            tracer.Tracer("test"),
 	})
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          client,
@@ -161,6 +176,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		IndexDateLayout: indexDateLayout,
 		MaxDocCount:     defaultMaxDocCount,
 	})
+
+	if closer != nil {
+		return err
+	}
 
 	depMapping, err := mappingBuilder.GetDependenciesMappings()
 	if err != nil {
