@@ -182,6 +182,7 @@ Below are the official maintainers of the Jaeger project.
 Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
 
 * [@albertteoh](https://github.com/albertteoh)
+* [@jkowall](https://github.com/jkowall)
 * [@joe-elliott](https://github.com/joe-elliott)
 * [@pavolloffay](https://github.com/pavolloffay)
 * [@yurishkuro](https://github.com/yurishkuro)
