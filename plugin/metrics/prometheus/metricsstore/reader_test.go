@@ -148,12 +148,12 @@ func TestMetricsServerError(t *testing.T) {
 		ServerURL:      "http://" + address,
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
-	assert.NotEmpty(t, exp.GetSpans(), "Expected spans are recorded")
-	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-	defer closer()
 	require.NoError(t, err)
 
 	m, err := reader.GetCallRates(context.Background(), &params)
+	assert.NotEmpty(t, exp.GetSpans(), "Expected spans are recorded")
+	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+	defer closer()
 	assert.NotNil(t, m)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed executing metrics query")
