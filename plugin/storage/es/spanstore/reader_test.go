@@ -100,6 +100,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            client,
 			Logger:            zap.NewNop(),
+			Tracer:            jtracer.NoOp().OTEL.Tracer("test"),
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
@@ -119,6 +120,7 @@ func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 		reader: NewSpanReader(SpanReaderParams{
 			Client:              client,
 			Logger:              zap.NewNop(),
+			Tracer:              jtracer.NoOp().OTEL.Tracer("test"),
 			MaxSpanAge:          0,
 			IndexPrefix:         "",
 			TagDotReplacement:   "@",
