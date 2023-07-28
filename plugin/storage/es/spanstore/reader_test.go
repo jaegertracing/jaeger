@@ -90,7 +90,7 @@ type spanReaderTest struct {
 	logger    *zap.Logger
 	logBuffer *testutils.Buffer
 	exporter  *tracetest.InMemoryExporter
-	err       error
+	err       func() error
 	reader    *SpanReader
 }
 
@@ -115,7 +115,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		logger:    logger,
 		logBuffer: logBuffer,
 		exporter:  exp,
-		err:       closer(),
+		err:       closer,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            client,
 			Logger:            zap.NewNop(),
@@ -138,7 +138,7 @@ func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 		logger:    logger,
 		logBuffer: logBuffer,
 		exporter:  exp,
-		err:       closer(),
+		err:       closer,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:              client,
 			Logger:              zap.NewNop(),
@@ -195,7 +195,7 @@ func TestSpanReaderIndices(t *testing.T) {
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
 	metricsFactory := metricstest.NewFactory(0)
 	logger, _ := testutils.NewLogger()
-	tracer, exp, closer := tracerProvider()
+	tracer, _, closer := tracerProvider()
 
 	testCases := []struct {
 		indices []string
@@ -302,7 +302,6 @@ func TestSpanReaderIndices(t *testing.T) {
 		testCase.params.MetricsFactory = metricsFactory
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
-		assert.NotEmpty(t, exp.GetSpans(), "Spans recorded")
 
 		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndexDateLayout, date, date, -1*time.Hour)
 		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndexDateLayout, date, date, -24*time.Hour)
@@ -329,7 +328,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.NoError(t, err)
 		require.NotNil(t, trace)
 
@@ -407,7 +406,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 
 		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, date, date)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.NoError(t, err)
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)
@@ -446,7 +445,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.NoError(t, err)
 		require.NotNil(t, trace)
 
@@ -467,7 +466,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 			}, nil)
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.EqualError(t, err, "trace not found")
 		require.Nil(t, trace)
 	})
@@ -488,7 +487,7 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.EqualError(t, err, "trace not found")
 		require.Nil(t, trace)
 	})
@@ -513,7 +512,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.Error(t, err, "invalid span")
 		require.Nil(t, trace)
 	})
@@ -539,7 +538,7 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.Error(t, err, "span conversion error, because lacks elements")
 		require.Nil(t, trace)
 	})
@@ -770,7 +769,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.NoError(t, err)
 		assert.Len(t, traces, 1)
 
@@ -816,7 +815,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.Error(t, err)
 		assert.Nil(t, traces)
 	})
@@ -850,7 +849,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.Error(t, err)
 		assert.Nil(t, traces)
 	})
@@ -886,7 +885,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.NoError(t, err)
 		assert.Len(t, traces, 0)
 	})
@@ -921,7 +920,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.EqualError(t, err, "read error")
 		assert.Len(t, traces, 0)
 	})
@@ -961,7 +960,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.Error(t, err)
 		assert.Len(t, traces, 0)
 	})
@@ -1268,7 +1267,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 
 		services, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})
@@ -1285,7 +1284,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
+		require.NoError(t, r.err())
 		require.Nil(t, trace)
 		assert.EqualError(t, err, "trace not found")
 	})
@@ -1300,10 +1299,9 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
-		require.NoError(t, r.err)
-
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+		require.NotEmpty(t, r.exporter.GetSpans(), "Spans recorded")
+		require.NoError(t, r.err())
 		require.Nil(t, trace)
 		assert.EqualError(t, err, "trace not found")
 	})
