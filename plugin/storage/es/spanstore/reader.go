@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/olivere/elastic"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -137,6 +138,9 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
 		maxSpanAge = rolloverMaxSpanAge
+	}
+	if p.Tracer == nil {
+		p.Tracer = otel.Tracer("eSpanstore.SpanReader")
 	}
 	return &SpanReader{
 		client:                        p.Client,
