@@ -151,11 +151,11 @@ func TestMetricsServerError(t *testing.T) {
 	}, logger, tracer)
 	require.NoError(t, err)
 	m, err := reader.GetCallRates(context.Background(), &params)
-	assert.NotNil(t, exp.GetSpans()[0].Status)
-	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 	assert.NotNil(t, m)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed executing metrics query")
+	require.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+	assert.Equal(t, "service_call_rate", exp.GetSpans()[0].Name)
 }
 
 func TestGetLatencies(t *testing.T) {
@@ -254,9 +254,9 @@ func TestGetLatencies(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetLatencies(context.Background(), &params)
-			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
 }
@@ -354,9 +354,9 @@ func TestGetCallRates(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetCallRates(context.Background(), &params)
-			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
 }
@@ -479,9 +479,9 @@ func TestGetErrorRates(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetErrorRates(context.Background(), &params)
-			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
 }
@@ -512,9 +512,9 @@ func TestWarningResponse(t *testing.T) {
 	defer mockPrometheus.Close()
 
 	m, err := reader.GetErrorRates(context.Background(), &params)
-	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 	require.NoError(t, err)
 	assert.NotNil(t, m)
+	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 }
 
 func TestGetRoundTripperTLSConfig(t *testing.T) {

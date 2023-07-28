@@ -237,8 +237,9 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 
 	mv, warnings, err := m.client.QueryRange(ctx, promQuery, queryRange)
 	if err != nil {
+		err = fmt.Errorf("failed executing metrics query: %w", err)
 		logErrorToSpan(span, err)
-		return &metrics.MetricFamily{}, fmt.Errorf("failed executing metrics query: %w", err)
+		return &metrics.MetricFamily{}, err
 	}
 	if len(warnings) > 0 {
 		m.logger.Warn("Warnings detected on Prometheus query", zap.Any("warnings", warnings), zap.String("query", promQuery), zap.Any("range", queryRange))
