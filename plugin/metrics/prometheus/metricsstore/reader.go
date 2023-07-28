@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -301,7 +302,8 @@ func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.T
 }
 
 func logErrorToSpan(span trace.Span, err error) {
-	span.RecordError(err, trace.WithAttributes(semconv.OTelStatusCodeError))
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }
 
 func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.RoundTripper, err error) {

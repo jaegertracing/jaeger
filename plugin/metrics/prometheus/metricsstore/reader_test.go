@@ -29,6 +29,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -155,7 +156,7 @@ func TestMetricsServerError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed executing metrics query")
 	require.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
-	assert.Equal(t, "service_call_rate", exp.GetSpans()[0].Name)
+	assert.Equal(t, codes.Error, exp.GetSpans()[0].Status.Code)
 }
 
 func TestGetLatencies(t *testing.T) {
