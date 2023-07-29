@@ -19,11 +19,11 @@ import (
 	"context"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -45,9 +45,12 @@ func main() {
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
-	tracer := otel.GetTracerProvider()
+	tracer, err := jtracer.New("cassandra")
+	if err != nil {
+		logger.Fatal("Failed to initialize tracer", zap.Error(err))
+	}
 	spanStore := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
-	spanReader := cSpanStore.NewSpanReader(cqlSession, noScope, logger, tracer.Tracer("cSpanStore.SpanReader"))
+	spanReader := cSpanStore.NewSpanReader(cqlSession, noScope, logger, tracer.OTEL.Tracer("cSpanStore.SpanReader"))
 	ctx := context.Background()
 	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))
