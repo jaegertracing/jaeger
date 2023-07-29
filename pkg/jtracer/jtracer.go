@@ -61,7 +61,7 @@ func New(serviceName string) (*JTracer, error) {
 }
 
 func NoOp() *JTracer {
-	return &JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider()}
+	return &JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider(), closer: nil}
 }
 
 // initOTEL initializes OTEL Tracer
@@ -107,5 +107,8 @@ func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 
 // Shutdown the tracerProvider to clean up resources
 func (jt *JTracer) Close(ctx context.Context) error {
-	return jt.closer(ctx)
+	if jt.closer != nil {
+		return jt.closer(ctx)
+	}
+	return nil
 }
