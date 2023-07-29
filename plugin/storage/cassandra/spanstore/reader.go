@@ -24,6 +24,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -121,6 +122,9 @@ func NewSpanReader(
 	logger *zap.Logger,
 	tracer trace.Tracer,
 ) *SpanReader {
+	if tracer == nil {
+		tracer = otel.GetTracerProvider().Tracer("cSpanStore.SpanReader")
+	}
 	readFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "read", Tags: nil})
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
