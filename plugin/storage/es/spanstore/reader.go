@@ -25,6 +25,7 @@ import (
 
 	"github.com/olivere/elastic"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -697,4 +698,5 @@ func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.
 
 func logErrorToSpan(span trace.Span, err error) {
 	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }
