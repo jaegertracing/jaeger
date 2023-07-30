@@ -63,14 +63,16 @@ type ESStorageIntegration struct {
 	logger        *zap.Logger
 }
 
-func tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func() error) {
+func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithSyncer(exporter),
 	)
-	closer := func() error {
-		return tp.Shutdown(context.Background())
+	closer := func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			s.logger.Error("failed to close tracer", zap.Error(err))
+		}
 	}
 	return tp, exporter, closer
 }
@@ -156,7 +158,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
-	tracer, _, closer := tracerProvider()
+	tracer, _, closer := s.tracerProvider()
 	defer closer()
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
