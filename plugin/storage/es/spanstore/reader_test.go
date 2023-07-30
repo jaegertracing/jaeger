@@ -29,6 +29,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -83,22 +86,39 @@ var exampleESSpan = []byte(
 	}`)
 
 type spanReaderTest struct {
-	client    *mocks.Client
-	logger    *zap.Logger
-	logBuffer *testutils.Buffer
-	reader    *SpanReader
+	client      *mocks.Client
+	logger      *zap.Logger
+	logBuffer   *testutils.Buffer
+	traceBuffer *tracetest.InMemoryExporter
+	reader      *SpanReader
+}
+
+func tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func() error) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),
+	)
+	closer := func() error {
+		return tp.Shutdown(context.Background())
+	}
+	return tp, exporter, closer
 }
 
 func withSpanReader(fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	tracer, exp, closer := tracerProvider()
+	defer closer()
 	logger, logBuffer := testutils.NewLogger()
 	r := &spanReaderTest{
-		client:    client,
-		logger:    logger,
-		logBuffer: logBuffer,
+		client:      client,
+		logger:      logger,
+		logBuffer:   logBuffer,
+		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            client,
 			Logger:            zap.NewNop(),
+			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
@@ -110,14 +130,18 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 
 func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	tracer, exp, closer := tracerProvider()
+	defer closer()
 	logger, logBuffer := testutils.NewLogger()
 	r := &spanReaderTest{
-		client:    client,
-		logger:    logger,
-		logBuffer: logBuffer,
+		client:      client,
+		logger:      logger,
+		logBuffer:   logBuffer,
+		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:              client,
 			Logger:              zap.NewNop(),
+			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
 			IndexPrefix:         "",
 			TagDotReplacement:   "@",
@@ -163,13 +187,15 @@ func TestNewSpanReader(t *testing.T) {
 
 func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
-	logger, _ := testutils.NewLogger()
-	metricsFactory := metricstest.NewFactory(0)
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 	spanDataLayout := "2006-01-02-15"
 	serviceDataLayout := "2006-01-02"
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
+	metricsFactory := metricstest.NewFactory(0)
+	logger, _ := testutils.NewLogger()
+	tracer, _, closer := tracerProvider()
+	defer closer()
 
 	testCases := []struct {
 		indices []string
@@ -177,56 +203,48 @@ func TestSpanReaderIndices(t *testing.T) {
 	}{
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
 			indices: []string{spanIndex + spanDataLayoutFormat, serviceIndex + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndex + "read", serviceIndex + "read"},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndex + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:-" + spanIndex + "read", "foo:-" + serviceIndex + "read"},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: true,
 			},
 			indices: []string{spanIndex + archiveIndexSuffix, serviceIndex + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", Archive: true,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndex + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndex + archiveReadIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"}, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
 			},
 			indices: []string{
@@ -240,7 +258,6 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
@@ -254,7 +271,6 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: false, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
@@ -268,7 +284,6 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Client: client, Logger: logger, MetricsFactory: metricsFactory,
 				IndexPrefix: "", Archive: true, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
@@ -282,6 +297,10 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
+		testCase.params.Client = client
+		testCase.params.Logger = logger
+		testCase.params.MetricsFactory = metricsFactory
+		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
 
 		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndexDateLayout, date, date, -1*time.Hour)
@@ -307,6 +326,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
 
@@ -383,6 +403,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			}, nil)
 
 		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, date, date)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)
@@ -420,6 +441,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 			}, nil).Times(2)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
 
@@ -439,6 +461,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.EqualError(t, err, "trace not found")
 		require.Nil(t, trace)
 	})
@@ -458,6 +481,7 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.EqualError(t, err, "trace not found")
 		require.Nil(t, trace)
 	})
@@ -481,6 +505,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "invalid span")
 		require.Nil(t, trace)
 	})
@@ -505,6 +530,7 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "span conversion error, because lacks elements")
 		require.Nil(t, trace)
 	})
@@ -734,6 +760,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		assert.Len(t, traces, 1)
 
@@ -778,6 +805,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err)
 		assert.Nil(t, traces)
 	})
@@ -810,6 +838,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err)
 		assert.Nil(t, traces)
 	})
@@ -844,6 +873,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		assert.Len(t, traces, 0)
 	})
@@ -877,6 +907,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.EqualError(t, err, "read error")
 		assert.Len(t, traces, 0)
 	})
@@ -915,6 +946,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err)
 		assert.Len(t, traces, 0)
 	})
@@ -1220,6 +1252,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 		}
 
 		services, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})
@@ -1235,6 +1268,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)
 		assert.EqualError(t, err, "trace not found")
 	})
@@ -1250,6 +1284,7 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)
 		assert.EqualError(t, err, "trace not found")
 	})
