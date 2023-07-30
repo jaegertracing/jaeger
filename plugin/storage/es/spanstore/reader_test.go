@@ -108,6 +108,7 @@ func tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()
 func withSpanReader(fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
 	tracer, exp, closer := tracerProvider()
+	defer closer()
 	logger, logBuffer := testutils.NewLogger()
 	r := &spanReaderTest{
 		client:      client,
@@ -124,13 +125,13 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxDocCount:       defaultMaxDocCount,
 		}),
 	}
-	defer closer()
 	fn(r)
 }
 
 func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
 	tracer, exp, closer := tracerProvider()
+	defer closer()
 	logger, logBuffer := testutils.NewLogger()
 	r := &spanReaderTest{
 		client:      client,
@@ -148,7 +149,6 @@ func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 			UseReadWriteAliases: readAlias,
 		}),
 	}
-	defer closer()
 	fn(r)
 }
 
@@ -195,6 +195,7 @@ func TestSpanReaderIndices(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 	logger, _ := testutils.NewLogger()
 	tracer, _, closer := tracerProvider()
+	defer closer()
 
 	testCases := []struct {
 		indices []string
@@ -306,7 +307,6 @@ func TestSpanReaderIndices(t *testing.T) {
 		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndexDateLayout, date, date, -24*time.Hour)
 		assert.Equal(t, testCase.indices, append(actualSpan, actualService...))
 	}
-	require.NoError(t, closer())
 }
 
 func TestSpanReader_GetTrace(t *testing.T) {

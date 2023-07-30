@@ -157,6 +157,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		return err
 	}
 	tracer, _, closer := tracerProvider()
+	defer closer()
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
@@ -176,10 +177,6 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		IndexDateLayout: indexDateLayout,
 		MaxDocCount:     defaultMaxDocCount,
 	})
-
-	if closer != nil {
-		return err
-	}
 
 	depMapping, err := mappingBuilder.GetDependenciesMappings()
 	if err != nil {
