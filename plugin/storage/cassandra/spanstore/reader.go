@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -122,9 +121,6 @@ func NewSpanReader(
 	logger *zap.Logger,
 	tracer trace.Tracer,
 ) *SpanReader {
-	if tracer == nil {
-		tracer = otel.GetTracerProvider().Tracer("cSpanStore.SpanReader")
-	}
 	readFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "read", Tags: nil})
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
@@ -158,11 +154,10 @@ func (s *SpanReader) GetOperations(
 	return s.operationNamesReader(query)
 }
 
-func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID, tracer trace.Tracer) (*model.Trace, error) {
-	ctx, span := startSpanForQuery(ctx, "readTrace", querySpanByTraceID, tracer)
+func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
+	ctx, span := s.startSpanForQuery(ctx, "readTrace", querySpanByTraceID)
 	defer span.End()
 	span.SetAttributes(
-		attribute.Key("event").String("searching"),
 		attribute.Key("trace_id").String(traceID.String()),
 	)
 
@@ -220,7 +215,7 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	return s.readTrace(ctx, dbmodel.TraceIDFromDomain(traceID), s.tracer)
+	return s.readTrace(ctx, dbmodel.TraceIDFromDomain(traceID))
 }
 
 func validateQuery(p *spanstore.TraceQueryParameters) error {
@@ -298,7 +293,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 			return nil, err
 		}
 		if len(traceQuery.Tags) > 0 {
-			tagTraceIds, err := s.queryByTagsAndLogs(ctx, traceQuery, s.tracer)
+			tagTraceIds, err := s.queryByTagsAndLogs(ctx, traceQuery)
 			if err != nil {
 				return nil, err
 			}
@@ -310,13 +305,13 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		return traceIds, nil
 	}
 	if len(traceQuery.Tags) > 0 {
-		return s.queryByTagsAndLogs(ctx, traceQuery, s.tracer)
+		return s.queryByTagsAndLogs(ctx, traceQuery)
 	}
 	return s.queryByService(ctx, traceQuery)
 }
 
-func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.TraceQueryParameters, tracer trace.Tracer) (dbmodel.UniqueTraceIDs, error) {
-	ctx, span := startSpanForQuery(ctx, "queryByTagsAndLogs", queryByTag, tracer)
+func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+	ctx, span := s.startSpanForQuery(ctx, "queryByTagsAndLogs", queryByTag)
 	defer span.End()
 
 	results := make([]dbmodel.UniqueTraceIDs, 0, len(tq.Tags))
@@ -336,7 +331,7 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.Trace
 			tq.NumTraces*limitMultiple,
 		).PageSize(0)
 		t, err := s.executeQuery(childSpan, query, s.metrics.queryTagIndex)
-		defer childSpan.End()
+		childSpan.End()
 		if err != nil {
 			return nil, err
 		}
@@ -346,7 +341,7 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.Trace
 }
 
 func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	ctx, span := startSpanForQuery(ctx, "queryByDuration", queryByDuration, s.tracer)
+	ctx, span := s.startSpanForQuery(ctx, "queryByDuration", queryByDuration)
 	defer span.End()
 
 	results := dbmodel.UniqueTraceIDs{}
@@ -390,7 +385,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 }
 
 func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	_, span := startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName, s.tracer)
+	_, span := s.startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceAndOperationName,
@@ -404,7 +399,7 @@ func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spa
 }
 
 func (s *SpanReader) queryByService(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	_, span := startSpanForQuery(ctx, "queryByService", queryByServiceName, s.tracer)
+	_, span := s.startSpanForQuery(ctx, "queryByService", queryByServiceAndOperationName)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceName,
@@ -435,8 +430,8 @@ func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableM
 	return retMe, nil
 }
 
-func startSpanForQuery(ctx context.Context, name, query string, tp trace.Tracer) (context.Context, trace.Span) {
-	ctx, span := tp.Start(ctx, name)
+func (s *SpanReader) startSpanForQuery(ctx context.Context, name, query string) (context.Context, trace.Span) {
+	ctx, span := s.tracer.Start(ctx, name)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),
 		attribute.Key(semconv.DBSystemKey).String("cassandra"),
