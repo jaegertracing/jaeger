@@ -200,13 +200,13 @@ grpc.ServeWithGRPCServer(&shared.PluginServices{
     ArchiveStore: memStorePlugin,
 }, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
     return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
-        googleGRPC.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
-        googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
+        grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
     })
 })
 ```
 
-Refer to `example/memstore-plugin` for more details.
+Refer to `example/hotrod` for more details.
 
 Bearer token propagation from the UI
 ------------------------------------
