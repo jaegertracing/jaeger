@@ -45,7 +45,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
-	tracer, err := jtracer.New("cassandra")
+	tracer, err := jtracer.New("savetracetest")
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}

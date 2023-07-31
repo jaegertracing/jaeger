@@ -157,9 +157,7 @@ func (s *SpanReader) GetOperations(
 func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
 	ctx, span := s.startSpanForQuery(ctx, "readTrace", querySpanByTraceID)
 	defer span.End()
-	span.SetAttributes(
-		attribute.Key("trace_id").String(traceID.String()),
-	)
+	span.SetAttributes(attribute.Key("trace_id").String(traceID.String()))
 
 	trace, err := s.readTraceInSpan(ctx, traceID)
 	logErrorToSpan(span, err)
@@ -423,7 +421,6 @@ func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableM
 	tableMetrics.Emit(err, time.Since(start))
 	if err != nil {
 		logErrorToSpan(span, err)
-		span.SetAttributes(attribute.Key("query").String(query.String()))
 		s.logger.Error("Failed to exec query", zap.Error(err), zap.String("query", query.String()))
 		return nil, err
 	}
