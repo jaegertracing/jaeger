@@ -148,9 +148,7 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 }
 
 func TestHotReloadUIConfig(t *testing.T) {
-	dir, err := os.MkdirTemp("", "ui-config-hotreload-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	cfgFile, err := os.CreateTemp(dir, "*.json")
 	require.NoError(t, err)
