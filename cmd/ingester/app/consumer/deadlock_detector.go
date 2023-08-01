@@ -171,7 +171,7 @@ func (s *deadlockDetector) start() {
 }
 
 func (s *deadlockDetector) close() {
-	if s.allPartitionsDeadlockDetector.disabled {
+	if s.allPartitionsDeadlockDetector == nil || s.allPartitionsDeadlockDetector.disabled {
 		return
 	}
 	s.logger.Debug("Closing all partitions deadlock detector")

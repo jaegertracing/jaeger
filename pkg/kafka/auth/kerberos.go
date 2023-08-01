@@ -15,7 +15,7 @@
 package auth
 
 import (
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 )
 
 // KerberosConfig describes the configuration properties needed for Kerberos authentication with kafka consumer

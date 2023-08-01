@@ -30,7 +30,7 @@ import (
 )
 
 // CreateConsumer creates a new span consumer for the ingester
-func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWriter spanstore.Writer, options app.Options) (*consumer.Consumer, error) {
+func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWriter spanstore.Writer, options app.Options, consumerOptions ...consumer.Option) (*consumer.Consumer, error) {
 	var unmarshaller kafka.Unmarshaller
 	switch options.Encoding {
 	case kafka.EncodingJSON:
@@ -65,11 +65,13 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 
 	factoryParams := consumer.ProcessorFactoryParams{
 		Parallelism:    options.Parallelism,
+		Topic:          options.Topic,
 		SaramaConsumer: saramaConsumer,
 		BaseProcessor:  spanProcessor,
 		Logger:         logger,
 		Factory:        metricsFactory,
 	}
+
 	processorFactory, err := consumer.NewProcessorFactory(factoryParams)
 	if err != nil {
 		return nil, err
@@ -82,5 +84,5 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 		Logger:                logger,
 		DeadlockCheckInterval: options.DeadlockInterval,
 	}
-	return consumer.New(consumerParams)
+	return consumer.New(consumerParams, consumerOptions...)
 }

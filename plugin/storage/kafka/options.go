@@ -20,7 +20,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"

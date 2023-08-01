@@ -15,7 +15,7 @@
 package consumer
 
 import (
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 )
 
 // Message contains the parts of a sarama ConsumerMessage that we care about.

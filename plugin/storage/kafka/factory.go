@@ -19,7 +19,7 @@ import (
 	"flag"
 	"io"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 

@@ -15,7 +15,7 @@
 package mocks
 
 import (
-	sarama "github.com/Shopify/sarama"
+	sarama "github.com/IBM/sarama"
 	mock "github.com/stretchr/testify/mock"
 )
 
