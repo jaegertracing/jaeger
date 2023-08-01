@@ -28,35 +28,28 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-func createTestFiles(t *testing.T) (file1 string, file2 string, file3 string, close func()) {
-	testDir1, err := os.MkdirTemp("", "test1_")
-	require.NoError(t, err)
+func createTestFiles(t *testing.T) (file1 string, file2 string, file3 string) {
+	testDir1 := t.TempDir()
 
 	file1 = filepath.Join(testDir1, "test1.doc")
-	err = os.WriteFile(file1, []byte("test data"), 0o600)
+	err := os.WriteFile(file1, []byte("test data"), 0o600)
 	require.NoError(t, err)
 
 	file2 = filepath.Join(testDir1, "test2.doc")
 	err = os.WriteFile(file2, []byte("test data"), 0o600)
 	require.NoError(t, err)
 
-	testDir2, err := os.MkdirTemp("", "test2_")
-	require.NoError(t, err)
+	testDir2 := t.TempDir()
 
 	file3 = filepath.Join(testDir2, "test3.doc")
 	err = os.WriteFile(file3, []byte("test data"), 0o600)
 	require.NoError(t, err)
 
-	close = func() {
-		assert.NoError(t, os.RemoveAll(testDir1))
-		assert.NoError(t, os.RemoveAll(testDir2))
-	}
 	return
 }
 
 func TestFSWatcherAddFiles(t *testing.T) {
-	file1, file2, file3, close := createTestFiles(t)
-	defer close()
+	file1, file2, file3 := createTestFiles(t)
 
 	// Add one unreadable file
 	_, err := New([]string{"invalid-file-name"}, nil, nil)
@@ -161,11 +154,9 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 }
 
 func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
-	testDir, err := os.MkdirTemp("", "test")
-	require.NoError(t, err)
-	defer os.RemoveAll(testDir)
+	testDir := t.TempDir()
 
-	err = os.Symlink("..timestamp-1", filepath.Join(testDir, "..data"))
+	err := os.Symlink("..timestamp-1", filepath.Join(testDir, "..data"))
 	require.NoError(t, err)
 	err = os.Symlink(filepath.Join("..data", "test.doc"), filepath.Join(testDir, "test.doc"))
 	require.NoError(t, err)
