@@ -41,6 +41,15 @@ const (
 // Flags is a bit map of flags for a span
 type Flags uint32
 
+// Map from string to trace.SpanKind
+var spanKindMapping = map[string]trace.SpanKind{
+	"client":   trace.SpanKindClient,
+	"server":   trace.SpanKindServer,
+	"producer": trace.SpanKindProducer,
+	"consumer": trace.SpanKindConsumer,
+	"internal":    trace.SpanKindInternal,
+}
+
 // Hash implements Hash from Hashable.
 func (s *Span) Hash(w io.Writer) (err error) {
 	// gob is not the most efficient way, but it ensures we don't miss any fields.
@@ -58,11 +67,13 @@ func (s *Span) HasSpanKind(kind trace.SpanKind) bool {
 }
 
 // GetSpanKind returns value of `span.kind` tag and whether the tag can be found
-func (s *Span) GetSpanKind() (spanKind string, found bool) {
+func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 	if tag, ok := KeyValues(s.Tags).FindByKey(keySpanKind); ok {
-		return tag.AsString(), true
+		if kind, ok := spanKindMapping[tag.AsString()]; ok {
+			return kind, true
+		}
 	}
-	return trace.SpanKindUnspecified.String(), false
+	return trace.SpanKindUnspecified, false
 }
 
 // GetSamplerType returns the sampler type for span
