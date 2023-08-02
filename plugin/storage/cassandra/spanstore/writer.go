@@ -179,7 +179,7 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 	spanKind, _ := span.GetSpanKind()
 	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
 		ServiceName:   ds.ServiceName,
-		SpanKind:      spanKind,
+		SpanKind:      spanKind.String(),
 		OperationName: ds.OperationName,
 	}); err != nil {
 		// should this be a soft failure?
