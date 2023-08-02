@@ -47,7 +47,7 @@ var spanKindMapping = map[string]trace.SpanKind{
 	"server":   trace.SpanKindServer,
 	"producer": trace.SpanKindProducer,
 	"consumer": trace.SpanKindConsumer,
-	"internal":    trace.SpanKindInternal,
+	"internal": trace.SpanKindInternal,
 }
 
 // Hash implements Hash from Hashable.
