@@ -34,6 +34,7 @@ const (
 	FirehoseFlag = Flags(8)
 
 	samplerType        = "sampler.type"
+	keySpanKind        = "span.kind"
 	samplerTypeUnknown = "unknown"
 )
 
@@ -50,7 +51,7 @@ func (s *Span) Hash(w io.Writer) (err error) {
 
 // HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
 func (s *Span) HasSpanKind(kind trace.SpanKind) bool {
-	if tag, ok := KeyValues(s.Tags).FindByKey("span.kind"); ok {
+	if tag, ok := KeyValues(s.Tags).FindByKey(keySpanKind); ok {
 		return tag.AsString() == kind.String()
 	}
 	return false
@@ -58,7 +59,7 @@ func (s *Span) HasSpanKind(kind trace.SpanKind) bool {
 
 // GetSpanKind returns value of `span.kind` tag and whether the tag can be found
 func (s *Span) GetSpanKind() (spanKind string, found bool) {
-	if tag, ok := KeyValues(s.Tags).FindByKey("span.kind"); ok {
+	if tag, ok := KeyValues(s.Tags).FindByKey(keySpanKind); ok {
 		return tag.AsString(), true
 	}
 	return trace.SpanKindUnspecified.String(), false
