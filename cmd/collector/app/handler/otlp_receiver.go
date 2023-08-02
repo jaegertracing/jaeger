@@ -71,7 +71,7 @@ func startOTLPReceiver(
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
-	applyHTTPSettings(otlpReceiverConfig.HTTP, &options.OTLP.HTTP)
+	applyHTTPSettings(otlpReceiverConfig.HTTP.HTTPServerSettings, &options.OTLP.HTTP)
 	otlpReceiverSettings := receiver.CreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
