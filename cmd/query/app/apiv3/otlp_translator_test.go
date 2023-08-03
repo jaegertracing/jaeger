@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
@@ -151,27 +152,27 @@ func TestTranslateSpan(t *testing.T) {
 
 func TestTranslateSpanKind(t *testing.T) {
 	tests := []struct {
-		kind         string
+		kind         trace.SpanKind
 		otelSpanKind v1.Span_SpanKind
 	}{
 		{
-			kind:         "client",
+			kind:         trace.SpanKindClient,
 			otelSpanKind: v1.Span_SPAN_KIND_CLIENT,
 		},
 		{
-			kind:         "server",
+			kind:         trace.SpanKindServer,
 			otelSpanKind: v1.Span_SPAN_KIND_SERVER,
 		},
 		{
-			kind:         "producer",
+			kind:         trace.SpanKindProducer,
 			otelSpanKind: v1.Span_SPAN_KIND_PRODUCER,
 		},
 		{
-			kind:         "consumer",
+			kind:         trace.SpanKindConsumer,
 			otelSpanKind: v1.Span_SPAN_KIND_CONSUMER,
 		},
 		{
-			kind:         "internal",
+			kind:         trace.SpanKindInternal,
 			otelSpanKind: v1.Span_SPAN_KIND_INTERNAL,
 		},
 		{
@@ -179,7 +180,7 @@ func TestTranslateSpanKind(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.kind, func(t *testing.T) {
+		t.Run(test.kind.String(), func(t *testing.T) {
 			otelSpanKind := jSpanKindToInternal(test.kind)
 			assert.Equal(t, test.otelSpanKind, otelSpanKind)
 		})
