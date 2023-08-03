@@ -109,7 +109,7 @@ func jSpanToOTLP(jSpan *model.Span) (*tracev1.Span, resource, instrumentationLib
 		Events:            jLogsToOTLP(jSpan.GetLogs()),
 		Links:             jReferencesToOTLP(jSpan.GetReferences(), jSpan.ParentSpanID()),
 		Status:            status,
-		Kind:              tracev1.Span_SPAN_KIND_INTERNAL,
+		Kind:              tracev1.Span_SPAN_KIND_UNSPECIFIED,
 	}
 	if kind, found := jSpan.GetSpanKind(); found {
 		s.Kind = jSpanKindToInternal(kind.String())

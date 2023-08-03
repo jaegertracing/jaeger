@@ -122,6 +122,8 @@ var (
 	}
 )
 
+const keySpanKind = "span.kind"
+
 func TestSpanIDMarshalJSON(t *testing.T) {
 	for _, testCase := range testCasesSpanID {
 		expected := fmt.Sprintf(`{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"%s"}`, testCase.b64)
@@ -188,7 +190,7 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 func TestIsRPCClientServer(t *testing.T) {
 	span1 := &model.Span{
 		Tags: model.KeyValues{
-			model.String(string("span.kind"), trace.SpanKindClient.String()),
+			model.String(keySpanKind, trace.SpanKindClient.String()),
 		},
 	}
 	assert.True(t, span1.IsRPCClient())
