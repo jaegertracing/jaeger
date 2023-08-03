@@ -42,15 +42,12 @@ const (
 type Flags uint32
 
 // Map from string to trace.SpanKind.
-func toSpanKind(s string) (trace.SpanKind, bool) {
-	sk, found := map[string]trace.SpanKind{
-		"client":   trace.SpanKindClient,
-		"server":   trace.SpanKindServer,
-		"producer": trace.SpanKindProducer,
-		"consumer": trace.SpanKindConsumer,
-		"internal": trace.SpanKindInternal,
-	}[s]
-	return sk, found
+var toSpanKind = map[string]trace.SpanKind{
+	"client":   trace.SpanKindClient,
+	"server":   trace.SpanKindServer,
+	"producer": trace.SpanKindProducer,
+	"consumer": trace.SpanKindConsumer,
+	"internal": trace.SpanKindInternal,
 }
 
 // Hash implements Hash from Hashable.
@@ -72,7 +69,7 @@ func (s *Span) HasSpanKind(kind trace.SpanKind) bool {
 // GetSpanKind returns value of `span.kind` tag and whether the tag can be found
 func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 	if tag, ok := KeyValues(s.Tags).FindByKey(keySpanKind); ok {
-		if kind, ok := toSpanKind(tag.AsString()); ok {
+		if kind, ok := toSpanKind[tag.AsString()]; ok {
 			return kind, true
 		}
 	}
