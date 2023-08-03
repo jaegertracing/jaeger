@@ -162,7 +162,7 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 	spanKind, _ := span.GetSpanKind()
 	operation := spanstore.Operation{
 		Name:     span.OperationName,
-		SpanKind: spanKind,
+		SpanKind: spanKind.String(),
 	}
 
 	if _, ok := m.operations[span.Process.ServiceName][operation]; !ok {

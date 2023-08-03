@@ -20,8 +20,8 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/uber/jaeger-client-go"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -34,11 +34,21 @@ const (
 	FirehoseFlag = Flags(8)
 
 	samplerType        = "sampler.type"
+	keySpanKind        = "span.kind"
 	samplerTypeUnknown = "unknown"
 )
 
 // Flags is a bit map of flags for a span
 type Flags uint32
+
+// Map from string to trace.SpanKind.
+var toSpanKind = map[string]trace.SpanKind{
+	"client":   trace.SpanKindClient,
+	"server":   trace.SpanKindServer,
+	"producer": trace.SpanKindProducer,
+	"consumer": trace.SpanKindConsumer,
+	"internal": trace.SpanKindInternal,
+}
 
 // Hash implements Hash from Hashable.
 func (s *Span) Hash(w io.Writer) (err error) {
@@ -49,19 +59,21 @@ func (s *Span) Hash(w io.Writer) (err error) {
 }
 
 // HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
-func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
-	if tag, ok := KeyValues(s.Tags).FindByKey(string(ext.SpanKind)); ok {
-		return tag.AsString() == string(kind)
+func (s *Span) HasSpanKind(kind trace.SpanKind) bool {
+	if tag, ok := KeyValues(s.Tags).FindByKey(keySpanKind); ok {
+		return tag.AsString() == kind.String()
 	}
 	return false
 }
 
 // GetSpanKind returns value of `span.kind` tag and whether the tag can be found
-func (s *Span) GetSpanKind() (spanKind string, found bool) {
-	if tag, ok := KeyValues(s.Tags).FindByKey(string(ext.SpanKind)); ok {
-		return tag.AsString(), true
+func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
+	if tag, ok := KeyValues(s.Tags).FindByKey(keySpanKind); ok {
+		if kind, ok := toSpanKind[tag.AsString()]; ok {
+			return kind, true
+		}
 	}
-	return "", false
+	return trace.SpanKindUnspecified, false
 }
 
 // GetSamplerType returns the sampler type for span
@@ -79,13 +91,13 @@ func (s *Span) GetSamplerType() string {
 // IsRPCClient returns true if the span represents a client side of an RPC,
 // as indicated by the `span.kind` tag set to `client`.
 func (s *Span) IsRPCClient() bool {
-	return s.HasSpanKind(ext.SpanKindRPCClientEnum)
+	return s.HasSpanKind(trace.SpanKindClient)
 }
 
 // IsRPCServer returns true if the span represents a server side of an RPC,
 // as indicated by the `span.kind` tag set to `server`.
 func (s *Span) IsRPCServer() bool {
-	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
+	return s.HasSpanKind(trace.SpanKindServer)
 }
 
 // NormalizeTimestamps changes all timestamps in this span to UTC.

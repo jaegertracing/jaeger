@@ -25,6 +25,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
@@ -109,7 +110,7 @@ func jSpanToOTLP(jSpan *model.Span) (*tracev1.Span, resource, instrumentationLib
 		Events:            jLogsToOTLP(jSpan.GetLogs()),
 		Links:             jReferencesToOTLP(jSpan.GetReferences(), jSpan.ParentSpanID()),
 		Status:            status,
-		Kind:              tracev1.Span_SPAN_KIND_INTERNAL,
+		Kind:              tracev1.Span_SPAN_KIND_UNSPECIFIED,
 	}
 	if kind, found := jSpan.GetSpanKind(); found {
 		s.Kind = jSpanKindToInternal(kind)
@@ -333,17 +334,17 @@ func getStatusCodeFromHTTPStatusTag(tag model.KeyValue) (int, error) {
 	return int(statusCodeFromHTTP(statusCode)), nil
 }
 
-func jSpanKindToInternal(spanKind string) tracev1.Span_SpanKind {
+func jSpanKindToInternal(spanKind trace.SpanKind) tracev1.Span_SpanKind {
 	switch spanKind {
-	case "client":
+	case trace.SpanKindClient:
 		return tracev1.Span_SPAN_KIND_CLIENT
-	case "server":
+	case trace.SpanKindServer:
 		return tracev1.Span_SPAN_KIND_SERVER
-	case "producer":
+	case trace.SpanKindProducer:
 		return tracev1.Span_SPAN_KIND_PRODUCER
-	case "consumer":
+	case trace.SpanKindConsumer:
 		return tracev1.Span_SPAN_KIND_CONSUMER
-	case "internal":
+	case trace.SpanKindInternal:
 		return tracev1.Span_SPAN_KIND_INTERNAL
 	}
 	return tracev1.Span_SPAN_KIND_UNSPECIFIED

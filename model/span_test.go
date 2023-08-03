@@ -23,9 +23,9 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -122,6 +122,8 @@ var (
 	}
 )
 
+const keySpanKind = "span.kind"
+
 func TestSpanIDMarshalJSON(t *testing.T) {
 	for _, testCase := range testCasesSpanID {
 		expected := fmt.Sprintf(`{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"%s"}`, testCase.b64)
@@ -188,7 +190,7 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 func TestIsRPCClientServer(t *testing.T) {
 	span1 := &model.Span{
 		Tags: model.KeyValues{
-			model.String(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum)),
+			model.String(keySpanKind, trace.SpanKindClient.String()),
 		},
 	}
 	assert.True(t, span1.IsRPCClient())
@@ -227,12 +229,12 @@ func TestIsFirehoseEnabled(t *testing.T) {
 func TestGetSpanKind(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
 	spanKind, found := span.GetSpanKind()
-	assert.Equal(t, "", spanKind)
+	assert.Equal(t, "unspecified", spanKind.String())
 	assert.Equal(t, false, found)
 
 	span = makeSpan(model.String("span.kind", "client"))
 	spanKind, found = span.GetSpanKind()
-	assert.Equal(t, "client", spanKind)
+	assert.Equal(t, "client", spanKind.String())
 	assert.Equal(t, true, found)
 }
 
