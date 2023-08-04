@@ -20,6 +20,8 @@ import (
 	"io"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -41,6 +43,7 @@ type Factory struct {
 	options        Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
+	tracerProvider trace.TracerProvider
 
 	builder config.PluginBuilder
 
@@ -77,8 +80,9 @@ func (f *Factory) InitFromOptions(opts Options) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
+	f.tracerProvider = otel.GetTracerProvider()
 
-	services, err := f.builder.Build(logger)
+	services, err := f.builder.Build(logger, f.tracerProvider)
 	if err != nil {
 		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
 	}
