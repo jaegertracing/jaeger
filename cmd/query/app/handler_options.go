@@ -61,7 +61,7 @@ func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration)
 	}
 }
 
-// Tracer creates a HandlerOption that initializes OpenTracing tracer
+// Tracer creates a HandlerOption that passes the tracer to the handler
 func (handlerOptions) Tracer(tracer *jtracer.JTracer) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.tracer = tracer
