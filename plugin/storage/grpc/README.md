@@ -206,7 +206,7 @@ grpc.ServeWithGRPCServer(&shared.PluginServices{
 })
 ```
 
-Refer to `example/hotrod` for more details.
+Refer to `example/memstore-plugin` for more details.
 
 Bearer token propagation from the UI
 ------------------------------------

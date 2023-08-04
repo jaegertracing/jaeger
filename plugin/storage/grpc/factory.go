@@ -43,7 +43,7 @@ type Factory struct {
 	options        Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
-	tracerProvider         trace.TracerProvider
+	tracerProvider trace.TracerProvider
 
 	builder config.PluginBuilder
 
