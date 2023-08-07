@@ -16,24 +16,25 @@
 package rpcmetrics
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
-	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
-	"github.com/opentracing/opentracing-go/ext"
+	"go.opentelemetry.io/otel/trace"
 
 	u "github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
 type testTracer struct {
 	metrics *u.Factory
-	tracer  opentracing.Tracer
+	tracer  trace.TracerProvider
 }
 
 func withTestTracer(runTest func(tt *testTracer)) {
@@ -47,46 +48,39 @@ func withTestTracer(runTest func(tt *testTracer)) {
 			semconv.ServiceNameKey.String("test"),
 		)),
 	)
-	tracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
 	runTest(&testTracer{
 		metrics: metrics,
-		tracer:  tracer,
+		tracer:  tp,
 	})
 }
 
 func TestObserver(t *testing.T) {
 	withTestTracer(func(testTracer *testTracer) {
 		ts := time.Now()
-		finishOptions := opentracing.FinishOptions{
-			FinishTime: ts.Add(50 * time.Millisecond),
-		}
+		finishOptions := trace.WithTimestamp(ts.Add((50 * time.Millisecond)))
 
 		testCases := []struct {
 			name           string
-			tag            opentracing.Tag
+			tag            trace.SpanKind
 			opNameOverride string
 			err            bool
 		}{
-			{name: "local-span", tag: opentracing.Tag{Key: "x", Value: "y"}},
-			{name: "get-user", tag: ext.SpanKindRPCServer},
-			{name: "get-user", tag: ext.SpanKindRPCServer, opNameOverride: "get-user-override"},
-			{name: "get-user", tag: ext.SpanKindRPCServer, err: true},
-			{name: "get-user-client", tag: ext.SpanKindRPCClient},
+			{name: "local-span", tag: trace.SpanKindInternal},
+			{name: "get-user", tag: trace.SpanKindServer},
+			{name: "get-user", tag: trace.SpanKindServer, opNameOverride: "get-user-override"},
+			{name: "get-user", tag: trace.SpanKindServer, err: true},
+			{name: "get-user-client", tag: trace.SpanKindClient},
 		}
 
 		for _, testCase := range testCases {
-			span := testTracer.tracer.StartSpan(
-				testCase.name,
-				testCase.tag,
-				opentracing.StartTime(ts),
-			)
+			_, span := testTracer.tracer.Tracer("test").Start(context.Background(), testCase.name, trace.WithSpanKind(testCase.tag), trace.WithTimestamp(ts))
 			if testCase.opNameOverride != "" {
-				span.SetOperationName(testCase.opNameOverride)
+				span.SetName(testCase.opNameOverride)
 			}
 			if testCase.err {
-				ext.Error.Set(span, true)
+				span.SetStatus(codes.Error, "An error occured")
 			}
-			span.FinishWithOptions(finishOptions)
+			span.End(finishOptions)
 		}
 
 		testTracer.metrics.AssertCounterMetrics(t,
@@ -152,9 +146,9 @@ func TestTags(t *testing.T) {
 		}
 		t.Run(fmt.Sprintf("%s-%v-%s", testCase.key, testCase.value, testCase.variant), func(t *testing.T) {
 			withTestTracer(func(testTracer *testTracer) {
-				span := testTracer.tracer.StartSpan("span", ext.SpanKindRPCServer)
-				span.SetTag(testCase.key, testCase.value)
-				span.Finish()
+				_, span := testTracer.tracer.Tracer("test").Start(context.Background(), "span", trace.WithSpanKind(trace.SpanKindServer))
+				span.SetAttributes(attribute.Key(testCase.key).String(testCase.value.(string)))
+				span.End()
 				testTracer.metrics.AssertCounterMetrics(t, testCase.metrics...)
 			})
 		})
