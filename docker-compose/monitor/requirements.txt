@@ -1,7 +1,7 @@
 backoff==2.2.1
 certifi==2023.7.22
 charset-normalizer==3.2.0
-Deprecated==1.2.13
+Deprecated==1.2.14
 googleapis-common-protos==1.60.0
 grpcio==1.56.2
 idna==3.4
