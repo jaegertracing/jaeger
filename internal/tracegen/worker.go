@@ -36,6 +36,7 @@ type worker struct {
 
 	// internal counters
 	traceNo   int
+	attrKeyNo int
 	attrValNo int
 }
 
@@ -94,10 +95,11 @@ func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer
 	for c := 0; c < w.ChildSpans; c++ {
 		var attrs []attribute.KeyValue
 		for a := 0; a < w.Attributes; a++ {
-			key := fmt.Sprintf("attr_%02d", a)
+			key := fmt.Sprintf("attr_%02d", w.attrKeyNo)
 			val := fmt.Sprintf("val_%02d", w.attrValNo)
-			w.attrValNo = (w.attrValNo + 1) % w.AttrValues
 			attrs = append(attrs, attribute.String(key, val))
+			w.attrKeyNo = (w.attrKeyNo + 1) % w.AttrKeys
+			w.attrValNo = (w.attrValNo + 1) % w.AttrValues
 		}
 		opts := []trace.SpanStartOption{
 			trace.WithSpanKind(trace.SpanKindClient),
