@@ -34,7 +34,7 @@ import (
 
 type testTracer struct {
 	metrics *u.Factory
-	tracer  trace.TracerProvider
+	tracer  trace.Tracer
 }
 
 func withTestTracer(runTest func(tt *testTracer)) {
@@ -50,7 +50,7 @@ func withTestTracer(runTest func(tt *testTracer)) {
 	)
 	runTest(&testTracer{
 		metrics: metrics,
-		tracer:  tp,
+		tracer:  tp.Tracer("test"),
 	})
 }
 
@@ -61,19 +61,19 @@ func TestObserver(t *testing.T) {
 
 		testCases := []struct {
 			name           string
-			tag            trace.SpanKind
+			spanKind       trace.SpanKind
 			opNameOverride string
 			err            bool
 		}{
-			{name: "local-span", tag: trace.SpanKindInternal},
-			{name: "get-user", tag: trace.SpanKindServer},
-			{name: "get-user", tag: trace.SpanKindServer, opNameOverride: "get-user-override"},
-			{name: "get-user", tag: trace.SpanKindServer, err: true},
-			{name: "get-user-client", tag: trace.SpanKindClient},
+			{name: "local-span", spanKind: trace.SpanKindInternal},
+			{name: "get-user", spanKind: trace.SpanKindServer},
+			{name: "get-user", spanKind: trace.SpanKindServer, opNameOverride: "get-user-override"},
+			{name: "get-user", spanKind: trace.SpanKindServer, err: true},
+			{name: "get-user-client", spanKind: trace.SpanKindClient},
 		}
 
 		for _, testCase := range testCases {
-			_, span := testTracer.tracer.Tracer("test").Start(context.Background(), testCase.name, trace.WithSpanKind(testCase.tag), trace.WithTimestamp(ts))
+			_, span := testTracer.tracer.Start(context.Background(), testCase.name, trace.WithSpanKind(testCase.spanKind), trace.WithTimestamp(ts))
 			if testCase.opNameOverride != "" {
 				span.SetName(testCase.opNameOverride)
 			}
@@ -113,10 +113,6 @@ func TestTags(t *testing.T) {
 		{key: "error", value: true, metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "true")},
 		}},
-		// OTEL bridge does not interpret string "true" as error status
-		// {key: "error", value: "true", variant: "string", metrics: []u.ExpectedMetric{
-		// 	{Name: "requests", Value: 1, Tags: tags("error", "true")},
-		// }},
 	}
 
 	for i := 200; i <= 500; i += 100 {
@@ -146,8 +142,19 @@ func TestTags(t *testing.T) {
 		}
 		t.Run(fmt.Sprintf("%s-%v-%s", testCase.key, testCase.value, testCase.variant), func(t *testing.T) {
 			withTestTracer(func(testTracer *testTracer) {
-				_, span := testTracer.tracer.Tracer("test").Start(context.Background(), "span", trace.WithSpanKind(trace.SpanKindServer))
-				span.SetAttributes(attribute.Key(testCase.key).String(testCase.value.(string)))
+				_, span := testTracer.tracer.Start(context.Background(), "span", trace.WithSpanKind(trace.SpanKindServer))
+				switch v := testCase.value.(type) {
+				case int:
+					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
+				case bool:
+					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
+				case int64:
+					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
+				case uint16:
+					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
+				default:
+					span.SetAttributes(attribute.Key(testCase.key).String(v.(string)))
+				}
 				span.End()
 				testTracer.metrics.AssertCounterMetrics(t, testCase.metrics...)
 			})
