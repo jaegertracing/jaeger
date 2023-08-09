@@ -103,14 +103,15 @@ func TestTags(t *testing.T) {
 		key     string
 		variant string
 		value   interface{}
+		attr    attribute.KeyValue
 		metrics []u.ExpectedMetric
 	}
 
 	testCases := []tagTestCase{
-		{key: "something", value: 42, metrics: []u.ExpectedMetric{
+		{key: "something", value: 42, attr: attribute.Key("something").String(fmt.Sprint(42)), metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "false")},
 		}},
-		{key: "error", value: true, metrics: []u.ExpectedMetric{
+		{key: "error", value: true, attr: attribute.Key("error").String(fmt.Sprint(true)), metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "true")},
 		}},
 	}
@@ -128,6 +129,7 @@ func TestTags(t *testing.T) {
 			testCases = append(testCases, tagTestCase{
 				key:     "http.status_code",
 				value:   v.value,
+				attr:    attribute.Key("http.status_code").String(fmt.Sprint(v.value)),
 				variant: v.variant,
 				metrics: []u.ExpectedMetric{
 					{Name: "http_requests", Value: 1, Tags: tags("status_code", fmt.Sprintf("%dxx", i/100))},
@@ -143,18 +145,7 @@ func TestTags(t *testing.T) {
 		t.Run(fmt.Sprintf("%s-%v-%s", testCase.key, testCase.value, testCase.variant), func(t *testing.T) {
 			withTestTracer(func(testTracer *testTracer) {
 				_, span := testTracer.tracer.Start(context.Background(), "span", trace.WithSpanKind(trace.SpanKindServer))
-				switch v := testCase.value.(type) {
-				case int:
-					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
-				case bool:
-					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
-				case int64:
-					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
-				case uint16:
-					span.SetAttributes(attribute.Key(testCase.key).String(fmt.Sprint(v)))
-				default:
-					span.SetAttributes(attribute.Key(testCase.key).String(v.(string)))
-				}
+				span.SetAttributes(testCase.attr)
 				span.End()
 				testTracer.metrics.AssertCounterMetrics(t, testCase.metrics...)
 			})
