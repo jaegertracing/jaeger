@@ -104,6 +104,7 @@ type SpanReader struct {
 	spanIndexRolloverFrequency    time.Duration
 	serviceIndexRolloverFrequency time.Duration
 	spanConverter                 dbmodel.ToDomain
+	allTagsAsFields               bool
 	timeRangeIndices              timeRangeIndexFn
 	sourceFn                      sourceFn
 	maxDocCount                   int
@@ -123,6 +124,7 @@ type SpanReaderParams struct {
 	SpanIndexRolloverFrequency    time.Duration
 	ServiceIndexRolloverFrequency time.Duration
 	TagDotReplacement             string
+	AllTagsAsFields               bool
 	Archive                       bool
 	UseReadWriteAliases           bool
 	RemoteReadClusters            []string
@@ -150,6 +152,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanIndexRolloverFrequency:    p.SpanIndexRolloverFrequency,
 		serviceIndexRolloverFrequency: p.SpanIndexRolloverFrequency,
 		spanConverter:                 dbmodel.NewToDomain(p.TagDotReplacement),
+		allTagsAsFields:               p.AllTagsAsFields,
 		timeRangeIndices:              getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
 		sourceFn:                      getSourceFn(p.Archive, p.MaxDocCount),
 		maxDocCount:                   p.MaxDocCount,
@@ -673,8 +676,10 @@ func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	for i := range objectTagFieldList {
 		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
-	for i := range nestedTagFieldList {
-		queries[i+objectTagListLen] = s.buildNestedQuery(nestedTagFieldList[i], k, v)
+	if !s.allTagsAsFields {
+		for i := range nestedTagFieldList {
+			queries[i+objectTagListLen] = s.buildNestedQuery(nestedTagFieldList[i], k, v)
+		}
 	}
 
 	// but configuration can change over time

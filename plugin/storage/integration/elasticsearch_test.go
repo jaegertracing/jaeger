@@ -168,6 +168,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		IndexPrefix:       indexPrefix,
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
+		AllTagsAsFields:   allTagsAsFields,
 		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
 		Tracer:            tracer.Tracer("test"),

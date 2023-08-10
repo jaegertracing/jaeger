@@ -162,6 +162,7 @@ func createSpanReader(
 		SpanIndexRolloverFrequency:    cfg.GetIndexRolloverFrequencySpansDuration(),
 		ServiceIndexRolloverFrequency: cfg.GetIndexRolloverFrequencyServicesDuration(),
 		TagDotReplacement:             cfg.Tags.DotReplacement,
+		AllTagsAsFields:               cfg.Tags.AllAsFields,
 		UseReadWriteAliases:           cfg.UseReadWriteAliases,
 		Archive:                       archive,
 		RemoteReadClusters:            cfg.RemoteReadClusters,
