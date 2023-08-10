@@ -73,7 +73,11 @@ func TestObserver(t *testing.T) {
 		}
 
 		for _, testCase := range testCases {
-			_, span := testTracer.tracer.Start(context.Background(), testCase.name, trace.WithSpanKind(testCase.spanKind), trace.WithTimestamp(ts))
+			_, span := testTracer.tracer.Start(
+				context.Background(),
+				testCase.name, trace.WithSpanKind(testCase.spanKind),
+				trace.WithTimestamp(ts),
+			)
 			if testCase.opNameOverride != "" {
 				span.SetName(testCase.opNameOverride)
 			}
@@ -100,18 +104,16 @@ func TestObserver(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	type tagTestCase struct {
-		key     string
 		variant string
-		value   interface{}
 		attr    attribute.KeyValue
 		metrics []u.ExpectedMetric
 	}
 
 	testCases := []tagTestCase{
-		{key: "something", value: 42, attr: attribute.Key("something").String(fmt.Sprint(42)), metrics: []u.ExpectedMetric{
+		{attr: attribute.Key("something").Int(42), metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "false")},
 		}},
-		{key: "error", value: true, attr: attribute.Key("error").String(fmt.Sprint(true)), metrics: []u.ExpectedMetric{
+		{attr: attribute.Key("error").Bool(true), metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "true")},
 		}},
 	}
@@ -127,8 +129,6 @@ func TestTags(t *testing.T) {
 		}
 		for _, v := range status_codes {
 			testCases = append(testCases, tagTestCase{
-				key:     "http.status_code",
-				value:   v.value,
 				attr:    attribute.Key("http.status_code").String(fmt.Sprint(v.value)),
 				variant: v.variant,
 				metrics: []u.ExpectedMetric{
@@ -142,9 +142,12 @@ func TestTags(t *testing.T) {
 		for i := range testCase.metrics {
 			testCase.metrics[i].Tags["endpoint"] = "span"
 		}
-		t.Run(fmt.Sprintf("%s-%v-%s", testCase.key, testCase.value, testCase.variant), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-%v-%s", testCase.attr.Key, testCase.attr.Value, testCase.variant), func(t *testing.T) {
 			withTestTracer(func(testTracer *testTracer) {
-				_, span := testTracer.tracer.Start(context.Background(), "span", trace.WithSpanKind(trace.SpanKindServer))
+				_, span := testTracer.tracer.Start(
+					context.Background(),
+					"span", trace.WithSpanKind(trace.SpanKindServer),
+				)
 				span.SetAttributes(testCase.attr)
 				span.End()
 				testTracer.metrics.AssertCounterMetrics(t, testCase.metrics...)
