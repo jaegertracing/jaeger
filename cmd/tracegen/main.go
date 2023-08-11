@@ -88,7 +88,6 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 			)),
 		)
 		tracers = append(tracers, tp.Tracer(cfg.Service))
-		tracers[0].Start(context.Background(), "hi")
 		shutdown = append(shutdown, tp.Shutdown)
 	}
 	return tracers, func(ctx context.Context) error {
