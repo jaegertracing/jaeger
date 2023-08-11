@@ -16,23 +16,21 @@ package main
 
 import (
 	"flag"
+	"log"
 	"strings"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
-	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 	googleGRPC "google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-)
-
-const (
-	serviceName = "mem-store"
 )
 
 var configPath string
@@ -55,21 +53,11 @@ func main() {
 	opts := memory.Options{}
 	opts.InitFromViper(v)
 
-	traceCfg := &jaegerClientConfig.Configuration{
-		ServiceName: serviceName,
-		Sampler: &jaegerClientConfig.SamplerConfig{
-			Type:  "const",
-			Param: 1.0,
-		},
-		RPCMetrics: true,
-	}
-
-	tracer, closer, err := traceCfg.NewTracer()
+	tracer, err := jtracer.New("mem-store")
 	if err != nil {
-		panic("Failed to initialize tracer")
+		log.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	defer closer.Close()
-	opentracing.SetGlobalTracer(tracer)
+	otel.SetTracerProvider(tracer.OTEL)
 
 	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
 	service := &shared.PluginServices{
@@ -81,8 +69,8 @@ func main() {
 	}
 	grpc.ServeWithGRPCServer(service, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
 		return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
-			googleGRPC.UnaryInterceptor(otelgrpc.UnaryServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
-			googleGRPC.StreamInterceptor(otelgrpc.StreamServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
+			googleGRPC.UnaryInterceptor(otelgrpc.UnaryServerInterceptor(otelgrpc.WithTracerProvider(tracer.OTEL))),
+			googleGRPC.StreamInterceptor(otelgrpc.StreamServerInterceptor(otelgrpc.WithTracerProvider(tracer.OTEL))),
 		})
 	})
 }
