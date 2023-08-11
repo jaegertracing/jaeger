@@ -21,12 +21,12 @@ import (
 	"time"
 
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
-	"github.com/opentracing/opentracing-go/ext"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 
 	u "github.com/jaegertracing/jaeger/internal/metricstest"
 )

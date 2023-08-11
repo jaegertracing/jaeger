@@ -30,7 +30,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -88,6 +88,7 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 			)),
 		)
 		tracers = append(tracers, tp.Tracer(cfg.Service))
+		tracers[0].Start(context.Background(), "hi")
 		shutdown = append(shutdown, tp.Shutdown)
 	}
 	return tracers, func(ctx context.Context) error {
