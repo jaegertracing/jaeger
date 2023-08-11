@@ -107,7 +107,14 @@ func TestTags(t *testing.T) {
 		attr    attribute.KeyValue
 		metrics []u.ExpectedMetric
 	}
-	testCases := []tagTestCase{}
+	testCases := []tagTestCase{
+		{attr: attribute.Key("something").Int(42), metrics: []u.ExpectedMetric{
+			{Name: "requests", Value: 1, Tags: tags("error", "false")},
+		}},
+		{attr: attribute.Key("error").Bool(true), metrics: []u.ExpectedMetric{
+			{Name: "requests", Value: 1, Tags: tags("error", "true")},
+		}},
+	}
 
 	for i := 200; i <= 500; i += 100 {
 		status_codes := []struct {
