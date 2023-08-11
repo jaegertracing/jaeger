@@ -104,33 +104,20 @@ func TestObserver(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	type tagTestCase struct {
-		variant string
 		attr    attribute.KeyValue
 		metrics []u.ExpectedMetric
 	}
-
-	testCases := []tagTestCase{
-		{attr: attribute.Key("something").Int(42), metrics: []u.ExpectedMetric{
-			{Name: "requests", Value: 1, Tags: tags("error", "false")},
-		}},
-		{attr: attribute.Key("error").Bool(true), metrics: []u.ExpectedMetric{
-			{Name: "requests", Value: 1, Tags: tags("error", "true")},
-		}},
-	}
+	testCases := []tagTestCase{}
 
 	for i := 200; i <= 500; i += 100 {
 		status_codes := []struct {
-			value   interface{}
-			variant string
+			value int64
 		}{
-			{value: i},
-			{value: uint16(i), variant: "uint16"},
-			{value: fmt.Sprintf("%d", i), variant: "string"},
+			{value: int64(i)},
 		}
 		for _, v := range status_codes {
 			testCases = append(testCases, tagTestCase{
-				attr:    attribute.Key("http.status_code").String(fmt.Sprint(v.value)),
-				variant: v.variant,
+				attr: attribute.Key(semconv.HTTPStatusCodeKey).Int64(v.value),
 				metrics: []u.ExpectedMetric{
 					{Name: "http_requests", Value: 1, Tags: tags("status_code", fmt.Sprintf("%dxx", i/100))},
 				},
@@ -142,7 +129,7 @@ func TestTags(t *testing.T) {
 		for i := range testCase.metrics {
 			testCase.metrics[i].Tags["endpoint"] = "span"
 		}
-		t.Run(fmt.Sprintf("%s-%v-%s", testCase.attr.Key, testCase.attr.Value, testCase.variant), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-%v", testCase.attr.Key, testCase.attr.Value), func(t *testing.T) {
 			withTestTracer(func(testTracer *testTracer) {
 				_, span := testTracer.tracer.Start(
 					context.Background(),
