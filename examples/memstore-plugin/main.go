@@ -18,11 +18,11 @@ import (
 	"flag"
 	"strings"
 
-	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/hashicorp/go-plugin"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
@@ -81,8 +81,8 @@ func main() {
 	}
 	grpc.ServeWithGRPCServer(service, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
 		return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
-			googleGRPC.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
-			googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
+			googleGRPC.UnaryInterceptor(otelgrpc.UnaryServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
+			googleGRPC.StreamInterceptor(otelgrpc.StreamServerInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
 		})
 	})
 }
