@@ -65,11 +65,11 @@ func TestObserver(t *testing.T) {
 			opNameOverride string
 			err            bool
 		}{
-			{name: "local-span", spanKind: trace.SpanKindInternal},
-			{name: "get-user", spanKind: trace.SpanKindServer},
-			{name: "get-user", spanKind: trace.SpanKindServer, opNameOverride: "get-user-override"},
+			{name: "local-span", spanKind: trace.SpanKindInternal, err: false},
+			{name: "get-user", spanKind: trace.SpanKindServer, err: false},
+			{name: "get-user", spanKind: trace.SpanKindServer, opNameOverride: "get-user-override", err: false},
 			{name: "get-user", spanKind: trace.SpanKindServer, err: true},
-			{name: "get-user-client", spanKind: trace.SpanKindClient},
+			{name: "get-user-client", spanKind: trace.SpanKindClient, err: false},
 		}
 
 		for _, testCase := range testCases {
@@ -108,10 +108,10 @@ func TestTags(t *testing.T) {
 		metrics []u.ExpectedMetric
 	}
 	testCases := []tagTestCase{
-		{attr: attribute.Key("something").Int(42), metrics: []u.ExpectedMetric{
+		{attr: attribute.Key("Something").Int(42), metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "false")},
 		}},
-		{attr: attribute.Key("error").Bool(true), metrics: []u.ExpectedMetric{
+		{attr: attribute.Key("Error").Bool(true), metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "true")},
 		}},
 	}
@@ -143,6 +143,9 @@ func TestTags(t *testing.T) {
 					"span", trace.WithSpanKind(trace.SpanKindServer),
 				)
 				span.SetAttributes(testCase.attr)
+				if testCase.attr.Key == attribute.Key(codes.Error.String()) {
+					span.SetStatus(codes.Error, "An error occured")
+				}
 				span.End()
 				testTracer.metrics.AssertCounterMetrics(t, testCase.metrics...)
 			})
