@@ -671,14 +671,14 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	objectTagListLen := len(objectTagFieldList)
-	queries := make([]elastic.Query, len(nestedTagFieldList)+objectTagListLen)
+	queries := make([]elastic.Query, objectTagListLen)
 	kd := s.spanConverter.ReplaceDot(k)
 	for i := range objectTagFieldList {
 		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
 	if !s.allTagsAsFields {
 		for i := range nestedTagFieldList {
-			queries[i+objectTagListLen] = s.buildNestedQuery(nestedTagFieldList[i], k, v)
+			queries = append(queries, s.buildNestedQuery(nestedTagFieldList[i], k, v))
 		}
 	}
 
