@@ -87,7 +87,7 @@ var (
 
 	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -681,6 +681,7 @@ func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 			queries = append(queries, s.buildNestedQuery(nestedTagFieldList[i], k, v))
 		}
 	}
+	queries = append(queries, s.buildNestedQuery(nestedLogFieldsField, k, v))
 
 	// but configuration can change over time
 	return elastic.NewBoolQuery().Should(queries...)
