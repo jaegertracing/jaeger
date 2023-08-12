@@ -104,6 +104,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		BulkActions:       1000,
 		BulkFlushInterval: time.Millisecond * 200,
 		Tags: config.TagsAsFields{
+			AllAsFields:    false,
 			DotReplacement: "@",
 		},
 		Enabled:              true,
