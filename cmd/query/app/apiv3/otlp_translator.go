@@ -23,11 +23,15 @@ import (
 	"strconv"
 	"strings"
 
+	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	commonv1 "github.com/jaegertracing/jaeger/proto-gen/otel/common/v1"
 	resourcev1 "github.com/jaegertracing/jaeger/proto-gen/otel/resource/v1"
 	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
@@ -43,6 +47,26 @@ const (
 	tagHTTPStatusMsg = "http.status_message"
 	tagW3CTraceState = "w3c.tracestate"
 )
+
+func modelToOTLP(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
+	batch := &model.Batch{Spans: spans}
+	td, err := model2otel.ProtoToTraces([]*model.Batch{batch})
+	if err != nil {
+		return nil, fmt.Errorf("cannot convert trace to OpenTelemetry: %w", err)
+	}
+	req := ptraceotlp.NewExportRequestFromTraces(td)
+	// OTEL Collector hides the internal proto implementation, so do a roundtrip conversion (inefficient)
+	b, err := req.MarshalProto()
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
+	}
+	// use api_v3.SpansResponseChunk which has the same shape as otlp.ExportTraceServiceRequest
+	var chunk api_v3.SpansResponseChunk
+	if err := proto.Unmarshal(b, &chunk); err != nil {
+		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
+	}
+	return chunk.ResourceSpans, nil
+}
 
 // OpenTelemetry collector implements translator from Jaeger model to pdata (wrapper around OTLP).
 // However, it cannot be used because the imported OTLP in the translator is in the collector's private package.
