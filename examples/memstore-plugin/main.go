@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"strings"
@@ -30,6 +31,10 @@ import (
 	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+)
+
+const (
+	serviceName = "mem-store"
 )
 
 var configPath string
@@ -52,10 +57,11 @@ func main() {
 	opts := memory.Options{}
 	opts.InitFromViper(v)
 
-	tracer, err := jtracer.New("mem-store")
+	tracer, err := jtracer.New(serviceName)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize tracer: %w", err))
 	}
+	defer tracer.Close(context.Background())
 	otel.SetTracerProvider(tracer.OTEL)
 
 	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
