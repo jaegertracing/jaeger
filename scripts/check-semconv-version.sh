@@ -10,7 +10,7 @@ done < <(find . -type f -name "*.go" -exec grep -o -H "go.opentelemetry.io/otel/
 semconv_versions=($(printf "%s\n" "${semconv_map[@]}" | sort -u))
 
 if [ ${#semconv_versions[@]} -gt 1 ]; then
-    echo "Error: semconv version mismatch detected"
+    echo "Error: semconv version mismatch detected. Run ./scripts/update-semconv-version.sh to update semconv to latest version."
     {
         for key in "${!semconv_map[@]}"; do
             printf "Source File: %-30s | Semconv Version: %s\n" "$key" "${semconv_map[$key]}"
