@@ -16,14 +16,13 @@ package main
 
 import (
 	"flag"
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
 	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
@@ -55,7 +54,7 @@ func main() {
 
 	tracer, err := jtracer.New("mem-store")
 	if err != nil {
-		log.Fatal("Failed to initialize tracer", zap.Error(err))
+		panic(fmt.Errorf("failed to initialize tracer: %w", err))
 	}
 	otel.SetTracerProvider(tracer.OTEL)
 
