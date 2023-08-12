@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 
 	u "github.com/jaegertracing/jaeger/internal/metricstest"
@@ -65,11 +65,11 @@ func TestObserver(t *testing.T) {
 			opNameOverride string
 			err            bool
 		}{
-			{name: "local-span", spanKind: trace.SpanKindInternal, err: false},
-			{name: "get-user", spanKind: trace.SpanKindServer, err: false},
-			{name: "get-user", spanKind: trace.SpanKindServer, opNameOverride: "get-user-override", err: false},
+			{name: "local-span", spanKind: trace.SpanKindInternal},
+			{name: "get-user", spanKind: trace.SpanKindServer},
+			{name: "get-user", spanKind: trace.SpanKindServer, opNameOverride: "get-user-override"},
 			{name: "get-user", spanKind: trace.SpanKindServer, err: true},
-			{name: "get-user-client", spanKind: trace.SpanKindClient, err: false},
+			{name: "get-user-client", spanKind: trace.SpanKindClient},
 		}
 
 		for _, testCase := range testCases {
@@ -105,31 +105,25 @@ func TestObserver(t *testing.T) {
 func TestTags(t *testing.T) {
 	type tagTestCase struct {
 		attr    attribute.KeyValue
+		err     bool
 		metrics []u.ExpectedMetric
 	}
 	testCases := []tagTestCase{
-		{attr: attribute.Key("Something").Int(42), metrics: []u.ExpectedMetric{
+		{err: false, metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "false")},
 		}},
-		{attr: attribute.Key("Error").Bool(true), metrics: []u.ExpectedMetric{
+		{err: true, metrics: []u.ExpectedMetric{
 			{Name: "requests", Value: 1, Tags: tags("error", "true")},
 		}},
 	}
 
 	for i := 200; i <= 500; i += 100 {
-		status_codes := []struct {
-			value int64
-		}{
-			{value: int64(i)},
-		}
-		for _, v := range status_codes {
-			testCases = append(testCases, tagTestCase{
-				attr: attribute.Key(semconv.HTTPStatusCodeKey).Int64(v.value),
-				metrics: []u.ExpectedMetric{
-					{Name: "http_requests", Value: 1, Tags: tags("status_code", fmt.Sprintf("%dxx", i/100))},
-				},
-			})
-		}
+		testCases = append(testCases, tagTestCase{
+			attr: semconv.HTTPStatusCode(i),
+			metrics: []u.ExpectedMetric{
+				{Name: "http_requests", Value: 1, Tags: tags("status_code", fmt.Sprintf("%dxx", i/100))},
+			},
+		})
 	}
 
 	for _, testCase := range testCases {
@@ -143,7 +137,7 @@ func TestTags(t *testing.T) {
 					"span", trace.WithSpanKind(trace.SpanKindServer),
 				)
 				span.SetAttributes(testCase.attr)
-				if testCase.attr.Key == attribute.Key(codes.Error.String()) {
+				if testCase.err {
 					span.SetStatus(codes.Error, "An error occured")
 				}
 				span.End()
