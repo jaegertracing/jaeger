@@ -17,7 +17,7 @@ if [ "${go_mod_version%.*}" != "${go_latest_version%.*}" ] || [ $((10#${go_lates
 	printf "Source file: %-50s | Go version: %s | Latest Version: %s\n" "./go.mod" "$go_mod_version" "$go_latest_version"
     } | column -t -s '|'
     echo "Run ./scripts/update-go-version.sh to update go.mod to correct go version."
-    # exit 1
+    exit 1
 fi
 
 # Extract go version from GitHub actions scripts
