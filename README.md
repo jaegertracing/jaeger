@@ -68,16 +68,18 @@ Jaeger is an open source project with open governance. We welcome contributions 
 Jaeger backend is designed to have no single points of failure and to scale with the business needs.
 For example, any given Jaeger installation at Uber is typically processing several billions of spans per day.
 
-### Native support for OpenTelemetry
+### Native support for OpenTracing
 
-The OpenTracing and OpenCensus projects have merged into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). The Jaeger and OpenTelemetry projects have different goals. OpenTelemetry aims to provide APIs and SDKs in multiple languages to allow applications to export various telemetry data out of the process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. The Jaeger client libraries do overlap with OpenTelemetry in functionality. OpenTelemetry natively supports Jaeger as a tracing backend and makes Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
-
-Jaeger backend, Web UI, and instrumentation libraries have been designed from the ground up to support the [OpenTelemetry standard](https://opentelemetry.io/docs/specs/).
-  * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#span)
-  * Support strongly typed span _attributes_ and _structured logs_
+Jaeger backend, Web UI, and instrumentation libraries have been designed from the ground up to support the [OpenTracing standard](https://opentracing.io/specification/).
+  * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans)
+  * Support strongly typed span _tags_ and _structured logs_
   * Support general distributed context propagation mechanism via _baggage_
 
+#### OpenTelemetry
+
 Jaeger project recommends OpenTelemetry SDKs for instrumentation, instead of Jaeger's native SDKs [that are now deprecated](https://www.jaegertracing.io/docs/latest/client-libraries/#deprecating-jaeger-clients).
+
+The OpenTracing and OpenCensus projects have merged into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). The Jaeger and OpenTelemetry projects have different goals. OpenTelemetry aims to provide APIs and SDKs in multiple languages to allow applications to export various telemetry data out of the process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. The Jaeger client libraries do overlap with OpenTelemetry in functionality. OpenTelemetry natively supports Jaeger as a tracing backend and makes Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
 
 ### Multiple storage backends
 
