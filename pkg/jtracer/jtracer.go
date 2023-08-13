@@ -54,7 +54,12 @@ func New(serviceName string) (*JTracer, error) {
 }
 
 func NoOp() *JTracer {
-	return &JTracer{OTEL: trace.NewNoopTracerProvider(), closer: nil}
+	return &JTracer{
+		OTEL: trace.NewNoopTracerProvider(),
+		closer: func(ctx context.Context) error {
+			return nil
+		},
+	}
 }
 
 // initOTEL initializes OTEL Tracer
