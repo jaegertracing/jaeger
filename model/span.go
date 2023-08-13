@@ -78,7 +78,7 @@ func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 
 // GetSamplerType returns the sampler type for span
 func (s *Span) GetSamplerType() string {
-	// There's no corresponding opentracing-go tag label corresponding to sampler.type
+	// There's no corresponding opentelemetry tag label corresponding to sampler.type
 	if tag, ok := KeyValues(s.Tags).FindByKey(samplerType); ok {
 		if tag.VStr == "" {
 			return samplerTypeUnknown
