@@ -141,6 +141,16 @@ For example, consider a scenario where v1.28.0 is released on 01-Jun-2021 contai
 This flag will remain in a deprecated state until the later of 01-Sep-2021 or v1.30.0 where it _can_ be removed on or after either of those events.
 It may remain deprecated for longer than the aforementioned grace period.
 
+## Go Version Compatibility Guarantees
+
+The Jaeger project attempts to track the currently supported versions of Go, as [defined by the Go team](https://go.dev/doc/devel/release#policy).
+Removing support for an unsupported Go version is not considered a breaking change.
+
+Starting with the release of Go 1.21, support for Go versions will be updated as follows:
+
+1. The first release after the release of a new Go minor version `N` will add build and tests steps for the new Go minor version.
+2. The first release after the release of a new Go minor version `N` will remove support for Go version `N-2`.
+
 ## Related Repositories
 
 ### Documentation
