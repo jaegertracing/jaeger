@@ -18,7 +18,7 @@ next release (yyyy-mm-dd)
 
 ### UI Changes
 
-1.48.0 (2023-08-14)
+1.48.0 (2023-08-15)
 -------------------
 
 ### Backend Changes
