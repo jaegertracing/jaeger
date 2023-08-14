@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@cba0d00b1fc9a034e1e642ea0f1103c282990604
+      uses: step-security/harden-runner@8ca2b8b2ece13480cda6dacd3511b49857a23c09
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
 
-    - uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9
+    - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe
       with:
         go-version: 1.20.x
 

@@ -19,9 +19,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
-	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -32,7 +30,6 @@ import (
 )
 
 type JTracer struct {
-	OT     opentracing.Tracer
 	OTEL   trace.TracerProvider
 	closer func(ctx context.Context) error
 }
@@ -45,23 +42,24 @@ func New(serviceName string) (*JTracer, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Use the bridgeTracer as your OpenTracing tracer(otTrace).
-	otelTracer := tracerProvider.Tracer("github.com/jaegertracing/jaeger/pkg/jtracer")
-	otTracer, wrappedTracerProvider := otbridge.NewTracerPair(otelTracer)
 
 	closer := func(ctx context.Context) error {
 		return tracerProvider.Shutdown(ctx)
 	}
 
 	return &JTracer{
-		OT:     otTracer,
-		OTEL:   wrappedTracerProvider,
+		OTEL:   tracerProvider,
 		closer: closer,
 	}, nil
 }
 
 func NoOp() *JTracer {
-	return &JTracer{OT: opentracing.NoopTracer{}, OTEL: trace.NewNoopTracerProvider(), closer: nil}
+	return &JTracer{
+		OTEL: trace.NewNoopTracerProvider(),
+		closer: func(ctx context.Context) error {
+			return nil
+		},
+	}
 }
 
 // initOTEL initializes OTEL Tracer
@@ -99,7 +97,7 @@ func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	)
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create trace exporter: %w", err)
+		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
 	}
 
 	return traceExporter, nil
