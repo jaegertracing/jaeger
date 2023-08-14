@@ -148,8 +148,8 @@ Removing support for an unsupported Go version is not considered a breaking chan
 
 Starting with the release of Go 1.21, support for Go versions will be updated as follows:
 
-1. The first release after the release of a new Go minor version `N` will add build and tests steps for the new Go minor version.
-2. The first release after the release of a new Go minor version `N` will remove support for Go version `N-2`.
+1. Soon after the release of a new Go minor version `N`, updates will be made to the build and tests steps to accommodate the latest Go minor version. 
+2. Soon after the release of a new Go minor version `N`, support for Go version `N-2` will be removed.
 
 ## Related Repositories
 
