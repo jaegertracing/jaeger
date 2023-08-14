@@ -3,7 +3,7 @@ certifi==2023.7.22
 charset-normalizer==3.2.0
 Deprecated==1.2.14
 googleapis-common-protos==1.60.0
-grpcio==1.56.2
+grpcio==1.57.0
 idna==3.4
 opentelemetry-api==1.19.0
 opentelemetry-exporter-otlp==1.19.0
@@ -12,7 +12,7 @@ opentelemetry-exporter-otlp-proto-http==1.19.0
 opentelemetry-proto==1.19.0
 opentelemetry-sdk==1.19.0
 opentelemetry-semantic-conventions==0.40b0
-protobuf==4.23.4
+protobuf==4.24.0
 requests==2.31.0
 six==1.16.0
 thrift==0.16.0
