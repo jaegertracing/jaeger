@@ -18,6 +18,36 @@ next release (yyyy-mm-dd)
 
 ### UI Changes
 
+1.48.0 (2023-08-14)
+-------------------
+
+### Backend Changes
+
+#### Bug fixes, Minor Improvements
+
+* [memstore-plugin]Switch to OpenTelemetry SDK ([@afzal442](https://github.com/afzal442) in [#4643](https://github.com/jaegertracing/jaeger/pull/4643))
+* [tracegen] Allow to control cardinality of attribute keys ([@yurishkuro](https://github.com/yurishkuro) in [#4634](https://github.com/jaegertracing/jaeger/pull/4634))
+* Replace OT const wth OTEL trace.span for zipkin comp ([@afzal442](https://github.com/afzal442) in [#4625](https://github.com/jaegertracing/jaeger/pull/4625))
+* Replace OpenTracing instrumentation with OpenTelemetry in grpc storage plugin ([@afzal442](https://github.com/afzal442) in [#4611](https://github.com/jaegertracing/jaeger/pull/4611))
+* Replace OT trace with `otel trace` spans type to span model ([@afzal442](https://github.com/afzal442) in [#4614](https://github.com/jaegertracing/jaeger/pull/4614))
+* Replace cassandra-spanstore tracing instrumentation with`OTEL` ([@afzal442](https://github.com/afzal442) in [#4599](https://github.com/jaegertracing/jaeger/pull/4599))
+* Replace es-spanstore tracing instrumentation with OpenTelemetry ([@afzal442](https://github.com/afzal442) in [#4596](https://github.com/jaegertracing/jaeger/pull/4596))
+* Replace metricsstore/reader tracing instrumentation with OpenTelemetry ([@afzal442](https://github.com/afzal442) in [#4595](https://github.com/jaegertracing/jaeger/pull/4595))
+* Replace Jaeger SDK with OTEL SDK + OT Bridge ([@afzal442](https://github.com/afzal442) in [#4574](https://github.com/jaegertracing/jaeger/pull/4574))
+* [kafka-consumer] Ingester should use topic name from actual Kafka consumer instead of configuration ([@abliqo](https://github.com/abliqo) in [#4593](https://github.com/jaegertracing/jaeger/pull/4593))
+* Enable CORS settings on OTLP HTTP endpoint ([@pmuls99](https://github.com/pmuls99) in [#4586](https://github.com/jaegertracing/jaeger/pull/4586))
+* [hotrod] Return trace ID via traceresponse header ([@yurishkuro](https://github.com/yurishkuro) in [#4584](https://github.com/jaegertracing/jaeger/pull/4584))
+* [hotrod] Remove most references to OpenTracing ([@yurishkuro](https://github.com/yurishkuro) in [#4585](https://github.com/jaegertracing/jaeger/pull/4585))
+* [hotrod] Validate user input to avoid security warnings from code scanning ([@yurishkuro](https://github.com/yurishkuro) in [#4583](https://github.com/jaegertracing/jaeger/pull/4583))
+* [hotrod] Upgrade HotROD to use OpenTelemetry instrumentation ([@afzal442](https://github.com/afzal442) in [#4548](https://github.com/jaegertracing/jaeger/pull/4548))
+* [kafka-consumer] Use wait group to ensure goroutine is finished before returning from Close ([@kennyaz](https://github.com/kennyaz) in [#4582](https://github.com/jaegertracing/jaeger/pull/4582))
+* [tracegen] Enable BlockOnQueueFull in OTel SDK to avoid dropped spans ([@haanhvu](https://github.com/haanhvu) in [#4578](https://github.com/jaegertracing/jaeger/pull/4578))
+* [hotrod] Handle both OT and OTEL baggage ([@yurishkuro](https://github.com/yurishkuro) in [#4572](https://github.com/jaegertracing/jaeger/pull/4572))
+
+### UI Changes
+
+* UI pinned to version [1.32.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1320-2023-08-14).
+
 1.47.0 (2023-07-05)
 -------------------
 ### Backend Changes
