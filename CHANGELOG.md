@@ -25,6 +25,8 @@ next release (yyyy-mm-dd)
 
 #### Bug fixes, Minor Improvements
 
+* [fix] Disable tracing of OTLP Receiver ([@yurishkuro](https://github.com/yurishkuro) in [#4662](https://github.com/jaegertracing/jaeger/pull/4662))
+* [hotrod/observer_test] Switch to OpenTelemetry ([@afzal442](https://github.com/afzal442) in [#4635](https://github.com/jaegertracing/jaeger/pull/4635))
 * [memstore-plugin]Switch to OpenTelemetry SDK ([@afzal442](https://github.com/afzal442) in [#4643](https://github.com/jaegertracing/jaeger/pull/4643))
 * [tracegen] Allow to control cardinality of attribute keys ([@yurishkuro](https://github.com/yurishkuro) in [#4634](https://github.com/jaegertracing/jaeger/pull/4634))
 * Replace OT const wth OTEL trace.span for zipkin comp ([@afzal442](https://github.com/afzal442) in [#4625](https://github.com/jaegertracing/jaeger/pull/4625))
