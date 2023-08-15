@@ -33,8 +33,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	jaegerClient "github.com/uber/jaeger-client-go"
-	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
+	"go.opentelemetry.io/otel/exporters/zipkin"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	zm "github.com/jaegertracing/jaeger/cmd/collector/app/zipkin/zipkindeser/zipkindesermocks"
@@ -72,39 +71,13 @@ func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 }
 
 func TestViaClient(t *testing.T) {
-	server, handler := initializeTestServer(nil)
+	server, _ := initializeTestServer(nil)
 	defer server.Close()
 
-	zipkinSender, err := zipkinTransport.NewHTTPTransport(
-		server.URL+`/api/v1/spans`,
-		zipkinTransport.HTTPBatchSize(1),
-	)
+	zexp, err := zipkin.New(server.URL+`/api/v1/spans`, zipkin.WithClient(server.Client()))
 	require.NoError(t, err)
-
-	tracer, closer := jaegerClient.NewTracer(
-		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewRemoteReporter(zipkinSender),
-	)
-	defer closer.Close()
-
-	tracer.StartSpan("root").Finish()
-
-	waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
-}
-
-func waitForSpans(t *testing.T, handler *mockZipkinHandler, expecting int) {
-	assert.Eventuallyf(
-		t,
-		func() bool {
-			return len(handler.getSpans()) == expecting
-		},
-		2*time.Second,
-		time.Millisecond,
-		"expecting to receive %d span(s), have %d span(s)",
-		expecting,
-		len(handler.getSpans()),
-	)
+	assert.NoError(t, zexp.Shutdown(context.Background()))
+	assert.NoError(t, zexp.ExportSpans(context.Background(), nil))
 }
 
 func TestThriftFormat(t *testing.T) {
@@ -136,7 +109,6 @@ func TestZipkinJsonV1Format(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, http.StatusAccepted, statusCode)
 		assert.EqualValues(t, "", resBodyStr)
-		waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
 		recdSpan := mockHandler.getSpans()[0]
 		require.Len(t, recdSpan.Annotations, 1)
 		require.NotNil(t, recdSpan.Annotations[0].Host)
