@@ -2,8 +2,6 @@
 
 set -exu
 
-mode=${1-main}
-
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 # Set default GOARCH variable to the host GOARCH, the target architecture can
 # be overrided by passing architecture value to the script:
