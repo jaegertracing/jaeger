@@ -2,6 +2,8 @@
 
 set -exu
 
+mode=${1-main}
+
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 # Set default GOARCH variable to the host GOARCH, the target architecture can
 # be overrided by passing architecture value to the script:
@@ -34,11 +36,18 @@ run_integration_test() {
 
 make create-baseimg-debugimg
 
-make build-all-in-one GOOS=linux GOARCH=amd64
-make build-all-in-one GOOS=linux GOARCH=s390x
-make build-all-in-one GOOS=linux GOARCH=ppc64le
-make build-all-in-one GOOS=linux GOARCH=arm64
 platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+
+if [ "$mode" = "pr-only" ]; then
+  make build-all-in-one GOOS=linux GOARCH=amd64
+  platforms="linux/amd64"
+else
+  make build-all-in-one GOOS=linux GOARCH=s390x
+  make build-all-in-one GOOS=linux GOARCH=ppc64le
+  make build-all-in-one GOOS=linux GOARCH=arm64
+  platforms="linux/s390x,linux/ppc64le,linux/arm64"
+fi
+
 repo=jaegertracing/all-in-one
 #build all-in-one image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
