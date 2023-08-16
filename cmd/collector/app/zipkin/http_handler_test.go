@@ -34,6 +34,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/zipkin"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	zm "github.com/jaegertracing/jaeger/cmd/collector/app/zipkin/zipkindeser/zipkindesermocks"
@@ -48,6 +50,17 @@ type mockZipkinHandler struct {
 	err   error
 	mux   sync.Mutex
 	spans []*zipkincore.Span
+}
+
+func initTracer(t *testing.T, zexp *zipkin.Exporter) (trace.TracerProvider, func()) {
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(zexp),
+	)
+	closer := func() {
+		assert.NoError(t, tp.Shutdown(context.Background()))
+	}
+	return tp, closer
 }
 
 func (p *mockZipkinHandler) SubmitZipkinBatch(spans []*zipkincore.Span, opts handler.SubmitBatchOptions) ([]*zipkincore.Response, error) {
@@ -71,13 +84,32 @@ func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 }
 
 func TestViaClient(t *testing.T) {
-	server, _ := initializeTestServer(nil)
+	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
-	zexp, err := zipkin.New(server.URL+`/api/v1/spans`, zipkin.WithClient(server.Client()))
+	zexp, err := zipkin.New(server.URL + `/api/v1/spans`)
 	require.NoError(t, err)
-	assert.NoError(t, zexp.Shutdown(context.Background()))
-	assert.NoError(t, zexp.ExportSpans(context.Background(), nil))
+	trace, closer := initTracer(t, zexp)
+	defer closer()
+
+	_, span := trace.Tracer("test").Start(context.Background(), "root")
+	span.End()
+
+	waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
+}
+
+func waitForSpans(t *testing.T, handler *mockZipkinHandler, expecting int) {
+	assert.Eventuallyf(
+		t,
+		func() bool {
+			return len(handler.getSpans()) == expecting
+		},
+		2*time.Second,
+		time.Millisecond,
+		"expecting to receive %d span(s), have %d span(s)",
+		expecting,
+		len(handler.getSpans()),
+	)
 }
 
 func TestThriftFormat(t *testing.T) {
@@ -109,6 +141,7 @@ func TestZipkinJsonV1Format(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, http.StatusAccepted, statusCode)
 		assert.EqualValues(t, "", resBodyStr)
+		waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
 		recdSpan := mockHandler.getSpans()[0]
 		require.Len(t, recdSpan.Annotations, 1)
 		require.NotNil(t, recdSpan.Annotations[0].Host)
