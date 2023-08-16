@@ -4,14 +4,14 @@ set -euxf -o pipefail
 
 mode=${1-main}
 
-make create-baseimg-debugimg
-
 make build-binaries-linux
 
 if [ "$mode" = "pr-only" ]; then
+  make create-baseimg
   # build artifacts for linux/amd64 only for pull requests
   platforms="linux/amd64"
 else
+  make create-baseimg-debugimg
   platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
   # build multi-arch binaries
   make build-binaries-s390x
