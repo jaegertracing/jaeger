@@ -32,13 +32,13 @@ run_integration_test() {
   docker kill $CID
 }
 
-make create-baseimg-debugimg
-
 if [ "$mode" = "pr-only" ]; then
+  make create-baseimg
   # build architecture for linux/amd64 only for pull requests
   platforms="linux/amd64"
   make build-all-in-one GOOS=linux GOARCH=amd64
 else
+  make create-baseimg-debugimg
   platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
   make build-all-in-one GOOS=linux GOARCH=amd64
   make build-all-in-one GOOS=linux GOARCH=s390x
