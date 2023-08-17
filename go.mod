@@ -62,6 +62,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.16.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.16.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.16.0
+	go.opentelemetry.io/otel/exporters/zipkin v1.11.0
 	go.opentelemetry.io/otel/metric v1.16.0
 	go.opentelemetry.io/otel/sdk v1.16.0
 	go.opentelemetry.io/otel/trace v1.16.0
@@ -103,7 +104,7 @@ require (
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
-	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -134,12 +135,12 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.0 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/onsi/ginkgo v1.16.4 // indirect
-	github.com/onsi/gomega v1.13.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.83.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/openzipkin/zipkin-go v0.4.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
+	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
