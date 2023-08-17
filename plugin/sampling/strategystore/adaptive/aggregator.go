@@ -18,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber/jaeger-client-go"
-
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -27,7 +25,8 @@ import (
 )
 
 const (
-	maxProbabilities = 10
+	maxProbabilities         = 10
+	SamplerTypeProbabilistic = "probabilistic"
 )
 
 type aggregator struct {
@@ -106,7 +105,7 @@ func (a *aggregator) RecordThroughput(service, operation, samplerType string, pr
 	// Only if we see probabilistically sampled root spans do we increment the throughput counter,
 	// for lowerbound sampled spans, we don't increment at all but we still save a count of 0 as
 	// the throughput so that the adaptive sampling processor is made aware of the endpoint.
-	if samplerType == jaeger.SamplerTypeProbabilistic {
+	if samplerType == SamplerTypeProbabilistic {
 		throughput.Count++
 	}
 }
