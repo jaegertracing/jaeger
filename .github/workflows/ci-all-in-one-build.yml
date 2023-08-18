@@ -49,7 +49,7 @@ jobs:
 
     - name: Build, test, and publish all-in-one image
       if: github.ref_name == 'main'
-      run: bash scripts/build-all-in-one-image.sh pr-only
+      run: bash scripts/build-all-in-one-image.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
