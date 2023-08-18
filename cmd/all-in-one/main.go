@@ -24,7 +24,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -105,7 +104,6 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
-			otel.SetTracerProvider(tracer.OTEL)
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
