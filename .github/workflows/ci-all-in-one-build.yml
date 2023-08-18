@@ -43,7 +43,12 @@ jobs:
 
     - uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7
 
+    - name: Build only linux/amd64 docker image for Pull Request
+      if: github.ref_name != 'main'
+      run: bash scripts/build-all-in-one-image.sh pr-only
+
     - name: Build, test, and publish all-in-one image
+      if: github.ref_name == 'main'
       run: bash scripts/build-all-in-one-image.sh pr-only
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
