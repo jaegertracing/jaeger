@@ -23,7 +23,6 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel"
 	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
@@ -62,7 +61,6 @@ func main() {
 		panic(fmt.Errorf("failed to initialize tracer: %w", err))
 	}
 	defer tracer.Close(context.Background())
-	otel.SetTracerProvider(tracer.OTEL)
 
 	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
 	service := &shared.PluginServices{
