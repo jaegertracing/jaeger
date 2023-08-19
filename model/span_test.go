@@ -243,6 +243,8 @@ func TestSamplerType(t *testing.T) {
 	assert.Equal(t, "lowerbound", span.GetSamplerType())
 	span = makeSpan(model.String("sampler.type", ""))
 	assert.Equal(t, "unknown", span.GetSamplerType())
+	span = makeSpan(model.String("sampler.type", "probabilistic"))
+	assert.Equal(t, "probabilistic", span.GetSamplerType())
 	span = makeSpan(model.KeyValue{})
 	assert.Equal(t, "unknown", span.GetSamplerType())
 }
