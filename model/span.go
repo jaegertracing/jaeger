@@ -33,9 +33,10 @@ const (
 	// FirehoseFlag is the bit in Flags in order to define a span as a firehose span
 	FirehoseFlag = Flags(8)
 
-	samplerType        = "sampler.type"
-	keySpanKind        = "span.kind"
-	samplerTypeUnknown = "unknown"
+	samplerType              = "sampler.type"
+	keySpanKind              = "span.kind"
+	samplerTypeUnknown       = "unknown"
+	samplerTypeProbabilistic = "probabilistic"
 )
 
 // Flags is a bit map of flags for a span
@@ -82,6 +83,8 @@ func (s *Span) GetSamplerType() string {
 	if tag, ok := KeyValues(s.Tags).FindByKey(samplerType); ok {
 		if tag.VStr == "" {
 			return samplerTypeUnknown
+		} else if tag.VStr == "probabilistic" {
+			return samplerTypeProbabilistic
 		}
 		return tag.VStr
 	}

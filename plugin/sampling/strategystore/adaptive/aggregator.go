@@ -26,7 +26,7 @@ import (
 
 const (
 	maxProbabilities         = 10
-	SamplerTypeProbabilistic = "probabilistic"
+	samplerTypeProbabilistic = "probabilistic"
 )
 
 type aggregator struct {
@@ -105,7 +105,7 @@ func (a *aggregator) RecordThroughput(service, operation, samplerType string, pr
 	// Only if we see probabilistically sampled root spans do we increment the throughput counter,
 	// for lowerbound sampled spans, we don't increment at all but we still save a count of 0 as
 	// the throughput so that the adaptive sampling processor is made aware of the endpoint.
-	if samplerType == SamplerTypeProbabilistic {
+	if samplerType == samplerTypeProbabilistic {
 		throughput.Count++
 	}
 }
