@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
 
@@ -38,12 +39,12 @@ func TestAggregator(t *testing.T) {
 	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
 
 	a := NewAggregator(metricsFactory, 5*time.Millisecond, mockStorage)
-	a.RecordThroughput("A", "GET", probabilistic, 0.001)
-	a.RecordThroughput("B", "POST", probabilistic, 0.001)
-	a.RecordThroughput("C", "GET", probabilistic, 0.001)
-	a.RecordThroughput("A", "POST", probabilistic, 0.001)
-	a.RecordThroughput("A", "GET", probabilistic, 0.001)
-	a.RecordThroughput("A", "GET", lowerbound, 0.001)
+	a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("B", "POST", model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("C", "GET", model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("A", "POST", model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("A", "GET", model.SamplerTypeLowerBound, 0.001)
 
 	a.Start()
 	defer a.Close()
@@ -68,14 +69,14 @@ func TestIncrementThroughput(t *testing.T) {
 	a := NewAggregator(metricsFactory, 5*time.Millisecond, mockStorage)
 	// 20 different probabilities
 	for i := 0; i < 20; i++ {
-		a.RecordThroughput("A", "GET", probabilistic, 0.001*float64(i))
+		a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001*float64(i))
 	}
 	assert.Len(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities, 10)
 
 	a = NewAggregator(metricsFactory, 5*time.Millisecond, mockStorage)
 	// 20 of the same probabilities
 	for i := 0; i < 20; i++ {
-		a.RecordThroughput("A", "GET", probabilistic, 0.001)
+		a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
 	}
 	assert.Len(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities, 1)
 }
@@ -85,7 +86,7 @@ func TestLowerboundThroughput(t *testing.T) {
 	mockStorage := &mocks.Store{}
 
 	a := NewAggregator(metricsFactory, 5*time.Millisecond, mockStorage)
-	a.RecordThroughput("A", "GET", lowerbound, 0.001)
+	a.RecordThroughput("A", "GET", model.SamplerTypeLowerBound, 0.001)
 	assert.EqualValues(t, 0, a.(*aggregator).currentThroughput["A"]["GET"].Count)
 	assert.Empty(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities["0.001000"])
 }

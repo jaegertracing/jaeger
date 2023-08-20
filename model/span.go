@@ -25,7 +25,13 @@ import (
 	"go.uber.org/zap"
 )
 
+type SamplerType int
+
 const (
+	SamplerTypeUnrecognized SamplerType = iota
+	SamplerTypeProbabilistic
+	SamplerTypeLowerBound
+	SamplerTypeRateLimiting
 	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
 	SampledFlag = Flags(1)
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
@@ -33,10 +39,9 @@ const (
 	// FirehoseFlag is the bit in Flags in order to define a span as a firehose span
 	FirehoseFlag = Flags(8)
 
-	samplerType              = "sampler.type"
-	keySpanKind              = "span.kind"
-	samplerTypeUnknown       = "unknown"
-	samplerTypeProbabilistic = "probabilistic"
+	keySamplerType  = "sampler.type"
+	keySpanKind     = "span.kind"
+	keySamplerParam = "sampler.param"
 )
 
 // Flags is a bit map of flags for a span
@@ -49,6 +54,13 @@ var toSpanKind = map[string]trace.SpanKind{
 	"producer": trace.SpanKindProducer,
 	"consumer": trace.SpanKindConsumer,
 	"internal": trace.SpanKindInternal,
+}
+
+var toSamplerType = map[string]SamplerType{
+	"unknown":       SamplerTypeUnrecognized,
+	"probabilistic": SamplerTypeProbabilistic,
+	"lowerbound":    SamplerTypeLowerBound,
+	"ratelimiting":  SamplerTypeRateLimiting,
 }
 
 // Hash implements Hash from Hashable.
@@ -78,17 +90,18 @@ func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 }
 
 // GetSamplerType returns the sampler type for span
-func (s *Span) GetSamplerType() string {
+func (s *Span) GetSamplerType() SamplerType {
 	// There's no corresponding opentelemetry tag label corresponding to sampler.type
-	if tag, ok := KeyValues(s.Tags).FindByKey(samplerType); ok {
+	if tag, ok := KeyValues(s.Tags).FindByKey(keySamplerType); ok {
 		if tag.VStr == "" {
-			return samplerTypeUnknown
+			return SamplerTypeUnrecognized
 		} else if tag.VStr == "probabilistic" {
-			return samplerTypeProbabilistic
+			return SamplerTypeProbabilistic
+		} else {
+			return SamplerTypeLowerBound
 		}
-		return tag.VStr
 	}
-	return samplerTypeUnknown
+	return SamplerTypeUnrecognized
 }
 
 // IsRPCClient returns true if the span represents a client side of an RPC,
@@ -147,26 +160,26 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 }
 
 // GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
-func (s *Span) GetSamplerParams(logger *zap.Logger) (string, float64) {
+func (s *Span) GetSamplerParams(logger *zap.Logger) (SamplerType, float64) {
 	tag, ok := KeyValues(s.Tags).FindByKey(jaeger.SamplerTypeTagKey)
 	if !ok {
-		return "", 0
+		return 0, 0
 	}
 	if tag.VType != StringType {
 		logger.
 			With(zap.String("traceID", s.TraceID.String())).
 			With(zap.String("spanID", s.SpanID.String())).
 			Warn("sampler.type tag is not a string", zap.Any("tag", tag))
-		return "", 0
+		return 0, 0
 	}
-	samplerType := tag.AsString()
-	if samplerType != jaeger.SamplerTypeProbabilistic && samplerType != jaeger.SamplerTypeLowerBound &&
-		samplerType != jaeger.SamplerTypeRateLimiting {
-		return "", 0
+	samplerType := toSamplerType[tag.AsString()]
+	if samplerType != SamplerTypeProbabilistic && samplerType != SamplerTypeLowerBound &&
+		samplerType != SamplerTypeRateLimiting {
+		return 0, 0
 	}
-	tag, ok = KeyValues(s.Tags).FindByKey(jaeger.SamplerParamTagKey)
+	tag, ok = KeyValues(s.Tags).FindByKey(keySamplerParam)
 	if !ok {
-		return "", 0
+		return 0, 0
 	}
 	samplerParam, err := samplerParamToFloat(tag)
 	if err != nil {
@@ -174,7 +187,7 @@ func (s *Span) GetSamplerParams(logger *zap.Logger) (string, float64) {
 			With(zap.String("traceID", s.TraceID.String())).
 			With(zap.String("spanID", s.SpanID.String())).
 			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
-		return "", 0
+		return 0, 0
 	}
 	return samplerType, samplerParam
 }

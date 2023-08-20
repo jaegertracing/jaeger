@@ -18,6 +18,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -33,7 +34,7 @@ type Aggregator interface {
 	io.Closer
 
 	// RecordThroughput records throughput for an operation for aggregation.
-	RecordThroughput(service, operation, samplerType string, probability float64)
+	RecordThroughput(service, operation string, samplerType model.SamplerType, probability float64)
 
 	// Start starts aggregating operation throughput.
 	Start()
