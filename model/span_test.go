@@ -408,7 +408,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.String("sampler.param", "1e-05"),
 			},
-			expectedType:  1,
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 0.00001,
 		},
 		{
@@ -416,7 +416,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.Float64("sampler.param", 0.10404450002098709),
 			},
-			expectedType:  1,
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 0.10404450002098709,
 		},
 		{
@@ -424,7 +424,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.String("sampler.param", "0.10404450002098709"),
 			},
-			expectedType:  1,
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 0.10404450002098709,
 		},
 		{
@@ -432,7 +432,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.Int64("sampler.param", 1),
 			},
-			expectedType:  1,
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 1.0,
 		},
 		{
@@ -440,26 +440,26 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "ratelimiting"),
 				model.String("sampler.param", "1"),
 			},
-			expectedType:  3,
+			expectedType:  model.SamplerTypeRateLimiting,
 			expectedParam: 1,
 		},
 		{
 			tags: model.KeyValues{
 				model.Float64("sampler.type", 1.5),
 			},
-			expectedType:  0,
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
 			tags: model.KeyValues{
 				model.String("sampler.type", "probabilistic"),
 			},
-			expectedType:  0,
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
 			tags:          model.KeyValues{},
-			expectedType:  0,
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
@@ -467,7 +467,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.String("sampler.param", "1"),
 			},
-			expectedType:  2,
+			expectedType:  model.SamplerTypeLowerBound,
 			expectedParam: 1,
 		},
 		{
@@ -475,7 +475,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.Int64("sampler.param", 1),
 			},
-			expectedType:  2,
+			expectedType:  model.SamplerTypeLowerBound,
 			expectedParam: 1,
 		},
 		{
@@ -483,7 +483,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.Float64("sampler.param", 0.5),
 			},
-			expectedType:  2,
+			expectedType:  model.SamplerTypeLowerBound,
 			expectedParam: 0.5,
 		},
 		{
@@ -491,7 +491,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.String("sampler.param", "not_a_number"),
 			},
-			expectedType:  0,
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
@@ -499,7 +499,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "not_a_type"),
 				model.String("sampler.param", "not_a_number"),
 			},
-			expectedType:  0,
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 	}

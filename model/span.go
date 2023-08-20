@@ -32,6 +32,7 @@ const (
 	SamplerTypeProbabilistic
 	SamplerTypeLowerBound
 	SamplerTypeRateLimiting
+	SamplerTypeConst
 	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
 	SampledFlag = Flags(1)
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
@@ -61,6 +62,7 @@ var toSamplerType = map[string]SamplerType{
 	"probabilistic": SamplerTypeProbabilistic,
 	"lowerbound":    SamplerTypeLowerBound,
 	"ratelimiting":  SamplerTypeRateLimiting,
+	"const":         SamplerTypeConst,
 }
 
 // Hash implements Hash from Hashable.
@@ -163,23 +165,23 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 func (s *Span) GetSamplerParams(logger *zap.Logger) (SamplerType, float64) {
 	tag, ok := KeyValues(s.Tags).FindByKey(jaeger.SamplerTypeTagKey)
 	if !ok {
-		return 0, 0
+		return SamplerTypeUnrecognized, 0
 	}
 	if tag.VType != StringType {
 		logger.
 			With(zap.String("traceID", s.TraceID.String())).
 			With(zap.String("spanID", s.SpanID.String())).
 			Warn("sampler.type tag is not a string", zap.Any("tag", tag))
-		return 0, 0
+		return SamplerTypeUnrecognized, 0
 	}
 	samplerType := toSamplerType[tag.AsString()]
 	if samplerType != SamplerTypeProbabilistic && samplerType != SamplerTypeLowerBound &&
 		samplerType != SamplerTypeRateLimiting {
-		return 0, 0
+		return SamplerTypeUnrecognized, 0
 	}
 	tag, ok = KeyValues(s.Tags).FindByKey(keySamplerParam)
 	if !ok {
-		return 0, 0
+		return SamplerTypeUnrecognized, 0
 	}
 	samplerParam, err := samplerParamToFloat(tag)
 	if err != nil {
@@ -187,7 +189,7 @@ func (s *Span) GetSamplerParams(logger *zap.Logger) (SamplerType, float64) {
 			With(zap.String("traceID", s.TraceID.String())).
 			With(zap.String("spanID", s.SpanID.String())).
 			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
-		return 0, 0
+		return SamplerTypeUnrecognized, 0
 	}
 	return samplerType, samplerParam
 }

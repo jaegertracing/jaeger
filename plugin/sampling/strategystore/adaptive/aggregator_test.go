@@ -26,11 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
 
-const (
-	probabilistic = "probabilistic"
-	lowerbound    = "lowerbound"
-)
-
 func TestAggregator(t *testing.T) {
 	t.Skip("Skipping flaky unit test")
 	metricsFactory := metricstest.NewFactory(0)
