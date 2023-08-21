@@ -34,7 +34,7 @@ func handleRootSpan(aggregator strategystore.Aggregator, logger *zap.Logger) Pro
 			return
 		}
 		samplerType, samplerParam := span.GetSamplerParams(logger)
-		if samplerType == 0 {
+		if samplerType == model.SamplerTypeUnrecognized {
 			return
 		}
 		aggregator.RecordThroughput(service, span.OperationName, samplerType, samplerParam)

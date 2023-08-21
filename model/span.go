@@ -20,7 +20,6 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/uber/jaeger-client-go"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -57,12 +56,16 @@ var toSpanKind = map[string]trace.SpanKind{
 	"internal": trace.SpanKindInternal,
 }
 
-var toSamplerType = map[string]SamplerType{
-	"unknown":       SamplerTypeUnrecognized,
-	"probabilistic": SamplerTypeProbabilistic,
-	"lowerbound":    SamplerTypeLowerBound,
-	"ratelimiting":  SamplerTypeRateLimiting,
-	"const":         SamplerTypeConst,
+var toSamplerType = map[SamplerType]string{
+	SamplerTypeUnrecognized:  "unrecognized",
+	SamplerTypeProbabilistic: "probabilistic",
+	SamplerTypeLowerBound:    "lowerbound",
+	SamplerTypeRateLimiting:  "ratelimiting",
+	SamplerTypeConst:         "const",
+}
+
+func (s SamplerType) String() string {
+	return toSamplerType[s]
 }
 
 // Hash implements Hash from Hashable.
@@ -97,8 +100,10 @@ func (s *Span) GetSamplerType() SamplerType {
 	if tag, ok := KeyValues(s.Tags).FindByKey(keySamplerType); ok {
 		if tag.VStr == "" {
 			return SamplerTypeUnrecognized
-		} else if tag.VStr == "probabilistic" {
+		} else if tag.VStr == toSamplerType[SamplerTypeProbabilistic] {
 			return SamplerTypeProbabilistic
+		} else if tag.VStr == toSamplerType[SamplerTypeRateLimiting] {
+			return SamplerTypeRateLimiting
 		} else {
 			return SamplerTypeLowerBound
 		}
@@ -163,23 +168,12 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 
 // GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
 func (s *Span) GetSamplerParams(logger *zap.Logger) (SamplerType, float64) {
-	tag, ok := KeyValues(s.Tags).FindByKey(jaeger.SamplerTypeTagKey)
-	if !ok {
-		return SamplerTypeUnrecognized, 0
-	}
-	if tag.VType != StringType {
-		logger.
-			With(zap.String("traceID", s.TraceID.String())).
-			With(zap.String("spanID", s.SpanID.String())).
-			Warn("sampler.type tag is not a string", zap.Any("tag", tag))
-		return SamplerTypeUnrecognized, 0
-	}
-	samplerType := toSamplerType[tag.AsString()]
+	samplerType := s.GetSamplerType()
 	if samplerType != SamplerTypeProbabilistic && samplerType != SamplerTypeLowerBound &&
 		samplerType != SamplerTypeRateLimiting {
 		return SamplerTypeUnrecognized, 0
 	}
-	tag, ok = KeyValues(s.Tags).FindByKey(keySamplerParam)
+	tag, ok := KeyValues(s.Tags).FindByKey(keySamplerParam)
 	if !ok {
 		return SamplerTypeUnrecognized, 0
 	}
