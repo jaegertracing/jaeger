@@ -32,6 +32,7 @@ const (
 	SamplerTypeLowerBound
 	SamplerTypeRateLimiting
 	SamplerTypeConst
+
 	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
 	SampledFlag = Flags(1)
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
@@ -56,16 +57,21 @@ var toSpanKind = map[string]trace.SpanKind{
 	"internal": trace.SpanKindInternal,
 }
 
-var toSamplerType = map[SamplerType]string{
-	SamplerTypeUnrecognized:  "unrecognized",
-	SamplerTypeProbabilistic: "probabilistic",
-	SamplerTypeLowerBound:    "lowerbound",
-	SamplerTypeRateLimiting:  "ratelimiting",
-	SamplerTypeConst:         "const",
-}
-
 func (s SamplerType) String() string {
-	return toSamplerType[s]
+	switch s {
+	case SamplerTypeUnrecognized:
+		return "unrecognized"
+	case SamplerTypeProbabilistic:
+		return "probabilistic"
+	case SamplerTypeLowerBound:
+		return "lowerbound"
+	case SamplerTypeRateLimiting:
+		return "ratelimiting"
+	case SamplerTypeConst:
+		return "const"
+	default:
+		return ""
+	}
 }
 
 // Hash implements Hash from Hashable.
@@ -98,14 +104,17 @@ func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 func (s *Span) GetSamplerType() SamplerType {
 	// There's no corresponding opentelemetry tag label corresponding to sampler.type
 	if tag, ok := KeyValues(s.Tags).FindByKey(keySamplerType); ok {
-		if tag.VStr == "" {
-			return SamplerTypeUnrecognized
-		} else if tag.VStr == toSamplerType[SamplerTypeProbabilistic] {
+		switch tag.VStr {
+		case SamplerTypeProbabilistic.String():
 			return SamplerTypeProbabilistic
-		} else if tag.VStr == toSamplerType[SamplerTypeRateLimiting] {
+		case SamplerTypeRateLimiting.String():
 			return SamplerTypeRateLimiting
-		} else {
+		case SamplerTypeLowerBound.String():
 			return SamplerTypeLowerBound
+		case SamplerTypeConst.String():
+			return SamplerTypeConst
+		default:
+			return SamplerTypeUnrecognized
 		}
 	}
 	return SamplerTypeUnrecognized
