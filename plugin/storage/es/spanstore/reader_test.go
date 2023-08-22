@@ -1253,6 +1253,7 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 		assert.EqualValues(t, expected, actual)
 	})
 }
+
 func TestSpanReader_buildTagQuery_WithDisableLogsFieldSearch(t *testing.T) {
 	inStr, err := os.ReadFile("fixtures/query_04.json")
 	require.NoError(t, err)
