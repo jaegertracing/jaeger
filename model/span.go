@@ -62,6 +62,7 @@ var toSamplerType = map[string]SamplerType{
 	"probabilistic": SamplerTypeProbabilistic,
 	"lowerbound":    SamplerTypeLowerBound,
 	"ratelimiting":  SamplerTypeRateLimiting,
+	"const":         SamplerTypeConst,
 }
 
 func (s SamplerType) String() string {
@@ -74,6 +75,8 @@ func (s SamplerType) String() string {
 		return "lowerbound"
 	case SamplerTypeRateLimiting:
 		return "ratelimiting"
+	case SamplerTypeConst:
+		return "const"
 	default:
 		return ""
 	}
@@ -109,10 +112,9 @@ func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 func (s *Span) GetSamplerType() SamplerType {
 	// There's no corresponding opentelemetry tag label corresponding to sampler.type
 	if tag, ok := KeyValues(s.Tags).FindByKey(keySamplerType); ok {
-		if tag.VStr == "" {
-			return toSamplerType[SamplerTypeUnrecognized.String()]
+		if s, ok := toSamplerType[tag.VStr]; ok {
+			return s
 		}
-		return toSamplerType[tag.VStr]
 	}
 	return SamplerTypeUnrecognized
 }
