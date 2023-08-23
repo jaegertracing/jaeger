@@ -57,6 +57,13 @@ var toSpanKind = map[string]trace.SpanKind{
 	"internal": trace.SpanKindInternal,
 }
 
+var toSamplerType = map[string]SamplerType{
+	"unrecognized":  SamplerTypeUnrecognized,
+	"probabilistic": SamplerTypeProbabilistic,
+	"lowerbound":    SamplerTypeLowerBound,
+	"ratelimiting":  SamplerTypeRateLimiting,
+}
+
 func (s SamplerType) String() string {
 	switch s {
 	case SamplerTypeUnrecognized:
@@ -67,8 +74,6 @@ func (s SamplerType) String() string {
 		return "lowerbound"
 	case SamplerTypeRateLimiting:
 		return "ratelimiting"
-	case SamplerTypeConst:
-		return "const"
 	default:
 		return ""
 	}
@@ -104,18 +109,10 @@ func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 func (s *Span) GetSamplerType() SamplerType {
 	// There's no corresponding opentelemetry tag label corresponding to sampler.type
 	if tag, ok := KeyValues(s.Tags).FindByKey(keySamplerType); ok {
-		switch tag.VStr {
-		case SamplerTypeProbabilistic.String():
-			return SamplerTypeProbabilistic
-		case SamplerTypeRateLimiting.String():
-			return SamplerTypeRateLimiting
-		case SamplerTypeLowerBound.String():
-			return SamplerTypeLowerBound
-		case SamplerTypeConst.String():
-			return SamplerTypeConst
-		default:
-			return SamplerTypeUnrecognized
+		if tag.VStr == "" {
+			return toSamplerType[SamplerTypeUnrecognized.String()]
 		}
+		return toSamplerType[tag.VStr]
 	}
 	return SamplerTypeUnrecognized
 }
@@ -178,8 +175,7 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 // GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
 func (s *Span) GetSamplerParams(logger *zap.Logger) (SamplerType, float64) {
 	samplerType := s.GetSamplerType()
-	if samplerType != SamplerTypeProbabilistic && samplerType != SamplerTypeLowerBound &&
-		samplerType != SamplerTypeRateLimiting {
+	if samplerType == SamplerTypeUnrecognized {
 		return SamplerTypeUnrecognized, 0
 	}
 	tag, ok := KeyValues(s.Tags).FindByKey(keySamplerParam)
