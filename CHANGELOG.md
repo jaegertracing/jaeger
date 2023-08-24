@@ -18,6 +18,21 @@ next release (yyyy-mm-dd)
 
 ### UI Changes
 
+1.49.0 (yyyy-mm-dd)
+-------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Make OTLP the default exporter in HotROD ([@yurishkuro](https://github.com/yurishkuro) in [#4698](https://github.com/jaegertracing/jaeger/pull/4698))
+
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+### UI Changes
+
 1.48.0 (2023-08-15)
 -------------------
 
