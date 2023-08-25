@@ -20,7 +20,6 @@ run-dev: _run-connector
 .PHONY: _run-connector
 _run-connector: export OTEL_IMAGE_TAG = 0.80.0
 _run-connector: export OTEL_CONFIG_SRC = ./otel-collector-config-connector.yml
-_run-connector: export PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR = true
 _run-connector:
 	docker compose -f docker-compose.yml up
 
@@ -31,6 +30,7 @@ run-dev-processor: export JAEGER_IMAGE_TAG = dev
 # Fix to a version before the breaking changes were introduced.
 run-dev-processor: export OTEL_IMAGE_TAG = 0.70.0
 run-dev-processor: export OTEL_CONFIG_SRC = ./otel-collector-config-processor.yml
+run-dev-processor: export PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR = false
 run-dev-processor:
 	docker compose -f docker-compose.yml up
 
