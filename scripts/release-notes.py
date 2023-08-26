@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This script can read N latest commits from one of Jaeger repos
 # and output them in the release notes format:
 # * {title} ({author} in {pull_request})
@@ -5,7 +7,7 @@
 # Requires personal GitHub token with default permissions:
 #   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 #
-# Usage: python release-notes.py --help
+# Usage: ./release-notes.py --help
 #
 
 import argparse
