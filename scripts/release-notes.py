@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This script can read N latest commits from one of Jaeger repos
 # and output them in the release notes format:
 # * {title} ({author} in {pull_request})

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse
 
 def cleanup_imports_and_return(imports):

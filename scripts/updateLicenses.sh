@@ -2,7 +2,7 @@
 
 set -e
 
-python scripts/updateLicense.py $(git ls-files "*\.go" | \
+./scripts/updateLicense.py $(git ls-files "*\.go" | \
     grep -v \
         -e thrift-gen \
         -e swagger-gen \
