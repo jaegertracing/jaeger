@@ -90,7 +90,7 @@ this SPM Development Environment.
 
 Run the following commands to setup the Python virtual environment and install the Opentelemetry SDK:
 ```shell
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```

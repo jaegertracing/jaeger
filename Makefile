@@ -386,11 +386,11 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: changelog
 changelog:
-	python3 ./scripts/release-notes.py --exclude-dependabot
+	./scripts/release-notes.py --exclude-dependabot
 
 .PHONY: draft-release
 draft-release:
-	python3 ./scripts/draft-release.py
+	./scripts/draft-release.py
 
 .PHONY: install-tools
 install-tools:

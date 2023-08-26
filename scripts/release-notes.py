@@ -7,7 +7,7 @@
 # Requires personal GitHub token with default permissions:
 #   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 #
-# Usage: python release-notes.py --help
+# Usage: ./release-notes.py --help
 #
 
 import argparse
