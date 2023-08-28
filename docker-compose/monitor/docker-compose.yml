@@ -3,7 +3,7 @@ services:
   jaeger:
     networks:
       - backend
-    image: jaegertracing/all-in-one:${JAEGER_IMAGE_TAG}
+    image: jaegertracing/all-in-one:${JAEGER_IMAGE_TAG:-latest}
     volumes:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json"
     command: --query.ui-config /etc/jaeger/jaeger-ui.json
@@ -13,16 +13,14 @@ services:
       - PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=${PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR:-true}
       - PROMETHEUS_QUERY_NAMESPACE=${PROMETHEUS_QUERY_NAMESPACE:-}
       - PROMETHEUS_QUERY_DURATION_UNIT=${PROMETHEUS_QUERY_DURATION_UNIT:-}
-      - OTEL_IMAGE_TAG=${OTEL_IMAGE_TAG:-0.80.0}
-      - OTEL_CONFIG_SRC=${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}
     ports:
       - "16686:16686"
   otel_collector:
     networks:
       - backend
-    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG}
+    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.80.0}
     volumes:
-      - ${OTEL_CONFIG_SRC}:/etc/otelcol/otel-collector-config.yml
+      - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
     command: --config /etc/otelcol/otel-collector-config.yml
     ports:
       - "4317:4317"
