@@ -13,8 +13,8 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
 
-  jaeger:
-    endpoint: "jaeger:14250"
+  otlp:
+    endpoint: jaeger:4317
     tls:
       insecure: true
 
@@ -29,7 +29,7 @@ service:
     traces:
       receivers: [otlp, jaeger]
       processors: [batch]
-      exporters: [spanmetrics, jaeger]
+      exporters: [spanmetrics, otlp]
     # The exporter name in this pipeline must match the spanmetrics.metrics_exporter name.
     # The receiver is just a dummy and never used; added to pass validation requiring at least one receiver in a pipeline.
     metrics/spanmetrics:
