@@ -32,7 +32,7 @@ This brings up the system necessary to use the SPM feature locally.
 It uses the latest image tags from both Jaeger and OpenTelemetry.
 
 ```shell
-make run
+docker compose up
 ```
 
 **Tips:**

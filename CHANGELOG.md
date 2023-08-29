@@ -26,6 +26,7 @@ next release (yyyy-mm-dd)
 #### ⛔ Breaking Changes
 
 * Make OTLP the default exporter in HotROD ([@yurishkuro](https://github.com/yurishkuro) in [#4698](https://github.com/jaegertracing/jaeger/pull/4698))
+* [SPM] Support spanmetrics connector by default ([@albertteoh](https://github.com/albertteoh) in [#4704](https://github.com/jaegertracing/jaeger/pull/4704))
 
 #### New Features
 
