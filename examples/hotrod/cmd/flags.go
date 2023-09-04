@@ -22,7 +22,7 @@ import (
 
 var (
 	metricsBackend string
-	otelExporter   string // jaeger, otlp, stdout
+	otelExporter   string // otlp, stdout
 	verbose        bool
 
 	fixDBConnDelay         time.Duration
