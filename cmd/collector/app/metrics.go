@@ -37,7 +37,7 @@ const (
 	samplerTypeProbabilistic = "probabilistic"
 	samplerTypeRateLimiting  = "ratelimiting"
 	samplerTypeLowerBound    = "lowerbound"
-	samplerTypeUnknown       = "unknown"
+	samplerTypeUnknown       = "unrecognized"
 	// types of samplers: const, probabilistic, ratelimiting, lowerbound
 	numOfSamplerTypes = 4
 
@@ -244,7 +244,7 @@ func (m metricsBySvc) countSpansByServiceName(serviceName string, isDebug bool) 
 
 // countTracesByServiceName counts how many traces are received per service,
 // i.e. the counter is only incremented for the root spans.
-func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool, samplerType string) {
+func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool, samplerType model.SamplerType) {
 	m.traces.countByServiceName(serviceName, isDebug, samplerType)
 }
 
@@ -258,7 +258,7 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool,
 // total number of stored counters, so if it exceeds say the 90% threshold
 // an alert should be raised to investigate what's causing so many unique
 // service names.
-func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, samplerType string) {
+func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, samplerType model.SamplerType) {
 	serviceName = normalizer.ServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
@@ -268,7 +268,7 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 	m.lock.Lock()
 
 	// trace counter key is combination of serviceName and samplerType.
-	key := m.buildKey(serviceName, samplerType)
+	key := m.buildKey(serviceName, samplerType.String())
 
 	if c, ok := counts[key]; ok {
 		counter = c
@@ -278,20 +278,20 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 			debugStr = "true"
 		}
 		// Only trace metrics have samplerType tag
-		tags := map[string]string{"svc": serviceName, "debug": debugStr, samplerTypeKey: samplerType}
+		tags := map[string]string{"svc": serviceName, "debug": debugStr, samplerTypeKey: samplerType.String()}
 
 		c := m.factory.Counter(metrics.Options{Name: m.category, Tags: tags})
 		counts[key] = c
 		counter = c
 	} else {
 		switch samplerType {
-		case samplerTypeConst:
+		case model.SamplerTypeConst:
 			counter = counts[otherServicesConstSampler]
-		case samplerTypeLowerBound:
+		case model.SamplerTypeLowerBound:
 			counter = counts[otherServicesLowerBoundSampler]
-		case samplerTypeProbabilistic:
+		case model.SamplerTypeProbabilistic:
 			counter = counts[otherServicesProbabilisticSampler]
-		case samplerTypeRateLimiting:
+		case model.SamplerTypeRateLimiting:
 			counter = counts[otherServicesRateLimitingSampler]
 		default:
 			counter = counts[otherServicesUnknownSampler]
