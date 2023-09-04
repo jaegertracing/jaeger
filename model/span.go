@@ -20,12 +20,19 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/uber/jaeger-client-go"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
+type SamplerType int
+
 const (
+	SamplerTypeUnrecognized SamplerType = iota
+	SamplerTypeProbabilistic
+	SamplerTypeLowerBound
+	SamplerTypeRateLimiting
+	SamplerTypeConst
+
 	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
 	SampledFlag = Flags(1)
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
@@ -33,21 +40,45 @@ const (
 	// FirehoseFlag is the bit in Flags in order to define a span as a firehose span
 	FirehoseFlag = Flags(8)
 
-	samplerType        = "sampler.type"
-	keySpanKind        = "span.kind"
-	samplerTypeUnknown = "unknown"
+	keySamplerType  = "sampler.type"
+	keySpanKind     = "span.kind"
+	keySamplerParam = "sampler.param"
 )
 
 // Flags is a bit map of flags for a span
 type Flags uint32
 
-// Map from string to trace.SpanKind.
 var toSpanKind = map[string]trace.SpanKind{
 	"client":   trace.SpanKindClient,
 	"server":   trace.SpanKindServer,
 	"producer": trace.SpanKindProducer,
 	"consumer": trace.SpanKindConsumer,
 	"internal": trace.SpanKindInternal,
+}
+
+var toSamplerType = map[string]SamplerType{
+	"unrecognized":  SamplerTypeUnrecognized,
+	"probabilistic": SamplerTypeProbabilistic,
+	"lowerbound":    SamplerTypeLowerBound,
+	"ratelimiting":  SamplerTypeRateLimiting,
+	"const":         SamplerTypeConst,
+}
+
+func (s SamplerType) String() string {
+	switch s {
+	case SamplerTypeUnrecognized:
+		return "unrecognized"
+	case SamplerTypeProbabilistic:
+		return "probabilistic"
+	case SamplerTypeLowerBound:
+		return "lowerbound"
+	case SamplerTypeRateLimiting:
+		return "ratelimiting"
+	case SamplerTypeConst:
+		return "const"
+	default:
+		return ""
+	}
 }
 
 // Hash implements Hash from Hashable.
@@ -77,15 +108,14 @@ func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 }
 
 // GetSamplerType returns the sampler type for span
-func (s *Span) GetSamplerType() string {
+func (s *Span) GetSamplerType() SamplerType {
 	// There's no corresponding opentelemetry tag label corresponding to sampler.type
-	if tag, ok := KeyValues(s.Tags).FindByKey(samplerType); ok {
-		if tag.VStr == "" {
-			return samplerTypeUnknown
+	if tag, ok := KeyValues(s.Tags).FindByKey(keySamplerType); ok {
+		if s, ok := toSamplerType[tag.VStr]; ok {
+			return s
 		}
-		return tag.VStr
 	}
-	return samplerTypeUnknown
+	return SamplerTypeUnrecognized
 }
 
 // IsRPCClient returns true if the span represents a client side of an RPC,
@@ -144,26 +174,14 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 }
 
 // GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
-func (s *Span) GetSamplerParams(logger *zap.Logger) (string, float64) {
-	tag, ok := KeyValues(s.Tags).FindByKey(jaeger.SamplerTypeTagKey)
+func (s *Span) GetSamplerParams(logger *zap.Logger) (SamplerType, float64) {
+	samplerType := s.GetSamplerType()
+	if samplerType == SamplerTypeUnrecognized {
+		return SamplerTypeUnrecognized, 0
+	}
+	tag, ok := KeyValues(s.Tags).FindByKey(keySamplerParam)
 	if !ok {
-		return "", 0
-	}
-	if tag.VType != StringType {
-		logger.
-			With(zap.String("traceID", s.TraceID.String())).
-			With(zap.String("spanID", s.SpanID.String())).
-			Warn("sampler.type tag is not a string", zap.Any("tag", tag))
-		return "", 0
-	}
-	samplerType := tag.AsString()
-	if samplerType != jaeger.SamplerTypeProbabilistic && samplerType != jaeger.SamplerTypeLowerBound &&
-		samplerType != jaeger.SamplerTypeRateLimiting {
-		return "", 0
-	}
-	tag, ok = KeyValues(s.Tags).FindByKey(jaeger.SamplerParamTagKey)
-	if !ok {
-		return "", 0
+		return SamplerTypeUnrecognized, 0
 	}
 	samplerParam, err := samplerParamToFloat(tag)
 	if err != nil {
@@ -171,7 +189,7 @@ func (s *Span) GetSamplerParams(logger *zap.Logger) (string, float64) {
 			With(zap.String("traceID", s.TraceID.String())).
 			With(zap.String("spanID", s.SpanID.String())).
 			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
-		return "", 0
+		return SamplerTypeUnrecognized, 0
 	}
 	return samplerType, samplerParam
 }

@@ -24,7 +24,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -34,12 +33,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collectorFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	"github.com/jaegertracing/jaeger/cmd/docs"
-	"github.com/jaegertracing/jaeger/cmd/env"
-	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/docs"
+	"github.com/jaegertracing/jaeger/cmd/internal/env"
+	"github.com/jaegertracing/jaeger/cmd/internal/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/cmd/status"
 	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -105,7 +104,6 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
-			otel.SetTracerProvider(tracer.OTEL)
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {

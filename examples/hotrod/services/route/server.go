@@ -18,13 +18,11 @@ package route
 import (
 	"context"
 	"encoding/json"
-	"expvar"
 	"math"
 	"math/rand"
 	"net/http"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -61,9 +59,13 @@ func (s *Server) Run() error {
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(false, s.tracer, s.logger)
 	mux.Handle("/route", http.HandlerFunc(s.route))
-	mux.Handle("/debug/vars", expvar.Handler()) // expvar
-	mux.Handle("/metrics", promhttp.Handler())  // Prometheus
+	mux.Handle("/debug/vars", http.HandlerFunc(movedToFrontend))
+	mux.Handle("/metrics", http.HandlerFunc(movedToFrontend))
 	return mux
+}
+
+func movedToFrontend(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "endpoint moved to the frontend service", http.StatusNotFound)
 }
 
 func (s *Server) route(w http.ResponseWriter, r *http.Request) {

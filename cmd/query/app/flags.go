@@ -47,6 +47,7 @@ const (
 	queryTokenPropagation      = "query.bearer-token-propagation"
 	queryAdditionalHeaders     = "query.additional-headers"
 	queryMaxClockSkewAdjust    = "query.max-clock-skew-adjustment"
+	queryEnableTracing         = "query.enable-tracing"
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -85,6 +86,8 @@ type QueryOptions struct {
 	MaxClockSkewAdjust time.Duration
 	// Tenancy configures tenancy for query
 	Tenancy tenancy.Options
+	// EnableTracing determines whether traces will be emitted by jaeger-query.
+	EnableTracing bool
 }
 
 // AddFlags adds flags for QueryOptions
@@ -98,6 +101,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 	flagSet.Duration(queryMaxClockSkewAdjust, 0, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
+	flagSet.Bool(queryEnableTracing, false, "Enables emitting jaeger-query traces")
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }
@@ -131,6 +135,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 		qOpts.AdditionalHeaders = headers
 	}
 	qOpts.Tenancy = tenancy.InitFromViper(v)
+	qOpts.EnableTracing = v.GetBool(queryEnableTracing)
 	return qOpts, nil
 }
 

@@ -17,6 +17,7 @@ package tracing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -24,7 +25,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -83,9 +83,7 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	var err error
 	switch exporterType {
 	case "jaeger":
-		exporter, err = jaeger.New(
-			jaeger.WithCollectorEndpoint(),
-		)
+		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
 	case "otlp":
 		var opts []otlptracehttp.Option
 		if !withSecure() {

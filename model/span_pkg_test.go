@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Jaeger Authors.
+// Copyright (c) 2023 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jlibadapter
+package model
 
 import (
 	"testing"
 
-	jlibmetrics "github.com/uber/jaeger-lib/metrics"
-
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestAdapter(t *testing.T) {
-	f := NewAdapter(metrics.NullFactory)
-	f.Counter(jlibmetrics.Options{})
-	f.Timer(jlibmetrics.TimerOptions{})
-	f.Gauge(jlibmetrics.Options{})
-	f.Histogram(jlibmetrics.HistogramOptions{})
-	f.Namespace(jlibmetrics.NSOptions{})
+func TestSamplerTypeToString(t *testing.T) {
+	for kStr, vEnum := range toSamplerType {
+		assert.Equal(t, kStr, vEnum.String())
+	}
+	assert.Equal(t, "", SamplerType(-1).String())
 }

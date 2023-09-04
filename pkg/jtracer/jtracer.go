@@ -88,6 +88,8 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 			))
 	})
 
+	otel.SetTracerProvider(tracerProvider)
+
 	return tracerProvider, nil
 }
 

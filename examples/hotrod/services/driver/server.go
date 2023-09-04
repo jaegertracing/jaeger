@@ -60,6 +60,7 @@ func (s *Server) Run() error {
 		s.logger.Bg().Fatal("Unable to create http listener", zap.Error(err))
 	}
 	RegisterDriverServiceServer(s.server, s)
+	s.logger.Bg().Info("Starting", zap.String("address", s.hostPort), zap.String("type", "gRPC"))
 	err = s.server.Serve(lis)
 	if err != nil {
 		s.logger.Bg().Fatal("Unable to start gRPC server", zap.Error(err))

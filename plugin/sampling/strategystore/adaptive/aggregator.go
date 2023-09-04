@@ -18,10 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber/jaeger-client-go"
-
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	span_model "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
@@ -84,7 +83,7 @@ func (a *aggregator) saveThroughput() {
 	a.storage.InsertThroughput(throughputSlice)
 }
 
-func (a *aggregator) RecordThroughput(service, operation, samplerType string, probability float64) {
+func (a *aggregator) RecordThroughput(service, operation string, samplerType span_model.SamplerType, probability float64) {
 	a.Lock()
 	defer a.Unlock()
 	if _, ok := a.currentThroughput[service]; !ok {
@@ -106,7 +105,7 @@ func (a *aggregator) RecordThroughput(service, operation, samplerType string, pr
 	// Only if we see probabilistically sampled root spans do we increment the throughput counter,
 	// for lowerbound sampled spans, we don't increment at all but we still save a count of 0 as
 	// the throughput so that the adaptive sampling processor is made aware of the endpoint.
-	if samplerType == jaeger.SamplerTypeProbabilistic {
+	if samplerType == span_model.SamplerTypeProbabilistic {
 		throughput.Count++
 	}
 }

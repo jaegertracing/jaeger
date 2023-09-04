@@ -18,10 +18,12 @@ package frontend
 import (
 	"embed"
 	"encoding/json"
+	"expvar"
 	"net/http"
 	"path"
 	"strconv"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -82,6 +84,8 @@ func (s *Server) createServeMux() http.Handler {
 	mux.Handle(p, http.StripPrefix(p, http.FileServer(s.assetFS)))
 	mux.Handle(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch))
 	mux.Handle(path.Join(p, "/config"), http.HandlerFunc(s.config))
+	mux.Handle(path.Join(p, "/debug/vars"), expvar.Handler()) // expvar
+	mux.Handle(path.Join(p, "/metrics"), promhttp.Handler())  // Prometheus
 	return mux
 }
 

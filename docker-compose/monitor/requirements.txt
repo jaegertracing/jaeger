@@ -12,7 +12,7 @@ opentelemetry-exporter-otlp-proto-http==1.19.0
 opentelemetry-proto==1.19.0
 opentelemetry-sdk==1.19.0
 opentelemetry-semantic-conventions==0.40b0
-protobuf==4.24.0
+protobuf==4.24.2
 requests==2.31.0
 six==1.16.0
 thrift==0.16.0

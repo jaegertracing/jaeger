@@ -41,7 +41,7 @@ const (
 	defaultConnectTimeout = 30 * time.Second
 	defaultTokenFilePath  = ""
 
-	defaultSupportSpanmetricsConnector = false
+	defaultSupportSpanmetricsConnector = true
 	defaultMetricNamespace             = ""
 	defaultLatencyUnit                 = "ms"
 	defaultNormalizeCalls              = false
@@ -64,7 +64,7 @@ func NewOptions(primaryNamespace string) *Options {
 		ServerURL:      defaultServerURL,
 		ConnectTimeout: defaultConnectTimeout,
 
-		SupportSpanmetricsConnector: false,
+		SupportSpanmetricsConnector: defaultSupportSpanmetricsConnector,
 		MetricNamespace:             defaultMetricNamespace,
 		LatencyUnit:                 defaultLatencyUnit,
 		NormalizeCalls:              defaultNormalizeCalls,
