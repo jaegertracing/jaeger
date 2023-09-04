@@ -59,7 +59,13 @@ func (s *Server) Run() error {
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(false, s.tracer, s.logger)
 	mux.Handle("/route", http.HandlerFunc(s.route))
+	mux.Handle("/debug/vars", http.HandlerFunc(movedToFrontend))
+	mux.Handle("/metrics", http.HandlerFunc(movedToFrontend))
 	return mux
+}
+
+func movedToFrontend(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "endpoint moved to the frontend service", http.StatusNotFound)
 }
 
 func (s *Server) route(w http.ResponseWriter, r *http.Request) {
