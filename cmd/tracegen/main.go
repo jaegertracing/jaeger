@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-logr/zapr"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -76,7 +75,7 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 
 		exp, err := createOtelExporter(cfg.TraceExporter)
 		if err != nil {
-			logger.Sugar().Fatalf("cannot create trace exporter %s: %w", cfg.TraceExporter, err)
+			logger.Sugar().Fatalf("cannot create trace exporter %s: %s", cfg.TraceExporter, err)
 		}
 		logger.Sugar().Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
 
@@ -104,9 +103,7 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	var err error
 	switch exporterType {
 	case "jaeger":
-		exporter, err = jaeger.New(
-			jaeger.WithCollectorEndpoint(),
-		)
+		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
 	case "otlp", "otlp-http":
 		client := otlptracehttp.NewClient(
 			otlptracehttp.WithInsecure(),
