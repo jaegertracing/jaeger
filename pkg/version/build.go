@@ -14,7 +14,10 @@
 
 package version
 
-import "github.com/jaegertracing/jaeger/pkg/metrics"
+import (
+	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"go.uber.org/zap"
+)
 
 var (
 	// commitFromGit is a constant representing the source version that
@@ -27,14 +30,14 @@ var (
 	date string
 )
 
-// Info holds build information
+// Info holds build information.
 type Info struct {
 	GitCommit  string `json:"gitCommit"`
 	GitVersion string `json:"gitVersion"`
 	BuildDate  string `json:"buildDate"`
 }
 
-// InfoMetrics hold metrics about build information
+// InfoMetrics hold a gauge whose tags include build information.
 type InfoMetrics struct {
 	BuildInfo metrics.Gauge `metric:"build_info"`
 }
@@ -61,4 +64,13 @@ func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
 	info.BuildInfo.Update(1)
 
 	return &info
+}
+
+func (i Info) Log(logger *zap.Logger) {
+	logger.Info(
+		"application version",
+		zap.String("git-commit", i.GitCommit),
+		zap.String("git-version", i.GitVersion),
+		zap.String("build-date", i.BuildDate),
+	)
 }

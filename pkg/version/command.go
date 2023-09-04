@@ -19,16 +19,18 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 // Command creates version command
-func Command() *cobra.Command {
+func Command(logger *zap.Logger) *cobra.Command {
+	info := Get()
+	info.Log(logger)
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version.",
 		Long:  `Print the version and build information.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			info := Get()
 			json, err := json.Marshal(info)
 			if err != nil {
 				return err

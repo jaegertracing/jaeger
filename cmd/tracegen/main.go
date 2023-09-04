@@ -36,6 +36,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/tracegen"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 func main() {
@@ -51,6 +52,8 @@ func main() {
 	cfg := new(tracegen.Config)
 	cfg.Flags(fs)
 	flag.Parse()
+
+	version.Get().Log(logger)
 
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
