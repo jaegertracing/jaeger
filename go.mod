@@ -54,8 +54,8 @@ require (
 	go.opentelemetry.io/collector/receiver v0.84.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.84.0
 	go.opentelemetry.io/collector/semconv v0.84.0
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.42.1-0.20230612162650-64be7e574a17
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.42.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.43.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.43.0
 	go.opentelemetry.io/otel v1.17.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.17.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.17.0
