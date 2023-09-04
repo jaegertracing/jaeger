@@ -20,9 +20,9 @@ import (
 
 	"github.com/go-kit/kit/metrics/generic"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestCounter(t *testing.T) {
