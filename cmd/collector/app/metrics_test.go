@@ -73,7 +73,7 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 	counters, _ := baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=fry"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=leela"])
-	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=other-services"])
+	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=other-services"], counters)
 
 	metrics.countByServiceName("bender", true, model.SamplerTypeConst)
 	metrics.countByServiceName("bender", true, model.SamplerTypeProbabilistic)
@@ -86,7 +86,7 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 	counters, _ = baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=const|svc=bender"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=bender"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=other-services"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=other-services"], counters)
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=ratelimiting|svc=other-services"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=const|svc=other-services"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=lowerbound|svc=other-services"])

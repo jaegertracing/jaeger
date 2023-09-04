@@ -48,7 +48,6 @@ const (
 // Flags is a bit map of flags for a span
 type Flags uint32
 
-// Map from string to trace.SpanKind.
 var toSpanKind = map[string]trace.SpanKind{
 	"client":   trace.SpanKindClient,
 	"server":   trace.SpanKindServer,
