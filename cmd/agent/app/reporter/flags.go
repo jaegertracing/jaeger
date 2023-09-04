@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
-	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 )
 
 const (
