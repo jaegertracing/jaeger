@@ -35,7 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-var testCertKeyLocation = "../../pkg/config/tlscfg/testdata"
+var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
 func TestAdminServerHandlesPortZero(t *testing.T) {
 	adminServer := NewAdminServer(":0")
