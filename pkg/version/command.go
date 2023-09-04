@@ -17,15 +17,15 @@ package version
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 // Command creates version command
-func Command(logger *zap.Logger) *cobra.Command {
+func Command() *cobra.Command {
 	info := Get()
-	info.Log(logger)
+	log.Println(info)
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version.",

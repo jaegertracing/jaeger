@@ -53,7 +53,7 @@ func main() {
 	cfg.Flags(fs)
 	flag.Parse()
 
-	version.Get().Log(logger)
+	logger.Info(version.Get().String())
 
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)

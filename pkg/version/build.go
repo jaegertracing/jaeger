@@ -15,8 +15,9 @@
 package version
 
 import (
+	"fmt"
+
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"go.uber.org/zap"
 )
 
 var (
@@ -66,11 +67,9 @@ func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
 	return &info
 }
 
-func (i Info) Log(logger *zap.Logger) {
-	logger.Info(
-		"application version",
-		zap.String("git-commit", i.GitCommit),
-		zap.String("git-version", i.GitVersion),
-		zap.String("build-date", i.BuildDate),
+func (i Info) String() string {
+	return fmt.Sprintf(
+		"application version: git-commit=%s, git-version=%s, build-date=%s",
+		i.GitCommit, i.GitVersion, i.BuildDate,
 	)
 }

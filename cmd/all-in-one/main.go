@@ -221,7 +221,7 @@ by default uses only in-memory database.`,
 		},
 	}
 
-	command.AddCommand(version.Command(svc.Logger))
+	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))

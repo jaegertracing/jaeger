@@ -87,7 +87,7 @@ func main() {
 
 	options.AddFlags(command)
 
-	command.AddCommand(version.Command(logger))
+	command.AddCommand(version.Command())
 
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
