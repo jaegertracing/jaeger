@@ -40,7 +40,7 @@ jobs:
 
     - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe
       with:
-        go-version: 1.20.x
+        go-version: 1.21.x
 
     - name: Run cassandra integration tests
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }}
