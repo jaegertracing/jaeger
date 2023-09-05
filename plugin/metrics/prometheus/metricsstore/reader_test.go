@@ -560,7 +560,7 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 	}
 }
 
-func TestGetRoundTripperToken(t *testing.T) {
+func TestGetRoundTripperTokenFile(t *testing.T) {
 	const wantBearer = "token from file"
 
 	file, err := os.CreateTemp("", "token_")
@@ -572,8 +572,9 @@ func TestGetRoundTripperToken(t *testing.T) {
 	require.NoError(t, file.Close())
 
 	rt, err := getHTTPRoundTripper(&config.Configuration{
-		ConnectTimeout: time.Second,
-		TokenFilePath:  file.Name(),
+		ConnectTimeout:           time.Second,
+		TokenFilePath:            file.Name(),
+		TokenOverrideFromContext: false,
 	}, nil)
 	require.NoError(t, err)
 	server := httptest.NewServer(
@@ -584,7 +585,42 @@ func TestGetRoundTripperToken(t *testing.T) {
 		),
 	)
 	defer server.Close()
-	ctx := context.Background()
+	ctx := bearertoken.ContextWithBearerToken(context.Background(), "tokenFromRequest")
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL,
+		nil,
+	)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestGetRoundTripperTokenFromContext(t *testing.T) {
+	file, err := os.CreateTemp("", "token_")
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, os.Remove(file.Name())) }()
+	_, err = file.Write([]byte("token from file"))
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	rt, err := getHTTPRoundTripper(&config.Configuration{
+		ConnectTimeout:           time.Second,
+		TokenFilePath:            file.Name(),
+		TokenOverrideFromContext: true,
+	}, nil)
+	require.NoError(t, err)
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "Bearer tokenFromRequest", r.Header.Get("Authorization"))
+			},
+		),
+	)
+	defer server.Close()
+	ctx := bearertoken.ContextWithBearerToken(context.Background(), "tokenFromRequest")
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,

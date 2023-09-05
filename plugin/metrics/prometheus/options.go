@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	suffixServerURL      = ".server-url"
-	suffixConnectTimeout = ".connect-timeout"
-	suffixTokenFilePath  = ".token-file"
+	suffixServerURL           = ".server-url"
+	suffixConnectTimeout      = ".connect-timeout"
+	suffixTokenFilePath       = ".token-file"
+	suffixOverrideFromContext = ".token-override-from-context"
 
 	suffixSupportSpanmetricsConnector = ".query.support-spanmetrics-connector"
 	suffixMetricNamespace             = ".query.namespace"
@@ -88,6 +89,8 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		"The period to wait for a connection to Prometheus when executing queries.")
 	flagSet.String(nsConfig.namespace+suffixTokenFilePath, defaultTokenFilePath,
 		"The path to a file containing the bearer token which will be included when executing queries against the Prometheus API.")
+	flagSet.Bool(nsConfig.namespace+suffixOverrideFromContext, true,
+		"Whether the bearer token should be overridden from context (incoming request)")
 
 	flagSet.Bool(nsConfig.namespace+suffixSupportSpanmetricsConnector, defaultSupportSpanmetricsConnector,
 		`Whether if queries should be adjusted for OpenTelemetry Collector's spanmetrics connector.'`)
@@ -125,6 +128,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg.LatencyUnit = v.GetString(cfg.namespace + suffixLatencyUnit)
 	cfg.NormalizeCalls = v.GetBool(cfg.namespace + suffixNormalizeCalls)
 	cfg.NormalizeDuration = v.GetBool(cfg.namespace + suffixNormalizeDuration)
+	cfg.TokenOverrideFromContext = v.GetBool(cfg.namespace + suffixOverrideFromContext)
 
 	isValidUnit := map[string]bool{"ms": true, "s": true}
 	if _, ok := isValidUnit[cfg.LatencyUnit]; !ok {
