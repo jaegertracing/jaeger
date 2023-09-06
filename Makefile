@@ -174,11 +174,11 @@ build-examples:
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
