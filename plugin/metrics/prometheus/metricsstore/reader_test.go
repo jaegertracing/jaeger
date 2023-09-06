@@ -533,6 +533,7 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
 				},
+				TokenOverrideFromContext: true,
 			}, logger)
 			require.NoError(t, err)
 
