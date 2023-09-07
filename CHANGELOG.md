@@ -18,7 +18,7 @@ next release (yyyy-mm-dd)
 
 ### UI Changes
 
-1.49.0 (yyyy-mm-dd)
+1.49.0 (2023-09-07)
 -------------------
 
 ### Backend Changes
@@ -31,11 +31,17 @@ next release (yyyy-mm-dd)
 * [hotrod] Stop supporting -otel-exporter=jaeger ([@yurishkuro](https://github.com/yurishkuro) in [#4719](https://github.com/jaegertracing/jaeger/pull/4719))
 * [hotrod] Metrics endpoints moved from route service (:8083) to frontend service (:8080) ([@yurishkuro](https://github.com/yurishkuro) in [#4720](https://github.com/jaegertracing/jaeger/pull/4720))
 
-#### New Features
-
 #### Bug fixes, Minor Improvements
 
+* Allow disabling brearer token override from request in metrics store ([@pavolloffay](https://github.com/pavolloffay) in [#4726](https://github.com/jaegertracing/jaeger/pull/4726))
+* Add the enable tracing opt-in flag ([@albertteoh](https://github.com/albertteoh) in [#4685](https://github.com/jaegertracing/jaeger/pull/4685))
+* [tracegen] Add build info during compilation ([@yurishkuro](https://github.com/yurishkuro) in [#4727](https://github.com/jaegertracing/jaeger/pull/4727))
+* Log version/build info on startup ([@yurishkuro](https://github.com/yurishkuro) in [#4723](https://github.com/jaegertracing/jaeger/pull/4723))
+* [zipkin] Replace zipkin exporter from jaeger sdk with otel zipkin exp ([@afzal442](https://github.com/afzal442) in [#4674](https://github.com/jaegertracing/jaeger/pull/4674))
+
 ### UI Changes
+
+* UI pinned to version [1.33.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1330-2023-08-06).
 
 1.48.0 (2023-08-15)
 -------------------
