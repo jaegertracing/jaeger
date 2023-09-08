@@ -297,10 +297,6 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	if c.Password != "" && c.PasswordFilePath != "" {
-		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
-	}
-
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
 		// Disable health check when token from context is allowed, this is because at this time
@@ -316,6 +312,9 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 
+	if c.Password != "" && c.PasswordFilePath != "" {
+		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
+	}
 	if c.PasswordFilePath != "" {
 		passwordFromFile, err := LoadFileContent(c.PasswordFilePath)
 		if err != nil {
