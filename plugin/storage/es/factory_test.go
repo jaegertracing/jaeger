@@ -40,10 +40,20 @@ import (
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var _ storage.Factory = new(Factory)
+
+var mockEsServerResponse = []byte(`
+{
+	"Version": {
+		"Number": "6"
+	}
+}
+`)
 
 type mockClientBuilder struct {
 	err                 error
@@ -252,6 +262,25 @@ func TestInitFromOptions(t *testing.T) {
 }
 
 func TestPasswordFromFile(t *testing.T) {
+	t.Run("primary client", func(t *testing.T) {
+		f := NewFactory()
+		testPasswordFromFile(t, f, f.getPrimaryClient, f.CreateSpanWriter)
+	})
+
+	t.Run("archive client", func(t *testing.T) {
+		f2 := NewFactory()
+		testPasswordFromFile(t, f2, f2.getArchiveClient, f2.CreateArchiveSpanWriter)
+	})
+
+	t.Run("load token error", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "does not exist")
+		token, err := loadTokenFromFile(file)
+		assert.Error(t, err)
+		assert.Equal(t, "", token)
+	})
+}
+
+func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
 	var authReceived atomic.Pointer[string]
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("request to fake ES server: %v", r)
@@ -262,13 +291,53 @@ func TestPasswordFromFile(t *testing.T) {
 		assert.NoError(t, err, "header: %s", h)
 		auth := string(authBytes)
 		authReceived.Store(&auth)
-		w.Write([]byte(`
-		{
-			"Version": {
-				"Number": "6"
-			}
-		}
-		`))
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	pwdFile := filepath.Join(t.TempDir(), "pwd")
+	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
+
+	f.primaryConfig = &escfg.Configuration{
+		Servers:          []string{server.URL},
+		LogLevel:         "debug",
+		PasswordFilePath: pwdFile,
+	}
+	f.archiveConfig = &escfg.Configuration{
+		Enabled:          true,
+		Servers:          []string{server.URL},
+		LogLevel:         "debug",
+		PasswordFilePath: pwdFile,
+	}
+	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	defer f.Close()
+
+	writer, err := getWriter()
+	require.NoError(t, err)
+	span := &model.Span{
+		Process: &model.Process{ServiceName: "foo"},
+	}
+	require.NoError(t, writer.WriteSpan(context.Background(), span))
+	require.Equal(t, ":first password", *authReceived.Load())
+
+	// replace password in the file
+	client1 := getClient()
+	require.NoError(t, os.WriteFile(pwdFile, []byte("second password"), 0o600))
+	assert.Eventually(t,
+		func() bool {
+			client2 := getClient()
+			return client1 != client2
+		},
+		5*time.Second, time.Millisecond,
+		"expecting es.Client to change for the new password",
+	)
+	require.NoError(t, writer.WriteSpan(context.Background(), span))
+	require.Equal(t, ":second password", *authReceived.Load())
+}
+
+func TestPasswordFromFileErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
 
@@ -281,28 +350,26 @@ func TestPasswordFromFile(t *testing.T) {
 		LogLevel:         "debug",
 		PasswordFilePath: pwdFile,
 	}
-	f.archiveConfig = &escfg.Configuration{}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	f.archiveConfig = &escfg.Configuration{
+		Servers:          []string{server.URL},
+		LogLevel:         "debug",
+		PasswordFilePath: pwdFile,
+	}
+
+	logger, buf := testutils.NewEchoLogger(t)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	defer f.Close()
 
-	writer, err := f.CreateSpanWriter()
-	require.NoError(t, err)
-	span := &model.Span{
-		Process: &model.Process{ServiceName: "foo"},
-	}
-	require.NoError(t, writer.WriteSpan(context.Background(), span))
-	require.Equal(t, ":first password", *authReceived.Load())
+	f.primaryConfig.Servers = []string{}
+	f.onPrimaryPasswordChange()
+	assert.Contains(t, buf.String(), "no servers specified")
 
-	client1 := f.getPrimaryClient()
-	require.NoError(t, os.WriteFile(pwdFile, []byte("second password"), 0o600))
-	assert.Eventually(t,
-		func() bool {
-			client2 := f.getPrimaryClient()
-			return client1 != client2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to change for the new password",
-	)
-	require.NoError(t, writer.WriteSpan(context.Background(), span))
-	require.Equal(t, ":second password", *authReceived.Load())
+	f.archiveConfig.Servers = []string{}
+	buf.Reset()
+	f.onArchivePasswordChange()
+	assert.Contains(t, buf.String(), "no servers specified")
+
+	require.NoError(t, os.Remove(pwdFile))
+	f.onPrimaryPasswordChange()
+	f.onArchivePasswordChange()
 }

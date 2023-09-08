@@ -291,36 +291,27 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) onPrimaryPasswordChange() {
-	newPrimaryPassword, err := loadTokenFromFile(f.primaryConfig.PasswordFilePath)
-	if err != nil {
-		f.logger.Error("failed to reload password for primary Elasticsearch client", zap.Error(err))
-		return
-	}
-	newPrimaryCfg := *f.primaryConfig // copy by value
-	newPrimaryCfg.Password = newPrimaryPassword
-	newPrimaryCfg.PasswordFilePath = "" // avoid error that both are set
-	primaryClient, err := f.newClientFn(&newPrimaryCfg, f.logger, f.metricsFactory)
-	if err != nil {
-		f.logger.Error("failed to recreate primary Elasticsearch client from new password", zap.Error(err))
-	} else {
-		f.primaryClient.Store(&primaryClient)
-	}
+	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient)
 }
 
 func (f *Factory) onArchivePasswordChange() {
-	newPassword, err := loadTokenFromFile(f.archiveConfig.PasswordFilePath)
+	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient)
+}
+
+func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client]) {
+	newPassword, err := loadTokenFromFile(cfg.PasswordFilePath)
 	if err != nil {
-		f.logger.Error("failed to reload password for archive Elasticsearch client", zap.Error(err))
+		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
 		return
 	}
-	newArchiveCfg := *f.archiveConfig // copy by value
-	newArchiveCfg.Password = newPassword
-	newArchiveCfg.PasswordFilePath = "" // avoid error that both are set
-	archiveClient, err := f.newClientFn(&newArchiveCfg, f.logger, f.metricsFactory)
+	newCfg := *cfg // copy by value
+	newCfg.Password = newPassword
+	newCfg.PasswordFilePath = "" // avoid error that both are set
+	primaryClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
 	if err != nil {
-		f.logger.Error("failed to recreate archive Elasticsearch client from new password", zap.Error(err))
+		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 	} else {
-		f.archiveClient.Store(&archiveClient)
+		client.Store(&primaryClient)
 	}
 }
 
