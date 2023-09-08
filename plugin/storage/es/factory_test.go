@@ -17,14 +17,24 @@ package es
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
@@ -241,46 +251,57 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
 }
 
-// func TestPasswordFromFile(t *testing.T) {
-// 	passwordFile, err := os.CreateTemp("", "")
-// 	require.NoError(t, err)
-// 	defer passwordFile.Close()
+func TestPasswordFromFile(t *testing.T) {
+	var authReceived atomic.Pointer[string]
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("request to fake ES server: %v", r)
+		h := strings.Split(r.Header.Get("Authorization"), " ")
+		require.Len(t, h, 2)
+		require.Equal(t, "Basic", h[0])
+		authBytes, err := base64.StdEncoding.DecodeString(h[1])
+		assert.NoError(t, err, "header: %s", h)
+		auth := string(authBytes)
+		authReceived.Store(&auth)
+		w.Write([]byte(`
+		{
+			"Version": {
+				"Number": "6"
+			}
+		}
+		`))
+	}))
+	defer server.Close()
 
-// 	passwordFile.WriteString("bar")
+	pwdFile := filepath.Join(t.TempDir(), "pwd")
+	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
 
-// 	c := escfg.Configuration{
-// 		Username:         "foo",
-// 		PasswordFilePath: passwordFile.Name(),
-// 	}
+	f := NewFactory()
+	f.primaryConfig = &escfg.Configuration{
+		Servers:          []string{server.URL},
+		LogLevel:         "debug",
+		PasswordFilePath: pwdFile,
+	}
+	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	defer f.Close()
 
-// 	f := NewFactory()
-// 	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
-// 		rawClient := &elastic.Client{}
+	writer, err := f.CreateSpanWriter()
+	require.NoError(t, err)
+	span := &model.Span{
+		Process: &model.Process{ServiceName: "foo"},
+	}
+	require.NoError(t, writer.WriteSpan(context.Background(), span))
+	require.Equal(t, ":first password", *authReceived.Load())
 
-// 		passwordFromFile, err := escfg.LoadFileContent(c.PasswordFilePath)
-// 		require.NoError(t, err)
-// 		c.Password = passwordFromFile
-
-// 		option := elastic.SetBasicAuth(c.Username, c.Password)
-// 		option(rawClient)
-
-// 		return eswrapper.WrapESClient(rawClient, nil, 0), nil
-// 	}
-// 	f.primaryConfig.Store(&c)
-// 	f.archiveConfig.Store(&c)
-
-// 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-// 	assert.Equal(t, "bar", f.primaryConfig.Load().Password)
-
-// 	primaryClient, err := f.newClientFn(f.primaryConfig.Load(), nil, nil)
-// 	require.NoError(t, err)
-
-// 	var expectedPrimaryClient atomic.Pointer[es.Client]
-// 	expectedPrimaryClient.Store(&primaryClient)
-// 	assert.Equal(t, expectedPrimaryClient.Load(), f.primaryClient.Load())
-
-// 	_, err = passwordFile.WriteString("baz")
-// 	require.NoError(t, err)
-// 	f.onPrimaryPasswordChange()
-// 	assert.Equal(t, "barbaz", f.primaryConfig.Load().Password)
-// }
+	client1 := f.getPrimaryClient()
+	require.NoError(t, os.WriteFile(pwdFile, []byte("second password"), 0o600))
+	assert.Eventually(t,
+		func() bool {
+			client2 := f.getPrimaryClient()
+			return client1 != client2
+		},
+		5*time.Second, time.Millisecond,
+		"expecting es.Client to change for the new password",
+	)
+	require.NoError(t, writer.WriteSpan(context.Background(), span))
+	require.Equal(t, ":second password", *authReceived.Load())
+}

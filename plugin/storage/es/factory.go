@@ -85,23 +85,18 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.primaryConfig = f.Options.GetPrimary()
-	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
 
 // InitFromOptions configures factory from Options struct.
 func (f *Factory) InitFromOptions(o Options) {
 	f.Options = &o
-	f.primaryConfig = f.Options.GetPrimary()
-	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
-		f.archiveConfig = cfg
-		// TODO it looks like f.archiveConfig==nil is possible, but below f.archiveConfig.Enabled is used
-	}
 }
 
-// Initialize implements storage.Factory
+// Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
+	f.primaryConfig = f.Options.GetPrimary()
+	f.archiveConfig = f.Options.Get(archiveNamespace)
 
 	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
 	if err != nil {
@@ -298,6 +293,7 @@ func (f *Factory) onPrimaryPasswordChange() {
 	}
 	newPrimaryCfg := *f.primaryConfig // copy by value
 	newPrimaryCfg.Password = newPrimaryPassword
+	newPrimaryCfg.PasswordFilePath = "" // avoid error that both are set
 	primaryClient, err := f.newClientFn(&newPrimaryCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate primary Elasticsearch client from new password", zap.Error(err))
@@ -314,6 +310,7 @@ func (f *Factory) onArchivePasswordChange() {
 	}
 	newArchiveCfg := *f.archiveConfig // copy by value
 	newArchiveCfg.Password = newPassword
+	newArchiveCfg.PasswordFilePath = "" // avoid error that both are set
 	archiveClient, err := f.newClientFn(&newArchiveCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate archive Elasticsearch client from new password", zap.Error(err))
