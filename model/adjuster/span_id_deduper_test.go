@@ -18,8 +18,8 @@ package adjuster
 import (
 	"testing"
 
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -27,6 +27,7 @@ import (
 var (
 	clientSpanID  = model.NewSpanID(1)
 	anotherSpanID = model.NewSpanID(11)
+	keySpanKind   = "span.kind"
 )
 
 func newTrace() *model.Trace {
@@ -39,7 +40,7 @@ func newTrace() *model.Trace {
 				SpanID:  clientSpanID,
 				Tags: model.KeyValues{
 					// span.kind = client
-					model.String(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum)),
+					model.String(keySpanKind, trace.SpanKindClient.String()),
 				},
 			},
 			{
@@ -48,7 +49,7 @@ func newTrace() *model.Trace {
 				SpanID:  clientSpanID, // shared span ID
 				Tags: model.KeyValues{
 					// span.kind = server
-					model.String(string(ext.SpanKind), string(ext.SpanKindRPCServerEnum)),
+					model.String(keySpanKind, trace.SpanKindServer.String()),
 				},
 			},
 			{

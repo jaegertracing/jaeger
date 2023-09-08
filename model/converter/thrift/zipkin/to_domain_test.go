@@ -29,10 +29,9 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/kr/pretty"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
 	z "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -116,9 +115,11 @@ func TestToDomainWithDurationFromClientAnnotations(t *testing.T) {
 
 func TestToDomainMultipleSpanKinds(t *testing.T) {
 	tests := []struct {
-		json      string
-		tagFirst  opentracing.Tag
-		tagSecond opentracing.Tag
+		json         string
+		tagFirstKey  string
+		tagSecondKey string
+		tagFirstVal  trace.SpanKind
+		tagSecondVal trace.SpanKind
 	}{
 		{
 			json: `[{ "trace_id": -1, "id": 31, "annotations": [
@@ -126,8 +127,10 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		{"value": "sr", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "ss", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
 		]}]`,
-			tagFirst:  ext.SpanKindRPCClient,
-			tagSecond: ext.SpanKindRPCServer,
+			tagFirstKey:  keySpanKind,
+			tagSecondKey: keySpanKind,
+			tagFirstVal:  trace.SpanKindClient,
+			tagSecondVal: trace.SpanKindServer,
 		},
 		{
 			json: `[{ "trace_id": -1, "id": 31, "annotations": [
@@ -135,8 +138,10 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		{"value": "cs", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "cr", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
 		]}]`,
-			tagFirst:  ext.SpanKindRPCServer,
-			tagSecond: ext.SpanKindRPCClient,
+			tagFirstKey:  keySpanKind,
+			tagSecondKey: keySpanKind,
+			tagFirstVal:  trace.SpanKindServer,
+			tagSecondVal: trace.SpanKindClient,
 		},
 	}
 
@@ -146,13 +151,13 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 
 		assert.Equal(t, 2, len(trace.Spans))
 		assert.Equal(t, 1, len(trace.Spans[0].Tags))
-		assert.Equal(t, test.tagFirst.Key, trace.Spans[0].Tags[0].Key)
-		assert.Equal(t, string(test.tagFirst.Value.(ext.SpanKindEnum)), trace.Spans[0].Tags[0].VStr)
+		assert.Equal(t, test.tagFirstKey, trace.Spans[0].Tags[0].Key)
+		assert.Equal(t, test.tagFirstVal.String(), trace.Spans[0].Tags[0].VStr)
 
 		assert.Equal(t, 1, len(trace.Spans[1].Tags))
-		assert.Equal(t, test.tagSecond.Key, trace.Spans[1].Tags[0].Key)
+		assert.Equal(t, test.tagSecondKey, trace.Spans[1].Tags[0].Key)
 		assert.Equal(t, time.Duration(1000), trace.Spans[1].Duration)
-		assert.Equal(t, string(test.tagSecond.Value.(ext.SpanKindEnum)), trace.Spans[1].Tags[0].VStr)
+		assert.Equal(t, test.tagSecondVal.String(), trace.Spans[1].Tags[0].VStr)
 	}
 }
 

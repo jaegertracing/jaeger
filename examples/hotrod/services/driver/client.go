@@ -19,8 +19,8 @@ import (
 	"context"
 	"time"
 
-	otgrpc "github.com/opentracing-contrib/go-grpc"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -30,25 +30,23 @@ import (
 
 // Client is a remote client that implements driver.Interface
 type Client struct {
-	tracer opentracing.Tracer
 	logger log.Factory
 	client DriverServiceClient
 }
 
 // NewClient creates a new driver.Client
-func NewClient(tracer opentracing.Tracer, logger log.Factory, hostPort string) *Client {
+func NewClient(tracerProvider trace.TracerProvider, logger log.Factory, hostPort string) *Client {
 	conn, err := grpc.Dial(hostPort, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(
-			otgrpc.OpenTracingClientInterceptor(tracer)),
+			otelgrpc.UnaryClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithStreamInterceptor(
-			otgrpc.OpenTracingStreamClientInterceptor(tracer)))
+			otelgrpc.StreamClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))))
 	if err != nil {
 		logger.Bg().Fatal("Cannot create gRPC connection", zap.Error(err))
 	}
 
 	client := NewDriverServiceClient(conn)
 	return &Client{
-		tracer: tracer,
 		logger: logger,
 		client: client,
 	}

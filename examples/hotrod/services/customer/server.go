@@ -18,8 +18,9 @@ package customer
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
@@ -31,7 +32,7 @@ import (
 // Server implements Customer service
 type Server struct {
 	hostPort string
-	tracer   opentracing.Tracer
+	tracer   trace.TracerProvider
 	logger   log.Factory
 	database *database
 }
@@ -40,10 +41,10 @@ type Server struct {
 func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
 	return &Server{
 		hostPort: hostPort,
-		tracer:   tracing.Init("customer", otelExporter, metricsFactory, logger),
+		tracer:   tracing.InitOTEL("customer", otelExporter, metricsFactory, logger),
 		logger:   logger,
 		database: newDatabase(
-			tracing.Init("mysql", otelExporter, metricsFactory, logger),
+			tracing.InitOTEL("mysql", otelExporter, metricsFactory, logger).Tracer("mysql"),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}
@@ -70,9 +71,14 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerID := r.Form.Get("customer")
-	if customerID == "" {
+	customer := r.Form.Get("customer")
+	if customer == "" {
 		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
+		return
+	}
+	customerID, err := strconv.Atoi(customer)
+	if err != nil {
+		http.Error(w, "Parameter 'customer' is not an integer", http.StatusBadRequest)
 		return
 	}
 

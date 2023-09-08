@@ -23,6 +23,8 @@ import (
 	"sync/atomic"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -53,6 +55,7 @@ type Factory struct {
 
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
+	tracer         trace.TracerProvider
 
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
@@ -69,6 +72,7 @@ func NewFactory() *Factory {
 	return &Factory{
 		Options:     NewOptions(primaryNamespace, archiveNamespace),
 		newClientFn: config.NewClient,
+		tracer:      otel.GetTracerProvider(),
 	}
 }
 
@@ -128,17 +132,17 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.metricsFactory, f.logger, &f.primaryClient, f.primaryConfig.Load(), false)
+	return createSpanReader(f.primaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.metricsFactory, f.logger, &f.primaryClient, f.primaryConfig.Load(), false)
+	return createSpanWriter(f.primaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.logger, &f.primaryClient, f.primaryConfig.Load())
+	return createDependencyReader(f.primaryClient, f.primaryConfig, f.logger)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -146,7 +150,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Load().Enabled {
 		return nil, nil
 	}
-	return createSpanReader(f.metricsFactory, f.logger, &f.archiveClient, f.archiveConfig.Load(), true)
+	return createSpanReader(f.archiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -154,23 +158,22 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Load().Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.metricsFactory, f.logger, &f.archiveClient, f.archiveConfig.Load(), true)
+	return createSpanWriter(f.archiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
 }
 
 func createSpanReader(
-	mFactory metrics.Factory,
-	logger *zap.Logger,
-	client *atomic.Pointer[es.Client],
+	client es.Client,
 	cfg *config.Configuration,
 	archive bool,
+	mFactory metrics.Factory,
+	logger *zap.Logger,
+	tp trace.TracerProvider,
 ) (spanstore.Reader, error) {
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
 		Client:                        func() es.Client { return *client.Load() },
-		Logger:                        logger,
-		MetricsFactory:                mFactory,
 		MaxDocCount:                   cfg.MaxDocCount,
 		MaxSpanAge:                    cfg.MaxSpanAge,
 		IndexPrefix:                   cfg.IndexPrefix,
@@ -182,15 +185,18 @@ func createSpanReader(
 		UseReadWriteAliases:           cfg.UseReadWriteAliases,
 		Archive:                       archive,
 		RemoteReadClusters:            cfg.RemoteReadClusters,
+		Logger:                        logger,
+		MetricsFactory:                mFactory,
+		Tracer:                        tp.Tracer("esSpanStore.SpanReader"),
 	}), nil
 }
 
 func createSpanWriter(
-	mFactory metrics.Factory,
-	logger *zap.Logger,
 	client *atomic.Pointer[es.Client],
 	cfg *config.Configuration,
 	archive bool,
+	mFactory metrics.Factory,
+	logger *zap.Logger,
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
@@ -217,8 +223,6 @@ func createSpanWriter(
 	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 func() es.Client { return *client.Load() },
-		Logger:                 logger,
-		MetricsFactory:         mFactory,
 		IndexPrefix:            cfg.IndexPrefix,
 		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
 		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,
@@ -227,6 +231,8 @@ func createSpanWriter(
 		TagDotReplacement:      cfg.Tags.DotReplacement,
 		Archive:                archive,
 		UseReadWriteAliases:    cfg.UseReadWriteAliases,
+		Logger:                 logger,
+		MetricsFactory:         mFactory,
 	})
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
@@ -240,9 +246,9 @@ func createSpanWriter(
 }
 
 func createDependencyReader(
-	logger *zap.Logger,
 	client *atomic.Pointer[es.Client],
 	cfg *config.Configuration,
+	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
 		Client:              func() es.Client { return *client.Load() },

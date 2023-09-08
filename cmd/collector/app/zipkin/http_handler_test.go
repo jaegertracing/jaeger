@@ -33,8 +33,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	jaegerClient "github.com/uber/jaeger-client-go"
-	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
+	"go.opentelemetry.io/otel/exporters/zipkin"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	zm "github.com/jaegertracing/jaeger/cmd/collector/app/zipkin/zipkindeser/zipkindesermocks"
@@ -49,6 +50,17 @@ type mockZipkinHandler struct {
 	err   error
 	mux   sync.Mutex
 	spans []*zipkincore.Span
+}
+
+func initTracer(t *testing.T, zexp *zipkin.Exporter) (trace.TracerProvider, func()) {
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(zexp),
+	)
+	closer := func() {
+		assert.NoError(t, tp.Shutdown(context.Background()))
+	}
+	return tp, closer
 }
 
 func (p *mockZipkinHandler) SubmitZipkinBatch(spans []*zipkincore.Span, opts handler.SubmitBatchOptions) ([]*zipkincore.Response, error) {
@@ -75,20 +87,13 @@ func TestViaClient(t *testing.T) {
 	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
-	zipkinSender, err := zipkinTransport.NewHTTPTransport(
-		server.URL+`/api/v1/spans`,
-		zipkinTransport.HTTPBatchSize(1),
-	)
+	zexp, err := zipkin.New(server.URL + `/api/v1/spans`)
 	require.NoError(t, err)
+	trace, closer := initTracer(t, zexp)
+	defer closer()
 
-	tracer, closer := jaegerClient.NewTracer(
-		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewRemoteReporter(zipkinSender),
-	)
-	defer closer.Close()
-
-	tracer.StartSpan("root").Finish()
+	_, span := trace.Tracer("test").Start(context.Background(), "root")
+	span.End()
 
 	waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
 }

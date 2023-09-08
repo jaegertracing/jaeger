@@ -18,10 +18,13 @@ package frontend
 import (
 	"embed"
 	"encoding/json"
+	"expvar"
 	"net/http"
 	"path"
+	"strconv"
 
-	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
@@ -36,7 +39,7 @@ var assetFS embed.FS
 // Server implements jaeger-demo-frontend service
 type Server struct {
 	hostPort string
-	tracer   opentracing.Tracer
+	tracer   trace.TracerProvider
 	logger   log.Factory
 	bestETA  *bestETA
 	assetFS  http.FileSystem
@@ -56,7 +59,7 @@ type ConfigOptions struct {
 }
 
 // NewServer creates a new frontend.Server
-func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(options ConfigOptions, tracer trace.TracerProvider, logger log.Factory) *Server {
 	return &Server{
 		hostPort: options.FrontendHostPort,
 		tracer:   tracer,
@@ -81,6 +84,8 @@ func (s *Server) createServeMux() http.Handler {
 	mux.Handle(p, http.StripPrefix(p, http.FileServer(s.assetFS)))
 	mux.Handle(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch))
 	mux.Handle(path.Join(p, "/config"), http.HandlerFunc(s.config))
+	mux.Handle(path.Join(p, "/debug/vars"), expvar.Handler()) // expvar
+	mux.Handle(path.Join(p, "/metrics"), promhttp.Handler())  // Prometheus
 	return mux
 }
 
@@ -99,9 +104,14 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerID := r.Form.Get("customer")
-	if customerID == "" {
+	customer := r.Form.Get("customer")
+	if customer == "" {
 		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
+		return
+	}
+	customerID, err := strconv.Atoi(customer)
+	if err != nil {
+		http.Error(w, "Parameter 'customer' is not an integer", http.StatusBadRequest)
 		return
 	}
 

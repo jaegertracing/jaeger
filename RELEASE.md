@@ -1,7 +1,7 @@
 # Jaeger Backend Release Process
 
 1. Create a PR "Prepare release X.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
-    * A new section with the header `<X.Y.Z> (YYYY-MM-DD)`
+    * A new section with the header `<X.Y.Z> (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog` or use `scripts/release-notes.py`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
@@ -54,7 +54,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.45.0  | @albertteoh     | 3 May 2023             |
-| 1.46.0  | @yurishkuro     | 3 June 2023            |
-| 1.47.0  | @pavolloffay    | 5 July 2023            |
-| 1.48.0  | @joe-elliott    | 2 August 2023          |
+| 1.50.0  | @albertteoh     | 4 October 2023         |
+| 1.51.0  | @yurishkuro     | 5 November 2023        |
+| 1.52.0  | @jkowall        | 5 December 2023        |
+| 1.53.0  | @pavolloffay    | 3 January 2023         |
+| 1.53.0  | @joe-elliott    | 7 February 2023        |
+

@@ -101,7 +101,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
+	withSpanReader(t, func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{}, nil)
 		mockMultiSearchService(r).
@@ -115,7 +115,7 @@ func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
 }
 
 func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
+	withSpanReader(t, func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{}, nil)
 		mockMultiSearchService(r).

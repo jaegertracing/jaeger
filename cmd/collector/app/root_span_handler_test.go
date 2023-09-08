@@ -29,7 +29,7 @@ type mockAggregator struct {
 	closeCount atomic.Int32
 }
 
-func (t *mockAggregator) RecordThroughput(service, operation, samplerType string, probability float64) {
+func (t *mockAggregator) RecordThroughput(service, operation string, samplerType model.SamplerType, probability float64) {
 	t.callCount.Inc()
 }
 func (t *mockAggregator) Start() {}

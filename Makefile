@@ -164,6 +164,9 @@ lint:
 	./scripts/updateLicenses.sh > $(FMT_LOG)
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
+	./scripts/check-semconv-version.sh
+
+	./scripts/check-go-version.sh
 
 .PHONY: build-examples
 build-examples:
@@ -171,11 +174,11 @@ build-examples:
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
@@ -385,11 +388,11 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: changelog
 changelog:
-	python3 ./scripts/release-notes.py --exclude-dependabot
+	./scripts/release-notes.py --exclude-dependabot
 
 .PHONY: draft-release
 draft-release:
-	python3 ./scripts/draft-release.py
+	./scripts/draft-release.py
 
 .PHONY: install-tools
 install-tools:

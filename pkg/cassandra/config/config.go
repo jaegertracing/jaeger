@@ -163,6 +163,10 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 	return cluster, nil
 }
 
+func (c *Configuration) Close() error {
+	return c.TLS.Close()
+}
+
 func (c *Configuration) String() string {
 	return fmt.Sprintf("%+v", *c)
 }

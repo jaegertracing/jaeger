@@ -7,10 +7,11 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
-
+mode=${1-main}
 expected_version="v16"
 version=$(node --version)
 major_version=${version%.*.*}
+
 if [ "$major_version" = "$expected_version" ] ; then
   echo "Node version is as expected: $version"
 else
@@ -31,13 +32,20 @@ run_integration_test() {
   docker kill $CID
 }
 
-make create-baseimg-debugimg
+if [ "$mode" = "pr-only" ]; then
+  make create-baseimg
+  # build architecture for linux/amd64 only for pull requests
+  platforms="linux/amd64"
+  make build-all-in-one GOOS=linux GOARCH=amd64
+else
+  make create-baseimg-debugimg
+  platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+  make build-all-in-one GOOS=linux GOARCH=amd64
+  make build-all-in-one GOOS=linux GOARCH=s390x
+  make build-all-in-one GOOS=linux GOARCH=ppc64le
+  make build-all-in-one GOOS=linux GOARCH=arm64
+fi
 
-make build-all-in-one GOOS=linux GOARCH=amd64
-make build-all-in-one GOOS=linux GOARCH=s390x
-make build-all-in-one GOOS=linux GOARCH=ppc64le
-make build-all-in-one GOOS=linux GOARCH=arm64
-platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 repo=jaegertracing/all-in-one
 #build all-in-one image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
@@ -46,10 +54,13 @@ run_integration_test localhost:5000/$repo
 bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 
-make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
-repo=${repo}-debug
-#build all-in-one-debug image locally for integration test
-bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one-debug -d cmd/all-in-one -t debug
-run_integration_test localhost:5000/$repo
-#build all-in-one-debug image and upload to dockerhub/quay.io
-bash scripts/build-upload-a-docker-image.sh -b -c all-in-one-debug -d cmd/all-in-one -t debug
+#do not run debug image build when it is pr-only
+if ["$mode" != "pr-only"]; then 
+  make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
+  repo=${repo}-debug
+  #build all-in-one-debug image locally for integration test
+  bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one-debug -d cmd/all-in-one -t debug
+  run_integration_test localhost:5000/$repo
+  #build all-in-one-debug image and upload to dockerhub/quay.io
+  bash scripts/build-upload-a-docker-image.sh -b -c all-in-one-debug -d cmd/all-in-one -t debug
+fi

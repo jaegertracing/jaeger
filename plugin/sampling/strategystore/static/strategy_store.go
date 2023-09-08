@@ -241,7 +241,7 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 	h.storedStrategies.Store(newStore)
 }
 
-// mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
+// mergePerOperationSamplingStrategies merges two operation strategies a and b, where a takes precedence over b.
 func mergePerOperationSamplingStrategies(
 	a, b []*api_v2.OperationSamplingStrategy,
 ) []*api_v2.OperationSamplingStrategy {

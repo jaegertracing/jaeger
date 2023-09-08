@@ -401,7 +401,7 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		assert.Equal(t, "planet-express", serviceWritten.Load())
 		assert.Equal(t, dbmodel.Operation{
 			ServiceName:   "planet-express",
-			SpanKind:      "",
+			SpanKind:      "unspecified",
 			OperationName: "package-delivery",
 		}, operationWritten.Load())
 	}, StoreIndexesOnly())

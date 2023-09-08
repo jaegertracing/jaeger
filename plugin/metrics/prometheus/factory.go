@@ -18,6 +18,8 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin"
@@ -31,11 +33,13 @@ var _ plugin.Configurable = (*Factory)(nil)
 type Factory struct {
 	options *Options
 	logger  *zap.Logger
+	tracer  trace.TracerProvider
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
+		tracer:  otel.GetTracerProvider(),
 		options: NewOptions("prometheus"),
 	}
 }
@@ -48,7 +52,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable.
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	if err := f.options.InitFromViper(v); err != nil {
-		logger.Fatal("Failed to initialize metrics storage factory", zap.Error(err))
+		logger.Panic("Failed to initialize metrics storage factory", zap.Error(err))
 	}
 }
 
@@ -60,5 +64,5 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	return prometheusstore.NewMetricsReader(f.logger, f.options.Primary.Configuration)
+	return prometheusstore.NewMetricsReader(f.options.Primary.Configuration, f.logger, f.tracer)
 }

@@ -17,22 +17,22 @@ package tracing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel"
-	otbridge "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -42,9 +42,8 @@ import (
 
 var once sync.Once
 
-// Init initializes OpenTelemetry SDK and uses OTel-OpenTracing Bridge
-// to return an OpenTracing-compatible tracer.
-func Init(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
+// InitOTEL initializes OpenTelemetry SDK.
+func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
 	once.Do(func() {
 		otel.SetTextMapPropagator(
 			propagation.NewCompositeTextMapPropagator(
@@ -62,16 +61,15 @@ func Init(serviceName string, exporterType string, metricsFactory metrics.Factor
 	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
+		sdktrace.WithBatcher(exp, sdktrace.WithBatchTimeout(1000*time.Millisecond)),
 		sdktrace.WithSpanProcessor(rpcmetricsObserver),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
 			semconv.ServiceNameKey.String(serviceName),
 		)),
 	)
-	otTracer, _ := otbridge.NewTracerPair(tp.Tracer(""))
-	logger.Bg().Debug("created OTEL->OT bridge", zap.String("service-name", serviceName))
-	return otTracer
+	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
+	return tp
 }
 
 // withSecure instructs the client to use HTTPS scheme, instead of hotrod's desired default HTTP
@@ -85,9 +83,7 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	var err error
 	switch exporterType {
 	case "jaeger":
-		exporter, err = jaeger.New(
-			jaeger.WithCollectorEndpoint(),
-		)
+		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
 	case "otlp":
 		var opts []otlptracehttp.Option
 		if !withSecure() {

@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -94,7 +93,6 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 		clientTLS         tlscfg.Options
 		expectError       bool
 		expectClientError bool
-		expectServerFail  bool
 	}{
 		{
 			name: "should fail with TLS client to untrusted TLS server",
@@ -109,7 +107,6 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			},
 			expectError:       true,
 			expectClientError: true,
-			expectServerFail:  false,
 		},
 		{
 			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
@@ -125,7 +122,6 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			},
 			expectError:       true,
 			expectClientError: true,
-			expectServerFail:  false,
 		},
 		{
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
@@ -139,9 +135,6 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "example.com",
 			},
-			expectError:       false,
-			expectClientError: false,
-			expectServerFail:  false,
 		},
 		{
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
@@ -156,8 +149,6 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "example.com",
 			},
-			expectError:       false,
-			expectServerFail:  false,
 			expectClientError: true,
 		},
 		{
@@ -175,9 +166,6 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
 				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
-			expectError:       false,
-			expectServerFail:  false,
-			expectClientError: false,
 		},
 		{
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
@@ -194,15 +182,15 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
 				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
-			expectError:       false,
-			expectServerFail:  false,
 			expectClientError: true,
 		},
 	}
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			logger := zaptest.NewLogger(t)
+			// Cannot reliably use zaptest.NewLogger(t) because it causes race condition
+			// See https://github.com/jaegertracing/jaeger/issues/4497.
+			logger := zap.NewNop()
 			params := &HTTPServerParams{
 				HostPort:       fmt.Sprintf(":%d", ports.CollectorHTTP),
 				Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
@@ -214,14 +202,12 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			}
 
 			server, err := StartHTTPServer(params)
-
-			if test.expectServerFail {
-				require.Error(t, err)
-			}
-			defer server.Close()
-
 			require.NoError(t, err)
-			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
+			defer func() {
+				assert.NoError(t, server.Close())
+			}()
+
+			clientTLSCfg, err0 := test.clientTLS.Config(logger)
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), clientTLSCfg)
@@ -260,7 +246,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 }
 
 func TestStartHTTPServerParams(t *testing.T) {
-	logger := zaptest.NewLogger(t)
+	logger := zap.NewNop()
 	params := &HTTPServerParams{
 		HostPort:          fmt.Sprintf(":%d", ports.CollectorHTTP),
 		Handler:           handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),

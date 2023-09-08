@@ -18,14 +18,12 @@ package route
 import (
 	"context"
 	"encoding/json"
-	"expvar"
 	"math"
 	"math/rand"
 	"net/http"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
@@ -38,12 +36,12 @@ import (
 // Server implements Route service
 type Server struct {
 	hostPort string
-	tracer   opentracing.Tracer
+	tracer   trace.TracerProvider
 	logger   log.Factory
 }
 
 // NewServer creates a new route.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(hostPort string, tracer trace.TracerProvider, logger log.Factory) *Server {
 	return &Server{
 		hostPort: hostPort,
 		tracer:   tracer,
@@ -61,9 +59,13 @@ func (s *Server) Run() error {
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(false, s.tracer, s.logger)
 	mux.Handle("/route", http.HandlerFunc(s.route))
-	mux.Handle("/debug/vars", expvar.Handler()) // expvar
-	mux.Handle("/metrics", promhttp.Handler())  // Prometheus
+	mux.Handle("/debug/vars", http.HandlerFunc(movedToFrontend))
+	mux.Handle("/metrics", http.HandlerFunc(movedToFrontend))
 	return mux
+}
+
+func movedToFrontend(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "endpoint moved to the frontend service", http.StatusNotFound)
 }
 
 func (s *Server) route(w http.ResponseWriter, r *http.Request) {

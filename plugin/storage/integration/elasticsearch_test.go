@@ -28,6 +28,9 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -58,6 +61,20 @@ type ESStorageIntegration struct {
 	client        *elastic.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
+}
+
+func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),
+	)
+	closer := func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			s.logger.Error("failed to close tracer", zap.Error(err))
+		}
+	}
+	return tp, exporter, closer
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -142,6 +159,8 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
+	tracer, _, closer := s.tracerProvider()
+	defer closer()
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            clientFn,
@@ -152,6 +171,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
+		Tracer:            tracer.Tracer("test"),
 	})
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          clientFn,

@@ -18,10 +18,10 @@ package app
 import (
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -61,8 +61,8 @@ func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration)
 	}
 }
 
-// Tracer creates a HandlerOption that initializes OpenTracing tracer
-func (handlerOptions) Tracer(tracer opentracing.Tracer) HandlerOption {
+// Tracer creates a HandlerOption that passes the tracer to the handler
+func (handlerOptions) Tracer(tracer *jtracer.JTracer) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.tracer = tracer
 	}

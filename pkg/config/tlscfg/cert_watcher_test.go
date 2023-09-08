@@ -180,9 +180,7 @@ func TestReload_err_cert_update(t *testing.T) {
 }
 
 func TestReload_kubernetes_secret_update(t *testing.T) {
-	mountDir, err := os.MkdirTemp("", "secret-mountpoint_")
-	require.NoError(t, err)
-	defer os.RemoveAll(mountDir)
+	mountDir := t.TempDir()
 
 	// Create directory layout before update:
 	//
@@ -195,7 +193,7 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 	// /secret-mountpoint/..timestamp-1/tls.crt # initial version of tls.crt
 	// /secret-mountpoint/..timestamp-1/tls.key # initial version of tls.key
 
-	err = os.Symlink("..timestamp-1", filepath.Join(mountDir, "..data"))
+	err := os.Symlink("..timestamp-1", filepath.Join(mountDir, "..data"))
 	require.NoError(t, err)
 	err = os.Symlink(filepath.Join("..data", "ca.crt"), filepath.Join(mountDir, "ca.crt"))
 	require.NoError(t, err)

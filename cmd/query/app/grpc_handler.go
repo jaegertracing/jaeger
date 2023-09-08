@@ -19,7 +19,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -27,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -53,14 +53,14 @@ type GRPCHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	logger              *zap.Logger
-	tracer              opentracing.Tracer
+	tracer              *jtracer.JTracer
 	nowFn               func() time.Time
 }
 
 // GRPCHandlerOptions contains optional members of GRPCHandler.
 type GRPCHandlerOptions struct {
 	Logger *zap.Logger
-	Tracer opentracing.Tracer
+	Tracer *jtracer.JTracer
 	NowFn  func() time.Time
 }
 
@@ -74,7 +74,7 @@ func NewGRPCHandler(queryService *querysvc.QueryService,
 	}
 
 	if options.Tracer == nil {
-		options.Tracer = opentracing.NoopTracer{}
+		options.Tracer = jtracer.NoOp()
 	}
 
 	if options.NowFn == nil {
