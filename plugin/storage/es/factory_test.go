@@ -281,6 +281,7 @@ func TestPasswordFromFile(t *testing.T) {
 		LogLevel:         "debug",
 		PasswordFilePath: pwdFile,
 	}
+	f.archiveConfig = &escfg.Configuration{}
 	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	defer f.Close()
 

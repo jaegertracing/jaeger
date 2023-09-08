@@ -85,18 +85,20 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
+	f.primaryConfig = f.Options.GetPrimary()
+	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
 
 // InitFromOptions configures factory from Options struct.
 func (f *Factory) InitFromOptions(o Options) {
 	f.Options = &o
+	f.primaryConfig = f.Options.GetPrimary()
+	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
 
 // Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	f.primaryConfig = f.Options.GetPrimary()
-	f.archiveConfig = f.Options.Get(archiveNamespace)
 
 	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
 	if err != nil {
