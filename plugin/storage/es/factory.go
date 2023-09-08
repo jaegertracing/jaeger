@@ -59,9 +59,10 @@ type Factory struct {
 
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
-	primaryConfig atomic.Pointer[config.Configuration]
+	primaryConfig *config.Configuration
+	archiveConfig *config.Configuration
+
 	primaryClient atomic.Pointer[es.Client]
-	archiveConfig atomic.Pointer[config.Configuration]
 	archiveClient atomic.Pointer[es.Client]
 
 	watchers []*fswatcher.FSWatcher
@@ -84,16 +85,16 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.primaryConfig.Store(f.Options.GetPrimary())
-	f.archiveConfig.Store(f.Options.Get(archiveNamespace))
+	f.primaryConfig = f.Options.GetPrimary()
+	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
 
 // InitFromOptions configures factory from Options struct.
 func (f *Factory) InitFromOptions(o Options) {
 	f.Options = &o
-	f.primaryConfig.Store(f.Options.GetPrimary())
+	f.primaryConfig = f.Options.GetPrimary()
 	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
-		f.archiveConfig.Store(cfg)
+		f.archiveConfig = cfg
 	}
 }
 
@@ -101,68 +102,80 @@ func (f *Factory) InitFromOptions(o Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	primaryClient, err := f.newClientFn(f.primaryConfig.Load(), logger, metricsFactory)
+	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
 	if err != nil {
 		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
 	}
 	f.primaryClient.Store(&primaryClient)
 
-	primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.Load().PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
-	if err != nil {
-		return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
+	if f.primaryConfig.PasswordFilePath != "" {
+		primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
+		if err != nil {
+			return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
+		}
+		f.watchers = append(f.watchers, primaryWatcher)
 	}
-	f.watchers = append(f.watchers, primaryWatcher)
 
-	if f.archiveConfig.Load().Enabled {
-		archiveClient, err := f.newClientFn(f.archiveConfig.Load(), logger, metricsFactory)
+	if f.archiveConfig.Enabled {
+		archiveClient, err := f.newClientFn(f.archiveConfig, logger, metricsFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create archive Elasticsearch client: %w", err)
 		}
 		f.archiveClient.Store(&archiveClient)
 
-		archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.Load().PasswordFilePath}, f.onArchivePasswordChange, f.logger)
-		if err != nil {
-			return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
+		if f.archiveConfig.PasswordFilePath != "" {
+			archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.PasswordFilePath}, f.onArchivePasswordChange, f.logger)
+			if err != nil {
+				return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
+			}
+			f.watchers = append(f.watchers, archiveWatcher)
 		}
-		f.watchers = append(f.watchers, archiveWatcher)
 	}
 
 	return nil
 }
 
+func (f *Factory) getPrimaryClient() es.Client {
+	return *(f.primaryClient.Load())
+}
+
+func (f *Factory) getArchiveClient() es.Client {
+	return *f.archiveClient.Load()
+}
+
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.primaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
+	return createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.primaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.primaryClient, f.primaryConfig, f.logger)
+	return createDependencyReader(f.getPrimaryClient, f.primaryConfig, f.logger)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if !f.archiveConfig.Load().Enabled {
+	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanReader(f.archiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
+	return createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if !f.archiveConfig.Load().Enabled {
+	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.archiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
 }
 
 func createSpanReader(
-	client es.Client,
+	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
 	mFactory metrics.Factory,
@@ -173,7 +186,7 @@ func createSpanReader(
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
-		Client:                        func() es.Client { return *client.Load() },
+		Client:                        clientFn,
 		MaxDocCount:                   cfg.MaxDocCount,
 		MaxSpanAge:                    cfg.MaxSpanAge,
 		IndexPrefix:                   cfg.IndexPrefix,
@@ -192,7 +205,7 @@ func createSpanReader(
 }
 
 func createSpanWriter(
-	client *atomic.Pointer[es.Client],
+	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
 	mFactory metrics.Factory,
@@ -222,7 +235,7 @@ func createSpanWriter(
 		return nil, err
 	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
-		Client:                 func() es.Client { return *client.Load() },
+		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
 		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
 		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,
@@ -246,12 +259,12 @@ func createSpanWriter(
 }
 
 func createDependencyReader(
-	client *atomic.Pointer[es.Client],
+	clientFn func() es.Client,
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
-		Client:              func() es.Client { return *client.Load() },
+		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.IndexPrefix,
 		IndexDateLayout:     cfg.IndexDateLayoutDependencies,
@@ -277,15 +290,14 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) onPrimaryPasswordChange() {
-	newPrimaryCfg := *f.primaryConfig.Load()
-	newPrimaryPassword, err := config.LoadFileContent(newPrimaryCfg.PasswordFilePath)
+	newPrimaryPassword, err := config.LoadFileContent(f.primaryConfig.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for primary Elasticsearch client", zap.Error(err))
-	} else {
-		newPrimaryCfg.Password = newPrimaryPassword
-		f.primaryConfig.Store(&newPrimaryCfg)
+		return
 	}
-	primaryClient, err := f.newClientFn(f.primaryConfig.Load(), f.logger, f.metricsFactory)
+	newPrimaryCfg := *f.primaryConfig // copy by value
+	newPrimaryCfg.Password = newPrimaryPassword
+	primaryClient, err := f.newClientFn(&newPrimaryCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate primary Elasticsearch client from new password", zap.Error(err))
 	} else {
@@ -294,15 +306,14 @@ func (f *Factory) onPrimaryPasswordChange() {
 }
 
 func (f *Factory) onArchivePasswordChange() {
-	newArchiveCfg := *f.archiveConfig.Load()
-	newPassword, err := config.LoadFileContent(newArchiveCfg.PasswordFilePath)
+	newPassword, err := config.LoadFileContent(f.archiveConfig.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for archive Elasticsearch client", zap.Error(err))
-	} else {
-		newArchiveCfg.Password = newPassword
-		f.archiveConfig.Store(&newArchiveCfg)
+		return
 	}
-	archiveClient, err := f.newClientFn(f.archiveConfig.Load(), f.logger, f.metricsFactory)
+	newArchiveCfg := *f.archiveConfig // copy by value
+	newArchiveCfg.Password = newPassword
+	archiveClient, err := f.newClientFn(&newArchiveCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate archive Elasticsearch client from new password", zap.Error(err))
 	} else {
