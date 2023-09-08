@@ -20,6 +20,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 
 	"github.com/spf13/viper"
@@ -288,7 +291,7 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) onPrimaryPasswordChange() {
-	newPrimaryPassword, err := config.LoadFileContent(f.primaryConfig.PasswordFilePath)
+	newPrimaryPassword, err := loadTokenFromFile(f.primaryConfig.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for primary Elasticsearch client", zap.Error(err))
 		return
@@ -305,7 +308,7 @@ func (f *Factory) onPrimaryPasswordChange() {
 }
 
 func (f *Factory) onArchivePasswordChange() {
-	newPassword, err := config.LoadFileContent(f.archiveConfig.PasswordFilePath)
+	newPassword, err := loadTokenFromFile(f.archiveConfig.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for archive Elasticsearch client", zap.Error(err))
 		return
@@ -319,4 +322,12 @@ func (f *Factory) onArchivePasswordChange() {
 	} else {
 		f.archiveClient.Store(&archiveClient)
 	}
+}
+
+func loadTokenFromFile(path string) (string, error) {
+	b, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }

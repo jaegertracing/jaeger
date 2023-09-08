@@ -316,7 +316,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
 	}
 	if c.PasswordFilePath != "" {
-		passwordFromFile, err := LoadFileContent(c.PasswordFilePath)
+		passwordFromFile, err := loadTokenFromFile(c.PasswordFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load password from file: %w", err)
 		}
@@ -408,7 +408,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		if c.AllowTokenFromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := LoadFileContent(c.TokenFilePath)
+		tokenFromFile, err := loadTokenFromFile(c.TokenFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -424,7 +424,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	return transport, nil
 }
 
-func LoadFileContent(path string) (string, error) {
+func loadTokenFromFile(path string) (string, error) {
 	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err
