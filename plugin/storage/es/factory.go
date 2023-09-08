@@ -95,6 +95,7 @@ func (f *Factory) InitFromOptions(o Options) {
 	f.primaryConfig = f.Options.GetPrimary()
 	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
 		f.archiveConfig = cfg
+		// TODO it looks like f.archiveConfig==nil is possible, but below f.archiveConfig.Enabled is used
 	}
 }
 

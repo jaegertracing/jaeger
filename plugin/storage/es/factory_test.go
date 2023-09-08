@@ -16,22 +16,24 @@
 package es
 
 import (
-	"os"
-	"sync/atomic"
+	"context"
+	"errors"
 	"testing"
 
-	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
-/*var _ storage.Factory = new(Factory)
+var _ storage.Factory = new(Factory)
 
 type mockClientBuilder struct {
 	err                 error
@@ -237,48 +239,48 @@ func TestInitFromOptions(t *testing.T) {
 	f.InitFromOptions(o)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
-}*/
-
-func TestPasswordFromFile(t *testing.T) {
-	passwordFile, err := os.CreateTemp("", "")
-	require.NoError(t, err)
-	defer passwordFile.Close()
-
-	passwordFile.WriteString("bar")
-
-	c := escfg.Configuration{
-		Username:         "foo",
-		PasswordFilePath: passwordFile.Name(),
-	}
-
-	f := NewFactory()
-	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
-		rawClient := &elastic.Client{}
-
-		passwordFromFile, err := escfg.LoadFileContent(c.PasswordFilePath)
-		require.NoError(t, err)
-		c.Password = passwordFromFile
-
-		option := elastic.SetBasicAuth(c.Username, c.Password)
-		option(rawClient)
-
-		return eswrapper.WrapESClient(rawClient, nil, 0), nil
-	}
-	f.primaryConfig.Store(&c)
-	f.archiveConfig.Store(&c)
-
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.Equal(t, "bar", f.primaryConfig.Load().Password)
-
-	primaryClient, err := f.newClientFn(f.primaryConfig.Load(), nil, nil)
-	require.NoError(t, err)
-
-	var expectedPrimaryClient atomic.Pointer[es.Client]
-	expectedPrimaryClient.Store(&primaryClient)
-	assert.Equal(t, expectedPrimaryClient.Load(), f.primaryClient.Load())
-
-	_, err = passwordFile.WriteString("baz")
-	require.NoError(t, err)
-	f.onPrimaryPasswordChange()
-	assert.Equal(t, "barbaz", f.primaryConfig.Load().Password)
 }
+
+// func TestPasswordFromFile(t *testing.T) {
+// 	passwordFile, err := os.CreateTemp("", "")
+// 	require.NoError(t, err)
+// 	defer passwordFile.Close()
+
+// 	passwordFile.WriteString("bar")
+
+// 	c := escfg.Configuration{
+// 		Username:         "foo",
+// 		PasswordFilePath: passwordFile.Name(),
+// 	}
+
+// 	f := NewFactory()
+// 	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+// 		rawClient := &elastic.Client{}
+
+// 		passwordFromFile, err := escfg.LoadFileContent(c.PasswordFilePath)
+// 		require.NoError(t, err)
+// 		c.Password = passwordFromFile
+
+// 		option := elastic.SetBasicAuth(c.Username, c.Password)
+// 		option(rawClient)
+
+// 		return eswrapper.WrapESClient(rawClient, nil, 0), nil
+// 	}
+// 	f.primaryConfig.Store(&c)
+// 	f.archiveConfig.Store(&c)
+
+// 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+// 	assert.Equal(t, "bar", f.primaryConfig.Load().Password)
+
+// 	primaryClient, err := f.newClientFn(f.primaryConfig.Load(), nil, nil)
+// 	require.NoError(t, err)
+
+// 	var expectedPrimaryClient atomic.Pointer[es.Client]
+// 	expectedPrimaryClient.Store(&primaryClient)
+// 	assert.Equal(t, expectedPrimaryClient.Load(), f.primaryClient.Load())
+
+// 	_, err = passwordFile.WriteString("baz")
+// 	require.NoError(t, err)
+// 	f.onPrimaryPasswordChange()
+// 	assert.Equal(t, "barbaz", f.primaryConfig.Load().Password)
+// }
