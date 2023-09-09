@@ -304,6 +304,7 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
 		return
 	}
+	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
 	newCfg := *cfg // copy by value
 	newCfg.Password = newPassword
 	newCfg.PasswordFilePath = "" // avoid error that both are set
