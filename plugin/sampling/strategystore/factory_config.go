@@ -16,7 +16,6 @@ package strategystore
 
 import (
 	"fmt"
-	"io"
 	"os"
 )
 
@@ -33,8 +32,8 @@ type FactoryConfig struct {
 // FactoryConfigFromEnv reads the desired sampling type from the SAMPLING_CONFIG_TYPE environment variable. Allowed values:
 // * `file` - built-in
 // * `adaptive` - built-in
-func FactoryConfigFromEnv(log io.Writer) (*FactoryConfig, error) {
-	strategyStoreType := getStrategyStoreTypeFromEnv(log)
+func FactoryConfigFromEnv() (*FactoryConfig, error) {
+	strategyStoreType := getStrategyStoreTypeFromEnv()
 	if strategyStoreType != samplingTypeAdaptive &&
 		strategyStoreType != samplingTypeFile {
 		return nil, fmt.Errorf("invalid sampling type: %s. Valid types are %v", strategyStoreType, AllSamplingTypes)
@@ -45,7 +44,7 @@ func FactoryConfigFromEnv(log io.Writer) (*FactoryConfig, error) {
 	}, nil
 }
 
-func getStrategyStoreTypeFromEnv(log io.Writer) string {
+func getStrategyStoreTypeFromEnv() string {
 	// check the new env var
 	strategyStoreType := os.Getenv(SamplingTypeEnvVar)
 	if strategyStoreType != "" {
