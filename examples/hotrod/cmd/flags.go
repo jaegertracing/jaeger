@@ -38,9 +38,11 @@ var (
 	jaegerUI string
 )
 
+const expvarDepr = "(deprecated, will be removed after 2024-01-01 or in release v1.53.0, whichever is later) "
+
 // used by root command
 func addFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
+	cmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "prometheus", expvarDepr+"Metrics backend (expvar|prometheus). ")
 	cmd.PersistentFlags().StringVarP(&otelExporter, "otel-exporter", "x", "otlp", "OpenTelemetry exporter (otlp|stdout)")
 
 	cmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average latency of MySQL DB query")
