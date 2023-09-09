@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -537,10 +538,14 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 			}, logger)
 			require.NoError(t, err)
 
+			var authReceived atomic.Bool
 			server := httptest.NewServer(
 				http.HandlerFunc(
 					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "Bearer foo", r.Header.Get("Authorization"))
+						t.Logf("Request to fake Prometheus server %+v", r)
+						if r.Header.Get("Authorization") == "Bearer foo" {
+							authReceived.Store(true)
+						}
 					},
 				),
 			)
@@ -557,6 +562,8 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 			resp, err := rt.RoundTrip(req)
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			assert.True(t, authReceived.Load())
 		})
 	}
 }
@@ -578,10 +585,15 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 		TokenOverrideFromContext: false,
 	}, nil)
 	require.NoError(t, err)
+
+	var authReceived atomic.Bool
 	server := httptest.NewServer(
 		http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "Bearer "+wantBearer, r.Header.Get("Authorization"))
+				t.Logf("Request to fake Prometheus server %+v", r)
+				if r.Header.Get("Authorization") == "Bearer "+wantBearer {
+					authReceived.Store(true)
+				}
 			},
 		),
 	)
@@ -597,6 +609,8 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	assert.True(t, authReceived.Load())
 }
 
 func TestGetRoundTripperTokenFromContext(t *testing.T) {
@@ -613,10 +627,15 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 		TokenOverrideFromContext: true,
 	}, nil)
 	require.NoError(t, err)
+
+	var authReceived atomic.Bool
 	server := httptest.NewServer(
 		http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "Bearer tokenFromRequest", r.Header.Get("Authorization"))
+				t.Logf("Request to fake Prometheus server %+v", r)
+				if r.Header.Get("Authorization") == "Bearer tokenFromRequest" {
+					authReceived.Store(true)
+				}
 			},
 		),
 	)
@@ -632,6 +651,8 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	assert.True(t, authReceived.Load())
 }
 
 func TestGetRoundTripperTokenError(t *testing.T) {
@@ -685,14 +706,12 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 	}))
 }
 
-func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) error {
+func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
 	bytes, err := os.ReadFile(responseFile)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
 	_, err = fmt.Fprintln(w, string(bytes))
-	return err
+	require.NoError(t, err)
 }
 
 func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricsstore.BaseQueryParameters {
