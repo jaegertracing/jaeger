@@ -69,7 +69,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
-	strategyStoreFactoryConfig, err := ss.FactoryConfigFromEnv(os.Stderr)
+	strategyStoreFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory config: %v", err)
 	}
