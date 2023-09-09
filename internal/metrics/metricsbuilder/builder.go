@@ -19,6 +19,7 @@ import (
 	"errors"
 	"expvar"
 	"flag"
+	"log"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -79,6 +80,7 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 	if b.Backend == "expvar" {
 		metricsFactory := jexpvar.NewFactory(10).Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = expvar.Handler()
+		log.Printf("using expvar as metrics backend " + expvarDepr)
 		return metricsFactory, nil
 	}
 	if b.Backend == "none" || b.Backend == "" {
