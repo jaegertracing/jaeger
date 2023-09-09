@@ -561,8 +561,8 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 
 			resp, err := rt.RoundTrip(req)
 			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			assert.True(t, authReceived.Load())
 		})
 	}
@@ -606,10 +606,11 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
+
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.True(t, authReceived.Load())
 }
 
@@ -648,10 +649,11 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
+
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.True(t, authReceived.Load())
 }
 
