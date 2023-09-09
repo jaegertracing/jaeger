@@ -307,7 +307,6 @@ func TestPublishOpts(t *testing.T) {
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	require.NoError(t, err)
 	require.NotNil(t, agent)
-	defer agent.Stop()
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "internal.processor.jaeger-binary.server-max-packet-size",
