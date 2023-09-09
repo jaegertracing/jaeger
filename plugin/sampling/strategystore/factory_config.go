@@ -23,11 +23,6 @@ import (
 const (
 	// SamplingTypeEnvVar is the name of the env var that defines the type of sampling strategy store used.
 	SamplingTypeEnvVar = "SAMPLING_CONFIG_TYPE"
-
-	// previously the SAMPLING_TYPE env var was used for configuration, continue to support this old env var with warnings
-	deprecatedSamplingTypeEnvVar = "SAMPLING_TYPE"
-	// static is the old name for "file". we will translate from the deprecated to current name here. all other code will expect "file"
-	deprecatedSamplingTypeStatic = "static"
 )
 
 // FactoryConfig tells the Factory what sampling type it needs to create.
@@ -54,17 +49,6 @@ func getStrategyStoreTypeFromEnv(log io.Writer) string {
 	// check the new env var
 	strategyStoreType := os.Getenv(SamplingTypeEnvVar)
 	if strategyStoreType != "" {
-		return strategyStoreType
-	}
-
-	// accept the old env var and value but warn
-	strategyStoreType = os.Getenv(deprecatedSamplingTypeEnvVar)
-	if strategyStoreType != "" {
-		fmt.Fprintf(log, "WARNING: Using deprecated '%s' env var. Please switch to '%s'.\n", deprecatedSamplingTypeEnvVar, SamplingTypeEnvVar)
-		if strategyStoreType == deprecatedSamplingTypeStatic {
-			fmt.Fprintf(log, "WARNING: Using deprecated '%s' value for %s. Please switch to '%s'.\n", strategyStoreType, SamplingTypeEnvVar, samplingTypeFile)
-			strategyStoreType = samplingTypeFile
-		}
 		return strategyStoreType
 	}
 

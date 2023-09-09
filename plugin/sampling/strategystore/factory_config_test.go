@@ -36,21 +36,9 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 			expectedType: Kind("file"),
 		},
 		{
-			name:         "file on deprecatedSamplingTypeEnvVar",
-			env:          "file",
-			envVar:       deprecatedSamplingTypeEnvVar,
-			expectedType: Kind("file"),
-		},
-		{
 			name:         "file on SamplingTypeEnvVar",
 			env:          "file",
 			envVar:       SamplingTypeEnvVar,
-			expectedType: Kind("file"),
-		},
-		{
-			name:         "static works on the deprecatedSamplingTypeEnvVar",
-			env:          "static",
-			envVar:       deprecatedSamplingTypeEnvVar,
 			expectedType: Kind("file"),
 		},
 		{
@@ -60,22 +48,10 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 			expectsError: true,
 		},
 		{
-			name:         "adaptive on deprecatedSamplingTypeEnvVar",
-			env:          "adaptive",
-			envVar:       deprecatedSamplingTypeEnvVar,
-			expectedType: Kind("adaptive"),
-		},
-		{
 			name:         "adaptive on SamplingTypeEnvVar",
 			env:          "adaptive",
 			envVar:       SamplingTypeEnvVar,
 			expectedType: Kind("adaptive"),
-		},
-		{
-			name:         "unexpected string on deprecatedSamplingTypeEnvVar",
-			env:          "??",
-			envVar:       deprecatedSamplingTypeEnvVar,
-			expectsError: true,
 		},
 		{
 			name:         "unexpected string on SamplingTypeEnvVar",
@@ -140,8 +116,6 @@ func TestGetStrategyStoreTypeFromEnv(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(SamplingTypeEnvVar, tc.currentEnvValue)
-			t.Setenv(deprecatedSamplingTypeEnvVar, tc.deprecatedEnvValue)
-
 			actual := getStrategyStoreTypeFromEnv(io.Discard)
 			assert.Equal(t, actual, tc.expected)
 		})
