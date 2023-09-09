@@ -145,7 +145,6 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
 			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
-			defer resolver.UnregisterForTesting(res.Scheme())
 
 			cc, err := grpc.Dial(res.Scheme()+":///round_robin", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(GRPCServiceConfig))
 			assert.NoError(t, err, "could not dial using resolver's scheme")
