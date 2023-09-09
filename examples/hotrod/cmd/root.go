@@ -73,7 +73,7 @@ func onInitialize() {
 	switch metricsBackend {
 	case "expvar":
 		metricsFactory = expvar.NewFactory(10) // 10 buckets for histograms
-		logger.Info("Using expvar as metrics backend")
+		logger.Info("*** Using expvar as metrics backend " + expvarDepr)
 	case "prometheus":
 		metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 		logger.Info("Using Prometheus as metrics backend")

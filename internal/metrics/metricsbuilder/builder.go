@@ -46,12 +46,14 @@ type Builder struct {
 	handler   http.Handler
 }
 
+const expvarDepr = "(deprecated, will be removed after 2024-01-01 or in release v1.53.0, whichever is later) "
+
 // AddFlags adds flags for Builder.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		metricsBackend,
 		defaultMetricsBackend,
-		"Defines which metrics backend to use for metrics reporting: expvar, prometheus, none")
+		"Defines which metrics backend to use for metrics reporting: prometheus, none, or expvar "+expvarDepr)
 	flags.String(
 		metricsHTTPRoute,
 		defaultMetricsRoute,
