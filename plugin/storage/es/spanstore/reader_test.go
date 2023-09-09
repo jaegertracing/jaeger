@@ -36,6 +36,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
@@ -116,7 +117,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
-			Client:            client,
+			Client:            func() es.Client { return client },
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
@@ -139,7 +140,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTe
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
-			Client:              client,
+			Client:              func() es.Client { return client },
 			Logger:              zap.NewNop(),
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
@@ -187,6 +188,7 @@ func TestNewSpanReader(t *testing.T) {
 
 func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
+	clientFn := func() es.Client { return client }
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 	spanDataLayout := "2006-01-02-15"
 	serviceDataLayout := "2006-01-02"
@@ -297,7 +299,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase.params.Client = client
+		testCase.params.Client = clientFn
 		testCase.params.Logger = logger
 		testCase.params.MetricsFactory = metricsFactory
 		testCase.params.Tracer = tracer.Tracer("test")

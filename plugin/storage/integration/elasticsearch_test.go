@@ -144,9 +144,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
+	clientFn := func() estemplate.Client { return client }
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
-			Client:            client,
+			Client:            clientFn,
 			Logger:            s.logger,
 			MetricsFactory:    metrics.NullFactory,
 			IndexPrefix:       indexPrefix,
@@ -162,7 +163,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	defer closer()
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-		Client:            client,
+		Client:            clientFn,
 		Logger:            s.logger,
 		MetricsFactory:    metrics.NullFactory,
 		IndexPrefix:       indexPrefix,
@@ -173,7 +174,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		Tracer:            tracer.Tracer("test"),
 	})
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
-		Client:          client,
+		Client:          clientFn,
 		Logger:          s.logger,
 		IndexPrefix:     indexPrefix,
 		IndexDateLayout: indexDateLayout,

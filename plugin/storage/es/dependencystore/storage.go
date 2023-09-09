@@ -38,7 +38,7 @@ const (
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	client                es.Client
+	client                func() es.Client
 	logger                *zap.Logger
 	dependencyIndexPrefix string
 	indexDateLayout       string
@@ -48,7 +48,7 @@ type DependencyStore struct {
 
 // DependencyStoreParams holds constructor parameters for NewDependencyStore
 type DependencyStoreParams struct {
-	Client              es.Client
+	Client              func() es.Client
 	Logger              *zap.Logger
 	IndexPrefix         string
 	IndexDateLayout     string
@@ -84,7 +84,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 
 // CreateTemplates creates index templates.
 func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	_, err := s.client.CreateTemplate("jaeger-dependencies").Body(dependenciesTemplate).Do(context.Background())
+	_, err := s.client().CreateTemplate("jaeger-dependencies").Body(dependenciesTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 }
 
 func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
-	s.client.Index().Index(indexName).Type(dependencyType).
+	s.client().Index().Index(indexName).Type(dependencyType).
 		BodyJson(&dbmodel.TimeDependencies{
 			Timestamp:    ts,
 			Dependencies: dbmodel.FromDomainDependencies(dependencies),
@@ -102,7 +102,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	indices := s.getReadIndices(endTs, lookback)
-	searchResult, err := s.client.Search(indices...).
+	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).

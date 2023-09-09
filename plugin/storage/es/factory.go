@@ -16,9 +16,14 @@
 package es
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -27,6 +32,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
@@ -57,9 +63,12 @@ type Factory struct {
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
 	primaryConfig *config.Configuration
-	primaryClient es.Client
 	archiveConfig *config.Configuration
-	archiveClient es.Client
+
+	primaryClient atomic.Pointer[es.Client]
+	archiveClient atomic.Pointer[es.Client]
+
+	watchers []*fswatcher.FSWatcher
 }
 
 // NewFactory creates a new Factory.
@@ -87,12 +96,10 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 func (f *Factory) InitFromOptions(o Options) {
 	f.Options = &o
 	f.primaryConfig = f.Options.GetPrimary()
-	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
-		f.archiveConfig = cfg
-	}
+	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
 
-// Initialize implements storage.Factory
+// Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
@@ -100,29 +107,56 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
 	}
-	f.primaryClient = primaryClient
+	f.primaryClient.Store(&primaryClient)
+
+	if f.primaryConfig.PasswordFilePath != "" {
+		primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
+		if err != nil {
+			return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
+		}
+		f.watchers = append(f.watchers, primaryWatcher)
+	}
+
 	if f.archiveConfig.Enabled {
-		f.archiveClient, err = f.newClientFn(f.archiveConfig, logger, metricsFactory)
+		archiveClient, err := f.newClientFn(f.archiveConfig, logger, metricsFactory)
 		if err != nil {
 			return fmt.Errorf("failed to create archive Elasticsearch client: %w", err)
 		}
+		f.archiveClient.Store(&archiveClient)
+
+		if f.archiveConfig.PasswordFilePath != "" {
+			archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.PasswordFilePath}, f.onArchivePasswordChange, f.logger)
+			if err != nil {
+				return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
+			}
+			f.watchers = append(f.watchers, archiveWatcher)
+		}
 	}
+
 	return nil
+}
+
+func (f *Factory) getPrimaryClient() es.Client {
+	return *(f.primaryClient.Load())
+}
+
+func (f *Factory) getArchiveClient() es.Client {
+	return *f.archiveClient.Load()
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.primaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
+	return createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.primaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.primaryClient, f.primaryConfig, f.logger)
+	return createDependencyReader(f.getPrimaryClient, f.primaryConfig, f.logger)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -130,7 +164,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanReader(f.archiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
+	return createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -138,11 +172,11 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.archiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
 }
 
 func createSpanReader(
-	client es.Client,
+	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
 	mFactory metrics.Factory,
@@ -153,7 +187,7 @@ func createSpanReader(
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
-		Client:                        client,
+		Client:                        clientFn,
 		MaxDocCount:                   cfg.MaxDocCount,
 		MaxSpanAge:                    cfg.MaxSpanAge,
 		IndexPrefix:                   cfg.IndexPrefix,
@@ -172,7 +206,7 @@ func createSpanReader(
 }
 
 func createSpanWriter(
-	client es.Client,
+	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
 	mFactory metrics.Factory,
@@ -202,7 +236,7 @@ func createSpanWriter(
 		return nil, err
 	}
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
-		Client:                 client,
+		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
 		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
 		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,
@@ -226,12 +260,12 @@ func createSpanWriter(
 }
 
 func createDependencyReader(
-	client es.Client,
+	clientFn func() es.Client,
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
-		Client:              client,
+		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.IndexPrefix,
 		IndexDateLayout:     cfg.IndexDateLayoutDependencies,
@@ -245,8 +279,47 @@ var _ io.Closer = (*Factory)(nil)
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
-		cfg.TLS.Close()
+	var errs []error
+	for _, w := range f.watchers {
+		errs = append(errs, w.Close())
 	}
-	return f.Options.GetPrimary().TLS.Close()
+	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
+		errs = append(errs, cfg.TLS.Close())
+	}
+	errs = append(errs, f.Options.GetPrimary().TLS.Close())
+	return errors.Join(errs...)
+}
+
+func (f *Factory) onPrimaryPasswordChange() {
+	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient)
+}
+
+func (f *Factory) onArchivePasswordChange() {
+	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient)
+}
+
+func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client]) {
+	newPassword, err := loadTokenFromFile(cfg.PasswordFilePath)
+	if err != nil {
+		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
+		return
+	}
+	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
+	newCfg := *cfg // copy by value
+	newCfg.Password = newPassword
+	newCfg.PasswordFilePath = "" // avoid error that both are set
+	primaryClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
+	if err != nil {
+		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
+	} else {
+		client.Store(&primaryClient)
+	}
+}
+
+func loadTokenFromFile(path string) (string, error) {
+	b, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }

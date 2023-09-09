@@ -39,14 +39,14 @@ const (
 
 // ServiceOperationStorage stores service to operation pairs.
 type ServiceOperationStorage struct {
-	client       es.Client
+	client       func() es.Client
 	logger       *zap.Logger
 	serviceCache cache.Cache
 }
 
 // NewServiceOperationStorage returns a new ServiceOperationStorage.
 func NewServiceOperationStorage(
-	client es.Client,
+	client func() es.Client,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
@@ -72,7 +72,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 
 	cacheKey := hashCode(service)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		s.client.Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
+		s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
 	}
 }
@@ -80,7 +80,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 func (s *ServiceOperationStorage) getServices(context context.Context, indices []string, maxDocCount int) ([]string, error) {
 	serviceAggregation := getServicesAggregation(maxDocCount)
 
-	searchService := s.client.Search(indices...).
+	searchService := s.client().Search(indices...).
 		Size(0). // set to 0 because we don't want actual documents.
 		IgnoreUnavailable(true).
 		Aggregation(servicesAggregation, serviceAggregation)
@@ -110,7 +110,7 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	serviceFilter := getOperationsAggregation(maxDocCount)
 
-	searchService := s.client.Search(indices...).
+	searchService := s.client().Search(indices...).
 		Size(0).
 		Query(serviceQuery).
 		IgnoreUnavailable(true).
