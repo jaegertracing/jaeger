@@ -464,7 +464,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 	| sed 's/ //g')
 
 .PHONY: proto
-proto: init-submodules proto-prepare-otel
+proto: proto-prepare-otel
 	# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance
