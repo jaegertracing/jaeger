@@ -46,7 +46,10 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 	if err != nil {
 		return fmt.Errorf("cannot retrieve trace: %w", err)
 	}
-	resourceSpans := jaegerSpansToOTLP(trace.GetSpans())
+	resourceSpans, err := modelToOTLP(trace.GetSpans())
+	if err != nil {
+		return err
+	}
 	return stream.Send(&api_v3.SpansResponseChunk{
 		ResourceSpans: resourceSpans,
 	})
@@ -103,7 +106,10 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 		return err
 	}
 	for _, t := range traces {
-		resourceSpans := jaegerSpansToOTLP(t.GetSpans())
+		resourceSpans, err := modelToOTLP(t.GetSpans())
+		if err != nil {
+			return err
+		}
 		stream.Send(&api_v3.SpansResponseChunk{
 			ResourceSpans: resourceSpans,
 		})
