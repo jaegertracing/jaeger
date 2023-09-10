@@ -151,7 +151,7 @@ func uint64ToTraceID(t *testing.T, high, low uint64) []byte {
 	buf := make([]byte, 16)
 	_, err := traceID.MarshalTo(buf)
 	require.NoError(t, err)
-	return buf[:]
+	return buf
 }
 
 func TestGRPCGateway(t *testing.T) {
