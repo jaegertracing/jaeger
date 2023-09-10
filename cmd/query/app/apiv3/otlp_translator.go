@@ -17,10 +17,10 @@ package apiv3
 import (
 	"fmt"
 
+	"github.com/gogo/protobuf/proto"
 	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
