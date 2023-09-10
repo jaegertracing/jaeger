@@ -33,4 +33,4 @@ jobs:
         go-version: 1.21.x
 
     - name: Run protogen validation
-      run: make proto && git diff --name-status --exit-code
+      run: make init-submodules && make proto && git diff --name-status --exit-code

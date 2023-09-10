@@ -143,7 +143,15 @@ func testGRPCGatewayWithTenancy(t *testing.T, basePath string, serverTLS tlscfg.
 	err = jsonpb.Unmarshal(envelope.Result, &spansResponse)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(spansResponse.GetResourceSpans()))
-	assert.Equal(t, uint64ToTraceID(traceID.High, traceID.Low), spansResponse.GetResourceSpans()[0].GetInstrumentationLibrarySpans()[0].GetSpans()[0].GetTraceId())
+	assert.Equal(t, uint64ToTraceID(t, traceID.High, traceID.Low), spansResponse.GetResourceSpans()[0].GetScopeSpans()[0].GetSpans()[0].GetTraceId())
+}
+
+func uint64ToTraceID(t *testing.T, high, low uint64) []byte {
+	traceID := model.NewTraceID(high, low)
+	buf := make([]byte, 16)
+	_, err := traceID.MarshalTo(buf)
+	require.NoError(t, err)
+	return buf
 }
 
 func TestGRPCGateway(t *testing.T) {
