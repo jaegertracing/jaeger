@@ -322,17 +322,20 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 
 	t.Log("replace password in the file")
 	client1 := getClient()
+	client2 := getClient()
 	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
 	require.NoError(t, os.WriteFile(newPwdFile, []byte("second password"), 0o600))
 	require.NoError(t, os.Rename(newPwdFile, pwdFile))
 	assert.Eventually(t,
 		func() bool {
-			client2 := getClient()
+			client2 = getClient()
 			return client1 != client2
 		},
 		5*time.Second, time.Millisecond,
 		"expecting es.Client to change for the new password",
 	)
+	defer client1.Close()
+	defer client2.Close()
 	require.NoError(t, writer.WriteSpan(context.Background(), span))
 	require.Equal(t, ":second password", *authReceived.Load())
 }
