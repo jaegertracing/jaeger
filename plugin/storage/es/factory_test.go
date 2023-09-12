@@ -68,6 +68,7 @@ func (m *mockClientBuilder) NewClient(_ *escfg.Configuration, logger *zap.Logger
 		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
 		c.On("CreateTemplate", mock.Anything).Return(tService)
 		c.On("GetVersion").Return(uint(6))
+		c.On("Close").Return(nil)
 		return c, nil
 	}
 	return nil, m.err
@@ -335,6 +336,12 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 	)
 	require.NoError(t, writer.WriteSpan(context.Background(), span))
 	require.Equal(t, ":second password", *authReceived.Load())
+}
+
+func TestFactoryESClientsAreNil(t *testing.T) {
+	f := &Factory{}
+	assert.Nil(t, f.getPrimaryClient())
+	assert.Nil(t, f.getArchiveClient())
 }
 
 func TestPasswordFromFileErrors(t *testing.T) {
