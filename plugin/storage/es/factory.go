@@ -137,11 +137,17 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 }
 
 func (f *Factory) getPrimaryClient() es.Client {
-	return *(f.primaryClient.Load())
+	if c := f.primaryClient.Load(); c != nil {
+		return *c
+	}
+	return nil
 }
 
 func (f *Factory) getArchiveClient() es.Client {
-	return *f.archiveClient.Load()
+	if c := f.archiveClient.Load(); c != nil {
+		return *c
+	}
+	return nil
 }
 
 // CreateSpanReader implements storage.Factory

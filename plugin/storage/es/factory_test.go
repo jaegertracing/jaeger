@@ -338,6 +338,12 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 	require.Equal(t, ":second password", *authReceived.Load())
 }
 
+func TestFactoryESClientsAreNil(t *testing.T) {
+	f := &Factory{}
+	assert.Nil(t, f.getPrimaryClient())
+	assert.Nil(t, f.getArchiveClient())
+}
+
 func TestPasswordFromFileErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(mockEsServerResponse)
