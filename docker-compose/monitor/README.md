@@ -77,38 +77,43 @@ For each "run" make target, you should expect to see the following in the Monito
 
 ## Sending traces
 
-It is possible to send traces to this SPM Development Environment from your own application and viewing their RED metrics.
+We will use [tracegen](https://github.com/jaegertracing/jaeger/tree/main/cmd/tracegen)
+to emit traces and visualise the metrics derived from these traces.
 
-For the purposes of this example, the Opentelemetry Collector of the [docker-compose.yml](./docker-compose.yml) file
-has been configured to listen on port `14278` for Thrift formatted traces sent directly from applications to the
-collector over HTTP.
-
-An example Python script has been provided to demonstrate sending individual traces to the Opentelemetry Collector running in
-this SPM Development Environment.
-
-### Setup
-
-Run the following commands to setup the Python virtual environment and install the Opentelemetry SDK:
+Start the local stack needed for SPM, if not already done. Note the [docker-compose.yml](./docker-compose.yml) exposes
+port 4317, which is the port that `tracegen` will emit traces to:
 ```shell
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+docker compose up
 ```
 
-Then run this example a number of times to generate some traces: 
-
+Generate a specific number of traces with:
 ```shell
-./otlp_exporter_example.py
+docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://otel_collector:4317" \
+  --network monitor_backend \
+  --rm \
+  jaegertracing/jaeger-tracegen:1.49 \
+    -trace-exporter otlp-grpc \
+    -traces 1
+```
+
+Emit traces over a period of time with:
+```shell
+docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://otel_collector:4317" \
+  --network monitor_backend \
+  --rm \
+  jaegertracing/jaeger-tracegen:1.49 \
+    -trace-exporter otlp-grpc \
+    -duration 5s
 ```
 
 Navigate to Jaeger UI at http://localhost:16686/ and you should be able to see traces from this demo application
-under the `my_service` service:
+under the `tracegen` service:
 
-![My Service Traces](images/my_service_traces.png)
+![TraceGen Traces](images/tracegen_traces.png)
 
 Then navigate to the Monitor tab at http://localhost:16686/monitor to view the RED metrics:
 
-![My Service RED Metrics](images/my_service_metrics.png)
+![TraceGen RED Metrics](images/tracegen_metrics.png)
 
 ## Migrating to Span Metrics Connector 
 
