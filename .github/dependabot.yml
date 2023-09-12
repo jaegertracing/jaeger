@@ -28,12 +28,3 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-
-  - package-ecosystem: "pip"
-    directory: "/docker-compose/monitor"
-    schedule:
-      interval: "weekly"
-    groups:
-      all:
-        patterns:
-          - "*"
