@@ -68,6 +68,7 @@ func (m *mockClientBuilder) NewClient(_ *escfg.Configuration, logger *zap.Logger
 		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
 		c.On("CreateTemplate", mock.Anything).Return(tService)
 		c.On("GetVersion").Return(uint(6))
+		c.On("Close").Return(nil)
 		return c, nil
 	}
 	return nil, m.err
@@ -360,7 +361,14 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	logger, buf := testutils.NewEchoLogger(t)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	defer f.Close()
+
+	for _, w := range f.watchers {
+		w.Close()
+	}
+	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
+		cfg.TLS.Close()
+	}
+	f.Options.GetPrimary().TLS.Close()
 
 	f.primaryConfig.Servers = []string{}
 	f.onPrimaryPasswordChange()
