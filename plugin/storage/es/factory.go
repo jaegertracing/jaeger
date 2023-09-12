@@ -308,7 +308,7 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 	newCfg := *cfg // copy by value
 	newCfg.Password = newPassword
 	newCfg.PasswordFilePath = "" // avoid error that both are set
-	primaryClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
+	newClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 	} else {
