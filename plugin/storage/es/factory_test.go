@@ -361,14 +361,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	logger, buf := testutils.NewEchoLogger(t)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-
-	for _, w := range f.watchers {
-		w.Close()
-	}
-	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
-		cfg.TLS.Close()
-	}
-	f.Options.GetPrimary().TLS.Close()
+	defer f.Close()
 
 	f.primaryConfig.Servers = []string{}
 	f.onPrimaryPasswordChange()

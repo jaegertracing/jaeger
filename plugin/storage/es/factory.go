@@ -287,10 +287,11 @@ func (f *Factory) Close() error {
 	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
 		errs = append(errs, cfg.TLS.Close())
 	}
-	errs = append(errs,
-		f.Options.GetPrimary().TLS.Close(),
-		f.getArchiveClient().Close(),
-		f.getPrimaryClient().Close())
+	errs = append(errs, f.Options.GetPrimary().TLS.Close())
+	errs = append(errs, f.getPrimaryClient().Close())
+	if client := f.getArchiveClient(); client != nil {
+		errs = append(errs, client.Close())
+	}
 
 	return errors.Join(errs...)
 }
