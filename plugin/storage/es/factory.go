@@ -280,13 +280,18 @@ var _ io.Closer = (*Factory)(nil)
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
+
 	for _, w := range f.watchers {
 		errs = append(errs, w.Close())
 	}
 	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
 		errs = append(errs, cfg.TLS.Close())
 	}
-	errs = append(errs, f.Options.GetPrimary().TLS.Close())
+	errs = append(errs,
+		f.Options.GetPrimary().TLS.Close(),
+		f.getArchiveClient().Close(),
+		f.getPrimaryClient().Close())
+
 	return errors.Join(errs...)
 }
 
@@ -308,11 +313,12 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 	newCfg := *cfg // copy by value
 	newCfg.Password = newPassword
 	newCfg.PasswordFilePath = "" // avoid error that both are set
-	primaryClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
+	newClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 	} else {
-		client.Store(&primaryClient)
+		oldclinet := *client.Swap(&newClient)
+		oldclinet.Close()
 	}
 }
 
