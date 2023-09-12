@@ -80,8 +80,7 @@ For each "run" make target, you should expect to see the following in the Monito
 We will use [tracegen](https://github.com/jaegertracing/jaeger/tree/main/cmd/tracegen)
 to emit traces to the OpenTelemetry Collector which, in turn, will aggregate the trace data into metrics.
 
-Start the local stack needed for SPM, if not already done. Note the [docker-compose.yml](./docker-compose.yml) exposes
-port 4317, which is the port that `tracegen` will emit traces to:
+Start the local stack needed for SPM, if not already done:
 ```shell
 docker compose up
 ```
