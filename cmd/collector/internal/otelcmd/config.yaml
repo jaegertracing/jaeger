@@ -1,0 +1,39 @@
+extensions:
+  # health_check:
+  # pprof:
+  #   endpoint: 0.0.0.0:1777
+  # zpages:
+  #   endpoint: 0.0.0.0:55679
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+  jaeger:
+    protocols:
+      grpc:
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+  zipkin:
+
+processors:
+  batch:
+
+exporters:
+  logging:
+    # logLevel: debug
+
+service:
+
+  pipelines:
+
+    traces:
+      receivers: [otlp, jaeger, zipkin]
+      processors: [batch]
+      exporters: [logging]
+
+  # extensions: [health_check, pprof, zpages]

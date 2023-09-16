@@ -28,6 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
+	"github.com/jaegertracing/jaeger/cmd/collector/internal/otelcmd"
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/env"
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -142,6 +143,7 @@ func main() {
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))
+	command.AddCommand(otelcmd.Command())
 
 	config.AddFlags(
 		v,
