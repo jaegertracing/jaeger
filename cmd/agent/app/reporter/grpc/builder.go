@@ -101,9 +101,8 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			dialTarget = r.Scheme() + ":///round_robin"
 			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 		} else {
-			hostPort := hostPorts[0]
 			// if strings.
-			dialTarget = hostPort
+			dialTarget = hostPorts[0]
 		}
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
