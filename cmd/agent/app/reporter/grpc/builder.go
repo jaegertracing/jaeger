@@ -85,7 +85,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		var hostPorts []string
 		// use explicitly localhost as bind address if :port is specified. The :port is not recognized by NO_PROXY
 		for _, endpoint := range b.CollectorHostPorts {
-			if strings.HasPrefix(":", endpoint) {
+			if strings.HasPrefix(endpoint, ":") {
 				endpoint = "localhost" + endpoint
 			}
 			hostPorts = append(hostPorts, endpoint)
