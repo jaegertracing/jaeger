@@ -101,7 +101,6 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			dialTarget = r.Scheme() + ":///round_robin"
 			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 		} else {
-			// if strings.
 			dialTarget = hostPorts[0]
 		}
 	}
