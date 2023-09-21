@@ -82,7 +82,15 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		if b.CollectorHostPorts == nil {
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
 		}
-		if len(b.CollectorHostPorts) > 1 {
+		var hostPorts []string
+		// use explicitly localhost as bind address if :port is specified. The :port is not recognized by NO_PROXY
+		for _, endpoint := range b.CollectorHostPorts {
+			if strings.HasPrefix(":", endpoint) {
+				endpoint = "localhost" + endpoint
+			}
+			hostPorts = append(hostPorts, endpoint)
+		}
+		if len(hostPorts) > 1 {
 			r := manual.NewBuilderWithScheme("jaeger-manual")
 			dialOptions = append(dialOptions, grpc.WithResolvers(r))
 			var resolvedAddrs []resolver.Address
@@ -93,7 +101,9 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 			dialTarget = r.Scheme() + ":///round_robin"
 			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 		} else {
-			dialTarget = b.CollectorHostPorts[0]
+			hostPort := hostPorts[0]
+			// if strings.
+			dialTarget = hostPort
 		}
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))

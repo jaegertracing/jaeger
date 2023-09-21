@@ -17,6 +17,7 @@ package apiv3
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -32,6 +33,10 @@ import (
 
 // RegisterGRPCGateway registers api_v3 endpoints into provided mux.
 func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tm *tenancy.Manager) error {
+	// use explicitly localhost as bind address if :port is specified. The :port is not recognized by NO_PROXY
+	if strings.HasPrefix(":", grpcEndpoint) {
+		grpcEndpoint = "localhost" + grpcEndpoint
+	}
 	jsonpb := &runtime.JSONPb{}
 
 	muxOpts := []runtime.ServeMuxOption{

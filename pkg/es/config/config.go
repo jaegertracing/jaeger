@@ -373,6 +373,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 			return nil, err
 		}
 		return &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: ctlsConfig,
 		}, nil
 	}
