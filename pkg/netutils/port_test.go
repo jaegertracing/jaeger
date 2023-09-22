@@ -66,3 +66,9 @@ func TestGetPort(t *testing.T) {
 		}
 	}
 }
+
+func TestFixLocalhost(t *testing.T) {
+	endpoints := []string{"collector:1111", ":2222"}
+	fixed := FixLocalhost(endpoints)
+	assert.Equal(t, []string{"collector:1111", "localhost:2222"}, fixed)
+}
