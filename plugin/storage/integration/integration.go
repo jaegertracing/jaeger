@@ -32,8 +32,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -50,6 +52,7 @@ type StorageIntegration struct {
 	SpanReader       spanstore.Reader
 	DependencyWriter dependencystore.Writer
 	DependencyReader dependencystore.Reader
+	SamplingStore    samplingstore.Store
 	Fixtures         []*QueryFixtures
 
 	// TODO: remove this after all storage backends return spanKind from GetOperations
@@ -416,6 +419,59 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	assert.EqualValues(t, expected, actual)
 }
 
+// === Sampling Store Integration Tests ===
+
+func (s *StorageIntegration) testGetThroughput(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+	start := time.Now()
+
+	s.insertThroughput(t)
+
+	expected := 2
+	var actual []string
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		actual, err := s.SamplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
+		require.NoError(t, err)
+		fmt.Printf("actual: %v\n", actual)
+		fmt.Printf("expected: %v\n", expected)
+		return assert.ObjectsAreEqualValues(expected, len(actual))
+	})
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
+}
+
+func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	s.SamplingStore.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
+
+	expected := samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}
+	var actual samplemodel.ServiceOperationProbabilities
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		actual, err := s.SamplingStore.GetLatestProbabilities()
+		require.NoError(t, err)
+		return assert.ObjectsAreEqualValues(expected, actual)
+	})
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
+}
+
+func (s *StorageIntegration) insertThroughput(t *testing.T) {
+	fmt.Println("Inside the insertThroughput function")
+	throughputs := []*samplemodel.Throughput{
+		{Service: "my-svc", Operation: "op"},
+		{Service: "our-svc", Operation: "op2"},
+	}
+	err := s.SamplingStore.InsertThroughput(throughputs)
+	require.NoError(t, err)
+}
+
 // IntegrationTestAll runs all integration tests
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
@@ -424,4 +480,6 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("GetDependencies", s.testGetDependencies)
+	t.Run("GetThroughput", s.testGetThroughput)
+	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
