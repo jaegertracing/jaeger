@@ -82,26 +82,19 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		if b.CollectorHostPorts == nil {
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
 		}
-		var collectorEndpoints []string
-		// use explicitly localhost as bind address if :port is specified. The :port is not recognized by NO_PROXY
-		for _, endpoint := range b.CollectorHostPorts {
-			if strings.HasPrefix(endpoint, ":") {
-				endpoint = "localhost" + endpoint
-			}
-			collectorEndpoints = append(collectorEndpoints, endpoint)
-		}
-		if len(collectorEndpoints) > 1 {
+		b.fixHosts()
+		if len(b.CollectorHostPorts) > 1 {
 			r := manual.NewBuilderWithScheme("jaeger-manual")
 			dialOptions = append(dialOptions, grpc.WithResolvers(r))
 			var resolvedAddrs []resolver.Address
-			for _, addr := range collectorEndpoints {
+			for _, addr := range b.CollectorHostPorts {
 				resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
 			}
 			r.InitialState(resolver.State{Addresses: resolvedAddrs})
 			dialTarget = r.Scheme() + ":///round_robin"
-			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(collectorEndpoints, ",")))
+			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 		} else {
-			dialTarget = collectorEndpoints[0]
+			dialTarget = b.CollectorHostPorts[0]
 		}
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
@@ -135,4 +128,13 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 	}(conn, connectMetrics)
 
 	return conn, nil
+}
+
+func (b *ConnBuilder) fixHosts() {
+	for i := range b.CollectorHostPorts {
+		if strings.HasPrefix(b.CollectorHostPorts[i], ":") {
+			// use explicitly localhost as bind address if :port is specified. The :port is not recognized by NO_PROXY
+			b.CollectorHostPorts[i] = "localhost" + b.CollectorHostPorts[i]
+		}
+	}
 }
