@@ -425,9 +425,3 @@ func TestBuilderWithAdditionalDialOptions(t *testing.T) {
 	err = r.Invoke(context.Background(), "test", map[string]string{}, map[string]string{}, []grpc.CallOption{}...)
 	assert.Error(t, err, "should error because no server is running")
 }
-
-func TestFixHosts(t *testing.T) {
-	b := ConnBuilder{CollectorHostPorts: []string{"collector:1111", ":2222"}}
-	b.fixHosts()
-	assert.Equal(t, []string{"collector:1111", "localhost:2222"}, b.CollectorHostPorts)
-}
