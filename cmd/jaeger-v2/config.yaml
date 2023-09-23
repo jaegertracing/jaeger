@@ -4,6 +4,7 @@ extensions:
   #   endpoint: 0.0.0.0:1777
   # zpages:
   #   endpoint: 0.0.0.0:55679
+  jaeger_query:
 
 receivers:
   otlp:
@@ -28,12 +29,10 @@ exporters:
     # logLevel: debug
 
 service:
-
   pipelines:
-
     traces:
       receivers: [otlp, jaeger, zipkin]
       processors: [batch]
       exporters: [logging]
 
-  # extensions: [health_check, pprof, zpages]
+  extensions: [jaeger_query]
