@@ -1,15 +1,11 @@
 // Copyright (c) 2023 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package otelcmd
+package internal
 
 import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
@@ -20,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/ballastextension"
 	"go.opentelemetry.io/collector/extension/zpagesextension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
@@ -35,7 +32,7 @@ func components() (otelcol.Factories, error) {
 
 	factories.Extensions, err = extension.MakeFactoryMap(
 		// standard
-		// ballastextension.NewFactory(),
+		ballastextension.NewFactory(),
 		zpagesextension.NewFactory(),
 		// add-ons
 		// TODO add adaptive sampling
@@ -74,11 +71,7 @@ func components() (otelcol.Factories, error) {
 		batchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
 		// add-ons
-		attributesprocessor.NewFactory(),
-		resourcedetectionprocessor.NewFactory(),
-		resourceprocessor.NewFactory(),
 		spanmetricsprocessor.NewFactory(),
-		spanprocessor.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

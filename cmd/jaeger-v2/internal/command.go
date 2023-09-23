@@ -1,7 +1,7 @@
 // Copyright (c) 2023 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package otelcmd
+package internal
 
 import (
 	"log"
@@ -9,7 +9,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
+
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
+
+const description = "Jaeger backend v2"
 
 func Command() *cobra.Command {
 	factories, err := components()
@@ -17,10 +21,12 @@ func Command() *cobra.Command {
 		log.Fatalf("failed to build components: %v", err)
 	}
 
+	versionInfo := version.Get()
+
 	info := component.BuildInfo{
-		Command:     "otel",
-		Description: "OpenTelemtery Collector compatible mode",
-		Version:     "2.0.0",
+		Command:     "jaeger-v2",
+		Description: description,
+		Version:     versionInfo.GitVersion,
 	}
 
 	cmd := otelcol.NewCommand(
@@ -30,8 +36,8 @@ func Command() *cobra.Command {
 		},
 	)
 
-	cmd.Short = "Run in OpenTelemtery Collector compatible mode."
-	cmd.Long = "Run in OpenTelemtery Collector compatible mode."
+	cmd.Short = description
+	cmd.Long = description
 
 	return cmd
 }

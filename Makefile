@@ -219,13 +219,17 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 .PHONY: rebuild-ui
 rebuild-ui:
 	bash ./scripts/rebuild-ui.sh
-	
+
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
 build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
 build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: SUFFIX = -debug
+
+.PHONY: build-jaeger-v2
+build-jaeger-v2:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/jaeger-v2/jaeger-v2$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/jaeger-v2/main.go
 
 .PHONY: build-all-in-one build-all-in-one-debug
 build-all-in-one build-all-in-one-debug: build-ui
