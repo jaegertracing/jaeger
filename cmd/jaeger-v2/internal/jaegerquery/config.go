@@ -5,9 +5,10 @@ package jaegerquery
 
 import (
 	"github.com/asaskevich/govalidator"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 var _ component.ConfigValidator = (*Config)(nil)
