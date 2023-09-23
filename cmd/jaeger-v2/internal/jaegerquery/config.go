@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"github.com/asaskevich/govalidator"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 )
@@ -15,6 +16,7 @@ var _ component.ConfigValidator = (*Config)(nil)
 type Config struct {
 	TraceStorage                  string `valid:"required" mapstructure:"trace_storage"`
 	confighttp.HTTPServerSettings `mapstructure:",squash"`
+	Tenancy                       tenancy.Options `mapstructure:"multi_tenancy"`
 }
 
 func (cfg *Config) Validate() error {

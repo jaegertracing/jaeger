@@ -11,16 +11,13 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 var _ extension.Extension = (*server)(nil)
@@ -28,6 +25,7 @@ var _ extension.Extension = (*server)(nil)
 type server struct {
 	config *Config
 	logger *zap.Logger
+	server *queryApp.Server
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -57,38 +55,53 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if f == nil {
 		return fmt.Errorf("cannot find trace_storage named '%s'", s.config.TraceStorage)
 	}
+
+	spanReader, err := f.CreateSpanReader()
+	if err != nil {
+		return fmt.Errorf("cannot create span reader: %w", err)
+	}
+	// TODO
+	// spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
+
+	depReader, err := f.CreateDependencyReader()
+	if err != nil {
+		return fmt.Errorf("cannot create dependencies reader: %w", err)
+	}
+
+	qs := querysvc.NewQueryService(spanReader, depReader, querysvc.QueryServiceOptions{})
+	metricsQueryService, _ := disabled.NewMetricsReader()
+	tm := tenancy.NewManager(&s.config.Tenancy)
+
+	s.server, err = queryApp.NewServer(
+		s.logger,
+		qs,
+		metricsQueryService,
+		makeQueryOptions(),
+		tm,
+		jtracer.NoOp(),
+	)
+	if err != nil {
+		return fmt.Errorf("could not create jaeger-query: %w", err)
+	}
+
+	if err := s.server.Start(); err != nil {
+		return fmt.Errorf("could not start jaeger-query: %w", err)
+	}
+
 	return nil
+}
+
+func makeQueryOptions() *queryApp.QueryOptions {
+	return &queryApp.QueryOptions{
+		// TODO
+		HTTPHostPort: ports.PortToHostPort(ports.QueryHTTP),
+		GRPCHostPort: ports.PortToHostPort(ports.QueryGRPC),
+	}
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
+	if s.server != nil {
+		return s.server.Close()
+	}
 	return nil
-}
-
-func startQuery(
-	svc *flags.Service,
-	qOpts *queryApp.QueryOptions,
-	queryOpts *querysvc.QueryServiceOptions,
-	spanReader spanstore.Reader,
-	depReader dependencystore.Reader,
-	metricsQueryService querysvc.MetricsQueryService,
-	baseFactory metrics.Factory,
-	tm *tenancy.Manager,
-	jt *jtracer.JTracer,
-) *queryApp.Server {
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
-	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, jt)
-	if err != nil {
-		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
-	}
-	go func() {
-		for s := range server.HealthCheckStatus() {
-			svc.SetHealthCheckStatus(s)
-		}
-	}()
-	if err := server.Start(); err != nil {
-		svc.Logger.Fatal("Could not start jaeger-query", zap.Error(err))
-	}
-
-	return server
 }

@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -68,11 +69,11 @@ type Server struct {
 func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, tracer *jtracer.JTracer) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid HTTP server host:port: %w", err)
 	}
 	_, grpcPort, err := net.SplitHostPort(options.GRPCHostPort)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid gRPC server host:port: %w", err)
 	}
 
 	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && (grpcPort == httpPort) {
