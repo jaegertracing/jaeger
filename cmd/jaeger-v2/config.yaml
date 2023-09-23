@@ -14,7 +14,7 @@ extensions:
   #   endpoint: 0.0.0.0:55679
 
   jaeger_query:
-    # trace_storage: memstore
+    trace_storage: memstore
 
   jaeger_storage:
     memory:
