@@ -4,10 +4,20 @@
 package jaegerquery
 
 import (
+	"github.com/asaskevich/govalidator"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 )
 
-// Config has the configuration for jaeger-query,
+var _ component.ConfigValidator = (*Config)(nil)
+
+// Config represents the configuration for jaeger-query,
 type Config struct {
+	TraceStorage                  string `valid:"required" mapstructure:"trace_storage"`
 	confighttp.HTTPServerSettings `mapstructure:",squash"`
+}
+
+func (cfg *Config) Validate() error {
+	_, err := govalidator.ValidateStruct(cfg)
+	return err
 }

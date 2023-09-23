@@ -1,7 +1,7 @@
 // Copyright (c) 2023 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package jaegerquery
+package jaegerstorage
 
 import (
 	"context"
@@ -12,56 +12,54 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
-var _ extension.Extension = (*server)(nil)
+var _ extension.Extension = (*StorageExt)(nil)
 
-type server struct {
-	config *Config
-	logger *zap.Logger
+type StorageExt struct {
+	config    *Config
+	logger    *zap.Logger
+	factories map[string]storage.Factory
 }
 
-func newServer(config *Config, otel component.TelemetrySettings) *server {
-	return &server{
-		config: config,
-		logger: otel.Logger,
+func newStorageExt(config *Config, otel component.TelemetrySettings) *StorageExt {
+	return &StorageExt{
+		config:    config,
+		logger:    otel.Logger,
+		factories: make(map[string]storage.Factory),
 	}
 }
 
-func (s *server) Start(ctx context.Context, host component.Host) error {
-	var storageExt component.Component
-	for id, ext := range host.GetExtensions() {
-		if id.Type() == jaegerstorage.ComponentType {
-			storageExt = ext
-			break
+func (s *StorageExt) Start(ctx context.Context, host component.Host) error {
+	for name, mem := range s.config.Memory {
+		if _, ok := s.factories[name]; ok {
+			return fmt.Errorf("duplicate memory storage name %s", name)
 		}
-	}
-	if storageExt == nil {
-		return fmt.Errorf(
-			"cannot find extension '%s'. Make sure it comes before '%s' in the config",
-			jaegerstorage.ComponentType,
-			typeStr,
+		s.factories[name] = memory.NewFactoryWithConfig(
+			mem,
+			metrics.NullFactory,
+			s.logger.With(zap.String("storage_name", name)),
 		)
 	}
-	ext := storageExt.(*jaegerstorage.StorageExt)
-	f := ext.GetStorageFactory(s.config.TraceStorage)
-	if f == nil {
-		return fmt.Errorf("cannot find trace_storage named '%s'", s.config.TraceStorage)
-	}
 	return nil
 }
 
-func (s *server) Shutdown(ctx context.Context) error {
+func (s *StorageExt) Shutdown(ctx context.Context) error {
 	return nil
+}
+
+func (s *StorageExt) GetStorageFactory(name string) storage.Factory {
+	return s.factories[name]
 }
 
 func startQuery(

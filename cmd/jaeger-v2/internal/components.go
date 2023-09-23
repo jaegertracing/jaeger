@@ -4,7 +4,6 @@
 package internal
 
 import (
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerquery"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
@@ -25,6 +24,9 @@ import (
 	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerstorage"
 )
 
 func components() (otelcol.Factories, error) {
@@ -37,6 +39,7 @@ func components() (otelcol.Factories, error) {
 		zpagesextension.NewFactory(),
 		// add-ons
 		jaegerquery.NewFactory(),
+		jaegerstorage.NewFactory(),
 		// TODO add adaptive sampling
 	)
 	if err != nil {

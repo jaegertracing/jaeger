@@ -6,10 +6,11 @@ package jaegerquery
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/ports"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
+
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
