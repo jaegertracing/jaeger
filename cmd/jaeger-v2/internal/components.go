@@ -25,8 +25,9 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerquery"
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/exporters/storageexporter"
+	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerstorage"
 )
 
 func components() (otelcol.Factories, error) {
@@ -64,8 +65,9 @@ func components() (otelcol.Factories, error) {
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
 		// add-ons
-		// elasticsearch.NewFactory(),
+		storageexporter.NewFactory(), // generic exporter to Jaeger v1 spanstore.SpanWriter
 		kafkaexporter.NewFactory(),
+		// elasticsearch.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

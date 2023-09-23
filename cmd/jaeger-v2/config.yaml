@@ -4,7 +4,7 @@ service:
     traces:
       receivers: [otlp, jaeger, zipkin]
       processors: [batch]
-      exporters: [logging]
+      exporters: [jaeger_storage_exporter]
 
 extensions:
   # health_check:
@@ -41,5 +41,5 @@ processors:
   batch:
 
 exporters:
-  logging:
-    # logLevel: debug
+  jaeger_storage_exporter:
+    trace_storage: memstore

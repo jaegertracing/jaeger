@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
@@ -36,24 +36,9 @@ func newServer(config *Config, otel component.TelemetrySettings) *server {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	var storageExt component.Component
-	for id, ext := range host.GetExtensions() {
-		if id.Type() == jaegerstorage.ComponentType {
-			storageExt = ext
-			break
-		}
-	}
-	if storageExt == nil {
-		return fmt.Errorf(
-			"cannot find extension '%s'. Make sure it comes before '%s' in the config",
-			jaegerstorage.ComponentType,
-			typeStr,
-		)
-	}
-	ext := storageExt.(*jaegerstorage.StorageExt)
-	f := ext.GetStorageFactory(s.config.TraceStorage)
-	if f == nil {
-		return fmt.Errorf("cannot find trace_storage named '%s'", s.config.TraceStorage)
+	f, err := jaegerstorage.GetStorageFactory(s.config.TraceStorage, host)
+	if err != nil {
+		return fmt.Errorf("cannot find storage factory: %w", err)
 	}
 
 	spanReader, err := f.CreateSpanReader()

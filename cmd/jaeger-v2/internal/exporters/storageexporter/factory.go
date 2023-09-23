@@ -1,0 +1,46 @@
+// Copyright (c) 2023 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package storageexporter
+
+import (
+	"context"
+
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
+)
+
+const (
+	// The value of "type" key in configuration.
+	typeStr = "jaeger_storage_exporter"
+)
+
+// NewFactory creates a factory for jaeger_storage_exporter.
+func NewFactory() exporter.Factory {
+	return exporter.NewFactory(
+		typeStr,
+		createDefaultConfig,
+		exporter.WithTraces(createTracesExporter, component.StabilityLevelDevelopment),
+	)
+}
+
+func createDefaultConfig() component.Config {
+	return &Config{}
+}
+
+func createTracesExporter(ctx context.Context, set exporter.CreateSettings, config component.Config) (exporter.Traces, error) {
+	cfg := config.(*Config)
+	ex := newExporter(cfg, set.TelemetrySettings)
+	return exporterhelper.NewTracesExporter(ctx, set, cfg,
+		ex.pushTraces,
+		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
+		// Disable Timeout/RetryOnFailure and SendingQueue
+		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithRetry(exporterhelper.RetrySettings{Enabled: false}),
+		exporterhelper.WithQueue(exporterhelper.QueueSettings{Enabled: false}),
+		exporterhelper.WithStart(ex.start),
+		exporterhelper.WithShutdown(ex.close),
+	)
+}
