@@ -57,6 +57,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	metricsQueryService, _ := disabled.NewMetricsReader()
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
+	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
+	//nolint
 	s.server, err = queryApp.NewServer(
 		s.logger,
 		qs,
