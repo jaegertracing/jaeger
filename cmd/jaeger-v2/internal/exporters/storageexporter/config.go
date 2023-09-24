@@ -8,8 +8,10 @@ import (
 	"go.opentelemetry.io/collector/component"
 )
 
-var _ component.Config = (*Config)(nil)
-var _ component.ConfigValidator = (*Config)(nil)
+var (
+	_ component.Config          = (*Config)(nil)
+	_ component.ConfigValidator = (*Config)(nil)
+)
 
 // Config defines configuration for jaeger_storage_exporter.
 type Config struct {
