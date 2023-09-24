@@ -12,15 +12,13 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
-const (
-	// The value of "type" key in configuration.
-	typeStr = "jaeger_storage_exporter"
-)
+// componentType is the name of this extension in configuration.
+const componentType = component.Type("jaeger_storage_exporter")
 
 // NewFactory creates a factory for jaeger_storage_exporter.
 func NewFactory() exporter.Factory {
 	return exporter.NewFactory(
-		typeStr,
+		componentType,
 		createDefaultConfig,
 		exporter.WithTraces(createTracesExporter, component.StabilityLevelDevelopment),
 	)

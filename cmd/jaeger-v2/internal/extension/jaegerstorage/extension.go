@@ -18,18 +18,19 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 )
 
-var _ extension.Extension = (*StorageExt)(nil)
+var _ extension.Extension = (*storageExt)(nil)
 
-type StorageExt struct {
+type storageExt struct {
 	config    *Config
 	logger    *zap.Logger
 	factories map[string]storage.Factory
 }
 
+// GetStorageFactory locates the extension in Host and retrieves a storage factory from it with the given name.
 func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
 	var comp component.Component
 	for id, ext := range host.GetExtensions() {
-		if id.Type() == ComponentType {
+		if id.Type() == componentType {
 			comp = ext
 			break
 		}
@@ -37,28 +38,28 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 	if comp == nil {
 		return nil, fmt.Errorf(
 			"cannot find extension '%s' (make sure it's defined earlier in the config)",
-			ComponentType,
+			componentType,
 		)
 	}
-	f, ok := comp.(*StorageExt).factories[name]
+	f, ok := comp.(*storageExt).factories[name]
 	if !ok {
 		return nil, fmt.Errorf(
 			"cannot find storage '%s' declared with '%s' extension",
-			name, ComponentType,
+			name, componentType,
 		)
 	}
 	return f, nil
 }
 
-func newStorageExt(config *Config, otel component.TelemetrySettings) *StorageExt {
-	return &StorageExt{
+func newStorageExt(config *Config, otel component.TelemetrySettings) *storageExt {
+	return &storageExt{
 		config:    config,
 		logger:    otel.Logger,
 		factories: make(map[string]storage.Factory),
 	}
 }
 
-func (s *StorageExt) Start(ctx context.Context, host component.Host) error {
+func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 	for name, mem := range s.config.Memory {
 		if _, ok := s.factories[name]; ok {
 			return fmt.Errorf("duplicate memory storage name %s", name)
@@ -69,10 +70,11 @@ func (s *StorageExt) Start(ctx context.Context, host component.Host) error {
 			s.logger.With(zap.String("storage_name", name)),
 		)
 	}
+	// TODO add support for other backends
 	return nil
 }
 
-func (s *StorageExt) Shutdown(ctx context.Context) error {
+func (s *storageExt) Shutdown(ctx context.Context) error {
 	var errs []error
 	for _, factory := range s.factories {
 		if closer, ok := factory.(io.Closer); ok {

@@ -10,14 +10,12 @@ import (
 	"go.opentelemetry.io/collector/extension"
 )
 
-const (
-	// ComponentType is the name of this extension in configuration.
-	ComponentType = component.Type("jaeger_storage")
-)
+// componentType is the name of this extension in configuration.
+const componentType = component.Type("jaeger_storage")
 
 func NewFactory() extension.Factory {
 	return extension.NewFactory(
-		ComponentType,
+		componentType,
 		createDefaultConfig,
 		createExtension,
 		component.StabilityLevelBeta,

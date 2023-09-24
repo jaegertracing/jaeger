@@ -13,13 +13,11 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-const (
-	// The value of extension "type" in configuration.
-	typeStr = "jaeger_query"
-)
+// componentType is the name of this extension in configuration.
+const componentType = component.Type("jaeger_query")
 
 func NewFactory() extension.Factory {
-	return extension.NewFactory(typeStr, createDefaultConfig, createExtension, component.StabilityLevelBeta)
+	return extension.NewFactory(componentType, createDefaultConfig, createExtension, component.StabilityLevelBeta)
 }
 
 func createDefaultConfig() component.Config {
