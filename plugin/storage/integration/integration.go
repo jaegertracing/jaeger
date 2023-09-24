@@ -55,6 +55,9 @@ type StorageIntegration struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
 
+	// TODO: remove this after all storage backends return Source column from GetDependencies
+	GetDependenciesReturnsSource bool
+
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
 	// CleanUp() should ensure that the storage backend is clean before another test.
@@ -381,22 +384,33 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
+	source := model.JaegerDependencyLinkSource
+	if !s.GetDependenciesReturnsSource {
+		source = ""
+	}
+
 	expected := []model.DependencyLink{
 		{
 			Parent:    "hello",
 			Child:     "world",
 			CallCount: uint64(1),
+			Source:    source,
 		},
 		{
 			Parent:    "world",
 			Child:     "hello",
 			CallCount: uint64(3),
+			Source:    source,
 		},
 	}
+
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
 	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
+	sort.Slice(actual, func(i, j int) bool {
+		return actual[i].Parent < actual[j].Parent
+	})
 	assert.EqualValues(t, expected, actual)
 }
 
