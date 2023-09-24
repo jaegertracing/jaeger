@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -124,6 +125,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		actual, err := s.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
+		sort.Strings(actual)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
@@ -180,6 +182,9 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		actual, err = s.SpanReader.GetOperations(context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
 		require.NoError(t, err)
+		sort.Slice(actual, func(i, j int) bool {
+			return actual[i].Name < actual[j].Name
+		})
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
