@@ -16,18 +16,14 @@
 package integration
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -46,6 +42,8 @@ type CassandraStorageIntegration struct {
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
 	return &CassandraStorageIntegration{
 		StorageIntegration: StorageIntegration{
+			GetDependenciesReturnsSource: true,
+
 			Refresh: func() error { return nil },
 			CleanUp: func() error { return nil },
 		},
@@ -100,38 +98,11 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(f *cas
 	return nil
 }
 
-// TODO: Only the cassandra storage currently returns the `Source` field. Once
-// all others support the field, we can remove this test and use the existing testGetDependencies.
-func (s *StorageIntegration) testCassandraGetDependencies(t *testing.T) {
-	defer s.cleanUp(t)
-
-	expected := []model.DependencyLink{
-		{
-			Parent:    "hello",
-			Child:     "world",
-			CallCount: uint64(1),
-			Source:    model.JaegerDependencyLinkSource,
-		},
-		{
-			Parent:    "world",
-			Child:     "hello",
-			CallCount: uint64(3),
-			Source:    model.JaegerDependencyLinkSource,
-		},
-	}
-	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
-	s.refresh(t)
-	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
-	assert.NoError(t, err)
-	assert.EqualValues(t, expected, actual)
-}
-
 func TestCassandraStorage(t *testing.T) {
 	if os.Getenv("STORAGE") != "cassandra" {
 		t.Skip("Integration test against Cassandra skipped; set STORAGE env var to cassandra to run this")
 	}
-	s1 := newCassandraStorageIntegration()
-	require.NoError(t, s1.initializeCassandra())
-	// TODO: Support all other tests.
-	t.Run("GetDependencies", s1.testCassandraGetDependencies)
+	s := newCassandraStorageIntegration()
+	require.NoError(t, s.initializeCassandra())
+	s.IntegrationTestAll(t)
 }

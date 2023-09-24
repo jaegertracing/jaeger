@@ -112,7 +112,7 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	s.Refresh = s.esRefresh
 	s.esCleanUp(allTagsAsFields, archive)
 	// TODO: remove this flag after ES support returning spanKind when get operations
-	s.NotSupportSpanKindWithOperation = true
+	s.GetOperationsMissingSpanKind = true
 	return nil
 }
 

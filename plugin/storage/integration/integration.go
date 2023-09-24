@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -50,8 +51,13 @@ type StorageIntegration struct {
 	DependencyWriter dependencystore.Writer
 	DependencyReader dependencystore.Reader
 	Fixtures         []*QueryFixtures
-	// TODO: remove this flag after all storage plugins returns spanKind with operationNames
-	NotSupportSpanKindWithOperation bool
+
+	// TODO: remove this after all storage backends return spanKind from GetOperations
+	GetOperationsMissingSpanKind bool
+
+	// TODO: remove this after all storage backends return Source column from GetDependencies
+	GetDependenciesReturnsSource bool
+
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
 	// CleanUp() should ensure that the storage backend is clean before another test.
@@ -122,6 +128,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		actual, err := s.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
+		sort.Strings(actual)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
@@ -156,7 +163,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
 	var expected []spanstore.Operation
-	if s.NotSupportSpanKindWithOperation {
+	if s.GetOperationsMissingSpanKind {
 		expected = []spanstore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},
@@ -178,6 +185,9 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		actual, err = s.SpanReader.GetOperations(context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
 		require.NoError(t, err)
+		sort.Slice(actual, func(i, j int) bool {
+			return actual[i].Name < actual[j].Name
+		})
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
@@ -374,22 +384,33 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
+	source := model.JaegerDependencyLinkSource
+	if !s.GetDependenciesReturnsSource {
+		source = ""
+	}
+
 	expected := []model.DependencyLink{
 		{
 			Parent:    "hello",
 			Child:     "world",
 			CallCount: uint64(1),
+			Source:    source,
 		},
 		{
 			Parent:    "world",
 			Child:     "hello",
 			CallCount: uint64(3),
+			Source:    source,
 		},
 	}
+
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
 	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
+	sort.Slice(actual, func(i, j int) bool {
+		return actual[i].Parent < actual[j].Parent
+	})
 	assert.EqualValues(t, expected, actual)
 }
 
