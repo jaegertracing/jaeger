@@ -50,8 +50,10 @@ type StorageIntegration struct {
 	DependencyWriter dependencystore.Writer
 	DependencyReader dependencystore.Reader
 	Fixtures         []*QueryFixtures
-	// TODO: remove this flag after all storage plugins returns spanKind with operationNames
-	NotSupportSpanKindWithOperation bool
+
+	// TODO: remove this after all storage backends return spanKind from GetOperations
+	GetOperationsMissingSpanKind bool
+
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
 	// CleanUp() should ensure that the storage backend is clean before another test.
@@ -156,7 +158,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
 	var expected []spanstore.Operation
-	if s.NotSupportSpanKindWithOperation {
+	if s.GetOperationsMissingSpanKind {
 		expected = []spanstore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},

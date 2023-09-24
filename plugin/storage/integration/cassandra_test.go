@@ -130,8 +130,7 @@ func TestCassandraStorage(t *testing.T) {
 	if os.Getenv("STORAGE") != "cassandra" {
 		t.Skip("Integration test against Cassandra skipped; set STORAGE env var to cassandra to run this")
 	}
-	s1 := newCassandraStorageIntegration()
-	require.NoError(t, s1.initializeCassandra())
-	// TODO: Support all other tests.
-	t.Run("GetDependencies", s1.testCassandraGetDependencies)
+	s := newCassandraStorageIntegration()
+	require.NoError(t, s.initializeCassandra())
+	s.IntegrationTestAll(t)
 }
