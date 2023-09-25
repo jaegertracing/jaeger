@@ -51,7 +51,7 @@ apply_schema() {
 run_integration_test() {
   local version=$1
   local schema_version=$2
-  local cid=$(setup_cassandra ${version})
+  cid=$(setup_cassandra ${version})
   apply_schema "$2"
   STORAGE=cassandra make storage-integration-test
   exit_status=$?
