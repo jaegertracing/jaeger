@@ -18,6 +18,7 @@
 package integration
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -59,5 +60,10 @@ func (s *MemStorageIntegrationTestSuite) cleanUp() error {
 func TestMemoryStorage(t *testing.T) {
 	s := &MemStorageIntegrationTestSuite{}
 	require.NoError(t, s.initialize())
+	// Remove the below line check once we have sampling store implemented for all the storage backend
+	err := os.Setenv("STORAGE", "in-memory")
+	if err != nil {
+		t.Fatal(err)
+	}
 	s.IntegrationTestAll(t)
 }
