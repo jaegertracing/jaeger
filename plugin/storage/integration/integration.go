@@ -131,7 +131,8 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		actual, err := s.SpanReader.GetServices(context.Background())
+		var err error
+		actual, err = s.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
 		sort.Strings(actual)
 		return assert.ObjectsAreEqualValues(expected, actual)
@@ -429,18 +430,14 @@ func (s *StorageIntegration) testGetThroughput(t *testing.T) {
 	s.insertThroughput(t)
 
 	expected := 2
-	var actual []string
-	found := s.waitForCondition(t, func(t *testing.T) bool {
-		actual, err := s.SamplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
+	var actual []*samplemodel.Throughput
+	_ = s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.SamplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
 		require.NoError(t, err)
-		fmt.Printf("actual: %v\n", actual)
-		fmt.Printf("expected: %v\n", expected)
 		return assert.ObjectsAreEqualValues(expected, len(actual))
 	})
-	if !assert.True(t, found) {
-		t.Log("\t Expected:", expected)
-		t.Log("\t Actual  :", actual)
-	}
+	assert.Len(t, actual, expected)
 }
 
 func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
@@ -452,7 +449,8 @@ func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
 	expected := samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}
 	var actual samplemodel.ServiceOperationProbabilities
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		actual, err := s.SamplingStore.GetLatestProbabilities()
+		var err error
+		actual, err = s.SamplingStore.GetLatestProbabilities()
 		require.NoError(t, err)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
