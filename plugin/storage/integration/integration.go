@@ -21,7 +21,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -479,9 +478,8 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("GetDependencies", s.testGetDependencies)
-	// Remove the below line check once we have sampling store implemented for all the backend
-	if os.Getenv("STORAGE") != "cassendra" || os.Getenv("STORAGE") != "in-memory" {
-		t.Skip("Intergration test for Sampling store is only implemented for cassendra and in-memory storage as of now")
+	if s.SamplingStore == nil {
+		t.Skip("Skipping GetThroughput and GetLatestProbability Intergration test for Sampling store as it is only implemented for cassendra and in-memory storage as of now.")
 	}
 	t.Run("GetThroughput", s.testGetThroughput)
 	t.Run("GetLatestProbability", s.testGetLatestProbability)

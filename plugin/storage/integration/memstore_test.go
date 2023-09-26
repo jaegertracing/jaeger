@@ -18,7 +18,6 @@
 package integration
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,10 +36,9 @@ func (s *MemStorageIntegrationTestSuite) initialize() error {
 	s.logger, _ = testutils.NewLogger()
 
 	store := memory.NewStore()
-	sampleStore := memory.NewSamplingStore(2)
+	s.SamplingStore = memory.NewSamplingStore(2)
 	s.SpanReader = store
 	s.SpanWriter = store
-	s.SamplingStore = sampleStore
 
 	// TODO DependencyWriter is not implemented in memory store
 
@@ -60,10 +58,5 @@ func (s *MemStorageIntegrationTestSuite) cleanUp() error {
 func TestMemoryStorage(t *testing.T) {
 	s := &MemStorageIntegrationTestSuite{}
 	require.NoError(t, s.initialize())
-	// Remove the below line check once we have sampling store implemented for all the storage backend
-	err := os.Setenv("STORAGE", "in-memory")
-	if err != nil {
-		t.Fatal(err)
-	}
 	s.IntegrationTestAll(t)
 }
