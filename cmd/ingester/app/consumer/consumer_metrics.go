@@ -43,7 +43,9 @@ func (c *Consumer) namespace(topic string, partition int32) metrics.Factory {
 			Name: consumerNamespace,
 			Tags: map[string]string{
 				"topic":     topic,
-				"partition": strconv.Itoa(int(partition))}})
+				"partition": strconv.Itoa(int(partition)),
+			},
+		})
 }
 
 func (c *Consumer) newMsgMetrics(topic string, partition int32) msgMetrics {
