@@ -83,11 +83,11 @@ func (c *Consumer) Start() {
 			c.partitionMapLock.Lock()
 			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
 			c.partitionMapLock.Unlock()
-			c.partitionMetrics(pc.Partition()).startCounter.Inc(1)
+			c.partitionMetrics(pc.Topic(), pc.Partition()).startCounter.Inc(1)
 
 			c.doneWg.Add(2)
 			go c.handleMessages(pc)
-			go c.handleErrors(pc.Partition(), pc.Errors())
+			go c.handleErrors(pc.Topic(), pc.Partition(), pc.Errors())
 		}
 	}()
 }
@@ -123,7 +123,7 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 		c.doneWg.Done()
 	}()
 
-	msgMetrics := c.newMsgMetrics(pc.Partition())
+	msgMetrics := c.newMsgMetrics(pc.Topic(), pc.Partition())
 
 	var msgProcessor processor.SpanProcessor
 
@@ -163,16 +163,16 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 func (c *Consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
 	c.logger.Info("Closing partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
 	partitionConsumer.Close() // blocks until messages channel is drained
-	c.partitionMetrics(partitionConsumer.Partition()).closeCounter.Inc(1)
+	c.partitionMetrics(partitionConsumer.Topic(), partitionConsumer.Partition()).closeCounter.Inc(1)
 	c.logger.Info("Closed partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
 }
 
 // handleErrors handles incoming Kafka consumer errors on a channel
-func (c *Consumer) handleErrors(partition int32, errChan <-chan *sarama.ConsumerError) {
+func (c *Consumer) handleErrors(topic string, partition int32, errChan <-chan *sarama.ConsumerError) {
 	c.logger.Info("Starting error handler", zap.Int32("partition", partition))
 	defer c.doneWg.Done()
 
-	errMetrics := c.newErrMetrics(partition)
+	errMetrics := c.newErrMetrics(topic, partition)
 	for err := range errChan {
 		errMetrics.errCounter.Inc(1)
 		c.logger.Error("Error consuming from Kafka", zap.Error(err))
