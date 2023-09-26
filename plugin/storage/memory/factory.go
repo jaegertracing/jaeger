@@ -45,7 +45,7 @@ func NewFactory() *Factory {
 	return &Factory{}
 }
 
-// NewFactoryWithConfig is used from jaeger-v2
+// NewFactoryWithConfig is used from jaeger-v2.
 func NewFactoryWithConfig(
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
