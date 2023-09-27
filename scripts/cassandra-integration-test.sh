@@ -55,7 +55,7 @@ run_integration_test() {
   apply_schema "$2"
   STORAGE=cassandra make storage-integration-test
   exit_status=$?
-  trap 'teardown_cassandra ${cid}' EXIT
+  trap "teardown_cassandra ${cid}" EXIT
 }
 
 main() {

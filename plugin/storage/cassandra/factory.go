@@ -62,7 +62,7 @@ type Factory struct {
 	tracer                trace.TracerProvider
 
 	primaryConfig  config.SessionBuilder
-	PrimarySession cassandra.Session
+	primarySession cassandra.Session
 	archiveConfig  config.SessionBuilder
 	archiveSession cassandra.Session
 }
@@ -104,11 +104,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
 	f.logger = logger
 
-	PrimarySession, err := f.primaryConfig.NewSession(logger)
+	primarySession, err := f.primaryConfig.NewSession(logger)
 	if err != nil {
 		return err
 	}
-	f.PrimarySession = PrimarySession
+	f.primarySession = primarySession
 
 	if f.archiveConfig != nil {
 		if archiveSession, err := f.archiveConfig.NewSession(logger); err == nil {
@@ -124,7 +124,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.PrimarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader")), nil
+	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader")), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -133,13 +133,13 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.PrimarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...), nil
+	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	version := cDepStore.GetDependencyVersion(f.PrimarySession)
-	return cDepStore.NewDependencyStore(f.PrimarySession, f.primaryMetricsFactory, f.logger, version)
+	version := cDepStore.GetDependencyVersion(f.primarySession)
+	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -170,12 +170,12 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	}
 	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostname))
 
-	return cLock.NewLock(f.PrimarySession, hostname), nil
+	return cLock.NewLock(f.primarySession, hostname), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return cSamplingStore.New(f.PrimarySession, f.primaryMetricsFactory, f.logger), nil
+	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
@@ -216,4 +216,8 @@ func (f *Factory) Close() error {
 		cfg.TLS.Close()
 	}
 	return f.Options.GetPrimary().TLS.Close()
+}
+
+func (f *Factory) CassendraSession() cassandra.Session {
+	return f.primarySession
 }
