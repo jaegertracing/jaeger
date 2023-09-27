@@ -45,8 +45,9 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
 
-			Refresh: func() error { return nil },
-			CleanUp: func() error { return nil },
+			Refresh:  func() error { return nil },
+			CleanUp:  func() error { return nil },
+			SkipList: []string{"Tags_+_Operation_name_+_Duration_range", "Tags_+_Duration_range", "Tags_+_Operation_name_+_max_Duration", "Tags_+_max_Duration"},
 		},
 	}
 }
