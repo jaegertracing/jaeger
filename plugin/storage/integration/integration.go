@@ -60,6 +60,7 @@ type StorageIntegration struct {
 
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
+
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func() error
