@@ -424,6 +424,10 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 
 func (s *StorageIntegration) testGetThroughput(t *testing.T) {
 	s.skipIfNeeded(t)
+	if s.SamplingStore == nil {
+		t.Skip("Skipping GetThroughput test because sampling store is nil")
+		return
+	}
 	defer s.cleanUp(t)
 	start := time.Now()
 
@@ -442,6 +446,10 @@ func (s *StorageIntegration) testGetThroughput(t *testing.T) {
 
 func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
 	s.skipIfNeeded(t)
+	if s.SamplingStore == nil {
+		t.Skip("Skipping GetLatestProbability test because sampling store is nil")
+		return
+	}
 	defer s.cleanUp(t)
 
 	s.SamplingStore.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
@@ -478,9 +486,6 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("GetDependencies", s.testGetDependencies)
-	if s.SamplingStore == nil {
-		t.Skip("Skipping GetThroughput and GetLatestProbability Intergration test for Sampling store as it is only implemented for cassendra and in-memory storage as of now.")
-	}
 	t.Run("GetThroughput", s.testGetThroughput)
 	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
