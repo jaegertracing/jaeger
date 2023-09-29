@@ -217,3 +217,8 @@ func (f *Factory) Close() error {
 	}
 	return f.Options.GetPrimary().TLS.Close()
 }
+
+// PrimarySession is used from integration tests to clean database between tests
+func (f *Factory) PrimarySession() cassandra.Session {
+	return f.primarySession
+}

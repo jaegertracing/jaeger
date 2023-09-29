@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	dbsession "github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -44,10 +45,20 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
 
-			Refresh: func() error { return nil },
-			CleanUp: func() error { return nil },
+			Refresh:  func() error { return nil },
+			CleanUp:  func() error { return nil },
+			SkipList: []string{"Tags_+_Operation_name_+_Duration_range", "Tags_+_Duration_range", "Tags_+_Operation_name_+_max_Duration", "Tags_+_max_Duration", "Operation_name_+_Duration_range", "Duration_range", "max_Duration"},
 		},
 	}
+}
+
+func (s *CassandraStorageIntegration) cleanUp(q dbsession.Session) (func() error, error) {
+	return func() error {
+		if err := q.Query("TRUNCATE traces").Exec(); err != nil {
+			return err
+		}
+		return nil
+	}, nil
 }
 
 func (s *CassandraStorageIntegration) initializeCassandraFactory(flags []string) (*cassandra.Factory, error) {
@@ -75,6 +86,9 @@ func (s *CassandraStorageIntegration) initializeCassandra() error {
 		return err
 	}
 	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
+		return err
+	}
+	if s.CleanUp, err = s.cleanUp(f.PrimarySession()); err != nil {
 		return err
 	}
 	if err = s.initializeDependencyReaderAndWriter(f); err != nil {

@@ -96,7 +96,8 @@ func (s *StorageIntegration) refresh(t *testing.T) {
 
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
-		ok, err := regexp.MatchString(pat, t.Name())
+		escapedPat := regexp.QuoteMeta(pat)
+		ok, err := regexp.MatchString(escapedPat, t.Name())
 		assert.NoError(t, err)
 		if ok {
 			t.Skip()
