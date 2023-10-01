@@ -86,6 +86,10 @@ func (s *CassandraStorageIntegration) initializeCassandra() error {
 	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
 		return err
 	}
+	if s.SamplingStore, err = f.CreateSamplingStore(0); err != nil {
+		return err
+	}
+
 	if err = s.initializeDependencyReaderAndWriter(f); err != nil {
 		return err
 	}
