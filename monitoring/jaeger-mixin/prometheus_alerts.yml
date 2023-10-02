@@ -61,7 +61,7 @@
     "annotations":
       "message": |
         {{ $labels.job }} {{ $labels.instance }} is seeing {{ printf "%.2f" $value }}% query errors on {{ $labels.operation }}.
-    "expr": "100 * sum(rate(jaeger_query_requests_total{result=\"err\"}[1m])) by (instance, job, namespace) / sum(rate(jaeger_query_requests_total[1m])) by (instance, job, namespace)> 1"
+    "expr": "100 * sum(rate(jaeger_query_requests_total{result=\"err\"}[1m])) by (instance, job, namespace, operation) / sum(rate(jaeger_query_requests_total[1m])) by (instance, job, namespace, operation)> 1"
     "for": "15m"
     "labels":
       "severity": "warning"
