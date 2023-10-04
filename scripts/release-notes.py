@@ -44,7 +44,7 @@ def num_commits_since_prev_tag(token, base_url):
     return num_commits
 
 
-def main(token, repo, num_commits, exclude_dependabot, point_md):
+def main(token, repo, num_commits, exclude_dependabot):
     accept_header = "application/vnd.github.groot-preview+json"
     base_url = f"https://api.github.com/repos/jaegertracing/{repo}"
     commits_url = f"{base_url}/commits"
@@ -88,14 +88,14 @@ def main(token, repo, num_commits, exclude_dependabot, point_md):
         if not pulls:
             short_sha = sha[:7]
             commit_url = commit['html_url']
-            print(f'{point_md} {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))')
+            print(f'* {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))')
             continue
 
         pull = pulls[0]
         pull_id = pull['number']
         pull_url = pull['html_url']
         msg = msg.replace(f'(#{pull_id})', '').strip()
-        print(f'{point_md} {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))')
+        print(f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))')
 
     if skipped_dependabot:
         print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
@@ -114,9 +114,6 @@ if __name__ == "__main__":
     parser.add_argument('--num-commits', type=int,
                         help='Print this number of commits from git log. ' +
                              '(default: number of commits before the previous tag)')
-    parser.add_argument('--point-markdown-char', type=str, default='*',
-                        help='The markdown character to use for each change log point. ' +
-                             '(default: *)')
 
     args = parser.parse_args()
     generate_token_url = "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
@@ -136,4 +133,4 @@ if __name__ == "__main__":
         eprint(f"{token_file} is missing your personal github token.\n{generate_err_msg}")
         sys.exit(1)
 
-    main(token, args.repo, args.num_commits, args.exclude_dependabot, args.point_markdown_char)
+    main(token, args.repo, args.num_commits, args.exclude_dependabot)
