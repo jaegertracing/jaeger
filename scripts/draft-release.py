@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument('--title', type=str, default='Release',
                         help='The title of the release. (default: Release)')
     parser.add_argument('--repo', type=str, default='jaeger',
-                        help='The repository name to fetch commit logs from. (default: jaeger)')
+                        help='The repository name where the draft release will be created. (default: jaeger)')
 
     args = parser.parse_args()
 
