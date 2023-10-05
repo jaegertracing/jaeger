@@ -40,7 +40,7 @@ next release (yyyy-mm-dd)
 * Fix jaegerqueryreqsfailing alert rule missing 'operation' in query ([@james-ryans](https://github.com/james-ryans) in [#4797](https://github.com/jaegertracing/jaeger/pull/4797))
 * Add e2e test for sampling storage ([@slayer321](https://github.com/slayer321) in [#4772](https://github.com/jaegertracing/jaeger/pull/4772))
 * [tests] Simplify cassandra e2e test cleanup ([@yurishkuro](https://github.com/yurishkuro) in [#4794](https://github.com/jaegertracing/jaeger/pull/4794))
-* [tests] Fix failing e2e test  for cassandra storage ([@slayer321](https://github.com/slayer321) in [#4776](https://github.com/jaegertracing/jaeger/pull/4776))
+* [tests] Fix failing e2e test for cassandra storage ([@slayer321](https://github.com/slayer321) in [#4776](https://github.com/jaegertracing/jaeger/pull/4776))
 * Remove unneeded references to opentracing ([@yurishkuro](https://github.com/yurishkuro) in [#4790](https://github.com/jaegertracing/jaeger/pull/4790))
 * Use non-root user in built containers ([@nikzayn](https://github.com/nikzayn) in [#4783](https://github.com/jaegertracing/jaeger/pull/4783))
 * Run all integration tests against cassandra ([@yurishkuro](https://github.com/yurishkuro) in [#4773](https://github.com/jaegertracing/jaeger/pull/4773))
@@ -52,7 +52,7 @@ next release (yyyy-mm-dd)
 * Upgrade query api v3 to official opentelemetry format ([@yurishkuro](https://github.com/yurishkuro) in [#4742](https://github.com/jaegertracing/jaeger/pull/4742))
 * [SPM] Deprecate support for spanmetrics processor naming convention ([@yurishkuro](https://github.com/yurishkuro) in [#4741](https://github.com/jaegertracing/jaeger/pull/4741))
 * Deprecate expvar metrics backend ([@yurishkuro](https://github.com/yurishkuro) in [#4740](https://github.com/jaegertracing/jaeger/pull/4740))
-* Attempt to fix flaky testgetroundtripper* tests ([@albertteoh](https://github.com/albertteoh) in [#4738](https://github.com/jaegertracing/jaeger/pull/4738))
+* Fix flaky testgetroundtripper* tests ([@albertteoh](https://github.com/albertteoh) in [#4738](https://github.com/jaegertracing/jaeger/pull/4738))
 
 ### UI Changes
 
