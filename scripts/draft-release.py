@@ -34,7 +34,6 @@ def get_changelog():
             release_header_match = release_header_pattern.match(line)
 
             if release_header_match is not None:
-                print(f"found header {line}")
                 # Found the first release.
                 if not in_changelog_text:
                     in_changelog_text = True
@@ -45,10 +44,8 @@ def get_changelog():
             else:
                 underline_match = underline_pattern.match(line)
                 if underline_match is not None:
-                    print(f"found underline {line}")
                     continue
                 elif in_changelog_text:
-                    print(f"in changelog {line}")
                     changelog_text += line
 
     return changelog_text, version
