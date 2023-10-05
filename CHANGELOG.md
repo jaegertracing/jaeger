@@ -18,7 +18,7 @@ next release (yyyy-mm-dd)
 
 ### UI Changes
 
-1.50.0 (yyyy-mm-dd)
+1.50.0 (2023-10-06)
 -------------------
 
 ### Backend Changes
@@ -26,7 +26,6 @@ next release (yyyy-mm-dd)
 #### ⛔ Breaking Changes
 
 * [sampling] Remove support for SAMPLING_TYPE env var and 'static' value ([@yurishkuro](https://github.com/yurishkuro) in [#4735](https://github.com/jaegertracing/jaeger/pull/4735))
-
 
 #### New Features
 
