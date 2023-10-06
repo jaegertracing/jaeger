@@ -29,7 +29,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/hashicorp/go-hclog v1.5.0
-	github.com/hashicorp/go-plugin v1.5.1
+	github.com/hashicorp/go-plugin v1.5.2
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.86.0
@@ -41,7 +41,7 @@ require (
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16
 	github.com/prometheus/common v0.44.0
-	github.com/rs/cors v1.10.0
+	github.com/rs/cors v1.10.1
 	github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5

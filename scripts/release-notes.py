@@ -76,7 +76,7 @@ def main(token, repo, num_commits, exclude_dependabot):
 
         author_url = commit['author']['html_url']
         msg_lines = commit['commit']['message'].split('\n')
-        msg = msg_lines[0]
+        msg = msg_lines[0].capitalize()
         req = Request(f"{commits_url}/{sha}/pulls")
         req.add_header('accept', accept_header)
         req.add_header('Authorization', f'token {token}')
