@@ -8,7 +8,7 @@ BRANCH=${BRANCH:?'missing BRANCH env var'}
 # `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
 mode=${1-main}
-expected_version="v16"
+expected_version="v$(cat jaeger-ui/.nvmrc)"
 version=$(node --version)
 major_version=${version%.*.*}
 
