@@ -51,10 +51,9 @@ function package {
 
 set -e
 
-readonly VERSION="$(make echo-version | awk 'match($0, /([0-9]*\.[0-9]*\.[0-9]*)$/) { print substr($0, RSTART, RLENGTH) }')"
+readonly VERSION="$(make echo-version | perl -lne 'print $1 if /^v(\d+.\d+.\d+)$/' )"
 echo "Working on version: $VERSION"
-if [ -z "$VERSION" ]
-then
+if [ -z "$VERSION" ]; then
     # We want to halt if for some reason the version string is empty as this is an obvious error case
     >&2 echo 'Failed to detect a version string'
     exit 1
@@ -81,4 +80,3 @@ find deploy \( ! -name '*sha256sum.txt' \) -type f -exec gpg --armor --detach-si
 
 # show your work
 ls -lF deploy/
-

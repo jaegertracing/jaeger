@@ -42,6 +42,11 @@ jobs:
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch
 
+    - name: Fail early if the latest tag is not in semver format
+      id: validate-semver
+      run: |
+        make echo-version | grep -E '^v\d+.\d+.\d+$'
+
     - name: Install tools
       run: make install-ci
 
@@ -55,6 +60,7 @@ jobs:
     - name: Build binaries
       id: build-binaries
       run: make build-all-platforms
+      if: steps.validate-semver.outcome == 'success'
 
     - name: Package binaries
       id: package-binaries
@@ -78,20 +84,24 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      if: steps.package-binaries.outcome == 'success'
 
     - name: Build, test, and publish all-in-one image
       run: bash scripts/build-all-in-one-image.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      if: steps.package-binaries.outcome == 'success'
 
     - name: Build, test, and publish hotrod image
       run: bash scripts/hotrod-integration-test.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      if: steps.package-binaries.outcome == 'success'
 
     - name: SBOM Generation
       uses: anchore/sbom-action@78fc58e266e87a38d4194b2137a3d4e9bcaf7ca1
       with:
         artifact-name: jaeger-SBOM.spdx.json
+      if: steps.package-binaries.outcome == 'success'

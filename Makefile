@@ -4,9 +4,10 @@ STORAGE_PKGS = ./plugin/storage/integration/...
 GO = go
 
 include docker/Makefile
+include crossdock/rules.mk
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
-ALL_SRC := $(shell find . -name '*.go' \
+ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
@@ -23,7 +24,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				sort)
 
 # ALL_PKGS is used with 'nocover'
-ALL_PKGS := $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
+ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
 UNAME := $(shell uname -m)
 #Race flag is not supported on s390x architecture
@@ -44,6 +45,9 @@ IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
+ifneq ($(GIT_CLOSEST_TAG),$(shell echo ${GIT_CLOSEST_TAG} | grep -E "$(semver_regex)"))
+	$(warning GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG) is not in the semver format $(semver_regex))
+endif
 DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
@@ -131,10 +135,10 @@ token-propagation-integration-test:
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags token_propagation -run TestBearTokenPropagation $(STORAGE_PKGS) | $(COLORIZE)"
 
-all-pkgs:
+echo-all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
-all-srcs:
+echo-all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 .PHONY: cover
@@ -304,7 +308,14 @@ build-platform-binaries: build-agent \
 	build-es-rollover
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-darwin-arm64 build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
+build-all-platforms: \
+	build-binaries-linux \
+	build-binaries-windows \
+	build-binaries-darwin \
+	build-binaries-darwin-arm64 \
+	build-binaries-s390x \
+	build-binaries-arm64 \
+	build-binaries-ppc64le
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -367,8 +378,6 @@ build-crossdock-binary:
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
 	GOOS=linux $(MAKE) build-crossdock-binary
-
-include crossdock/rules.mk
 
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
