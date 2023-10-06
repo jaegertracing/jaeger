@@ -64,6 +64,7 @@ jobs:
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
+        overwrite: true
         tag: ${{ github.ref }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
       if: steps.package-binaries.outcome == 'success'
