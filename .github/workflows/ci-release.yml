@@ -69,7 +69,6 @@ jobs:
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Build binaries
-      id: build-binaries
       run: make build-all-platforms
 
     - name: Package binaries
