@@ -6,7 +6,7 @@ mode=${1-main}
 
 make build-binaries-linux
 
-if [ "$mode" = "pr-only" ]; then
+if [[ "$mode" == "pr-only" ]]; then
   make create-baseimg
   # build artifacts for linux/amd64 only for pull requests
   platforms="linux/amd64"
@@ -23,10 +23,10 @@ fi
 for component in agent collector query ingester remote-storage
 do
 	bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
-	if ["$mode" != "pr-only"]; then 
-    #do not run debug image build when it is pr-only
+  # do not need debug image built for PRs
+	if [[ "$mode" != "pr-only" ]]; then
     bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
-  fi 
+  fi
 done
 
 bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
