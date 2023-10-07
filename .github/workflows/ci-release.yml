@@ -84,7 +84,7 @@ jobs:
 
     - name: Clean up deployed archives
       run: |
-        bash rm -rf deploy
+        rm -rf deploy
         df -h /
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3
