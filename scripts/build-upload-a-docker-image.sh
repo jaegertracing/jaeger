@@ -69,3 +69,5 @@ docker buildx build --output "${PUSHTAG}" \
 	${dir_arg}
 
 echo "Finished building${upload_flag} ${component_name} =============="
+
+df -h /
