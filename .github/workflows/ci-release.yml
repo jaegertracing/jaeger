@@ -15,9 +15,13 @@ permissions:
 
 jobs:
   publish-release:
+    if: github.repository == 'jaegertracing/jaeger'
     runs-on: ubuntu-latest
 
     steps:
+    - name: How much disk space do we have at the start?
+      run: df -h /
+
     - name: Harden Runner
       uses: step-security/harden-runner@8ca2b8b2ece13480cda6dacd3511b49857a23c09
       with:
@@ -76,7 +80,12 @@ jobs:
         overwrite: true
         tag: ${{ github.ref }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-      if: steps.package-binaries.outcome == 'success'
+      if: ${{ steps.package-binaries.outcome == 'success' && env.BRANCH != 'main' }}
+
+    - name: Clean up deployed archives
+      run: |
+        bash rm -rf deploy
+        df -h /
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3
 

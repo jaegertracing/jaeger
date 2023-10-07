@@ -2,7 +2,6 @@
 
 set -exu
 
-BRANCH=${BRANCH:?'missing BRANCH env var'}
 # Set default GOARCH variable to the host GOARCH, the target architecture can
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
@@ -55,7 +54,7 @@ bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -
 
 
 #do not run debug image build when it is pr-only
-if ["$mode" != "pr-only"]; then 
+if ["$mode" != "pr-only"]; then
   make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
   repo=${repo}-debug
   #build all-in-one-debug image locally for integration test

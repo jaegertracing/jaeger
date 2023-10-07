@@ -26,5 +26,4 @@ if [[ $body != *"Rides On Demand"* ]]; then
 fi
 docker rm -f $CID
 
-BRANCH=${BRANCH:?'missing BRANCH env var'}
 bash scripts/build-upload-a-docker-image.sh -c example-hotrod -d examples/hotrod -p "${platforms}"
