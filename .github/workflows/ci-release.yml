@@ -46,7 +46,7 @@ jobs:
       id: validate-semver
       run: |
         make echo-version
-        make echo-version | grep -E '^v\d+.\d+.\d+$'
+        make echo-version | egrep '^v\d+.\d+.\d+$'
 
     - name: Install tools
       run: make install-ci
