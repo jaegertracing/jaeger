@@ -45,6 +45,7 @@ jobs:
     - name: Fail early if the latest tag is not in semver format
       id: validate-semver
       run: |
+        make echo-version
         make echo-version | grep -E '^v\d+.\d+.\d+$'
 
     - name: Install tools
