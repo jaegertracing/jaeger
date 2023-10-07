@@ -2,35 +2,34 @@
 
 # Compute major/minor/etc image tags based on the current branch
 
-set -exu
+set -eux
 
 BASE_BUILD_IMAGE=$1
-BRANCH=${BRANCH:?'expecting BRANCH env var'}
+GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
+VERSION=${VERSION:-$(make echo-version)}
 
-## if we are on a release tag, let's extract the version number
-## the other possible value, currently, is 'main' (or another branch name)
-if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    MAJOR_MINOR_PATCH=$(echo ${BRANCH} | grep -Po "([\d\.]+)")
-    MAJOR_MINOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1"."$2}')
-    MAJOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1}')  
+if [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    VERSION="${VERSION#[vV]}"
+    VERSION_MAJOR="${VERSION%%\.*}"
+    VERSION_MINOR="${VERSION#*.}"
+    VERSION_MINOR="${VERSION_MINOR%.*}"
+    VERSION_PATCH="${VERSION##*.}"
 else
-    MAJOR_MINOR_PATCH="latest"
-    MAJOR_MINOR=""
-    MAJOR=""
+    VERSION="latest"
 fi
 
 # for docker.io and quay.io
-BUILD_IMAGE=${BUILD_IMAGE:-"${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"}
+BUILD_IMAGE=${BUILD_IMAGE:-"${BASE_BUILD_IMAGE}:${VERSION}"}
 IMAGE_TAGS="--tag docker.io/${BASE_BUILD_IMAGE} --tag docker.io/${BUILD_IMAGE} --tag quay.io/${BASE_BUILD_IMAGE} --tag quay.io/${BUILD_IMAGE}"
 SNAPSHOT_TAG="${BASE_BUILD_IMAGE}-snapshot:${GITHUB_SHA}"
 
-if [ "${MAJOR_MINOR}x" != "x" ]; then
-    MAJOR_MINOR_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR_MINOR}"
-    IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_MINOR_IMAGE} --tag quay.io/${MAJOR_MINOR_IMAGE}"
-fi
 
-if [ "${MAJOR}x" != "x" ]; then
-    MAJOR_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR}"
+if [ "${VERSION}" != "latest" ]; then
+    MAJOR_MINOR_IMAGE="${BASE_BUILD_IMAGE}:${VERSION_MAJOR}.${VERSION_MINOR}"
+    IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_MINOR_IMAGE} --tag quay.io/${MAJOR_MINOR_IMAGE}"
+
+    # TODO we should stop publishing these, as everything ends up with tag "1" but not backwards compatible
+    MAJOR_IMAGE="${BASE_BUILD_IMAGE}:${VERSION_MAJOR}"
     IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_IMAGE} --tag quay.io/${MAJOR_IMAGE}"
 fi
 
