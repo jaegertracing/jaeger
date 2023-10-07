@@ -22,9 +22,9 @@ fi
 # build/upload raw and debug images of Jaeger backend components
 for component in agent collector query ingester remote-storage
 do
-	bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
+  bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
   # do not need debug image built for PRs
-	if [[ "$mode" != "pr-only" ]]; then
+  if [[ "$mode" != "pr-only" ]]; then
     bash scripts/build-upload-a-docker-image.sh -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
   fi
 done
@@ -36,5 +36,5 @@ bash scripts/build-upload-a-docker-image.sh -c jaeger-cassandra-schema -d plugin
 # build/upload images for jaeger-tracegen and jaeger-anonymizer
 for component in tracegen anonymizer
 do
-	bash scripts/build-upload-a-docker-image.sh -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}"
+  bash scripts/build-upload-a-docker-image.sh -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}"
 done
