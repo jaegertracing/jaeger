@@ -71,6 +71,6 @@ docker buildx build --output "${PUSHTAG}" \
 echo "Finished building${upload_flag} ${component_name} =============="
 
 df -h /
-docker buildx prune --all --verbose
-docker system prune
+docker buildx prune --all --verbose --force
+docker system prune --force
 df -h /
