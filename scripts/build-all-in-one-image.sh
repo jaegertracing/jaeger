@@ -54,7 +54,7 @@ bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -
 
 
 #do not run debug image build when it is pr-only
-if ["$mode" != "pr-only"]; then
+if [ "$mode" != "pr-only" ]; then
   make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
   repo=${repo}-debug
   #build all-in-one-debug image locally for integration test
