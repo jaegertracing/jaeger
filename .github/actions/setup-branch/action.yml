@@ -12,6 +12,9 @@ runs:
         case ${GITHUB_EVENT_NAME} in
           pull_request)
             BRANCH=${GITHUB_HEAD_REF}
+            if [[ $BRANCH == 'main' ]]; then
+              BRANCH=main_from_fork
+            fi
             ;;
           *)
             BRANCH=${GITHUB_REF##*/}

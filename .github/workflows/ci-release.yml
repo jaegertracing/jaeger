@@ -19,8 +19,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: How much disk space do we have at the start?
-      run: df -h /
+    - name: Clean up some disk space
+      # We had an issue where the workflow was running out of disk space,
+      # because it downloads so many Docker images for different platforms.
+      # Here we delete some stuff from the VM that we do not use.
+      # Inspired by https://github.com/jlumbroso/free-disk-space.
+      run: |
+        sudo rm -rf /usr/local/lib/android || true
+        df -h /
 
     - name: Harden Runner
       uses: step-security/harden-runner@8ca2b8b2ece13480cda6dacd3511b49857a23c09
@@ -42,14 +48,15 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
-
-    - name: Fail early if the latest tag is not in semver format
-      id: validate-semver
+    - name: Export BRANCH variable and validate it is a semver
+      # Many scripts depend on BRANCH variable. We do not want to
+      # use ./.github/actions/setup-branch here because it may set
+      # BRANCH=main when the workflow is triggered manually.
       run: |
-        make echo-version
-        make echo-version | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
+        BRANCH=$(make echo-version)
+        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
+        echo Validate that the latest tag ${BRANCH} is in semver format
+        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
 
     - name: Install tools
       run: make install-ci
@@ -62,14 +69,11 @@ jobs:
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Build binaries
-      id: build-binaries
       run: make build-all-platforms
-      if: steps.validate-semver.outcome == 'success'
 
     - name: Package binaries
       id: package-binaries
       run: bash scripts/package-deploy.sh
-      if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
       uses: svenstaro/upload-release-action@1beeb572c19a9242f4361f4cee78f8e0d9aec5df
@@ -77,14 +81,13 @@ jobs:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
         overwrite: true
-        tag: ${{ github.ref }}
+        tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-      if: ${{ steps.package-binaries.outcome == 'success' && env.BRANCH != 'main' }}
 
-    - name: Clean up deployed archives
+    - name: Clean up some more disk space
+      # Delete the release artifacts after uploading them.
       run: |
         rm -rf deploy || true
-        sudo rm -rf /usr/local/lib/android || true
         df -h /
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3
@@ -94,24 +97,32 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-      if: steps.package-binaries.outcome == 'success'
 
     - name: Build, test, and publish all-in-one image
       run: bash scripts/build-all-in-one-image.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-      if: steps.package-binaries.outcome == 'success'
 
     - name: Build, test, and publish hotrod image
       run: bash scripts/hotrod-integration-test.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-      if: steps.package-binaries.outcome == 'success'
 
-    - name: SBOM Generation
+    - name: Generate SBOM
       uses: anchore/sbom-action@78fc58e266e87a38d4194b2137a3d4e9bcaf7ca1
       with:
         artifact-name: jaeger-SBOM.spdx.json
-      if: steps.package-binaries.outcome == 'success'
+        upload-release-assets: false
+
+    - name: Upload SBOM
+      # Upload SBOM manually, because anchore/sbom-action does not do that
+      # when the workflow is triggered manually, only from a release.
+      # See https://github.com/jaegertracing/jaeger/issues/4817
+      uses: svenstaro/upload-release-action@1beeb572c19a9242f4361f4cee78f8e0d9aec5df
+      with:
+        file: jaeger-SBOM.spdx.json
+        overwrite: true
+        tag: ${{ env.BRANCH }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
