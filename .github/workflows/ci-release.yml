@@ -39,9 +39,8 @@ jobs:
       with:
         go-version: 1.21.x
 
-    - uses: actions/setup-node@5e21ff4d9bc1a8cf6de233a3057d20ec6b3fb69d
-      with:
-        node-version: '16'
+    - name: Setup Node.js version
+      uses: ./.github/actions/setup-node.js
 
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch
