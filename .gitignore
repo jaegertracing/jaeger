@@ -43,4 +43,5 @@ __pycache__
 deploy/
 deploy-staging/
 sha256sum.combined.txt
+resource.syso
 .gocache
