@@ -27,6 +27,7 @@ do
   echo "Checking if Cassandra is up at ${CQLSH_HOST}:${CQLSH_PORT}."
   ${CQLSH_CMD} -e "describe keyspaces"
   if (( $? == 0 )); then
+    echo "Cassandra connection established."
     break
   else
     if (( total_wait >= ${CASSANDRA_WAIT_TIMEOUT} )); then
@@ -55,4 +56,8 @@ fi
 
 echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}."
 
+set -e -o pipefail
+
 MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" VERSION="${VERSION}" ${SCHEMA_SCRIPT} "${TEMPLATE}" | ${CQLSH_CMD}
+
+echo "Schema generated."
