@@ -1,0 +1,28 @@
+name: Validation Of Shell Scripts
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+jobs:
+  validation-of-shell-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: check out code 
+      uses: actions/checkout@v3
+
+    - name: Install shellcheck
+      run: sudo apt-get install shellcheck
+
+    - name: Run shellcheck
+      run: shellcheck scripts/*.sh
+
+
+
+
+
+
