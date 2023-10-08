@@ -13,7 +13,7 @@ make prepare-docker-buildx
 #build image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${platforms}"
 
-export CID=$(docker run -d -p 8080:8080 localhost:5000/$REPO:latest)
+export CID=$(docker run -d -p 8080:8080 localhost:5000/$REPO:${GITHUB_SHA})
 i=0
 while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:8080)" != "200" && ${i} -lt 30 ]]; do
   sleep 1
