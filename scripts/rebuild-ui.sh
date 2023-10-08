@@ -11,11 +11,11 @@ last_tag=$(git describe --tags --dirty 2>/dev/null)
 
 if [[ "$last_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
     branch_hash=$(git rev-parse HEAD)
-    last_tag_hash=$(git rev-parse $last_tag)
+    last_tag_hash=$(git rev-parse "$last_tag")
 
     if [[ "$branch_hash" == "$last_tag_hash" ]]; then
         temp_file=$(mktemp)
-        trap "rm -f ${temp_file}" EXIT
+        trap 'rm -f "${temp_file}"' EXIT
         release_url="https://github.com/jaegertracing/jaeger-ui/releases/download/${last_tag}/assets.tar.gz"
         if curl --silent --fail --location --output "$temp_file" "$release_url"; then
 

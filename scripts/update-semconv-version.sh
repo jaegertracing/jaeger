@@ -6,7 +6,7 @@ version_regex="v[0-9]\.[0-9]\+\.[0-9]\+"
 latest_semconv_version=$(
     curl -s https://pkg.go.dev/$package_name \
     | grep -oP 'data-id="v\d+\.\d+\.\d+"' \
-    | sed -E 's/\"($version_regex)\"/v\1/' \
+    | sed -E "s/\"($version_regex)\"/v\1/" \
     | sort -Vr \
     | head -n 1 \
     | awk -F'"' '{print $2}'

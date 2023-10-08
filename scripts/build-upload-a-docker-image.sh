@@ -62,11 +62,11 @@ else
 fi
 
 docker buildx build --output "${PUSHTAG}" \
-	--progress=plain ${target_arg} ${base_debug_img_arg}\
-	--platform=${platforms} \
-	--file ${docker_file_arg} \
-	${IMAGE_TAGS} \
-	${dir_arg}
+	--progress=plain "${target_arg}" "${base_debug_img_arg}"\
+	--platform="${platforms}" \
+	--file "${docker_file_arg}" \
+	"${IMAGE_TAGS}" \
+	"${dir_arg}"
 
 echo "Finished building${upload_flag} ${component_name} =============="
 

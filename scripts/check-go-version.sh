@@ -8,12 +8,16 @@ while getopts "uvd" opt; do
     case $opt in
         u) update=true ;;
         v) verbose=true ;;
-        x) set -x ;;
         *) echo "Usage: $0 [-u] [-v] [-d]" >&2
            exit 1
            ;;
     esac
 done
+
+# Debugging option (-x) used separately
+if [[ "$DEBUG" == "true" ]]; then
+  set -x
+fi
 
 # Fetch latest go release version
 go_latest_version=$(curl -s https://go.dev/dl/?mode=json | jq -r '.[0].version' | awk -F'.' '{gsub("go", ""); print $1"."$2}')
@@ -31,19 +35,19 @@ function update() {
     old_IFS=$IFS
     IFS=''
     while read -r line; do
-        match=$(echo $line | grep -e "$pattern")
+        match=$(echo "$line" | grep -e "$pattern")
         if [[ "$match" != "" ]]; then
-            line=$(echo "$line" | sed "s/${current}/${target}/g")
+            line=${line//${current}/${target}}
         fi
-        echo $line >> $newfile
-    done < $file
+        echo "$line" >> "$newfile"
+    done < "$file"
     IFS=$old_IFS
 
     if [ $verbose = true ]; then
-        diff $file $newfile
+        diff "$file" "$newfile"
     fi
 
-    mv $newfile $file
+    mv "$newfile" "$file"
 }
 
 function check() {
@@ -51,7 +55,7 @@ function check() {
     local pattern=$2
     local target=$3
 
-    go_version=$(grep -e "$pattern" $file | head -1 | sed "s/^.*\($version_regex\).*$/\1/")
+    go_version=$(grep -e "$pattern" "$file" | head -1 | sed "s/^.*\($version_regex\).*$/\1/")
 
     if [ "$go_version" = "$target" ]; then
         mismatch=''
@@ -68,16 +72,16 @@ function check() {
     printf "%-50s Go version: %s %s\n" "$file" "$go_version" "$mismatch"
 }
 
-check go.mod "^go\s\+$version_regex" $go_previous_version
+check go.mod "^go\s\+$version_regex" "$go_previous_version"
 
-check docker/Makefile "^.*golang:$version_regex" $go_latest_version
+check docker/Makefile "^.*golang:$version_regex" "$go_latest_version"
 
 gha_workflows=$(grep -rl go-version .github)
-for gha_workflow in ${gha_workflows[@]}; do
-    check $gha_workflow "^\s*go-version:\s\+$version_regex" $go_latest_version
+for gha_workflow in "${gha_workflows[@]}"; do
+    check "$gha_workflow" "^\s*go-version:\s\+$version_regex" "$go_latest_version"
 done
 
-check .golangci.yml "go:\s\+\"$version_regex\"" $go_previous_version
+check .golangci.yml "go:\s\+\"$version_regex\"" "$go_previous_version"
 
 if [ $files_to_update -eq 0 ]; then
     echo "All files are up to date."

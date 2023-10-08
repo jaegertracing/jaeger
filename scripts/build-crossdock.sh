@@ -17,7 +17,7 @@ if [[ "$BRANCH" == "main" ]]; then
   docker buildx build --push \
     --progress=plain \
     --platform=linux/amd64 \
-    ${IMAGE_TAGS} \
+    "${IMAGE_TAGS}" \
     crossdock/
 else
   echo 'skip docker images upload for PR'
