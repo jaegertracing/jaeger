@@ -40,7 +40,9 @@ type MappingBuilder struct {
 
 // GetMapping returns the rendered mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
-	if mb.EsVersion == 7 {
+	if mb.EsVersion == 8 {
+		return mb.fixMapping(mapping + "-8.json")
+	} else if mb.EsVersion == 7 {
 		return mb.fixMapping(mapping + "-7.json")
 	}
 	return mb.fixMapping(mapping + ".json")

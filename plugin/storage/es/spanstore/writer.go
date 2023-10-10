@@ -17,11 +17,13 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -46,6 +48,7 @@ type serviceWriter func(string, *dbmodel.Span)
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
 	client           func() es.Client
+	v8client         *elasticsearch8.Client
 	logger           *zap.Logger
 	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache       cache.Cache
@@ -57,6 +60,7 @@ type SpanWriter struct {
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
 	Client                 func() es.Client
+	V8Client               *elasticsearch8.Client
 	Logger                 *zap.Logger
 	MetricsFactory         metrics.Factory
 	IndexPrefix            string
@@ -85,8 +89,9 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client: p.Client,
-		logger: p.Logger,
+		client:   p.Client,
+		v8client: p.V8Client,
+		logger:   p.Logger,
 		writerMetrics: spanWriterMetrics{
 			indexCreate: storageMetrics.NewWriteMetrics(p.MetricsFactory, "index_create"),
 		},
@@ -107,15 +112,37 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 	if indexPrefix != "" && !strings.HasSuffix(indexPrefix, "-") {
 		indexPrefix += "-"
 	}
-	_, err := s.client().CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
-	if err != nil {
-		return err
+	esVersion := s.client().GetVersion()
+	if esVersion > 7 {
+		fmt.Println("-------------------------------------I am here---------------------------------------")
+		spanTemplateResponse, err := s.v8client.Indices.PutIndexTemplate(indexPrefix+"jaeger-span", strings.NewReader(spanTemplate))
+		if spanTemplateResponse.StatusCode != 200 {
+			return fmt.Errorf("Error creating Index templates for Span %s", spanTemplateResponse.String())
+		}
+		if err != nil {
+			return err
+		}
+
+		serviceTemplateResponse, err := s.v8client.Indices.PutIndexTemplate(indexPrefix+"jaeger-service", strings.NewReader(serviceTemplate))
+		if serviceTemplateResponse.StatusCode != 200 {
+			return fmt.Errorf("Error creating Index templates for Service %s", serviceTemplateResponse.String())
+		}
+		if err != nil {
+			return err
+		}
+		return nil
+	} else {
+		_, err := s.client().CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		_, err = s.client().CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	_, err = s.client().CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // spanAndServiceIndexFn returns names of span and service indices

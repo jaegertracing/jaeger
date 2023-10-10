@@ -241,8 +241,15 @@ func createSpanWriter(
 	if err != nil {
 		return nil, err
 	}
+
+	elasticsearch8Client, err := config.NewElasticSearch8Client(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
+		V8Client:               elasticsearch8Client,
 		IndexPrefix:            cfg.IndexPrefix,
 		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
 		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,

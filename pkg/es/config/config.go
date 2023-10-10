@@ -34,6 +34,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -185,6 +186,26 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	}
 
 	return eswrapper.WrapESClient(rawClient, service, c.Version), nil
+}
+
+func NewElasticSearch8Client(c *Configuration, logger *zap.Logger) (*elasticsearch8.Client, error) {
+	var options elasticsearch8.Config
+	options.Addresses = c.Servers
+	options.Username = c.Username
+	options.Password = c.Password
+	options.DiscoverNodesOnStart = c.Sniffer
+	transport, err := GetHTTPRoundTripper(c, logger)
+	if err != nil {
+		return nil, err
+	}
+	options.Transport = transport
+
+	client, err := elasticsearch8.NewClient(options)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.

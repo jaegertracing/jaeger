@@ -38,10 +38,13 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 		mapping   string
 		esVersion uint
 	}{
+		{mapping: "jaeger-span", esVersion: 8},
 		{mapping: "jaeger-span", esVersion: 7},
 		{mapping: "jaeger-span", esVersion: 6},
+		{mapping: "jaeger-service", esVersion: 8},
 		{mapping: "jaeger-service", esVersion: 7},
 		{mapping: "jaeger-service", esVersion: 6},
+		{mapping: "jaeger-dependencies", esVersion: 8},
 		{mapping: "jaeger-dependencies", esVersion: 7},
 		{mapping: "jaeger-dependencies", esVersion: 6},
 	}
@@ -59,7 +62,10 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
-			if tt.esVersion == 7 {
+			if tt.esVersion == 8 {
+				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + "-8.json")
+				require.NoError(t, err)
+			} else if tt.esVersion == 7 {
 				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + "-7.json")
 				require.NoError(t, err)
 			} else {
@@ -77,11 +83,14 @@ func TestMappingBuilder_loadMapping(t *testing.T) {
 		name string
 	}{
 		{name: "jaeger-span.json"},
-		{name: "jaeger-service.json"},
 		{name: "jaeger-span-7.json"},
+		{name: "jaeger-span-8.json"},
+		{name: "jaeger-service.json"},
 		{name: "jaeger-service-7.json"},
+		{name: "jaeger-service-8.json"},
 		{name: "jaeger-dependencies.json"},
 		{name: "jaeger-dependencies-7.json"},
+		{name: "jaeger-dependencies-8.json"},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
