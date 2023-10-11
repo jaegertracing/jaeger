@@ -4,20 +4,16 @@ version_regex='[0-9]\.[0-9][0-9]'
 update=false
 verbose=false
 
-while getopts "uvd" opt; do
+while getopts "uvdx" opt; do
     case $opt in
         u) update=true ;;
         v) verbose=true ;;
+        x) set -x ;;
         *) echo "Usage: $0 [-u] [-v] [-d]" >&2
            exit 1
            ;;
     esac
 done
-
-# Debugging option (-x) used separately
-if [[ "$DEBUG" == "true" ]]; then
-  set -x
-fi
 
 # Fetch latest go release version
 go_latest_version=$(curl -s https://go.dev/dl/?mode=json | jq -r '.[0].version' | awk -F'.' '{gsub("go", ""); print $1"."$2}')
@@ -77,8 +73,7 @@ check go.mod "^go\s\+$version_regex" "$go_previous_version"
 check docker/Makefile "^.*golang:$version_regex" "$go_latest_version"
 
 gha_workflows=$(grep -rl go-version .github)
-# shellcheck disable=SC2068
-for gha_workflow in ${gha_workflows[@]}; do
+for gha_workflow in "${gha_workflows[@]}"; do
     check "$gha_workflow" "^\s*go-version:\s\+$version_regex" "$go_latest_version"
 done
 

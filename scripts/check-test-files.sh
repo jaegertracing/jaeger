@@ -13,8 +13,8 @@ for dir in $*; do
     if [ -n "${mainFile}" ]; then
       continue # single main does not require tests
     fi
-    if [ -e "${dir}"/.nocover ]; then
-      reason=$(cat "${dir}"/.nocover)
+    if [ -e "${dir}/.nocover" ]; then
+      reason=$(cat "${dir}/.nocover")
       if [ "${reason}" == "" ]; then
         echo "error: ${dir}/.nocover must specify reason" >&2
         exit 1

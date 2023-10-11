@@ -30,8 +30,7 @@ setup_es() {
     --env "xpack.monitoring.enabled=false"
   )
   local cid
-  # shellcheck disable=SC2068
-  cid=$(docker run ${params[@]} "${image}:${tag}")
+  cid=$(docker run "${params[@]}" "${image}:${tag}")
   echo "${cid}"
 }
 
@@ -46,8 +45,7 @@ setup_opensearch() {
     --env "plugins.security.disabled=true"
   )
   local cid
-  # shellcheck disable=SC2068
-  cid=$(docker run ${params[@]} "${image}:${tag}")
+  cid=$(docker run "${params[@]}" "${image}:${tag}")
   echo "${cid}"
 }
 
@@ -64,16 +62,14 @@ wait_for_storage() {
   )
   local counter=0
   local max_counter=60
-  # shellcheck disable=SC2068
-  while [[ "$(curl ${params[@]} "${url}")" != "200" && ${counter} -le ${max_counter} ]]; do
+  while [[ "$(curl "${params[@]}" "${url}")" != "200" && ${counter} -le ${max_counter} ]]; do
     docker inspect "${cid}" | jq '.[].State'
     echo "waiting for ${url} to be up..."
     sleep 10
     counter=$((counter+1))
   done
   # after the loop, do final verification and set status as global var
-  # shellcheck disable=SC2068
-  if [[ "$(curl ${params[@]} "${url}")" != "200" ]]; then
+  if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready"
     docker logs "${cid}"
     docker kill "${cid}"

@@ -24,8 +24,7 @@ setup_cassandra() {
     --publish 9160:9160
   )
   local cid
-  # shellcheck disable=SC2068
-  cid=$(docker run ${params[@]} "${image}:${tag}")
+  cid=$(docker run "${params[@]}" "${image}:${tag}")
   echo "${cid}"
 }
 
@@ -47,8 +46,7 @@ apply_schema() {
     --network host
   )
   docker build -t ${image} ${schema_dir}
-  # shellcheck disable=SC2068
-  docker run ${params[@]} ${image}
+  docker run "${params[@]}" ${image}
 }
 
 run_integration_test() {
@@ -59,7 +57,8 @@ run_integration_test() {
   apply_schema "$2"
   STORAGE=cassandra make storage-integration-test
   exit_status=$?
-  trap "teardown_cassandra \${cid}" EXIT
+  # shellcheck disable=SC2064
+  trap "teardown_cassandra ${cid}" EXIT
 }
 
 main() {
