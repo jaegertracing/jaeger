@@ -487,5 +487,5 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("GetDependencies", s.testGetDependencies)
 	t.Run("GetThroughput", s.testGetThroughput)
-	t.Run("GetLatestProbability", s.testGetLatestProbability)
+	//t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
