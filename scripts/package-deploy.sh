@@ -9,12 +9,12 @@ function stage-platform-files {
     local -r PACKAGE_STAGING_DIR=$2
     local -r FILE_EXTENSION=${3:-}
 
-    cp "./cmd/all-in-one/all-in-one-$PLATFORM"  "$PACKAGE_STAGING_DIR/jaeger-all-in-one$FILE_EXTENSION"
-    cp "./cmd/agent/agent-$PLATFORM"            "$PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION"
-    cp "./cmd/query/query-$PLATFORM"            "$PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION"
-    cp "./cmd/collector/collector-$PLATFORM"    "$PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION"
-    cp "./cmd/ingester/ingester-$PLATFORM"      "$PACKAGE_STAGING_DIR/jaeger-ingester$FILE_EXTENSION"
-    cp "./examples/hotrod/hotrod-$PLATFORM"     "$PACKAGE_STAGING_DIR/example-hotrod$FILE_EXTENSION"
+    cp "./cmd/all-in-one/all-in-one-${PLATFORM}"  "${PACKAGE_STAGING_DIR}/jaeger-all-in-one${FILE_EXTENSION}"
+    cp "./cmd/agent/agent-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-agent${FILE_EXTENSION}"
+    cp "./cmd/query/query-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-query${FILE_EXTENSION}"
+    cp "./cmd/collector/collector-${PLATFORM}"    "${PACKAGE_STAGING_DIR}/jaeger-collector${FILE_EXTENSION}"
+    cp "./cmd/ingester/ingester-${PLATFORM}"      "${PACKAGE_STAGING_DIR}/jaeger-ingester${FILE_EXTENSION}"
+    cp "./examples/hotrod/hotrod-${PLATFORM}"     "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
 }
 
 # package pulls built files for the platform ($2) and compresses it using the compression ($1).
