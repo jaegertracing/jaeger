@@ -37,7 +37,8 @@ GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 GOCACHE=$(abspath .gocache)
 GOBUILD=GOCACHE=$(GOCACHE) CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
-GOTEST=GOCACHE=$(GOCACHE) $(GO) test -v $(RACE)
+GOTEST_QUIET=GOCACHE=$(GOCACHE) $(GO) test $(RACE)
+GOTEST=$(GOTEST_QUIET) -v
 GOFMT=gofmt
 GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
@@ -485,6 +486,7 @@ install-tools:
 install-ci: install-tools
 
 .PHONY: test-ci
+test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover
 
 .PHONY: thrift
