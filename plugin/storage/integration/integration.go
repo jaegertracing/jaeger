@@ -452,6 +452,7 @@ func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
 	}
 	defer s.cleanUp(t)
 
+	s.SamplingStore.InsertProbabilitiesAndQPS("newhostname1", samplemodel.ServiceOperationProbabilities{"new-srv3": {"op": 0.123}}, samplemodel.ServiceOperationQPS{"new-srv2": {"op": 11}})
 	s.SamplingStore.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
 
 	expected := samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}

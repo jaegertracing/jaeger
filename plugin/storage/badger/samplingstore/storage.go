@@ -36,6 +36,12 @@ type SamplingStore struct {
 	store *badger.DB
 }
 
+type ProbabilitiesAndQPS struct {
+	Hostname      string
+	Probabilities model.ServiceOperationProbabilities
+	QPS           model.ServiceOperationQPS
+}
+
 func NewSamplingStore(db *badger.DB) *SamplingStore {
 	return &SamplingStore{
 		store: db,
@@ -43,7 +49,6 @@ func NewSamplingStore(db *badger.DB) *SamplingStore {
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
-	fmt.Println("Inside badger samplingstore InsertThroughput")
 	startTime := jaegermodel.TimeAsEpochMicroseconds(time.Now())
 	entriesToStore := make([]*badger.Entry, 0)
 	entries, err := s.createThroughputEntry(throughput, startTime)
@@ -52,12 +57,9 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	}
 	entriesToStore = append(entriesToStore, entries)
 	err = s.store.Update(func(txn *badger.Txn) error {
-		// Write the entries
 		for i := range entriesToStore {
 			err = txn.SetEntry(entriesToStore[i])
-			fmt.Println("Writing entry to badger")
 			if err != nil {
-				// Most likely primary key conflict, but let the caller check this
 				return err
 			}
 		}
@@ -70,8 +72,6 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	var retSlice []*model.Throughput
-	fmt.Println("Inside badger samplingstore GetThroughput")
-
 	prefix := []byte{throughputKeyPrefix}
 
 	err := s.store.View(func(txn *badger.Txn) error {
@@ -93,7 +93,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 			if err != nil {
 				return err
 			}
-			throughputs, err := decodeValue(val)
+			throughputs, err := decodeThroughtputValue(val)
 			if err != nil {
 				return err
 			}
@@ -115,12 +115,83 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
+	startTime := jaegermodel.TimeAsEpochMicroseconds(time.Now())
+	entriesToStore := make([]*badger.Entry, 0)
+	entries, err := s.createProbabilitiesEntry(hostname, probabilities, qps, startTime)
+	if err != nil {
+		return err
+	}
+	entriesToStore = append(entriesToStore, entries)
+	err = s.store.Update(func(txn *badger.Txn) error {
+		// Write the entries
+		for i := range entriesToStore {
+			err = txn.SetEntry(entriesToStore[i])
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
 	return nil
 }
 
 // GetLatestProbabilities implements samplingstore.Reader#GetLatestProbabilities.
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
-	return nil, nil
+	var retVal model.ServiceOperationProbabilities
+	var unMarshalProbabilities ProbabilitiesAndQPS
+	prefix := []byte{probabilitiesKeyPrefix}
+
+	err := s.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		val := []byte{}
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			val, err := item.ValueCopy(val)
+			if err != nil {
+				return err
+			}
+			unMarshalProbabilities, err = decodeProbabilitiesValue(val)
+			retVal = unMarshalProbabilities.Probabilities
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return retVal, nil
+}
+
+func (s *SamplingStore) createProbabilitiesEntry(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) (*badger.Entry, error) {
+	pK, pV, err := s.createProbabilitiesKV(hostname, probabilities, qps, startTime)
+	if err != nil {
+		return nil, err
+	}
+
+	e := s.createBadgerEntry(pK, pV)
+
+	return e, nil
+}
+
+func (s *SamplingStore) createProbabilitiesKV(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) ([]byte, []byte, error) {
+	key := make([]byte, 16)
+	key[0] = probabilitiesKeyPrefix
+	pos := 1
+	binary.BigEndian.PutUint64(key[pos:], startTime)
+
+	var bb []byte
+	var err error
+	val := ProbabilitiesAndQPS{
+		Hostname:      hostname,
+		Probabilities: probabilities,
+		QPS:           qps,
+	}
+	bb, err = json.Marshal(val)
+	return key, bb, err
 }
 
 func (s *SamplingStore) createThroughputEntry(throughput []*model.Throughput, startTime uint64) (*badger.Entry, error) {
@@ -151,20 +222,27 @@ func (s *SamplingStore) createThroughputKV(throughput []*model.Throughput, start
 	var err error
 
 	bb, err = json.Marshal(throughput)
-	fmt.Printf("Badger key %v, value %v\n", key, string(bb))
 	return key, bb, err
 }
 
-func decodeValue(val []byte) ([]*model.Throughput, error) {
+func decodeThroughtputValue(val []byte) ([]*model.Throughput, error) {
 	var throughput []*model.Throughput
 
 	err := json.Unmarshal(val, &throughput)
 	if err != nil {
-		fmt.Println("Error while unmarshalling")
 		return nil, err
 	}
-	fmt.Printf("Throughput %v\n", throughput)
 	return throughput, nil
+}
+
+func decodeProbabilitiesValue(val []byte) (ProbabilitiesAndQPS, error) {
+	var probabilities ProbabilitiesAndQPS
+
+	err := json.Unmarshal(val, &probabilities)
+	if err != nil {
+		return ProbabilitiesAndQPS{}, err
+	}
+	return probabilities, nil
 }
 
 func initalStartTime(timeBytes []byte) (time.Time, error) {

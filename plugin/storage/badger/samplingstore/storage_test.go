@@ -63,6 +63,27 @@ func TestGetThroughput(t *testing.T) {
 	})
 }
 
+func TestInsertProbabilitiesAndQPS(t *testing.T) {
+	runWithBadger(t, func(s *samplingStoreTest, t *testing.T) {
+		err := s.store.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
+		assert.NoError(t, err)
+	})
+}
+
+func TestGetLatestProbabilities(t *testing.T) {
+	runWithBadger(t, func(s *samplingStoreTest, t *testing.T) {
+		err := s.store.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
+		assert.NoError(t, err)
+		err = s.store.InsertProbabilitiesAndQPS("newhostname", samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}}, samplemodel.ServiceOperationQPS{"new-srv2": {"op": 1}})
+		assert.NoError(t, err)
+
+		expected := samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}}
+		actual, err := s.store.GetLatestProbabilities()
+		assert.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+}
+
 func runWithBadger(t *testing.T, test func(s *samplingStoreTest, t *testing.T)) {
 	opts := badger.DefaultOptions("")
 
