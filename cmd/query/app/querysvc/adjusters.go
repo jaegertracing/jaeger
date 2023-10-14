@@ -31,5 +31,6 @@ func StandardAdjusters(maxClockSkewAdjust time.Duration) []adjuster.Adjuster {
 		adjuster.SortLogFields(),
 		adjuster.SpanReferences(),
 		adjuster.ParentReference(),
+		adjuster.SpanTagsToProcessAdjuster(),
 	}
 }
