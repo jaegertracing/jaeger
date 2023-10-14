@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2023 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +20,7 @@ import (
 
 var spanTagsToMove = map[string]struct{}{
 	"otel.library.name": {},
+	"otel.library.version": {},
 }
 
 // SpanTagsToProcessAdjuster moves certain tags from span.tags to
@@ -35,14 +35,16 @@ func SpanTagsToProcessAdjuster() Adjuster {
 			}
 
 			index := 0
-			for _, tag := range span.Tags {
+			for i, tag := range span.Tags {
 				if _, ok := spanTagsToMove[tag.Key]; ok {
 					if _, exists := processTagsMap[tag.Key]; !exists {
 						span.Process.Tags = append(span.Process.Tags, tag)
 						continue
 					}
 				}
-				span.Tags[index] = tag
+				if i != index {
+					span.Tags[index] = tag
+				}
 				index++
 			}
 			span.Tags = span.Tags[:index]
