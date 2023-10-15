@@ -4,12 +4,14 @@
 package internal
 
 import (
+	"context"
 	"log"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
 
+	allinone "github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/all-in-one"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
@@ -31,8 +33,9 @@ func Command() *cobra.Command {
 
 	cmd := otelcol.NewCommand(
 		otelcol.CollectorSettings{
-			BuildInfo: info,
-			Factories: factories,
+			BuildInfo:      info,
+			Factories:      factories,
+			ConfigProvider: allinone.NewConfigProvider(),
 		},
 	)
 
@@ -40,4 +43,12 @@ func Command() *cobra.Command {
 	cmd.Long = description
 
 	return cmd
+}
+
+type AllInOneConfigProvider struct{}
+
+var _ otelcol.ConfigProvider = (*AllInOneConfigProvider)(nil)
+
+func Get(ctx context.Context, factories otelcol.Factories) (*otelcol.Config, error) {
+	return nil, nil
 }
