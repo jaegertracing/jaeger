@@ -66,7 +66,6 @@ func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Fa
 		resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)),
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
-		resource.WithHostID(),
 		resource.WithOSType(),
 	)
 	if err != nil {
