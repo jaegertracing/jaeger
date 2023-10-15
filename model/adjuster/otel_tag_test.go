@@ -36,6 +36,7 @@ func TestOTelTagAdjuster(t *testing.T) {
 					model.String("random_key", "random_value"),
 					model.String(string(semconv.OTelLibraryNameKey), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"),
 					model.String(string(semconv.OTelLibraryVersionKey), "0.45.0"),
+					model.String("another_key", "another_value"),
 				},
 				Process: &model.Process{
 					Tags: model.KeyValues{},
