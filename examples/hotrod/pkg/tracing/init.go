@@ -31,7 +31,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -60,13 +60,23 @@ func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Fa
 
 	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
 
+	res, err := resource.New(
+		context.Background(),
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)),
+		resource.WithTelemetrySDK(),
+		resource.WithHost(),
+		resource.WithHostID(),
+		resource.WithOSType(),
+	)
+	if err != nil {
+		logger.Bg().Fatal("resource creation failed", zap.Error(err))
+	}
+
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exp, sdktrace.WithBatchTimeout(1000*time.Millisecond)),
 		sdktrace.WithSpanProcessor(rpcmetricsObserver),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(serviceName),
-		)),
+		sdktrace.WithResource(res),
 	)
 	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
 	return tp
