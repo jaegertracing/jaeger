@@ -10,11 +10,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
-	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/service"
 	"go.opentelemetry.io/collector/service/extensions"
 	"go.opentelemetry.io/collector/service/pipelines"
@@ -47,11 +43,11 @@ func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) 
 		Processors: make(map[component.ID]component.Config),
 		Exporters:  make(map[component.ID]component.Config),
 	}
-	defaultConfigs[extension.Factory]("extension", cfg.Service.Extensions, cfg.Extensions, factories.Extensions)
+	defaultConfigs("extension", cfg.Service.Extensions, cfg.Extensions, factories.Extensions)
 	for _, pipeCfg := range cfg.Service.Pipelines {
-		defaultConfigs[receiver.Factory]("receiver", pipeCfg.Receivers, cfg.Receivers, factories.Receivers)
-		defaultConfigs[processor.Factory]("processor", pipeCfg.Processors, cfg.Processors, factories.Processors)
-		defaultConfigs[exporter.Factory]("exporter", pipeCfg.Exporters, cfg.Exporters, factories.Exporters)
+		defaultConfigs("receiver", pipeCfg.Receivers, cfg.Receivers, factories.Receivers)
+		defaultConfigs("processor", pipeCfg.Processors, cfg.Processors, factories.Processors)
+		defaultConfigs("exporter", pipeCfg.Exporters, cfg.Exporters, factories.Exporters)
 	}
 	return cfg, nil
 }
