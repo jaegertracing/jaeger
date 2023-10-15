@@ -156,6 +156,9 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 				return err
 			}
 			unMarshalProbabilities, err = decodeProbabilitiesValue(val)
+			if err != nil {
+				return err
+			}
 			retVal = unMarshalProbabilities.Probabilities
 		}
 		return nil
