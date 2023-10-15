@@ -8,12 +8,19 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+
+	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
-// componentType is the name of this extension in configuration.
-const componentType = component.Type("jaeger_storage")
+const (
+	// componentType is the name of this extension in configuration.
+	componentType = component.Type("jaeger_storage")
 
-// ID is the identifier of the Jaeger storage extension.
+	// DefaultMemoryStore is the name of the memory storage included in the default configuration.
+	DefaultMemoryStore = "memstore"
+)
+
+// ID is the identifier of this extension.
 var ID = component.NewID(componentType)
 
 func NewFactory() extension.Factory {
@@ -26,7 +33,13 @@ func NewFactory() extension.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	return &Config{}
+	return &Config{
+		Memory: map[string]memoryCfg.Configuration{
+			DefaultMemoryStore: {
+				MaxTraces: 100_000,
+			},
+		},
+	}
 }
 
 // createExtension creates the extension based on this config.
