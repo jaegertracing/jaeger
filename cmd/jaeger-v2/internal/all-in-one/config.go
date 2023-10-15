@@ -92,7 +92,7 @@ func (cp *configProvider) makeServiceConfig() service.Config {
 				},
 			},
 		}),
-		// OTel Collector currently (v0.87) hardcodes telemetry settings, this is a copy.
+		// TODO: OTel Collector currently (v0.87) hardcodes telemetry settings, this is a copy.
 		// https://github.com/open-telemetry/opentelemetry-collector/blob/35512c466577036b0cc306673d2d4ad039c77f1c/otelcol/unmarshaler.go#L43
 		Telemetry: telemetry.Config{
 			Logs: telemetry.LogsConfig{

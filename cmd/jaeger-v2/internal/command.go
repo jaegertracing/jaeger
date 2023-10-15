@@ -38,9 +38,9 @@ func Command() *cobra.Command {
 
 	// We want to support running the binary in all-in-one mode without a config file.
 	// Since there are no explicit hooks in OTel Collector for that today (as of v0.87),
-	// we intercept the official RunE implementation and check if any --config flags are
-	// present in the args. If not, we pass a custom ConfigProvider, and create the
-	// collector manually. Unfortunately, `set`(ings) is passed to NewCommand above
+	// we intercept the official RunE implementation and check if any `--config` flags
+	// are present in the args. If not, we pass a custom ConfigProvider, and create the
+	// collector manually. Unfortunately, `set`(tings) is passed to NewCommand above
 	// by value, otherwise we could've overwritten it in the interceptor and then delegated
 	// back to the official RunE.
 	otelRunE := cmd.RunE
