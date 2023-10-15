@@ -49,3 +49,7 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Print logs from hotrod
+      run: docker logs example-hotrod
+      if: failure()
