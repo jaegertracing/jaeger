@@ -26,17 +26,24 @@ var otelLibraryKeys = map[string]struct{}{
 }
 
 func OTelTagAdjuster() Adjuster {
+	adjustSpanTags := func(span *model.Span) {
+		newI := 0
+		for i, tag := range span.Tags {
+			if _, ok := otelLibraryKeys[tag.Key]; ok {
+				span.Process.Tags = append(span.Process.Tags, tag)
+				continue
+			}
+			if i != newI {
+				span.Tags[newI] = tag
+			}
+			newI++
+		}
+		span.Tags = span.Tags[:newI]
+	}
+
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		for _, span := range trace.Spans {
-			filteredTags := make([]model.KeyValue, 0)
-			for _, tag := range span.Tags {
-				if _, ok := otelLibraryKeys[tag.Key]; !ok {
-					filteredTags = append(filteredTags, tag)
-					continue
-				}
-				span.Process.Tags = append(span.Process.Tags, tag)
-			}
-			span.Tags = filteredTags
+			adjustSpanTags(span)
 			model.KeyValues(span.Process.Tags).Sort()
 		}
 		return trace, nil
