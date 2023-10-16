@@ -43,13 +43,15 @@ def num_commits_since_prev_tag(token, base_url):
     print(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
 
-categories = {
-        '#### ⛔ Breaking Changes': 'changelog:breaking-change',
-        '#### New Features': 'changelog:new-feature',
-        '#### Bug fixes, Minor Improvements': 'changelog:bugfix-or-minor-feature',
-        '#### 🚧 Experimental Features': 'changelog:exprimental',
-        '#### CI Improvements': 'changelog:ci',
-    }
+categories = [
+    {'title': '#### ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
+    {'title': '#### New Features', 'label': 'changelog:new-feature'},
+    {'title': '#### Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
+    {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
+    {'title': '#### CI Improvements', 'label': 'changelog:ci'},
+    {'title': '', 'label': 'changelog:test'},
+    {'title': '', 'label': 'changelog:skip'}
+]
 
 def categorize_pull_request(label):
     for category, prefix in categories.items():
@@ -81,7 +83,7 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     # Load PR for each commit and print summary
     print("Processing...")
-    category_results = {category: [] for category in categories.keys()}
+    category_results = {category['title']: [] for category in categories}
     other_results = []
 
     for commit in commits:
@@ -112,7 +114,10 @@ def main(token, repo, num_commits, exclude_dependabot):
 
             category = 'Other'
             if changelog_labels:
-                category = categorize_pull_request(changelog_labels[0])
+                for cat in categories:
+                    if changelog_labels[0].startswith(cat['label']):
+                        category = cat['title']
+                        break
             
             result = f'* {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))'
             if category == 'Other':
@@ -132,7 +137,10 @@ def main(token, repo, num_commits, exclude_dependabot):
 
         category = 'Other'
         if changelog_labels:
-            category = categorize_pull_request(changelog_labels[0])
+            for cat in categories:
+                if changelog_labels[0].startswith(cat['label']):
+                    category = cat['title']
+                    break
             
         result = f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))'
         if category == 'Other':
@@ -142,7 +150,7 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     # Print categorized pull requests
     for category, results in category_results.items():
-        if results:
+        if results and category:
             print(f'{category}:')
             for result in results:
                 print(result)
