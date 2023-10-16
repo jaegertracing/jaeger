@@ -45,6 +45,7 @@ func TestOTelTagAdjuster(t *testing.T) {
 			expected: &model.Span{
 				Tags: model.KeyValues{
 					model.String("random_key", "random_value"),
+					model.String("another_key", "another_value"),
 				},
 				Process: &model.Process{
 					Tags: model.KeyValues{
