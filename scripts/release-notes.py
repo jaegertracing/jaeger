@@ -43,6 +43,17 @@ def num_commits_since_prev_tag(token, base_url):
     print(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
 
+categories = {
+        'CI': 'changelog:ci',
+        'Feature': 'changelog:feature',
+    }
+
+def categorize_pull_request(label):
+    for category, prefix in categories.items():
+        if label.startswith(prefix):
+            return category
+    return 'Other'  # Default category if no matching prefix is found
+
 
 def main(token, repo, num_commits, exclude_dependabot):
     accept_header = "application/vnd.github.groot-preview+json"
@@ -66,6 +77,10 @@ def main(token, repo, num_commits, exclude_dependabot):
     print('Retrieved', len(commits), 'commits')
 
     # Load PR for each commit and print summary
+    print("Processing...")
+    category_results = {category: [] for category in categories.keys()}
+    other_results = []
+
     for commit in commits:
         sha = commit['sha']
         author = commit['author']['login']
@@ -88,17 +103,64 @@ def main(token, repo, num_commits, exclude_dependabot):
         if not pulls:
             short_sha = sha[:7]
             commit_url = commit['html_url']
-            print(f'* {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))')
+            # Check if the commit has changelog label
+            commit_labels = get_pull_request_labels(token, args.repo, pull_id)
+            changelog_labels = [label for label in commit_labels if label.startswith('changelog:')]
+
+            category = 'Other'
+            if changelog_labels:
+                category = categorize_pull_request(changelog_labels[0])
+            
+            result = f'* {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))'
+            if category == 'Other':
+                other_results.append(result)
+            else:
+                category_results[category].append(result)
             continue
 
         pull = pulls[0]
         pull_id = pull['number']
         pull_url = pull['html_url']
         msg = msg.replace(f'(#{pull_id})', '').strip()
-        print(f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))')
 
-    if skipped_dependabot:
-        print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
+        # Check if the pull request has changelog label
+        pull_labels = get_pull_request_labels(token, args.repo, pull_id)
+        changelog_labels = [label for label in pull_labels if label.startswith('changelog:')]
+
+        category = 'Other'
+        if changelog_labels:
+            category = categorize_pull_request(changelog_labels[0])
+            
+        result = f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))'
+        if category == 'Other':
+            other_results.append(result)
+        else:
+            category_results[category].append(result)
+
+    # Print categorized pull requests
+    for category, results in category_results.items():
+        if results:
+            print(f'{category}:')
+            for result in results:
+                print(result)
+            print()
+
+    # Print pull requests in the 'Other' category
+    if other_results:
+        print('Other:')
+        for result in other_results:
+            print(result)
+
+        if skipped_dependabot:
+            print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
+
+
+def get_pull_request_labels(token, repo, pull_number):
+    labels_url = f"https://api.github.com/repos/jaegertracing/{repo}/issues/{pull_number}/labels"
+    req = Request(labels_url)
+    req.add_header('Authorization', f'token {token}')
+    labels = json.loads(urlopen(req).read())
+    return [label['name'] for label in labels]
 
 
 if __name__ == "__main__":
