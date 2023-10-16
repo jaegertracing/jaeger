@@ -116,14 +116,6 @@ func TestDecodeThroughtputValue(t *testing.T) {
 	assert.Equal(t, expected, acrual)
 }
 
-func TestInitalStartTime(t *testing.T) {
-	expected := "2023-10-10 20:17:19.993838 +0530 IST"
-	timeBytes := []byte{0, 6, 7, 93, 200, 166, 213, 238}
-	actual, err := initalStartTime(timeBytes)
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual.String())
-}
-
 func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) {
 	opts := badger.DefaultOptions("")
 

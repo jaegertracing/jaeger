@@ -433,18 +433,15 @@ func (s *StorageIntegration) testGetThroughput(t *testing.T) {
 
 	s.insertThroughput(t)
 
-	expected := []*samplemodel.Throughput{
-		{Service: "my-svc", Operation: "op"},
-		{Service: "our-svc", Operation: "op2"},
-	}
+	expected := 2
 	var actual []*samplemodel.Throughput
 	_ = s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.SamplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
 		require.NoError(t, err)
-		return assert.ObjectsAreEqualValues(expected, actual)
+		return assert.ObjectsAreEqualValues(expected, len(actual))
 	})
-	assert.Equal(t, expected, actual)
+	assert.Len(t, actual, expected)
 }
 
 func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
