@@ -15,6 +15,7 @@
 package samplingstore
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -24,67 +25,106 @@ import (
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
 
-type samplingStoreTest struct {
-	store *SamplingStore
-}
-
-func NewtestSamplingStore(db *badger.DB) *samplingStoreTest {
-	return &samplingStoreTest{
-		store: NewSamplingStore(db),
-	}
+func newTestSamplingStore(db *badger.DB) *SamplingStore {
+	return NewSamplingStore(db)
 }
 
 func TestInsertThroughput(t *testing.T) {
-	runWithBadger(t, func(s *samplingStoreTest, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
 		throughputs := []*samplemodel.Throughput{
 			{Service: "my-svc", Operation: "op"},
 			{Service: "our-svc", Operation: "op2"},
 		}
-		err := s.store.InsertThroughput(throughputs)
+		err := store.InsertThroughput(throughputs)
 		assert.NoError(t, err)
 	})
 }
 
 func TestGetThroughput(t *testing.T) {
-	runWithBadger(t, func(s *samplingStoreTest, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
 		start := time.Now()
-
-		expected := 2
-		throughputs := []*samplemodel.Throughput{
+		expected := []*samplemodel.Throughput{
 			{Service: "my-svc", Operation: "op"},
 			{Service: "our-svc", Operation: "op2"},
 		}
-		err := s.store.InsertThroughput(throughputs)
+		err := store.InsertThroughput(expected)
 		assert.NoError(t, err)
 
-		actual, err := s.store.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
-		assert.NoError(t, err)
-		assert.Equal(t, expected, len(actual))
-	})
-}
-
-func TestInsertProbabilitiesAndQPS(t *testing.T) {
-	runWithBadger(t, func(s *samplingStoreTest, t *testing.T) {
-		err := s.store.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
-		assert.NoError(t, err)
-	})
-}
-
-func TestGetLatestProbabilities(t *testing.T) {
-	runWithBadger(t, func(s *samplingStoreTest, t *testing.T) {
-		err := s.store.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
-		assert.NoError(t, err)
-		err = s.store.InsertProbabilitiesAndQPS("newhostname", samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}}, samplemodel.ServiceOperationQPS{"new-srv2": {"op": 1}})
-		assert.NoError(t, err)
-
-		expected := samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}}
-		actual, err := s.store.GetLatestProbabilities()
+		actual, err := store.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
 		assert.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
 }
 
-func runWithBadger(t *testing.T, test func(s *samplingStoreTest, t *testing.T)) {
+func TestInsertProbabilitiesAndQPS(t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
+		err := store.InsertProbabilitiesAndQPS(
+			"dell11eg843d",
+			samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+			samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+		)
+		assert.NoError(t, err)
+	})
+}
+
+func TestGetLatestProbabilities(t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
+		err := store.InsertProbabilitiesAndQPS(
+			"dell11eg843d",
+			samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+			samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+		)
+		assert.NoError(t, err)
+		err = store.InsertProbabilitiesAndQPS(
+			"newhostname",
+			samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}},
+			samplemodel.ServiceOperationQPS{"new-srv2": {"op": 1}},
+		)
+		assert.NoError(t, err)
+
+		expected := samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}}
+		actual, err := store.GetLatestProbabilities()
+		assert.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+}
+
+func TestDecodeProbabilitiesValue(t *testing.T) {
+	expected := ProbabilitiesAndQPS{
+		Hostname:      "dell11eg843d",
+		Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+		QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+	}
+
+	marshalBytes, err := json.Marshal(expected)
+	assert.NoError(t, err)
+	actual, err := decodeProbabilitiesValue(marshalBytes)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestDecodeThroughtputValue(t *testing.T) {
+	expected := []*samplemodel.Throughput{
+		{Service: "my-svc", Operation: "op"},
+		{Service: "our-svc", Operation: "op2"},
+	}
+
+	marshalBytes, err := json.Marshal(expected)
+	assert.NoError(t, err)
+	acrual, err := decodeThroughtputValue(marshalBytes)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, acrual)
+}
+
+func TestInitalStartTime(t *testing.T) {
+	expected := "2023-10-10 20:17:19.993838 +0530 IST"
+	timeBytes := []byte{0, 6, 7, 93, 200, 166, 213, 238}
+	actual, err := initalStartTime(timeBytes)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, actual.String())
+}
+
+func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) {
 	opts := badger.DefaultOptions("")
 
 	opts.SyncWrites = false
@@ -94,11 +134,11 @@ func runWithBadger(t *testing.T, test func(s *samplingStoreTest, t *testing.T)) 
 
 	store, err := badger.Open(opts)
 	defer func() {
-		store.Close()
+		assert.NoError(t, store.Close())
 	}()
-	ss := NewtestSamplingStore(store)
+	ss := newTestSamplingStore(store)
 
 	assert.NoError(t, err)
 
-	test(ss, t)
+	test(t, ss)
 }

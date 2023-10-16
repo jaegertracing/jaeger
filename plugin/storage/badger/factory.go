@@ -29,7 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
-	samplingStore "github.com/jaegertracing/jaeger/plugin/storage/badger/samplingstore"
+	badgerSampling "github.com/jaegertracing/jaeger/plugin/storage/badger/samplingstore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -174,7 +174,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return samplingStore.NewSamplingStore(f.store), nil
+	return badgerSampling.NewSamplingStore(f.store), nil
 }
 
 // Close Implements io.Closer and closes the underlying storage
