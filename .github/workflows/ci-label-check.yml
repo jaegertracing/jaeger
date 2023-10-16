@@ -1,0 +1,24 @@
+name: Verify PR Label
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  check-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Check PR label
+        run: |
+          LABEL_NAME="changelog:" # Specify your desired label prefix here
+          if [[ $(curl -s "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" | jq -r '.labels[].name' | grep -c "^$LABEL_NAME") -eq 0 ]]; then
+            echo "Error: Missing required label $LABEL_NAME on this pull request."
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
