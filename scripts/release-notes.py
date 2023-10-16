@@ -44,8 +44,11 @@ def num_commits_since_prev_tag(token, base_url):
     return num_commits
 
 categories = {
-        'CI': 'changelog:ci',
-        'Feature': 'changelog:feature',
+        '#### ⛔ Breaking Changes': 'changelog:breaking-change',
+        '#### New Features': 'changelog:new-feature',
+        '#### Bug fixes, Minor Improvements': 'changelog:bugfix-or-minor-feature',
+        '#### 🚧 Experimental Features': 'changelog:exprimental',
+        '#### CI Improvements': 'changelog:ci',
     }
 
 def categorize_pull_request(label):
