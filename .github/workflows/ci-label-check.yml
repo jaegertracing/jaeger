@@ -8,6 +8,8 @@ on:
       - synchronize
       - edited
       - ready_for_review
+      - labeled
+      - unlabeled
 
 jobs:
   check-label:
