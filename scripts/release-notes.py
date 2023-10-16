@@ -158,7 +158,7 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     # Print pull requests in the 'Other' category
     if other_results:
-        print('Other:')
+        print('#### Other:')
         for result in other_results:
             print(result)
 
