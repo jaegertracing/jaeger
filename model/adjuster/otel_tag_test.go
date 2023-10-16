@@ -77,6 +77,8 @@ func TestOTelTagAdjuster(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.description, func(t *testing.T) {
+			beforeTags := testCase.span.Tags
+
 			trace := &model.Trace{
 				Spans: []*model.Span{testCase.span},
 			}
@@ -84,6 +86,10 @@ func TestOTelTagAdjuster(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, testCase.expected.Tags, trace.Spans[0].Tags)
 			assert.Equal(t, testCase.expected.Process.Tags, trace.Spans[0].Process.Tags)
+
+			newTag := model.String("new_key", "new_value")
+			beforeTags[0] = newTag
+			assert.Equal(t, newTag, testCase.span.Tags[0], "span.Tags still points to the same underlying array")
 		})
 	}
 }
