@@ -16,6 +16,7 @@ import os.path
 import urllib.parse
 from os.path import expanduser
 import sys
+from github import Github
 from urllib.request import (
     urlopen,
     Request
@@ -42,6 +43,13 @@ def num_commits_since_prev_tag(token, base_url):
 
     print(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
+
+
+def validate_changelog_labels(pr):
+    for label in pr.get_labels():
+        if label.name.lower().startswith('changelog:'):
+            return True
+    return False
 
 
 def main(token, repo, num_commits, exclude_dependabot):
@@ -99,6 +107,28 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     if skipped_dependabot:
         print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
+     
+    # Print PRs that don't have changelog label 
+    github = Github(token)
+    repository = github.get_repo(f'jaegertracing/{repo}')
+    changelog_prs = []
+    other_prs = []
+    
+    for pr in repository.get_pulls(state='closed'):
+        if 'dependabot' in pr.user.login:
+            continue
+
+        if validate_changelog_labels(pr):
+            changelog_prs.append(pr)
+        else:
+            other_prs.append(pr)
+
+    if other_prs:
+        print('PRs without "changelog:" labels:')
+        for pr in other_prs:
+            print(f'{pr.title} - {pr.html_url}')
+    else:
+        print('All PRs have "changelog:" labels.')
 
 
 if __name__ == "__main__":
