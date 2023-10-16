@@ -1,8 +1,13 @@
 name: Verify PR Label
 
 on:
-  pull_request_target:
-    types: [opened, reopened, synchronize, edited, ready_for_review]
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
 
 jobs:
   check-label:
