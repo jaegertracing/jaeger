@@ -89,8 +89,11 @@ def main(token, repo, num_commits, exclude_dependabot):
     commits_with_multiple_labels = []
 
     progress = 0
-    print('Loading PRs')
     for commit in commits:
+        if not (progress % 10):
+            print(f"Processing commit {progress + 1}")
+        progress = progress + 1
+
         sha = commit['sha']
         author = commit['author']['login']
 
@@ -143,10 +146,6 @@ def main(token, repo, num_commits, exclude_dependabot):
             other_results.append(result)
         else:
             category_results[category].append(result)
-
-        progress = progress + 1
-        if progress % 10 == 0:
-            print(f"Processed {progress} PRs")
 
     # Print categorized pull requests
     print()
