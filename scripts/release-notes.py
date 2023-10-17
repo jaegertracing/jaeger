@@ -145,7 +145,7 @@ def main(token, repo, num_commits, exclude_dependabot):
     print()
     for category, results in category_results.items():
         if results and category:
-            print(f'{category}:')
+            print(f'{category}:\n')
             for result in results:
                 print(result)
             print()
