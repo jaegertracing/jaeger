@@ -77,6 +77,11 @@ func startOTLPReceiver(
 			Logger:         logger,
 			TracerProvider: trace.NewNoopTracerProvider(),
 			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
+			ReportComponentStatus: component.StatusFunc(func(ev *component.StatusEvent) error {
+				// TODO this could be wired into changing healthcheck.HealthCheck
+				logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
+				return nil
+			}),
 		},
 	}
 

@@ -4,6 +4,8 @@ on:
   release:
     types:
       - published
+  # allow running release workflow manually
+  workflow_dispatch:
 
 # See https://github.com/jaegertracing/jaeger/issues/4017
 # and https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
@@ -13,11 +15,21 @@ permissions:
 
 jobs:
   publish-release:
+    if: github.repository == 'jaegertracing/jaeger'
     runs-on: ubuntu-latest
 
     steps:
+    - name: Clean up some disk space
+      # We had an issue where the workflow was running out of disk space,
+      # because it downloads so many Docker images for different platforms.
+      # Here we delete some stuff from the VM that we do not use.
+      # Inspired by https://github.com/jlumbroso/free-disk-space.
+      run: |
+        sudo rm -rf /usr/local/lib/android || true
+        df -h /
+
     - name: Harden Runner
-      uses: step-security/harden-runner@8ca2b8b2ece13480cda6dacd3511b49857a23c09
+      uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -33,12 +45,18 @@ jobs:
       with:
         go-version: 1.21.x
 
-    - uses: actions/setup-node@5e21ff4d9bc1a8cf6de233a3057d20ec6b3fb69d
-      with:
-        node-version: '16'
+    - name: Setup Node.js version
+      uses: ./.github/actions/setup-node.js
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
+    - name: Export BRANCH variable and validate it is a semver
+      # Many scripts depend on BRANCH variable. We do not want to
+      # use ./.github/actions/setup-branch here because it may set
+      # BRANCH=main when the workflow is triggered manually.
+      run: |
+        BRANCH=$(make echo-version)
+        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
+        echo Validate that the latest tag ${BRANCH} is in semver format
+        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
 
     - name: Install tools
       run: make install-ci
@@ -51,22 +69,26 @@ jobs:
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Build binaries
-      id: build-binaries
       run: make build-all-platforms
 
     - name: Package binaries
       id: package-binaries
       run: bash scripts/package-deploy.sh
-      if: steps.build-binaries.outcome == 'success'
 
     - name: Upload binaries
       uses: svenstaro/upload-release-action@1beeb572c19a9242f4361f4cee78f8e0d9aec5df
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
-        tag: ${{ github.ref }}
+        overwrite: true
+        tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-      if: steps.package-binaries.outcome == 'success'
+
+    - name: Clean up some more disk space
+      # Delete the release artifacts after uploading them.
+      run: |
+        rm -rf deploy || true
+        df -h /
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3
 
@@ -88,7 +110,20 @@ jobs:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: SBOM Generation
+    - name: Generate SBOM
       uses: anchore/sbom-action@78fc58e266e87a38d4194b2137a3d4e9bcaf7ca1
       with:
-        artifact-name: jaeger-SBOM.spdx.json
+        output-file: jaeger-SBOM.spdx.json
+        upload-release-assets: false
+        upload-artifact: false
+
+    - name: Upload SBOM
+      # Upload SBOM manually, because anchore/sbom-action does not do that
+      # when the workflow is triggered manually, only from a release.
+      # See https://github.com/jaegertracing/jaeger/issues/4817
+      uses: svenstaro/upload-release-action@1beeb572c19a9242f4361f4cee78f8e0d9aec5df
+      with:
+        file: jaeger-SBOM.spdx.json
+        overwrite: true
+        tag: ${{ env.BRANCH }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
