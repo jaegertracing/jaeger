@@ -150,7 +150,7 @@ def main(token, repo, num_commits, exclude_dependabot):
         for result in other_results:
             print(result)
 
-        if skipped_dependabot:
+    if skipped_dependabot:
             print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
 
 
