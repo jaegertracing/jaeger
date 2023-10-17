@@ -16,7 +16,7 @@ bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hot
 
 # pass --name example-hotrod so that we can do `docker logs example-hotrod` later
 export CID
-CID=$(docker run -d --name example-hotrod -p 8080:8080 "localhost:5000/$REPO:${GITHUB_SHA}")
+CID=$(docker run -d --name example-hotrod -p 8080:8080 "localhost:5000/${REPO}:${GITHUB_SHA}")
 
 i=0
 while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && ${i} -lt 30 ]]; do
