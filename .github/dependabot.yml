@@ -5,6 +5,7 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    labels: [ "changelog:dependencies" ]
     # Groups are updated together in one pull request
     groups:
       otel:
@@ -28,3 +29,4 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    labels: [ "changelog:dependencies" ]

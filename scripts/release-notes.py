@@ -51,7 +51,8 @@ categories = [
     {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
     {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
     {'title': None, 'label': 'changelog:test'},
-    {'title': None, 'label': 'changelog:skip'}
+    {'title': None, 'label': 'changelog:skip'},
+    {'title': None, 'label': 'changelog:dependencies'},
 ]
 
 def categorize_pull_request(label):
@@ -87,6 +88,8 @@ def main(token, repo, num_commits, exclude_dependabot):
     other_results = []
     commits_with_multiple_labels = []
 
+    progress = 0
+    print('Loading PRs')
     for commit in commits:
         sha = commit['sha']
         author = commit['author']['login']
@@ -109,7 +112,7 @@ def main(token, repo, num_commits, exclude_dependabot):
         if not pulls:
             short_sha = sha[:7]
             commit_url = commit['html_url']
-            
+
             result = f'* {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))'
             other_results.append(result)
             continue
@@ -134,12 +137,16 @@ def main(token, repo, num_commits, exclude_dependabot):
                 if changelog_labels[0].startswith(cat['label']):
                     category = cat['title']
                     break
-            
+
         result = f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))'
         if category == UNCATTEGORIZED:
             other_results.append(result)
         else:
             category_results[category].append(result)
+
+        progress = progress + 1
+        if progress % 10 == 0:
+            print(f"Processed {progress} PRs")
 
     # Print categorized pull requests
     print()
@@ -152,7 +159,7 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
-        print(f'#### {UNCATTEGORIZED}:')
+        print(f'#### 💩💩💩 The following commits cannot be categorized (missing changeglog labels):\n')
         for result in other_results:
             print(result)
         print()
