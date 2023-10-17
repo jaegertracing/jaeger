@@ -524,3 +524,48 @@ func makeTestingSpan(traceID model.TraceID, suffix string) *model.Span {
 		StartTime: time.Unix(300, 0).UTC(),
 	}
 }
+
+// TestArtificialServerSpanCreation tests if an artificial server span is created when
+// there is a client span without a corresponding server span.
+func TestArtificialServerSpanCreation(t *testing.T) {
+	// Create a memory store
+	store := NewStore()
+
+	// Create a client span without a corresponding server span
+	clientSpan := &model.Span{
+		TraceID:       model.NewTraceID(1, 2),
+		SpanID:        model.NewSpanID(3),
+		OperationName: "clientOperation",
+		StartTime:     time.Now(),
+		Duration:      time.Millisecond * 500,
+		Tags: model.KeyValues{
+			model.String("span.kind", "client"),
+		},
+		Process: &model.Process{
+			ServiceName: "clientService",
+		},
+	}
+
+	// Write the client span to the store
+	assert.NoError(t, store.WriteSpan(context.Background(), clientSpan))
+
+	// Get the dependencies
+	_, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
+	assert.NoError(t, err)
+
+	// Retrieve the trace to check if the artificial server span has been added
+	trace, err := store.GetTrace(context.Background(), clientSpan.TraceID)
+	assert.NoError(t, err)
+
+	// Check if the artificial server span has been added
+	var hasArtificialServerSpan bool
+	for _, span := range trace.Spans {
+		if span.OperationName == "artificial-"+clientSpan.OperationName {
+			hasArtificialServerSpan = true
+			break
+		}
+	}
+
+	// Assert that the artificial server span has been added
+	assert.True(t, hasArtificialServerSpan, "Expected an artificial server span to be added")
+}
