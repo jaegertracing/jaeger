@@ -162,10 +162,12 @@ def main(token, repo, num_commits, exclude_dependabot):
         for sha, pull_id, labels in commits_with_multiple_labels:
             pr_url = f"https://github.com/jaegertracing/{repo}/pull/{pull_id}"
             print(f"Commit {sha} associated with multiple changelog labels: {', '.join(labels)}")
-            print(f"Pull Request URL: {pr_url}")
+            print(f"Pull Request URL: {pr_url}\n")
 
     if skipped_dependabot:
-        print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
+        if not commits_with_multiple_labels:
+            print()
+        print(f"(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
 
 
 def get_pull_request_labels(token, repo, pull_number):
