@@ -98,9 +98,15 @@ func TestDecodeProbabilitiesValue(t *testing.T) {
 
 	marshalBytes, err := json.Marshal(expected)
 	assert.NoError(t, err)
+	// This should pass without error
 	actual, err := decodeProbabilitiesValue(marshalBytes)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
+
+	// Simulate data corruption by removing the first byte.
+	corruptedBytes := marshalBytes[1:]
+	_, err = decodeProbabilitiesValue(corruptedBytes)
+	assert.Error(t, err) // Expect an error
 }
 
 func TestDecodeThroughtputValue(t *testing.T) {
@@ -125,12 +131,10 @@ func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) 
 	opts.ValueDir = dir
 
 	store, err := badger.Open(opts)
+	assert.NoError(t, err)
 	defer func() {
 		assert.NoError(t, store.Close())
 	}()
 	ss := newTestSamplingStore(store)
-
-	assert.NoError(t, err)
-
 	test(t, ss)
 }

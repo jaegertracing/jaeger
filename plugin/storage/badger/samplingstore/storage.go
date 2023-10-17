@@ -235,7 +235,7 @@ func decodeThroughtputValue(val []byte) ([]*model.Throughput, error) {
 	if err != nil {
 		return nil, err
 	}
-	return throughput, nil
+	return throughput, err
 }
 
 func decodeProbabilitiesValue(val []byte) (ProbabilitiesAndQPS, error) {
