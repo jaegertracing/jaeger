@@ -88,7 +88,7 @@ bring_up_storage() {
   echo "starting ${distro} ${version}"
   for retry in 1 2 3
   do
-    echo "attempt $retry"
+    echo "attempt $retry"            
     if [ "${distro}" = "elasticsearch" ]; then
       cid=$(setup_es "${version}")
     elif [ "${distro}" == "opensearch" ]; then
@@ -103,7 +103,8 @@ bring_up_storage() {
     fi
   done
   if [ ${db_is_up} = "1" ]; then
-    trap 'teardown_storage ${cid}' EXIT
+  # shellcheck disable=SC2064
+    trap "teardown_storage ${cid}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
     exit 1

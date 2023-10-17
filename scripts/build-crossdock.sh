@@ -12,7 +12,7 @@ if [[ "$BRANCH" == "main" ]]; then
   echo 'upload images to dockerhub/quay.io'
   REPO=jaegertracing/test-driver
   IMAGE_TAGS=$(bash scripts/compute-tags.sh $REPO)
-  IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${REPO}:${COMMIT} --tag quay.io/${REPO}:${COMMIT}"
+  IMAGE_TAGS+=("--tag" "docker.io/${REPO}:${COMMIT}" "--tag" "quay.io/${REPO}:${COMMIT}")
   bash scripts/docker-login.sh
   docker buildx build --push \
     --progress=plain \
