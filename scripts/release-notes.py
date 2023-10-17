@@ -83,9 +83,9 @@ def main(token, repo, num_commits, exclude_dependabot):
     print('Retrieved', len(commits), 'commits')
 
     # Load PR for each commit and print summary
-    print("Processing...")
     category_results = {category['title']: [] for category in categories}
     other_results = []
+    commits_with_multiple_labels = []
 
     for commit in commits:
         sha = commit['sha']
@@ -123,6 +123,11 @@ def main(token, repo, num_commits, exclude_dependabot):
         pull_labels = get_pull_request_labels(token, args.repo, pull_id)
         changelog_labels = [label for label in pull_labels if label.startswith('changelog:')]
 
+        # Handle multiple changelog labels
+        if len(changelog_labels) > 1:
+            commits_with_multiple_labels.append((sha, pull_id, changelog_labels))
+            continue
+
         category = UNCATTEGORIZED
         if changelog_labels:
             for cat in categories:
@@ -139,7 +144,7 @@ def main(token, repo, num_commits, exclude_dependabot):
     # Print categorized pull requests
     for category, results in category_results.items():
         if results and category:
-            print(f'{category}:')
+            print(f'\n{category}:')
             for result in results:
                 print(result)
             print()
@@ -150,8 +155,16 @@ def main(token, repo, num_commits, exclude_dependabot):
         for result in other_results:
             print(result)
 
+    # Print warnings for commits with more than one changelog label
+    if commits_with_multiple_labels:
+        print("\nWarnings: Commits with more than one changelog label found. Please fix them:\n")
+        for sha, pull_id, labels in commits_with_multiple_labels:
+            pr_url = f"https://github.com/jaegertracing/{repo}/pull/{pull_id}"
+            print(f"Commit {sha} associated with multiple changelog labels: {', '.join(labels)}")
+            print(f"Pull Request URL: {pr_url}")
+
     if skipped_dependabot:
-            print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
+        print(f"\n(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
 
 
 def get_pull_request_labels(token, repo, pull_number):
