@@ -88,7 +88,7 @@ bring_up_storage() {
   echo "starting ${distro} ${version}"
   for retry in 1 2 3
   do
-    echo "attempt $retry"            
+    echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ]; then
       cid=$(setup_es "${version}")
     elif [ "${distro}" == "opensearch" ]; then
