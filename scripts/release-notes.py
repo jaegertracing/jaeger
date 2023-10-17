@@ -43,21 +43,22 @@ def num_commits_since_prev_tag(token, base_url):
     print(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
 
+UNCATTEGORIZED = 'Uncategorized'
 categories = [
     {'title': '#### ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
     {'title': '#### New Features', 'label': 'changelog:new-feature'},
     {'title': '#### Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
     {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
     {'title': '#### CI Improvements', 'label': 'changelog:ci'},
-    {'title': '', 'label': 'changelog:test'},
-    {'title': '', 'label': 'changelog:skip'}
+    {'title': None, 'label': 'changelog:test'},
+    {'title': None, 'label': 'changelog:skip'}
 ]
 
 def categorize_pull_request(label):
     for category, prefix in categories.items():
         if label.startswith(prefix):
             return category
-    return 'Other'  # Default category if no matching prefix is found
+    return UNCATTEGORIZED  # Default category if no matching prefix is found
 
 
 def main(token, repo, num_commits, exclude_dependabot):
@@ -108,22 +109,9 @@ def main(token, repo, num_commits, exclude_dependabot):
         if not pulls:
             short_sha = sha[:7]
             commit_url = commit['html_url']
-            # Check if the commit has changelog label
-            commit_labels = get_pull_request_labels(token, args.repo, pull_id)
-            changelog_labels = [label for label in commit_labels if label.startswith('changelog:')]
-
-            category = 'Other'
-            if changelog_labels:
-                for cat in categories:
-                    if changelog_labels[0].startswith(cat['label']):
-                        category = cat['title']
-                        break
             
             result = f'* {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))'
-            if category == 'Other':
-                other_results.append(result)
-            else:
-                category_results[category].append(result)
+            other_results.append(result)
             continue
 
         pull = pulls[0]
@@ -135,7 +123,7 @@ def main(token, repo, num_commits, exclude_dependabot):
         pull_labels = get_pull_request_labels(token, args.repo, pull_id)
         changelog_labels = [label for label in pull_labels if label.startswith('changelog:')]
 
-        category = 'Other'
+        category = UNCATTEGORIZED
         if changelog_labels:
             for cat in categories:
                 if changelog_labels[0].startswith(cat['label']):
@@ -143,7 +131,7 @@ def main(token, repo, num_commits, exclude_dependabot):
                     break
             
         result = f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))'
-        if category == 'Other':
+        if category == UNCATTEGORIZED:
             other_results.append(result)
         else:
             category_results[category].append(result)
@@ -156,9 +144,9 @@ def main(token, repo, num_commits, exclude_dependabot):
                 print(result)
             print()
 
-    # Print pull requests in the 'Other' category
+    # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
-        print('#### Other:')
+        print(f'#### {UNCATTEGORIZED}:')
         for result in other_results:
             print(result)
 
