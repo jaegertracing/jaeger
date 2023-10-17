@@ -2,13 +2,15 @@
 
 set -exu
 
-BRANCH=${BRANCH:?'missing BRANCH env var'}
 # Set default GOARCH variable to the host GOARCH, the target architecture can
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
 mode=${1-main}
-expected_version="v16"
+repo=jaegertracing/all-in-one
+
+# verify Node.js version
+expected_version="v$(cat jaeger-ui/.nvmrc)"
 version=$(node --version)
 major_version=${version%.*.*}
 
@@ -22,7 +24,8 @@ fi
 make build-ui
 
 run_integration_test() {
-  CID=$(docker run -d -p 16686:16686 -p 5778:5778 $1:latest)
+  local image_name="$1"
+  CID=$(docker run -d -p 16686:16686 -p 5778:5778 ${image_name}:${GITHUB_SHA})
   if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"
       echo "--- check the docker log below for details ---"
@@ -46,21 +49,22 @@ else
   make build-all-in-one GOOS=linux GOARCH=arm64
 fi
 
-repo=jaegertracing/all-in-one
-#build all-in-one image locally for integration test
+# build all-in-one image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 run_integration_test localhost:5000/$repo
-#build all-in-one image and upload to dockerhub/quay.io
+
+# build all-in-one image and upload to dockerhub/quay.io
 bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
-
-#do not run debug image build when it is pr-only
-if ["$mode" != "pr-only"]; then 
+# build debug image if not on a pull request
+if [ "$mode" != "pr-only" ]; then
   make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
   repo=${repo}-debug
-  #build all-in-one-debug image locally for integration test
+
+  # build all-in-one-debug image locally for integration test
   bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one-debug -d cmd/all-in-one -t debug
   run_integration_test localhost:5000/$repo
-  #build all-in-one-debug image and upload to dockerhub/quay.io
+
+  # build all-in-one-debug image and upload to dockerhub/quay.io
   bash scripts/build-upload-a-docker-image.sh -b -c all-in-one-debug -d cmd/all-in-one -t debug
 fi

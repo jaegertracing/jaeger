@@ -17,11 +17,20 @@ EXPOSE 6832/udp
 # Agent config HTTP
 EXPOSE 5778
 
+# Collector OTLP gRPC
+EXPOSE 4317
+
+# Collector OTLP HTTP
+EXPOSE 4318
+
 # Collector HTTP
 EXPOSE 14268
 
 # Collector gRPC
 EXPOSE 14250
+
+# Collector Zipkin
+EXPOSE 9411
 
 # Web HTTP
 EXPOSE 16686
@@ -52,11 +61,20 @@ EXPOSE 6832/udp
 # Agent config HTTP
 EXPOSE 5778
 
+# Collector OTLP gRPC
+EXPOSE 4317
+
+# Collector OTLP HTTP
+EXPOSE 4318
+
 # Collector HTTP
 EXPOSE 14268
 
 # Collector gRPC
 EXPOSE 14250
+
+# Collector Zipkin
+EXPOSE 9411
 
 # Web HTTP
 EXPOSE 16686

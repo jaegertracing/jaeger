@@ -69,7 +69,7 @@ func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
 
 func (i Info) String() string {
 	return fmt.Sprintf(
-		"application version: git-commit=%s, git-version=%s, build-date=%s",
+		"git-commit=%s, git-version=%s, build-date=%s",
 		i.GitCommit, i.GitVersion, i.BuildDate,
 	)
 }

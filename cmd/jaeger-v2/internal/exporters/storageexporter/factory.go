@@ -10,10 +10,15 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerstorage"
 )
 
 // componentType is the name of this extension in configuration.
 const componentType = component.Type("jaeger_storage_exporter")
+
+// ID is the identifier of this extension.
+var ID = component.NewID(componentType)
 
 // NewFactory creates a factory for jaeger_storage_exporter.
 func NewFactory() exporter.Factory {
@@ -25,7 +30,9 @@ func NewFactory() exporter.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	return &Config{}
+	return &Config{
+		TraceStorage: jaegerstorage.DefaultMemoryStore,
+	}
 }
 
 func createTracesExporter(ctx context.Context, set exporter.CreateSettings, config component.Config) (exporter.Traces, error) {
