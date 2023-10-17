@@ -46,10 +46,10 @@ def num_commits_since_prev_tag(token, base_url):
 UNCATTEGORIZED = 'Uncategorized'
 categories = [
     {'title': '#### ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
-    {'title': '#### New Features', 'label': 'changelog:new-feature'},
-    {'title': '#### Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
+    {'title': '#### ✨ New Features', 'label': 'changelog:new-feature'},
+    {'title': '#### 🐞 Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
     {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
-    {'title': '#### CI Improvements', 'label': 'changelog:ci'},
+    {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
     {'title': None, 'label': 'changelog:test'},
     {'title': None, 'label': 'changelog:skip'}
 ]
@@ -155,18 +155,18 @@ def main(token, repo, num_commits, exclude_dependabot):
         print(f'#### {UNCATTEGORIZED}:')
         for result in other_results:
             print(result)
+        print()
 
     # Print warnings for commits with more than one changelog label
     if commits_with_multiple_labels:
-        print("\nWarnings: Commits with more than one changelog label found. Please fix them:\n")
+        print("Warnings: Commits with more than one changelog label found. Please fix them:\n")
         for sha, pull_id, labels in commits_with_multiple_labels:
             pr_url = f"https://github.com/jaegertracing/{repo}/pull/{pull_id}"
             print(f"Commit {sha} associated with multiple changelog labels: {', '.join(labels)}")
             print(f"Pull Request URL: {pr_url}\n")
+        print()
 
     if skipped_dependabot:
-        if not commits_with_multiple_labels:
-            print()
         print(f"(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
 
 
