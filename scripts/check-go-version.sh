@@ -72,7 +72,7 @@ check go.mod "^go\s\+$version_regex" "$go_previous_version"
 
 check docker/Makefile "^.*golang:$version_regex" "$go_latest_version"
 
-gha_workflows=$(grep -rl go-version .github)
+IFS='|' read -r -a gha_workflows <<< "$(grep -rl go-version .github | tr '\n' '|')"
 for gha_workflow in "${gha_workflows[@]}"; do
     check "$gha_workflow" "^\s*go-version:\s\+$version_regex" "$go_latest_version"
 done
