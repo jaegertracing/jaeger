@@ -66,7 +66,7 @@ func (c ClientWrapper) Index() es.IndexService {
 // Search calls this function to internal client.
 func (c ClientWrapper) Search(indices ...string) es.SearchService {
 	searchService := c.client.Search(indices...)
-	if c.esVersion == 7 {
+	if c.esVersion >= 7 {
 		searchService = searchService.RestTotalHitsAsInt(true)
 	}
 	return WrapESSearchService(searchService)
@@ -75,7 +75,7 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 // MultiSearch calls this function to internal client.
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
-	if c.esVersion == 7 {
+	if c.esVersion >= 7 {
 		multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
 	}
 	return WrapESMultiSearchService(multiSearchService)
@@ -167,7 +167,7 @@ func (i IndexServiceWrapper) Index(index string) es.IndexService {
 
 // Type calls this function to internal service.
 func (i IndexServiceWrapper) Type(typ string) es.IndexService {
-	if i.esVersion == 7 {
+	if i.esVersion >= 7 {
 		return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.esVersion)
 	}
 	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.esVersion)
