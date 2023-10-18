@@ -17,6 +17,7 @@ package driver
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -73,7 +74,7 @@ func (s *Server) FindNearest(ctx context.Context, location *DriverLocationReques
 	s.logger.For(ctx).Info("Searching for nearby drivers", zap.String("location", location.Location))
 	driverIDs := s.redis.FindDriverIDs(ctx, location.Location)
 
-	retMe := make([]*DriverLocation, len(driverIDs))
+	locations := make([]*DriverLocation, len(driverIDs))
 	for i, driverID := range driverIDs {
 		var drv Driver
 		var err error
@@ -88,11 +89,23 @@ func (s *Server) FindNearest(ctx context.Context, location *DriverLocationReques
 			s.logger.For(ctx).Error("Failed to get driver after 3 attempts", zap.Error(err))
 			return nil, err
 		}
-		retMe[i] = &DriverLocation{
+		locations[i] = &DriverLocation{
 			DriverID: drv.DriverID,
 			Location: drv.Location,
 		}
 	}
-	s.logger.For(ctx).Info("Search successful", zap.Int("num_drivers", len(retMe)))
-	return &DriverLocationResponse{Locations: retMe}, nil
+	s.logger.For(ctx).Info(
+		"Search successful",
+		zap.Int("driver_count", len(locations)),
+		zap.String("locations", toJSON(locations)),
+	)
+	return &DriverLocationResponse{Locations: locations}, nil
+}
+
+func toJSON(v any) string {
+	str, err := json.Marshal(v)
+	if err != nil {
+		return err.Error()
+	}
+	return string(str)
 }

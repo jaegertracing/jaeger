@@ -16,5 +16,5 @@ package config
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
-	MaxTraces int `yaml:"max-traces" mapstructure:"max_traces"`
+	MaxTraces int `mapstructure:"max_traces"`
 }

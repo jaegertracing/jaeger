@@ -3,7 +3,7 @@
 This is a demo application that consists of several microservices and illustrates
 the use of the OpenTelemetry API & SDK. It can be run standalone, but requires Jaeger backend
 to view the traces. A tutorial / walkthrough is available:
-  * as a blog post [Take OpenTracing for a HotROD ride][hotrod-tutorial],
+  * as a blog post [Take Jaeger for a HotROD ride][hotrod-tutorial],
   * as a video [OpenShift Commons Briefing: Distributed Tracing with Jaeger & Prometheus on Kubernetes][hotrod-openshift].
 
 As of Jaeger v1.42.0 this application was upgraded to use the OpenTelemetry SDK for traces.
@@ -87,9 +87,6 @@ The app exposes metrics in either Go's `expvar` format (by default) or in Promet
   * `expvar`: `curl http://127.0.0.1:8083/debug/vars`
   * Prometheus: `curl http://127.0.0.1:8083/metrics`
 
-[hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
-[hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/
-
 ## Linking to traces
 
 The HotROD UI can generate links to the Jaeger UI to find traces corresponding
@@ -100,3 +97,6 @@ it can be customized via `-j <address>` flag passed to HotROD, e.g.
 ```
 go run ./examples/hotrod/main.go all -j http://jaeger-ui:16686
 ```
+
+[hotrod-tutorial]: https://medium.com/jaegertracing/take-jaeger-for-a-hotrod-ride-233cf43e46c2
+[hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/

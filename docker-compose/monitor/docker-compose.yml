@@ -22,8 +22,6 @@ services:
     volumes:
       - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
     command: --config /etc/otelcol/otel-collector-config.yml
-    ports:
-      - "4317:4317"
     depends_on:
       - jaeger
   microsim:

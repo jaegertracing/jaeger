@@ -137,11 +137,17 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 }
 
 func (f *Factory) getPrimaryClient() es.Client {
-	return *(f.primaryClient.Load())
+	if c := f.primaryClient.Load(); c != nil {
+		return *c
+	}
+	return nil
 }
 
 func (f *Factory) getArchiveClient() es.Client {
-	return *f.archiveClient.Load()
+	if c := f.archiveClient.Load(); c != nil {
+		return *c
+	}
+	return nil
 }
 
 // CreateSpanReader implements storage.Factory
@@ -280,6 +286,7 @@ var _ io.Closer = (*Factory)(nil)
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
+
 	for _, w := range f.watchers {
 		errs = append(errs, w.Close())
 	}
@@ -287,6 +294,11 @@ func (f *Factory) Close() error {
 		errs = append(errs, cfg.TLS.Close())
 	}
 	errs = append(errs, f.Options.GetPrimary().TLS.Close())
+	errs = append(errs, f.getPrimaryClient().Close())
+	if client := f.getArchiveClient(); client != nil {
+		errs = append(errs, client.Close())
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -308,11 +320,14 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 	newCfg := *cfg // copy by value
 	newCfg.Password = newPassword
 	newCfg.PasswordFilePath = "" // avoid error that both are set
-	primaryClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
+	newClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 	} else {
-		client.Store(&primaryClient)
+		oldClient := *client.Swap(&newClient)
+		if err := oldClient.Close(); err != nil {
+			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
+		}
 	}
 }
 
