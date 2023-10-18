@@ -61,6 +61,14 @@ def categorize_pull_request(label):
             return category
     return UNCATTEGORIZED  # Default category if no matching prefix is found
 
+def updateProgress(iteration, total_iterations):
+    progress = (iteration + 1) / total_iterations
+    percentage = progress * 100
+    sys.stdout.write('\r[' + '='*int(progress*50) + ' '*(50-int(progress*50)) + f'] {percentage:.2f}%')
+    sys.stdout.flush()
+    if iteration >= total_iterations - 1:
+        print()
+    return iteration + 1
 
 def main(token, repo, num_commits, exclude_dependabot):
     accept_header = "application/vnd.github.groot-preview+json"
@@ -88,11 +96,10 @@ def main(token, repo, num_commits, exclude_dependabot):
     other_results = []
     commits_with_multiple_labels = []
 
-    progress = 0
+    progress_iterator = 0
     for commit in commits:
-        if not (progress % 10):
-            print(f"Processing commit {progress + 1}")
-        progress = progress + 1
+        # Update the progress bar
+        progress_iterator = updateProgress(progress_iterator, num_commits)
 
         sha = commit['sha']
         author = commit['author']['login']
