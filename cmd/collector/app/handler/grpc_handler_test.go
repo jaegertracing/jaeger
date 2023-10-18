@@ -40,6 +40,8 @@ type mockSpanProcessor struct {
 	mux           sync.Mutex
 	spans         []*model.Span
 	tenants       map[string]bool
+	transport     processor.InboundTransport
+	spanFormat    processor.SpanFormat
 }
 
 func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, opts processor.SpansOptions) ([]bool, error) {
@@ -51,6 +53,8 @@ func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, opts processor.Spa
 		p.tenants = make(map[string]bool)
 	}
 	p.tenants[opts.Tenant] = true
+	p.transport = opts.InboundTransport
+	p.spanFormat = opts.SpanFormat
 	return oks, p.expectedError
 }
 
@@ -66,11 +70,25 @@ func (p *mockSpanProcessor) getTenants() map[string]bool {
 	return p.tenants
 }
 
+func (p *mockSpanProcessor) getTransport() processor.InboundTransport {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.transport
+}
+
+func (p *mockSpanProcessor) getSpanFormat() processor.SpanFormat {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.spanFormat
+}
+
 func (p *mockSpanProcessor) reset() {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.spans = nil
 	p.tenants = nil
+	p.transport = ""
+	p.spanFormat = ""
 }
 
 func (p *mockSpanProcessor) Close() error {
@@ -360,6 +378,50 @@ func TestGetTenant(t *testing.T) {
 				require.NoError(t, err)
 			}
 			assert.Equal(t, test.tenant, tenant)
+		})
+	}
+}
+
+func TestBatchConsumer(t *testing.T) {
+	tests := []struct {
+		name               string
+		batch              model.Batch
+		transport          processor.InboundTransport
+		spanFormat         processor.SpanFormat
+		expectedTransport  processor.InboundTransport
+		expectedSpanFormat processor.SpanFormat
+	}{
+		{
+			name: "batchconsumer passes provided span options to processor",
+			batch: model.Batch{
+				Process: &model.Process{ServiceName: "testservice"},
+				Spans: []*model.Span{
+					{OperationName: "test-op", Process: &model.Process{ServiceName: "foo"}},
+				},
+			},
+			transport:          processor.GRPCTransport,
+			spanFormat:         processor.OTLPSpanFormat,
+			expectedTransport:  processor.GRPCTransport,
+			expectedSpanFormat: processor.OTLPSpanFormat,
+		},
+	}
+
+	logger, _ := testutils.NewLogger()
+	for _, tc := range tests {
+		tc := tc
+		t.Parallel()
+		t.Run(tc.name, func(t *testing.T) {
+			processor := mockSpanProcessor{}
+			batchConsumer := newBatchConsumer(logger, &processor, tc.transport, tc.spanFormat, tenancy.NewManager(&tenancy.Options{}))
+			err := batchConsumer.consume(context.Background(), &model.Batch{
+				Process: &model.Process{ServiceName: "testservice"},
+				Spans: []*model.Span{
+					{OperationName: "test-op", Process: &model.Process{ServiceName: "foo"}},
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, tc.transport, processor.getTransport())
+			assert.Equal(t, tc.expectedSpanFormat, processor.getSpanFormat())
 		})
 	}
 }
