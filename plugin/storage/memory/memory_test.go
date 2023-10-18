@@ -525,9 +525,9 @@ func makeTestingSpan(traceID model.TraceID, suffix string) *model.Span {
 	}
 }
 
-// TestArtificialServerSpanCreation tests if an artificial server span is created when
-// there is a client span without a corresponding server span.
-func TestArtificialServerSpanCreation(t *testing.T) {
+// TestInferredServiceDependency tests if the service dependencies include an inferred service
+// when there is a client span without a corresponding server span.
+func TestInferredServiceDependency(t *testing.T) {
 	// Create a memory store
 	store := NewStore()
 
@@ -550,22 +550,20 @@ func TestArtificialServerSpanCreation(t *testing.T) {
 	assert.NoError(t, store.WriteSpan(context.Background(), clientSpan))
 
 	// Get the dependencies
-	_, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
+	dependencies, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
 	assert.NoError(t, err)
 
-	// Retrieve the trace to check if the artificial server span has been added
-	trace, err := store.GetTrace(context.Background(), clientSpan.TraceID)
-	assert.NoError(t, err)
-
-	// Check if the artificial server span has been added
-	var hasArtificialServerSpan bool
-	for _, span := range trace.Spans {
-		if span.OperationName == "artificial-"+clientSpan.OperationName {
-			hasArtificialServerSpan = true
+	// Check if the service dependencies include an inferred service
+	var hasInferredServiceDependency bool
+	expectedParent := clientSpan.Process.ServiceName
+	expectedChild := "inferred-" + clientSpan.OperationName 
+	for _, dependency := range dependencies {
+		if dependency.Parent == expectedParent && dependency.Child == expectedChild {
+			hasInferredServiceDependency = true
 			break
 		}
 	}
 
-	// Assert that the artificial server span has been added
-	assert.True(t, hasArtificialServerSpan, "Expected an artificial server span to be added")
+	// Assert that the service dependencies include an inferred service
+	assert.True(t, hasInferredServiceDependency, "Expected service dependencies to include an inferred service")
 }

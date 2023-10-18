@@ -20,7 +20,6 @@ import (
 	"errors"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -31,9 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
-
-// Global counter
-var counter uint64
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -115,53 +111,11 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 					if parentSpan.Process.ServiceName == s.Process.ServiceName {
 						continue
 					}
-					depKey := parentSpan.Process.ServiceName + "&&&" + s.Process.ServiceName
-					if _, ok := deps[depKey]; !ok {
-						deps[depKey] = &model.DependencyLink{
-							Parent:    parentSpan.Process.ServiceName,
-							Child:     s.Process.ServiceName,
-							CallCount: 1,
-						}
-					} else {
-						deps[depKey].CallCount++
-					}
+					updateServiceDependencyLinks(parentSpan.Process.ServiceName, s.Process.ServiceName, deps)
 				} else if isClientSpan(s) && !hasCorrespondingServerSpan(s, trace.Spans) {
-
-					// Generate a unique ID based on current time and a counter
-					currentTime := uint64(time.Now().UnixNano())
-					uniqueID := (currentTime << 32) | (atomic.AddUint64(&counter, 1) & 0xFFFFFFFF)
-
-					// Creating an artificial server span
-					artificialSpan := &model.Span{
-						TraceID:       s.TraceID,                                         // Keeping the same trace ID
-						SpanID:        model.NewSpanID(uniqueID),                         // Generating a new span ID
-						OperationName: "artificial-" + s.OperationName,                   // TODO
-						StartTime:     s.StartTime,                                       // Starting time can be the same as the client span
-						Duration:      s.Duration,                                        // Duration can also be copied or set as needed
-						Flags:         s.Flags,                                           // Flags can be copied
-						Process:       &model.Process{ServiceName: "artificial-service"}, // TODO: Set service name as needed
-						Tags: model.KeyValues{
-							model.String("span.kind", "server"), // This is an artificial server span
-							model.String("artificial", "true"),  // Tag to identify it as artificial
-						},
-					}
-
-					// Adding the artificial span to the trace
-					trace.Spans = append(trace.Spans, artificialSpan)
-
-					// Handle dependencies if needed, for example, increment the call count between services
 					parentService := s.Process.ServiceName
-					childService := "artificial-" + s.OperationName // TODO: another method to name the uninstrumented service
-					depKey := parentService + "&&&" + childService
-					if _, ok := deps[depKey]; !ok {
-						deps[depKey] = &model.DependencyLink{
-							Parent:    parentService,
-							Child:     childService,
-							CallCount: 1,
-						}
-					} else {
-						deps[depKey].CallCount++
-					}
+					childService := "inferred-" + s.OperationName // TBD: call a function here to infer the name
+					updateServiceDependencyLinks(parentService, childService, deps)
 				}
 			}
 		}
@@ -397,4 +351,17 @@ func isClientSpan(span *model.Span) bool {
 		}
 	}
 	return false
+}
+
+func updateServiceDependencyLinks(parentService, childService string, deps map[string]*model.DependencyLink) {
+	depKey := parentService + "&&&" + childService
+	if _, ok := deps[depKey]; !ok {
+		deps[depKey] = &model.DependencyLink{
+			Parent:    parentService,
+			Child:     childService,
+			CallCount: 1,
+		}
+	} else {
+		deps[depKey].CallCount++
+	}
 }
