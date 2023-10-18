@@ -31,7 +31,7 @@ jobs:
         echo "PATH=$HOME/go/bin:$HOME/sdk/gotip/bin/:$PATH" >> $GITHUB_ENV
 
     - name: Install tools
-      run: make install-ci
+      run: make install-test-ci
 
     - name: Run unit tests
       run: make test-ci

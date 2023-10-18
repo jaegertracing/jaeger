@@ -61,7 +61,7 @@ jobs:
       uses: ./.github/actions/setup-branch
 
     - name: Install tools
-      run: make install-ci
+      run: make install-build-ci
 
     - name: Build binaries
       run: make ${{ matrix.platform.task }}

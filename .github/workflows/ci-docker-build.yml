@@ -44,7 +44,7 @@ jobs:
       uses: ./.github/actions/setup-branch
 
     - name: Install tools
-      run: make install-ci
+      run: make install-build-ci
 
     - uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7
 
