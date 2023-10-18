@@ -42,11 +42,11 @@ fi
 
 docker_file_arg="${dir_arg}/${docker_file_arg}"
 
-IMAGE_TAGS=$(bash scripts/compute-tags.sh "${namespace}/${component_name}")
+IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/compute-tags.sh '${namespace}/${component_name}')"
 upload_flag=""
 
 if [[ "${local_test_only}" = "Y" ]]; then
-    IMAGE_TAGS="--tag localhost:5000/${namespace}/${component_name}:${GITHUB_SHA}"
+    IMAGE_TAGS=("--tag" "localhost:5000/${namespace}/${component_name}:${GITHUB_SHA}")
     PUSHTAG="type=image, push=true"
 else
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P
@@ -61,13 +61,12 @@ else
     fi
 fi
 
-# shellcheck disable=SC2086
-docker buildx build --output ${PUSHTAG} \
-	--progress=plain ${target_arg} ${base_debug_img_arg}\
-	--platform=${platforms} \
-	--file ${docker_file_arg} \
-	${IMAGE_TAGS} \
-	${dir_arg}
+docker buildx build --output "${PUSHTAG}" \
+	--progress=plain "${target_arg}" "${base_debug_img_arg}" \
+	--platform="${platforms}" \
+	--file "${docker_file_arg}" \
+	"${IMAGE_TAGS[@]}" \
+	"${dir_arg}"
 
 echo "Finished building${upload_flag} ${component_name} =============="
 
