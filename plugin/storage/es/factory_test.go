@@ -303,12 +303,14 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		Servers:          []string{server.URL},
 		LogLevel:         "debug",
 		PasswordFilePath: pwdFile,
+		BulkSize:         -1, // disable bulk; we want immediate flush
 	}
 	f.archiveConfig = &escfg.Configuration{
 		Enabled:          true,
 		Servers:          []string{server.URL},
 		LogLevel:         "debug",
 		PasswordFilePath: pwdFile,
+		BulkSize:         -1, // disable bulk; we want immediate flush
 	}
 	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	defer f.Close()
