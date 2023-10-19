@@ -25,14 +25,14 @@ make build-ui
 
 run_integration_test() {
   local image_name="$1"
-  CID=$(docker run -d -p 16686:16686 -p 5778:5778 ${image_name}:${GITHUB_SHA})
+  CID=$(docker run -d -p 16686:16686 -p 5778:5778 "${image_name}:${GITHUB_SHA}")
   if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"
       echo "--- check the docker log below for details ---"
-      docker logs $CID
+      docker logs "$CID"
       exit 1
   fi
-  docker kill $CID
+  docker kill "$CID"
 }
 
 if [ "$mode" = "pr-only" ]; then
@@ -58,7 +58,7 @@ bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -
 
 # build debug image if not on a pull request
 if [ "$mode" != "pr-only" ]; then
-  make build-all-in-one-debug GOOS=linux GOARCH=$GOARCH
+  make build-all-in-one-debug GOOS=linux GOARCH="$GOARCH"
   repo=${repo}-debug
 
   # build all-in-one-debug image locally for integration test

@@ -14,7 +14,7 @@ function gen {
   shift
   for s in "$@"
   do
-    SPAN_STORAGE_TYPE=$s go run ./cmd/$bin help > $dir/$bin-$s.txt
+    SPAN_STORAGE_TYPE=$s go run "./cmd/$bin" help > "$dir/$bin-$s.txt"
   done
 }
 
