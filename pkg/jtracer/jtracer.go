@@ -72,12 +72,22 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
 	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
+
+	res, err := resource.New(
+		ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
+		resource.WithTelemetrySDK(),
+		resource.WithHost(),
+		resource.WithOSType(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(svc),
-		)),
+		sdktrace.WithResource(res),
 	)
 
 	once.Do(func() {
