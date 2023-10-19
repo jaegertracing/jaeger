@@ -138,7 +138,7 @@ This project follows the following pattern for grouping imports in Go files:
 - imports from other projects
 - imports from `jaeger` project
 
-For example:
+For example: 
 
 ```go
 import (
