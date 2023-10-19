@@ -404,7 +404,7 @@ install-tools:
 .PHONY: install-test-tools
 install-test-tools:
     $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
-	$(GO) install mvdan.cc/gofumpt@latest
+    $(GO) install mvdan.cc/gofumpt@latest
 
 .PHONY: install-build-tools
 install-build-tools:
@@ -418,7 +418,7 @@ install-build-ci: install-build-tools
 install-test-ci: install-test-tools 
 
 .PHONY: install-ci
-install-ci: install-tools
+install-ci: install-tools install-test-ci install-build-ci
 
 
 .PHONY: test-ci
