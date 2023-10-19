@@ -132,7 +132,7 @@ github.com/jaegertracing/jaeger
 
 ## Imports grouping
 
-This projects follows the following pattern for grouping imports in Go files:
+This project follows the following pattern for grouping imports in Go files:
 
 - imports from standard library
 - imports from other projects
