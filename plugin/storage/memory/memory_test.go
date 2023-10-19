@@ -556,7 +556,7 @@ func TestInferredServiceDependency(t *testing.T) {
 	// Check if the service dependencies include an inferred service
 	var hasInferredServiceDependency bool
 	expectedParent := clientSpan.Process.ServiceName
-	expectedChild := "inferred-" + clientSpan.OperationName 
+	expectedChild := "inferred-" + clientSpan.OperationName
 	for _, dependency := range dependencies {
 		if dependency.Parent == expectedParent && dependency.Child == expectedChild {
 			hasInferredServiceDependency = true
@@ -566,4 +566,50 @@ func TestInferredServiceDependency(t *testing.T) {
 
 	// Assert that the service dependencies include an inferred service
 	assert.True(t, hasInferredServiceDependency, "Expected service dependencies to include an inferred service")
+}
+
+func TestInferServiceName(t *testing.T) {
+	scenarios := []struct {
+		tags         model.KeyValues
+		expectedName string
+	}{
+		{
+			tags: model.KeyValues{
+				model.String("peer.service", "authService"),
+			},
+			expectedName: "inferred-authService",
+		},
+		{
+			tags: model.KeyValues{
+				model.String("rpc.service", "grpcService"),
+			},
+			expectedName: "inferred-rpc-grpcService",
+		},
+		{
+			tags: model.KeyValues{
+				model.String("http.route", "/api/v1/users"),
+			},
+			expectedName: "inferred-http-/api/v1/users",
+		},
+		{
+			tags: model.KeyValues{
+				model.String("db.system", "mysql"),
+			},
+			expectedName: "inferred-db-mysql",
+		},
+		{
+			tags:         model.KeyValues{},
+			expectedName: "inferred-clientOperation",
+		},
+	}
+
+	for _, scenario := range scenarios {
+		span := &model.Span{
+			OperationName: "clientOperation",
+			Tags:          scenario.tags,
+		}
+
+		inferredName := inferServiceName(span)
+		assert.Equal(t, scenario.expectedName, inferredName, "Expected inferred service name to match")
+	}
 }

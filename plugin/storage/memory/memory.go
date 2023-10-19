@@ -114,7 +114,8 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 					updateServiceDependencyLinks(parentSpan.Process.ServiceName, s.Process.ServiceName, deps)
 				} else if isClientSpan(s) && !hasCorrespondingServerSpan(s, trace.Spans) {
 					parentService := s.Process.ServiceName
-					childService := "inferred-" + s.OperationName // TBD: call a function here to infer the name
+					childService := inferServiceName(s)
+					// childService := "inferred-" + s.OperationName // TBD: call a function here to infer the name
 					updateServiceDependencyLinks(parentService, childService, deps)
 				}
 			}
@@ -364,4 +365,48 @@ func updateServiceDependencyLinks(parentService, childService string, deps map[s
 	} else {
 		deps[depKey].CallCount++
 	}
+}
+
+func inferServiceName(span *model.Span) string {
+    serviceName := "inferred"
+
+    // Check for peer.service tag
+    if peerService, found := getTagValue(span, "peer.service"); found {
+        return serviceName + "-" + peerService
+    }
+
+    // Check for RPC service name
+    if rpcService, found := getTagValue(span, "rpc.service"); found {
+        return serviceName + "-rpc-" + rpcService
+    }
+
+    // Check for HTTP service name via route or URL
+    if httpRoute, found := getTagValue(span, "http.route"); found {
+        return serviceName + "-http-" + httpRoute
+    } else if httpURL, found := getTagValue(span, "http.url"); found {
+        return serviceName + "-http-" + httpURL 
+    }
+
+    // Check for Database service name via DB name or connection string
+    if dbSystem, found := getTagValue(span, "db.system"); found {
+        dbName := dbSystem
+        if dbName == "" {
+            dbName = "unknown"
+        }
+        if dbStatement, found := getTagValue(span, "db.statement"); found {
+            dbName += "-" + dbStatement 
+        }
+        return serviceName + "-db-" + dbName
+    }
+
+    return serviceName + "-" + span.OperationName
+}
+
+func getTagValue(span *model.Span, key string) (string, bool) {
+    for _, tag := range span.Tags {
+        if tag.Key == key {
+            return tag.VStr, true
+        }
+    }
+    return "", false
 }
