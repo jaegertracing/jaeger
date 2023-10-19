@@ -60,8 +60,6 @@ var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // QueryOptions holds configuration for query service
 type QueryOptions struct {
-	// HostPort is the host:port address that the query service listens on
-	HostPort string
 	// HTTPHostPort is the host:port address that the query service listens in on for http requests
 	HTTPHostPort string
 	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests

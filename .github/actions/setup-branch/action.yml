@@ -6,11 +6,17 @@ runs:
     - name: Setup BRANCH
       shell: bash
       run: |
+        echo GITHUB_EVENT_NAME=${GITHUB_EVENT_NAME}
+        echo GITHUB_HEAD_REF=${GITHUB_HEAD_REF}
+        echo GITHUB_REF=${GITHUB_REF}
         case ${GITHUB_EVENT_NAME} in
           pull_request)
             BRANCH=${GITHUB_HEAD_REF}
+            if [[ $BRANCH == 'main' ]]; then
+              BRANCH=main_from_fork
+            fi
             ;;
-          push | release)
+          *)
             BRANCH=${GITHUB_REF##*/}
             ;;
         esac

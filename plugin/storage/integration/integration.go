@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -31,8 +32,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -49,11 +52,18 @@ type StorageIntegration struct {
 	SpanReader       spanstore.Reader
 	DependencyWriter dependencystore.Writer
 	DependencyReader dependencystore.Reader
+	SamplingStore    samplingstore.Store
 	Fixtures         []*QueryFixtures
-	// TODO: remove this flag after all storage plugins returns spanKind with operationNames
-	NotSupportSpanKindWithOperation bool
+
+	// TODO: remove this after all storage backends return spanKind from GetOperations
+	GetOperationsMissingSpanKind bool
+
+	// TODO: remove this after all storage backends return Source column from GetDependencies
+	GetDependenciesReturnsSource bool
+
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
+
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func() error
@@ -90,7 +100,8 @@ func (s *StorageIntegration) refresh(t *testing.T) {
 
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
-		ok, err := regexp.MatchString(pat, t.Name())
+		escapedPat := regexp.QuoteMeta(pat)
+		ok, err := regexp.MatchString(escapedPat, t.Name())
 		assert.NoError(t, err)
 		if ok {
 			t.Skip()
@@ -120,8 +131,10 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		actual, err := s.SpanReader.GetServices(context.Background())
+		var err error
+		actual, err = s.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
+		sort.Strings(actual)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
@@ -156,7 +169,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
 	var expected []spanstore.Operation
-	if s.NotSupportSpanKindWithOperation {
+	if s.GetOperationsMissingSpanKind {
 		expected = []spanstore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},
@@ -178,6 +191,9 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		actual, err = s.SpanReader.GetOperations(context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
 		require.NoError(t, err)
+		sort.Slice(actual, func(i, j int) bool {
+			return actual[i].Name < actual[j].Name
+		})
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
@@ -374,23 +390,92 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
+	source := model.JaegerDependencyLinkSource
+	if !s.GetDependenciesReturnsSource {
+		source = ""
+	}
+
 	expected := []model.DependencyLink{
 		{
 			Parent:    "hello",
 			Child:     "world",
 			CallCount: uint64(1),
+			Source:    source,
 		},
 		{
 			Parent:    "world",
 			Child:     "hello",
 			CallCount: uint64(3),
+			Source:    source,
 		},
 	}
+
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
 	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
+	sort.Slice(actual, func(i, j int) bool {
+		return actual[i].Parent < actual[j].Parent
+	})
 	assert.EqualValues(t, expected, actual)
+}
+
+// === Sampling Store Integration Tests ===
+
+func (s *StorageIntegration) testGetThroughput(t *testing.T) {
+	s.skipIfNeeded(t)
+	if s.SamplingStore == nil {
+		t.Skip("Skipping GetThroughput test because sampling store is nil")
+		return
+	}
+	defer s.cleanUp(t)
+	start := time.Now()
+
+	s.insertThroughput(t)
+
+	expected := 2
+	var actual []*samplemodel.Throughput
+	_ = s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.SamplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
+		require.NoError(t, err)
+		return assert.ObjectsAreEqualValues(expected, len(actual))
+	})
+	assert.Len(t, actual, expected)
+}
+
+func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
+	s.skipIfNeeded(t)
+	if s.SamplingStore == nil {
+		t.Skip("Skipping GetLatestProbability test because sampling store is nil")
+		return
+	}
+	defer s.cleanUp(t)
+
+	s.SamplingStore.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
+
+	expected := samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}
+	var actual samplemodel.ServiceOperationProbabilities
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.SamplingStore.GetLatestProbabilities()
+		require.NoError(t, err)
+		return assert.ObjectsAreEqualValues(expected, actual)
+	})
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
+}
+
+func (s *StorageIntegration) insertThroughput(t *testing.T) {
+	fmt.Println("Inside the insertThroughput function")
+	throughputs := []*samplemodel.Throughput{
+		{Service: "my-svc", Operation: "op"},
+		{Service: "our-svc", Operation: "op2"},
+	}
+	err := s.SamplingStore.InsertThroughput(throughputs)
+	require.NoError(t, err)
 }
 
 // IntegrationTestAll runs all integration tests
@@ -401,4 +486,6 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("GetDependencies", s.testGetDependencies)
+	t.Run("GetThroughput", s.testGetThroughput)
+	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }

@@ -1,0 +1,30 @@
+name: Verify PR Label
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - labeled
+      - unlabeled
+
+jobs:
+  check-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR author
+        id: check_author
+        run: echo "::set-output name=is_dependabot::$(echo ${{ github.event.pull_request.user.login }} | grep -o 'dependabot')"
+
+      - name: Check PR label
+        if: steps.check_author.outputs.is_dependabot != 'dependabot'
+        run: |
+          LABEL_NAME="changelog:"
+          if [[ $(curl -s "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" | jq -r '.labels[].name' | grep -c "^$LABEL_NAME") -eq 0 ]]; then
+            echo "Error: Pull request is missing a required label of the form '${LABEL_NAME}***'."
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
