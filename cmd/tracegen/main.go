@@ -82,12 +82,21 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 		}
 		logger.Sugar().Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
 
+		res, err := resource.New(
+			context.Background(),
+			resource.WithSchemaURL(semconv.SchemaURL),
+			resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
+			resource.WithTelemetrySDK(),
+			resource.WithHost(),
+			resource.WithOSType(),
+		)
+		if err != nil {
+			logger.Sugar().Fatalf("resource creation failed: %s", err)
+		}
+
 		tp := sdktrace.NewTracerProvider(
 			sdktrace.WithBatcher(exp, sdktrace.WithBlocking()),
-			sdktrace.WithResource(resource.NewWithAttributes(
-				semconv.SchemaURL,
-				semconv.ServiceNameKey.String(svc),
-			)),
+			sdktrace.WithResource(res),
 		)
 		tracers = append(tracers, tp.Tracer(cfg.Service))
 		shutdown = append(shutdown, tp.Shutdown)
