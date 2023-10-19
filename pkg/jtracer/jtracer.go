@@ -74,7 +74,7 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
 
 	res, err := resource.New(
-		context.Background(),
+		ctx,
 		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
 		resource.WithTelemetrySDK(),
