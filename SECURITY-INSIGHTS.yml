@@ -9,7 +9,7 @@ header:
 project-lifecycle:
   bug-fixes-only: false
   core-maintainers:
-  - https://github.com/orgs/jaegertracing/teams/jaeger-maintainers
+  - https://github.com/jaegertracing/jaeger/blob/main/README.md#maintainers
   roadmap: https://www.jaegertracing.io/roadmap/
   release-cycle: https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#release-managers
   status: active 
@@ -23,6 +23,7 @@ documentation:
 distribution-points:
 - https://github.com/jaegertracing/jaeger/
 - https://hub.docker.com/r/jaegertracing/
+- https://quay.io/organization/jaegertracing/ 
 security-artifacts:
   threat-model:
     threat-model-created: false
@@ -46,9 +47,6 @@ vulnerability-reporting:
   comment: |
     The first and best way to report a vulnerability is by using private security issues in GitHub or opening an issue on Github. We are also available on the CNCF Slack in the jaeger channel.
 dependencies:
-  third-party-packages: true
-  dependencies-lists:
-  - https://github.com/foo/packages.json
   sbom:
   - sbom-file: https://github.com/jaegertracing/jaeger/releases/latest/download/jaeger-SBOM.spdx.json 
     sbom-format: SPDX
