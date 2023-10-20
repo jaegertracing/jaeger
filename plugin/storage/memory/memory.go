@@ -368,45 +368,40 @@ func updateServiceDependencyLinks(parentService, childService string, deps map[s
 }
 
 func inferServiceName(span *model.Span) string {
-    serviceName := "inferred"
+	serviceName := "inferred"
 
-    // Check for peer.service tag
-    if peerService, found := getTagValue(span, "peer.service"); found {
-        return serviceName + "-" + peerService
-    }
+	// Check for peer.service tag
+	if peerService, found := getTagValue(span, "peer.service"); found {
+		return serviceName + "-" + peerService
+	}
 
-    // Check for RPC service name
-    if rpcService, found := getTagValue(span, "rpc.service"); found {
-        return serviceName + "-rpc-" + rpcService
-    }
+	// Check for RPC service name
+	if rpcService, found := getTagValue(span, "rpc.service"); found {
+		return serviceName + "-rpc-" + rpcService
+	}
 
-    // Check for HTTP service name via route or URL
-    if httpRoute, found := getTagValue(span, "http.route"); found {
-        return serviceName + "-http-" + httpRoute
-    } else if httpURL, found := getTagValue(span, "http.url"); found {
-        return serviceName + "-http-" + httpURL 
-    }
+	// Check for HTTP service name via route or URL
+	if httpRoute, found := getTagValue(span, "http.route"); found {
+		return serviceName + "-http-" + httpRoute
+	}
 
-    // Check for Database service name via DB name or connection string
-    if dbSystem, found := getTagValue(span, "db.system"); found {
-        dbName := dbSystem
-        if dbName == "" {
-            dbName = "unknown"
-        }
-        if dbStatement, found := getTagValue(span, "db.statement"); found {
-            dbName += "-" + dbStatement 
-        }
-        return serviceName + "-db-" + dbName
-    }
+	// Check for Database service name via DB name or connection string
+	if dbSystem, found := getTagValue(span, "db.system"); found {
+		dbName := dbSystem
+		if dbName == "" {
+			dbName = "unknown"
+		}
+		return serviceName + "-db-" + dbName
+	}
 
-    return serviceName + "-" + span.OperationName
+	return serviceName + "-" + span.OperationName
 }
 
 func getTagValue(span *model.Span, key string) (string, bool) {
-    for _, tag := range span.Tags {
-        if tag.Key == key {
-            return tag.VStr, true
-        }
-    }
-    return "", false
+	for _, tag := range span.Tags {
+		if tag.Key == key {
+			return tag.VStr, true
+		}
+	}
+	return "", false
 }
