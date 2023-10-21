@@ -91,7 +91,13 @@ func runQueryService(t *testing.T, esURL string) *Server {
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0", BearerTokenPropagation: true},
+		&QueryOptions{
+			GRPCHostPort: ":0",
+			HTTPHostPort: ":0",
+			QueryOptionsBase: QueryOptionsBase{
+				BearerTokenPropagation: true,
+			},
+		},
 		tenancy.NewManager(&tenancy.Options{}),
 		jtracer.NoOp(),
 	)
