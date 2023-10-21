@@ -77,7 +77,7 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 	}
 
 	var spans []model.Span
-	for received, err := stream.Recv(); (err == nil || !errors.Is(err, io.EOF)); received, err = stream.Recv() {
+	for received, err := stream.Recv(); !(err != nil && errors.Is(err, io.EOF)); received, err = stream.Recv() {
 		if err != nil {
 			return nil, unwrapNotFoundErr(err)
 		}
