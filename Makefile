@@ -475,15 +475,20 @@ changelog:
 draft-release:
 	./scripts/draft-release.py
 
+.PHONY: install-test-tools 
+install-test-tools:
+    $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
+
+.PHONY: install-build-tools
+install-build-tools:
+    $(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
+
 .PHONY: install-tools
-install-tools:
-	$(GO) install github.com/vektra/mockery/v2@v2.14.0
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
-	$(GO) install mvdan.cc/gofumpt@latest
-	$(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
+install-tools: install-test-tools install-build-tools
+     $(GO) install github.com/vektra/mockery/v2@v2.14.0
 
 .PHONY: install-ci
-install-ci: install-tools
+install-ci: install-test-tools install-build-tools 
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)
