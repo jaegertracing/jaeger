@@ -5,7 +5,6 @@ package internal
 
 import (
 	"log"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
@@ -45,14 +44,9 @@ func Command() *cobra.Command {
 	// back to the official RunE.
 	otelRunE := cmd.RunE
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		configProvided := false
-		for _, arg := range args {
-			if strings.HasPrefix(arg, "--config") {
-				configProvided = true
-				break
-			}
-		}
-		if configProvided {
+		// a bit of a hack to check if '--config' flag was present
+		configFlag := cmd.Flag("config").Value.String()
+		if configFlag != "" && configFlag != "[]" {
 			return otelRunE(cmd, args)
 		}
 		log.Print("No '--config' flags detected, using default All-in-One configuration with memory storage.")

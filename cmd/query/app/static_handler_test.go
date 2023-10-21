@@ -48,7 +48,17 @@ func TestNotExistingUiConfig(t *testing.T) {
 func TestRegisterStaticHandlerPanic(t *testing.T) {
 	logger, buf := testutils.NewLogger()
 	assert.Panics(t, func() {
-		RegisterStaticHandler(mux.NewRouter(), logger, &QueryOptions{StaticAssets: "/foo/bar"})
+		RegisterStaticHandler(
+			mux.NewRouter(),
+			logger,
+			&QueryOptions{
+				QueryOptionsBase: QueryOptionsBase{
+					StaticAssets: QueryOptionsStaticAssets{
+						Path: "/foo/bar",
+					},
+				},
+			},
+		)
 	})
 	assert.Contains(t, buf.String(), "Could not create static assets handler")
 	assert.Contains(t, buf.String(), "no such file or directory")
@@ -99,10 +109,14 @@ func TestRegisterStaticHandler(t *testing.T) {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
 			RegisterStaticHandler(r, logger, &QueryOptions{
-				StaticAssets:          "fixture",
-				BasePath:              testCase.basePath,
-				UIConfig:              testCase.UIConfigPath,
-				LogStaticAssetsAccess: testCase.logAccess,
+				QueryOptionsBase: QueryOptionsBase{
+					StaticAssets: QueryOptionsStaticAssets{
+						Path:      "fixture",
+						LogAccess: testCase.logAccess,
+					},
+					BasePath: testCase.basePath,
+					UIConfig: testCase.UIConfigPath,
+				},
 			})
 
 			server := httptest.NewServer(r)
