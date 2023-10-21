@@ -16,6 +16,7 @@ package init
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -81,7 +82,8 @@ func (c Action) Do() error {
 func createIndexIfNotExist(c client.IndexAPI, index string) error {
 	err := c.CreateIndex(index)
 	if err != nil {
-		if esErr, ok := err.(client.ResponseError); ok {
+		var esErr client.ResponseError
+		if errors.As(err, &esErr) {
 			if esErr.StatusCode != http.StatusBadRequest || esErr.Body == nil {
 				return esErr.Err
 			}

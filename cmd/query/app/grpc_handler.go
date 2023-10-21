@@ -101,7 +101,7 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 		return errUninitializedTraceID
 	}
 	trace, err := g.queryService.GetTrace(stream.Context(), r.TraceID)
-	if err == spanstore.ErrTraceNotFound {
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		g.logger.Error(msgTraceNotFound, zap.Error(err))
 		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
 	}
@@ -121,7 +121,7 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 		return nil, errUninitializedTraceID
 	}
 	err := g.queryService.ArchiveTrace(ctx, r.TraceID)
-	if err == spanstore.ErrTraceNotFound {
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		g.logger.Error("trace not found", zap.Error(err))
 		return nil, status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
 	}

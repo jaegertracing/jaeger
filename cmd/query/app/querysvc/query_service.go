@@ -65,7 +65,7 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
 func (qs QueryService) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	trace, err := qs.spanReader.GetTrace(ctx, traceID)
-	if err == spanstore.ErrTraceNotFound {
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveSpanReader == nil {
 			return nil, err
 		}
@@ -130,7 +130,7 @@ func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Facto
 		return false
 	}
 	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if err == storage.ErrArchiveStorageNotConfigured || err == storage.ErrArchiveStorageNotSupported {
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return false
 	}
@@ -139,7 +139,7 @@ func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Facto
 		return false
 	}
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if err == storage.ErrArchiveStorageNotConfigured || err == storage.ErrArchiveStorageNotSupported {
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return false
 	}

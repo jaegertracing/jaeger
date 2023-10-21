@@ -17,6 +17,7 @@ package flags
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -148,8 +149,8 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 		} else {
 			err = s.server.Serve(l)
 		}
-		switch err {
-		case nil, http.ErrServerClosed:
+		switch {
+		case err == nil, errors.Is(err, http.ErrServerClosed):
 			// normal exit, nothing to do
 		default:
 			s.logger.Error("failed to serve", zap.Error(err))

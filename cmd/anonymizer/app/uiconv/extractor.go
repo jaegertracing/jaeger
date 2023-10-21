@@ -16,6 +16,7 @@ package uiconv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -63,7 +64,7 @@ func (e *Extractor) Run() error {
 			spans = append(spans, *span)
 		}
 	}
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		return fmt.Errorf("failed when scanning the file: %w", err)
 	}
 	trace := uimodel.Trace{
