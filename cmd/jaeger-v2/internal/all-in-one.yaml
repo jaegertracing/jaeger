@@ -1,0 +1,38 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger, zipkin]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  jaeger_query:
+    trace_storage: memstore
+
+  jaeger_storage:
+    memory:
+      memstore:
+        max_traces: 100000
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+  jaeger:
+    protocols:
+      grpc:
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+  zipkin:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: memstore
