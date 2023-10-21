@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -26,7 +25,6 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		TraceStoragePrimary: jaegerstorage.DefaultMemoryStore,
 		HTTPServerSettings: confighttp.HTTPServerSettings{
 			Endpoint: ports.PortToHostPort(ports.QueryHTTP),
 		},

@@ -4,15 +4,19 @@
 package internal
 
 import (
+	"embed"
+	"fmt"
 	"log"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
 
-	allinone "github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/all-in-one"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
+
+//go:embed all-in-one.yaml
+var yamlAllInOne embed.FS
 
 const description = "Jaeger backend v2"
 
@@ -38,25 +42,20 @@ func Command() *cobra.Command {
 	// We want to support running the binary in all-in-one mode without a config file.
 	// Since there are no explicit hooks in OTel Collector for that today (as of v0.87),
 	// we intercept the official RunE implementation and check if any `--config` flags
-	// are present in the args. If not, we pass a custom ConfigProvider, and create the
-	// collector manually. Unfortunately, `set`(tings) is passed to NewCommand above
-	// by value, otherwise we could've overwritten it in the interceptor and then delegated
-	// back to the official RunE.
+	// are present in the args. If not, we create one with all-in-one configuration.
 	otelRunE := cmd.RunE
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		// a bit of a hack to check if '--config' flag was present
-		configFlag := cmd.Flag("config").Value.String()
-		if configFlag != "" && configFlag != "[]" {
-			return otelRunE(cmd, args)
+		configFlag := cmd.Flag("config")
+		if !configFlag.Changed {
+			log.Print("No '--config' flags detected, using default All-in-One configuration with memory storage.")
+			log.Print("To customize All-in-One behavior, pass a proper configuration.")
+			data, err := yamlAllInOne.ReadFile("all-in-one.yaml")
+			if err != nil {
+				return fmt.Errorf("cannot read embedded all-in-one configuration: %w", err)
+			}
+			configFlag.Value.Set("yaml:" + string(data))
 		}
-		log.Print("No '--config' flags detected, using default All-in-One configuration with memory storage.")
-		log.Print("To customize All-in-One behavior, pass a proper configuration.")
-		settings.ConfigProvider = allinone.NewConfigProvider()
-		col, err := otelcol.NewCollector(settings)
-		if err != nil {
-			return err
-		}
-		return col.Run(cmd.Context())
+		return otelRunE(cmd, args)
 	}
 
 	cmd.Short = description
