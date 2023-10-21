@@ -64,7 +64,7 @@ func (e *Extractor) Run() error {
 			spans = append(spans, *span)
 		}
 	}
-	if !errors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("failed when scanning the file: %w", err)
 	}
 	trace := uimodel.Trace{
