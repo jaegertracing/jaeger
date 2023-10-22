@@ -230,6 +230,8 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 .PHONY: rebuild-ui
 rebuild-ui:
 	bash ./scripts/rebuild-ui.sh
+	@echo "NOTE: This target only rebuilds the UI assets inside jaeger-ui/packages/jaeger-ui/build/."
+	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
