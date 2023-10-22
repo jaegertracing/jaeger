@@ -23,8 +23,10 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 )
 
-var routeCalcByCustomer = expvar.NewMap("route.calc.by.customer.sec")
-var routeCalcBySession = expvar.NewMap("route.calc.by.session.sec")
+var (
+	routeCalcByCustomer = expvar.NewMap("route.calc.by.customer.sec")
+	routeCalcBySession  = expvar.NewMap("route.calc.by.session.sec")
+)
 
 var stats = []struct {
 	expvar     *expvar.Map

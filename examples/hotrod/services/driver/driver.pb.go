@@ -28,9 +28,11 @@ import (
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ = proto.Marshal
-var _ = fmt.Errorf
-var _ = math.Inf
+var (
+	_ = proto.Marshal
+	_ = fmt.Errorf
+	_ = math.Inf
+)
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -51,18 +53,23 @@ func (*DriverLocationRequest) ProtoMessage()    {}
 func (*DriverLocationRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_cdcd28b7ebdcd54f, []int{0}
 }
+
 func (m *DriverLocationRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DriverLocationRequest.Unmarshal(m, b)
 }
+
 func (m *DriverLocationRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_DriverLocationRequest.Marshal(b, m, deterministic)
 }
+
 func (m *DriverLocationRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_DriverLocationRequest.Merge(m, src)
 }
+
 func (m *DriverLocationRequest) XXX_Size() int {
 	return xxx_messageInfo_DriverLocationRequest.Size(m)
 }
+
 func (m *DriverLocationRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_DriverLocationRequest.DiscardUnknown(m)
 }
@@ -90,18 +97,23 @@ func (*DriverLocation) ProtoMessage()    {}
 func (*DriverLocation) Descriptor() ([]byte, []int) {
 	return fileDescriptor_cdcd28b7ebdcd54f, []int{1}
 }
+
 func (m *DriverLocation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DriverLocation.Unmarshal(m, b)
 }
+
 func (m *DriverLocation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_DriverLocation.Marshal(b, m, deterministic)
 }
+
 func (m *DriverLocation) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_DriverLocation.Merge(m, src)
 }
+
 func (m *DriverLocation) XXX_Size() int {
 	return xxx_messageInfo_DriverLocation.Size(m)
 }
+
 func (m *DriverLocation) XXX_DiscardUnknown() {
 	xxx_messageInfo_DriverLocation.DiscardUnknown(m)
 }
@@ -135,18 +147,23 @@ func (*DriverLocationResponse) ProtoMessage()    {}
 func (*DriverLocationResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_cdcd28b7ebdcd54f, []int{2}
 }
+
 func (m *DriverLocationResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DriverLocationResponse.Unmarshal(m, b)
 }
+
 func (m *DriverLocationResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_DriverLocationResponse.Marshal(b, m, deterministic)
 }
+
 func (m *DriverLocationResponse) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_DriverLocationResponse.Merge(m, src)
 }
+
 func (m *DriverLocationResponse) XXX_Size() int {
 	return xxx_messageInfo_DriverLocationResponse.Size(m)
 }
+
 func (m *DriverLocationResponse) XXX_DiscardUnknown() {
 	xxx_messageInfo_DriverLocationResponse.DiscardUnknown(m)
 }
@@ -188,8 +205,10 @@ var fileDescriptor_cdcd28b7ebdcd54f = []byte{
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConn
+var (
+	_ context.Context
+	_ grpc.ClientConn
+)
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.

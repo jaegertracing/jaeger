@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -54,7 +55,12 @@ func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Fact
 func (s *Server) Run() error {
 	mux := s.createServeMux()
 	s.logger.Bg().Info("Starting", zap.String("address", "http://"+s.hostPort))
-	return http.ListenAndServe(s.hostPort, mux)
+	server := &http.Server{
+		Addr:              s.hostPort,
+		Handler:           mux,
+		ReadHeaderTimeout: 3 * time.Second,
+	}
+	return server.ListenAndServe()
 }
 
 func (s *Server) createServeMux() http.Handler {
