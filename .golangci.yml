@@ -3,7 +3,10 @@ issues:
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
-      linters: [gosec, bodyclose]
+      linters: [gosec, bodyclose, noctx]
+
+    - path: crossdock
+      linters: [noctx]
 
     # See https://github.com/jaegertracing/jaeger/issues/4488
     - path: internal/grpctest/
@@ -55,12 +58,36 @@ linters:
     - exportloopref
 
     - gocritic
+    - gofmt
     - gofumpt
     - goimports
+
+    # Allow or ban replace directives in go.mod
+    # or force explanation for retract directives.
+    # Maybe enable once we get rid of old sarama.
+    # - gomoddirectives
+
     - gosec
+
+    # Linter that specializes in simplifying code.
+    - gosimple
     - govet
+
+    # Detects when assignments to existing variables are not used.
+    - ineffassign
+
     - misspell
 
+    # Finds naked/bare returns and requires change them.
+    - nakedret
+
+    # Require a bit more explicit returns.
+    - nilerr
+
+    # Finds sending HTTP request without context.Context.
+    - noctx
+
+    # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
 
 linters-settings:
   depguard:
