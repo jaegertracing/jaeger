@@ -82,7 +82,7 @@ func TestObserver(t *testing.T) {
 				span.SetName(testCase.opNameOverride)
 			}
 			if testCase.err {
-				span.SetStatus(codes.Error, "An error occured")
+				span.SetStatus(codes.Error, "An error occurred")
 			}
 			span.End(finishOptions)
 		}
@@ -138,7 +138,7 @@ func TestTags(t *testing.T) {
 				)
 				span.SetAttributes(testCase.attr)
 				if testCase.err {
-					span.SetStatus(codes.Error, "An error occured")
+					span.SetStatus(codes.Error, "An error occurred")
 				}
 				span.End()
 				testTracer.metrics.AssertCounterMetrics(t, testCase.metrics...)

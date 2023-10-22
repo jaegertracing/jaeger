@@ -1,3 +1,6 @@
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
@@ -15,7 +18,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
 				   -not -name 'storage_test.pb.go' \
-				   -not -path './examples/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
@@ -175,7 +177,6 @@ lint:
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
-
 	./scripts/check-go-version.sh
 
 .PHONY: build-examples
