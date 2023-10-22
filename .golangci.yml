@@ -3,7 +3,7 @@ issues:
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
-      linters: [gosec]
+      linters: [gosec, bodyclose]
 
     # See https://github.com/jaegertracing/jaeger/issues/4488
     - path: internal/grpctest/
@@ -22,15 +22,42 @@ linters:
   disable:
     - errcheck
   enable:
+    # Plain ASCII identifiers.
+    - asciicheck
+
+    # Checks for dangerous unicode character sequences.
     - bidichk
+
+    # Checks whether HTTP response body is closed successfully.
+    # TODO enable this but maybe find a way to disable in tests.
+    - bodyclose
+
+    # Check whether the function uses a non-inherited context.
     - contextcheck
+
+    # Check declaration order of types, consts, vars and funcs.
+    - decorder
+
+    # Checks if package imports are in a list of acceptable packages.
     - depguard
+
+    # Check for two durations multiplied together.
+    - durationcheck
+
+    # Checks `Err-` prefix for var and `-Error` suffix for error type.
+    - errname
+
+    # Suggests to use `%w` for error-wrapping.
+    # TODO enable this. Curently fails in about 20 places.
+    # - errorlint
+
     - gocritic
     - gofumpt
     - goimports
     - gosec
     - govet
     - misspell
+
 
 linters-settings:
   depguard:

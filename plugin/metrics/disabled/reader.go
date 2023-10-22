@@ -27,14 +27,14 @@ type (
 	// the METRICS_STORAGE_TYPE has not been set.
 	MetricsReader struct{}
 
-	// errMetricsQueryDisabled is the error returned by disabledMetricsQueryService.
-	errMetricsQueryDisabled struct{}
+	// errMetricsQueryDisabledError is the error returned by disabledMetricsQueryService.
+	errMetricsQueryDisabledError struct{}
 )
 
 // ErrDisabled is the error returned by a "disabled" MetricsQueryService on all of its endpoints.
-var ErrDisabled = &errMetricsQueryDisabled{}
+var ErrDisabled = &errMetricsQueryDisabledError{}
 
-func (m *errMetricsQueryDisabled) Error() string {
+func (m *errMetricsQueryDisabledError) Error() string {
 	return "metrics querying is currently disabled"
 }
 
