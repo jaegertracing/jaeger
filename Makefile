@@ -482,12 +482,14 @@ install-test-tools:
 
 .PHONY: install-build-tools
 install-build-tools:
-    $(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
+	$(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
 
 .PHONY: install-tools
 install-tools: install-test-tools install-build-tools
-    $(GO) install github.com/vektra/mockery/v2@v2.14.0
-     
+	$(GO) install github.com/vektra/mockery/v2@v2.14.0
+
+.PHONY: install-ci
+install-ci: install-test-tools install-build-tools
 
 .PHONY: install-ci
 install-ci: install-test-tools install-build-tools 
