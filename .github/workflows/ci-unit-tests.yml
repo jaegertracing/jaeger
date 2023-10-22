@@ -37,7 +37,7 @@ jobs:
         go-version: 1.21.x
 
     - name: Install tools
-      run: make install-ci
+      run: make install-test-tools
 
     - name: Run unit tests
       run: make test-ci
