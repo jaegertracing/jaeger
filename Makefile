@@ -222,6 +222,7 @@ cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.
 	rm -rf cmd/query/app/ui/actual/*
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
 	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
+	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/query/app/ui/actual/index.html.gz
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui
