@@ -51,6 +51,9 @@ linters:
     # TODO enable this. Curently fails in about 20 places.
     # - errorlint
 
+    # Checks for pointers to enclosing loop variables.
+    - exportloopref
+
     - gocritic
     - gofumpt
     - goimports
