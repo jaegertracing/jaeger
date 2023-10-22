@@ -222,6 +222,9 @@ cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.
 	rm -rf cmd/query/app/ui/actual/*
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
 	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
+	# copy the timestamp for index.html.gz from the original file
+	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/query/app/ui/actual/index.html.gz
+	ls -lF cmd/query/app/ui/actual/
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui
@@ -229,6 +232,8 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 .PHONY: rebuild-ui
 rebuild-ui:
 	bash ./scripts/rebuild-ui.sh
+	@echo "NOTE: This target only rebuilds the UI assets inside jaeger-ui/packages/jaeger-ui/build/."
+	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
