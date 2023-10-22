@@ -491,9 +491,6 @@ install-tools: install-test-tools install-build-tools
 .PHONY: install-ci
 install-ci: install-test-tools install-build-tools
 
-.PHONY: install-ci
-install-ci: install-test-tools install-build-tools 
-
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover
