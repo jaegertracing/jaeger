@@ -15,11 +15,13 @@
 package status
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -37,7 +39,10 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 		Long:  `Print Jaeger component status information, exit non-zero on any error.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			url := convert(v.GetString(statusHTTPHostPort))
-			resp, err := http.Get(url)
+			ctx, cx := context.WithTimeout(context.Background(), time.Second)
+			defer cx()
+			req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return err
 			}
