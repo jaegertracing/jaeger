@@ -58,10 +58,10 @@ bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -
 
 # build debug image if not on a pull request
 if [ "$mode" != "pr-only" ]; then
-  make build-all-in-one-debug GOOS=linux GOARCH="$GOARCH"
+  make build-all-in-one GOOS=linux GOARCH="$GOARCH" DEBUG_BINARY=1
   repo=${repo}-debug
 
-  # build all-in-one-debug image locally for integration test
+  # build all-in-one DEBUG image locally for integration test
   bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one-debug -d cmd/all-in-one -t debug
   run_integration_test localhost:5000/$repo
 
