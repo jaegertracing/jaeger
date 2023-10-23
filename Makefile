@@ -346,6 +346,7 @@ _prepare-winres:
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Ingester"         PKGPATH="cmd/ingester"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Remote Storage"   PKGPATH="cmd/remote-storage"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger All-In-One"       PKGPATH="cmd/all-in-one"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger V2"               PKGPATH="cmd/jaeger-v2"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Tracegen"         PKGPATH="cmd/tracegen"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Anonymizer"       PKGPATH="cmd/anonymizer"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Index-Cleaner" PKGPATH="cmd/es-index-cleaner"
@@ -391,6 +392,7 @@ _build-platform-binaries: build-agent \
 		build-collector \
 		build-query \
 		build-ingester \
+		build-jaeger-v2 \
 		build-remote-storage \
 		build-examples \
 		build-tracegen \
