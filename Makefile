@@ -256,37 +256,43 @@ rebuild-ui:
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
+# Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
+# Other targets can depend on this one but with a unique suffix to ensure it is always executed.
+BIN_PATH = ./cmd/$(BIN_NAME)
+.PHONY: _build-a-binary
+_build-a-binary-%:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
+
 .PHONY: build-jaeger-v2
-build-jaeger-v2:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/jaeger-v2/jaeger-v2$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/jaeger-v2/
+build-jaeger-v2: BIN_NAME = jaeger-v2
+build-jaeger-v2: GO_TAGS = -tags ui
+build-jaeger-v2: build-ui _build-a-binary-jaeger-v2$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
-build-all-in-one: build-ui
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/all-in-one/all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/
+build-all-in-one: BIN_NAME = all-in-one
+build-all-in-one: GO_TAGS = -tags ui
+build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-agent
-build-agent:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/agent/agent$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/
+build-agent: BIN_NAME = agent
+build-agent: _build-a-binary-agent$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-query
-build-query: build-ui
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/query/query$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/
+build-query: BIN_NAME = query
+build-query: GO_TAGS = -tags ui
+build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-collector
-build-collector:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/collector/collector$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/
+build-collector: BIN_NAME = collector
+build-collector: _build-a-binary-collector$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-ingester
-build-ingester:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/
+build-ingester: BIN_NAME = ingester
+build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-remote-storage
-build-remote-storage:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/remote-storage/remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/remote-storage/
-
-.PHONY: build-binaries-linux
-build-binaries-linux:
-	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
+build-remote-storage: BIN_NAME = remote-storage
+build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 # Magic values:
 # - LangID "0409" is "US-English".
@@ -349,6 +355,10 @@ _prepare-winres:
 _prepare-winres-helper:
 	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
 
+.PHONY: build-binaries-linux
+build-binaries-linux:
+	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
+
 .PHONY: build-binaries-windows
 build-binaries-windows: _prepare-winres
 	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
@@ -377,11 +387,11 @@ build-binaries-ppc64le:
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
 _build-platform-binaries: build-agent \
+		build-all-in-one \
 		build-collector \
 		build-query \
 		build-ingester \
 		build-remote-storage \
-		build-all-in-one \
 		build-examples \
 		build-tracegen \
 		build-anonymizer \
