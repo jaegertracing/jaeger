@@ -24,7 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -282,26 +282,36 @@ func TestPasswordFromFile(t *testing.T) {
 }
 
 func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
-	var authReceived atomic.Pointer[string]
+	const (
+		pwd1 = "first password"
+		pwd2 = "second password"
+		// and with user name
+		upwd1 = "user:" + pwd1
+		upwd2 = "user:" + pwd2
+	)
+	var authReceived sync.Map
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("request to fake ES server: %v", r)
+		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
 		require.Len(t, h, 2)
 		require.Equal(t, "Basic", h[0])
 		authBytes, err := base64.StdEncoding.DecodeString(h[1])
 		assert.NoError(t, err, "header: %s", h)
 		auth := string(authBytes)
-		authReceived.Store(&auth)
+		authReceived.Store(auth, auth)
+		t.Logf("request to fake ES server contained auth=%s", auth)
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
+	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
 	f.primaryConfig = &escfg.Configuration{
 		Servers:          []string{server.URL},
 		LogLevel:         "debug",
+		Username:         "user",
 		PasswordFilePath: pwdFile,
 		BulkSize:         -1, // disable bulk; we want immediate flush
 	}
@@ -309,6 +319,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		Enabled:          true,
 		Servers:          []string{server.URL},
 		LogLevel:         "debug",
+		Username:         "user",
 		PasswordFilePath: pwdFile,
 		BulkSize:         -1, // disable bulk; we want immediate flush
 	}
@@ -321,13 +332,21 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		Process: &model.Process{ServiceName: "foo"},
 	}
 	require.NoError(t, writer.WriteSpan(context.Background(), span))
-	require.Equal(t, ":first password", *authReceived.Load())
+	assert.Eventually(t,
+		func() bool {
+			pwd, ok := authReceived.Load(upwd1)
+			return ok && pwd == upwd1
+		},
+		5*time.Second, time.Millisecond,
+		"expecting es.Client to send the first password",
+	)
 
 	t.Log("replace password in the file")
 	client1 := getClient()
 	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
-	require.NoError(t, os.WriteFile(newPwdFile, []byte("second password"), 0o600))
+	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
 	require.NoError(t, os.Rename(newPwdFile, pwdFile))
+
 	assert.Eventually(t,
 		func() bool {
 			client2 := getClient()
@@ -336,8 +355,16 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		5*time.Second, time.Millisecond,
 		"expecting es.Client to change for the new password",
 	)
+
 	require.NoError(t, writer.WriteSpan(context.Background(), span))
-	require.Equal(t, ":second password", *authReceived.Load())
+	assert.Eventually(t,
+		func() bool {
+			pwd, ok := authReceived.Load(upwd2)
+			return ok && pwd == upwd2
+		},
+		5*time.Second, time.Millisecond,
+		"expecting es.Client to send the new password",
+	)
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {
