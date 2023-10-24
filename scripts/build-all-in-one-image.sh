@@ -43,7 +43,7 @@ run_integration_test() {
   docker kill "$CID"
 }
 
-if [ -n $pull_request ]; then
+if [ -n "$pull_request" ]; then
   make create-baseimg
   # build current architecture only for pull requests
   platforms="linux/${GOARCH}"
@@ -59,7 +59,7 @@ fi
 
 # build all-in-one image locally for integration test
 bash scripts/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
-run_integration_test localhost:5000/$repo
+run_integration_test "localhost:5000/$repo"
 
 # skip building and uploading real Docker images if it's not all-in-one
 if [[ "${BINARY}" != "all-in-one" ]]; then
@@ -70,13 +70,13 @@ fi
 bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 # build debug image if not on a pull request
-if [ -z $pull_request ]; then
+if [ -z "$pull_request" ]; then
   make build-all-in-one GOOS=linux GOARCH="$GOARCH" DEBUG_BINARY=1
-  repo=${repo}-debug
+  repo="${repo}-debug"
 
   # build all-in-one DEBUG image locally for integration test
   bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one-debug -d cmd/all-in-one -t debug
-  run_integration_test localhost:5000/$repo
+  run_integration_test "localhost:5000/$repo"
 
   # build all-in-one-debug image and upload to dockerhub/quay.io
   bash scripts/build-upload-a-docker-image.sh -b -c all-in-one-debug -d cmd/all-in-one -t debug
