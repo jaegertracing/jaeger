@@ -52,6 +52,7 @@ type FactoryConfig struct {
 // * `elasticsearch` - built-in
 // * `memory` - built-in
 // * `kafka` - built-in
+// * `blackhole` - built-in
 // * `plugin` - loads a dynamic plugin that implements storage.Factory interface (not supported at the moment)
 //
 // For backwards compatibility it also parses the args looking for deprecated --span-storage.type flag.
