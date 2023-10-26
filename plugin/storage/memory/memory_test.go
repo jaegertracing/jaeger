@@ -17,6 +17,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -528,49 +529,86 @@ func makeTestingSpan(traceID model.TraceID, suffix string) *model.Span {
 // TestInferredServiceDependency tests if the service dependencies include an inferred service
 // when there is a client span without a corresponding server span.
 func TestInferredServiceDependency(t *testing.T) {
-	// Create a memory store
-	store := NewStore()
-
-	// Create a client span without a corresponding server span
-	clientSpan := &model.Span{
-		TraceID:       model.NewTraceID(1, 2),
-		SpanID:        model.NewSpanID(3),
-		OperationName: "clientOperation",
-		StartTime:     time.Now(),
-		Duration:      time.Millisecond * 500,
-		Tags: model.KeyValues{
-			model.String("span.kind", "client"),
+	scenarios := []struct {
+		description        string
+		clientSpanTags     model.KeyValues
+		childSpanTags      model.KeyValues
+		expectedDependency model.DependencyLink
+	}{
+		{
+			description:    "span.kind=client which is NOT a leaf (has a child)",
+			clientSpanTags: model.KeyValues{model.String("span.kind", "client")},
+			childSpanTags:  model.KeyValues{model.String("span.kind", "server")},
+			expectedDependency: model.DependencyLink{
+				Parent: "clientService",
+				Child:  "inferred-clientOperation",
+			},
 		},
-		Process: &model.Process{
-			ServiceName: "clientService",
+		{
+			description:    "leaf span that is NOT span.kind=client",
+			clientSpanTags: model.KeyValues{model.String("span.kind", "server")},
+			childSpanTags:  model.KeyValues{},
+			expectedDependency: model.DependencyLink{
+				Parent: "clientService",
+				Child:  "inferred-leaf-clientOperation",
+			},
 		},
 	}
 
-	// Write the client span to the store
-	assert.NoError(t, store.WriteSpan(context.Background(), clientSpan))
+	for _, scenario := range scenarios {
+		store := NewStore()
 
-	// Get the dependencies
-	dependencies, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
-	assert.NoError(t, err)
-
-	// Check if the service dependencies include an inferred service
-	var hasInferredServiceDependency bool
-	expectedParent := clientSpan.Process.ServiceName
-	expectedChild := "inferred-" + clientSpan.OperationName
-	for _, dependency := range dependencies {
-		if dependency.Parent == expectedParent && dependency.Child == expectedChild {
-			hasInferredServiceDependency = true
-			break
+		// Client span
+		clientSpan := &model.Span{
+			TraceID:       model.NewTraceID(1, 2),
+			SpanID:        model.NewSpanID(3),
+			OperationName: "clientOperation",
+			StartTime:     time.Now(),
+			Duration:      time.Millisecond * 500,
+			Tags:          scenario.clientSpanTags,
+			Process: &model.Process{
+				ServiceName: "clientService",
+			},
 		}
-	}
 
-	// Assert that the service dependencies include an inferred service
-	assert.True(t, hasInferredServiceDependency, "Expected service dependencies to include an inferred service")
+		// Child span
+		var childSpan *model.Span
+		if len(scenario.childSpanTags) > 0 {
+			childSpan = &model.Span{
+				TraceID:       clientSpan.TraceID,
+				SpanID:        model.NewSpanID(4),
+				OperationName: "childOperation",
+				StartTime:     time.Now(),
+				Duration:      time.Millisecond * 300,
+				Tags:          scenario.childSpanTags,
+				Process:       clientSpan.Process,
+			}
+		}
+
+		assert.NoError(t, store.WriteSpan(context.Background(), clientSpan))
+		if childSpan != nil {
+			assert.NoError(t, store.WriteSpan(context.Background(), childSpan))
+		}
+
+		dependencies, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
+		assert.NoError(t, err)
+
+		var hasExpectedDependency bool
+		for _, dependency := range dependencies {
+			if dependency.Parent == scenario.expectedDependency.Parent && dependency.Child == scenario.expectedDependency.Child {
+				hasExpectedDependency = true
+				break
+			}
+		}
+
+		assert.True(t, hasExpectedDependency, fmt.Sprintf("%s: expected service dependencies to include %v", scenario.description, scenario.expectedDependency))
+	}
 }
 
 func TestInferServiceName(t *testing.T) {
 	scenarios := []struct {
 		tags         model.KeyValues
+		isLeaf       bool
 		expectedName string
 	}{
 		{
@@ -587,15 +625,20 @@ func TestInferServiceName(t *testing.T) {
 		},
 		{
 			tags: model.KeyValues{
-				model.String("http.route", "/api/v1/users"),
+				model.String("http.route", "users"),
 			},
-			expectedName: "inferred-http-/api/v1/users",
+			expectedName: "inferred-http-users",
 		},
 		{
 			tags: model.KeyValues{
 				model.String("db.system", "mysql"),
 			},
 			expectedName: "inferred-db-mysql",
+		},
+		{
+			tags:         model.KeyValues{},
+			isLeaf:       true,
+			expectedName: "inferred-leaf-clientOperation",
 		},
 		{
 			tags:         model.KeyValues{},
@@ -609,7 +652,7 @@ func TestInferServiceName(t *testing.T) {
 			Tags:          scenario.tags,
 		}
 
-		inferredName := inferServiceName(span)
+		inferredName := inferServiceName(span, scenario.isLeaf)
 		assert.Equal(t, scenario.expectedName, inferredName, "Expected inferred service name to match")
 	}
 }

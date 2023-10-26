@@ -112,11 +112,18 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 						continue
 					}
 					updateServiceDependencyLinks(parentSpan.Process.ServiceName, s.Process.ServiceName, deps)
-				} else if isClientSpan(s) && !hasCorrespondingServerSpan(s, trace.Spans) {
-					parentService := s.Process.ServiceName
-					childService := inferServiceName(s)
-					// childService := "inferred-" + s.OperationName // TBD: call a function here to infer the name
-					updateServiceDependencyLinks(parentService, childService, deps)
+				} else if isLeaf(s, trace.Spans) {
+					serviceName := s.Process.ServiceName
+					var childService string
+
+					if isClientSpan(s) {
+						childService = inferServiceName(s, !isLeaf(s, trace.Spans))
+					} else {
+						// childService = "inferred-leaf-" + s.OperationName
+						childService = inferServiceName(s, isLeaf(s, trace.Spans))
+					}
+
+					updateServiceDependencyLinks(serviceName, childService, deps)
 				}
 			}
 		}
@@ -336,22 +343,18 @@ func flattenTags(span *model.Span) model.KeyValues {
 	return retMe
 }
 
-func hasCorrespondingServerSpan(clientSpan *model.Span, spans []*model.Span) bool {
-	for _, span := range spans {
-		if span.ParentSpanID() == clientSpan.SpanID {
-			return true
+func isLeaf(span *model.Span, spans []*model.Span) bool {
+	for _, s := range spans {
+		if s.ParentSpanID() == span.SpanID {
+			return false // Not a leaf if another span lists it as parent
 		}
 	}
-	return false
+	return true
 }
 
 func isClientSpan(span *model.Span) bool {
-	for _, tag := range span.Tags {
-		if tag.Key == "span.kind" && tag.VStr == "client" {
-			return true
-		}
-	}
-	return false
+	tag, found := model.KeyValues(span.Tags).FindByKey("span.kind")
+	return found && tag.VStr == "client"
 }
 
 func updateServiceDependencyLinks(parentService, childService string, deps map[string]*model.DependencyLink) {
@@ -367,8 +370,12 @@ func updateServiceDependencyLinks(parentService, childService string, deps map[s
 	}
 }
 
-func inferServiceName(span *model.Span) string {
+func inferServiceName(span *model.Span, isLead bool) string {
 	serviceName := "inferred"
+
+	if isLead {
+		serviceName += "-leaf"
+	}
 
 	// Check for peer.service tag
 	if peerService, found := getTagValue(span, "peer.service"); found {
@@ -398,10 +405,8 @@ func inferServiceName(span *model.Span) string {
 }
 
 func getTagValue(span *model.Span, key string) (string, bool) {
-	for _, tag := range span.Tags {
-		if tag.Key == key {
-			return tag.VStr, true
-		}
+	if tag, ok := model.KeyValues(span.Tags).FindByKey(key); ok {
+		return tag.VStr, true
 	}
 	return "", false
 }
