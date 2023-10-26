@@ -21,23 +21,25 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go.uber.org/zap"
 )
 
 // Options describes the configuration properties for TLS Connections.
 type Options struct {
-	Enabled        bool         `mapstructure:"enabled"`
-	CAPath         string       `mapstructure:"ca"`
-	CertPath       string       `mapstructure:"cert"`
-	KeyPath        string       `mapstructure:"key"`
-	ServerName     string       `mapstructure:"server_name"` // only for client-side TLS config
-	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
-	CipherSuites   []string     `mapstructure:"cipher_suites"`
-	MinVersion     string       `mapstructure:"min_version"`
-	MaxVersion     string       `mapstructure:"max_version"`
-	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
-	certWatcher    *certWatcher `mapstructure:"-"`
+	Enabled        bool          `mapstructure:"enabled"`
+	CAPath         string        `mapstructure:"ca"`
+	CertPath       string        `mapstructure:"cert"`
+	KeyPath        string        `mapstructure:"key"`
+	ServerName     string        `mapstructure:"server_name"` // only for client-side TLS config
+	ClientCAPath   string        `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
+	CipherSuites   []string      `mapstructure:"cipher_suites"`
+	MinVersion     string        `mapstructure:"min_version"`
+	MaxVersion     string        `mapstructure:"max_version"`
+	SkipHostVerify bool          `mapstructure:"skip_host_verify"`
+	ReloadInterval time.Duration `mapstructure:"reload_interval"`
+	certWatcher    *certWatcher  `mapstructure:"-"`
 }
 
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
