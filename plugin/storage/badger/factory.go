@@ -29,8 +29,10 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
+	badgerSampling "github.com/jaegertracing/jaeger/plugin/storage/badger/samplingstore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -168,6 +170,11 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	sr, _ := f.CreateSpanReader() // err is always nil
 	return depStore.NewDependencyStore(sr), nil
+}
+
+// CreateSamplingStore implements storage.SamplingStoreFactory
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return badgerSampling.NewSamplingStore(f.store), nil
 }
 
 // Close Implements io.Closer and closes the underlying storage

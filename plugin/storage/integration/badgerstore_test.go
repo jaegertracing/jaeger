@@ -49,6 +49,9 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	if err != nil {
 		return err
 	}
+	if s.SamplingStore, err = s.factory.CreateSamplingStore(0); err != nil {
+		return err
+	}
 
 	s.SpanReader = sr
 	s.SpanWriter = sw
