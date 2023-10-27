@@ -530,10 +530,11 @@ func makeTestingSpan(traceID model.TraceID, suffix string) *model.Span {
 // when there is a client span without a corresponding server span.
 func TestInferredServiceDependency(t *testing.T) {
 	scenarios := []struct {
-		description        string
-		clientSpanTags     model.KeyValues
-		childSpanTags      model.KeyValues
-		expectedDependency model.DependencyLink
+		description             string
+		clientSpanTags          model.KeyValues
+		childSpanTags           model.KeyValues
+		expectedDependency      model.DependencyLink
+		clientSpanOperationName string
 	}{
 		{
 			description:    "span.kind=client which is NOT a leaf (has a child)",
@@ -543,6 +544,7 @@ func TestInferredServiceDependency(t *testing.T) {
 				Parent: "clientService",
 				Child:  "inferred-clientOperation",
 			},
+			clientSpanOperationName: "clientOperation",
 		},
 		{
 			description:    "leaf span that is NOT span.kind=client",
@@ -552,56 +554,148 @@ func TestInferredServiceDependency(t *testing.T) {
 				Parent: "clientService",
 				Child:  "inferred-leaf-clientOperation",
 			},
+			clientSpanOperationName: "clientOperation",
+		},
+		{
+			description:    "client span that is a leaf and has no corresponding server span",
+			clientSpanTags: model.KeyValues{model.String("span.kind", "client")},
+			childSpanTags:  model.KeyValues{},
+			expectedDependency: model.DependencyLink{
+				Parent: "clientService",
+				Child:  "inferred-clientOperation",
+			},
+			clientSpanOperationName: "clientOperation",
+		},
+		{
+			description:    "span.kind=client which is NOT a leaf but child is not server",
+			clientSpanTags: model.KeyValues{model.String("span.kind", "client")},
+			childSpanTags:  model.KeyValues{model.String("span.kind", "consumer")},
+			expectedDependency: model.DependencyLink{
+				Parent: "clientService",
+				Child:  "inferred-clientOperation",
+			},
+			clientSpanOperationName: "clientOperation",
+		},
+		{
+			description:    "non-client, non-server leaf span",
+			clientSpanTags: model.KeyValues{model.String("span.kind", "consumer")},
+			childSpanTags:  model.KeyValues{},
+			expectedDependency: model.DependencyLink{
+				Parent: "clientService",
+				Child:  "inferred-leaf-consumerOperation",
+			},
+			clientSpanOperationName: "consumerOperation",
 		},
 	}
 
 	for _, scenario := range scenarios {
-		store := NewStore()
+		t.Run(scenario.description, func(t *testing.T) {
+			store := NewStore()
 
-		// Client span
-		clientSpan := &model.Span{
-			TraceID:       model.NewTraceID(1, 2),
-			SpanID:        model.NewSpanID(3),
-			OperationName: "clientOperation",
-			StartTime:     time.Now(),
-			Duration:      time.Millisecond * 500,
-			Tags:          scenario.clientSpanTags,
-			Process: &model.Process{
-				ServiceName: "clientService",
-			},
-		}
-
-		// Child span
-		var childSpan *model.Span
-		if len(scenario.childSpanTags) > 0 {
-			childSpan = &model.Span{
-				TraceID:       clientSpan.TraceID,
-				SpanID:        model.NewSpanID(4),
-				OperationName: "childOperation",
+			// Client span
+			clientSpan := &model.Span{
+				TraceID:       model.NewTraceID(1, 2),
+				SpanID:        model.NewSpanID(3),
+				OperationName: scenario.clientSpanOperationName,
 				StartTime:     time.Now(),
-				Duration:      time.Millisecond * 300,
-				Tags:          scenario.childSpanTags,
-				Process:       clientSpan.Process,
+				Duration:      time.Millisecond * 500,
+				Tags:          scenario.clientSpanTags,
+				Process: &model.Process{
+					ServiceName: "clientService",
+				},
 			}
-		}
 
-		assert.NoError(t, store.WriteSpan(context.Background(), clientSpan))
-		if childSpan != nil {
-			assert.NoError(t, store.WriteSpan(context.Background(), childSpan))
-		}
-
-		dependencies, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
-		assert.NoError(t, err)
-
-		var hasExpectedDependency bool
-		for _, dependency := range dependencies {
-			if dependency.Parent == scenario.expectedDependency.Parent && dependency.Child == scenario.expectedDependency.Child {
-				hasExpectedDependency = true
-				break
+			// Child span
+			var childSpan *model.Span
+			if len(scenario.childSpanTags) > 0 {
+				childSpan = &model.Span{
+					TraceID:       clientSpan.TraceID,
+					SpanID:        model.NewSpanID(4),
+					OperationName: "childOperation",
+					StartTime:     time.Now(),
+					Duration:      time.Millisecond * 300,
+					Tags:          scenario.childSpanTags,
+					Process:       clientSpan.Process,
+					References: []model.SpanRef{
+						{
+							RefType: model.ChildOf,
+							TraceID: clientSpan.TraceID,
+							SpanID:  clientSpan.SpanID,
+						},
+					},
+				}
 			}
-		}
 
-		assert.True(t, hasExpectedDependency, fmt.Sprintf("%s: expected service dependencies to include %v", scenario.description, scenario.expectedDependency))
+			assert.NoError(t, store.WriteSpan(context.Background(), clientSpan))
+			if childSpan != nil {
+				assert.NoError(t, store.WriteSpan(context.Background(), childSpan))
+			}
+			dependencies, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
+			assert.NoError(t, err)
+
+			var hasExpectedDependency bool
+			for _, dependency := range dependencies {
+				if dependency.Parent == scenario.expectedDependency.Parent && dependency.Child == scenario.expectedDependency.Child {
+					hasExpectedDependency = true
+					break
+				}
+			}
+			assert.True(t, hasExpectedDependency, fmt.Sprintf("%s: expected service dependencies to include %v", scenario.description, scenario.expectedDependency))
+		})
+	}
+}
+
+func TestIsLeaf(t *testing.T) {
+	scenarios := []struct {
+		description string
+		spans       []*model.Span
+		targetSpan  *model.Span
+		expected    bool
+	}{
+		{
+			description: "Span with no children should be a leaf",
+			spans: []*model.Span{
+				{SpanID: model.NewSpanID(1)},
+			},
+			targetSpan: &model.Span{SpanID: model.NewSpanID(1)},
+			expected:   true,
+		},
+		{
+			description: "Span with a child should not be a leaf",
+			spans: []*model.Span{
+				{
+					SpanID: model.NewSpanID(1),
+				},
+				{
+					SpanID: model.NewSpanID(2),
+					References: []model.SpanRef{
+						{
+							RefType: model.ChildOf,
+							TraceID: model.NewTraceID(1, 2),
+							SpanID:  model.NewSpanID(1),
+						},
+					},
+				},
+			},
+			targetSpan: &model.Span{SpanID: model.NewSpanID(1)},
+			expected:   false,
+		},
+		{
+			description: "Span with no direct children in a list should be a leaf",
+			spans: []*model.Span{
+				{SpanID: model.NewSpanID(1)},
+				{SpanID: model.NewSpanID(2)},
+			},
+			targetSpan: &model.Span{SpanID: model.NewSpanID(1)},
+			expected:   true,
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.description, func(t *testing.T) {
+			result := isLeaf(scenario.targetSpan, scenario.spans)
+			assert.Equal(t, scenario.expected, result, "Unexpected result for isLeaf in scenario '%s'", scenario.description)
+		})
 	}
 }
 

@@ -107,23 +107,16 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 		if traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
 				parentSpan := findSpan(trace, s.ParentSpanID())
-				if parentSpan != nil {
-					if parentSpan.Process.ServiceName == s.Process.ServiceName {
-						continue
-					}
+				if parentSpan != nil && parentSpan.Process.ServiceName != s.Process.ServiceName {
 					updateServiceDependencyLinks(parentSpan.Process.ServiceName, s.Process.ServiceName, deps)
-				} else if isLeaf(s, trace.Spans) {
-					serviceName := s.Process.ServiceName
-					var childService string
-
-					if isClientSpan(s) {
-						childService = inferServiceName(s, !isLeaf(s, trace.Spans))
-					} else {
-						// childService = "inferred-leaf-" + s.OperationName
-						childService = inferServiceName(s, isLeaf(s, trace.Spans))
-					}
-
-					updateServiceDependencyLinks(serviceName, childService, deps)
+				}
+				// Handle client spans separately
+				if isClientSpan(s) {
+					childService := inferServiceName(s, false)
+					updateServiceDependencyLinks(s.Process.ServiceName, childService, deps)
+				} else if isLeaf(s, trace.Spans) { // Handle non-client leaf spans
+					childService := inferServiceName(s, true)
+					updateServiceDependencyLinks(s.Process.ServiceName, childService, deps)
 				}
 			}
 		}
@@ -344,12 +337,14 @@ func flattenTags(span *model.Span) model.KeyValues {
 }
 
 func isLeaf(span *model.Span, spans []*model.Span) bool {
-	for _, s := range spans {
-		if s.ParentSpanID() == span.SpanID {
-			return false // Not a leaf if another span lists it as parent
-		}
-	}
-	return true
+    for _, s := range spans {
+        for _, ref := range s.References {
+            if ref.RefType == model.ChildOf && ref.SpanID == span.SpanID {
+                return false // Not a leaf if it's the parent of another span
+            }
+        }
+    }
+    return true
 }
 
 func isClientSpan(span *model.Span) bool {
