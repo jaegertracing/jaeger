@@ -11,10 +11,11 @@ We gratefully welcome improvements to documentation as well as to code.
 
 Table of Contents:
 
-* [Making a Change](#making-a-change)
-* [License](#license)
-* [Certificate of Origin - Sign your work](#certificate-of-origin---sign-your-work)
-* [Branches](#branches)
+* [Making a Change](#making-a-change).
+* [License](#license).
+* 
+* [Certificate of Origin - Sign your work](#certificate-of-origin---sign-your-work).
+* [Branches](#branches).
 
 ## Making a Change
 
@@ -26,7 +27,9 @@ should describe the following:
 * Requirement - what kind of business use case are you trying to solve?
 * Problem - what in Jaeger blocks you from solving the requirement?
 * Proposal - what changes do you propose to solve the problem or improve the existing situation?
-* Any open questions to address
+* Any open questions to address.
+
+* 
 
 Discussing your proposed changes ahead of time will make the contribution
 process smooth for everyone. Once the approach is agreed upon, make your changes
@@ -45,11 +48,11 @@ So if you have a desire to work on an issue, feel free to mention it in the comm
 If you are new to GitHub's contribution workflow, we recommend the following setup:
   * Go to the respective Jaeger repo on GitHub and create a fork using the button at the top. Select a destination org where you have write permissions (usually it is your personal "org").
   * Clone the fork into your workspace.
-  * (Recommended): register upstream repo as remote
-    * After you clone your forked repo, `git remote -v` will show `origin`, e.g. `origin	git@github.com:{username}/jaeger.git`
+  * (Recommended): register upstream repo as remote.
+    * After you clone your forked repo, `git remote -v` will show `origin`, e.g. `origin	git@github.com:{username}/jaeger.git`.
     * Add `upstream` remote: `git remote add upstream git@github.com:jaegertracing/jaeger.git`
-    * Fetch it: `git fetch upstream main`
-    * Repoint your main branch: `git branch --set-upstream-to=upstream/main main`
+    * Fetch it: `git fetch upstream main`.
+    * Repoint your main branch: `git branch --set-upstream-to=upstream/main main`.
     * With this setup, you will not need to keep your main branch in the fork in sync with the upstream repo.
 
 Once you're ready to make changes:
