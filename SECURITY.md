@@ -16,7 +16,7 @@ Dependencies are evaluated before being introduced to ensure they:
 
 1) are actively maintained
 2) are maintained by trustworthy maintainers
-3) are licensed in a way not to impact the Jaeger license.
+3) are licensed in a way not to impact the Jaeger license based on [the CNCF license allowlist](https://github.com/cncf/foundation/blob/main/allowed-third-party-license-policy.md).
 
 These evaluations vary from dependency to dependencies.
 
