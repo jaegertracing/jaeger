@@ -26,7 +26,13 @@ distribution-points:
 - https://quay.io/organization/jaegertracing/ 
 security-artifacts:
   threat-model:
-    threat-model-created: false
+    threat-model-created: true
+    evidence-url:
+    - https://github.com/jaegertracing/jaeger/blob/main/THREAT-MODEL.md
+self-assessment:
+    self-assessment-created: true
+    evidence-url:
+    - https://github.com/jaegertracing/jaeger/blob/main/SELF-ASSESMENT.md
 security-testing:
 - tool-type: sca
   tool-name: Dependabot
