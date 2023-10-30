@@ -47,7 +47,12 @@ vulnerability-reporting:
   comment: |
     The first and best way to report a vulnerability is by using private security issues in GitHub or opening an issue on Github. We are also available on the CNCF Slack in the jaeger channel.
 dependencies:
+  third-party-packages: true
+  dependencies-lists:
+  - https://github.com/jaegertracing/jaeger/blob/main/go.mod
   sbom:
   - sbom-file: https://github.com/jaegertracing/jaeger/releases/latest/download/jaeger-SBOM.spdx.json 
     sbom-format: SPDX
     sbom-url: https://github.com/anchore/sbom-action 
+  dependencies-lifecycle:
+    policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#security-patch-policy
