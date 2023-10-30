@@ -22,12 +22,10 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/kafka/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -111,7 +109,7 @@ type spanWriterTest struct {
 	writer *SpanWriter
 }
 
-// Checks that Kafka SpanWriter conforms to spanstore.Writer API
+// Checks that pulsar SpanWriter conforms to spanstore.Writer API
 var _ spanstore.Writer = &SpanWriter{}
 
 func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) {
@@ -175,33 +173,6 @@ func TestPulsarWriterErr(t *testing.T) {
 				break
 			}
 		}
-
-		w.metricsFactory.AssertCounterMetrics(t,
-			metricstest.ExpectedMetric{
-				Name:  "pulsar_spans_written",
-				Tags:  map[string]string{"status": "success"},
-				Value: 0,
-			})
-
-		w.metricsFactory.AssertCounterMetrics(t,
-			metricstest.ExpectedMetric{
-				Name:  "pulsar_spans_written",
-				Tags:  map[string]string{"status": "failure"},
-				Value: 1,
-			})
-	})
-}
-
-func TestMarshallerErr(t *testing.T) {
-	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
-		marshaller := &mocks.Marshaller{}
-		marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).Return([]byte{}, errors.New(""))
-		w.writer.marshaller = marshaller
-
-		err := w.writer.WriteSpan(context.Background(), span)
-		assert.Error(t, err)
-
-		w.writer.Close()
 
 		w.metricsFactory.AssertCounterMetrics(t,
 			metricstest.ExpectedMetric{

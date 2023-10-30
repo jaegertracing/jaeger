@@ -29,7 +29,7 @@ type spanWriterMetrics struct {
 	SpansWrittenFailure metrics.Counter
 }
 
-// SpanWriter writes spans to kafka. Implements spanstore.Writer
+// SpanWriter writes spans to pulsar. Implements spanstore.Writer
 type SpanWriter struct {
 	metrics    spanWriterMetrics
 	producer   pulsar.Producer
@@ -37,7 +37,7 @@ type SpanWriter struct {
 	// topic      string
 }
 
-// NewSpanWriter initiates and returns a new kafka spanwriter
+// NewSpanWriter initiates and returns a new pulsar spanwriter
 func NewSpanWriter(
 	producer pulsar.Producer,
 	marshaller Marshaller,
@@ -57,7 +57,7 @@ func NewSpanWriter(
 	}
 }
 
-// WriteSpan writes the span to kafka.
+// WriteSpan writes the span to pulsar.
 func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	spanBytes, err := w.marshaller.Marshal(span)
 	if err != nil {

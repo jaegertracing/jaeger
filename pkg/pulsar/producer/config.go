@@ -21,12 +21,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// Builder builds a new kafka producer
+// Builder builds a new pulsar producer
 type Builder interface {
 	NewProducer(topic string, logger *zap.Logger) (pulsar.Producer, error)
 }
 
-// Configuration describes the configuration properties needed to create a Kafka producer
+// Configuration describes the configuration properties needed to create a pulsar producer
 type Configuration struct {
 	URL                     string                  `mapstructure:"url"`
 	Token                   string                  `mapstructure:"token"`
@@ -39,7 +39,7 @@ type Configuration struct {
 	BatchingMaxMessages     int                     `mapstructure:"batching_max_messages"`
 }
 
-// NewProducer creates a new asynchronous kafka producer
+// NewProducer creates a new asynchronous pulsar producer
 func (c *Configuration) NewProducer(topic string, logger *zap.Logger) (pulsar.Producer, error) {
 	options := pulsar.ClientOptions{
 		URL:               c.URL,

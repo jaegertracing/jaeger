@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// Marshaller encodes a span into a byte array to be sent to Kafka
+// Marshaller encodes a span into a byte array to be sent to Pulsar
 type Marshaller interface {
 	Marshal(*model.Span) ([]byte, error)
 }

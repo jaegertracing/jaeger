@@ -93,7 +93,7 @@ var (
 	}
 )
 
-// Options stores the configuration options for Kafka
+// Options stores the configuration options for Pulsar
 type Options struct {
 	Config   producer.Configuration `mapstructure:",squash"`
 	Encoding string                 `mapstructure:"encoding"`
