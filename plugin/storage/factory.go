@@ -27,12 +27,12 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
-	"github.com/jaegertracing/jaeger/plugin/storage/blackhole"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/plugin/storage/pulsar"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -44,9 +44,9 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
+	pulsarStorageType        = "pulsar"
 	grpcPluginStorageType    = "grpc-plugin"
 	badgerStorageType        = "badger"
-	blackholeStorageType     = "blackhole"
 
 	downsamplingRatio    = "downsampling.ratio"
 	downsamplingHashSalt = "downsampling.hashsalt"
@@ -65,8 +65,8 @@ var AllStorageTypes = []string{
 	elasticsearchStorageType,
 	memoryStorageType,
 	kafkaStorageType,
+	pulsarStorageType,
 	badgerStorageType,
-	blackholeStorageType,
 	grpcPluginStorageType,
 }
 
@@ -131,12 +131,12 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 		return memory.NewFactory(), nil
 	case kafkaStorageType:
 		return kafka.NewFactory(), nil
+	case pulsarStorageType:
+		return pulsar.NewFactory(), nil
 	case badgerStorageType:
 		return badger.NewFactory(), nil
 	case grpcPluginStorageType:
 		return grpc.NewFactory(), nil
-	case blackholeStorageType:
-		return blackhole.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
 	}
