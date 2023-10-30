@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Checks that Kafka Factory conforms to storage.Factory API
+// Checks that Pulsar Factory conforms to storage.Factory API
 var _ storage.Factory = new(Factory)
 
 func TestPulsarFactory(t *testing.T) {
