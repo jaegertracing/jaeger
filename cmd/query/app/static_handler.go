@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -37,19 +38,21 @@ import (
 
 var (
 	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
-	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	configJsPattern = regexp.MustCompile(`(?im)^\s*\/\/\s*JAEGER_CONFIG_JS.*\n.*`)
-	versionPattern  = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
-	basePathPattern = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
+	configPattern      = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
+	configJsPattern    = regexp.MustCompile(`(?im)^\s*\/\/\s*JAEGER_CONFIG_JS.*\n.*`)
+	versionPattern     = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
+	compabilityPattern = regexp.MustCompile("JAEGER_STORAGE_CAPABILITIES *= *DEFAULT_STORAGE_CAPABILITIES;")
+	basePathPattern    = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
-func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions) {
+func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
-		BasePath:     qOpts.BasePath,
-		UIConfigPath: qOpts.UIConfig,
-		Logger:       logger,
-		LogAccess:    qOpts.StaticAssets.LogAccess,
+		BasePath:            qOpts.BasePath,
+		UIConfigPath:        qOpts.UIConfig,
+		StorageCapabilities: qCapabilities,
+		Logger:              logger,
+		LogAccess:           qOpts.StaticAssets.LogAccess,
 	})
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
@@ -68,10 +71,11 @@ type StaticAssetsHandler struct {
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
 type StaticAssetsHandlerOptions struct {
-	BasePath     string
-	UIConfigPath string
-	LogAccess    bool
-	Logger       *zap.Logger
+	BasePath            string
+	UIConfigPath        string
+	LogAccess           bool
+	StorageCapabilities querysvc.StorageCapabilities
+	Logger              *zap.Logger
 }
 
 type loadedConfig struct {
@@ -90,7 +94,7 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		options.Logger = zap.NewNop()
 	}
 
-	indexHTML, err := loadAndEnrichIndexHTML(assetsFS.Open, options)
+	indexHTML, err := options.loadAndEnrichIndexHTML(assetsFS.Open)
 	if err != nil {
 		return nil, err
 	}
@@ -112,30 +116,34 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	return h, nil
 }
 
-func loadAndEnrichIndexHTML(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
+func (sHOpts *StaticAssetsHandlerOptions) loadAndEnrichIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	indexBytes, err := loadIndexHTML(open)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	// replace UI config
-	if configObject, err := loadUIConfig(options.UIConfigPath); err != nil {
+	if configObject, err := sHOpts.loadUIConfig(); err != nil {
 		return nil, err
 	} else if configObject != nil {
 		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
 	}
+	// replace storage capabilities
+	capabilitiesJSON, _ := json.Marshal(sHOpts.StorageCapabilities)
+	capabilitiesString := fmt.Sprintf("JAEGER_STORAGE_CAPABILITIES = %s;", string(capabilitiesJSON))
+	indexBytes = compabilityPattern.ReplaceAll(indexBytes, []byte(capabilitiesString))
 	// replace Jaeger version
 	versionJSON, _ := json.Marshal(version.Get())
 	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
 	indexBytes = versionPattern.ReplaceAll(indexBytes, []byte(versionString))
 	// replace base path
-	if options.BasePath == "" {
-		options.BasePath = "/"
+	if sHOpts.BasePath == "" {
+		sHOpts.BasePath = "/"
 	}
-	if options.BasePath != "/" {
-		if !strings.HasPrefix(options.BasePath, "/") || strings.HasSuffix(options.BasePath, "/") {
-			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", options.BasePath)
+	if sHOpts.BasePath != "/" {
+		if !strings.HasPrefix(sHOpts.BasePath, "/") || strings.HasSuffix(sHOpts.BasePath, "/") {
+			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sHOpts.BasePath)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, sHOpts.BasePath)))
 	}
 
 	return indexBytes, nil
@@ -143,7 +151,7 @@ func loadAndEnrichIndexHTML(open func(string) (http.File, error), options Static
 
 func (sH *StaticAssetsHandler) reloadUIConfig() {
 	sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
-	content, err := loadAndEnrichIndexHTML(sH.assetsFS.Open, sH.options)
+	content, err := sH.options.loadAndEnrichIndexHTML(sH.assetsFS.Open)
 	if err != nil {
 		sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
 	}
@@ -164,23 +172,23 @@ func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	return indexBytes, nil
 }
 
-func loadUIConfig(uiConfig string) (*loadedConfig, error) {
-	if uiConfig == "" {
+func (sHOpts *StaticAssetsHandlerOptions) loadUIConfig() (*loadedConfig, error) {
+	if sHOpts.UIConfigPath == "" {
 		return nil, nil
 	}
-	bytesConfig, err := os.ReadFile(filepath.Clean(uiConfig))
+	bytesConfig, err := os.ReadFile(filepath.Clean(sHOpts.UIConfigPath))
 	if err != nil {
-		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
+		return nil, fmt.Errorf("cannot read UI config file %v: %w", sHOpts.UIConfigPath, err)
 	}
 	var r []byte
 
-	ext := filepath.Ext(uiConfig)
+	ext := filepath.Ext(sHOpts.UIConfigPath)
 	switch strings.ToLower(ext) {
 	case ".json":
 		var c map[string]interface{}
 
 		if err := json.Unmarshal(bytesConfig, &c); err != nil {
-			return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+			return nil, fmt.Errorf("cannot parse UI config file %v: %w", sHOpts.UIConfigPath, err)
 		}
 		r, _ = json.Marshal(c)
 
@@ -192,7 +200,7 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 		r = bytes.TrimSpace(bytesConfig)
 		re := regexp.MustCompile(`function\s+UIConfig(\s)?\(\s?\)(\s)?{`)
 		if !re.Match(r) {
-			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", uiConfig)
+			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", sHOpts.UIConfigPath)
 		}
 
 		return &loadedConfig{
@@ -200,7 +208,7 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 			config: r,
 		}, nil
 	default:
-		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", uiConfig)
+		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", sHOpts.UIConfigPath)
 	}
 }
 
