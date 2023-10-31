@@ -39,7 +39,7 @@ use the table below as an example:
 
 ## Overview
 
-Jaeger is an open-source distributed tracing system designed to provide end-to-end visibility into complex, microservices-based architectures. It captures and visualizes traces of requests, allowing developers to monitor and troubleshoot performance issues within their applications.
+Jaeger is an open-source distributed tracing system designed to provide end-to-end visibility into complex distributed architectures. It captures and visualizes traces of requests, allowing developers to monitor and troubleshoot performance issues within their applications.
 
 ### Background
 
