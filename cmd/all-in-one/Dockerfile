@@ -41,6 +41,8 @@ ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
 COPY all-in-one-linux-$TARGETARCH /go/bin/all-in-one-linux
 COPY sampling_strategies.json /etc/jaeger/
 
+RUN mkdir -p /badger && chown -r ${USER_UID} /badger
+
 VOLUME ["/tmp"]
 ENTRYPOINT ["/go/bin/all-in-one-linux"]
 USER ${USER_UID}
@@ -87,6 +89,8 @@ ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
 
 COPY all-in-one-debug-linux-$TARGETARCH /go/bin/all-in-one-linux
 COPY sampling_strategies.json /etc/jaeger/
+
+RUN mkdir /badger && chown ${USER_UID} /badger
 
 VOLUME ["/tmp"]
 ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/all-in-one-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
