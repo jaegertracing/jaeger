@@ -62,5 +62,5 @@ dependencies:
     sbom-url: https://github.com/anchore/sbom-action 
   dependencies-lifecycle:
     policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#security-patch-policy
-  env-depedencies-policy:
+  env-dependencies-policy:
     policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#dependency-policy
