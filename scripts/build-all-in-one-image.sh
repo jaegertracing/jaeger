@@ -2,7 +2,8 @@
 
 set -exu
 
-if [[ "$1" == "pr-only" ]]; then
+arg1=${1:-'not-pr'}
+if [[ "$arg1" == "pr-only" ]]; then
   is_pull_request=true
 else
   is_pull_request=false
