@@ -66,7 +66,7 @@ type QueryOptionsStaticAssets struct {
 	LogAccess bool `valid:"optional" mapstructure:"log_access"`
 }
 
-// QueryOptionsBase holds configuration for query service shared with jaeger-v2
+// QueryOptionsBase holds configuration for query service shared with jaeger(v2)
 type QueryOptionsBase struct {
 	// BasePath is the base path for all HTTP routes
 	BasePath string

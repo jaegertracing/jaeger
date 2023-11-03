@@ -51,9 +51,9 @@ jobs:
       if: github.ref_name != 'main'
       run: bash scripts/build-all-in-one-image.sh pr-only
 
-    - name: Build and test jaeger-v2 as all-in-one
+    - name: Build and test jaeger (v2) as all-in-one
       if: github.ref_name != 'main'
-      run: BINARY=jaeger-v2 bash scripts/build-all-in-one-image.sh pr-only
+      run: BINARY=jaeger bash scripts/build-all-in-one-image.sh pr-only
 
     - name: Build, test, and publish all-in-one image
       if: github.ref_name == 'main'

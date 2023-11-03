@@ -37,12 +37,12 @@ EXPOSE 16686
 
 # Default configuration file for setting sampling strategies
 # ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
-
-COPY jaeger-v2-linux-$TARGETARCH /go/bin/jaeger-v2-linux
 # COPY sampling_strategies.json /etc/jaeger/
 
+COPY jaeger-linux-$TARGETARCH /go/bin/jaeger-linux
+
 VOLUME ["/tmp"]
-ENTRYPOINT ["/go/bin/jaeger-v2-linux"]
+ENTRYPOINT ["/go/bin/jaeger-linux"]
 USER ${USER_UID}
 
 FROM $debug_image AS debug
@@ -84,10 +84,10 @@ EXPOSE 12345
 
 # Default configuration file for setting sampling strategies
 # ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
-
-COPY jaeger-v2-debug-linux-$TARGETARCH /go/bin/jaeger-v2-linux
 # COPY sampling_strategies.json /etc/jaeger/
 
+COPY jaeger-debug-linux-$TARGETARCH /go/bin/jaeger-linux
+
 VOLUME ["/tmp"]
-ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/jaeger-v2-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
+ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/jaeger-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
 USER ${USER_UID}

@@ -9,7 +9,7 @@ else
   is_pull_request=false
 fi
 
-# alternative can be jaeger-v2
+# alternative can be jaeger (the v2 binary)
 BINARY=${BINARY:-'all-in-one'}
 
 # Set default GOARCH variable to the host GOARCH, the target architecture can

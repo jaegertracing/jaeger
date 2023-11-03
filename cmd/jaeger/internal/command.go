@@ -27,7 +27,7 @@ func Command() *cobra.Command {
 	}
 
 	info := component.BuildInfo{
-		Command:     "jaeger-v2",
+		Command:     "jaeger",
 		Description: description,
 		Version:     version.Get().String(),
 	}

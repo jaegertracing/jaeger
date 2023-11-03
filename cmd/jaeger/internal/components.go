@@ -25,9 +25,9 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/exporters/storageexporter"
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerquery"
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 )
 
 func components() (otelcol.Factories, error) {
