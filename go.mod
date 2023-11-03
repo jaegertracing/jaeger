@@ -61,7 +61,7 @@ require (
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.88.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.88.0
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.88.0
-	go.opentelemetry.io/collector/extension v0.88.0
+	go.opentelemetry.io/collector/extension v0.88.1-0.20231102040825-2e44da36e2c6
 	go.opentelemetry.io/collector/extension/ballastextension v0.88.0
 	go.opentelemetry.io/collector/extension/zpagesextension v0.88.0
 	go.opentelemetry.io/collector/otelcol v0.88.0
@@ -71,7 +71,7 @@ require (
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.88.0
 	go.opentelemetry.io/collector/receiver v0.88.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.88.0
-	go.opentelemetry.io/collector/service v0.88.0
+	go.opentelemetry.io/collector/service v0.88.1-0.20231102040825-2e44da36e2c6
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.45.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.45.0
 	go.opentelemetry.io/otel v1.19.0
@@ -123,7 +123,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
-	github.com/google/uuid v1.3.1 // indirect
+	github.com/google/uuid v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -182,7 +182,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.3.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.23.9 // indirect
+	github.com/shirou/gopsutil/v3 v3.23.10 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.10.0 // indirect
