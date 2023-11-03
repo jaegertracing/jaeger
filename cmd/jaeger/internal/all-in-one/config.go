@@ -17,9 +17,9 @@ import (
 	"go.opentelemetry.io/collector/service/telemetry"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/exporters/storageexporter"
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerquery"
-	"github.com/jaegertracing/jaeger/cmd/jaeger-v2/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 )
 
 type configProvider struct {
