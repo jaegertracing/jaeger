@@ -20,7 +20,10 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-var _ extension.Extension = (*server)(nil)
+var (
+	_ extension.Extension = (*server)(nil)
+	_ extension.Dependent = (*server)(nil)
+)
 
 type server struct {
 	config *Config
@@ -33,6 +36,11 @@ func newServer(config *Config, otel component.TelemetrySettings) *server {
 		config: config,
 		logger: otel.Logger,
 	}
+}
+
+// Dependencies implements extension.Dependent to ensure this always starts after jaegerstorage extension.
+func (s *server) Dependencies() []component.ID {
+	return []component.ID{jaegerstorage.ID}
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
