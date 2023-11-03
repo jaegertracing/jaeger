@@ -3,9 +3,9 @@
 set -exu
 
 if [[ "$1" == "pr-only" ]]; then
-  pull_request="1"
+  is_pull_request=true
 else
-  pull_request=""
+  is_pull_request=false
 fi
 
 # alternative can be jaeger-v2
@@ -43,7 +43,7 @@ run_integration_test() {
   docker kill "$CID"
 }
 
-if [ -n "$pull_request" ]; then
+if [[ "${is_pull_request}" == "true" ]]; then
   make create-baseimg
   # build current architecture only for pull requests
   platforms="linux/${GOARCH}"
@@ -70,7 +70,7 @@ fi
 bash scripts/build-upload-a-docker-image.sh -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 # build debug image if not on a pull request
-if [ -z "$pull_request" ]; then
+if [[ "${is_pull_request}" == "false" ]]; then
   make build-all-in-one GOOS=linux GOARCH="$GOARCH" DEBUG_BINARY=1
   repo="${repo}-debug"
 
