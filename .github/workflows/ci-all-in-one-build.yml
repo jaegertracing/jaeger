@@ -61,3 +61,10 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish jaeger (v2) image
+      if: github.ref_name == 'main'
+      run: BINARY=jaeger bash scripts/build-all-in-one-image.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
