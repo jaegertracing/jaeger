@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,11 +47,12 @@ const (
 	agentURL      = "http://" + agentHostPort
 
 	getServicesURL         = queryURL + "/api/services"
-	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
 	getSamplingStrategyURL = agentURL + "/sampling?service=whatever"
 
 	getServicesAPIV3URL = queryURL + "/api/v3/services"
 )
+
+var getTraceURL = queryURL + "/api/traces/"
 
 var httpClient = &http.Client{
 	Timeout: time.Second,
@@ -60,7 +62,7 @@ func TestAllInOne(t *testing.T) {
 	// Check if the query service is available
 	healthCheck(t)
 
-	t.Run("Check if the favicon icon is available", faviconCheck)
+	t.Run("Check if the favicon icon is available", jaegerLogoCheck)
 	t.Run("createTrace", createTrace)
 	t.Run("getAPITrace", getAPITrace)
 	t.Run("getSamplingStrategy", getSamplingStrategy)
@@ -68,13 +70,17 @@ func TestAllInOne(t *testing.T) {
 }
 
 func createTrace(t *testing.T) {
-	req, err := http.NewRequest("GET", getServicesURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getServicesURL, nil)
 	require.NoError(t, err)
-	req.Header.Add("jaeger-debug-id", "debug")
 
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
-	resp.Body.Close()
+	defer resp.Body.Close()
+	traceResponse := resp.Header.Get("traceresponse")
+	parts := strings.Split(traceResponse, "-")
+	require.Len(t, parts, 4) // [version] [trace-id] [child-id] [trace-flags]
+	traceID := parts[1]
+	getTraceURL += traceID
 }
 
 type response struct {
@@ -82,7 +88,7 @@ type response struct {
 }
 
 func getAPITrace(t *testing.T) {
-	req, err := http.NewRequest("GET", getTraceURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getTraceURL, nil)
 	require.NoError(t, err)
 
 	var queryResponse response
@@ -107,7 +113,7 @@ func getAPITrace(t *testing.T) {
 }
 
 func getSamplingStrategy(t *testing.T) {
-	req, err := http.NewRequest("GET", getSamplingStrategyURL, nil)
+	req, err := http.NewRequest(http.MethodGet, getSamplingStrategyURL, nil)
 	require.NoError(t, err)
 
 	resp, err := httpClient.Do(req)
@@ -138,16 +144,16 @@ func healthCheck(t *testing.T) {
 	)
 }
 
-func faviconCheck(t *testing.T) {
+func jaegerLogoCheck(t *testing.T) {
 	t.Log("Checking favicon...")
-	resp, err := http.Get(queryURL + "/favicon.ico")
+	resp, err := http.Get(queryURL + "/static/jaeger-logo-ab11f618.svg")
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func getServicesAPIV3(t *testing.T) {
-	req, err := http.NewRequest("GET", getServicesAPIV3URL, nil)
+	req, err := http.NewRequest(http.MethodGet, getServicesAPIV3URL, nil)
 	require.NoError(t, err)
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
@@ -157,5 +163,5 @@ func getServicesAPIV3(t *testing.T) {
 	jsonpb := runtime.JSONPb{}
 	err = jsonpb.Unmarshal(body, &servicesResponse)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"jaeger-query"}, servicesResponse.GetServices())
+	assert.Equal(t, []string{"jaeger-all-in-one"}, servicesResponse.GetServices())
 }

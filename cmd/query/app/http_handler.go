@@ -27,15 +27,15 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
-	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -89,7 +89,7 @@ type APIHandler struct {
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
-	tracer              opentracing.Tracer
+	tracer              *jtracer.JTracer
 }
 
 // NewAPIHandler returns an APIHandler
@@ -113,7 +113,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 		aH.logger = zap.NewNop()
 	}
 	if aH.tracer == nil {
-		aH.tracer = opentracing.NoopTracer{}
+		aH.tracer = jtracer.NoOp()
 	}
 	return aH
 }
@@ -147,12 +147,10 @@ func (aH *APIHandler) handleFunc(
 	if aH.tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyMgr, handler)
 	}
-	traceMiddleware := nethttp.Middleware(
-		aH.tracer,
-		handler,
-		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return route
-		}))
+	traceMiddleware := otelhttp.NewHandler(
+		otelhttp.WithRouteTag(route, traceResponseHandler(handler)),
+		route,
+		otelhttp.WithTracerProvider(aH.tracer.OTEL))
 	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 
@@ -355,17 +353,17 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 }
 
 func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
-	var errors []error
+	var errs []error
 	if adjust {
 		var err error
 		trace, err = aH.queryService.Adjust(trace)
 		if err != nil {
-			errors = append(errors, err)
+			errs = append(errs, err)
 		}
 	}
 	uiTrace := uiconv.FromDomain(trace)
 	var uiError *structuredError
-	if err := multierror.Wrap(errors); err != nil {
+	if err := errors.Join(errs...); err != nil {
 		uiError = &structuredError{
 			Msg:     err.Error(),
 			TraceID: uiTrace.TraceID,
@@ -523,4 +521,19 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 	if err := marshal(w, response); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
 	}
+}
+
+// Returns a handler that generates a traceresponse header.
+// https://github.com/w3c/trace-context/blob/main/spec/21-http_response_header_format.md
+func traceResponseHandler(handler http.Handler) http.Handler {
+	// We use the standard TraceContext propagator, since the formats are identical.
+	// But the propagator uses "traceparent" header name, so we inject it into a map
+	// `carrier` and then use the result to set the "tracereponse" header.
+	var prop propagation.TraceContext
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		carrier := make(map[string]string)
+		prop.Inject(r.Context(), propagation.MapCarrier(carrier))
+		w.Header().Add("traceresponse", carrier["traceparent"])
+		handler.ServeHTTP(w, r)
+	})
 }

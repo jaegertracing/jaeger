@@ -35,15 +35,16 @@ func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 		if authHeaderValue != "" {
 			headerValue := strings.Split(authHeaderValue, " ")
 			token := ""
-			if len(headerValue) == 2 {
+			switch {
+			case len(headerValue) == 2:
 				// Make sure we only capture bearer token , not other types like Basic auth.
 				if headerValue[0] == "Bearer" {
 					token = headerValue[1]
 				}
-			} else if len(headerValue) == 1 {
+			case len(headerValue) == 1:
 				// Treat the entire value as a token.
 				token = authHeaderValue
-			} else {
+			default:
 				logger.Warn("Invalid authorization header value, skipping token propagation")
 			}
 			h.ServeHTTP(w, r.WithContext(ContextWithBearerToken(ctx, token)))

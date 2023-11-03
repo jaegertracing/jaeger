@@ -78,7 +78,7 @@ func TestGetTrace(t *testing.T) {
 	spansChunk, err := getTraceStream.Recv()
 	require.NoError(t, err)
 	require.Equal(t, 1, len(spansChunk.GetResourceSpans()))
-	assert.Equal(t, "foobar", spansChunk.GetResourceSpans()[0].GetInstrumentationLibrarySpans()[0].GetSpans()[0].GetName())
+	assert.Equal(t, "foobar", spansChunk.GetResourceSpans()[0].GetScopeSpans()[0].GetSpans()[0].GetName())
 }
 
 func TestGetTrace_storage_error(t *testing.T) {

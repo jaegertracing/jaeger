@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -42,6 +43,18 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{}
+}
+
+// NewFactoryWithConfig is used from jaeger-v2.
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) *Factory {
+	f := NewFactory()
+	f.InitFromOptions(Options{Configuration: cfg})
+	_ = f.Initialize(metricsFactory, logger)
+	return f
 }
 
 // AddFlags implements plugin.Configurable
@@ -76,6 +89,16 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
+	return f.store, nil
+}
+
+// CreateArchiveSpanReader implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	return f.store, nil
+}
+
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	return f.store, nil
 }
 

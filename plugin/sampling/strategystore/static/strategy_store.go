@@ -97,12 +97,19 @@ func (h *strategyStore) Close() {
 
 func (h *strategyStore) downloadSamplingStrategies(url string) ([]byte, error) {
 	h.logger.Info("Downloading sampling strategies", zap.String("url", url))
-	resp, err := http.Get(url)
+
+	ctx, cx := context.WithTimeout(context.Background(), time.Second)
+	defer cx()
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot construct HTTP request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download sampling strategies: %w", err)
 	}
-
 	defer resp.Body.Close()
+
 	buf := new(bytes.Buffer)
 	if _, err = buf.ReadFrom(resp.Body); err != nil {
 		return nil, fmt.Errorf("failed to read sampling strategies HTTP response body: %w", err)
@@ -241,7 +248,7 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 	h.storedStrategies.Store(newStore)
 }
 
-// mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
+// mergePerOperationSamplingStrategies merges two operation strategies a and b, where a takes precedence over b.
 func mergePerOperationSamplingStrategies(
 	a, b []*api_v2.OperationSamplingStrategy,
 ) []*api_v2.OperationSamplingStrategy {

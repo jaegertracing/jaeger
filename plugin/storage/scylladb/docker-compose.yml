@@ -1,0 +1,91 @@
+networks:
+  jaeger-scylladb:
+    external: true
+    driver: bridge
+
+services:
+  collector:
+    restart: unless-stopped
+    image: jaegertracing/jaeger-collector:1.43
+    environment:
+      SPAN_STORAGE_TYPE: cassandra
+      CASSANDRA_SERVERS: scylladb
+      CASSANDRA_KEYSPACE: jaeger_v1_test
+    networks:
+      - jaeger-scylladb
+    depends_on:
+      - cassandra-schema
+
+  web:
+    image: jaegertracing/jaeger-query:1.43
+    restart: unless-stopped
+    ports:
+      - 16686:16686
+      - 16687:16687
+    environment:
+      SPAN_STORAGE_TYPE: cassandra
+      CASSANDRA_SERVERS: scylladb
+      CASSANDRA_KEYSPACE: jaeger_v1_test
+    networks:
+      - jaeger-scylladb
+    depends_on:
+      - cassandra-schema
+
+  cassandra-schema:
+    image: jaegertracing/jaeger-cassandra-schema:1.43
+    environment:
+      CASSANDRA_PROTOCOL_VERSION: 4
+      CASSANDRA_VERSION: 4
+      CQLSH_HOST: scylladb
+      DATACENTER: test
+      MODE: test
+    networks:
+      - jaeger-scylladb
+    depends_on:
+      scylladb:
+        condition: service_healthy
+
+  scylladb:
+    restart: always
+    image: scylladb/scylla:5.1.7
+    ports:
+      - 9042:9042
+    volumes:
+      - .docker/scylladb/1:/var/lib/scylla
+    networks:
+      - jaeger-scylladb
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 1s
+      retries: 120
+      timeout: 1s
+
+  scylladb2:
+    restart: always
+    image: scylladb/scylla:5.1.7
+    command: --seeds=scylladb
+    volumes:
+      - .docker/scylladb/2:/var/lib/scylla
+    networks:
+      - jaeger-scylladb
+
+  scylladb3:
+    restart: always
+    image: scylladb/scylla:5.1.7
+    command: --seeds=scylladb
+    volumes:
+      - .docker/scylladb/3:/var/lib/scylla
+    networks:
+      - jaeger-scylladb
+
+  hotrod:
+    image: jaegertracing/example-hotrod:latest
+    ports:
+      - 8080:8080
+    command: [ "all" ]
+    environment:
+      - OTEL_EXPORTER_JAEGER_ENDPOINT=http://collector:14268/api/traces
+    networks:
+      - jaeger-scylladb
+    depends_on:
+      - collector

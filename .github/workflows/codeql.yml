@@ -10,6 +10,10 @@ on:
   schedule:
     - cron: '31 6 * * 1'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -31,16 +35,16 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@18bf8ad2ca49c14cbb28b91346d626ccfb00c518
+      uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - name: Checkout repository
-      uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@17573ee1cc1b9d061760f3a006fc4aac4f944fd5
+      uses: github/codeql-action/init@cdcdbb579706841c47f7063dda365e292e5cad7a
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -49,7 +53,7 @@ jobs:
         # queries: ./path/to/local/query, your-org/your-repo/queries@main
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@17573ee1cc1b9d061760f3a006fc4aac4f944fd5
+      uses: github/codeql-action/autobuild@cdcdbb579706841c47f7063dda365e292e5cad7a
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@17573ee1cc1b9d061760f3a006fc4aac4f944fd5
+      uses: github/codeql-action/analyze@cdcdbb579706841c47f7063dda365e292e5cad7a

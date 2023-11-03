@@ -1,12 +1,12 @@
 # Hot R.O.D. - Rides on Demand
 
 This is a demo application that consists of several microservices and illustrates
-the use of the OpenTracing API. It can be run standalone, but requires Jaeger backend
+the use of the OpenTelemetry API & SDK. It can be run standalone, but requires Jaeger backend
 to view the traces. A tutorial / walkthrough is available:
-  * as a blog post [Take OpenTracing for a HotROD ride][hotrod-tutorial],
+  * as a blog post [Take Jaeger for a HotROD ride][hotrod-tutorial],
   * as a video [OpenShift Commons Briefing: Distributed Tracing with Jaeger & Prometheus on Kubernetes][hotrod-openshift].
 
-As of Jaeger v1.42.0 this application was upgraded to use OpenTelemetry SDK for traces.
+As of Jaeger v1.42.0 this application was upgraded to use the OpenTelemetry SDK for traces.
 
 ## Features
 
@@ -17,7 +17,7 @@ As of Jaeger v1.42.0 this application was upgraded to use OpenTelemetry SDK for 
 * Use baggage propagation to
   * Diagnose inter-request contention (queueing)
   * Attribute time spent in a service
-* Use open source libraries with OpenTracing integration to get vendor-neutral instrumentation for free
+* Use [opentelemetry-go-contrib](https://github.com/open-telemetry/opentelemetry-go-contrib) open source libraries to instrument HTTP and gRPC requests with minimal code changes
 
 ## Running
 
@@ -54,6 +54,7 @@ docker run \
   --name jaeger \
   -p6831:6831/udp \
   -p16686:16686 \
+  -p14268:14268 \
   jaegertracing/all-in-one:latest
 ```
 
@@ -72,7 +73,7 @@ go run ./examples/hotrod/main.go all
 docker run \
   --rm \
   --link jaeger \
-  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces \
   -p8080-8083:8080-8083 \
   jaegertracing/example-hotrod:latest \
   all
@@ -86,9 +87,6 @@ The app exposes metrics in either Go's `expvar` format (by default) or in Promet
   * `expvar`: `curl http://127.0.0.1:8083/debug/vars`
   * Prometheus: `curl http://127.0.0.1:8083/metrics`
 
-[hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
-[hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/
-
 ## Linking to traces
 
 The HotROD UI can generate links to the Jaeger UI to find traces corresponding
@@ -99,3 +97,6 @@ it can be customized via `-j <address>` flag passed to HotROD, e.g.
 ```
 go run ./examples/hotrod/main.go all -j http://jaeger-ui:16686
 ```
+
+[hotrod-tutorial]: https://medium.com/jaegertracing/take-jaeger-for-a-hotrod-ride-233cf43e46c2
+[hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/

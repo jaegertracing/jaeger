@@ -27,9 +27,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/cmd/docs"
-	"github.com/jaegertracing/jaeger/cmd/flags"
-	"github.com/jaegertracing/jaeger/cmd/status"
+	"github.com/jaegertracing/jaeger/cmd/internal/docs"
+	"github.com/jaegertracing/jaeger/cmd/internal/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -39,19 +39,24 @@ import (
 )
 
 func main() {
+	println("***************************************************************************************************")
+	println("*** WARNING jaeger-agent is deprecated. See https://github.com/jaegertracing/jaeger/issues/4739 ***")
+	println("***************************************************************************************************")
+
 	svc := flags.NewService(ports.AgentAdminHTTP)
 	svc.NoStorage = true
 
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-agent",
-		Short: "Jaeger agent is a local daemon program which collects tracing data.",
-		Long:  `Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
+		Short: "(deprecated) Jaeger agent is a local daemon program which collects tracing data.",
+		Long:  `(deprecated) Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
 			}
 			logger := svc.Logger // shortcut
+
 			baseFactory := svc.MetricsFactory.
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})

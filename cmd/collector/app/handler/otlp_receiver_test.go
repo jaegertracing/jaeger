@@ -30,6 +30,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/config/corscfg"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -163,13 +164,14 @@ func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 		MaxConnectionAge:        33 * time.Second,
 		MaxConnectionAgeGrace:   37 * time.Second,
 		TLS: tlscfg.Options{
-			Enabled:      true,
-			CAPath:       "ca",
-			CertPath:     "cert",
-			KeyPath:      "key",
-			ClientCAPath: "clientca",
-			MinVersion:   "1.1",
-			MaxVersion:   "1.3",
+			Enabled:        true,
+			CAPath:         "ca",
+			CertPath:       "cert",
+			KeyPath:        "key",
+			ClientCAPath:   "clientca",
+			MinVersion:     "1.1",
+			MaxVersion:     "1.3",
+			ReloadInterval: 24 * time.Hour,
 		},
 	}
 	applyGRPCSettings(otlpReceiverConfig.GRPC, grpcOpts)
@@ -187,6 +189,7 @@ func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
 	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
 	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
+	assert.Equal(t, out.TLSSetting.ReloadInterval, 24*time.Hour)
 }
 
 func TestApplyOTLPHTTPServerSettings(t *testing.T) {
@@ -196,19 +199,25 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 	httpOpts := &flags.HTTPOptions{
 		HostPort: ":12345",
 		TLS: tlscfg.Options{
-			Enabled:      true,
-			CAPath:       "ca",
-			CertPath:     "cert",
-			KeyPath:      "key",
-			ClientCAPath: "clientca",
-			MinVersion:   "1.1",
-			MaxVersion:   "1.3",
+			Enabled:        true,
+			CAPath:         "ca",
+			CertPath:       "cert",
+			KeyPath:        "key",
+			ClientCAPath:   "clientca",
+			MinVersion:     "1.1",
+			MaxVersion:     "1.3",
+			ReloadInterval: 24 * time.Hour,
+		},
+		CORS: corscfg.Options{
+			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},
+			AllowedHeaders: []string{"Content-Type", "Accept", "X-Requested-With"},
 		},
 	}
 
-	applyHTTPSettings(otlpReceiverConfig.HTTP, httpOpts)
+	applyHTTPSettings(otlpReceiverConfig.HTTP.HTTPServerSettings, httpOpts)
 
 	out := otlpReceiverConfig.HTTP
+
 	assert.Equal(t, out.Endpoint, ":12345")
 	require.NotNil(t, out.TLSSetting)
 	assert.Equal(t, out.TLSSetting.CAFile, "ca")
@@ -217,4 +226,7 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
 	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
 	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
+	assert.Equal(t, out.TLSSetting.ReloadInterval, 24*time.Hour)
+	assert.Equal(t, out.CORS.AllowedHeaders, []string{"Content-Type", "Accept", "X-Requested-With"})
+	assert.Equal(t, out.CORS.AllowedOrigins, []string{"http://example.domain.com", "http://*.domain.com"})
 }

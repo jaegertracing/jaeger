@@ -28,6 +28,9 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -58,6 +61,20 @@ type ESStorageIntegration struct {
 	client        *elastic.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
+}
+
+func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),
+	)
+	closer := func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			s.logger.Error("failed to close tracer", zap.Error(err))
+		}
+	}
+	return tp, exporter, closer
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -95,7 +112,7 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	s.Refresh = s.esRefresh
 	s.esCleanUp(allTagsAsFields, archive)
 	// TODO: remove this flag after ES support returning spanKind when get operations
-	s.NotSupportSpanKindWithOperation = true
+	s.GetOperationsMissingSpanKind = true
 	return nil
 }
 
@@ -127,9 +144,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
+	clientFn := func() estemplate.Client { return client }
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
-			Client:            client,
+			Client:            clientFn,
 			Logger:            s.logger,
 			MetricsFactory:    metrics.NullFactory,
 			IndexPrefix:       indexPrefix,
@@ -141,9 +159,11 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
+	tracer, _, closer := s.tracerProvider()
+	defer closer()
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-		Client:            client,
+		Client:            clientFn,
 		Logger:            s.logger,
 		MetricsFactory:    metrics.NullFactory,
 		IndexPrefix:       indexPrefix,
@@ -151,9 +171,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
+		Tracer:            tracer.Tracer("test"),
 	})
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
-		Client:          client,
+		Client:          clientFn,
 		Logger:          s.logger,
 		IndexPrefix:     indexPrefix,
 		IndexDateLayout: indexDateLayout,

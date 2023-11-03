@@ -49,6 +49,9 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	if err != nil {
 		return err
 	}
+	if s.SamplingStore, err = s.factory.CreateSamplingStore(0); err != nil {
+		return err
+	}
 
 	s.SpanReader = sr
 	s.SpanWriter = sw
@@ -59,8 +62,8 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	logger, _ := testutils.NewLogger()
 	s.logger = logger
 
-	// TODO: remove this flag after badger support returning spanKind when get operations
-	s.NotSupportSpanKindWithOperation = true
+	// TODO: remove this badger supports returning spanKind from GetOperations
+	s.GetOperationsMissingSpanKind = true
 	return nil
 }
 

@@ -202,11 +202,12 @@ func TestTimer(t *testing.T) {
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	for _, bucket := range m1.GetHistogram().GetBucket() {
-		if bucket.GetUpperBound() < 1 {
+		switch {
+		case bucket.GetUpperBound() < 1:
 			assert.EqualValues(t, 0, bucket.GetCumulativeCount())
-		} else if bucket.GetUpperBound() < 2 {
+		case bucket.GetUpperBound() < 2:
 			assert.EqualValues(t, 1, bucket.GetCumulativeCount())
-		} else {
+		default:
 			assert.EqualValues(t, 2, bucket.GetCumulativeCount())
 		}
 	}
@@ -215,11 +216,12 @@ func TestTimer(t *testing.T) {
 	assert.EqualValues(t, 2, m2.GetHistogram().GetSampleCount(), "%+v", m2)
 	assert.EqualValues(t, 7, m2.GetHistogram().GetSampleSum(), "%+v", m2)
 	for _, bucket := range m2.GetHistogram().GetBucket() {
-		if bucket.GetUpperBound() < 3 {
+		switch {
+		case bucket.GetUpperBound() < 3:
 			assert.EqualValues(t, 0, bucket.GetCumulativeCount())
-		} else if bucket.GetUpperBound() < 4 {
+		case bucket.GetUpperBound() < 4:
 			assert.EqualValues(t, 1, bucket.GetCumulativeCount())
-		} else {
+		default:
 			assert.EqualValues(t, 2, bucket.GetCumulativeCount())
 		}
 	}
@@ -321,11 +323,12 @@ func TestHistogram(t *testing.T) {
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	for _, bucket := range m1.GetHistogram().GetBucket() {
-		if bucket.GetUpperBound() < 1 {
+		switch {
+		case bucket.GetUpperBound() < 1:
 			assert.EqualValues(t, 0, bucket.GetCumulativeCount())
-		} else if bucket.GetUpperBound() < 2 {
+		case bucket.GetUpperBound() < 2:
 			assert.EqualValues(t, 1, bucket.GetCumulativeCount())
-		} else {
+		default:
 			assert.EqualValues(t, 2, bucket.GetCumulativeCount())
 		}
 	}
@@ -334,11 +337,12 @@ func TestHistogram(t *testing.T) {
 	assert.EqualValues(t, 2, m2.GetHistogram().GetSampleCount(), "%+v", m2)
 	assert.EqualValues(t, 7, m2.GetHistogram().GetSampleSum(), "%+v", m2)
 	for _, bucket := range m2.GetHistogram().GetBucket() {
-		if bucket.GetUpperBound() < 3 {
+		switch {
+		case bucket.GetUpperBound() < 3:
 			assert.EqualValues(t, 0, bucket.GetCumulativeCount())
-		} else if bucket.GetUpperBound() < 4 {
+		case bucket.GetUpperBound() < 4:
 			assert.EqualValues(t, 1, bucket.GetCumulativeCount())
-		} else {
+		default:
 			assert.EqualValues(t, 2, bucket.GetCumulativeCount())
 		}
 	}

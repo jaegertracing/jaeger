@@ -22,8 +22,9 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
@@ -35,27 +36,25 @@ import (
 
 // Redis is a simulator of remote Redis cache
 type Redis struct {
-	tracer opentracing.Tracer // simulate redis as a separate process
+	tracer trace.Tracer // simulate redis as a separate process
 	logger log.Factory
 	errorSimulator
 }
 
 func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Redis {
+	tp := tracing.InitOTEL("redis-manual", otelExporter, metricsFactory, logger)
 	return &Redis{
-		tracer: tracing.Init("redis", otelExporter, metricsFactory, logger),
+		tracer: tp.Tracer("redis-manual"),
 		logger: logger,
 	}
 }
 
 // FindDriverIDs finds IDs of drivers who are near the location.
 func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := r.tracer.StartSpan("FindDriverIDs", opentracing.ChildOf(span.Context()))
-		span.SetTag("param.location", location)
-		ext.SpanKindRPCClient.Set(span)
-		defer span.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span)
-	}
+	ctx, span := r.tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient))
+	span.SetAttributes(attribute.Key("param.driver.location").String(location))
+	defer span.End()
+
 	// simulate RPC delay
 	delay.Sleep(config.RedisFindDelay, config.RedisFindDelayStdDev)
 
@@ -70,22 +69,20 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 
 // GetDriver returns driver and the current car location
 func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) {
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := r.tracer.StartSpan("GetDriver", opentracing.ChildOf(span.Context()))
-		span.SetTag("param.driverID", driverID)
-		ext.SpanKindRPCClient.Set(span)
-		defer span.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span)
-	}
+	ctx, span := r.tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient))
+	span.SetAttributes(attribute.Key("param.driverID").String(driverID))
+	defer span.End()
+
 	// simulate RPC delay
 	delay.Sleep(config.RedisGetDelay, config.RedisGetDelayStdDev)
 	if err := r.checkError(); err != nil {
-		if span := opentracing.SpanFromContext(ctx); span != nil {
-			ext.Error.Set(span, true)
-		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "An error occurred")
 		r.logger.For(ctx).Error("redis timeout", zap.String("driver_id", driverID), zap.Error(err))
 		return Driver{}, err
 	}
+
+	r.logger.For(ctx).Info("Got driver's ID", zap.String("driverID", driverID))
 
 	// #nosec
 	return Driver{

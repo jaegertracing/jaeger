@@ -28,10 +28,10 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	"github.com/jaegertracing/jaeger/cmd/docs"
-	"github.com/jaegertracing/jaeger/cmd/env"
-	cmdFlags "github.com/jaegertracing/jaeger/cmd/flags"
-	"github.com/jaegertracing/jaeger/cmd/status"
+	"github.com/jaegertracing/jaeger/cmd/internal/docs"
+	"github.com/jaegertracing/jaeger/cmd/internal/env"
+	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -52,7 +52,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
-	strategyStoreFactoryConfig, err := ss.FactoryConfigFromEnv(os.Stderr)
+	strategyStoreFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory config: %v", err)
 	}
@@ -119,7 +119,7 @@ func main() {
 			if err := collector.Start(collectorOpts); err != nil {
 				logger.Fatal("Failed to start collector", zap.Error(err))
 			}
-			// Wait for shutfown
+			// Wait for shutdown
 			svc.RunAndThen(func() {
 				if err := collector.Close(); err != nil {
 					logger.Error("failed to cleanly close the collector", zap.Error(err))

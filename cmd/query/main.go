@@ -16,27 +16,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
-	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/docs"
-	"github.com/jaegertracing/jaeger/cmd/env"
-	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/docs"
+	"github.com/jaegertracing/jaeger/cmd/internal/env"
+	"github.com/jaegertracing/jaeger/cmd/internal/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/cmd/status"
-	"github.com/jaegertracing/jaeger/internal/metrics/jlibadapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -75,31 +73,19 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
 
-			traceCfg := &jaegerClientConfig.Configuration{
-				ServiceName: "jaeger-query",
-				Sampler: &jaegerClientConfig.SamplerConfig{
-					Type:  "const",
-					Param: 1.0,
-				},
-				RPCMetrics: true,
-			}
-			traceCfg, err = traceCfg.FromEnv()
-			if err != nil {
-				logger.Fatal("Failed to read tracer configuration", zap.Error(err))
-			}
-			tracer, closer, err := traceCfg.NewTracer(
-				jaegerClientConfig.Metrics(jlibadapter.NewAdapter(svc.MetricsFactory)),
-				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
-			)
-			if err != nil {
-				logger.Fatal("Failed to initialize tracer", zap.Error(err))
-			}
-			defer closer.Close()
-			opentracing.SetGlobalTracer(tracer)
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
+
+			jt := jtracer.NoOp()
+			if queryOpts.EnableTracing {
+				jt, err = jtracer.New("jaeger-query")
+				if err != nil {
+					logger.Fatal("Failed to create tracer", zap.Error(err))
+				}
+			}
+
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v, logger)
@@ -126,7 +112,7 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, tracer)
+			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, jt)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
@@ -145,6 +131,9 @@ func main() {
 				server.Close()
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
+				if err = jt.Close(context.Background()); err != nil {
+					logger.Fatal("Error shutting down tracer provider", zap.Error(err))
 				}
 			})
 			return nil

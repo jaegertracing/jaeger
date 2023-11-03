@@ -189,13 +189,10 @@ func TestResizeUp(t *testing.T) {
 		if !resized { // we'll have a second consumer once the queue is resized
 			// signal that the worker is processing
 			firstConsumer.Done()
-		} else {
 			// once we release the lock, we might end up with multiple calls to reach this
-			if !released {
-				secondConsumer.Done()
-			}
+		} else if !released {
+			secondConsumer.Done()
 		}
-
 		// wait until we are signaled that we can finish
 		releaseConsumers.Wait()
 	})

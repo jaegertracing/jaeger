@@ -23,9 +23,9 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -122,6 +122,8 @@ var (
 	}
 )
 
+const keySpanKind = "span.kind"
+
 func TestSpanIDMarshalJSON(t *testing.T) {
 	for _, testCase := range testCasesSpanID {
 		expected := fmt.Sprintf(`{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"%s"}`, testCase.b64)
@@ -188,7 +190,7 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 func TestIsRPCClientServer(t *testing.T) {
 	span1 := &model.Span{
 		Tags: model.KeyValues{
-			model.String(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum)),
+			model.String(keySpanKind, trace.SpanKindClient.String()),
 		},
 	}
 	assert.True(t, span1.IsRPCClient())
@@ -227,22 +229,24 @@ func TestIsFirehoseEnabled(t *testing.T) {
 func TestGetSpanKind(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
 	spanKind, found := span.GetSpanKind()
-	assert.Equal(t, "", spanKind)
+	assert.Equal(t, "unspecified", spanKind.String())
 	assert.Equal(t, false, found)
 
 	span = makeSpan(model.String("span.kind", "client"))
 	spanKind, found = span.GetSpanKind()
-	assert.Equal(t, "client", spanKind)
+	assert.Equal(t, "client", spanKind.String())
 	assert.Equal(t, true, found)
 }
 
 func TestSamplerType(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
-	assert.Equal(t, "lowerbound", span.GetSamplerType())
+	assert.Equal(t, model.SamplerTypeLowerBound, span.GetSamplerType())
 	span = makeSpan(model.String("sampler.type", ""))
-	assert.Equal(t, "unknown", span.GetSamplerType())
+	assert.Equal(t, model.SamplerTypeUnrecognized, span.GetSamplerType())
+	span = makeSpan(model.String("sampler.type", "probabilistic"))
+	assert.Equal(t, model.SamplerTypeProbabilistic, span.GetSamplerType())
 	span = makeSpan(model.KeyValue{})
-	assert.Equal(t, "unknown", span.GetSamplerType())
+	assert.Equal(t, model.SamplerTypeUnrecognized, span.GetSamplerType())
 }
 
 func TestIsSampled(t *testing.T) {
@@ -276,6 +280,11 @@ func TestSpanHash(t *testing.T) {
 func TestParentSpanID(t *testing.T) {
 	span := makeSpan(model.String("k", "v"))
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
+
+	span.References = []model.SpanRef{
+		model.NewFollowsFromRef(span.TraceID, model.NewSpanID(777)),
+	}
+	assert.Equal(t, model.NewSpanID(777), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
 		model.NewFollowsFromRef(span.TraceID, model.NewSpanID(777)),
@@ -391,7 +400,7 @@ func TestGetSamplerParams(t *testing.T) {
 	logger := zap.NewNop()
 	tests := []struct {
 		tags          model.KeyValues
-		expectedType  string
+		expectedType  model.SamplerType
 		expectedParam float64
 	}{
 		{
@@ -399,7 +408,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.String("sampler.param", "1e-05"),
 			},
-			expectedType:  "probabilistic",
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 0.00001,
 		},
 		{
@@ -407,7 +416,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.Float64("sampler.param", 0.10404450002098709),
 			},
-			expectedType:  "probabilistic",
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 0.10404450002098709,
 		},
 		{
@@ -415,7 +424,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.String("sampler.param", "0.10404450002098709"),
 			},
-			expectedType:  "probabilistic",
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 0.10404450002098709,
 		},
 		{
@@ -423,7 +432,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "probabilistic"),
 				model.Int64("sampler.param", 1),
 			},
-			expectedType:  "probabilistic",
+			expectedType:  model.SamplerTypeProbabilistic,
 			expectedParam: 1.0,
 		},
 		{
@@ -431,26 +440,26 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "ratelimiting"),
 				model.String("sampler.param", "1"),
 			},
-			expectedType:  "ratelimiting",
+			expectedType:  model.SamplerTypeRateLimiting,
 			expectedParam: 1,
 		},
 		{
 			tags: model.KeyValues{
 				model.Float64("sampler.type", 1.5),
 			},
-			expectedType:  "",
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
 			tags: model.KeyValues{
 				model.String("sampler.type", "probabilistic"),
 			},
-			expectedType:  "",
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
 			tags:          model.KeyValues{},
-			expectedType:  "",
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
@@ -458,7 +467,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.String("sampler.param", "1"),
 			},
-			expectedType:  "lowerbound",
+			expectedType:  model.SamplerTypeLowerBound,
 			expectedParam: 1,
 		},
 		{
@@ -466,7 +475,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.Int64("sampler.param", 1),
 			},
-			expectedType:  "lowerbound",
+			expectedType:  model.SamplerTypeLowerBound,
 			expectedParam: 1,
 		},
 		{
@@ -474,7 +483,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.Float64("sampler.param", 0.5),
 			},
-			expectedType:  "lowerbound",
+			expectedType:  model.SamplerTypeLowerBound,
 			expectedParam: 0.5,
 		},
 		{
@@ -482,7 +491,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "lowerbound"),
 				model.String("sampler.param", "not_a_number"),
 			},
-			expectedType:  "",
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 		{
@@ -490,7 +499,7 @@ func TestGetSamplerParams(t *testing.T) {
 				model.String("sampler.type", "not_a_type"),
 				model.String("sampler.param", "not_a_number"),
 			},
-			expectedType:  "",
+			expectedType:  model.SamplerTypeUnrecognized,
 			expectedParam: 0,
 		},
 	}

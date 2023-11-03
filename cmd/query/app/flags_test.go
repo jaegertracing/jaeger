@@ -35,6 +35,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
 		"--query.static-files=/dev/null",
+		"--query.log-static-assets-access=true",
 		"--query.ui-config=some.json",
 		"--query.base-path=/jaeger",
 		"--query.http-server.host-port=127.0.0.1:8080",
@@ -45,7 +46,8 @@ func TestQueryBuilderFlags(t *testing.T) {
 	})
 	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
-	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
+	assert.Equal(t, "/dev/null", qOpts.StaticAssets.Path)
+	assert.True(t, qOpts.StaticAssets.LogAccess)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTPHostPort)

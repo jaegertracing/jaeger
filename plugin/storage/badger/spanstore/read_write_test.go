@@ -376,9 +376,7 @@ func TestMenuSeeks(t *testing.T) {
 }
 
 func TestPersist(t *testing.T) {
-	dir, err := os.MkdirTemp("", "badgerTest")
-	assert.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
 		f := badger.NewFactory()
@@ -400,7 +398,7 @@ func TestPersist(t *testing.T) {
 		})
 		f.InitFromViper(v, zap.NewNop())
 
-		err = f.Initialize(metrics.NullFactory, zap.NewNop())
+		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		assert.NoError(t, err)
 
 		sw, err := f.CreateSpanWriter()

@@ -49,7 +49,7 @@ func TestSpanProcessor_Process(t *testing.T) {
 
 	message.On("Value").Return(data)
 	mockUnmarshaller.On("Unmarshal", data).Return(span, nil)
-	mockWriter.On("WriteSpan", context.Background(), span).
+	mockWriter.On("WriteSpan", context.TODO(), span).
 		Return(nil).
 		Run(func(args mock.Arguments) {
 			span := args[1].(*model.Span)

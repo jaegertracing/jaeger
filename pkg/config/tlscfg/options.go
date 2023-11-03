@@ -21,23 +21,25 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go.uber.org/zap"
 )
 
 // Options describes the configuration properties for TLS Connections.
 type Options struct {
-	Enabled        bool         `mapstructure:"enabled"`
-	CAPath         string       `mapstructure:"ca"`
-	CertPath       string       `mapstructure:"cert"`
-	KeyPath        string       `mapstructure:"key"`
-	ServerName     string       `mapstructure:"server_name"` // only for client-side TLS config
-	ClientCAPath   string       `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
-	CipherSuites   []string     `mapstructure:"cipher_suites"`
-	MinVersion     string       `mapstructure:"min_version"`
-	MaxVersion     string       `mapstructure:"max_version"`
-	SkipHostVerify bool         `mapstructure:"skip_host_verify"`
-	certWatcher    *certWatcher `mapstructure:"-"`
+	Enabled        bool          `mapstructure:"enabled"`
+	CAPath         string        `mapstructure:"ca"`
+	CertPath       string        `mapstructure:"cert"`
+	KeyPath        string        `mapstructure:"key"`
+	ServerName     string        `mapstructure:"server_name"` // only for client-side TLS config
+	ClientCAPath   string        `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
+	CipherSuites   []string      `mapstructure:"cipher_suites"`
+	MinVersion     string        `mapstructure:"min_version"`
+	MaxVersion     string        `mapstructure:"max_version"`
+	SkipHostVerify bool          `mapstructure:"skip_host_verify"`
+	ReloadInterval time.Duration `mapstructure:"reload_interval"`
+	certWatcher    *certWatcher  `mapstructure:"-"`
 }
 
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
@@ -87,6 +89,7 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	}
 
 	if p.ClientCAPath != "" {
+		// TODO this should be moved to certWatcher, since it already loads key pair
 		certPool := x509.NewCertPool()
 		if err := addCertToPool(p.ClientCAPath, certPool); err != nil {
 			return nil, err
@@ -95,11 +98,11 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	w, err := newCertWatcher(*p, logger)
+	certWatcher, err := newCertWatcher(*p, logger, tlsCfg.RootCAs, tlsCfg.ClientCAs)
 	if err != nil {
 		return nil, err
 	}
-	p.certWatcher = w
+	p.certWatcher = certWatcher
 
 	if (p.CertPath == "" && p.KeyPath != "") || (p.CertPath != "" && p.KeyPath == "") {
 		return nil, fmt.Errorf("for client auth via TLS, either both client certificate and key must be supplied, or neither")
@@ -114,7 +117,6 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		}
 	}
 
-	go p.certWatcher.watchChangesLoop(tlsCfg.RootCAs, tlsCfg.ClientCAs)
 	return tlsCfg, nil
 }
 
@@ -148,7 +150,7 @@ func addCertToPool(caPath string, certPool *x509.CertPool) error {
 
 var _ io.Closer = (*Options)(nil)
 
-// Close closes Options.
+// Close shuts down the embedded certificate watcher.
 func (p *Options) Close() error {
 	if p.certWatcher != nil {
 		return p.certWatcher.Close()

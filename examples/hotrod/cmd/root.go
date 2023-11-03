@@ -16,9 +16,7 @@
 package cmd
 
 import (
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -32,23 +30,8 @@ import (
 )
 
 var (
-	metricsBackend string
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
-	otelExporter   string // jaeger, otlp, stdout
-	verbose        bool
-
-	fixDBConnDelay         time.Duration
-	fixDBConnDisableMutex  bool
-	fixRouteWorkerPoolSize int
-
-	customerPort int
-	driverPort   int
-	frontendPort int
-	routePort    int
-
-	basepath string
-	jaegerUI string
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -68,32 +51,12 @@ func Execute() {
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
-	RootCmd.PersistentFlags().StringVarP(&otelExporter, "otel-exporter", "x", "jaeger", "OpenTelemetry exporter (jaeger|otlp|stdout)")
-
-	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average latency of MySQL DB query")
-	RootCmd.PersistentFlags().BoolVarP(&fixDBConnDisableMutex, "fix-disable-db-conn-mutex", "M", false, "Disables the mutex guarding db connection")
-	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")
-
-	// Add flags to choose ports for services
-	RootCmd.PersistentFlags().IntVarP(&customerPort, "customer-service-port", "c", 8081, "Port for customer service")
-	RootCmd.PersistentFlags().IntVarP(&driverPort, "driver-service-port", "d", 8082, "Port for driver service")
-	RootCmd.PersistentFlags().IntVarP(&frontendPort, "frontend-service-port", "f", 8080, "Port for frontend service")
-	RootCmd.PersistentFlags().IntVarP(&routePort, "route-service-port", "r", 8083, "Port for routing service")
-
-	// Flag for serving frontend at custom basepath url
-	RootCmd.PersistentFlags().StringVarP(&basepath, "basepath", "b", "", `Basepath for frontend service(default "/")`)
-	RootCmd.PersistentFlags().StringVarP(&jaegerUI, "jaeger-ui", "j", "http://localhost:16686", "Address of Jaeger UI to create [find trace] links")
-
-	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enables debug logging")
-
+	addFlags(RootCmd)
 	cobra.OnInitialize(onInitialize)
 }
 
 // onInitialize is called before the command is executed.
 func onInitialize() {
-	rand.Seed(int64(time.Now().Nanosecond()))
-
 	zapOptions := []zap.Option{
 		zap.AddStacktrace(zapcore.FatalLevel),
 		zap.AddCallerSkip(1),
@@ -110,7 +73,7 @@ func onInitialize() {
 	switch metricsBackend {
 	case "expvar":
 		metricsFactory = expvar.NewFactory(10) // 10 buckets for histograms
-		logger.Info("Using expvar as metrics backend")
+		logger.Info("*** Using expvar as metrics backend " + expvarDepr)
 	case "prometheus":
 		metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 		logger.Info("Using Prometheus as metrics backend")

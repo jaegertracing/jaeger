@@ -26,12 +26,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 )
 
 // RegisterGRPCGateway registers api_v3 endpoints into provided mux.
 func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tm *tenancy.Manager) error {
+	grpcEndpoint = netutils.FixLocalhost([]string{grpcEndpoint})[0]
 	jsonpb := &runtime.JSONPb{}
 
 	muxOpts := []runtime.ServeMuxOption{

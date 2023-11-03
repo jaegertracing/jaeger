@@ -17,7 +17,6 @@ package server
 import (
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/pkg/config/corscfg"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
@@ -39,11 +39,11 @@ type ZipkinServerParams struct {
 	TLSConfig      tlscfg.Options
 	HostPort       string
 	Handler        handler.ZipkinSpansHandler
-	AllowedOrigins string
-	AllowedHeaders string
+	CORSConfig     corscfg.Options
 	HealthCheck    *healthcheck.HealthCheck
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
+	KeepAlive      bool
 }
 
 // StartZipkinServer based on the given parameters
@@ -73,6 +73,8 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 		}
 		server.TLSConfig = tlsCfg
 	}
+
+	server.SetKeepAlivesEnabled(params.KeepAlive)
 	serveZipkin(server, listener, params)
 
 	return server, nil
@@ -83,13 +85,10 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 	zHandler := zipkin.NewAPIHandler(params.Handler)
 	zHandler.RegisterRoutes(r)
 
-	origins := strings.Split(strings.ReplaceAll(params.AllowedOrigins, " ", ""), ",")
-	headers := strings.Split(strings.ReplaceAll(params.AllowedHeaders, " ", ""), ",")
-
 	cors := cors.New(cors.Options{
-		AllowedOrigins: origins,
+		AllowedOrigins: params.CORSConfig.AllowedOrigins,
 		AllowedMethods: []string{"POST"}, // Allowing only POST, because that's the only handled one
-		AllowedHeaders: headers,
+		AllowedHeaders: params.CORSConfig.AllowedHeaders,
 	})
 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)

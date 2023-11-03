@@ -67,8 +67,8 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.traces (
     PRIMARY KEY (trace_id, span_id, span_hash)
 )
     WITH compaction = {
-        'compaction_window_size': '1',
-        'compaction_window_unit': 'HOURS',
+        'compaction_window_size': '${compaction_window_size}',
+        'compaction_window_unit': '${compaction_window_unit}',
         'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
     }
     AND default_time_to_live = ${trace_ttl}

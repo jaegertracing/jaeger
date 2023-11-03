@@ -28,8 +28,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/metric"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -71,12 +71,17 @@ func startOTLPReceiver(
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
-	applyHTTPSettings(otlpReceiverConfig.HTTP, &options.OTLP.HTTP)
+	applyHTTPSettings(otlpReceiverConfig.HTTP.HTTPServerSettings, &options.OTLP.HTTP)
 	otlpReceiverSettings := receiver.CreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
-			TracerProvider: otel.GetTracerProvider(),      // TODO we may always want no-op here, not the global default
-			MeterProvider:  metric.NewNoopMeterProvider(), // TODO wire this with jaegerlib metrics?
+			TracerProvider: trace.NewNoopTracerProvider(),
+			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
+			ReportComponentStatus: component.StatusFunc(func(ev *component.StatusEvent) error {
+				// TODO this could be wired into changing healthcheck.HealthCheck
+				logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
+				return nil
+			}),
 		},
 	}
 
@@ -128,16 +133,22 @@ func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptio
 	if opts.TLS.Enabled {
 		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
 	}
+
+	cfg.CORS = &confighttp.CORSSettings{
+		AllowedOrigins: opts.CORS.AllowedOrigins,
+		AllowedHeaders: opts.CORS.AllowedHeaders,
+	}
 }
 
 func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
 	return &configtls.TLSServerSetting{
 		TLSSetting: configtls.TLSSetting{
-			CAFile:     opts.CAPath,
-			CertFile:   opts.CertPath,
-			KeyFile:    opts.KeyPath,
-			MinVersion: opts.MinVersion,
-			MaxVersion: opts.MaxVersion,
+			CAFile:         opts.CAPath,
+			CertFile:       opts.CertPath,
+			KeyFile:        opts.KeyPath,
+			MinVersion:     opts.MinVersion,
+			MaxVersion:     opts.MaxVersion,
+			ReloadInterval: opts.ReloadInterval,
 		},
 		ClientCAFile: opts.ClientCAPath,
 	}

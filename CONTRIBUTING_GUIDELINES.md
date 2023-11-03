@@ -18,34 +18,56 @@ Table of Contents:
 
 ## Making a Change
 
+### Open an issue first
+
 **Before making any significant changes, please open an issue**. Each issue
 should describe the following:
 
 * Requirement - what kind of business use case are you trying to solve?
 * Problem - what in Jaeger blocks you from solving the requirement?
-* Proposal - what do you suggest to solve the problem or improve the existing
-  situation?
+* Proposal - what changes do you propose to solve the problem or improve the existing situation?
 * Any open questions to address
 
 Discussing your proposed changes ahead of time will make the contribution
 process smooth for everyone. Once the approach is agreed upon, make your changes
-and open a pull request (PR). Each PR should describe:
+and open a pull request (PR).
 
-* Which problem it is solving. Normally it should be simply a reference to the
-  corresponding issue, e.g. `Resolves #123`.
-* What changes are made to achieve that.
+### Assigning Issues
 
-Your pull request is most likely to be accepted if **each commit**:
+We do not assign issues to contributors. It is almost never the case that multiple
+people jump on the same issue, and practice showed that occasionally people who ask
+for an issue to be assigned to them later have a change in priorities and are unable
+to find time to finish it, which leaves the issue in limbo. 
+So if you have a desire to work on an issue, feel free to mention it in the comment and just submit a PR.
 
-* Has a [good commit message][good-commit-msg]. In summary:
-  * Separate subject from body with a blank line
-  * Limit the subject line to 50 characters
-  * Capitalize the subject line
-  * Do not end the subject line with a period
-  * Use the imperative mood in the subject line
-  * Wrap the body at 72 characters
-  * Use the body to explain _what_ and _why_ instead of _how_
-* Has been signed by the author ([see below](#certificate-of-origin---sign-your-work)).
+### Creating a pull request
+
+If you are new to GitHub's contribution workflow, we recommend the following setup:
+  * Go to the respective Jaeger repo on GitHub and create a fork using the button at the top. Select a destination org where you have write permissions (usually it is your personal "org").
+  * Clone the fork into your workspace.
+  * (Recommended): register upstream repo as remote
+    * After you clone your forked repo, `git remote -v` will show `origin`, e.g. `origin	git@github.com:{username}/jaeger.git`
+    * Add `upstream` remote: `git remote add upstream git@github.com:jaegertracing/jaeger.git`
+    * Fetch it: `git fetch upstream main`
+    * Repoint your main branch: `git branch --set-upstream-to=upstream/main main`
+    * With this setup, you will not need to keep your main branch in the fork in sync with the upstream repo.
+
+Once you're ready to make changes:
+  * Create a new local branch (DO NOT make changes to `main`, it will cause CI errors).
+  * Commit your changes, making sure **each commit is signed**, e.g. `git commit -s ...` ([see below](#certificate-of-origin---sign-your-work)).
+  * You do not need to squash the commits, it will happen once the PR is merged into the official repo (but each individual commit must be signed).
+  * When satisfied, push the changes. Git will likely ask for upstream destination: `git push --set-upstream origin {branch-name}`.
+  * After you push, look for the output, it usually contains a URL to create a pull request.
+
+Each PR should have:
+
+* A descriptive title, known as ["commit message"][good-commit-msg]. In summary:
+  * Limit the title to 50 characters
+  * Capitalize the title
+  * Do not end the title with a period
+  * Use the imperative mood in the title
+* A description of the problem it is solving. It could be simply a reference to the corresponding issue, e.g. `Resolves #123`.
+* A summary of changes made to solve the problem. Explain _what_ and _why_ instead of _how_.
 
 ## License
 
@@ -91,8 +113,6 @@ message:
 
 using your real name (sorry, no pseudonyms or anonymous contributions.) You can
 add the sign off when creating the git commit via `git commit -s`.
-
-If you want signing to be automatic you can set up some aliases:
 
 ### Missing sign-offs
 

@@ -100,7 +100,7 @@ github.com/jaegertracing/jaeger
       main.go
   crossdock/                - Cross-repo integration test configuration
   examples/
-      hotrod/               - Demo application that uses OpenTracing API
+      hotrod/               - Demo application that demonstrates the use of tracing instrumentation
   idl/                      - (submodule) https://github.com/jaegertracing/jaeger-idl
   jaeger-ui/                - (submodule) https://github.com/jaegertracing/jaeger-ui
   model/                    - Where models are kept, e.g. Process, Span, Trace
@@ -132,7 +132,7 @@ github.com/jaegertracing/jaeger
 
 ## Imports grouping
 
-This projects follows the following pattern for grouping imports in Go files:
+This project follows the following pattern for grouping imports in Go files:
 
 - imports from standard library
 - imports from other projects
@@ -213,7 +213,7 @@ After the merge make sure referenced issues were closed.
 * Ensure all references to the flag's variables have been removed in code.
 * Ensure a "Breaking Changes" entry is added in the [CHANGELOG](./CHANGELOG.md) indicating which CLI flag
 is being removed and which CLI flag should be used in favor of this removed flag.
-  
+
 For example:
 ```
 * Remove deprecated flags `--old-flag`, please use `--new-flag` ([#1234](<pull-request URL>), [@myusername](https://github.com/myusername))

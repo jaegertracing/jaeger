@@ -1,11 +1,32 @@
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
+GO = go
 
 include docker/Makefile
+include crossdock/rules.mk
+
+# TODO we can comparmentalize this Makefile better, by separting:
+#  - thrift and proto builds
+#  - integration tests
+#  - all the binary building targets
+
+ifeq ($(DEBUG_BINARY),)
+	DISABLE_OPTIMIZATIONS =
+	SUFFIX =
+	TARGET = release
+else
+	DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
+	SUFFIX = -debug
+	TARGET = debug
+endif
+
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
-ALL_SRC := $(shell find . -name '*.go' \
+ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
@@ -13,7 +34,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
 				   -not -name 'storage_test.pb.go' \
-				   -not -path './examples/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
@@ -22,20 +42,21 @@ ALL_SRC := $(shell find . -name '*.go' \
 				sort)
 
 # ALL_PKGS is used with 'nocover'
-ALL_PKGS := $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
+ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
 UNAME := $(shell uname -m)
-#Race flag is not supported on s390x architecture
 ifeq ($(UNAME), s390x)
+# go test does not support -race flag on s390x architecture
 	RACE=
 else
 	RACE=-race
 endif
-GOOS ?= $(shell go env GOOS)
-GOARCH ?= $(shell go env GOARCH)
+GOOS ?= $(shell $(GO) env GOOS)
+GOARCH ?= $(shell $(GO) env GOARCH)
 GOCACHE=$(abspath .gocache)
-GOBUILD=GOCACHE=$(GOCACHE) CGO_ENABLED=0 installsuffix=cgo go build -trimpath
-GOTEST=GOCACHE=$(GOCACHE) go test -v $(RACE)
+GOBUILD=GOCACHE=$(GOCACHE) CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
+GOTEST_QUIET=GOCACHE=$(GOCACHE) $(GO) test $(RACE)
+GOTEST=$(GOTEST_QUIET) -v
 GOFMT=gofmt
 GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
@@ -43,6 +64,12 @@ IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
+ifneq ($(GIT_CLOSEST_TAG),$(shell echo ${GIT_CLOSEST_TAG} | grep -E "$(semver_regex)"))
+	$(warning GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG) is not in the semver format $(semver_regex))
+endif
+GIT_CLOSEST_TAG_MAJOR := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v\([0-9]*\)\.[0-9]*\.[0-9]/\1/p')
+GIT_CLOSEST_TAG_MINOR := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v[0-9]*\.\([0-9]*\)\.[0-9]/\1/p')
+GIT_CLOSEST_TAG_PATCH := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v[0-9]*\.[0-9]*\.\([0-9]\)/\1/p')
 DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
@@ -68,6 +95,8 @@ DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
 MOCKERY=mockery
+GOVERSIONINFO=goversioninfo
+SYSOFILE=resource.syso
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -130,10 +159,10 @@ token-propagation-integration-test:
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags token_propagation -run TestBearTokenPropagation $(STORAGE_PKGS) | $(COLORIZE)"
 
-all-pkgs:
+echo-all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
-all-srcs:
+echo-all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 .PHONY: cover
@@ -163,6 +192,8 @@ lint:
 	./scripts/updateLicenses.sh > $(FMT_LOG)
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
+	./scripts/check-semconv-version.sh
+	./scripts/check-go-version.sh
 
 .PHONY: build-examples
 build-examples:
@@ -170,27 +201,27 @@ build-examples:
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/main.go
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/esmapping-generator/main.go
+	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/esmapping-generator/
 
 .PHONY: build-esmapping-generator-linux
 build-esmapping-generator-linux:
-	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator $(BUILD_INFO) ./cmd/esmapping-generator/main.go
+	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator $(BUILD_INFO) ./cmd/esmapping-generator/
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:
-	$(GOBUILD) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/main.go
+	$(GOBUILD) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
 
 .PHONY: build-es-rollover
 build-es-rollover:
-	$(GOBUILD) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/main.go
+	$(GOBUILD) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
 
 .PHONY: docker-hotrod
 docker-hotrod:
@@ -208,95 +239,187 @@ cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.
 	rm -rf cmd/query/app/ui/actual/*
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
 	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
+	# copy the timestamp for index.html.gz from the original file
+	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/query/app/ui/actual/index.html.gz
+	ls -lF cmd/query/app/ui/actual/
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui
 
 .PHONY: rebuild-ui
 rebuild-ui:
-	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+	bash ./scripts/rebuild-ui.sh
+	@echo "NOTE: This target only rebuilds the UI assets inside jaeger-ui/packages/jaeger-ui/build/."
+	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
-build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
-build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: SUFFIX = -debug
+# Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
+# Other targets can depend on this one but with a unique suffix to ensure it is always executed.
+BIN_PATH = ./cmd/$(BIN_NAME)
+.PHONY: _build-a-binary
+_build-a-binary-%:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
 
-.PHONY: build-all-in-one build-all-in-one-debug
-build-all-in-one build-all-in-one-debug: build-ui
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/all-in-one/all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+.PHONY: build-jaeger-v2
+build-jaeger-v2: BIN_NAME = jaeger-v2
+build-jaeger-v2: GO_TAGS = -tags ui
+build-jaeger-v2: build-ui _build-a-binary-jaeger-v2$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-agent build-agent-debug
-build-agent build-agent-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/agent/agent$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
+.PHONY: build-all-in-one
+build-all-in-one: BIN_NAME = all-in-one
+build-all-in-one: GO_TAGS = -tags ui
+build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-query build-query-debug
-build-query build-query-debug: build-ui
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/query/query$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+.PHONY: build-agent
+build-agent: BIN_NAME = agent
+build-agent: _build-a-binary-agent$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-collector build-collector-debug
-build-collector build-collector-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/collector/collector$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
+.PHONY: build-query
+build-query: BIN_NAME = query
+build-query: GO_TAGS = -tags ui
+build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-ingester build-ingester-debug
-build-ingester build-ingester-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+.PHONY: build-collector
+build-collector: BIN_NAME = collector
+build-collector: _build-a-binary-collector$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-remote-storage build-remote-storage-debug
-build-remote-storage build-remote-storage-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/remote-storage/remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/remote-storage/main.go
+.PHONY: build-ingester
+build-ingester: BIN_NAME = ingester
+build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
+
+.PHONY: build-remote-storage
+build-remote-storage: BIN_NAME = remote-storage
+build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
+
+# Magic values:
+# - LangID "0409" is "US-English".
+# - CharsetID "04B0" translates to decimal 1200 for "Unicode".
+# - FileOS "040004" defines the Windows kernel "Windows NT".
+# - FileType "01" is "Application".
+define VERSIONINFO
+{
+    "FixedFileInfo": {
+        "FileVersion": {
+            "Major": $(GIT_CLOSEST_TAG_MAJOR),
+            "Minor": $(GIT_CLOSEST_TAG_MINOR),
+            "Patch": $(GIT_CLOSEST_TAG_PATCH),
+            "Build": 0
+        },
+        "ProductVersion": {
+            "Major": $(GIT_CLOSEST_TAG_MAJOR),
+            "Minor": $(GIT_CLOSEST_TAG_MINOR),
+            "Patch": $(GIT_CLOSEST_TAG_PATCH),
+            "Build": 0
+        },
+        "FileFlagsMask": "3f",
+        "FileFlags ": "00",
+        "FileOS": "040004",
+        "FileType": "01",
+        "FileSubType": "00"
+    },
+    "StringFileInfo": {
+        "FileDescription": "$(NAME)",
+        "FileVersion": "$(GIT_CLOSEST_TAG_MAJOR).$(GIT_CLOSEST_TAG_MINOR).$(GIT_CLOSEST_TAG_PATCH).0",
+        "LegalCopyright": "2015-2023 The Jaeger Project Authors",
+		"ProductName": "$(NAME)",
+        "ProductVersion": "$(GIT_CLOSEST_TAG_MAJOR).$(GIT_CLOSEST_TAG_MINOR).$(GIT_CLOSEST_TAG_PATCH).0"
+    },
+    "VarFileInfo": {
+        "Translation": {
+            "LangID": "0409",
+            "CharsetID": "04B0"
+        }
+    }
+}
+endef
+
+export VERSIONINFO
+
+.PHONY: _prepare-winres
+_prepare-winres:
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Agent"            PKGPATH="cmd/agent"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Collector"        PKGPATH="cmd/collector"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Query"            PKGPATH="cmd/query"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Ingester"         PKGPATH="cmd/ingester"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Remote Storage"   PKGPATH="cmd/remote-storage"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger All-In-One"       PKGPATH="cmd/all-in-one"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger V2"               PKGPATH="cmd/jaeger-v2"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Tracegen"         PKGPATH="cmd/tracegen"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Anonymizer"       PKGPATH="cmd/anonymizer"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Index-Cleaner" PKGPATH="cmd/es-index-cleaner"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Rollover"      PKGPATH="cmd/es-rollover"
+
+.PHONY: _prepare-winres-helper
+_prepare-winres-helper:
+	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux GOARCH=amd64 $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-windows
-build-binaries-windows:
-	GOOS=windows GOARCH=amd64 $(MAKE) build-platform-binaries
+build-binaries-windows: _prepare-winres
+	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
+	rm ./cmd/*/$(SYSOFILE)
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin GOARCH=amd64 $(MAKE) build-platform-binaries
+	GOOS=darwin GOARCH=amd64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-darwin-arm64
 build-binaries-darwin-arm64:
-	GOOS=darwin GOARCH=arm64 $(MAKE) build-platform-binaries
+	GOOS=darwin GOARCH=arm64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-s390x
 build-binaries-s390x:
-	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=s390x $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-arm64
 build-binaries-arm64:
-	GOOS=linux GOARCH=arm64 $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=arm64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-ppc64le
 build-binaries-ppc64le:
-	GOOS=linux GOARCH=ppc64le $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=ppc64le $(MAKE) _build-platform-binaries
 
-.PHONY: build-platform-binaries
-build-platform-binaries: build-agent \
-	build-agent-debug \
+# build all binaries for one specific platform GOOS/GOARCH
+.PHONY: _build-platform-binaries
+_build-platform-binaries: build-agent \
+		build-all-in-one \
+		build-collector \
+		build-query \
+		build-ingester \
+		build-jaeger-v2 \
+		build-remote-storage \
+		build-examples \
+		build-tracegen \
+		build-anonymizer \
+		build-esmapping-generator \
+		build-es-index-cleaner \
+		build-es-rollover
+	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
+
+# build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
+.PHONY: _build-platform-binaries-debug
+_build-platform-binaries-debug: build-agent \
 	build-collector \
-	build-collector-debug \
 	build-query \
-	build-query-debug \
 	build-ingester \
-	build-ingester-debug \
 	build-remote-storage \
-	build-remote-storage-debug \
 	build-all-in-one \
-	build-all-in-one-debug \
-	build-examples \
-	build-tracegen \
-	build-anonymizer \
-	build-esmapping-generator \
-	build-es-index-cleaner \
-	build-es-rollover
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-darwin-arm64 build-binaries-s390x build-binaries-arm64 build-binaries-ppc64le
+build-all-platforms: \
+	build-binaries-linux \
+	build-binaries-windows \
+	build-binaries-darwin \
+	build-binaries-darwin-arm64 \
+	build-binaries-s390x \
+	build-binaries-arm64 \
+	build-binaries-ppc64le
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -312,12 +435,9 @@ docker-images-elastic: create-baseimg
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
-docker-images-jaeger-backend: TARGET = release
-docker-images-jaeger-backend-debug: TARGET = debug
-docker-images-jaeger-backend-debug: SUFFIX = -debug
-
-.PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
-docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
+# TODO does this target need to exist? It's only called from crossdock, apparently.
+.PHONY: docker-images-jaeger-backend
+docker-images-jaeger-backend: create-baseimg create-debugimg
 	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
 		regex="jaeger-(.*)"; \
 		component_suffix=$$component; \
@@ -344,14 +464,6 @@ docker-images-anonymizer:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-anonymizer =============="
 
-.PHONY: docker-images-only
-docker-images-only: docker-images-cassandra \
-	docker-images-elastic \
-	docker-images-jaeger-backend \
-	docker-images-jaeger-backend-debug \
-	docker-images-tracegen \
-	docker-images-anonymizer
-
 .PHONY: build-crossdock-binary
 build-crossdock-binary:
 	$(GOBUILD) -o ./crossdock/crossdock-$(GOOS)-$(GOARCH) ./crossdock/main.go
@@ -359,8 +471,6 @@ build-crossdock-binary:
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
 	GOOS=linux $(MAKE) build-crossdock-binary
-
-include crossdock/rules.mk
 
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
@@ -384,23 +494,31 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: changelog
 changelog:
-	python3 ./scripts/release-notes.py --exclude-dependabot
+	./scripts/release-notes.py --exclude-dependabot
 
 .PHONY: draft-release
 draft-release:
-	python3 ./scripts/draft-release.py
+	./scripts/draft-release.py
+
+.PHONY: install-test-tools 
+install-test-tools:
+	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
+	$(GO) install mvdan.cc/gofumpt@latest
+
+.PHONY: install-build-tools
+install-build-tools:
+	$(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
 
 .PHONY: install-tools
-install-tools:
-	go install github.com/vektra/mockery/v2@v2.14.0
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
-	go install mvdan.cc/gofumpt@latest
+install-tools: install-test-tools install-build-tools
+	$(GO) install github.com/vektra/mockery/v2@v2.14.0
 
 .PHONY: install-ci
-install-ci: install-tools
+install-ci: install-test-tools install-build-tools
 
 .PHONY: test-ci
-test-ci: build-examples lint cover
+test-ci: GOTEST := $(GOTEST_QUIET)
+test-ci: build-examples cover
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
@@ -460,7 +578,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 	| sed 's/ //g')
 
 .PHONY: proto
-proto: init-submodules proto-prepare-otel
+proto: proto-prepare-otel
 	# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance

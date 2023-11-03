@@ -119,7 +119,6 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 func (a *clockSkewAdjuster) buildSubGraphs() {
 	a.roots = make(map[model.SpanID]*node)
 	for _, n := range a.spans {
-		// TODO handle FOLLOWS_FROM references
 		if n.span.ParentSpanID() == 0 {
 			a.roots[n.span.SpanID] = n
 			continue

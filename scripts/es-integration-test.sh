@@ -29,8 +29,9 @@ setup_es() {
     --env "xpack.security.enabled=false"
     --env "xpack.monitoring.enabled=false"
   )
-  local cid=$(docker run ${params[@]} ${image}:${tag})
-  echo ${cid}
+  local cid
+  cid=$(docker run "${params[@]}" "${image}:${tag}")
+  echo "${cid}"
 }
 
 setup_opensearch() {
@@ -43,8 +44,9 @@ setup_opensearch() {
     --env "transport.host=127.0.0.1"
     --env "plugins.security.disabled=true"
   )
-  local cid=$(docker run ${params[@]} ${image}:${tag})
-  echo ${cid}
+  local cid
+  cid=$(docker run "${params[@]}" "${image}:${tag}")
+  echo "${cid}"
 }
 
 wait_for_storage() {
@@ -56,21 +58,21 @@ wait_for_storage() {
     --output
     /dev/null
     --write-out
-    ''%{http_code}''
+    "%{http_code}"
   )
   local counter=0
   local max_counter=60
-  while [[ "$(curl ${params[@]} ${url})" != "200" && ${counter} -le ${max_counter} ]]; do
-    docker inspect ${cid} | jq '.[].State'
+  while [[ "$(curl "${params[@]}" "${url}")" != "200" && ${counter} -le ${max_counter} ]]; do
+    docker inspect "${cid}" | jq '.[].State'
     echo "waiting for ${url} to be up..."
     sleep 10
     counter=$((counter+1))
   done
   # after the loop, do final verification and set status as global var
-  if [[ "$(curl ${params[@]} ${url})" != "200" ]]; then
+  if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready"
-    docker logs ${cid}
-    docker kill ${cid}
+    docker logs "${cid}"
+    docker kill "${cid}"
     db_is_up=0
   else
     echo "SUCCESS: ${distro} is ready"
@@ -86,20 +88,22 @@ bring_up_storage() {
   echo "starting ${distro} ${version}"
   for retry in 1 2 3
   do
-    if [ ${distro} = "elasticsearch" ]; then
-      cid=$(setup_es ${version})
-    elif [ ${distro} == "opensearch" ]; then
-      cid=$(setup_opensearch ${version})
+    echo "attempt $retry"
+    if [ "${distro}" = "elasticsearch" ]; then
+      cid=$(setup_es "${version}")
+    elif [ "${distro}" == "opensearch" ]; then
+      cid=$(setup_opensearch "${version}")
     else
       echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
       usage
     fi
-    wait_for_storage ${distro} "http://localhost:9200" ${cid}
+    wait_for_storage "${distro}" "http://localhost:9200" "${cid}"
     if [ ${db_is_up} = "1" ]; then
       break
     fi
   done
   if [ ${db_is_up} = "1" ]; then
+  # shellcheck disable=SC2064
     trap "teardown_storage ${cid}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
@@ -109,7 +113,7 @@ bring_up_storage() {
 
 teardown_storage() {
   local cid=$1
-  docker kill ${cid}
+  docker kill "${cid}"
 }
 
 main() {
@@ -117,7 +121,7 @@ main() {
   local distro=$1
   local version=$2
 
-  bring_up_storage ${distro} ${version}
+  bring_up_storage "${distro}" "${version}"
   STORAGE=${distro} make storage-integration-test
   make index-cleaner-integration-test
   make index-rollover-integration-test

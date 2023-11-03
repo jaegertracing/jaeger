@@ -22,7 +22,15 @@ import (
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	ServerURL      string
-	ConnectTimeout time.Duration
-	TLS            tlscfg.Options
+	ServerURL                string
+	ConnectTimeout           time.Duration
+	TLS                      tlscfg.Options
+	TokenFilePath            string
+	TokenOverrideFromContext bool
+
+	SupportSpanmetricsConnector bool
+	MetricNamespace             string
+	LatencyUnit                 string
+	NormalizeCalls              bool
+	NormalizeDuration           bool
 }

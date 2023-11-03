@@ -59,6 +59,26 @@ if [[ $keyspace =~ [^a-zA-Z0-9_] ]]; then
     usage "invalid characters in KEYSPACE=$keyspace parameter, please use letters, digits or underscores"
 fi
 
+if [ ! -z "$COMPACTION_WINDOW" ]; then
+    if echo "$COMPACTION_WINDOW" | grep -E -q '^[0-9]+[mhd]$'; then
+        compaction_window_size="$(echo "$COMPACTION_WINDOW" | sed 's/[mhd]//')"
+        compaction_window_unit="$(echo "$COMPACTION_WINDOW" | sed 's/[0-9]//g')"
+    else
+        usage "Invalid compaction window size format. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days."
+    fi
+else
+    trace_ttl_minutes=$(( $trace_ttl / 60 ))
+    # Taking the ceiling of the result
+    compaction_window_size=$(( ($trace_ttl_minutes + 30 - 1) / 30 ))
+    compaction_window_unit="m"
+fi
+
+case "$compaction_window_unit" in
+    m) compaction_window_unit="MINUTES" ;;
+    h) compaction_window_unit="HOURS" ;;
+    d) compaction_window_unit="DAYS" ;;
+esac
+
 >&2 cat <<EOF
 Using template file $template with parameters:
     mode = $MODE
@@ -67,13 +87,17 @@ Using template file $template with parameters:
     replication = ${replication}
     trace_ttl = ${trace_ttl}
     dependencies_ttl = ${dependencies_ttl}
+    compaction_window_size = ${compaction_window_size}
+    compaction_window_unit = ${compaction_window_unit}
 EOF
 
 # strip out comments, collapse multiple adjacent empty lines (cat -s), substitute variables
 cat $template | sed \
-    -e 's/--.*$//g'                                 \
-    -e 's/^\s*$//g'                                 \
-    -e "s/\${keyspace}/${keyspace}/g"               \
-    -e "s/\${replication}/${replication}/g"         \
-    -e "s/\${trace_ttl}/${trace_ttl}/g"             \
-    -e "s/\${dependencies_ttl}/${dependencies_ttl}/g" | cat -s
+    -e 's/--.*$//g'                                               \
+    -e 's/^\s*$//g'                                               \
+    -e "s/\${keyspace}/${keyspace}/g"                             \
+    -e "s/\${replication}/${replication}/g"                       \
+    -e "s/\${trace_ttl}/${trace_ttl}/g"                           \
+    -e "s/\${dependencies_ttl}/${dependencies_ttl}/g"             \
+    -e "s/\${compaction_window_size}/${compaction_window_size}/g" \
+    -e "s/\${compaction_window_unit}/${compaction_window_unit}/g" | cat -s

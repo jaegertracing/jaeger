@@ -60,8 +60,8 @@ func TestMultiReporterErrors(t *testing.T) {
 			{},
 		},
 	})
-	assert.EqualError(t, e1, fmt.Sprintf("[%s, %s]", errMsg, errMsg))
-	assert.EqualError(t, e2, fmt.Sprintf("[%s, %s]", errMsg, errMsg))
+	assert.EqualError(t, e1, fmt.Sprintf("%s\n%s", errMsg, errMsg))
+	assert.EqualError(t, e2, fmt.Sprintf("%s\n%s", errMsg, errMsg))
 }
 
 type mockReporter struct {

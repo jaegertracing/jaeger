@@ -49,6 +49,7 @@ type Configuration struct {
 	Username                       string         `mapstructure:"username"`
 	Password                       string         `mapstructure:"password" json:"-"`
 	TokenFilePath                  string         `mapstructure:"token_file"`
+	PasswordFilePath               string         `mapstructure:"password_file"`
 	AllowTokenFromContext          bool           `mapstructure:"-"`
 	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
@@ -92,36 +93,8 @@ type TagsAsFields struct {
 	Include string `mapstructure:"include"`
 }
 
-// ClientBuilder creates new es.Client
-type ClientBuilder interface {
-	NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
-	GetRemoteReadClusters() []string
-	GetNumShards() int64
-	GetNumReplicas() int64
-	GetMaxSpanAge() time.Duration
-	GetMaxDocCount() int
-	GetIndexPrefix() string
-	GetIndexDateLayoutSpans() string
-	GetIndexDateLayoutServices() string
-	GetIndexDateLayoutDependencies() string
-	GetIndexRolloverFrequencySpansDuration() time.Duration
-	GetIndexRolloverFrequencyServicesDuration() time.Duration
-	GetTagsFilePath() string
-	GetAllTagsAsFields() bool
-	GetTagDotReplacement() string
-	GetUseReadWriteAliases() bool
-	GetTokenFilePath() string
-	IsStorageEnabled() bool
-	IsCreateIndexTemplates() bool
-	GetVersion() uint
-	TagKeysAsFields() ([]string, error)
-	GetUseILM() bool
-	GetLogLevel() string
-	GetSendGetBodyAs() string
-}
-
 // NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
@@ -275,51 +248,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 }
 
-// GetRemoteReadClusters returns list of remote read clusters
-func (c *Configuration) GetRemoteReadClusters() []string {
-	return c.RemoteReadClusters
-}
-
-// GetNumShards returns number of shards from Configuration
-func (c *Configuration) GetNumShards() int64 {
-	return c.NumShards
-}
-
-// GetNumReplicas returns number of replicas from Configuration
-func (c *Configuration) GetNumReplicas() int64 {
-	return c.NumReplicas
-}
-
-// GetMaxSpanAge returns max span age from Configuration
-func (c *Configuration) GetMaxSpanAge() time.Duration {
-	return c.MaxSpanAge
-}
-
-// GetMaxDocCount returns the maximum number of documents that a query should return
-func (c *Configuration) GetMaxDocCount() int {
-	return c.MaxDocCount
-}
-
-// GetIndexPrefix returns index prefix
-func (c *Configuration) GetIndexPrefix() string {
-	return c.IndexPrefix
-}
-
-// GetIndexDateLayoutSpans returns jaeger-span index date layout
-func (c *Configuration) GetIndexDateLayoutSpans() string {
-	return c.IndexDateLayoutSpans
-}
-
-// GetIndexDateLayoutServices returns jaeger-service index date layout
-func (c *Configuration) GetIndexDateLayoutServices() string {
-	return c.IndexDateLayoutServices
-}
-
-// GetIndexDateLayoutDependencies returns jaeger-dependencies index date layout
-func (c *Configuration) GetIndexDateLayoutDependencies() string {
-	return c.IndexDateLayoutDependencies
-}
-
 // GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
 	if c.IndexRolloverFrequencySpans == "hour" {
@@ -334,62 +262,6 @@ func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duratio
 		return -1 * time.Hour
 	}
 	return -24 * time.Hour
-}
-
-// GetTagsFilePath returns a path to file containing tag keys
-func (c *Configuration) GetTagsFilePath() string {
-	return c.Tags.File
-}
-
-// GetAllTagsAsFields returns true if all tags should be stored as object fields
-func (c *Configuration) GetAllTagsAsFields() bool {
-	return c.Tags.AllAsFields
-}
-
-// GetVersion returns Elasticsearch version
-func (c *Configuration) GetVersion() uint {
-	return c.Version
-}
-
-// GetTagDotReplacement returns character is used to replace dots in tag keys, when
-// the tag is stored as object field.
-func (c *Configuration) GetTagDotReplacement() string {
-	return c.Tags.DotReplacement
-}
-
-// GetUseReadWriteAliases indicates whether read alias should be used
-func (c *Configuration) GetUseReadWriteAliases() bool {
-	return c.UseReadWriteAliases
-}
-
-// GetUseILM indicates whether ILM should be used
-func (c *Configuration) GetUseILM() bool {
-	return c.UseILM
-}
-
-// GetLogLevel returns the log-level the ES client should log at.
-func (c *Configuration) GetLogLevel() string {
-	return c.LogLevel
-}
-
-// GetSendGetBodyAs returns the SendGetBodyAs the ES client should use.
-func (c *Configuration) GetSendGetBodyAs() string {
-	return c.SendGetBodyAs
-}
-
-// GetTokenFilePath returns file path containing the bearer token
-func (c *Configuration) GetTokenFilePath() string {
-	return c.TokenFilePath
-}
-
-// IsStorageEnabled determines whether storage is enabled
-func (c *Configuration) IsStorageEnabled() bool {
-	return c.Enabled
-}
-
-// IsCreateIndexTemplates determines whether index templates should be created or not
-func (c *Configuration) IsCreateIndexTemplates() bool {
-	return c.CreateIndexTemplates
 }
 
 // TagKeysAsFields returns tags from the file and command line merged
@@ -439,6 +311,17 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		Timeout: c.Timeout,
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
+
+	if c.Password != "" && c.PasswordFilePath != "" {
+		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
+	}
+	if c.PasswordFilePath != "" {
+		passwordFromFile, err := loadTokenFromFile(c.PasswordFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load password from file: %w", err)
+		}
+		c.Password = passwordFromFile
+	}
 	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 
 	if c.SendGetBodyAs != "" {
@@ -502,6 +385,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 			return nil, err
 		}
 		return &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: ctlsConfig,
 		}, nil
 	}
@@ -525,7 +409,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		if c.AllowTokenFromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := loadToken(c.TokenFilePath)
+		tokenFromFile, err := loadTokenFromFile(c.TokenFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -541,7 +425,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	return transport, nil
 }
 
-func loadToken(path string) (string, error) {
+func loadTokenFromFile(path string) (string, error) {
 	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err

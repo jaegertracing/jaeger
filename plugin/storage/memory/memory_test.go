@@ -74,7 +74,7 @@ var childSpan2 = &model.Span{
 	OperationName: "childOperationName",
 	Tags: model.KeyValues{
 		model.String("tagKey", "tagValue"),
-		model.String("span.kind", "local"),
+		model.String("span.kind", "internal"),
 	},
 	Logs: []model.Log{
 		{

@@ -45,7 +45,7 @@ type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	client           es.Client
+	client           func() es.Client
 	logger           *zap.Logger
 	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache       cache.Cache
@@ -56,7 +56,7 @@ type SpanWriter struct {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client                 es.Client
+	Client                 func() es.Client
 	Logger                 *zap.Logger
 	MetricsFactory         metrics.Factory
 	IndexPrefix            string
@@ -107,11 +107,11 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 	if indexPrefix != "" && !strings.HasSuffix(indexPrefix, "-") {
 		indexPrefix += "-"
 	}
-	_, err := s.client.CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
+	_, err := s.client().CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
-	_, err = s.client.CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
+	_, err = s.client().CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 
 // Close closes SpanWriter
 func (s *SpanWriter) Close() error {
-	return s.client.Close()
+	return s.client().Close()
 }
 
 func keyInCache(key string, c cache.Cache) bool {
@@ -175,5 +175,5 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
-	s.client.Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }

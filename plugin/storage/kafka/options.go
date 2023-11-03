@@ -214,7 +214,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 
 // stripWhiteSpace removes all whitespace characters from a string
 func stripWhiteSpace(str string) string {
-	return strings.Replace(str, " ", "", -1)
+	return strings.ReplaceAll(str, " ", "")
 }
 
 // getCompressionLevel to get compression level from compression type

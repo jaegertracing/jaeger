@@ -1,3 +1,5 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
+
 <img align="right" width="290" height="290" src="https://www.jaegertracing.io/img/jaeger-vector.svg">
 
 [![Slack chat][slack-img]](#get-in-touch)
@@ -6,7 +8,7 @@
 [![Coverage Status][cov-img]][cov]
 [![FOSSA Status][fossa-img]](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield)
 [![Artifact Hub][artifacthub-img]](https://artifacthub.io/packages/helm/jaegertracing/jaeger)
-[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jaegertracing/jaeger/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jaegertracing/jaeger)
 
 <img src="https://github.com/cncf/artwork/blob/master/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
 
@@ -14,25 +16,18 @@
 
 ```mermaid
 graph TD
-    LIB --> |HTTP or gRPC| COLLECTOR
-    LIB["Jaeger Client (deprecated)"] --> |UDP| AGENT[Jaeger Agent]
-    %% AGENT --> |HTTP/sampling| LIB
-    AGENT --> |gRPC| COLLECTOR[Jaeger Collector]
-    %% COLLECTOR --> |gRPC/sampling| AGENT
-    SDK["OpenTelemetry SDK (recommended)"] --> |UDP| AGENT
-    SDK --> |HTTP or gRPC| COLLECTOR
-    COLLECTOR --> STORE[Storage]
+    SDK["OpenTelemetry SDK"] --> |HTTP or gRPC| COLLECTOR
+    COLLECTOR["Jaeger Collector"] --> STORE[Storage]
     COLLECTOR --> |gRPC| PLUGIN[Storage Plugin]
+    COLLECTOR --> |gRPC/sampling| SDK
     PLUGIN --> STORE
     QUERY[Jaeger Query Service] --> STORE
     QUERY --> |gRPC| PLUGIN
     UI[Jaeger UI] --> |HTTP| QUERY
     subgraph Application Host
         subgraph User Application
-            LIB
             SDK
         end
-        AGENT
     end
 ```
 
@@ -66,18 +61,19 @@ Jaeger is an open source project with open governance. We welcome contributions 
 Jaeger backend is designed to have no single points of failure and to scale with the business needs.
 For example, any given Jaeger installation at Uber is typically processing several billions of spans per day.
 
-### Native support for OpenTracing
+### Relationship with OpenTelemetry
 
-Jaeger backend, Web UI, and instrumentation libraries have been designed from the ground up to support the [OpenTracing standard](https://opentracing.io/specification/).
-  * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans)
-  * Support strongly typed span _tags_ and _structured logs_
-  * Support general distributed context propagation mechanism via _baggage_
+The Jaeger and [OpenTelemetry](https://opentelemetry.io) projects have different goals. OpenTelemetry aims to provide APIs and SDKs in multiple languages to allow applications to export various telemetry data out of the process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
 
-#### OpenTelemetry
+Jaeger was originally designed to support the [OpenTracing standard](https://opentracing.io/specification/). The terminology is still used in Jaeger UI, but the concepts have direct mapping to the OpenTelemetry data model of traces.
 
-Jaeger project recommends OpenTelemetry SDKs for instrumentation, instead of Jaeger's native SDKs [that are now deprecated](https://www.jaegertracing.io/docs/latest/client-libraries/#deprecating-jaeger-clients).
+| Capability    | OpenTracing concept | OpenTelemetry concept |
+| ------------- | ------------------- | --------------------- |
+| Represent traces as directed acyclic graphs (not just trees)  | [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans) | [span links](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#span) |
+| Strongly typed span attributes  | span tags | span attributes |
+| Strongly typed events/logs  | span logs | span events |
 
-The OpenTracing and OpenCensus projects have merged into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). The Jaeger and OpenTelemetry projects have different goals. OpenTelemetry aims to provide APIs and SDKs in multiple languages to allow applications to export various telemetry data out of the process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. The Jaeger client libraries do overlap with OpenTelemetry in functionality. OpenTelemetry natively supports Jaeger as a tracing backend and makes Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
+Jaeger project recommends OpenTelemetry SDKs for instrumentation, instead of [now-deprecated Jaeger SDKs](https://www.jaegertracing.io/docs/latest/client-libraries/#deprecating-jaeger-clients).
 
 ### Multiple storage backends
 
@@ -85,7 +81,8 @@ Jaeger can be used with a growing a number of storage backends:
 * It natively supports two popular open source NoSQL databases as trace storage backends: Cassandra and Elasticsearch.
 * It integrates via a gRPC API with other well known databases that have been certified to be Jaeger compliant: [TimescaleDB via Promscale](https://github.com/timescale/promscale), [ClickHouse](https://github.com/jaegertracing/jaeger-clickhouse).
 * There is embedded database support using [Badger](https://github.com/dgraph-io/badger) and simple in-memory storage for testing setups.
-* There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB, YugabyteDB(YCQL).
+* ScyllaDB [can be used](https://github.com/jaegertracing/jaeger/blob/main/plugin/storage/scylladb/README.md) as a drop-in replacement for Cassandra since it uses the same data model and query language.
+* There are ongoing community experiments using other databases, such as InfluxDB, Amazon DynamoDB, YugabyteDB(YCQL).
 
 ### Modern Web UI
 
@@ -138,6 +135,16 @@ For example, consider a scenario where v1.28.0 is released on 01-Jun-2021 contai
 This flag will remain in a deprecated state until the later of 01-Sep-2021 or v1.30.0 where it _can_ be removed on or after either of those events.
 It may remain deprecated for longer than the aforementioned grace period.
 
+## Go Version Compatibility Guarantees
+
+The Jaeger project attempts to track the currently supported versions of Go, as [defined by the Go team](https://go.dev/doc/devel/release#policy).
+Removing support for an unsupported Go version is not considered a breaking change.
+
+Starting with the release of Go 1.21, support for Go versions will be updated as follows:
+
+1. Soon after the release of a new Go minor version `N`, updates will be made to the build and tests steps to accommodate the latest Go minor version.
+2. Soon after the release of a new Go minor version `N`, support for Go version `N-2` will be removed and version `N-1` will become the minimum required version.
+
 ## Related Repositories
 
 ### Documentation
@@ -179,6 +186,7 @@ Below are the official maintainers of the Jaeger project.
 Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
 
 * [@albertteoh](https://github.com/albertteoh)
+* [@jkowall](https://github.com/jkowall)
 * [@joe-elliott](https://github.com/joe-elliott)
 * [@pavolloffay](https://github.com/pavolloffay)
 * [@yurishkuro](https://github.com/yurishkuro)

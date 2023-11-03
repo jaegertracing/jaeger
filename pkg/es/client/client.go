@@ -87,6 +87,7 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
+	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		return []byte{}, c.handleFailedRequest(res)

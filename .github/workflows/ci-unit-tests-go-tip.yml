@@ -13,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@18bf8ad2ca49c14cbb28b91346d626ccfb00c518
+      uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
 
     # From https://github.com/actions/setup-go/issues/21#issuecomment-997208686
     - name: Install Go tip
@@ -31,7 +31,10 @@ jobs:
         echo "PATH=$HOME/go/bin:$HOME/sdk/gotip/bin/:$PATH" >> $GITHUB_ENV
 
     - name: Install tools
-      run: make install-ci
+      run: make install-test-tools
 
     - name: Run unit tests
       run: make test-ci
+
+    - name: Lint
+      run: echo skip linting on Go tip

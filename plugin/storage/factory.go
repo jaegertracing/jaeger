@@ -16,6 +16,7 @@
 package storage
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -24,9 +25,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/blackhole"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
@@ -45,6 +46,7 @@ const (
 	kafkaStorageType         = "kafka"
 	grpcPluginStorageType    = "grpc-plugin"
 	badgerStorageType        = "badger"
+	blackholeStorageType     = "blackhole"
 
 	downsamplingRatio    = "downsampling.ratio"
 	downsamplingHashSalt = "downsampling.hashsalt"
@@ -64,6 +66,7 @@ var AllStorageTypes = []string{
 	memoryStorageType,
 	kafkaStorageType,
 	badgerStorageType,
+	blackholeStorageType,
 	grpcPluginStorageType,
 }
 
@@ -132,6 +135,8 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 		return badger.NewFactory(), nil
 	case grpcPluginStorageType:
 		return grpc.NewFactory(), nil
+	case blackholeStorageType:
+		return blackhole.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
 	}
@@ -327,7 +332,7 @@ func (f *Factory) Close() error {
 			}
 		}
 	}
-	return multierror.Wrap(errs)
+	return errors.Join(errs...)
 }
 
 func (f *Factory) publishOpts() {

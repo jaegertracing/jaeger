@@ -125,7 +125,7 @@ func testGRPCGatewayWithTenancy(t *testing.T, basePath string, serverTLS tlscfg.
 			},
 		}, nil).Once()
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	setupRequest(req)
@@ -143,7 +143,15 @@ func testGRPCGatewayWithTenancy(t *testing.T, basePath string, serverTLS tlscfg.
 	err = jsonpb.Unmarshal(envelope.Result, &spansResponse)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(spansResponse.GetResourceSpans()))
-	assert.Equal(t, uint64ToTraceID(traceID.High, traceID.Low), spansResponse.GetResourceSpans()[0].GetInstrumentationLibrarySpans()[0].GetSpans()[0].GetTraceId())
+	assert.Equal(t, uint64ToTraceID(t, traceID.High, traceID.Low), spansResponse.GetResourceSpans()[0].GetScopeSpans()[0].GetSpans()[0].GetTraceId())
+}
+
+func uint64ToTraceID(t *testing.T, high, low uint64) []byte {
+	traceID := model.NewTraceID(high, low)
+	buf := make([]byte, 16)
+	_, err := traceID.MarshalTo(buf)
+	require.NoError(t, err)
+	return buf
 }
 
 func TestGRPCGateway(t *testing.T) {
@@ -208,7 +216,7 @@ func TestTenancyGRPCRejection(t *testing.T) {
 			},
 		}, nil).Once()
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://localhost%s%s/api/v3/traces/123", strings.Replace(httpLis.Addr().String(), "[::]", "", 1), basePath), nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	// We don't set tenant header

@@ -14,7 +14,11 @@
 
 package version
 
-import "github.com/jaegertracing/jaeger/pkg/metrics"
+import (
+	"fmt"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
+)
 
 var (
 	// commitFromGit is a constant representing the source version that
@@ -27,14 +31,14 @@ var (
 	date string
 )
 
-// Info holds build information
+// Info holds build information.
 type Info struct {
 	GitCommit  string `json:"gitCommit"`
 	GitVersion string `json:"gitVersion"`
 	BuildDate  string `json:"buildDate"`
 }
 
-// InfoMetrics hold metrics about build information
+// InfoMetrics hold a gauge whose tags include build information.
 type InfoMetrics struct {
 	BuildInfo metrics.Gauge `metric:"build_info"`
 }
@@ -61,4 +65,11 @@ func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
 	info.BuildInfo.Update(1)
 
 	return &info
+}
+
+func (i Info) String() string {
+	return fmt.Sprintf(
+		"git-commit=%s, git-version=%s, build-date=%s",
+		i.GitCommit, i.GitVersion, i.BuildDate,
+	)
 }

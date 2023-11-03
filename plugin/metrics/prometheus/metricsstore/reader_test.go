@@ -16,7 +16,6 @@ package metricsstore
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -24,11 +23,16 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
@@ -44,6 +48,7 @@ type (
 		serviceNames     []string
 		spanKinds        []string
 		groupByOperation bool
+		updateConfig     func(config.Configuration) config.Configuration
 		wantName         string
 		wantDescription  string
 		wantLabels       map[string]string
@@ -53,22 +58,45 @@ type (
 
 const defaultTimeout = 30 * time.Second
 
+// defaultConfig should consist of the default values for the prometheus.query.* command line options.
+var defaultConfig = config.Configuration{
+	SupportSpanmetricsConnector: false,
+	MetricNamespace:             "",
+	LatencyUnit:                 "ms",
+}
+
+func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),
+	)
+	closer := func() {
+		assert.NoError(t, tp.Shutdown(context.Background()))
+	}
+	return tp, exporter, closer
+}
+
 func TestNewMetricsReaderValidAddress(t *testing.T) {
 	logger := zap.NewNop()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://localhost:1234",
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
 
 func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 	logger := zap.NewNop()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize prometheus client")
 	assert.Nil(t, reader)
@@ -77,14 +105,16 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 func TestGetMinStepDuration(t *testing.T) {
 	params := metricsstore.MinStepDurationQueryParameters{}
 	logger := zap.NewNop()
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
 
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://" + listener.Addr().String(),
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.NoError(t, err)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
@@ -113,18 +143,20 @@ func TestMetricsServerError(t *testing.T) {
 	defer mockPrometheus.Close()
 
 	logger := zap.NewNop()
+	tracer, exp, closer := tracerProvider(t)
+	defer closer()
 	address := mockPrometheus.Listener.Addr().String()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://" + address,
 		ConnectTimeout: defaultTimeout,
-	})
+	}, logger, tracer)
 	require.NoError(t, err)
-
 	m, err := reader.GetCallRates(context.Background(), &params)
 	assert.NotNil(t, m)
-
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed executing metrics query")
+	require.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+	assert.Equal(t, codes.Error, exp.GetSpans()[0].Status.Code)
 }
 
 func TestGetLatencies(t *testing.T) {
@@ -169,18 +201,63 @@ func TestGetLatencies(t *testing.T) {
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "frontend|emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name,le))`,
 		},
+		{
+			name:             "enable support for spanmetrics connector with normalized metric name",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.MetricNamespace = "span_metrics"
+				cfg.LatencyUnit = "s"
+				return cfg
+			},
+			wantName:        "service_operation_latencies",
+			wantDescription: "0.95th quantile latency, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with normalized metric name",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.NormalizeDuration = true
+				cfg.LatencyUnit = "s"
+				return cfg
+			},
+			wantName:        "service_operation_latencies",
+			wantDescription: "0.95th quantile latency, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_seconds_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			params := metricsstore.LatenciesQueryParameters{
 				BaseQueryParameters: buildTestBaseQueryParametersFrom(tc),
 				Quantile:            0.95,
 			}
-			reader, mockPrometheus := prepareMetricsReaderAndServer(t, tc.wantPromQlQuery, nil)
+			tracer, exp, closer := tracerProvider(t)
+			defer closer()
+			cfg := defaultConfig
+			if tc.updateConfig != nil {
+				cfg = tc.updateConfig(cfg)
+			}
+			reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, tc.wantPromQlQuery, nil, tracer)
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetLatencies(context.Background(), &params)
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
 }
@@ -197,7 +274,7 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
 		},
 		{
@@ -211,7 +288,7 @@ func TestGetCallRates(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
 		},
 		{
@@ -224,20 +301,63 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "frontend|emailservice", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "frontend|emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name)`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with a namespace",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.MetricNamespace = "span_metrics"
+				return cfg
+			},
+			wantName:        "service_operation_call_rate",
+			wantDescription: "calls/sec, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with normalized metric name",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.NormalizeCalls = true
+				return cfg
+			},
+			wantName:        "service_operation_call_rate",
+			wantDescription: "calls/sec, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			params := metricsstore.CallRateQueryParameters{
 				BaseQueryParameters: buildTestBaseQueryParametersFrom(tc),
 			}
-			reader, mockPrometheus := prepareMetricsReaderAndServer(t, tc.wantPromQlQuery, nil)
+			tracer, exp, closer := tracerProvider(t)
+			defer closer()
+			cfg := defaultConfig
+			if tc.updateConfig != nil {
+				cfg = tc.updateConfig(cfg)
+			}
+			reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, tc.wantPromQlQuery, nil, tracer)
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetCallRates(context.Background(), &params)
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
 }
@@ -254,9 +374,9 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
-				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
 		},
 		{
 			name:             "group by service and operation should be reflected in name/description and query group-by",
@@ -269,9 +389,9 @@ func TestGetErrorRates(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation) / ` +
-				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -283,38 +403,145 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "frontend|emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "frontend|emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name) / ` +
-				`sum(rate(calls_total{service_name =~ "frontend|emailservice", span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name)`,
+				`sum(rate(calls{service_name =~ "frontend|emailservice", span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name)`,
+		},
+		{
+			name:             "neither metric namespace nor enabling normalized metric names have an impact when spanmetrics connector is not supported",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: false,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = false
+				cfg.MetricNamespace = "span_metrics"
+				cfg.NormalizeCalls = true
+				return cfg
+			},
+			wantName:        "service_error_rate",
+			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with a metric namespace",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.MetricNamespace = "span_metrics"
+				return cfg
+			},
+			wantName:        "service_operation_error_rate",
+			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+				`sum(rate(span_metrics_calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
+		},
+		{
+			name:             "enable support for spanmetrics connector with normalized metric name",
+			serviceNames:     []string{"emailservice"},
+			spanKinds:        []string{"SPAN_KIND_SERVER"},
+			groupByOperation: true,
+			updateConfig: func(cfg config.Configuration) config.Configuration {
+				cfg.SupportSpanmetricsConnector = true
+				cfg.NormalizeCalls = true
+				return cfg
+			},
+			wantName:        "service_operation_error_rate",
+			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "emailservice",
+			},
+			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			params := metricsstore.ErrorRateQueryParameters{
 				BaseQueryParameters: buildTestBaseQueryParametersFrom(tc),
 			}
-			reader, mockPrometheus := prepareMetricsReaderAndServer(t, tc.wantPromQlQuery, nil)
+			tracer, exp, closer := tracerProvider(t)
+			defer closer()
+			cfg := defaultConfig
+			if tc.updateConfig != nil {
+				cfg = tc.updateConfig(cfg)
+			}
+			reader, mockPrometheus := prepareMetricsReaderAndServer(t, cfg, tc.wantPromQlQuery, nil, tracer)
 			defer mockPrometheus.Close()
 
 			m, err := reader.GetErrorRates(context.Background(), &params)
 			require.NoError(t, err)
 			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
+}
+
+func TestInvalidLatencyUnit(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Expected a panic due to invalid latency unit")
+		}
+	}()
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	cfg := config.Configuration{
+		SupportSpanmetricsConnector: true,
+		NormalizeDuration:           true,
+		LatencyUnit:                 "something invalid",
+	}
+	_, _ = NewMetricsReader(cfg, zap.NewNop(), tracer)
 }
 
 func TestWarningResponse(t *testing.T) {
 	params := metricsstore.ErrorRateQueryParameters{
 		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{serviceNames: []string{"foo"}}),
 	}
-	reader, mockPrometheus := prepareMetricsReaderAndServer(t, "", []string{"warning0", "warning1"})
+	tracer, exp, closer := tracerProvider(t)
+	defer closer()
+	reader, mockPrometheus := prepareMetricsReaderAndServer(t, config.Configuration{}, "", []string{"warning0", "warning1"}, tracer)
 	defer mockPrometheus.Close()
 
 	m, err := reader.GetErrorRates(context.Background(), &params)
 	require.NoError(t, err)
 	assert.NotNil(t, m)
+	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 }
 
-func TestGetRoundTripper(t *testing.T) {
+type fakePromServer struct {
+	*httptest.Server
+	authReceived atomic.Pointer[string]
+}
+
+func newFakePromServer(t *testing.T) *fakePromServer {
+	s := &fakePromServer{}
+	s.Server = httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				t.Logf("Request to fake Prometheus server %+v", r)
+				h := r.Header.Get("Authorization")
+				s.authReceived.Store(&h)
+			},
+		),
+	)
+	return s
+}
+
+func (s *fakePromServer) getAuth() string {
+	return *s.authReceived.Load()
+}
+
+func TestGetRoundTripperTLSConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		tlsEnabled bool
@@ -325,21 +552,15 @@ func TestGetRoundTripper(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
 			rt, err := getHTTPRoundTripper(&config.Configuration{
-				ServerURL:      "https://localhost:1234",
 				ConnectTimeout: 9 * time.Millisecond,
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
 				},
+				TokenOverrideFromContext: true,
 			}, logger)
 			require.NoError(t, err)
 
-			server := httptest.NewServer(
-				http.HandlerFunc(
-					func(w http.ResponseWriter, r *http.Request) {
-						assert.Equal(t, "Bearer foo", r.Header.Get("Authorization"))
-					},
-				),
-			)
+			server := newFakePromServer(t)
 			defer server.Close()
 
 			req, err := http.NewRequestWithContext(
@@ -352,21 +573,106 @@ func TestGetRoundTripper(t *testing.T) {
 
 			resp, err := rt.RoundTrip(req)
 			require.NoError(t, err)
+
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "Bearer foo", server.getAuth())
 		})
 	}
 }
 
+func TestGetRoundTripperTokenFile(t *testing.T) {
+	const wantBearer = "token from file"
+
+	file, err := os.CreateTemp("", "token_")
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, os.Remove(file.Name())) }()
+
+	_, err = file.Write([]byte(wantBearer))
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	rt, err := getHTTPRoundTripper(&config.Configuration{
+		ConnectTimeout:           time.Second,
+		TokenFilePath:            file.Name(),
+		TokenOverrideFromContext: false,
+	}, nil)
+	require.NoError(t, err)
+
+	server := newFakePromServer(t)
+	defer server.Close()
+
+	ctx := bearertoken.ContextWithBearerToken(context.Background(), "tokenFromRequest")
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL,
+		nil,
+	)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "Bearer "+wantBearer, server.getAuth())
+}
+
+func TestGetRoundTripperTokenFromContext(t *testing.T) {
+	file, err := os.CreateTemp("", "token_")
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, os.Remove(file.Name())) }()
+	_, err = file.Write([]byte("token from file"))
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	rt, err := getHTTPRoundTripper(&config.Configuration{
+		ConnectTimeout:           time.Second,
+		TokenFilePath:            file.Name(),
+		TokenOverrideFromContext: true,
+	}, nil)
+	require.NoError(t, err)
+
+	server := newFakePromServer(t)
+	defer server.Close()
+
+	ctx := bearertoken.ContextWithBearerToken(context.Background(), "tokenFromRequest")
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL,
+		nil,
+	)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "Bearer tokenFromRequest", server.getAuth())
+}
+
+func TestGetRoundTripperTokenError(t *testing.T) {
+	tokenFilePath := "this file does not exist"
+
+	_, err := getHTTPRoundTripper(&config.Configuration{
+		TokenFilePath: tokenFilePath,
+	}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get token from file")
+}
+
 func TestInvalidCertFile(t *testing.T) {
 	logger := zap.NewNop()
-	reader, err := NewMetricsReader(logger, config.Configuration{
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "https://localhost:1234",
 		ConnectTimeout: defaultTimeout,
 		TLS: tlscfg.Options{
 			Enabled: true,
 			CAPath:  "foo",
 		},
-	})
+	}, logger, tracer)
 	require.Error(t, err)
 	assert.Nil(t, reader)
 }
@@ -396,14 +702,12 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 	}))
 }
 
-func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) error {
+func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
 	bytes, err := os.ReadFile(responseFile)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
-	_, err = fmt.Fprintln(w, string(bytes))
-	return err
+	_, err = w.Write(bytes)
+	require.NoError(t, err)
 }
 
 func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricsstore.BaseQueryParameters {
@@ -423,16 +727,18 @@ func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricsstore.BaseQuery
 	}
 }
 
-func prepareMetricsReaderAndServer(t *testing.T, wantPromQlQuery string, wantWarnings []string) (metricsstore.Reader, *httptest.Server) {
+func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricsstore.Reader, *httptest.Server) {
 	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
 	address := mockPrometheus.Listener.Addr().String()
-	reader, err := NewMetricsReader(logger, config.Configuration{
-		ServerURL:      "http://" + address,
-		ConnectTimeout: defaultTimeout,
-	})
+
+	config.ServerURL = "http://" + address
+	config.ConnectTimeout = defaultTimeout
+
+	reader, err := NewMetricsReader(config, logger, tracer)
 	require.NoError(t, err)
+
 	return reader, mockPrometheus
 }
 

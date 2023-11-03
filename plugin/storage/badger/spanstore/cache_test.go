@@ -14,7 +14,6 @@
 package spanstore
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -109,14 +108,13 @@ func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
 	opts := badger.DefaultOptions("")
 
 	opts.SyncWrites = false
-	dir, _ := os.MkdirTemp("", "badger")
+	dir := t.TempDir()
 	opts.Dir = dir
 	opts.ValueDir = dir
 
 	store, err := badger.Open(opts)
 	defer func() {
 		store.Close()
-		os.RemoveAll(dir)
 	}()
 
 	assert.NoError(t, err)

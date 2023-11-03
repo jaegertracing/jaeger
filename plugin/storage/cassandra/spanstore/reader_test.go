@@ -25,6 +25,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -37,13 +40,26 @@ import (
 )
 
 type spanReaderTest struct {
-	session   *mocks.Session
-	logger    *zap.Logger
-	logBuffer *testutils.Buffer
-	reader    *SpanReader
+	session     *mocks.Session
+	logger      *zap.Logger
+	logBuffer   *testutils.Buffer
+	traceBuffer *tracetest.InMemoryExporter
+	reader      *SpanReader
 }
 
-func withSpanReader(fn func(r *spanReaderTest)) {
+func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),
+	)
+	closer := func() {
+		assert.NoError(t, tp.Shutdown(context.Background()))
+	}
+	return tp, exporter, closer
+}
+
+func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	session := &mocks.Session{}
 	query := &mocks.Query{}
 	session.On("Query",
@@ -52,11 +68,14 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
+	tracer, exp, closer := tracerProvider(t)
+	defer closer()
 	r := &spanReaderTest{
-		session:   session,
-		logger:    logger,
-		logBuffer: logBuffer,
-		reader:    NewSpanReader(session, metricsFactory, logger),
+		session:     session,
+		logger:      logger,
+		logBuffer:   logBuffer,
+		traceBuffer: exp,
+		reader:      NewSpanReader(session, metricsFactory, logger, tracer.Tracer("test")),
 	}
 	fn(r)
 }
@@ -64,7 +83,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 var _ spanstore.Reader = &SpanReader{} // check API conformance
 
 func TestSpanReaderGetServices(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
+	withSpanReader(t, func(r *spanReaderTest) {
 		r.reader.serviceNamesReader = func() ([]string, error) { return []string{"service-a"}, nil }
 		s, err := r.reader.GetServices(context.Background())
 		assert.NoError(t, err)
@@ -73,7 +92,7 @@ func TestSpanReaderGetServices(t *testing.T) {
 }
 
 func TestSpanReaderGetOperations(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
+	withSpanReader(t, func(r *spanReaderTest) {
 		expectedOperations := []spanstore.Operation{
 			{
 				Name:     "operation-a",
@@ -121,7 +140,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run("expected err="+testCase.expectedErr, func(t *testing.T) {
-			withSpanReader(func(r *spanReaderTest) {
+			withSpanReader(t, func(r *spanReaderTest) {
 				iter := &mocks.Iterator{}
 				iter.On("Scan", testCase.scanner).Return(true)
 				iter.On("Scan", matchEverything()).Return(false)
@@ -135,6 +154,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 				if testCase.expectedErr == "" {
+					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					assert.NoError(t, err)
 					assert.NotNil(t, trace)
 				} else {
@@ -148,7 +168,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 }
 
 func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
+	withSpanReader(t, func(r *spanReaderTest) {
 		iter := &mocks.Iterator{}
 		iter.On("Scan", matchEverything()).Return(false)
 		iter.On("Close").Return(nil)
@@ -160,14 +180,16 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 		r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		assert.Nil(t, trace)
 		assert.EqualError(t, err, "trace not found")
 	})
 }
 
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
+	withSpanReader(t, func(r *spanReaderTest) {
 		_, err := r.reader.FindTraces(context.Background(), nil)
+		require.Empty(t, r.traceBuffer.GetSpans(), "Spans Not recorded")
 		assert.Error(t, err)
 	})
 }
@@ -286,7 +308,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
-			withSpanReader(func(r *spanReaderTest) {
+			withSpanReader(t, func(r *spanReaderTest) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
 				scanMatcher := func(name string) interface{} {
 					traceIDs := []dbmodel.TraceID{
@@ -384,6 +406,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				}
 				res, err := r.reader.FindTraces(context.Background(), queryParams)
 				if testCase.expectedError == "" {
+					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					assert.NoError(t, err)
 					assert.Len(t, res, testCase.expectedCount, "expecting certain number of traces")
 				} else {

@@ -178,7 +178,7 @@ func eToThrift(ip4 string, ip6 string, p int32, service string) (*zipkincore.End
 func port(p int32) int32 {
 	if p >= (1 << 15) {
 		// Zipkin.thrift defines port as i16, so values between (2^15 and 2^16-1) must be encoded as negative
-		p = p - (1 << 16)
+		p -= (1 << 16)
 	}
 	return p
 }

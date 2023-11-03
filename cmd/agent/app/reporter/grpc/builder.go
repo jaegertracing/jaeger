@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/netutils"
 )
 
 // ConnBuilder Struct to hold configurations
@@ -82,6 +83,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		if b.CollectorHostPorts == nil {
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
 		}
+		b.CollectorHostPorts = netutils.FixLocalhost(b.CollectorHostPorts)
 		if len(b.CollectorHostPorts) > 1 {
 			r := manual.NewBuilderWithScheme("jaeger-manual")
 			dialOptions = append(dialOptions, grpc.WithResolvers(r))

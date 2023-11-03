@@ -22,15 +22,15 @@ import (
 	"testing"
 
 	"github.com/olivere/elastic"
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -91,9 +91,15 @@ func runQueryService(t *testing.T, esURL string) *Server {
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0", BearerTokenPropagation: true},
+		&QueryOptions{
+			GRPCHostPort: ":0",
+			HTTPHostPort: ":0",
+			QueryOptionsBase: QueryOptionsBase{
+				BearerTokenPropagation: true,
+			},
+		},
 		tenancy.NewManager(&tenancy.Options{}),
-		opentracing.NoopTracer{},
+		jtracer.NoOp(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
@@ -123,7 +129,7 @@ func TestBearerTokenPropagation(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			req, err := http.NewRequest("GET", url, nil)
+			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 			req.Header.Add(testCase.headerName, testCase.headerValue)
 

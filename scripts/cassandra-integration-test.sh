@@ -23,14 +23,15 @@ setup_cassandra() {
     --publish 9042:9042
     --publish 9160:9160
   )
-  local cid=$(docker run ${params[@]} ${image}:${tag})
-  echo ${cid}
+  local cid
+  cid=$(docker run "${params[@]}" "${image}:${tag}")
+  echo "${cid}"
 }
 
 teardown_cassandra() {
   local cid=$1
-  docker kill ${cid}
-  exit ${exit_status}
+  docker kill "${cid}"
+  exit "${exit_status}"
 }
 
 apply_schema() {
@@ -45,17 +46,19 @@ apply_schema() {
     --network host
   )
   docker build -t ${image} ${schema_dir}
-  docker run ${params[@]} ${image}
+  docker run "${params[@]}" ${image}
 }
 
 run_integration_test() {
   local version=$1
   local schema_version=$2
-  local cid=$(setup_cassandra ${version})
+  local cid
+  cid=$(setup_cassandra "${version}")
   apply_schema "$2"
   STORAGE=cassandra make storage-integration-test
   exit_status=$?
-  trap 'teardown_cassandra ${cid}' EXIT
+  # shellcheck disable=SC2064
+  trap "teardown_cassandra ${cid}" EXIT
 }
 
 main() {

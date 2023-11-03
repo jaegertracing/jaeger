@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -145,7 +145,7 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer opentracing.Tracer, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer *jtracer.JTracer, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
 	if tenancyMgr.Enabled {
@@ -155,15 +155,13 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQu
 		)
 	}
 	grpcServer := grpc.NewServer(grpcOpts...)
-	grpcHandler := &GRPCHandler{
-		queryService:        q,
-		metricsQueryService: mq,
-		logger:              logger,
-		tracer:              tracer,
-		nowFn: func() time.Time {
+	grpcHandler := NewGRPCHandler(q, mq, GRPCHandlerOptions{
+		Logger: logger,
+		Tracer: tracer,
+		NowFn: func() time.Time {
 			return now
 		},
-	}
+	})
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 	metrics.RegisterMetricsQueryServiceServer(grpcServer, grpcHandler)
 
@@ -927,7 +925,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 	}
 
 	logger := zap.NewNop()
-	tracer := opentracing.NoopTracer{}
+	tracer := jtracer.NoOp()
 
 	server, addr := newGRPCServer(t, q, tqs.metricsQueryService, logger, tracer, tm)
 
@@ -1167,4 +1165,20 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 
 		server.spanReader.AssertExpectations(t)
 	})
+}
+
+func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
+	disabledReader, err := disabled.NewMetricsReader()
+	require.NoError(t, err)
+
+	q := querysvc.NewQueryService(
+		&spanstoremocks.Reader{},
+		&depsmocks.Reader{},
+		querysvc.QueryServiceOptions{})
+
+	handler := NewGRPCHandler(q, disabledReader, GRPCHandlerOptions{})
+
+	assert.NotNil(t, handler.logger)
+	assert.NotNil(t, handler.tracer)
+	assert.NotNil(t, handler.nowFn)
 }

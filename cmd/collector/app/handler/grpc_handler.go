@@ -86,8 +86,8 @@ func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
 		}
 	}
 	_, err = c.spanProcessor.ProcessSpans(batch.Spans, processor.SpansOptions{
-		InboundTransport: processor.GRPCTransport,
-		SpanFormat:       processor.ProtoSpanFormat,
+		InboundTransport: c.spanOptions.InboundTransport,
+		SpanFormat:       c.spanOptions.SpanFormat,
 		Tenant:           tenant,
 	})
 	if err != nil {

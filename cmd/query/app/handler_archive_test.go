@@ -123,6 +123,6 @@ func TestArchiveTrace_WriteErrors(t *testing.T) {
 			Return(mockTrace, nil).Once()
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
-		assert.EqualError(t, err, `500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"[cannot save, cannot save]"}]}`+"\n")
+		assert.EqualError(t, err, `500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"cannot save\ncannot save"}]}`+"\n")
 	}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
 }

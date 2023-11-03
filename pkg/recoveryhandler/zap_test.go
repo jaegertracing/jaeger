@@ -33,7 +33,7 @@ func TestNewRecoveryHandler(t *testing.T) {
 	})
 
 	recovery := NewRecoveryHandler(logger, false)(handlerFunc)
-	req, err := http.NewRequest("GET", "/subdir/asdf", nil)
+	req, err := http.NewRequest(http.MethodGet, "/subdir/asdf", nil)
 	assert.NoError(t, err)
 
 	res := httptest.NewRecorder()

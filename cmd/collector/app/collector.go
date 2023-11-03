@@ -146,10 +146,10 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
 		TLSConfig:      options.Zipkin.TLS,
 		HealthCheck:    c.hCheck,
-		AllowedHeaders: options.Zipkin.AllowedHeaders,
-		AllowedOrigins: options.Zipkin.AllowedOrigins,
+		CORSConfig:     options.Zipkin.CORS,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
+		KeepAlive:      options.Zipkin.KeepAlive,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start Zipkin server: %w", err)

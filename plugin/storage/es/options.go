@@ -34,6 +34,7 @@ const (
 	suffixSniffer                        = ".sniffer"
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
+	suffixPasswordPath                   = ".password-file"
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
 	suffixMaxSpanAge                     = ".max-span-age"
@@ -162,6 +163,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTokenPath,
 		nsConfig.TokenFilePath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
+	flagSet.String(
+		nsConfig.namespace+suffixPasswordPath,
+		nsConfig.PasswordFilePath,
+		"Path to a file containing password. This file is watched for changes.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
@@ -302,6 +307,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
+	cfg.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
@@ -375,7 +381,7 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 
 // stripWhiteSpace removes all whitespace characters from a string
 func stripWhiteSpace(str string) string {
-	return strings.Replace(str, " ", "", -1)
+	return strings.ReplaceAll(str, " ", "")
 }
 
 func initDateLayout(rolloverFreq, sep string) string {

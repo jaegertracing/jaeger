@@ -46,6 +46,7 @@ func TestAllOptionSet(t *testing.T) {
 		Options.PreSave(func(span *model.Span, tenant string) {}),
 		Options.CollectorTags(map[string]string{"extra": "tags"}),
 		Options.SpanSizeMetricsEnabled(true),
+		Options.OnDroppedSpan(func(span *model.Span) {}),
 	)
 	assert.EqualValues(t, 5, opts.numWorkers)
 	assert.EqualValues(t, 10, opts.queueSize)
@@ -53,6 +54,7 @@ func TestAllOptionSet(t *testing.T) {
 	assert.EqualValues(t, 1000, opts.dynQueueSizeWarmup)
 	assert.EqualValues(t, 1024, opts.dynQueueSizeMemory)
 	assert.True(t, opts.spanSizeMetricsEnabled)
+	assert.NotNil(t, opts.onDroppedSpan)
 }
 
 func TestNoOptionsSet(t *testing.T) {
@@ -69,4 +71,5 @@ func TestNoOptionsSet(t *testing.T) {
 	assert.EqualValues(t, &span, opts.sanitizer(&span))
 	assert.EqualValues(t, 0, opts.dynQueueSizeWarmup)
 	assert.False(t, opts.spanSizeMetricsEnabled)
+	assert.Nil(t, opts.onDroppedSpan)
 }

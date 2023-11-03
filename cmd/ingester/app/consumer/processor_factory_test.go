@@ -46,7 +46,6 @@ func Test_new(t *testing.T) {
 	sp.On("Process", mock.Anything).Return(nil)
 
 	pf := ProcessorFactory{
-		topic:          topic,
 		consumer:       mockConsumer,
 		metricsFactory: metrics.NullFactory,
 		logger:         zap.NewNop(),
@@ -54,7 +53,7 @@ func Test_new(t *testing.T) {
 		parallelism:    1,
 	}
 
-	processor := pf.new(partition, offset)
+	processor := pf.new(topic, partition, offset)
 	msg := &kmocks.Message{}
 	msg.On("Offset").Return(offset + 1)
 	processor.Process(msg)

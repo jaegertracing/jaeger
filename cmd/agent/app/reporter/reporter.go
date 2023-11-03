@@ -17,8 +17,8 @@ package reporter
 
 import (
 	"context"
+	"errors"
 
-	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -43,22 +43,22 @@ func NewMultiReporter(reps ...Reporter) MultiReporter {
 
 // EmitZipkinBatch calls each EmitZipkinBatch, returning the first error.
 func (mr MultiReporter) EmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span) error {
-	var errors []error
+	var errs []error
 	for _, rep := range mr {
 		if err := rep.EmitZipkinBatch(ctx, spans); err != nil {
-			errors = append(errors, err)
+			errs = append(errs, err)
 		}
 	}
-	return multierror.Wrap(errors)
+	return errors.Join(errs...)
 }
 
 // EmitBatch calls each EmitBatch, returning the first error.
 func (mr MultiReporter) EmitBatch(ctx context.Context, batch *jaeger.Batch) error {
-	var errors []error
+	var errs []error
 	for _, rep := range mr {
 		if err := rep.EmitBatch(ctx, batch); err != nil {
-			errors = append(errors, err)
+			errs = append(errs, err)
 		}
 	}
-	return multierror.Wrap(errors)
+	return errors.Join(errs...)
 }

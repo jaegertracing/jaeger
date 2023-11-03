@@ -77,12 +77,13 @@ func Init(m interface{}, factory Factory, globalTags map[string]string) error {
 			}
 		}
 		if bucketString := field.Tag.Get("buckets"); bucketString != "" {
-			if field.Type.AssignableTo(timerPtrType) {
+			switch {
+			case field.Type.AssignableTo(timerPtrType):
 				// TODO: Parse timer duration buckets
 				return fmt.Errorf(
 					"Field [%s]: Buckets are not currently initialized for timer metrics",
 					field.Name)
-			} else if field.Type.AssignableTo(histogramPtrType) {
+			case field.Type.AssignableTo(histogramPtrType):
 				bucketValues := strings.Split(bucketString, ",")
 				for _, bucket := range bucketValues {
 					b, err := strconv.ParseFloat(bucket, 64)
@@ -93,7 +94,7 @@ func Init(m interface{}, factory Factory, globalTags map[string]string) error {
 					}
 					buckets = append(buckets, b)
 				}
-			} else {
+			default:
 				return fmt.Errorf(
 					"Field [%s]: Buckets should only be defined for Timer and Histogram metric types",
 					field.Name)
@@ -101,33 +102,34 @@ func Init(m interface{}, factory Factory, globalTags map[string]string) error {
 		}
 		help := field.Tag.Get("help")
 		var obj interface{}
-		if field.Type.AssignableTo(counterPtrType) {
+		switch {
+		case field.Type.AssignableTo(counterPtrType):
 			obj = factory.Counter(Options{
 				Name: metric,
 				Tags: tags,
 				Help: help,
 			})
-		} else if field.Type.AssignableTo(gaugePtrType) {
+		case field.Type.AssignableTo(gaugePtrType):
 			obj = factory.Gauge(Options{
 				Name: metric,
 				Tags: tags,
 				Help: help,
 			})
-		} else if field.Type.AssignableTo(timerPtrType) {
+		case field.Type.AssignableTo(timerPtrType):
 			// TODO: Add buckets once parsed (see TODO above)
 			obj = factory.Timer(TimerOptions{
 				Name: metric,
 				Tags: tags,
 				Help: help,
 			})
-		} else if field.Type.AssignableTo(histogramPtrType) {
+		case field.Type.AssignableTo(histogramPtrType):
 			obj = factory.Histogram(HistogramOptions{
 				Name:    metric,
 				Tags:    tags,
 				Help:    help,
 				Buckets: buckets,
 			})
-		} else {
+		default:
 			return fmt.Errorf(
 				"Field %s is not a pointer to timer, gauge, or counter",
 				field.Name)

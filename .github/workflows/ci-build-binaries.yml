@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
   contents: read
@@ -34,11 +38,11 @@ jobs:
     name: build binaries for ${{ matrix.platform.name }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@18bf8ad2ca49c14cbb28b91346d626ccfb00c518
+      uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       with:
         submodules: true
 
@@ -46,9 +50,12 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
+    - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe
       with:
-        go-version: 1.19.x
+        go-version: 1.21.x
+
+    - name: Setup Node.js version
+      uses: ./.github/actions/setup-node.js
 
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch

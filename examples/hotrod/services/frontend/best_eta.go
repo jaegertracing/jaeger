@@ -22,7 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -47,7 +48,7 @@ type Response struct {
 	ETA    time.Duration
 }
 
-func newBestETA(tracer opentracing.Tracer, logger log.Factory, options ConfigOptions) *bestETA {
+func newBestETA(tracer trace.TracerProvider, logger log.Factory, options ConfigOptions) *bestETA {
 	return &bestETA{
 		customer: customer.NewClient(
 			tracer,
@@ -69,16 +70,23 @@ func newBestETA(tracer opentracing.Tracer, logger log.Factory, options ConfigOpt
 	}
 }
 
-func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, error) {
+func (eta *bestETA) Get(ctx context.Context, customerID int) (*Response, error) {
 	customer, err := eta.customer.Get(ctx, customerID)
 	if err != nil {
 		return nil, err
 	}
 	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", customer))
 
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span.SetBaggageItem("customer", customer.Name)
+	m, err := baggage.NewMember("customer", customer.Name)
+	if err != nil {
+		eta.logger.For(ctx).Error("cannot create baggage member", zap.Error(err))
 	}
+	bag := baggage.FromContext(ctx)
+	bag, err = bag.SetMember(m)
+	if err != nil {
+		eta.logger.For(ctx).Error("cannot set baggage member", zap.Error(err))
+	}
+	ctx = baggage.ContextWithBaggage(ctx, bag)
 
 	drivers, err := eta.driver.FindNearest(ctx, customer.Location)
 	if err != nil {

@@ -10,9 +10,9 @@ BRANCH=${BRANCH:?'expecting BRANCH env var'}
 ## if we are on a release tag, let's extract the version number
 ## the other possible value, currently, is 'main' (or another branch name)
 if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    MAJOR_MINOR_PATCH=$(echo ${BRANCH} | grep -Po "([\d\.]+)")
-    MAJOR_MINOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1"."$2}')
-    MAJOR=$(echo ${MAJOR_MINOR_PATCH} | awk -F. '{print $1}')  
+    MAJOR_MINOR_PATCH=$(echo "${BRANCH}" | grep -Po "([\d\.]+)")
+    MAJOR_MINOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1"."$2}')
+    MAJOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1}')
 else
     MAJOR_MINOR_PATCH="latest"
     MAJOR_MINOR=""
@@ -36,4 +36,4 @@ fi
 
 IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG} --tag quay.io/${SNAPSHOT_TAG}"
 
-echo ${IMAGE_TAGS}
+echo "${IMAGE_TAGS}"
