@@ -642,12 +642,12 @@ proto: proto-prepare-otel
 
 	$(PROTOC) \
 		-Imodel/proto \
-		--go_out=$(PWD)/model/prototest/ \
+		--go_out=$(PWD)/model/ \
 		model/proto/model_test.proto
 
 	$(PROTOC) \
 		-Iplugin/storage/grpc/proto \
-		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
+		--go_out=$(PWD)/plugin/storage/grpc/proto/ \
 		plugin/storage/grpc/proto/storage_test.proto
 
 	$(PROTOC) \
