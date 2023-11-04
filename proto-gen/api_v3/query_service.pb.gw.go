@@ -13,7 +13,8 @@ import (
 	"io"
 	"net/http"
 
-	"google.golang.org/protobuf/runtime/protoiface"
+	"github.com/golang/protobuf/descriptor"
+	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
 	"google.golang.org/grpc"
@@ -29,6 +30,7 @@ var _ io.Reader
 var _ status.Status
 var _ = runtime.String
 var _ = utilities.NewDoubleArray
+var _ = descriptor.ForMessage
 var _ = metadata.Join
 
 var (
@@ -105,7 +107,7 @@ func request_QueryService_FindTraces_0(ctx context.Context, marshaler runtime.Ma
 
 }
 
-func request_QueryService_GetServices_0(ctx context.Context, marshaler runtime.Marshaler, client QueryServiceClient, req *http.Request, pathParams map[string]string) (protoiface.MessageV1, runtime.ServerMetadata, error) {
+func request_QueryService_GetServices_0(ctx context.Context, marshaler runtime.Marshaler, client QueryServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetServicesRequest
 	var metadata runtime.ServerMetadata
 
@@ -114,7 +116,7 @@ func request_QueryService_GetServices_0(ctx context.Context, marshaler runtime.M
 
 }
 
-func local_request_QueryService_GetServices_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServiceServer, req *http.Request, pathParams map[string]string) (protoiface.MessageV1, runtime.ServerMetadata, error) {
+func local_request_QueryService_GetServices_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetServicesRequest
 	var metadata runtime.ServerMetadata
 
@@ -127,7 +129,7 @@ var (
 	filter_QueryService_GetOperations_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
 )
 
-func request_QueryService_GetOperations_0(ctx context.Context, marshaler runtime.Marshaler, client QueryServiceClient, req *http.Request, pathParams map[string]string) (protoiface.MessageV1, runtime.ServerMetadata, error) {
+func request_QueryService_GetOperations_0(ctx context.Context, marshaler runtime.Marshaler, client QueryServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetOperationsRequest
 	var metadata runtime.ServerMetadata
 
@@ -143,7 +145,7 @@ func request_QueryService_GetOperations_0(ctx context.Context, marshaler runtime
 
 }
 
-func local_request_QueryService_GetOperations_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServiceServer, req *http.Request, pathParams map[string]string) (protoiface.MessageV1, runtime.ServerMetadata, error) {
+func local_request_QueryService_GetOperations_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetOperationsRequest
 	var metadata runtime.ServerMetadata
 
@@ -282,7 +284,7 @@ func RegisterQueryServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_QueryService_GetTrace_0(ctx, mux, outboundMarshaler, w, req, func() (protoiface.MessageV1, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
+		forward_QueryService_GetTrace_0(ctx, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -302,7 +304,7 @@ func RegisterQueryServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_QueryService_FindTraces_0(ctx, mux, outboundMarshaler, w, req, func() (protoiface.MessageV1, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
+		forward_QueryService_FindTraces_0(ctx, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
 
 	})
 
