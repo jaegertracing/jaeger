@@ -29,7 +29,7 @@ security-artifacts:
     threat-model-created: true
     evidence-url:
     - https://github.com/jaegertracing/jaeger/blob/main/THREAT-MODEL.md
-self-assessment:
+  self-assessment:
     self-assessment-created: true
     evidence-url:
     - https://github.com/jaegertracing/jaeger/blob/main/SELF-ASSESMENT.md
