@@ -1,9 +1,9 @@
-# Jaeger Self-Assessment
-​
-This is a placeholder document for the Jaeger project self-assessment. More details of what this will turn into can be found in the [TAG-Security documented standards.](https://github.com/cncf/tag-security/blob/main/assessments/guide/self-assessment.md) ​
+# Self-assessment
 
-## Table of Contents
-​
+# Self-assessment outline
+
+## Table of contents
+
 * [Metadata](#metadata)
   * [Security links](#security-links)
 * [Overview](#overview)
@@ -17,4 +17,30 @@ This is a placeholder document for the Jaeger project self-assessment. More deta
 * [Project compliance](#project-compliance)
 * [Secure development practices](#secure-development-practices)
 * [Security issue resolution](#security-issue-resolution)
-* [Appendix](#appendix)## Table of Contents
+* [Appendix](#appendix)
+
+## Metadata
+
+|   |  |
+| -- | -- |
+| Software | https://github.com/jaegertracing/jaeger/  |
+| Security Provider | No  |
+| Languages | Go |
+| SBOM | [Software bill of materials](https://github.com/jaegertracing/jaeger/releases/latest/download/jaeger-SBOM.spdx.json) |
+| | |
+
+### Security links
+
+Provide the list of links to existing security documentation for the project. You may
+use the table below as an example:
+| Doc | url |
+| -- | -- |
+| Security file | https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md |
+
+## Overview
+
+See [README](https://github.com/jaegertracing/jaeger/#jaeger---a-distributed-tracing-system)
+
+### Background
+
+See [README](https://github.com/jaegertracing/jaeger/#jaeger---a-distributed-tracing-system)

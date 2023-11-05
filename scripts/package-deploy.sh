@@ -51,7 +51,6 @@ function package {
 
 set -e
 
-readonly VERSION
 VERSION="$(make echo-version | perl -lne 'print $1 if /^v(\d+.\d+.\d+)$/' )"
 echo "Working on version: $VERSION"
 if [ -z "$VERSION" ]; then

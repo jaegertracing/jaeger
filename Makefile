@@ -263,10 +263,10 @@ BIN_PATH = ./cmd/$(BIN_NAME)
 _build-a-binary-%:
 	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
 
-.PHONY: build-jaeger-v2
-build-jaeger-v2: BIN_NAME = jaeger-v2
-build-jaeger-v2: GO_TAGS = -tags ui
-build-jaeger-v2: build-ui _build-a-binary-jaeger-v2$(SUFFIX)-$(GOOS)-$(GOARCH)
+.PHONY: build-jaeger
+build-jaeger: BIN_NAME = jaeger
+build-jaeger: GO_TAGS = -tags ui
+build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
@@ -346,7 +346,7 @@ _prepare-winres:
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Ingester"         PKGPATH="cmd/ingester"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Remote Storage"   PKGPATH="cmd/remote-storage"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger All-In-One"       PKGPATH="cmd/all-in-one"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger V2"               PKGPATH="cmd/jaeger-v2"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger V2"               PKGPATH="cmd/jaeger"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Tracegen"         PKGPATH="cmd/tracegen"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger Anonymizer"       PKGPATH="cmd/anonymizer"
 	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Index-Cleaner" PKGPATH="cmd/es-index-cleaner"
@@ -392,7 +392,7 @@ _build-platform-binaries: build-agent \
 		build-collector \
 		build-query \
 		build-ingester \
-		build-jaeger-v2 \
+		build-jaeger \
 		build-remote-storage \
 		build-examples \
 		build-tracegen \
@@ -500,7 +500,7 @@ changelog:
 draft-release:
 	./scripts/draft-release.py
 
-.PHONY: install-test-tools 
+.PHONY: install-test-tools
 install-test-tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
 	$(GO) install mvdan.cc/gofumpt@latest

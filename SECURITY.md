@@ -10,7 +10,7 @@ Security fixes are given priority and might be enough to cause a new version to 
 
 CVEs in Jaeger code will be patched in the newest Jaeger releases. 
 
-### Dependencies Lifecycle Policy
+### Dependency Policy
 
 Dependencies are evaluated before being introduced to ensure they:
 

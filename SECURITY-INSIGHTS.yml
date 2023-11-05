@@ -29,7 +29,7 @@ security-artifacts:
     threat-model-created: true
     evidence-url:
     - https://github.com/jaegertracing/jaeger/blob/main/THREAT-MODEL.md
-self-assessment:
+  self-assessment:
     self-assessment-created: true
     evidence-url:
     - https://github.com/jaegertracing/jaeger/blob/main/SELF-ASSESMENT.md
@@ -62,3 +62,5 @@ dependencies:
     sbom-url: https://github.com/anchore/sbom-action 
   dependencies-lifecycle:
     policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#security-patch-policy
+  env-dependencies-policy:
+    policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#dependency-policy
