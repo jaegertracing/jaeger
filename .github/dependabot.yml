@@ -30,3 +30,83 @@ updates:
     schedule:
       interval: "weekly"
     labels: [ "changelog:dependencies" ]
+
+  - package-ecosystem: docker
+    directory: /cmd/agent
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/all-in-one
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/anonymizer
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/collector
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/es-index-cleaner
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/es-rollover
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/ingester
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/jaeger
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/query
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/remote-storage
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /cmd/tracegen
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /crossdock
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /docker/base
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /docker/debug
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /examples/hotrod
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /plugin/storage/cassandra
+    schedule:
+      interval: daily
