@@ -1,4 +1,4 @@
-name: Unit Tests
+name: Lint Checks
 
 on:
   push:
@@ -21,32 +21,20 @@ env:
   # See https://github.com/codecov/codecov-action/issues/837
   CODECOV_TOKEN: f457b710-93af-4191-8678-bcf51281f98c
 
+
 jobs:
-  unit-tests:
+  lint:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423
       with:
-        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-
-    - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe
-      with:
-        go-version: 1.21.x
+    - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
 
     - name: Install tools
       run: make install-test-tools
 
-    - name: Run unit tests
-      run: make test-ci
-
-    - name: Upload coverage to codecov
-      uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
-      with:
-        file: cover.out
-        verbose: true
-        flags: unittests
-        fail_ci_if_error: true
-        token: ${{ env.CODECOV_TOKEN }}
+    - name: Lint
+      run: make lint
