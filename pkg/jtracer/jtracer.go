@@ -80,6 +80,7 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
 		resource.WithOSType(),
+		resource.WithFromEnv(),
 	)
 	if err != nil {
 		return nil, err
