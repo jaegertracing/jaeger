@@ -6,6 +6,25 @@ The Jaeger project provides community support only for last minor version: bug f
 
 Security fixes are given priority and might be enough to cause a new version to be released.
 
+### Security Patch Policy
+
+CVEs in Jaeger code will be patched in the newest Jaeger releases. 
+
+### Dependency Policy
+
+Dependencies are evaluated before being introduced to ensure they:
+
+1) are actively maintained
+2) are maintained by trustworthy maintainers
+3) are licensed in a way not to impact the Jaeger license based on [the CNCF license allowlist](https://github.com/cncf/foundation/blob/main/allowed-third-party-license-policy.md).
+
+These evaluations vary from dependency to dependencies.
+
+Dependencies are also scheduled for removal if the project has been deprecated or if the project is no longer maintained. Additionally based on license changes we replace dependencies as necessary.
+
+CVEs in dependencies will be patched for all supported versions if the CVE is applicable and is assessed by Snyk to be
+of high or critical severity. Automation generates a new dependabot scan daily and alerts are addressed.
+
 ## Reporting a Vulnerability
 
 _The following is a copy of the [Report a security issue](https://www.jaegertracing.io/report-security-issue/) page from our website. The website's version has precedence in case of conflicts._

@@ -143,11 +143,12 @@ func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptio
 func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
 	return &configtls.TLSServerSetting{
 		TLSSetting: configtls.TLSSetting{
-			CAFile:     opts.CAPath,
-			CertFile:   opts.CertPath,
-			KeyFile:    opts.KeyPath,
-			MinVersion: opts.MinVersion,
-			MaxVersion: opts.MaxVersion,
+			CAFile:         opts.CAPath,
+			CertFile:       opts.CertPath,
+			KeyFile:        opts.KeyPath,
+			MinVersion:     opts.MinVersion,
+			MaxVersion:     opts.MaxVersion,
+			ReloadInterval: opts.ReloadInterval,
 		},
 		ClientCAFile: opts.ClientCAPath,
 	}

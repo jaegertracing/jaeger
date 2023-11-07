@@ -12,7 +12,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-kit/kit v0.13.0
-	github.com/go-logr/zapr v1.2.4
+	github.com/go-logr/zapr v1.3.0
 	github.com/go-openapi/errors v0.20.3
 	github.com/go-openapi/loads v0.21.2
 	github.com/go-openapi/runtime v0.26.0
@@ -25,7 +25,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
 	github.com/gorilla/handlers v1.5.1
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/hashicorp/go-hclog v1.5.0
@@ -43,7 +43,7 @@ require (
 	github.com/prometheus/common v0.45.0
 	github.com/rs/cors v1.10.1
 	github.com/soheilhy/cmux v0.1.5
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.17.0
 	github.com/stretchr/testify v1.8.4
@@ -61,7 +61,7 @@ require (
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.88.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.88.0
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.88.0
-	go.opentelemetry.io/collector/extension v0.88.0
+	go.opentelemetry.io/collector/extension v0.88.1-0.20231102040825-2e44da36e2c6
 	go.opentelemetry.io/collector/extension/ballastextension v0.88.0
 	go.opentelemetry.io/collector/extension/zpagesextension v0.88.0
 	go.opentelemetry.io/collector/otelcol v0.88.0
@@ -71,7 +71,7 @@ require (
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.88.0
 	go.opentelemetry.io/collector/receiver v0.88.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.88.0
-	go.opentelemetry.io/collector/service v0.88.0
+	go.opentelemetry.io/collector/service v0.88.1-0.20231102040825-2e44da36e2c6
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.45.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.45.0
 	go.opentelemetry.io/otel v1.19.0
@@ -87,7 +87,7 @@ require (
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/zap v1.26.0
 	golang.org/x/net v0.17.0
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.14.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -102,7 +102,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
@@ -113,7 +113,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
-	github.com/go-logr/logr v1.2.4 // indirect
+	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
@@ -123,7 +123,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
-	github.com/google/uuid v1.3.1 // indirect
+	github.com/google/uuid v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -182,7 +182,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.3.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.23.9 // indirect
+	github.com/shirou/gopsutil/v3 v3.23.10 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.10.0 // indirect

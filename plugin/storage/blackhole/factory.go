@@ -13,28 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package memory
+package blackhole
 
 import (
-	"flag"
-
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var _ plugin.Configurable = (*Factory)(nil)
-
-// Factory implements storage.Factory and creates storage components backed by memory store.
+// Factory implements storage.Factory and creates blackhole storage components.
 type Factory struct {
-	options        Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	store          *Store
@@ -45,40 +35,11 @@ func NewFactory() *Factory {
 	return &Factory{}
 }
 
-// NewFactoryWithConfig is used from jaeger(v2).
-func NewFactoryWithConfig(
-	cfg config.Configuration,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
-) *Factory {
-	f := NewFactory()
-	f.InitFromOptions(Options{Configuration: cfg})
-	_ = f.Initialize(metricsFactory, logger)
-	return f
-}
-
-// AddFlags implements plugin.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	AddFlags(flagSet)
-}
-
-// InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	f.options.InitFromViper(v)
-}
-
-// InitFromOptions initializes factory from the supplied options
-func (f *Factory) InitFromOptions(opts Options) {
-	f.options = opts
-}
-
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	f.store = WithConfiguration(f.options.Configuration)
-	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.defaultConfig))
-	f.publishOpts()
-
+	f.store = NewStore()
+	logger.Info("Blackhole storage initialized")
 	return nil
 }
 
@@ -105,20 +66,4 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.store, nil
-}
-
-// CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return NewSamplingStore(maxBuckets), nil
-}
-
-// CreateLock implements storage.SamplingStoreFactory
-func (f *Factory) CreateLock() (distributedlock.Lock, error) {
-	return &lock{}, nil
-}
-
-func (f *Factory) publishOpts() {
-	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: limit}).
-		Update(int64(f.options.Configuration.MaxTraces))
 }
