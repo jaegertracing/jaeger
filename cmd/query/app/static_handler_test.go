@@ -230,7 +230,10 @@ func TestLoadUIConfig(t *testing.T) {
 				UIConfigPath:        testCase.configFile,
 				StorageCapabilities: testCase.features,
 			}
-			config, err := options.loadUIConfig()
+			h := &StaticAssetsHandler{
+				options: options,
+			}
+			config, err := h.loadUIConfig()
 			if testCase.expectedError != "" {
 				assert.EqualError(t, err, testCase.expectedError)
 			} else {
