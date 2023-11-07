@@ -219,7 +219,6 @@ func TestHotReloadUIConfig(t *testing.T) {
 func TestLoadUIConfig(t *testing.T) {
 	type testCase struct {
 		configFile    string
-		features      querysvc.StorageCapabilities
 		expected      *loadedConfig
 		expectedError string
 	}
