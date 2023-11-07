@@ -226,14 +226,7 @@ func TestLoadUIConfig(t *testing.T) {
 
 	run := func(description string, testCase testCase) {
 		t.Run(description, func(t *testing.T) {
-			options := StaticAssetsHandlerOptions{
-				UIConfigPath:        testCase.configFile,
-				StorageCapabilities: testCase.features,
-			}
-			h := &StaticAssetsHandler{
-				options: options,
-			}
-			config, err := h.loadUIConfig()
+			config, err := loadUIConfig(testCase.configFile)
 			if testCase.expectedError != "" {
 				assert.EqualError(t, err, testCase.expectedError)
 			} else {
@@ -258,7 +251,6 @@ func TestLoadUIConfig(t *testing.T) {
 	})
 	run("json", testCase{
 		configFile: "fixture/ui-config.json",
-		features:   querysvc.StorageCapabilities{ArchiveStorage: true},
 		expected: &loadedConfig{
 			config: []byte(`JAEGER_CONFIG = {"x":"y"};`),
 			regexp: configPattern,

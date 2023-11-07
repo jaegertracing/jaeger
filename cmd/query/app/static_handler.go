@@ -122,7 +122,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	// replace UI config
-	if configObject, err := sH.loadUIConfig(); err != nil {
+	if configObject, err := loadUIConfig(sH.options.UIConfigPath); err != nil {
 		return nil, err
 	} else if configObject != nil {
 		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
@@ -172,23 +172,23 @@ func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	return indexBytes, nil
 }
 
-func (sH *StaticAssetsHandler) loadUIConfig() (*loadedConfig, error) {
-	if sH.options.UIConfigPath == "" {
+func loadUIConfig(uiConfig string) (*loadedConfig, error) {
+	if uiConfig == "" {
 		return nil, nil
 	}
-	bytesConfig, err := os.ReadFile(filepath.Clean(sH.options.UIConfigPath))
+	bytesConfig, err := os.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
-		return nil, fmt.Errorf("cannot read UI config file %v: %w", sH.options.UIConfigPath, err)
+		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}
 	var r []byte
 
-	ext := filepath.Ext(sH.options.UIConfigPath)
+	ext := filepath.Ext(uiConfig)
 	switch strings.ToLower(ext) {
 	case ".json":
 		var c map[string]interface{}
 
 		if err := json.Unmarshal(bytesConfig, &c); err != nil {
-			return nil, fmt.Errorf("cannot parse UI config file %v: %w", sH.options.UIConfigPath, err)
+			return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
 		}
 		r, _ = json.Marshal(c)
 
@@ -200,7 +200,7 @@ func (sH *StaticAssetsHandler) loadUIConfig() (*loadedConfig, error) {
 		r = bytes.TrimSpace(bytesConfig)
 		re := regexp.MustCompile(`function\s+UIConfig(\s)?\(\s?\)(\s)?{`)
 		if !re.Match(r) {
-			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", sH.options.UIConfigPath)
+			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", uiConfig)
 		}
 
 		return &loadedConfig{
@@ -208,7 +208,7 @@ func (sH *StaticAssetsHandler) loadUIConfig() (*loadedConfig, error) {
 			config: r,
 		}, nil
 	default:
-		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", sH.options.UIConfigPath)
+		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", uiConfig)
 	}
 }
 
