@@ -285,6 +285,24 @@ func TestGetDependencies(t *testing.T) {
 	assert.Equal(t, expectedDependencies, actualDependencies)
 }
 
+// Test QueryService.GetCapacities()
+func TestGetCapabilities(t *testing.T) {
+	tqs := initializeTestService()
+	expectedStorageCapabilities := StorageCapabilities{
+		ArchiveStorage: false,
+	}
+	assert.Equal(t, expectedStorageCapabilities, tqs.queryService.GetCapabilities())
+}
+
+func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
+	tqs := initializeTestService(withArchiveSpanReader(), withArchiveSpanWriter())
+
+	expectedStorageCapabilities := StorageCapabilities{
+		ArchiveStorage: true,
+	}
+	assert.Equal(t, expectedStorageCapabilities, tqs.queryService.GetCapabilities())
+}
+
 type fakeStorageFactory1 struct{}
 
 type fakeStorageFactory2 struct {

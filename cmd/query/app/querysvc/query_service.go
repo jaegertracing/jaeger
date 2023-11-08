@@ -41,6 +41,13 @@ type QueryServiceOptions struct {
 	Adjuster          adjuster.Adjuster
 }
 
+// StorageCapabilities is a feature flag for query service
+type StorageCapabilities struct {
+	ArchiveStorage bool `json:"archiveStorage"`
+	// SupportRegex     bool
+	// SupportTagFilter bool
+}
+
 // QueryService contains span utils required by the query-service.
 type QueryService struct {
 	spanReader       spanstore.Reader
@@ -122,6 +129,13 @@ func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, loo
 	return qs.dependencyReader.GetDependencies(ctx, endTs, lookback)
 }
 
+// GetCapabilities returns the features supported by the query service.
+func (qs QueryService) GetCapabilities() StorageCapabilities {
+	return StorageCapabilities{
+		ArchiveStorage: qs.options.hasArchiveStorage(),
+	}
+}
+
 // InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.
 func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Factory, logger *zap.Logger) bool {
 	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
@@ -150,4 +164,9 @@ func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Facto
 	opts.ArchiveSpanReader = reader
 	opts.ArchiveSpanWriter = writer
 	return true
+}
+
+// hasArchiveStorage returns true if archive storage reader/writer are initialized.
+func (opts *QueryServiceOptions) hasArchiveStorage() bool {
+	return opts.ArchiveSpanReader != nil && opts.ArchiveSpanWriter != nil
 }

@@ -172,7 +172,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	}
 
 	apiHandler.RegisterRoutes(r)
-	RegisterStaticHandler(r, logger, queryOpts)
+	RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
 	var handler http.Handler = r
 	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
