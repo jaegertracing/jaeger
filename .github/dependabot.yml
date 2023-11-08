@@ -30,3 +30,8 @@ updates:
     schedule:
       interval: "weekly"
     labels: [ "changelog:dependencies" ]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: daily

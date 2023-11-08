@@ -36,9 +36,6 @@ jobs:
       with:
         go-version: 1.21.x
 
-    - name: Install tools
-      run: make install-test-tools
-
     - name: Run unit tests
       run: make test-ci
 
@@ -50,6 +47,3 @@ jobs:
         flags: unittests
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
-
-    - name: Lint
-      run: make lint

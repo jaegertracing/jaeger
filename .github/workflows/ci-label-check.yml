@@ -14,6 +14,11 @@ jobs:
   check-label:
     runs-on: ubuntu-latest
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423 # v2.6.0
+        with:
+          egress-policy: audit
+
       - name: Check PR author
         id: check_author
         run: echo "::set-output name=is_dependabot::$(echo ${{ github.event.pull_request.user.login }} | grep -o 'dependabot')"

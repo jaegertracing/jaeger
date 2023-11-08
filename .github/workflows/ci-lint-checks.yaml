@@ -1,0 +1,37 @@
+name: Lint Checks
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+  
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@1b05615854632b887b69ae1be8cbefe72d3ae423
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+
+    - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+
+    - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe
+      with:
+        go-version: 1.21.x
+
+    - name: Install tools
+      run: make install-test-tools
+
+    - name: Lint
+      run: make lint
