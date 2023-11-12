@@ -29,7 +29,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
-	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -75,7 +75,7 @@ func startOTLPReceiver(
 	otlpReceiverSettings := receiver.CreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
-			TracerProvider: trace.NewNoopTracerProvider(),
+			TracerProvider: nooptrace.NewTracerProvider(),
 			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
 			ReportComponentStatus: component.StatusFunc(func(ev *component.StatusEvent) error {
 				// TODO this could be wired into changing healthcheck.HealthCheck
