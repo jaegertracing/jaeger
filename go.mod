@@ -74,15 +74,15 @@ require (
 	go.opentelemetry.io/collector/service v0.88.1-0.20231102040825-2e44da36e2c6
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.45.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.45.0
-	go.opentelemetry.io/otel v1.19.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.19.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.19.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.19.0
-	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.19.0
-	go.opentelemetry.io/otel/exporters/zipkin v1.19.0
-	go.opentelemetry.io/otel/metric v1.19.0
-	go.opentelemetry.io/otel/sdk v1.19.0
-	go.opentelemetry.io/otel/trace v1.19.0
+	go.opentelemetry.io/otel v1.20.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.20.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.20.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.20.0
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.20.0
+	go.opentelemetry.io/otel/exporters/zipkin v1.20.0
+	go.opentelemetry.io/otel/metric v1.20.0
+	go.opentelemetry.io/otel/sdk v1.20.0
+	go.opentelemetry.io/otel/trace v1.20.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/zap v1.26.0
