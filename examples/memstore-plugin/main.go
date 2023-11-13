@@ -72,8 +72,7 @@ func main() {
 	}
 	grpc.ServeWithGRPCServer(service, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
 		return plugin.DefaultGRPCServer([]googleGRPC.ServerOption{
-			googleGRPC.UnaryInterceptor(otelgrpc.UnaryServerInterceptor(otelgrpc.WithTracerProvider(tracer.OTEL))),
-			googleGRPC.StreamInterceptor(otelgrpc.StreamServerInterceptor(otelgrpc.WithTracerProvider(tracer.OTEL))),
+			googleGRPC.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(tracer.OTEL))),
 		})
 	})
 }
