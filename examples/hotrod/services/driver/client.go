@@ -36,11 +36,10 @@ type Client struct {
 
 // NewClient creates a new driver.Client
 func NewClient(tracerProvider trace.TracerProvider, logger log.Factory, hostPort string) *Client {
-	conn, err := grpc.Dial(hostPort, grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
-		grpc.WithStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))))
+	conn, err := grpc.Dial(hostPort,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
+	)
 	if err != nil {
 		logger.Bg().Fatal("Cannot create gRPC connection", zap.Error(err))
 	}
