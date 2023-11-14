@@ -65,7 +65,7 @@ func (c *ProcessorFactory) new(topic string, partition int32, minOffset int64) p
 		c.consumer.MarkPartitionOffset(topic, partition, offset, "")
 	}
 
-	om := offset.NewManager(minOffset, markOffset, partition, c.metricsFactory)
+	om := offset.NewManager(minOffset, markOffset, topic, partition, c.metricsFactory)
 
 	retryProcessor := decorator.NewRetryingProcessor(c.metricsFactory, c.baseProcessor, c.retryOptions...)
 	cp := NewCommittingProcessor(retryProcessor, om)

@@ -51,12 +51,22 @@ type Manager struct {
 type MarkOffset func(offset int64)
 
 // NewManager creates a new Manager
-func NewManager(minOffset int64, markOffset MarkOffset, partition int32, factory metrics.Factory) *Manager {
+func NewManager(
+	minOffset int64,
+	markOffset MarkOffset,
+	topic string,
+	partition int32,
+	factory metrics.Factory,
+) *Manager {
+	tags := map[string]string{
+		"topic":     topic,
+		"partition": strconv.Itoa(int(partition)),
+	}
 	return &Manager{
 		markOffsetFunction:  markOffset,
 		close:               make(chan struct{}),
-		offsetCommitCount:   factory.Counter(metrics.Options{Name: "offset-commits-total", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}),
-		lastCommittedOffset: factory.Gauge(metrics.Options{Name: "last-committed-offset", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}),
+		offsetCommitCount:   factory.Counter(metrics.Options{Name: "offset-commits-total", Tags: tags}),
+		lastCommittedOffset: factory.Gauge(metrics.Options{Name: "last-committed-offset", Tags: tags}),
 		list:                newConcurrentList(minOffset),
 		minOffset:           minOffset,
 	}
