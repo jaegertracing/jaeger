@@ -21,11 +21,6 @@ var yamlAllInOne embed.FS
 const description = "Jaeger backend v2"
 
 func Command() *cobra.Command {
-	factories, err := components()
-	if err != nil {
-		log.Fatalf("failed to build components: %v", err)
-	}
-
 	info := component.BuildInfo{
 		Command:     "jaeger",
 		Description: description,
@@ -34,7 +29,7 @@ func Command() *cobra.Command {
 
 	settings := otelcol.CollectorSettings{
 		BuildInfo: info,
-		Factories: factories,
+		Factories: components,
 	}
 
 	cmd := otelcol.NewCommand(settings)
