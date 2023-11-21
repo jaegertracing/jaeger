@@ -62,6 +62,7 @@ const (
 	suffixMaxDocCount                    = ".max-doc-count"
 	suffixLogLevel                       = ".log-level"
 	suffixSendGetBodyAs                  = ".send-get-body-as"
+	suffixDisableLogsFieldSearch         = ".disable-logs-field-search"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
@@ -278,6 +279,12 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSendGetBodyAs,
 		nsConfig.SendGetBodyAs,
 		"HTTP verb for requests that contain a body [GET, POST].")
+	flagSet.Bool(
+		nsConfig.namespace+suffixDisableLogsFieldSearch,
+		nsConfig.DisableLogsFieldSearch,
+		"(experimental) Option to disable search on logs.field field of jaeger span index. Setting this option to true would set mapping of "+
+			"logs.field field span index to object type. Its set to false by default.",
+	)
 
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
@@ -351,6 +358,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	// Dependencies calculation should be daily, and this index size is very small
 	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
+	cfg.DisableLogsFieldSearch = v.GetBool(cfg.namespace + suffixDisableLogsFieldSearch)
 
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)

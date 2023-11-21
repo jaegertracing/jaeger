@@ -43,6 +43,7 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 		IndexPrefix:     opt.IndexPrefix,
 		UseILM:          enableILM,
 		ILMPolicyName:   opt.ILMPolicyName,
+		LogsFieldsType:  mappings.ParseFieldType(opt.DisableLogsFieldSearch),
 	}
 	return mappingBuilder.GetMapping(opt.Mapping)
 }
