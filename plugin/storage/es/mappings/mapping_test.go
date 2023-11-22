@@ -71,6 +71,7 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 				fileSuffix = fmt.Sprintf("-%d", tt.esVersion)
 			}
 			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + fileSuffix + ".json")
+			require.NoError(t, err)
 			want := string(wantbytes)
 			assert.Equal(t, got, want)
 		})
