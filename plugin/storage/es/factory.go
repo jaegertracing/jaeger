@@ -245,14 +245,8 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	elasticsearch8Client, err := config.NewElasticSearch8Client(cfg, logger)
-	if err != nil {
-		return nil, err
-	}
-
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
-		V8Client:               elasticsearch8Client,
 		IndexPrefix:            cfg.IndexPrefix,
 		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
 		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,
@@ -280,13 +274,8 @@ func createDependencyReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
-	elasticsearch8Client, err := config.NewElasticSearch8Client(cfg, logger)
-	if err != nil {
-		return nil, err
-	}
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
 		Client:              clientFn,
-		V8Client:            elasticsearch8Client,
 		Logger:              logger,
 		IndexPrefix:         cfg.IndexPrefix,
 		IndexDateLayout:     cfg.IndexDateLayoutDependencies,

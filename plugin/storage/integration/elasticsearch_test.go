@@ -144,7 +144,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
-	client := eswrapper.WrapESClient(s.client, bp, esVersion)
+	client := eswrapper.WrapESClient(s.client, bp, esVersion, nil) // TODO does this not need v8 client?
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder:              estemplate.TextTemplateBuilder{},
 		Shards:                       5,
@@ -162,12 +162,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	}
 
 	clientFn := func() estemplate.Client { return client }
-	elasticsearch8Client := s.v8Client
 
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            clientFn,
-			V8Client:          elasticsearch8Client,
 			Logger:            s.logger,
 			MetricsFactory:    metrics.NullFactory,
 			IndexPrefix:       indexPrefix,

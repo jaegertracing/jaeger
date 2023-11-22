@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
+	esV8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -115,7 +115,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	sm := storageMetrics.NewWriteMetrics(metricsFactory, "bulk_index")
 	m := sync.Map{}
 
-	service, err := rawClient.BulkProcessor().
+	bulkProc, err := rawClient.BulkProcessor().
 		Before(func(id int64, requests []elastic.BulkableRequest) {
 			m.Store(id, time.Now())
 		}).
@@ -188,11 +188,19 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		c.Version = uint(esVersion)
 	}
 
-	return eswrapper.WrapESClient(rawClient, service, c.Version), nil
+	var rawClientV8 *esV8.Client
+	if c.Version >= 8 {
+		rawClientV8, err = newElasticsearchV8(c, logger)
+		if err != nil {
+			return nil, fmt.Errorf("error creating v8 client: %v", err)
+		}
+	}
+
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
 }
 
-func NewElasticSearch8Client(c *Configuration, logger *zap.Logger) (*elasticsearch8.Client, error) {
-	var options elasticsearch8.Config
+func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
+	var options esV8.Config
 	options.Addresses = c.Servers
 	options.Username = c.Username
 	options.Password = c.Password
@@ -202,12 +210,7 @@ func NewElasticSearch8Client(c *Configuration, logger *zap.Logger) (*elasticsear
 		return nil, err
 	}
 	options.Transport = transport
-
-	client, err := elasticsearch8.NewClient(options)
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
+	return esV8.NewClient(options)
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
