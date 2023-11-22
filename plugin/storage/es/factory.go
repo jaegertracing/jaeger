@@ -280,7 +280,6 @@ func createDependencyReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
-
 	elasticsearch8Client, err := config.NewElasticSearch8Client(cfg, logger)
 	if err != nil {
 		return nil, err

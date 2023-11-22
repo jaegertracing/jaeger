@@ -208,7 +208,6 @@ func NewElasticSearch8Client(c *Configuration, logger *zap.Logger) (*elasticsear
 		return nil, err
 	}
 	return client, nil
-
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
