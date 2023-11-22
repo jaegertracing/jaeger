@@ -44,7 +44,12 @@ func (c ClientWrapper) GetVersion() uint {
 
 // WrapESClient creates a ESClient out of *elastic.Client.
 func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client) ClientWrapper {
-	return ClientWrapper{client: client, bulkService: s, esVersion: esVersion}
+	return ClientWrapper{
+		client:      client,
+		bulkService: s,
+		esVersion:   esVersion,
+		clientV8:    clientV8,
+	}
 }
 
 // IndexExists calls this function to internal client.

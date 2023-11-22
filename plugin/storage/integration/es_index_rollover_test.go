@@ -104,9 +104,9 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 
 	// make sure ES is cleaned before test
 	cleanES(t, client, ilmPolicyName)
-	// make sure ES is cleaned after test
 	v8Client, err := createESV8Client()
 	require.NoError(t, err)
+	// make sure ES is cleaned after test
 	defer cleanES(t, client, ilmPolicyName)
 	defer cleanESIndexTemplates(t, client, v8Client, prefix)
 	err = createILMPolicy(client, ilmPolicyName)

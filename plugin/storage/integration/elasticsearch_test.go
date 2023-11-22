@@ -144,7 +144,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
-	client := eswrapper.WrapESClient(s.client, bp, esVersion, nil) // TODO does this not need v8 client?
+	client := eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder:              estemplate.TextTemplateBuilder{},
 		Shards:                       5,
