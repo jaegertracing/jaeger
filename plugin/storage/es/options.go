@@ -103,9 +103,9 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		MaxSpanAge:                   72 * time.Hour,
 		NumShards:                    5,
 		NumReplicas:                  1,
-		PrioritySpanTemplate:         500,
-		PriorityServiceTemplate:      501,
-		PriorityDependenciesTemplate: 502,
+		PrioritySpanTemplate:         0,
+		PriorityServiceTemplate:      0,
+		PriorityDependenciesTemplate: 0,
 		BulkSize:                     5 * 1000 * 1000,
 		BulkWorkers:                  1,
 		BulkActions:                  1000,
@@ -201,15 +201,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int64(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
 		nsConfig.PrioritySpanTemplate,
-		"Priority of jaeger-Span Template in Elasticsearch version 8")
+		"Priority of jaeger-span index template (ESv8 only)")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPriorityServiceTemplate,
 		nsConfig.PriorityServiceTemplate,
-		"Priority of jaeger-service Template in Elasticsearch version 8")
+		"Priority of jaeger-service index template (ESv8 only)")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPriorityDependenciesTemplate,
 		nsConfig.PriorityDependenciesTemplate,
-		"Priority of jaeger-dependecies Template in Elasticsearch version 8")
+		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
 		nsConfig.BulkSize,

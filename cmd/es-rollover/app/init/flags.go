@@ -44,9 +44,9 @@ type Config struct {
 func (c *Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(shards, 5, "Number of shards")
 	flags.Int(replicas, 1, "Number of replicas")
-	flags.Int(prioritySpanTemplate, 500, "Priority of span template")
-	flags.Int(priorityServiceTemplate, 501, "Prioirty of service template")
-	flags.Int(priorityDependenciesTemplate, 502, "Prioirty of dependencies template")
+	flags.Int(prioritySpanTemplate, 0, "Priority of jaeger-span index template (ESv8 only)")
+	flags.Int(priorityServiceTemplate, 0, "Priority of jaeger-service index template (ESv8 only)")
+	flags.Int(priorityDependenciesTemplate, 0, "Priority of jaeger-dependecies index template (ESv8 only)")
 }
 
 // InitFromViper initializes config from viper.Viper.
