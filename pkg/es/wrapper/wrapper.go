@@ -64,7 +64,7 @@ func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
 
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
-	if c.clientV8 != nil {
+	if c.esVersion >= 8 {
 		return TemplateCreatorWrapperV8{
 			indicesV8:    c.clientV8.Indices,
 			templateName: ttype,

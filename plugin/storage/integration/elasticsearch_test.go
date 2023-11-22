@@ -193,7 +193,6 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	})
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          clientFn,
-		V8Client:        s.v8Client,
 		Logger:          s.logger,
 		IndexPrefix:     indexPrefix,
 		IndexDateLayout: indexDateLayout,
