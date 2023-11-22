@@ -20,10 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 
@@ -41,7 +39,6 @@ const (
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
 	client                func() es.Client
-	v8Client              *elasticsearch8.Client
 	logger                *zap.Logger
 	dependencyIndexPrefix string
 	indexDateLayout       string
@@ -52,7 +49,6 @@ type DependencyStore struct {
 // DependencyStoreParams holds constructor parameters for NewDependencyStore
 type DependencyStoreParams struct {
 	Client              func() es.Client
-	V8Client            *elasticsearch8.Client
 	Logger              *zap.Logger
 	IndexPrefix         string
 	IndexDateLayout     string
@@ -64,7 +60,6 @@ type DependencyStoreParams struct {
 func NewDependencyStore(p DependencyStoreParams) *DependencyStore {
 	return &DependencyStore{
 		client:                p.Client,
-		v8Client:              p.V8Client,
 		logger:                p.Logger,
 		dependencyIndexPrefix: prefixIndexName(p.IndexPrefix, dependencyIndex),
 		indexDateLayout:       p.IndexDateLayout,
@@ -89,14 +84,11 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 
 // CreateTemplates creates index templates.
 func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	esVersion := s.client().GetVersion()
-	if esVersion > 7 {
-		err := s.createTemplatesV8(dependenciesTemplate)
-		return err
-	} else {
-		err := s.createTemplates(dependenciesTemplate)
+	_, err := s.client().CreateTemplate("jaeger-dependencies").Body(dependenciesTemplate).Do(context.Background())
+	if err != nil {
 		return err
 	}
+	return nil
 }
 
 func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
@@ -160,23 +152,4 @@ func (s *DependencyStore) getWriteIndex(ts time.Time) string {
 		return s.dependencyIndexPrefix + "write"
 	}
 	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
-}
-
-func (s *DependencyStore) createTemplates(dependenciesTemplate string) error {
-	_, err := s.client().CreateTemplate("jaeger-dependencies").Body(dependenciesTemplate).Do(context.Background())
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *DependencyStore) createTemplatesV8(dependenciesTemplate string) error {
-	dependenciesTemplateResponse, err := s.v8Client.Indices.PutIndexTemplate("jaeger-dependencies", strings.NewReader(dependenciesTemplate))
-	if dependenciesTemplateResponse.StatusCode != 200 {
-		return fmt.Errorf("Error creating Index templates for Span %s", dependenciesTemplateResponse.String())
-	}
-	if err != nil {
-		return err
-	}
-	return nil
 }
