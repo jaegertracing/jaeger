@@ -222,7 +222,6 @@ func TestCreateTemplates(t *testing.T) {
 		err                    string
 		spanTemplateService    func() *mocks.TemplateCreateService
 		serviceTemplateService func() *mocks.TemplateCreateService
-		version                uint
 		indexPrefix            string
 	}{
 		{
@@ -238,7 +237,6 @@ func TestCreateTemplates(t *testing.T) {
 				tService.On("Do", context.Background()).Return(nil, nil)
 				return tService
 			},
-			version: uint(7),
 		},
 		{
 			spanTemplateService: func() *mocks.TemplateCreateService {
@@ -253,7 +251,6 @@ func TestCreateTemplates(t *testing.T) {
 				tService.On("Do", context.Background()).Return(nil, nil)
 				return tService
 			},
-			version:     uint(7),
 			indexPrefix: "test",
 		},
 		{
@@ -270,7 +267,6 @@ func TestCreateTemplates(t *testing.T) {
 				tService.On("Do", context.Background()).Return(nil, nil)
 				return tService
 			},
-			version: uint(7),
 		},
 		{
 			err: "service-template-error",
@@ -286,7 +282,6 @@ func TestCreateTemplates(t *testing.T) {
 				tService.On("Do", context.Background()).Return(nil, errors.New("service-template-error"))
 				return tService
 			},
-			version: uint(7),
 		},
 	}
 
@@ -298,7 +293,6 @@ func TestCreateTemplates(t *testing.T) {
 			}
 			w.client.On("CreateTemplate", prefix+"jaeger-span").Return(test.spanTemplateService())
 			w.client.On("CreateTemplate", prefix+"jaeger-service").Return(test.serviceTemplateService())
-			w.client.On("GetVersion").Return(test.version)
 			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, test.indexPrefix)
 			if test.err != "" {
 				assert.Error(t, err, test.err)
