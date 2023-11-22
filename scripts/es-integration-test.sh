@@ -39,6 +39,7 @@ setup_es() {
       --env "action.destructive_requires_name=false"
     )
   fi
+
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
   echo "${cid}"
