@@ -52,7 +52,8 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 	}
 }
 
-// Client is a generic client to make requests to ES
+// Client executes requests against Elasticsearch using direct HTTP calls,
+// without using the official Go client for ES.
 type Client struct {
 	// Http client.
 	Client *http.Client

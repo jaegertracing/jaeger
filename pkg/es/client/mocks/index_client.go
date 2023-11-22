@@ -48,10 +48,6 @@ func (c *MockIndexAPI) CreateTemplate(template, name string) error {
 	ret := c.Called(template, name)
 	return ret.Error(0)
 }
-func (c *MockIndexAPI) CreateTemplateV8(template, name string) error {
-	ret := c.Called(template, name)
-	return ret.Error(0)
-}
 func (c *MockIndexAPI) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
 	ret := c.Called(rolloverTarget, conditions)
 	return ret.Error(0)

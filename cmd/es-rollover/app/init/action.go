@@ -112,16 +112,9 @@ func (c Action) init(version uint, indexopt app.IndexOption) error {
 	if err != nil {
 		return err
 	}
-	if version > 7 {
-		err = c.IndicesClient.CreateTemplateV8(mapping, indexopt.TemplateName())
-		if err != nil {
-			return err
-		}
-	} else {
-		err = c.IndicesClient.CreateTemplate(mapping, indexopt.TemplateName())
-		if err != nil {
-			return err
-		}
+	err = c.IndicesClient.CreateTemplate(mapping, indexopt.TemplateName())
+	if err != nil {
+		return err
 	}
 
 	index := indexopt.InitialRolloverIndex()

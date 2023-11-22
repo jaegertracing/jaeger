@@ -36,7 +36,7 @@ func (c *ClusterClient) Version() (uint, error) {
 		TagLine string                 `json:"tagline"`
 	}
 	body, err := c.request(elasticRequest{
-		endpoint: "/",
+		endpoint: "",
 		method:   http.MethodGet,
 	})
 	if err != nil {

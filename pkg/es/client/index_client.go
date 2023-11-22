@@ -231,28 +231,23 @@ func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	return err
 }
 
-// CreateTemplate an ES index template
-func (i IndicesClient) CreateTemplate(template, name string) error {
-	_, err := i.request(elasticRequest{
-		endpoint: fmt.Sprintf("_template/%s", name),
-		method:   http.MethodPut,
-		body:     []byte(template),
-	})
-	if err != nil {
-		if responseError, isResponseError := err.(ResponseError); isResponseError {
-			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage(fmt.Sprintf("failed to create template: %s", name))
-			}
-		}
-		return fmt.Errorf("failed to create template: %w", err)
-	}
-	return nil
+func (i IndicesClient) version() (uint, error) {
+	cl := ClusterClient{Client: i.Client}
+	return cl.Version()
 }
 
-// Create Template for ESV8
-func (i IndicesClient) CreateTemplateV8(template, name string) error {
+// CreateTemplate an ES index template
+func (i IndicesClient) CreateTemplate(template, name string) error {
+	endpointFmt := "_template/%s"
+	if v, err := i.version(); err == nil {
+		if v >= 8 {
+			endpointFmt = "_index_template/%s"
+		}
+	} else {
+		return err
+	}
 	_, err := i.request(elasticRequest{
-		endpoint: fmt.Sprintf("_index_template/%s", name),
+		endpoint: fmt.Sprintf(endpointFmt, name),
 		method:   http.MethodPut,
 		body:     []byte(template),
 	})
