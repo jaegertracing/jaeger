@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -48,7 +49,18 @@ func TestNotExistingUiConfig(t *testing.T) {
 func TestRegisterStaticHandlerPanic(t *testing.T) {
 	logger, buf := testutils.NewLogger()
 	assert.Panics(t, func() {
-		RegisterStaticHandler(mux.NewRouter(), logger, &QueryOptions{StaticAssets: "/foo/bar"})
+		RegisterStaticHandler(
+			mux.NewRouter(),
+			logger,
+			&QueryOptions{
+				QueryOptionsBase: QueryOptionsBase{
+					StaticAssets: QueryOptionsStaticAssets{
+						Path: "/foo/bar",
+					},
+				},
+			},
+			querysvc.StorageCapabilities{ArchiveStorage: false},
+		)
 	})
 	assert.Contains(t, buf.String(), "Could not create static assets handler")
 	assert.Contains(t, buf.String(), "no such file or directory")
@@ -56,36 +68,44 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 
 func TestRegisterStaticHandler(t *testing.T) {
 	testCases := []struct {
-		basePath         string // input to the test
-		subroute         bool   // should we create a subroute?
-		baseURL          string // expected URL prefix
-		logAccess        bool
-		expectedBaseHTML string // substring to match in the home page
-		UIConfigPath     string // path to UI config
-		expectedUIConfig string // expected UI config
+		basePath                    string // input to the test
+		subroute                    bool   // should we create a subroute?
+		baseURL                     string // expected URL prefix
+		archiveStorage              bool   // archive storage enabled?
+		logAccess                   bool
+		expectedBaseHTML            string // substring to match in the home page
+		UIConfigPath                string // path to UI config
+		expectedUIConfig            string // expected UI config
+		expectedStorageCapabilities string // expected storage capabilities
 	}{
 		{
-			basePath:         "",
-			baseURL:          "/",
-			expectedBaseHTML: `<base href="/"`,
-			logAccess:        true,
-			UIConfigPath:     "",
-			expectedUIConfig: "JAEGER_CONFIG=DEFAULT_CONFIG;",
+			basePath:                    "",
+			baseURL:                     "/",
+			expectedBaseHTML:            `<base href="/"`,
+			archiveStorage:              false,
+			logAccess:                   true,
+			UIConfigPath:                "",
+			expectedUIConfig:            "JAEGER_CONFIG=DEFAULT_CONFIG;",
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false};`,
 		},
 		{
-			basePath:         "/",
-			baseURL:          "/",
-			expectedBaseHTML: `<base href="/"`,
-			UIConfigPath:     "fixture/ui-config.json",
-			expectedUIConfig: `JAEGER_CONFIG = {"x":"y"};`,
+			basePath:                    "/",
+			baseURL:                     "/",
+			archiveStorage:              false,
+			expectedBaseHTML:            `<base href="/"`,
+			UIConfigPath:                "fixture/ui-config.json",
+			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false};`,
 		},
 		{
-			basePath:         "/jaeger",
-			baseURL:          "/jaeger/",
-			expectedBaseHTML: `<base href="/jaeger/"`,
-			subroute:         true,
-			UIConfigPath:     "fixture/ui-config.js",
-			expectedUIConfig: "function UIConfig(){",
+			basePath:                    "/jaeger",
+			baseURL:                     "/jaeger/",
+			expectedBaseHTML:            `<base href="/jaeger/"`,
+			subroute:                    true,
+			archiveStorage:              true,
+			UIConfigPath:                "fixture/ui-config.js",
+			expectedUIConfig:            "function UIConfig(){",
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":true};`,
 		},
 	}
 	httpClient = &http.Client{
@@ -99,11 +119,17 @@ func TestRegisterStaticHandler(t *testing.T) {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
 			RegisterStaticHandler(r, logger, &QueryOptions{
-				StaticAssets:          "fixture",
-				BasePath:              testCase.basePath,
-				UIConfig:              testCase.UIConfigPath,
-				LogStaticAssetsAccess: testCase.logAccess,
-			})
+				QueryOptionsBase: QueryOptionsBase{
+					StaticAssets: QueryOptionsStaticAssets{
+						Path:      "fixture",
+						LogAccess: testCase.logAccess,
+					},
+					BasePath: testCase.basePath,
+					UIConfig: testCase.UIConfigPath,
+				},
+			},
+				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage},
+			)
 
 			server := httptest.NewServer(r)
 			defer server.Close()
@@ -122,6 +148,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 			html := httpGet("") // get home page
 			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedStorageCapabilities, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"","buildDate":""};`, "actual: %v", html)
 			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
 

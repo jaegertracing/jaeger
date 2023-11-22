@@ -2,8 +2,8 @@
 
 set -e
 
-# shellcheck disable=SC2046 -- we want multple arguments here
-./scripts/import-order-cleanup.py -o $1 -t $(git ls-files "*\.go" | \
+# shellcheck disable=SC2046 # we want multple arguments here
+./scripts/import-order-cleanup.py -o "$1" -t $(git ls-files "*\.go" | \
     grep -v \
         -e thrift-gen \
         -e swagger-gen \

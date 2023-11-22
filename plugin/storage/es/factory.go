@@ -229,12 +229,15 @@ func createSpanWriter(
 	}
 
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: es.TextTemplateBuilder{},
-		Shards:          cfg.NumShards,
-		Replicas:        cfg.NumReplicas,
-		EsVersion:       cfg.Version,
-		IndexPrefix:     cfg.IndexPrefix,
-		UseILM:          cfg.UseILM,
+		TemplateBuilder:              es.TextTemplateBuilder{},
+		Shards:                       cfg.NumShards,
+		Replicas:                     cfg.NumReplicas,
+		EsVersion:                    cfg.Version,
+		IndexPrefix:                  cfg.IndexPrefix,
+		UseILM:                       cfg.UseILM,
+		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
+		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
+		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
 	}
 
 	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
@@ -277,8 +280,14 @@ func createDependencyReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
+
+	elasticsearch8Client, err := config.NewElasticSearch8Client(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
 		Client:              clientFn,
+		V8Client:            elasticsearch8Client,
 		Logger:              logger,
 		IndexPrefix:         cfg.IndexPrefix,
 		IndexDateLayout:     cfg.IndexDateLayoutDependencies,
@@ -332,8 +341,10 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 	} else {
 		oldClient := *client.Swap(&newClient)
-		if err := oldClient.Close(); err != nil {
-			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
+		if oldClient != nil {
+			if err := oldClient.Close(); err != nil {
+				f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
+			}
 		}
 	}
 }

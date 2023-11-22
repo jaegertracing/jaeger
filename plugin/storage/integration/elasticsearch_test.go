@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,21 +45,25 @@ import (
 )
 
 const (
-	host               = "0.0.0.0"
-	queryPort          = "9200"
-	queryHostPort      = host + ":" + queryPort
-	queryURL           = "http://" + queryHostPort
-	indexPrefix        = "integration-test"
-	indexDateLayout    = "2006-01-02"
-	tagKeyDeDotChar    = "@"
-	maxSpanAge         = time.Hour * 72
-	defaultMaxDocCount = 10_000
+	host                     = "0.0.0.0"
+	queryPort                = "9200"
+	queryHostPort            = host + ":" + queryPort
+	queryURL                 = "http://" + queryHostPort
+	indexPrefix              = "integration-test"
+	indexDateLayout          = "2006-01-02"
+	tagKeyDeDotChar          = "@"
+	maxSpanAge               = time.Hour * 72
+	defaultMaxDocCount       = 10_000
+	spanTemplateName         = "jaeger-span"
+	serviceTemplateName      = "jaeger-service"
+	dependenciesTemplateName = "jaeger-dependencies"
 )
 
 type ESStorageIntegration struct {
 	StorageIntegration
 
 	client        *elastic.Client
+	v8Client      *elasticsearch8.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
 }
@@ -105,6 +110,14 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
+	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
+		Addresses:            []string{queryURL},
+		DiscoverNodesOnStart: false,
+	})
+	if err != nil {
+		return err
+	}
+
 	s.initSpanstore(allTagsAsFields, archive)
 	s.CleanUp = func() error {
 		return s.esCleanUp(allTagsAsFields, archive)
@@ -133,21 +146,28 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: estemplate.TextTemplateBuilder{},
-		Shards:          5,
-		Replicas:        1,
-		EsVersion:       client.GetVersion(),
-		IndexPrefix:     indexPrefix,
-		UseILM:          false,
+		TemplateBuilder:              estemplate.TextTemplateBuilder{},
+		Shards:                       5,
+		Replicas:                     1,
+		PrioritySpanTemplate:         500,
+		PriorityServiceTemplate:      501,
+		PriorityDependenciesTemplate: 502,
+		EsVersion:                    client.GetVersion(),
+		IndexPrefix:                  indexPrefix,
+		UseILM:                       false,
 	}
 	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
 		return err
 	}
+
 	clientFn := func() estemplate.Client { return client }
+	elasticsearch8Client := s.v8Client
+
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            clientFn,
+			V8Client:          elasticsearch8Client,
 			Logger:            s.logger,
 			MetricsFactory:    metrics.NullFactory,
 			IndexPrefix:       indexPrefix,
@@ -175,6 +195,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	})
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          clientFn,
+		V8Client:        s.v8Client,
 		Logger:          s.logger,
 		IndexPrefix:     indexPrefix,
 		IndexDateLayout: indexDateLayout,
@@ -253,10 +274,21 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	}
 	s := &ESStorageIntegration{}
 	require.NoError(t, s.initializeES(true, false))
-	serviceTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
-	spanTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
-	assert.True(t, serviceTemplateExists)
-	assert.True(t, spanTemplateExists)
+	esVersion, err := s.getVersion()
+	require.NoError(t, err)
+	if esVersion <= 7 {
+		serviceTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
+		spanTemplateExists, _ := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
+		assert.True(t, serviceTemplateExists)
+		assert.True(t, spanTemplateExists)
+	} else {
+		serviceTemplateExistsResponse, _ := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
+		spanTemplateExistsResponse, _ := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
+		assert.Equal(t, 200, serviceTemplateExistsResponse.StatusCode)
+		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
+	}
+	err = cleanESIndexTemplates(t, s.client, s.v8Client, indexPrefix)
+	require.NoError(t, err)
 }
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
@@ -283,4 +315,37 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	if !assert.True(t, found) {
 		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 	}
+}
+
+func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) error {
+	version, err := getESVersion(client)
+	require.NoError(t, err)
+	if version > 7 {
+		prefixWithSeparator := prefix
+		if prefix != "" {
+			prefixWithSeparator += "-"
+		}
+		_, err := v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
+		require.NoError(t, err)
+		_, err = v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
+		require.NoError(t, err)
+		_, err = v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
+		require.NoError(t, err)
+	} else {
+		_, err := client.IndexDeleteTemplate("*").Do(context.Background())
+		require.NoError(t, err)
+	}
+	return nil
+}
+
+func getESVersion(client *elastic.Client) (uint, error) {
+	pingResult, _, err := client.Ping(queryURL).Do(context.Background())
+	if err != nil {
+		return 0, err
+	}
+	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+	if err != nil {
+		return 0, err
+	}
+	return uint(esVersion), nil
 }

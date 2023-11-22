@@ -3,7 +3,10 @@ issues:
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
-      linters: [gosec]
+      linters: [gosec, bodyclose, noctx]
+
+    - path: crossdock
+      linters: [noctx]
 
     # See https://github.com/jaegertracing/jaeger/issues/4488
     - path: internal/grpctest/
@@ -22,15 +25,69 @@ linters:
   disable:
     - errcheck
   enable:
+    # Plain ASCII identifiers.
+    - asciicheck
+
+    # Checks for dangerous unicode character sequences.
     - bidichk
+
+    # Checks whether HTTP response body is closed successfully.
+    # TODO enable this but maybe find a way to disable in tests.
+    - bodyclose
+
+    # Check whether the function uses a non-inherited context.
     - contextcheck
+
+    # Check declaration order of types, consts, vars and funcs.
+    - decorder
+
+    # Checks if package imports are in a list of acceptable packages.
     - depguard
+
+    # Check for two durations multiplied together.
+    - durationcheck
+
+    # Checks `Err-` prefix for var and `-Error` suffix for error type.
+    - errname
+
+    # Suggests to use `%w` for error-wrapping.
+    # TODO enable this. Curently fails in about 20 places.
+    # - errorlint
+
+    # Checks for pointers to enclosing loop variables.
+    - exportloopref
+
     - gocritic
+    - gofmt
     - gofumpt
     - goimports
+
+    # Allow or ban replace directives in go.mod
+    # or force explanation for retract directives.
+    # Maybe enable once we get rid of old sarama.
+    # - gomoddirectives
+
     - gosec
+
+    # Linter that specializes in simplifying code.
+    - gosimple
     - govet
+
+    # Detects when assignments to existing variables are not used.
+    - ineffassign
+
     - misspell
+
+    # Finds naked/bare returns and requires change them.
+    - nakedret
+
+    # Require a bit more explicit returns.
+    - nilerr
+
+    # Finds sending HTTP request without context.Context.
+    - noctx
+
+    # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
 
 linters-settings:
   depguard:
@@ -56,6 +113,7 @@ linters-settings:
 run:
   go: "1.20"
   timeout: 20m
+  skip-dirs-use-default: false
   skip-dirs:
     - mocks
     - thrift-0.9.2

@@ -29,12 +29,12 @@ import (
 	"sync"
 	"time"
 
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -58,6 +58,9 @@ type Configuration struct {
 	MaxSpanAge                     time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
 	NumShards                      int64          `yaml:"shards" mapstructure:"num_shards"`
 	NumReplicas                    int64          `yaml:"replicas" mapstructure:"num_replicas"`
+	PrioritySpanTemplate           int64          `yaml:"priority_span_template" mapstructure:"priority_span_template"`
+	PriorityServiceTemplate        int64          `yaml:"priority_service_template" mapstructure:"priority_service_template"`
+	PriorityDependenciesTemplate   int64          `yaml:"priority_dependencies_template" mapstructure:"priority_dependencies_template"`
 	Timeout                        time.Duration  `validate:"min=500" mapstructure:"-"`
 	BulkSize                       int            `mapstructure:"-"`
 	BulkWorkers                    int            `mapstructure:"-"`
@@ -230,6 +233,15 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.NumReplicas == 0 {
 		c.NumReplicas = source.NumReplicas
+	}
+	if c.PrioritySpanTemplate == 0 {
+		c.PrioritySpanTemplate = source.PrioritySpanTemplate
+	}
+	if c.PriorityServiceTemplate == 0 {
+		c.PriorityServiceTemplate = source.PriorityServiceTemplate
+	}
+	if c.PrioritySpanTemplate == 0 {
+		c.PriorityDependenciesTemplate = source.PriorityDependenciesTemplate
 	}
 	if c.BulkSize == 0 {
 		c.BulkSize = source.BulkSize

@@ -20,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@8ca2b8b2ece13480cda6dacd3511b49857a23c09
+      uses: step-security/harden-runner@eb238b55efaa70779f274895e782ed17c84f2895
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       with:
         submodules: true
 
@@ -51,9 +51,20 @@ jobs:
       if: github.ref_name != 'main'
       run: bash scripts/build-all-in-one-image.sh pr-only
 
+    - name: Build and test jaeger (v2) as all-in-one
+      if: github.ref_name != 'main'
+      run: BINARY=jaeger bash scripts/build-all-in-one-image.sh pr-only
+
     - name: Build, test, and publish all-in-one image
       if: github.ref_name == 'main'
       run: bash scripts/build-all-in-one-image.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish jaeger (v2) image
+      if: github.ref_name == 'main'
+      run: BINARY=jaeger bash scripts/build-all-in-one-image.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

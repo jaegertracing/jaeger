@@ -249,6 +249,24 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 	return nil
 }
 
+// Create Template for ESV8
+func (i IndicesClient) CreateTemplateV8(template, name string) error {
+	_, err := i.request(elasticRequest{
+		endpoint: fmt.Sprintf("_index_template/%s", name),
+		method:   http.MethodPut,
+		body:     []byte(template),
+	})
+	if err != nil {
+		if responseError, isResponseError := err.(ResponseError); isResponseError {
+			if responseError.StatusCode != http.StatusOK {
+				return responseError.prefixMessage(fmt.Sprintf("failed to create template: %s", name))
+			}
+		}
+		return fmt.Errorf("failed to create template: %w", err)
+	}
+	return nil
+}
+
 // Rollover create a rollover for certain index/alias
 func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
 	esReq := elasticRequest{

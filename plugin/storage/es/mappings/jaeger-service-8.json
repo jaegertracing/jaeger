@@ -1,5 +1,5 @@
 {
-  "priority": 501,
+  "priority": {{ .PriorityServiceTemplate}},
   "index_patterns": "*{{ .IndexPrefix }}jaeger-service-*",
   "template": {
     {{- if .UseILM }}

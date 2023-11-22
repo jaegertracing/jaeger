@@ -251,7 +251,7 @@ func (b *Backend) Snapshot() (counters, gauges map[string]int64) {
 		}
 	}
 
-	return
+	return counters, gauges
 }
 
 // Stop cleanly closes the background goroutine spawned by NewBackend.

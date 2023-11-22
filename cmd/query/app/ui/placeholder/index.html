@@ -3,12 +3,29 @@
     <meta charset="UTF-8">
     <base href="/" data-inject-target="BASE_URL"/>
     <title>Test Page</title>
-    <!-- JAEGER_CONFIG=DEFAULT_CONFIG; -->
-    <!-- JAEGER_VERSION="unknown"; -->
-    <body>
-        This is a placeholder for Jaeger UI home page.
-        If you are seeing this, you are running a binary
-        that was not compiled with the UI assets.
-        See <a href="https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#running-local-build-with-the-ui">these instructions</a>.
-    </body>
+    <body style="max-width: 700px; margin: 0 auto;">
+        <h1>🥋: This is not the Jaeger UI you are looking for!</h1>
+        <p>
+            This is a placeholder for the Jaeger UI home page.
+            If you are seeing this, you are running a binary that was not compiled with the UI assets (<code>-tags ui</code>).
+            See <a href="https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#running-local-build-with-the-ui">these instructions</a>.
+        </p>
+        <h1>UI configuration</h1>
+        <p>
+            The section below emulates the corresponding content in <b>jaeger-ui/packages/jaeger-ui/index.html</b>
+            which contains placeholders that are replaced on startup by the query-service in order to customize
+            the UI configuration.
+            See <a href="https://github.com/jaegertracing/jaeger-ui/tree/main/packages/jaeger-ui#configuration">README</a> for more details.
+        </p>
+        <!-- exact variable names below are important and must match index.html in the UI as well as the regex's in query-service -->
+        <pre>
+// JAEGER_CONFIG_JS
+
+JAEGER_CONFIG = DEFAULT_CONFIG;
+
+JAEGER_STORAGE_CAPABILITIES = DEFAULT_STORAGE_CAPABILITIES;
+
+JAEGER_VERSION = DEFAULT_VERSION;
+        </pre>
+</body>
 </html>

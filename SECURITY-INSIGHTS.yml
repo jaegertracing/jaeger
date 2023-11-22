@@ -1,0 +1,66 @@
+header:
+  schema-version: 1.0.0
+  last-updated: '2023-10-20'
+  last-reviewed: '2023-10-20'
+  expiration-date: '2024-10-20T01:00:00.000Z'
+  project-url: https://github.com/jaegertracing/jaeger/
+  changelog: https://github.com/jaegertracing/jaeger/blob/main/CHANGELOG.md
+  license: https://github.com/jaegertracing/jaeger/blob/main/LICENSE
+project-lifecycle:
+  bug-fixes-only: false
+  core-maintainers:
+  - https://github.com/jaegertracing/jaeger/blob/main/README.md#maintainers
+  roadmap: https://www.jaegertracing.io/roadmap/
+  release-cycle: https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#release-managers
+  status: active 
+contribution-policy:
+  accepts-pull-requests: true
+  accepts-automated-pull-requests: true
+  contributing-policy: https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md 
+  code-of-conduct: https://github.com/jaegertracing/jaeger/blob/main/CODE_OF_CONDUCT.md
+documentation:
+- https://www.jaegertracing.io/docs/
+distribution-points:
+- https://github.com/jaegertracing/jaeger/
+- https://hub.docker.com/r/jaegertracing/
+- https://quay.io/organization/jaegertracing/ 
+security-artifacts:
+  threat-model:
+    threat-model-created: true
+    evidence-url:
+    - https://github.com/jaegertracing/jaeger/blob/main/THREAT-MODEL.md
+  self-assessment:
+    self-assessment-created: true
+    evidence-url:
+    - https://github.com/jaegertracing/jaeger/blob/main/SELF-ASSESMENT.md
+security-testing:
+- tool-type: sca
+  tool-name: Dependabot
+  tool-version: latest
+  integration:
+    ad-hoc: false
+    ci: true
+    before-release: true
+  comment: |
+    Dependabot is enabled for this repo.
+security-contacts:
+- type: website
+  value: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md
+vulnerability-reporting:
+  accepts-vulnerability-reports: true
+  security-policy: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md
+  email-contact: jaeger-tracing@googlegroups.com
+  comment: |
+    The first and best way to report a vulnerability is by using private security issues in GitHub or opening an issue on Github. We are also available on the CNCF Slack in the jaeger channel.
+dependencies:
+  third-party-packages: true
+  dependencies-lists:
+  - https://github.com/jaegertracing/jaeger/blob/main/go.mod
+  sbom:
+  - sbom-file: https://github.com/jaegertracing/jaeger/releases/latest/download/jaeger-SBOM.spdx.json 
+    sbom-format: SPDX
+    sbom-url: https://github.com/anchore/sbom-action 
+  dependencies-lifecycle:
+    policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#security-patch-policy
+  env-dependencies-policy:
+    policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#dependency-policy

@@ -323,11 +323,13 @@ func TestServerHTTPTLS(t *testing.T) {
 			}
 
 			serverOptions := &QueryOptions{
-				GRPCHostPort:           ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
-				HTTPHostPort:           ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
-				TLSHTTP:                test.TLS,
-				TLSGRPC:                TLSGRPC,
-				BearerTokenPropagation: true,
+				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
+				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
+				TLSHTTP:      test.TLS,
+				TLSGRPC:      TLSGRPC,
+				QueryOptionsBase: QueryOptionsBase{
+					BearerTokenPropagation: true,
+				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
@@ -483,11 +485,13 @@ func TestServerGRPCTLS(t *testing.T) {
 				TLSHTTP = enabledTLSCfg
 			}
 			serverOptions := &QueryOptions{
-				GRPCHostPort:           ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
-				HTTPHostPort:           ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
-				TLSHTTP:                TLSHTTP,
-				TLSGRPC:                test.TLS,
-				BearerTokenPropagation: true,
+				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
+				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
+				TLSHTTP:      TLSHTTP,
+				TLSGRPC:      test.TLS,
+				QueryOptionsBase: QueryOptionsBase{
+					BearerTokenPropagation: true,
+				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
@@ -553,13 +557,25 @@ func TestServerGRPCTLS(t *testing.T) {
 
 func TestServerBadHostPort(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
-		&QueryOptions{HTTPHostPort: "8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
+		&QueryOptions{
+			HTTPHostPort: "8080",
+			GRPCHostPort: "127.0.0.1:8081",
+			QueryOptionsBase: QueryOptionsBase{
+				BearerTokenPropagation: true,
+			},
+		},
 		tenancy.NewManager(&tenancy.Options{}),
 		jtracer.NoOp())
 
 	assert.NotNil(t, err)
 	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
-		&QueryOptions{HTTPHostPort: "127.0.0.1:8081", GRPCHostPort: "9123", BearerTokenPropagation: true},
+		&QueryOptions{
+			HTTPHostPort: "127.0.0.1:8081",
+			GRPCHostPort: "9123",
+			QueryOptionsBase: QueryOptionsBase{
+				BearerTokenPropagation: true,
+			},
+		},
 		tenancy.NewManager(&tenancy.Options{}),
 		jtracer.NoOp())
 
@@ -587,9 +603,11 @@ func TestServerInUseHostPort(t *testing.T) {
 				&querysvc.QueryService{},
 				nil,
 				&QueryOptions{
-					HTTPHostPort:           tc.httpHostPort,
-					GRPCHostPort:           tc.grpcHostPort,
-					BearerTokenPropagation: true,
+					HTTPHostPort: tc.httpHostPort,
+					GRPCHostPort: tc.grpcHostPort,
+					QueryOptionsBase: QueryOptionsBase{
+						BearerTokenPropagation: true,
+					},
 				},
 				tenancy.NewManager(&tenancy.Options{}),
 				jtracer.NoOp(),
@@ -620,7 +638,13 @@ func TestServerSinglePort(t *testing.T) {
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
+		&QueryOptions{
+			GRPCHostPort: hostPort,
+			HTTPHostPort: hostPort,
+			QueryOptionsBase: QueryOptionsBase{
+				BearerTokenPropagation: true,
+			},
+		},
 		tenancy.NewManager(&tenancy.Options{}),
 		jtracer.NoOp())
 	assert.Nil(t, err)
@@ -747,8 +771,10 @@ func TestServerHTTPTenancy(t *testing.T) {
 	serverOptions := &QueryOptions{
 		HTTPHostPort: ":8080",
 		GRPCHostPort: ":8080",
-		Tenancy: tenancy.Options{
-			Enabled: true,
+		QueryOptionsBase: QueryOptionsBase{
+			Tenancy: tenancy.Options{
+				Enabled: true,
+			},
 		},
 	}
 	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)

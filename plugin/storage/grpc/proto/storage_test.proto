@@ -16,6 +16,8 @@ syntax="proto3";
 
 package storageprototest;
 
+option go_package = "./storageprototest";
+
 message GetTraceRequest {
     bytes trace_id = 1;
 }

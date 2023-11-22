@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"testing"
 
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
 	require.NoError(t, err)
-	if esVersion != 7 {
+	if esVersion < 7 {
 		t.Skip("Integration test - " + t.Name() + " against ElasticSearch skipped for ES version " + fmt.Sprint(esVersion))
 	}
 	// make sure ES is clean
@@ -79,7 +80,7 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 		envVars = append(envVars, "ES_ILM_POLICY_NAME="+ilmPolicyName)
 	}
 
-	if esVersion != 7 {
+	if esVersion < 7 {
 		cleanES(t, client, "")
 		err := runEsRollover("init", envVars)
 		assert.EqualError(t, err, "exit status 1")
@@ -104,8 +105,11 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	// make sure ES is cleaned before test
 	cleanES(t, client, ilmPolicyName)
 	// make sure ES is cleaned after test
+	v8Client, err := createESV8Client()
+	require.NoError(t, err)
 	defer cleanES(t, client, ilmPolicyName)
-	err := createILMPolicy(client, ilmPolicyName)
+	defer cleanESIndexTemplates(t, client, v8Client, prefix)
+	err = createILMPolicy(client, ilmPolicyName)
 	require.NoError(t, err)
 
 	if prefix != "" {
@@ -146,6 +150,13 @@ func createESClient() (*elastic.Client, error) {
 		elastic.SetSniff(false))
 }
 
+func createESV8Client() (*elasticsearch8.Client, error) {
+	return elasticsearch8.NewClient(elasticsearch8.Config{
+		Addresses:            []string{queryURL},
+		DiscoverNodesOnStart: false,
+	})
+}
+
 func runEsRollover(action string, envs []string) error {
 	var dockerEnv string
 	for _, e := range envs {
@@ -180,7 +191,7 @@ func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
 	require.NoError(t, err)
-	if esVersion == 7 {
+	if esVersion >= 7 {
 		_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
 		if err != nil && !elastic.IsNotFound(err) {
 			assert.Fail(t, "Not able to clean up ILM Policy")

@@ -17,8 +17,7 @@ services:
     ports:
       - "8080:8080"
       - "8083:8083"
-    # TODO remove "--otel-exporter=otlp" after 1.49 release
-    command: ["all", "--otel-exporter=otlp"]
+    command: ["all"]
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     networks:

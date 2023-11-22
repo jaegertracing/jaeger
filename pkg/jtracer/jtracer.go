@@ -25,8 +25,9 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 )
 
 type JTracer struct {
@@ -55,7 +56,7 @@ func New(serviceName string) (*JTracer, error) {
 
 func NoOp() *JTracer {
 	return &JTracer{
-		OTEL: trace.NewNoopTracerProvider(),
+		OTEL: nooptrace.NewTracerProvider(),
 		closer: func(ctx context.Context) error {
 			return nil
 		},
@@ -72,12 +73,23 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
 	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
+
+	res, err := resource.New(
+		ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
+		resource.WithTelemetrySDK(),
+		resource.WithHost(),
+		resource.WithOSType(),
+		resource.WithFromEnv(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(svc),
-		)),
+		sdktrace.WithResource(res),
 	)
 
 	once.Do(func() {

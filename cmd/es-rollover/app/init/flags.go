@@ -23,25 +23,37 @@ import (
 )
 
 const (
-	shards   = "shards"
-	replicas = "replicas"
+	shards                       = "shards"
+	replicas                     = "replicas"
+	prioritySpanTemplate         = "priority-span-template"
+	priorityServiceTemplate      = "priority-service-template"
+	priorityDependenciesTemplate = "priority-dependencies-template"
 )
 
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	Shards   int
-	Replicas int
+	Shards                       int
+	Replicas                     int
+	PrioritySpanTemplate         int
+	PriorityServiceTemplate      int
+	PriorityDependenciesTemplate int
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c *Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(shards, 5, "Number of shards")
 	flags.Int(replicas, 1, "Number of replicas")
+	flags.Int(prioritySpanTemplate, 500, "Priority of span template")
+	flags.Int(priorityServiceTemplate, 501, "Prioirty of service template")
+	flags.Int(priorityDependenciesTemplate, 502, "Prioirty of dependencies template")
 }
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Shards = v.GetInt(shards)
 	c.Replicas = v.GetInt(replicas)
+	c.PrioritySpanTemplate = v.GetInt(prioritySpanTemplate)
+	c.PriorityServiceTemplate = v.GetInt(priorityServiceTemplate)
+	c.PriorityDependenciesTemplate = v.GetInt(priorityDependenciesTemplate)
 }

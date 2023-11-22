@@ -1,5 +1,5 @@
 {
-  "priority": 101,
+  "priority": 502,
   "index_patterns": "*jaeger-dependencies-*",
   "template": {
     "aliases": {

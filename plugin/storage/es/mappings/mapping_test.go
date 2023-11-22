@@ -17,6 +17,7 @@ package mappings
 import (
 	"embed"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -51,27 +52,25 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.mapping, func(t *testing.T) {
 			mb := &MappingBuilder{
-				TemplateBuilder: es.TextTemplateBuilder{},
-				Shards:          3,
-				Replicas:        3,
-				EsVersion:       tt.esVersion,
-				IndexPrefix:     "test-",
-				UseILM:          true,
-				ILMPolicyName:   "jaeger-test-policy",
+				TemplateBuilder:              es.TextTemplateBuilder{},
+				Shards:                       3,
+				Replicas:                     3,
+				PrioritySpanTemplate:         500,
+				PriorityServiceTemplate:      501,
+				PriorityDependenciesTemplate: 502,
+				EsVersion:                    tt.esVersion,
+				IndexPrefix:                  "test-",
+				UseILM:                       true,
+				ILMPolicyName:                "jaeger-test-policy",
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
-			if tt.esVersion == 8 {
-				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + "-8.json")
-				require.NoError(t, err)
-			} else if tt.esVersion == 7 {
-				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + "-7.json")
-				require.NoError(t, err)
-			} else {
-				wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + ".json")
-				require.NoError(t, err)
+			fileSuffix := ""
+			if tt.esVersion >= 7 {
+				fileSuffix = fmt.Sprintf("-%d", tt.esVersion)
 			}
+			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + fileSuffix + ".json")
 			want := string(wantbytes)
 			assert.Equal(t, got, want)
 		})

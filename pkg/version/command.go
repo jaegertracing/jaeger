@@ -25,7 +25,7 @@ import (
 // Command creates version command
 func Command() *cobra.Command {
 	info := Get()
-	log.Println(info)
+	log.Println("applicatio version:", info)
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version.",

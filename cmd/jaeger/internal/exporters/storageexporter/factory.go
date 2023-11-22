@@ -15,6 +15,9 @@ import (
 // componentType is the name of this extension in configuration.
 const componentType = component.Type("jaeger_storage_exporter")
 
+// ID is the identifier of this extension.
+var ID = component.NewID(componentType)
+
 // NewFactory creates a factory for jaeger_storage_exporter.
 func NewFactory() exporter.Factory {
 	return exporter.NewFactory(

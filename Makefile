@@ -1,3 +1,6 @@
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
@@ -5,6 +8,22 @@ GO = go
 
 include docker/Makefile
 include crossdock/rules.mk
+
+# TODO we can comparmentalize this Makefile better, by separting:
+#  - thrift and proto builds
+#  - integration tests
+#  - all the binary building targets
+
+ifeq ($(DEBUG_BINARY),)
+	DISABLE_OPTIMIZATIONS =
+	SUFFIX =
+	TARGET = release
+else
+	DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
+	SUFFIX = -debug
+	TARGET = debug
+endif
+
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC = $(shell find . -name '*.go' \
@@ -15,7 +34,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
 				   -not -name 'storage_test.pb.go' \
-				   -not -path './examples/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
@@ -27,8 +45,8 @@ ALL_SRC = $(shell find . -name '*.go' \
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
 UNAME := $(shell uname -m)
-#Race flag is not supported on s390x architecture
 ifeq ($(UNAME), s390x)
+# go test does not support -race flag on s390x architecture
 	RACE=
 else
 	RACE=-race
@@ -37,7 +55,8 @@ GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 GOCACHE=$(abspath .gocache)
 GOBUILD=GOCACHE=$(GOCACHE) CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
-GOTEST=GOCACHE=$(GOCACHE) $(GO) test -v $(RACE)
+GOTEST_QUIET=GOCACHE=$(GOCACHE) $(GO) test $(RACE)
+GOTEST=$(GOTEST_QUIET) -v
 GOFMT=gofmt
 GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
@@ -67,7 +86,7 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:v$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
-JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.3.0
+JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.4.0
 
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
 COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
@@ -174,7 +193,6 @@ lint:
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
-
 	./scripts/check-go-version.sh
 
 .PHONY: build-examples
@@ -221,6 +239,9 @@ cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.
 	rm -rf cmd/query/app/ui/actual/*
 	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
 	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
+	# copy the timestamp for index.html.gz from the original file
+	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/query/app/ui/actual/index.html.gz
+	ls -lF cmd/query/app/ui/actual/
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui
@@ -228,45 +249,50 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 .PHONY: rebuild-ui
 rebuild-ui:
 	bash ./scripts/rebuild-ui.sh
+	@echo "NOTE: This target only rebuilds the UI assets inside jaeger-ui/packages/jaeger-ui/build/."
+	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
-build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
-build-all-in-one-debug build-agent-debug build-query-debug build-collector-debug build-ingester-debug build-remote-storage-debug: SUFFIX = -debug
+# Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
+# Other targets can depend on this one but with a unique suffix to ensure it is always executed.
+BIN_PATH = ./cmd/$(BIN_NAME)
+.PHONY: _build-a-binary
+_build-a-binary-%:
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
 
-.PHONY: build-jaeger-v2
-build-jaeger-v2:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/jaeger-v2/jaeger-v2$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/jaeger-v2/
+.PHONY: build-jaeger
+build-jaeger: BIN_NAME = jaeger
+build-jaeger: GO_TAGS = -tags ui
+build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-all-in-one build-all-in-one-debug
-build-all-in-one build-all-in-one-debug: build-ui
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/all-in-one/all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/
+.PHONY: build-all-in-one
+build-all-in-one: BIN_NAME = all-in-one
+build-all-in-one: GO_TAGS = -tags ui
+build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-agent build-agent-debug
-build-agent build-agent-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/agent/agent$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/
+.PHONY: build-agent
+build-agent: BIN_NAME = agent
+build-agent: _build-a-binary-agent$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-query build-query-debug
-build-query build-query-debug: build-ui
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -tags ui -o ./cmd/query/query$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/
+.PHONY: build-query
+build-query: BIN_NAME = query
+build-query: GO_TAGS = -tags ui
+build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-collector build-collector-debug
-build-collector build-collector-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/collector/collector$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/
+.PHONY: build-collector
+build-collector: BIN_NAME = collector
+build-collector: _build-a-binary-collector$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-ingester build-ingester-debug
-build-ingester build-ingester-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/ingester/ingester$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/
+.PHONY: build-ingester
+build-ingester: BIN_NAME = ingester
+build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-remote-storage build-remote-storage-debug
-build-remote-storage build-remote-storage-debug:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) -o ./cmd/remote-storage/remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/remote-storage/
-
-.PHONY: build-binaries-linux
-build-binaries-linux:
-	GOOS=linux GOARCH=amd64 $(MAKE) build-platform-binaries
+.PHONY: build-remote-storage
+build-remote-storage: BIN_NAME = remote-storage
+build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 # Magic values:
 # - LangID "0409" is "US-English".
@@ -312,67 +338,78 @@ endef
 
 export VERSIONINFO
 
-.PHONY: prepare-winres
-prepare-winres:
-	$(MAKE) prepare-winres-helper NAME="Jaeger Agent"            PKGPATH="cmd/agent"
-	$(MAKE) prepare-winres-helper NAME="Jaeger Collector"        PKGPATH="cmd/collector"
-	$(MAKE) prepare-winres-helper NAME="Jaeger Query"            PKGPATH="cmd/query"
-	$(MAKE) prepare-winres-helper NAME="Jaeger Ingester"         PKGPATH="cmd/ingester"
-	$(MAKE) prepare-winres-helper NAME="Jaeger Remote Storage"   PKGPATH="cmd/remote-storage"
-	$(MAKE) prepare-winres-helper NAME="Jaeger All-In-One"       PKGPATH="cmd/all-in-one"
-	$(MAKE) prepare-winres-helper NAME="Jaeger Tracegen"         PKGPATH="cmd/tracegen"
-	$(MAKE) prepare-winres-helper NAME="Jaeger Anonymizer"       PKGPATH="cmd/anonymizer"
-	$(MAKE) prepare-winres-helper NAME="Jaeger ES-Index-Cleaner" PKGPATH="cmd/es-index-cleaner"
-	$(MAKE) prepare-winres-helper NAME="Jaeger ES-Rollover"      PKGPATH="cmd/es-rollover"
+.PHONY: _prepare-winres
+_prepare-winres:
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Agent"            PKGPATH="cmd/agent"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Collector"        PKGPATH="cmd/collector"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Query"            PKGPATH="cmd/query"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Ingester"         PKGPATH="cmd/ingester"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Remote Storage"   PKGPATH="cmd/remote-storage"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger All-In-One"       PKGPATH="cmd/all-in-one"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger V2"               PKGPATH="cmd/jaeger"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Tracegen"         PKGPATH="cmd/tracegen"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger Anonymizer"       PKGPATH="cmd/anonymizer"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Index-Cleaner" PKGPATH="cmd/es-index-cleaner"
+	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Rollover"      PKGPATH="cmd/es-rollover"
 
-.PHONY: prepare-winres-helper
-prepare-winres-helper:
+.PHONY: _prepare-winres-helper
+_prepare-winres-helper:
 	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
 
+.PHONY: build-binaries-linux
+build-binaries-linux:
+	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
+
 .PHONY: build-binaries-windows
-build-binaries-windows: prepare-winres
-	GOOS=windows GOARCH=amd64 $(MAKE) build-platform-binaries
+build-binaries-windows: _prepare-winres
+	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
 	rm ./cmd/*/$(SYSOFILE)
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin GOARCH=amd64 $(MAKE) build-platform-binaries
+	GOOS=darwin GOARCH=amd64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-darwin-arm64
 build-binaries-darwin-arm64:
-	GOOS=darwin GOARCH=arm64 $(MAKE) build-platform-binaries
+	GOOS=darwin GOARCH=arm64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-s390x
 build-binaries-s390x:
-	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=s390x $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-arm64
 build-binaries-arm64:
-	GOOS=linux GOARCH=arm64 $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=arm64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-ppc64le
 build-binaries-ppc64le:
-	GOOS=linux GOARCH=ppc64le $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=ppc64le $(MAKE) _build-platform-binaries
 
-.PHONY: build-platform-binaries
-build-platform-binaries: build-agent \
-	build-agent-debug \
+# build all binaries for one specific platform GOOS/GOARCH
+.PHONY: _build-platform-binaries
+_build-platform-binaries: build-agent \
+		build-all-in-one \
+		build-collector \
+		build-query \
+		build-ingester \
+		build-jaeger \
+		build-remote-storage \
+		build-examples \
+		build-tracegen \
+		build-anonymizer \
+		build-esmapping-generator \
+		build-es-index-cleaner \
+		build-es-rollover
+	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
+
+# build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
+.PHONY: _build-platform-binaries-debug
+_build-platform-binaries-debug: build-agent \
 	build-collector \
-	build-collector-debug \
 	build-query \
-	build-query-debug \
 	build-ingester \
-	build-ingester-debug \
 	build-remote-storage \
-	build-remote-storage-debug \
 	build-all-in-one \
-	build-all-in-one-debug \
-	build-examples \
-	build-tracegen \
-	build-anonymizer \
-	build-esmapping-generator \
-	build-es-index-cleaner \
-	build-es-rollover
 
 .PHONY: build-all-platforms
 build-all-platforms: \
@@ -398,12 +435,9 @@ docker-images-elastic: create-baseimg
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
-docker-images-jaeger-backend: TARGET = release
-docker-images-jaeger-backend-debug: TARGET = debug
-docker-images-jaeger-backend-debug: SUFFIX = -debug
-
-.PHONY: docker-images-jaeger-backend docker-images-jaeger-backend-debug
-docker-images-jaeger-backend docker-images-jaeger-backend-debug: create-baseimg create-debugimg
+# TODO does this target need to exist? It's only called from crossdock, apparently.
+.PHONY: docker-images-jaeger-backend
+docker-images-jaeger-backend: create-baseimg create-debugimg
 	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
 		regex="jaeger-(.*)"; \
 		component_suffix=$$component; \
@@ -429,14 +463,6 @@ docker-images-tracegen:
 docker-images-anonymizer:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-anonymizer =============="
-
-.PHONY: docker-images-only
-docker-images-only: docker-images-cassandra \
-	docker-images-elastic \
-	docker-images-jaeger-backend \
-	docker-images-jaeger-backend-debug \
-	docker-images-tracegen \
-	docker-images-anonymizer
 
 .PHONY: build-crossdock-binary
 build-crossdock-binary:
@@ -474,17 +500,24 @@ changelog:
 draft-release:
 	./scripts/draft-release.py
 
-.PHONY: install-tools
-install-tools:
-	$(GO) install github.com/vektra/mockery/v2@v2.14.0
+.PHONY: install-test-tools
+install-test-tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
 	$(GO) install mvdan.cc/gofumpt@latest
+
+.PHONY: install-build-tools
+install-build-tools:
 	$(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
 
+.PHONY: install-tools
+install-tools: install-test-tools install-build-tools
+	$(GO) install github.com/vektra/mockery/v2@v2.14.0
+
 .PHONY: install-ci
-install-ci: install-tools
+install-ci: install-test-tools install-build-tools
 
 .PHONY: test-ci
+test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover
 
 .PHONY: thrift
@@ -609,12 +642,12 @@ proto: proto-prepare-otel
 
 	$(PROTOC) \
 		-Imodel/proto \
-		--go_out=$(PWD)/model/prototest/ \
+		--go_out=$(PWD)/model/ \
 		model/proto/model_test.proto
 
 	$(PROTOC) \
 		-Iplugin/storage/grpc/proto \
-		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
+		--go_out=$(PWD)/plugin/storage/grpc/proto/ \
 		plugin/storage/grpc/proto/storage_test.proto
 
 	$(PROTOC) \

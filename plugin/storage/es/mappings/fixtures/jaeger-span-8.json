@@ -1,5 +1,5 @@
 {
-  "priority": 101,
+  "priority": 500,
   "index_patterns": "*test-jaeger-span-*",
   "template": {
     "aliases": {
@@ -165,3 +165,4 @@
     }
   }
 }
+

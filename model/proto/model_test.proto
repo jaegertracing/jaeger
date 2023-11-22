@@ -16,6 +16,8 @@ syntax="proto3";
 
 package prototest;
 
+option go_package = "./prototest";
+
 enum SpanRefType {
     CHILD_OF = 0;
     FOLLOWS_FROM = 1;

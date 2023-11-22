@@ -58,26 +58,25 @@ var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "query.http",
 }
 
-// QueryOptions holds configuration for query service
-type QueryOptions struct {
-	// HTTPHostPort is the host:port address that the query service listens in on for http requests
-	HTTPHostPort string
-	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
-	GRPCHostPort string
-	// BasePath is the prefix for all UI and API HTTP routes
+// QueryOptionsStaticAssets contains configuration for handling static assets
+type QueryOptionsStaticAssets struct {
+	// Path is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
+	Path string `valid:"optional" mapstructure:"path"`
+	// LogAccess tells static handler to log access to static assets, useful in debugging
+	LogAccess bool `valid:"optional" mapstructure:"log_access"`
+}
+
+// QueryOptionsBase holds configuration for query service shared with jaeger(v2)
+type QueryOptionsBase struct {
+	// BasePath is the base path for all HTTP routes
 	BasePath string
-	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
-	StaticAssets string
-	// LogStaticAssetsAccess tells static handler to log access to static assets, useful in debugging
-	LogStaticAssetsAccess bool
+
+	StaticAssets QueryOptionsStaticAssets `valid:"optional" mapstructure:"static_assets"`
+
 	// UIConfig is the path to a configuration file for the UI
-	UIConfig string
+	UIConfig string `valid:"optional" mapstructure:"ui_config"`
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
-	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
-	TLSGRPC tlscfg.Options
-	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
-	TLSHTTP tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
@@ -86,6 +85,20 @@ type QueryOptions struct {
 	Tenancy tenancy.Options
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool
+}
+
+// QueryOptions holds configuration for query service
+type QueryOptions struct {
+	QueryOptionsBase
+
+	// HTTPHostPort is the host:port address that the query service listens in on for http requests
+	HTTPHostPort string
+	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
+	GRPCHostPort string
+	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
+	TLSGRPC tlscfg.Options
+	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
+	TLSHTTP tlscfg.Options
 }
 
 // AddFlags adds flags for QueryOptions
@@ -119,8 +132,8 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 		return qOpts, fmt.Errorf("failed to process HTTP TLS options: %w", err)
 	}
 	qOpts.BasePath = v.GetString(queryBasePath)
-	qOpts.StaticAssets = v.GetString(queryStaticFiles)
-	qOpts.LogStaticAssetsAccess = v.GetBool(queryLogStaticAssetsAccess)
+	qOpts.StaticAssets.Path = v.GetString(queryStaticFiles)
+	qOpts.StaticAssets.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 
