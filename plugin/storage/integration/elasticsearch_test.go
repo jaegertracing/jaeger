@@ -341,13 +341,3 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 	}
 	return nil
 }
-
-// cleanESIndexTemplates is called from es_index_*_test.go which are built with custom build tgs.
-func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
-	s := &ESStorageIntegration{
-		client:   client,
-		v8Client: v8Client,
-	}
-	s.logger, _ = testutils.NewLogger()
-	s.cleanESIndexTemplates(t, prefix)
-}

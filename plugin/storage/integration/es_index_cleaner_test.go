@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -226,4 +227,13 @@ func createESV8Client() (*elasticsearch8.Client, error) {
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
 	})
+}
+
+func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
+	s := &ESStorageIntegration{
+		client:   client,
+		v8Client: v8Client,
+	}
+	s.logger, _ = testutils.NewLogger()
+	s.cleanESIndexTemplates(t, prefix)
 }
