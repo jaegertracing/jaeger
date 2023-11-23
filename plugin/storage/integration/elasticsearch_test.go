@@ -148,15 +148,12 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder:              estemplate.TextTemplateBuilder{},
-		Shards:                       5,
-		Replicas:                     1,
-		PrioritySpanTemplate:         500,
-		PriorityServiceTemplate:      501,
-		PriorityDependenciesTemplate: 502,
-		EsVersion:                    client.GetVersion(),
-		IndexPrefix:                  indexPrefix,
-		UseILM:                       false,
+		TemplateBuilder: estemplate.TextTemplateBuilder{},
+		Shards:          5,
+		Replicas:        1,
+		EsVersion:       client.GetVersion(),
+		IndexPrefix:     indexPrefix,
+		UseILM:          false,
 	}
 	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
