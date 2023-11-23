@@ -231,10 +231,23 @@ func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	return err
 }
 
+func (i IndicesClient) version() (uint, error) {
+	cl := ClusterClient{Client: i.Client}
+	return cl.Version()
+}
+
 // CreateTemplate an ES index template
 func (i IndicesClient) CreateTemplate(template, name string) error {
+	endpointFmt := "_template/%s"
+	if v, err := i.version(); err == nil {
+		if v >= 8 {
+			endpointFmt = "_index_template/%s"
+		}
+	} else {
+		return err
+	}
 	_, err := i.request(elasticRequest{
-		endpoint: fmt.Sprintf("_template/%s", name),
+		endpoint: fmt.Sprintf(endpointFmt, name),
 		method:   http.MethodPut,
 		body:     []byte(template),
 	})

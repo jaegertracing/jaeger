@@ -40,6 +40,9 @@ const (
 	suffixMaxSpanAge                     = ".max-span-age"
 	suffixNumShards                      = ".num-shards"
 	suffixNumReplicas                    = ".num-replicas"
+	suffixPrioritySpanTemplate           = ".prioirity-span-template"
+	suffixPriorityServiceTemplate        = ".prioirity-service-template"
+	suffixPriorityDependenciesTemplate   = ".prioirity-dependencies-template"
 	suffixBulkSize                       = ".bulk.size"
 	suffixBulkWorkers                    = ".bulk.workers"
 	suffixBulkActions                    = ".bulk.actions"
@@ -94,16 +97,19 @@ type namespaceConfig struct {
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
 	defaultConfig := config.Configuration{
-		Username:          "",
-		Password:          "",
-		Sniffer:           false,
-		MaxSpanAge:        72 * time.Hour,
-		NumShards:         5,
-		NumReplicas:       1,
-		BulkSize:          5 * 1000 * 1000,
-		BulkWorkers:       1,
-		BulkActions:       1000,
-		BulkFlushInterval: time.Millisecond * 200,
+		Username:                     "",
+		Password:                     "",
+		Sniffer:                      false,
+		MaxSpanAge:                   72 * time.Hour,
+		NumShards:                    5,
+		NumReplicas:                  1,
+		PrioritySpanTemplate:         0,
+		PriorityServiceTemplate:      0,
+		PriorityDependenciesTemplate: 0,
+		BulkSize:                     5 * 1000 * 1000,
+		BulkWorkers:                  1,
+		BulkActions:                  1000,
+		BulkFlushInterval:            time.Millisecond * 200,
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},
@@ -192,6 +198,18 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.NumReplicas,
 		"The number of replicas per index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffixPrioritySpanTemplate,
+		nsConfig.PrioritySpanTemplate,
+		"Priority of jaeger-span index template (ESv8 only)")
+	flagSet.Int64(
+		nsConfig.namespace+suffixPriorityServiceTemplate,
+		nsConfig.PriorityServiceTemplate,
+		"Priority of jaeger-service index template (ESv8 only)")
+	flagSet.Int64(
+		nsConfig.namespace+suffixPriorityDependenciesTemplate,
+		nsConfig.PriorityDependenciesTemplate,
+		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
 		nsConfig.BulkSize,
@@ -314,6 +332,9 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.PrioritySpanTemplate = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
+	cfg.PriorityServiceTemplate = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
+	cfg.PriorityDependenciesTemplate = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)

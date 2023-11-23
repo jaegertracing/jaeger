@@ -17,7 +17,11 @@ package eswrapper
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
+	esV8 "github.com/elastic/go-elasticsearch/v8"
+	esV8api "github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/olivere/elastic"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -30,6 +34,7 @@ type ClientWrapper struct {
 	client      *elastic.Client
 	bulkService *elastic.BulkProcessor
 	esVersion   uint
+	clientV8    *esV8.Client
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -38,8 +43,13 @@ func (c ClientWrapper) GetVersion() uint {
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint) ClientWrapper {
-	return ClientWrapper{client: client, bulkService: s, esVersion: esVersion}
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client) ClientWrapper {
+	return ClientWrapper{
+		client:      client,
+		bulkService: s,
+		esVersion:   esVersion,
+		clientV8:    clientV8,
+	}
 }
 
 // IndexExists calls this function to internal client.
@@ -54,6 +64,12 @@ func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
 
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
+	if c.esVersion >= 8 {
+		return TemplateCreatorWrapperV8{
+			indicesV8:    c.clientV8.Indices,
+			templateName: ttype,
+		}
+	}
 	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
 }
 
@@ -66,7 +82,7 @@ func (c ClientWrapper) Index() es.IndexService {
 // Search calls this function to internal client.
 func (c ClientWrapper) Search(indices ...string) es.SearchService {
 	searchService := c.client.Search(indices...)
-	if c.esVersion == 7 {
+	if c.esVersion >= 7 {
 		searchService = searchService.RestTotalHitsAsInt(true)
 	}
 	return WrapESSearchService(searchService)
@@ -75,7 +91,7 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 // MultiSearch calls this function to internal client.
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
-	if c.esVersion == 7 {
+	if c.esVersion >= 7 {
 		multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
 	}
 	return WrapESMultiSearchService(multiSearchService)
@@ -147,6 +163,34 @@ func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesP
 
 // ---
 
+// TemplateCreatorWrapperV8 implements es.TemplateCreateService.
+type TemplateCreatorWrapperV8 struct {
+	indicesV8       *esV8api.Indices
+	templateName    string
+	templateMapping string
+}
+
+// Body adds mapping to the future request.
+func (c TemplateCreatorWrapperV8) Body(mapping string) es.TemplateCreateService {
+	cc := c // clone
+	cc.templateMapping = mapping
+	return cc
+}
+
+// Do executes Put Template command.
+func (c TemplateCreatorWrapperV8) Do(ctx context.Context) (*elastic.IndicesPutTemplateResponse, error) {
+	resp, err := c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+	if err != nil {
+		return nil, fmt.Errorf("error creating index template %s: %w", c.templateName, err)
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("error creating index template %s: %s", c.templateName, resp)
+	}
+	return nil, nil // no response expected by span writer
+}
+
+// ---
+
 // IndexServiceWrapper is a wrapper around elastic.ESIndexService.
 // See wrapper_nolint.go for more functions.
 type IndexServiceWrapper struct {
@@ -167,7 +211,7 @@ func (i IndexServiceWrapper) Index(index string) es.IndexService {
 
 // Type calls this function to internal service.
 func (i IndexServiceWrapper) Type(typ string) es.IndexService {
-	if i.esVersion == 7 {
+	if i.esVersion >= 7 {
 		return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.esVersion)
 	}
 	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.esVersion)

@@ -484,16 +484,24 @@ func TestClientCreateTemplate(t *testing.T) {
 	templateContent := "template content"
 	tests := []struct {
 		name         string
+		versionResp  string
 		responseCode int
 		response     string
 		errContains  string
 	}{
 		{
-			name:         "success",
+			name:         "success/v7",
+			versionResp:  elasticsearch7,
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "success/v8",
+			versionResp:  elasticsearch8,
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "client error",
+			versionResp:  elasticsearch7,
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
 			errContains:  "failed to create template: jaeger-template",
@@ -502,6 +510,11 @@ func TestClientCreateTemplate(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				if req.URL.String() == "/" { // ES version check
+					res.WriteHeader(http.StatusOK)
+					res.Write([]byte(test.versionResp))
+					return
+				}
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
 				assert.Equal(t, http.MethodPut, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))

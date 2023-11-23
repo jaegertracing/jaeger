@@ -39,13 +39,16 @@ type Action struct {
 
 func (c Action) getMapping(version uint, templateName string) (string, error) {
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: es.TextTemplateBuilder{},
-		Shards:          int64(c.Config.Shards),
-		Replicas:        int64(c.Config.Replicas),
-		IndexPrefix:     c.Config.IndexPrefix,
-		UseILM:          c.Config.UseILM,
-		ILMPolicyName:   c.Config.ILMPolicyName,
-		EsVersion:       version,
+		TemplateBuilder:              es.TextTemplateBuilder{},
+		PrioritySpanTemplate:         int64(c.Config.PrioritySpanTemplate),
+		PriorityServiceTemplate:      int64(c.Config.PriorityServiceTemplate),
+		PriorityDependenciesTemplate: int64(c.Config.PriorityDependenciesTemplate),
+		Shards:                       int64(c.Config.Shards),
+		Replicas:                     int64(c.Config.Replicas),
+		IndexPrefix:                  c.Config.IndexPrefix,
+		UseILM:                       c.Config.UseILM,
+		ILMPolicyName:                c.Config.ILMPolicyName,
+		EsVersion:                    version,
 	}
 	return mappingBuilder.GetMapping(templateName)
 }
@@ -57,7 +60,7 @@ func (c Action) Do() error {
 		return err
 	}
 	if c.Config.UseILM {
-		if version == ilmVersionSupport {
+		if version >= ilmVersionSupport {
 			policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
 			if err != nil {
 				return err
@@ -109,7 +112,6 @@ func (c Action) init(version uint, indexopt app.IndexOption) error {
 	if err != nil {
 		return err
 	}
-
 	err = c.IndicesClient.CreateTemplate(mapping, indexopt.TemplateName())
 	if err != nil {
 		return err

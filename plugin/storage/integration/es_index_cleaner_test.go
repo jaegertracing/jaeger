@@ -23,9 +23,12 @@ import (
 	"os/exec"
 	"testing"
 
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const (
@@ -80,6 +83,8 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 func TestIndexCleaner(t *testing.T) {
 	client, err := createESClient()
 	require.NoError(t, err)
+	v8Client, err := createESV8Client()
+	require.NoError(t, err)
 
 	tests := []struct {
 		name            string
@@ -116,24 +121,23 @@ func TestIndexCleaner(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, "", test.expectedIndices, test.envVars)
+			runIndexCleanerTest(t, client, v8Client, "", test.expectedIndices, test.envVars)
 		})
 		t.Run(fmt.Sprintf("%s_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix))
+			runIndexCleanerTest(t, client, v8Client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix))
 		})
 	}
 }
 
-func runIndexCleanerTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string) {
+func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string, expectedIndices, envVars []string) {
 	// make sure ES is clean
 	_, err := client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
-
+	defer cleanESIndexTemplates(t, client, v8Client, prefix)
 	err = createAllIndices(client, prefix)
 	require.NoError(t, err)
 	err = runEsCleaner(0, envVars)
 	require.NoError(t, err)
-
 	indices, err := client.IndexNames()
 	require.NoError(t, err)
 	if prefix != "" {
@@ -217,4 +221,20 @@ func createESClient() (*elastic.Client, error) {
 	return elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
+}
+
+func createESV8Client() (*elasticsearch8.Client, error) {
+	return elasticsearch8.NewClient(elasticsearch8.Config{
+		Addresses:            []string{queryURL},
+		DiscoverNodesOnStart: false,
+	})
+}
+
+func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
+	s := &ESStorageIntegration{
+		client:   client,
+		v8Client: v8Client,
+	}
+	s.logger, _ = testutils.NewLogger()
+	s.cleanESIndexTemplates(t, prefix)
 }

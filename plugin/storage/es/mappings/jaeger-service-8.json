@@ -1,0 +1,55 @@
+{
+  "priority": {{ .PriorityServiceTemplate}},
+  "index_patterns": "{{ .IndexPrefix }}jaeger-service-*",
+  "template": {
+    {{- if .UseILM }}
+    "aliases": {
+      "{{ .IndexPrefix }}jaeger-service-read": {}
+    },
+    {{- end }}
+    "settings": {
+      "index.number_of_shards": {{ .Shards }},
+      "index.number_of_replicas": {{  .Replicas }},
+      "index.mapping.nested_fields.limit": 50,
+      "index.requests.cache.enable": true
+      {{- if .UseILM }},
+      "lifecycle": {
+        "name": "{{ .ILMPolicyName }}",
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-service-write"
+      }
+      {{- end }}
+    },
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "span_tags_map": {
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 256
+            },
+            "path_match": "tag.*"
+          }
+        },
+        {
+          "process_tags_map": {
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 256
+            },
+            "path_match": "process.tag.*"
+          }
+        }
+      ],
+      "properties": {
+        "serviceName": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "operationName": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    }
+  }
+}

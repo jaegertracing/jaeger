@@ -1,0 +1,51 @@
+{
+  "priority": 501,
+  "index_patterns": "test-jaeger-service-*",
+  "template": {
+    "aliases": {
+      "test-jaeger-service-read": {}
+    },
+    "settings": {
+      "index.number_of_shards": 3,
+      "index.number_of_replicas": 3,
+      "index.mapping.nested_fields.limit": 50,
+      "index.requests.cache.enable": true,
+      "lifecycle": {
+        "name": "jaeger-test-policy",
+        "rollover_alias": "test-jaeger-service-write"
+      }
+    },
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "span_tags_map": {
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 256
+            },
+            "path_match": "tag.*"
+          }
+        },
+        {
+          "process_tags_map": {
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 256
+            },
+            "path_match": "process.tag.*"
+          }
+        }
+      ],
+      "properties": {
+        "serviceName": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "operationName": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    }
+  }
+}

@@ -27,8 +27,19 @@ setup_es() {
     --env "http.host=0.0.0.0"
     --env "transport.host=127.0.0.1"
     --env "xpack.security.enabled=false"
-    --env "xpack.monitoring.enabled=false"
   )
+  local major_version=${tag%%.*}
+  if (( major_version < 8 )); then
+    params+=(--env "xpack.monitoring.enabled=false")
+  else
+    params+=(--env "xpack.monitoring.collection.enabled=false")
+  fi
+  if (( major_version > 7 )); then
+    params+=(
+      --env "action.destructive_requires_name=false"
+    )
+  fi
+
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
   echo "${cid}"

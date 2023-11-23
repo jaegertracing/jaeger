@@ -104,7 +104,6 @@ const opensearch2 = `
 `
 
 const elasticsearch7 = `
-
 {
 	"name" : "elasticsearch-0",
 	"cluster_name" : "clustername",
@@ -124,8 +123,17 @@ const elasticsearch7 = `
   }
 `
 
-const elasticsearch6 = `
+const elasticsearch8 = `
+{
+	"name" : "elasticsearch-0",
+	"version" : {
+	  "number" : "8.0.0"
+	},
+	"tagline" : "You Know, for Search"
+  }
+`
 
+const elasticsearch6 = `
 {
 	"name" : "elasticsearch-0",
 	"cluster_name" : "clustername",
@@ -164,6 +172,12 @@ func TestVersion(t *testing.T) {
 			responseCode:   http.StatusOK,
 			response:       elasticsearch7,
 			expectedResult: 7,
+		},
+		{
+			name:           "success with elasticsearch 8",
+			responseCode:   http.StatusOK,
+			response:       elasticsearch8,
+			expectedResult: 8,
 		},
 		{
 			name:           "success with opensearch 1",
@@ -223,7 +237,9 @@ func TestVersion(t *testing.T) {
 			if test.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errContains)
+				return
 			}
+			require.NoError(t, err)
 			assert.Equal(t, test.expectedResult, result)
 		})
 	}

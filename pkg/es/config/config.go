@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	esV8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -57,6 +58,9 @@ type Configuration struct {
 	MaxSpanAge                     time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
 	NumShards                      int64          `yaml:"shards" mapstructure:"num_shards"`
 	NumReplicas                    int64          `yaml:"replicas" mapstructure:"num_replicas"`
+	PrioritySpanTemplate           int64          `yaml:"priority_span_template" mapstructure:"priority_span_template"`
+	PriorityServiceTemplate        int64          `yaml:"priority_service_template" mapstructure:"priority_service_template"`
+	PriorityDependenciesTemplate   int64          `yaml:"priority_dependencies_template" mapstructure:"priority_dependencies_template"`
 	Timeout                        time.Duration  `validate:"min=500" mapstructure:"-"`
 	BulkSize                       int            `mapstructure:"-"`
 	BulkWorkers                    int            `mapstructure:"-"`
@@ -111,7 +115,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	sm := storageMetrics.NewWriteMetrics(metricsFactory, "bulk_index")
 	m := sync.Map{}
 
-	service, err := rawClient.BulkProcessor().
+	bulkProc, err := rawClient.BulkProcessor().
 		Before(func(id int64, requests []elastic.BulkableRequest) {
 			m.Store(id, time.Now())
 		}).
@@ -184,7 +188,29 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		c.Version = uint(esVersion)
 	}
 
-	return eswrapper.WrapESClient(rawClient, service, c.Version), nil
+	var rawClientV8 *esV8.Client
+	if c.Version >= 8 {
+		rawClientV8, err = newElasticsearchV8(c, logger)
+		if err != nil {
+			return nil, fmt.Errorf("error creating v8 client: %v", err)
+		}
+	}
+
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
+}
+
+func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
+	var options esV8.Config
+	options.Addresses = c.Servers
+	options.Username = c.Username
+	options.Password = c.Password
+	options.DiscoverNodesOnStart = c.Sniffer
+	transport, err := GetHTTPRoundTripper(c, logger)
+	if err != nil {
+		return nil, err
+	}
+	options.Transport = transport
+	return esV8.NewClient(options)
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -209,6 +235,15 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.NumReplicas == 0 {
 		c.NumReplicas = source.NumReplicas
+	}
+	if c.PrioritySpanTemplate == 0 {
+		c.PrioritySpanTemplate = source.PrioritySpanTemplate
+	}
+	if c.PriorityServiceTemplate == 0 {
+		c.PriorityServiceTemplate = source.PriorityServiceTemplate
+	}
+	if c.PrioritySpanTemplate == 0 {
+		c.PriorityDependenciesTemplate = source.PriorityDependenciesTemplate
 	}
 	if c.BulkSize == 0 {
 		c.BulkSize = source.BulkSize

@@ -229,18 +229,22 @@ func createSpanWriter(
 	}
 
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: es.TextTemplateBuilder{},
-		Shards:          cfg.NumShards,
-		Replicas:        cfg.NumReplicas,
-		EsVersion:       cfg.Version,
-		IndexPrefix:     cfg.IndexPrefix,
-		UseILM:          cfg.UseILM,
+		TemplateBuilder:              es.TextTemplateBuilder{},
+		Shards:                       cfg.NumShards,
+		Replicas:                     cfg.NumReplicas,
+		EsVersion:                    cfg.Version,
+		IndexPrefix:                  cfg.IndexPrefix,
+		UseILM:                       cfg.UseILM,
+		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
+		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
+		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
 	}
 
 	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
 		return nil, err
 	}
+
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,

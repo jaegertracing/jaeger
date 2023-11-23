@@ -17,6 +17,7 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -109,11 +110,11 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 	}
 	_, err := s.client().CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create template %q: %w", indexPrefix+"jaeger-span", err)
 	}
 	_, err = s.client().CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create template %q: %w", indexPrefix+"jaeger-service", err)
 	}
 	return nil
 }
