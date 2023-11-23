@@ -1,6 +1,6 @@
 {
   "priority": {{ .PriorityDependenciesTemplate }},
-  "index_patterns": "*jaeger-dependencies-*",
+  "index_patterns": "{{ .IndexPrefix }}jaeger-dependencies-*",
   "template": {
     {{- if .UseILM }}
     "aliases": {

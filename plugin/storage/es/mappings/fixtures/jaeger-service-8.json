@@ -1,6 +1,6 @@
 {
   "priority": 501,
-  "index_patterns": "*test-jaeger-service-*",
+  "index_patterns": "test-jaeger-service-*",
   "template": {
     "aliases": {
       "test-jaeger-service-read": {}
