@@ -25,10 +25,11 @@ import (
 	"testing"
 
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const (
