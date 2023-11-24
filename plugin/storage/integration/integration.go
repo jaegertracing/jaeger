@@ -470,7 +470,6 @@ func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
 }
 
 func (s *StorageIntegration) insertThroughput(t *testing.T) {
-	fmt.Println("Inside the insertThroughput function")
 	throughputs := []*samplemodel.Throughput{
 		{Service: "my-svc", Operation: "op"},
 		{Service: "our-svc", Operation: "op2"},
