@@ -6,9 +6,11 @@ codecov:
 
 ignore:
   - "**/*.pb.go"
-  - "**/*-gen/*"
   - "**/mocks/*"
+  - "proto-gen/*/*"
+  - "thrift-gen/*/*"
   - "**/thrift-0.9.2/*"
+  - "swagger-gen/*/*"
 
 coverage:
   precision: 2
