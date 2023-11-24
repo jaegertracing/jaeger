@@ -4,6 +4,12 @@ codecov:
     after_n_builds: 3
   strict_yaml_branch: main  # only use the latest copy on the main branch
 
+ignore:
+  - "**/*.pb.go"
+  - "**/*-gen/*"
+  - "**/mocks/*"
+  - "**/thrift-0.9.2/*"
+
 coverage:
   precision: 2
   round: down
