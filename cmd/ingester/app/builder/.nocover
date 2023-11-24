@@ -1,1 +1,0 @@
-FIXME - refactor to avoid direct Kafka dependency. Cf. collector's builder, which is testable
