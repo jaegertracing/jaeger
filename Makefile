@@ -129,7 +129,7 @@ storage-integration-test: go-gen
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -coverprofile cover.out $(STORAGE_PKGS) | $(COLORIZE)"
 
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:
@@ -167,9 +167,8 @@ echo-all-srcs:
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./...
-	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
-	mv cover-nogen.out cover.out
+	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover-all.out ./...
+	grep -E -v 'model.pb.*.go' cover-all.out > cover.out
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
