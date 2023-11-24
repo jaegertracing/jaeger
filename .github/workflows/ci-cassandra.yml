@@ -15,12 +15,6 @@ concurrency:
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
-env:
-  # Using upload token helps against rate limiting errors.
-  # Cannot define it as secret as we need it accessible from forks.
-  # See https://github.com/codecov/codecov-action/issues/837
-  CODECOV_TOKEN: f457b710-93af-4191-8678-bcf51281f98c
-
 jobs:
   cassandra:
     runs-on: ubuntu-latest
@@ -50,6 +44,9 @@ jobs:
 
     - name: Run cassandra integration tests
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }}
+
+    - name: Setup CODECOV_TOKEN
+      uses: ./.github/actions/setup-codecov
 
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
