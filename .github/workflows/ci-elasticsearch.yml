@@ -59,3 +59,15 @@ jobs:
 
     - name: Run elasticsearch integration tests
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
+
+    - name: Setup CODECOV_TOKEN
+      uses: ./.github/actions/setup-codecov
+
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
+      with:
+        files: [cover.out, cover-index-cleaner.out, cover-index-rollover.out]
+        verbose: true
+        flags: elasticsearch-${{ matrix.version.major }}
+        fail_ci_if_error: true
+        token: ${{ env.CODECOV_TOKEN }}

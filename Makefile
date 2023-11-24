@@ -103,6 +103,12 @@ SYSOFILE=resource.syso
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
+echo-all-pkgs:
+	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
+
+echo-all-srcs:
+	@echo $(ALL_SRC) | tr ' ' '\n' | sort
+
 # TODO: no files actually use this right now
 .PHONY: go-gen
 go-gen:
@@ -110,7 +116,7 @@ go-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
+	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
 	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
@@ -122,7 +128,7 @@ test: go-gen
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
-	$(GOTEST) -tags=integration ./cmd/all-in-one/...
+	$(GOTEST) -tags=integration -coverprofile cover.out ./cmd/all-in-one/...
 
 .PHONY: storage-integration-test
 storage-integration-test: go-gen
@@ -133,37 +139,26 @@ storage-integration-test: go-gen
 
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration $(STORAGE_PKGS) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration -coverprofile cover-badger.out $(STORAGE_PKGS) | $(COLORIZE)"
 
 .PHONY: grpc-storage-integration-test
 grpc-storage-integration-test:
 	(cd examples/memstore-plugin/ && go build .)
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=grpc_storage_integration $(STORAGE_PKGS) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=grpc_storage_integration -coverprofile cover.out $(STORAGE_PKGS) | $(COLORIZE)"
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
 	# Expire test results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner $(STORAGE_PKGS) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner -coverprofile cover-index-cleaner.out $(STORAGE_PKGS) | $(COLORIZE)"
 
 .PHONY: index-rollover-integration-test
 index-rollover-integration-test: docker-images-elastic
 	# Expire test results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover $(STORAGE_PKGS) | $(COLORIZE)"
-
-.PHONY: token-propagation-integration-test
-token-propagation-integration-test:
-	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags token_propagation -run TestBearTokenPropagation $(STORAGE_PKGS) | $(COLORIZE)"
-
-echo-all-pkgs:
-	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
-
-echo-all-srcs:
-	@echo $(ALL_SRC) | tr ' ' '\n' | sort
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover -coverprofile cover-index-rollover.out $(STORAGE_PKGS) | $(COLORIZE)"
 
 .PHONY: cover
 cover: nocover
