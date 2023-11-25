@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/dgraph-io/badger/v3"
@@ -84,7 +83,6 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 			item := it.Item()
 			k := item.Key()
 			startTime := k[1:9]
-			fmt.Printf("key=%s\n", k)
 			val, err := item.ValueCopy(val)
 			if err != nil {
 				return err

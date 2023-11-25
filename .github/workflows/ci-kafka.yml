@@ -37,6 +37,18 @@ jobs:
       run: docker logs "${{ job.services.kafka.id }}"
       if: ${{ failure() }}
 
+    - name: Setup CODECOV_TOKEN
+      uses: ./.github/actions/setup-codecov
+
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
+      with:
+        files: cover.out
+        verbose: true
+        flags: kafka
+        fail_ci_if_error: true
+        token: ${{ env.CODECOV_TOKEN }}
+
     services:
       zookeeper:
         image: bitnami/zookeeper

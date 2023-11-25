@@ -1,0 +1,13 @@
+# Codecov upload often fails on rate limits if used without a token.
+# See https://github.com/codecov/codecov-action/issues/837
+# This action exposes the token as env.CODECOV_TOKEN.
+# We cannot define it as "secret" as we need it accessible from forks.
+name: 'Setup CODECOV_TOKEN'
+description: 'Make CODECOV_TOKEN var accessible to job'
+runs:
+  using: "composite"
+  steps:
+    - name: Setup CODECOV_TOKEN
+      shell: bash
+      run: |
+        echo "CODECOV_TOKEN=f457b710-93af-4191-8678-bcf51281f98c" >> ${GITHUB_ENV}
