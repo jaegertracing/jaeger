@@ -64,6 +64,7 @@ jobs:
           *)
             echo "PR_ONLY=" >> ${GITHUB_ENV}
             ;;
+        esac
 
     - name: Build, test, and publish all-in-one image
       run: BINARY=${{ matrix.mode.binary }} bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
