@@ -1,10 +1,15 @@
 #!/bin/bash
 
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This script checks that all directories with go files
+# have at least one *_test.go file or a .nocover file.
+
 set -euo pipefail
 
-COLOR_FIXME=$(printf "\033[31mFIXME\033[0m")
-
 NO_TEST_FILE_DIRS=""
+
 # shellcheck disable=SC2048
 for dir in $*; do
   mainFile=$(find "${dir}" -maxdepth 1 -name 'main.go')
@@ -20,7 +25,7 @@ for dir in $*; do
         exit 1
       fi
       echo "Package excluded from coverage: ${dir}"
-      echo "  reason: ${reason}" | sed "/FIXME/s//${COLOR_FIXME}/"
+      echo "  reason: ${reason}" | sed "s/FIXME/🔴 FIXME/"
       continue
     fi
     if [ -z "${NO_TEST_FILE_DIRS}" ]; then

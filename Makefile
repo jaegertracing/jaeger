@@ -9,7 +9,7 @@ GO = go
 include docker/Makefile
 include crossdock/rules.mk
 
-# TODO we can comparmentalize this Makefile better, by separting:
+# TODO we can compartmentalize this Makefile better, by separting:
 #  - thrift and proto builds
 #  - integration tests
 #  - all the binary building targets
@@ -121,7 +121,7 @@ test:
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test:
-	TEST_MODE=integration $(GOTEST) -coverpkg=./... -coverprofile cover.out ./cmd/all-in-one/
+	TEST_MODE=integration $(GOTEST) ./cmd/all-in-one/
 
 .PHONY: storage-integration-test
 storage-integration-test:

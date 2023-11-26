@@ -51,7 +51,7 @@ const (
 	getSamplingStrategyURL = "/sampling?service=whatever"
 )
 
-var traceID string // state exchanged between createTrace bd getAPITrace
+var traceID string // stores state exchanged between createTrace and getAPITrace
 
 var httpClient = &http.Client{
 	Timeout: time.Second,
@@ -59,7 +59,7 @@ var httpClient = &http.Client{
 
 func TestAllInOne(t *testing.T) {
 	if os.Getenv("TEST_MODE") != "integration" {
-		t.Skip("Integration test for all-in-one skipped; set TEST_MODE=integration env var to enable")
+		t.Skip("Integration test for all-in-one skipped; set environment variable TEST_MODE=integration to enable")
 	}
 
 	// Check if the query service is available
