@@ -85,6 +85,6 @@ jobs:
       with:
         files: cover.out
         verbose: true
-        flags: all-in-one-${{ matrix.mode.binary }}
+        flags: all-in-one-${{ matrix.mode.name }}
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
