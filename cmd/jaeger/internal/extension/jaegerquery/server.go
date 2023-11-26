@@ -71,6 +71,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
+	//nolint
 	jtracer, err := jtracer.New("jaeger")
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
