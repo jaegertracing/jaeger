@@ -126,7 +126,7 @@ test: go-gen
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
-	$(GOTEST) -tags=integration -coverpkg=./... -coverprofile cover.out ./cmd/all-in-one/...
+	$(GOTEST) -tags=integration ./cmd/all-in-one/...
 
 .PHONY: storage-integration-test
 storage-integration-test: go-gen

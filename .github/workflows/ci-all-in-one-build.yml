@@ -18,14 +18,6 @@ permissions:
 jobs:
   all-in-one:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        mode:
-        - name: v1
-          binary: all-in-one
-        - name: v2
-          binary: jaeger
-
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@eb238b55efaa70779f274895e782ed17c84f2895
@@ -55,30 +47,24 @@ jobs:
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3
 
-    - name: Define PR_ONLY var if running on a Pull Request
-      run: |
-        case ${GITHUB_EVENT_NAME} in
-          pull_request)
-            echo "PR_ONLY=pr-only" >> ${GITHUB_ENV}
-            ;;
-          *)
-            echo "PR_ONLY=" >> ${GITHUB_ENV}
-            ;;
+    - name: Build only linux/amd64 docker image for Pull Request
+      if: github.ref_name != 'main'
+      run: bash scripts/build-all-in-one-image.sh pr-only
+
+    - name: Build and test jaeger (v2) as all-in-one
+      if: github.ref_name != 'main'
+      run: BINARY=jaeger bash scripts/build-all-in-one-image.sh pr-only
 
     - name: Build, test, and publish all-in-one image
-      run: BINARY=${{ matrix.mode.binary }} bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
+      if: github.ref_name == 'main'
+      run: bash scripts/build-all-in-one-image.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Setup CODECOV_TOKEN
-      uses: ./.github/actions/setup-codecov
-
-    - name: Upload coverage to codecov
-      uses: codecov/codecov-action@894ff025c7b54547a9a2a1e9f228beae737ad3c2
-      with:
-        files: cover.out
-        verbose: true
-        flags: all-in-one-${{ matrix.mode.binary }}
-        fail_ci_if_error: true
-        token: ${{ env.CODECOV_TOKEN }}
+    - name: Build, test, and publish jaeger (v2) image
+      if: github.ref_name == 'main'
+      run: BINARY=jaeger bash scripts/build-all-in-one-image.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
