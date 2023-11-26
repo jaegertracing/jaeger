@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
@@ -184,6 +185,11 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return badgerSampling.NewSamplingStore(f.store), nil
+}
+
+// CreateLock implements storage.SamplingStoreFactory
+func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+	return &lock{}, nil
 }
 
 // Close Implements io.Closer and closes the underlying storage
