@@ -23,8 +23,10 @@ jobs:
         mode:
         - name: v1
           binary: all-in-one
+          skip_sampling: false
         - name: v2
           binary: jaeger
+          skip_sampling: true
 
     steps:
     - name: Harden Runner
@@ -67,7 +69,10 @@ jobs:
         esac
 
     - name: Build, test, and publish all-in-one image
-      run: BINARY=${{ matrix.mode.binary }} bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
+      run: |
+        BINARY=${{ matrix.mode.binary }} \
+          SKIP_SAMPLING=${{ matrix.mode.skip_sampling }} \
+          bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
