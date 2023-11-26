@@ -19,8 +19,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+)
+
+var ( // interface comformance checks
+	_ storage.Factory        = (*Factory)(nil)
+	_ storage.ArchiveFactory = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates blackhole storage components.

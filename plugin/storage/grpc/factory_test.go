@@ -36,8 +36,6 @@ import (
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
-var _ storage.Factory = new(Factory)
-
 type mockPluginBuilder struct {
 	plugin     *mockPlugin
 	writerType string

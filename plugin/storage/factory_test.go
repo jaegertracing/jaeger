@@ -42,11 +42,6 @@ import (
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
-var (
-	_ storage.Factory        = new(Factory)
-	_ storage.ArchiveFactory = new(Factory)
-)
-
 func defaultCfg() FactoryConfig {
 	return FactoryConfig{
 		SpanWriterTypes:         []string{cassandraStorageType},

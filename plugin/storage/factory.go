@@ -83,9 +83,11 @@ func AllSamplingStorageTypes() []string {
 	return backends
 }
 
-var (
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+var ( // interface comformance checks
+	_ storage.Factory        = (*Factory)(nil)
+	_ storage.ArchiveFactory = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ plugin.Configurable    = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
