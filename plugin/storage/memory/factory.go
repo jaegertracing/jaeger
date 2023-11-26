@@ -25,12 +25,18 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var _ plugin.Configurable = (*Factory)(nil)
+var ( // interface comformance checks
+	_ storage.Factory              = (*Factory)(nil)
+	_ storage.ArchiveFactory       = (*Factory)(nil)
+	_ storage.SamplingStoreFactory = (*Factory)(nil)
+	_ plugin.Configurable          = (*Factory)(nil)
+)
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {

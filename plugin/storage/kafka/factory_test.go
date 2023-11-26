@@ -29,11 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/storage"
 )
-
-// Checks that Kafka Factory conforms to storage.Factory API
-var _ storage.Factory = new(Factory)
 
 type mockProducerBuilder struct {
 	kafkaConfig.Configuration

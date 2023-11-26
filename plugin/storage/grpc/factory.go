@@ -33,9 +33,11 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var (
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+var ( // interface comformance checks
+	_ storage.Factory        = (*Factory)(nil)
+	_ storage.ArchiveFactory = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ plugin.Configurable    = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.

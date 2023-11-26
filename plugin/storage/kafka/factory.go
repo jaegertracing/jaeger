@@ -26,11 +26,13 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var (
+var ( // interface comformance checks
+	_ storage.Factory     = (*Factory)(nil)
 	_ io.Closer           = (*Factory)(nil)
 	_ plugin.Configurable = (*Factory)(nil)
 )

@@ -31,6 +31,7 @@ import (
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
 	badgerSampling "github.com/jaegertracing/jaeger/plugin/storage/badger/samplingstore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -43,9 +44,17 @@ const (
 	lastValueLogCleanedName    = "badger_storage_valueloggc_last_run"
 )
 
-var (
+var ( // interface comformance checks
+	_ storage.Factory     = (*Factory)(nil)
 	_ io.Closer           = (*Factory)(nil)
 	_ plugin.Configurable = (*Factory)(nil)
+
+	// TODO badger could implement archive storage
+	// _ storage.ArchiveFactory       = (*Factory)(nil)
+
+	// TODO CreateLock function is missing
+	// Being fixed in https://github.com/jaegertracing/jaeger/pull/4966
+	// _ storage.SamplingStoreFactory = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Badger backend.
