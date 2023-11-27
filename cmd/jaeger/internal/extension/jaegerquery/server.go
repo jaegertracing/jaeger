@@ -69,6 +69,14 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	metricsQueryService, _ := disabled.NewMetricsReader()
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
+	// TODO OTel-collector does not initialize the tracer currently
+	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
+	//nolint
+	jtracer, err := jtracer.New("jaeger")
+	if err != nil {
+		return fmt.Errorf("could not initialize a tracer: %w", err)
+	}
+
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
 	s.server, err = queryApp.NewServer(
@@ -77,7 +85,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		metricsQueryService,
 		s.makeQueryOptions(),
 		tm,
-		jtracer.NoOp(),
+		jtracer,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)

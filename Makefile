@@ -9,7 +9,7 @@ GO = go
 include docker/Makefile
 include crossdock/rules.mk
 
-# TODO we can comparmentalize this Makefile better, by separting:
+# TODO we can compartmentalize this Makefile better, by separting:
 #  - thrift and proto builds
 #  - integration tests
 #  - all the binary building targets
@@ -107,11 +107,6 @@ echo-all-pkgs:
 echo-all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
-# TODO: no files actually use this right now
-.PHONY: go-gen
-go-gen:
-	@echo skipping go generate ./...
-
 .PHONY: clean
 clean:
 	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
@@ -121,15 +116,15 @@ clean:
 	find cmd -type f -executable | xargs -I{} sh -c '(git ls-files --error-unmatch {} 2>/dev/null || rm -v {})'
 
 .PHONY: test
-test: go-gen
+test:
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
-all-in-one-integration-test: go-gen
-	$(GOTEST) -tags=integration ./cmd/all-in-one/...
+all-in-one-integration-test:
+	TEST_MODE=integration $(GOTEST) ./cmd/all-in-one/
 
 .PHONY: storage-integration-test
-storage-integration-test: go-gen
+storage-integration-test:
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
