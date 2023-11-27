@@ -47,9 +47,12 @@ const (
 	archiveStorageConfig = "cassandra-archive"
 )
 
-var (
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+var ( // interface comformance checks
+	_ storage.Factory              = (*Factory)(nil)
+	_ storage.ArchiveFactory       = (*Factory)(nil)
+	_ storage.SamplingStoreFactory = (*Factory)(nil)
+	_ io.Closer                    = (*Factory)(nil)
+	_ plugin.Configurable          = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Cassandra backend.

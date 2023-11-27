@@ -28,12 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/storage"
-)
-
-var (
-	_ storage.Factory        = new(Factory)
-	_ storage.ArchiveFactory = new(Factory)
 )
 
 type mockSessionBuilder struct {

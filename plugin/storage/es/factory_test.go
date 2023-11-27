@@ -41,11 +41,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
-
-var _ storage.Factory = new(Factory)
 
 var mockEsServerResponse = []byte(`
 {

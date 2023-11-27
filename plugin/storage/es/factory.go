@@ -38,6 +38,7 @@ import (
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -47,9 +48,11 @@ const (
 	archiveNamespace = "es-archive"
 )
 
-var (
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+var ( // interface comformance checks
+	_ storage.Factory        = (*Factory)(nil)
+	_ storage.ArchiveFactory = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ plugin.Configurable    = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
