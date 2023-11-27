@@ -53,9 +53,7 @@ var ( // interface comformance checks
 	// TODO badger could implement archive storage
 	// _ storage.ArchiveFactory       = (*Factory)(nil)
 
-	// TODO CreateLock function is missing
-	// Being fixed in https://github.com/jaegertracing/jaeger/pull/4966
-	// _ storage.SamplingStoreFactory = (*Factory)(nil)
+	_ storage.SamplingStoreFactory = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Badger backend.
