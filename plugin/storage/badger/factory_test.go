@@ -68,6 +68,10 @@ func TestForCodecov(t *testing.T) {
 	_, err = f.CreateDependencyReader()
 	assert.NoError(t, err)
 
+	lock, err := f.CreateLock()
+	assert.NoError(t, err)
+	assert.NotNil(t, lock)
+
 	// Now, remove the badger directories
 	err = os.RemoveAll(f.tmpDir)
 	assert.NoError(t, err)
