@@ -50,13 +50,11 @@ func newHelper(
 		return nil, err
 	}
 
-	closer := func(ctx context.Context) error {
-		return provider.Shutdown(ctx)
-	}
-
 	return &JTracer{
-		OTEL:   provider,
-		closer: closer,
+		OTEL: provider,
+		closer: func(ctx context.Context) error {
+			return provider.Shutdown(ctx)
+		},
 	}, nil
 }
 
