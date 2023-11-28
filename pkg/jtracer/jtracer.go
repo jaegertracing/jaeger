@@ -37,12 +37,12 @@ type JTracer struct {
 var once sync.Once
 
 func New(serviceName string) (*JTracer, error) {
-	return newHelper(serviceName, tracerProvider)
+	return newHelper(serviceName, initOTEL)
 }
 
 func newHelper(
 	serviceName string,
-	tracerProvider func(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, error),
+	tracerProvider func(ctx context.Context, svc string) (*sdktrace.TracerProvider, error),
 ) (*JTracer, error) {
 	ctx := context.Background()
 	provider, err := tracerProvider(ctx, serviceName)
@@ -60,10 +60,6 @@ func newHelper(
 	}, nil
 }
 
-func tracerProvider(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, error) {
-	return initOTEL(ctx, serviceName)
-}
-
 func NoOp() *JTracer {
 	return &JTracer{
 		OTEL: nooptrace.NewTracerProvider(),
@@ -75,7 +71,6 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 	return initHelper(ctx, svc, otelExporter, otelResource)
 }
 
-// initOTEL initializes OTEL Tracer
 func initHelper(
 	ctx context.Context,
 	svc string,
