@@ -294,7 +294,7 @@ func TestCreateError(t *testing.T) {
 }
 
 func TestAllSamplingStorageTypes(t *testing.T) {
-	assert.Equal(t, AllSamplingStorageTypes(), []string{"cassandra", "memory"})
+	assert.Equal(t, []string{"cassandra", "memory", "badger"}, AllSamplingStorageTypes())
 }
 
 func TestCreateSamplingStoreFactory(t *testing.T) {
