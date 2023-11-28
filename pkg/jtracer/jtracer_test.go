@@ -44,7 +44,7 @@ func TestNewHelperProviderError(t *testing.T) {
 	fakeErr := errors.New("fakeProviderError")
 	_, err := newHelper(
 		"svc",
-		func(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, error) {
+		func(ctx context.Context, svc string) (*sdktrace.TracerProvider, error) {
 			return nil, fakeErr
 		})
 	require.Error(t, err)
