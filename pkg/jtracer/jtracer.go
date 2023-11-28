@@ -16,7 +16,6 @@ package jtracer
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"go.opentelemetry.io/otel"
@@ -38,33 +37,51 @@ type JTracer struct {
 var once sync.Once
 
 func New(serviceName string) (*JTracer, error) {
+	return newHelper(serviceName, tracerProvider)
+}
+
+func newHelper(
+	serviceName string,
+	tracerProvider func(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, error),
+) (*JTracer, error) {
 	ctx := context.Background()
-	tracerProvider, err := initOTEL(ctx, serviceName)
+	provider, err := tracerProvider(ctx, serviceName)
 	if err != nil {
 		return nil, err
 	}
 
 	closer := func(ctx context.Context) error {
-		return tracerProvider.Shutdown(ctx)
+		return provider.Shutdown(ctx)
 	}
 
 	return &JTracer{
-		OTEL:   tracerProvider,
+		OTEL:   provider,
 		closer: closer,
 	}, nil
+}
+
+func tracerProvider(ctx context.Context, serviceName string) (*sdktrace.TracerProvider, error) {
+	return initOTEL(ctx, serviceName)
 }
 
 func NoOp() *JTracer {
 	return &JTracer{
 		OTEL: nooptrace.NewTracerProvider(),
-		closer: func(ctx context.Context) error {
-			return nil
-		},
 	}
 }
 
 // initOTEL initializes OTEL Tracer
 func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error) {
+	return initHelper(ctx, svc, otelExporter, otelResource)
+}
+
+// initOTEL initializes OTEL Tracer
+func initHelper(
+	ctx context.Context,
+	svc string,
+	otelExporter func(ctx context.Context) (sdktrace.SpanExporter, error),
+	otelResource func(ctx context.Context, svc string) (*resource.Resource, error),
+) (*sdktrace.TracerProvider, error) {
 	traceExporter, err := otelExporter(ctx)
 	if err != nil {
 		return nil, err
@@ -74,15 +91,7 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 	// span processor to aggregate spans before export.
 	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
 
-	res, err := resource.New(
-		ctx,
-		resource.WithSchemaURL(semconv.SchemaURL),
-		resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
-		resource.WithTelemetrySDK(),
-		resource.WithHost(),
-		resource.WithOSType(),
-		resource.WithFromEnv(),
-	)
+	res, err := otelResource(ctx, svc)
 	if err != nil {
 		return nil, err
 	}
@@ -105,16 +114,23 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 	return tracerProvider, nil
 }
 
+func otelResource(ctx context.Context, svc string) (*resource.Resource, error) {
+	return resource.New(
+		ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
+		resource.WithTelemetrySDK(),
+		resource.WithHost(),
+		resource.WithOSType(),
+		resource.WithFromEnv(),
+	)
+}
+
 func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	client := otlptracegrpc.NewClient(
 		otlptracegrpc.WithInsecure(),
 	)
-	traceExporter, err := otlptrace.New(ctx, client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
-	}
-
-	return traceExporter, nil
+	return otlptrace.New(ctx, client)
 }
 
 // Shutdown the tracerProvider to clean up resources
