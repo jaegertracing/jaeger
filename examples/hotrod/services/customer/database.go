@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -75,9 +74,8 @@ func newDatabase(tracer trace.Tracer, logger log.Factory) *database {
 func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
 	d.logger.For(ctx).Info("Loading customer", zap.Int("customer_id", customerID))
 
-	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
+	_, span := d.tracer.Start(ctx, "SQL SELECT")
 	span.SetAttributes(
-		semconv.PeerServiceKey.String("mysql"),
 		attribute.
 			Key("sql.query").
 			String(fmt.Sprintf("SELECT * FROM customer WHERE customer_id=%d", customerID)),
