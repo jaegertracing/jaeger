@@ -20,11 +20,11 @@ grafana/loki-docker-driver:latest \
 
 ### Run the services
 
-`docker-compose up` 
+`docker-compose up`
 
 ### Access the services
 * HotROD application at http://localhost:8080
-* Grafana UI at http://localhost:3000
+* Grafana UI at http://localhost:3000 (default credentials: admin/admin)
 
 ### Explore with Loki
 
