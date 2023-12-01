@@ -44,10 +44,11 @@ type Configuration struct {
 
 	Brokers         []string `mapstructure:"brokers"`
 	Topic           string   `mapstructure:"topic"`
-	GroupID         string   `mapstructure:"group_id"`
-	ClientID        string   `mapstructure:"client_id"`
-	ProtocolVersion string   `mapstructure:"protocol_version"`
-	RackID          string   `mapstructure:"rack_id"`
+	InitialOffset   int64
+	GroupID         string `mapstructure:"group_id"`
+	ClientID        string `mapstructure:"client_id"`
+	ProtocolVersion string `mapstructure:"protocol_version"`
+	RackID          string `mapstructure:"rack_id"`
 }
 
 // NewConsumer creates a new kafka consumer
@@ -71,5 +72,8 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	// that does not set saramaConfig.Consumer.Offsets.CommitInterval to its default value 1s.
 	// then the samara-cluster fails if the default interval is not 1s.
 	saramaConfig.Consumer.Offsets.CommitInterval = time.Second
+	if c.InitialOffset != 0 {
+		saramaConfig.Consumer.Offsets.Initial = c.InitialOffset
+	}
 	return cluster.NewConsumer(c.Brokers, c.GroupID, []string{c.Topic}, saramaConfig)
 }
