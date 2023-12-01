@@ -2,7 +2,7 @@ version: '2'
 
 services:
   grafana:
-    image: grafana/grafana:7.1.4
+    image: grafana/grafana:10.2.2
     ports:
       - '3000:3000'
     volumes:
@@ -15,7 +15,7 @@ services:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   loki:
-    image: grafana/loki:master
+    image: grafana/loki:2.9.2
     ports:
       - '3100:3100'
     command: -config.file=/etc/loki/local-config.yaml
@@ -29,9 +29,14 @@ services:
       driver: loki
       options:
         loki-url: 'http://localhost:3100/api/prom/push'
+        # Prevent container from being stuck when shutting down
+        # https://github.com/grafana/loki/issues/2361#issuecomment-718024318
+        loki-timeout: 1s
+        loki-max-backoff: 1s
+        loki-retries: 1
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.51
     ports:
       - '6831:6831'
       - '16686:16686'
@@ -41,27 +46,26 @@ services:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   hotrod:
-    image: jaegertracing/example-hotrod:latest
+    image: jaegertracing/example-hotrod:1.51
     ports:
       - '8080:8080'
       - '8083:8083'
     command: ["-m","prometheus","all"]
     environment:
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     logging:
       driver: loki
       options:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   prometheus:
-    image: prom/prometheus:v2.19.1
+    image: prom/prometheus:v2.48.0
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - '9090:9090'
     command:
-    - --config.file=/etc/prometheus/prometheus.yml
+      - --config.file=/etc/prometheus/prometheus.yml
     logging:
       driver: loki
       options:
