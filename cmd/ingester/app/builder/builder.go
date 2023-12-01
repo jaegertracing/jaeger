@@ -53,6 +53,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	consumerConfig := kafkaConsumer.Configuration{
 		Brokers:              options.Brokers,
 		Topic:                options.Topic,
+		InitialOffset:        options.InitialOffset,
 		GroupID:              options.GroupID,
 		ClientID:             options.ClientID,
 		ProtocolVersion:      options.ProtocolVersion,
