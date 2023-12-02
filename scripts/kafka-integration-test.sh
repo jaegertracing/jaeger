@@ -8,7 +8,7 @@ export STORAGE=kafka
 start_kafka() {
     echo "Starting Kafka..."
     
-    docker run --name kafka \
+    docker run --name kafka -d \
     --network jaeger \
     -p 9092:9092 \
     -e KAFKA_CFG_NODE_ID=0 \
