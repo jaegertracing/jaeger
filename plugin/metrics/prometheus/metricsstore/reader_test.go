@@ -487,7 +487,7 @@ func TestGetErrorRates(t *testing.T) {
 	}
 }
 
-func TestGetErrorRatesEmpty(t *testing.T) {
+func TestGetErrorRatesZero(t *testing.T) {
 	params := metricsstore.ErrorRateQueryParameters{
 		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
 			serviceNames: []string{"emailservice"},
@@ -505,7 +505,7 @@ func TestGetErrorRatesEmpty(t *testing.T) {
 			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
 	)
 	wantPromQLQueries := []string{queryErrorRate, queryCallRate}
-	responses := []string{"testdata/empty_errors.json", "testdata/service_datapoint_response.json"}
+	responses := []string{"testdata/empty_response.json", "testdata/service_datapoint_response.json"}
 	var callCount int
 
 	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -550,6 +550,59 @@ func TestGetErrorRatesEmpty(t *testing.T) {
 	assert.Len(t, exp.GetSpans(), 2, "expected an error rate query and a call rate query to be made")
 }
 
+func TestGetErrorRatesNull(t *testing.T) {
+	params := metricsstore.ErrorRateQueryParameters{
+		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+			serviceNames: []string{"emailservice"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+		}),
+	}
+	tracer, exp, closer := tracerProvider(t)
+	defer closer()
+
+	const (
+		queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+			`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
+		queryCallRate = `sum(rate(calls{service_name =~ "emailservice", ` +
+			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
+	)
+	wantPromQLQueries := []string{queryErrorRate, queryCallRate}
+	responses := []string{"testdata/empty_response.json", "testdata/empty_response.json"}
+	var callCount int
+
+	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		defer r.Body.Close()
+
+		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
+		require.NoError(t, err)
+
+		q := u.Query()
+		promQuery := q.Get("query")
+		assert.Equal(t, wantPromQLQueries[callCount], promQuery)
+		sendResponse(t, w, responses[callCount])
+		callCount++
+	}))
+
+	logger := zap.NewNop()
+	address := mockPrometheus.Listener.Addr().String()
+
+	cfg := defaultConfig
+	cfg.ServerURL = "http://" + address
+	cfg.ConnectTimeout = defaultTimeout
+
+	reader, err := NewMetricsReader(cfg, logger, tracer)
+	require.NoError(t, err)
+
+	defer mockPrometheus.Close()
+
+	m, err := reader.GetErrorRates(context.Background(), &params)
+	require.NoError(t, err)
+	assert.Empty(t, m.Metrics, "expect no error data available")
+	assert.Len(t, exp.GetSpans(), 2, "expected an error rate query and a call rate query to be made")
+}
+
 func TestGetErrorRatesErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name               string
@@ -586,7 +639,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 					`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
 			)
 			wantPromQLQueries := []string{queryErrorRate, queryCallRate}
-			responses := []string{"testdata/empty_errors.json", "testdata/service_datapoint_response.json"}
+			responses := []string{"testdata/empty_response.json", "testdata/service_datapoint_response.json"}
 			var callCount int
 
 			mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
