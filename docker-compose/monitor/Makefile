@@ -2,7 +2,7 @@
 build: export DOCKER_TAG = dev
 build: clean-jaeger
 	cd ../../ && \
-	make build-all-in-one && \
+	make build-all-in-one-linux && \
 	make docker-images-jaeger-backend
 
 # starts up the system required for SPM using the latest otel image and a development jaeger image.

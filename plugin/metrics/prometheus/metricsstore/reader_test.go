@@ -487,6 +487,155 @@ func TestGetErrorRates(t *testing.T) {
 	}
 }
 
+func TestGetErrorRatesEmpty(t *testing.T) {
+	params := metricsstore.ErrorRateQueryParameters{
+		BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+			serviceNames: []string{"emailservice"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+		}),
+	}
+	tracer, exp, closer := tracerProvider(t)
+	defer closer()
+
+	const (
+		queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+			`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
+		queryCallRate = `sum(rate(calls{service_name =~ "emailservice", ` +
+			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
+	)
+	wantPromQLQueries := []string{queryErrorRate, queryCallRate}
+	responses := []string{"testdata/empty_errors.json", "testdata/non_empty_calls.json"}
+	var callCount int
+
+	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		defer r.Body.Close()
+
+		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
+		require.NoError(t, err)
+
+		q := u.Query()
+		promQuery := q.Get("query")
+		assert.Equal(t, wantPromQLQueries[callCount], promQuery)
+		sendResponse(t, w, responses[callCount])
+		callCount++
+	}))
+
+	logger := zap.NewNop()
+	address := mockPrometheus.Listener.Addr().String()
+
+	cfg := defaultConfig
+	cfg.ServerURL = "http://" + address
+	cfg.ConnectTimeout = defaultTimeout
+
+	reader, err := NewMetricsReader(cfg, logger, tracer)
+	require.NoError(t, err)
+
+	defer mockPrometheus.Close()
+
+	m, err := reader.GetErrorRates(context.Background(), &params)
+	require.NoError(t, err)
+
+	require.Len(t, m.Metrics, 1)
+	mps := m.Metrics[0].MetricPoints
+
+	require.Len(t, mps, 1)
+
+	// Assert that we essentially zeroed the call rate data point.
+	// That is, the timestamp is the same as the call rate's data point, but the value is 0.
+	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
+	assert.Zero(t, actualVal)
+	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
+	assert.Len(t, exp.GetSpans(), 2, "expected an error rate query and a call rate query to be made")
+}
+
+func TestGetErrorRatesErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		failErrorRateQuery bool
+		failCallRateQuery  bool
+		wantErr            string
+	}{
+		{
+			name:               "error rate query failure",
+			failErrorRateQuery: true,
+			wantErr:            "failed getting error metrics: failed executing metrics query: server_error: server error: 500",
+		},
+		{
+			name:              "call rate query failure",
+			failCallRateQuery: true,
+			wantErr:           "failed getting call metrics: failed executing metrics query: server_error: server error: 500",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params := metricsstore.ErrorRateQueryParameters{
+				BaseQueryParameters: buildTestBaseQueryParametersFrom(metricsTestCase{
+					serviceNames: []string{"emailservice"},
+					spanKinds:    []string{"SPAN_KIND_SERVER"},
+				}),
+			}
+			tracer, _, closer := tracerProvider(t)
+			defer closer()
+
+			const (
+				queryErrorRate = `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+					`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
+					`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
+				queryCallRate = `sum(rate(calls{service_name =~ "emailservice", ` +
+					`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
+			)
+			wantPromQLQueries := []string{queryErrorRate, queryCallRate}
+			responses := []string{"testdata/empty_errors.json", "testdata/non_empty_calls.json"}
+			var callCount int
+
+			mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				defer r.Body.Close()
+
+				u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
+				require.NoError(t, err)
+
+				q := u.Query()
+				promQuery := q.Get("query")
+				assert.Equal(t, wantPromQLQueries[callCount], promQuery)
+
+				switch promQuery {
+				case queryErrorRate:
+					if tc.failErrorRateQuery {
+						w.WriteHeader(http.StatusInternalServerError)
+					} else {
+						sendResponse(t, w, responses[callCount])
+					}
+				case queryCallRate:
+					if tc.failCallRateQuery {
+						w.WriteHeader(http.StatusInternalServerError)
+					} else {
+						sendResponse(t, w, responses[callCount])
+					}
+				}
+				callCount++
+			}))
+
+			logger := zap.NewNop()
+			address := mockPrometheus.Listener.Addr().String()
+
+			cfg := defaultConfig
+			cfg.ServerURL = "http://" + address
+			cfg.ConnectTimeout = defaultTimeout
+
+			reader, err := NewMetricsReader(cfg, logger, tracer)
+			require.NoError(t, err)
+
+			defer mockPrometheus.Close()
+
+			_, err = reader.GetErrorRates(context.Background(), &params)
+			require.Error(t, err)
+			assert.EqualError(t, err, tc.wantErr)
+		})
+	}
+}
+
 func TestInvalidLatencyUnit(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
@@ -515,7 +664,7 @@ func TestWarningResponse(t *testing.T) {
 	m, err := reader.GetErrorRates(context.Background(), &params)
 	require.NoError(t, err)
 	assert.NotNil(t, m)
-	assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+	assert.Len(t, exp.GetSpans(), 2, "expected an error rate query and a call rate query to be made")
 }
 
 type fakePromServer struct {

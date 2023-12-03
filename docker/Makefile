@@ -3,7 +3,7 @@ ROOT_IMAGE ?= alpine:3.16
 CERT_IMAGE := $(ROOT_IMAGE)
 GOLANG_IMAGE := golang:1.21-alpine
 
-DOCKER_REGISTRY ?= localhost:5000
+DOCKER_REGISTRY ?= localhost:5555
 BASE_IMAGE ?= $(DOCKER_REGISTRY)/baseimg_alpine:latest
 DEBUG_IMAGE ?= $(DOCKER_REGISTRY)/debugimg_alpine:latest
 PLATFORMS ?= linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
@@ -26,7 +26,7 @@ create-debugimg: prepare-docker-buildx
 .PHONY: prepare-docker-buildx
 prepare-docker-buildx:
 	docker buildx inspect jaeger-build > /dev/null || docker buildx create --use --name=jaeger-build --buildkitd-flags="--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host" --driver-opt="network=host"
-	docker inspect registry > /dev/null || docker run --rm -d -p 5000:5000 --name registry registry:2
+	docker inspect registry > /dev/null || docker run --rm -d -p 5555:5000 --name registry registry:2
 
 .PHONY: clean-docker-buildx
 clean-docker-buildx:
