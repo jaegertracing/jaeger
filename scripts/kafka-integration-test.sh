@@ -4,26 +4,51 @@ set -e
 
 export STORAGE=kafka
 
+# Function to check if the network exists
+network_exists() {
+    docker network inspect jaeger > /dev/null 2>&1
+}
+
+# Function to check if Kafka container is running
+kafka_container_running() {
+    docker inspect -f '{{.State.Running}}' kafka 2>/dev/null || echo "false"
+}
+
+# Function to create the Jaeger network if it doesn't exist
+create_jaeger_network() {
+    if ! network_exists; then
+        echo "Creating Jaeger network..."
+        docker network create jaeger
+    else
+        echo "Jaeger network already exists."
+    fi
+}
+
 # Function to start Kafka
 start_kafka() {
-    echo "Starting Kafka..."
-    
-    docker run --name kafka -d \
-    --network jaeger \
-    -p 9092:9092 \
-    -e KAFKA_CFG_NODE_ID=0 \
-    -e KAFKA_CFG_PROCESS_ROLES=controller,broker \
-    -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093 \
-    -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
-    -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
-    -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
-    -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
-    -e KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT \
-    bitnami/kafka:3.6
+    if [ "$(kafka_container_running)" == "false" ]; then
+        echo "Starting Kafka..."
+        
+        docker run --name kafka -d \
+        --network jaeger \
+        -p 9092:9092 \
+        -e KAFKA_CFG_NODE_ID=0 \
+        -e KAFKA_CFG_PROCESS_ROLES=controller,broker \
+        -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093 \
+        -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+        -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+        -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+        -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+        -e KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT \
+        bitnami/kafka:3.6
+    else
+        echo "Kafka container is already running."
+    fi
 }
 
 # Check if the -k parameter is provided
 if [ "$1" == "-k" ]; then
+    create_jaeger_network
     start_kafka
 fi
 
