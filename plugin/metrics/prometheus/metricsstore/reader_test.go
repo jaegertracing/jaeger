@@ -505,7 +505,7 @@ func TestGetErrorRatesEmpty(t *testing.T) {
 			`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
 	)
 	wantPromQLQueries := []string{queryErrorRate, queryCallRate}
-	responses := []string{"testdata/empty_errors.json", "testdata/non_empty_calls.json"}
+	responses := []string{"testdata/empty_errors.json", "testdata/service_datapoint_response.json"}
 	var callCount int
 
 	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -586,7 +586,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 					`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`
 			)
 			wantPromQLQueries := []string{queryErrorRate, queryCallRate}
-			responses := []string{"testdata/empty_errors.json", "testdata/non_empty_calls.json"}
+			responses := []string{"testdata/empty_errors.json", "testdata/service_datapoint_response.json"}
 			var callCount int
 
 			mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
