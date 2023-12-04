@@ -62,13 +62,13 @@ make build
 ## Bring up the dev environment
 
 ```bash
-make run-dev
+make dev
 ```
 
 ## Backwards compatibility testing with spanmetrics processor
 
 ```bash
-make run-dev-processor
+make dev-processor
 ```
 
 For each "run" make target, you should expect to see the following in the Monitor tab after a few minutes:

@@ -211,7 +211,38 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 			)
 		},
 	}
-	return m.executeQuery(ctx, metricsParams)
+	errorMetrics, err := m.executeQuery(ctx, metricsParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting error metrics: %w", err)
+	}
+	// Non-zero error rates are available.
+	if len(errorMetrics.Metrics) > 0 {
+		return errorMetrics, nil
+	}
+
+	// Check for the presence of call rate metrics to differentiate the absence of error rate from
+	// the absence of call rate metrics altogether.
+	callMetrics, err := m.GetCallRates(ctx, &metricsstore.CallRateQueryParameters{BaseQueryParameters: requestParams.BaseQueryParameters})
+	if err != nil {
+		return nil, fmt.Errorf("failed getting call metrics: %w", err)
+	}
+	// No call rate metrics are available, and by association, means no error rate metrics are available.
+	if len(callMetrics.Metrics) == 0 {
+		return errorMetrics, nil
+	}
+
+	// Non-zero call rate metrics are available, which implies that there are just no errors, so we report a zero error rate.
+	zeroErrorMetrics := make([]*metrics.Metric, 0, len(callMetrics.Metrics))
+	for _, cm := range callMetrics.Metrics {
+		zm := *cm
+		for i := 0; i < len(zm.MetricPoints); i++ {
+			zm.MetricPoints[i].Value = &metrics.MetricPoint_GaugeValue{GaugeValue: &metrics.GaugeValue{Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 0.0}}}
+		}
+		zeroErrorMetrics = append(zeroErrorMetrics, &zm)
+	}
+
+	errorMetrics.Metrics = zeroErrorMetrics
+	return errorMetrics, nil
 }
 
 // GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
