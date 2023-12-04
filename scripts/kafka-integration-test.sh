@@ -21,7 +21,7 @@ start_kafka() {
     bitnami/kafka:3.6
 }
 
-# Check if the -k parameter is provided
+# Check if the -k parameter is provided or not
 if [ "$1" == "-k" ]; then
     start_kafka
 fi
