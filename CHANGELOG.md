@@ -49,7 +49,7 @@ run `make changelog` to generate content
 * [CI]: improve kafka integration test self-sufficiency ([@RipulHandoo](https://github.com/RipulHandoo) in [#4989](https://github.com/jaegertracing/jaeger/pull/4989))
 * Separate all-in-one integration tests for v1 and v2 ([@yurishkuro](https://github.com/yurishkuro) in [#4968](https://github.com/jaegertracing/jaeger/pull/4968))
 * Collect code coverage from integration tests and upload to codecov ([@yurishkuro](https://github.com/yurishkuro) in [#4964](https://github.com/jaegertracing/jaeger/pull/4964))
-* [ci/es] use default template priorities ([@yurishkuro](https://github.com/yurishkuro) in [#4962](https://github.com/jaegertracing/jaeger/pull/4962))
+* [CI/ES] use default template priorities ([@yurishkuro](https://github.com/yurishkuro) in [#4962](https://github.com/jaegertracing/jaeger/pull/4962))
 * Unleash dependabot on docker files and add dependency review workflow ([@step-security-bot](https://github.com/step-security-bot) in [#4945](https://github.com/jaegertracing/jaeger/pull/4945))
 * Split unit-test workflow into tests and lint ([@MeenuyD](https://github.com/MeenuyD) in [#4933](https://github.com/jaegertracing/jaeger/pull/4933))
 * [CI]: harden github actions ([@step-security-bot](https://github.com/step-security-bot) in [#4923](https://github.com/jaegertracing/jaeger/pull/4923))
