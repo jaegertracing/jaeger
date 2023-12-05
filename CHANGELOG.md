@@ -21,6 +21,48 @@ run `make changelog` to generate content
 
 </details>
 
+1.52.0 (2023-12-05)
+-------------------
+
+#### ✨ New Features:
+
+* Support Elasticsearch 8.x ([@pmuls99](https://github.com/pmuls99) in [#4829](https://github.com/jaegertracing/jaeger/pull/4829))
+* Make ArchiveTrace button auto-configurable ([@thecoons](https://github.com/thecoons) in [#4913](https://github.com/jaegertracing/jaeger/pull/4913))
+
+#### 🐞 Bug fixes, Minor Improvements:
+
+* [SPM] differentiate null from no error data ([@albertteoh](https://github.com/albertteoh) in [#4985](https://github.com/jaegertracing/jaeger/pull/4985))
+* Fix example/grafana-integration ([@angristan](https://github.com/angristan) in [#4980](https://github.com/jaegertracing/jaeger/pull/4980))
+* Fix (badger): add missing SamplingStoreFactory.CreateLock method ([@slayer321](https://github.com/slayer321) in [#4966](https://github.com/jaegertracing/jaeger/pull/4966))
+* Normalize metric names due to breaking change ([@albertteoh](https://github.com/albertteoh) in [#4957](https://github.com/jaegertracing/jaeger/pull/4957))
+* [kafka-consumer] add topic name as a tag to offset manager metrics ([@abliqo](https://github.com/abliqo) in [#4951](https://github.com/jaegertracing/jaeger/pull/4951))
+* Make UI placeholder more descriptive ([@yurishkuro](https://github.com/yurishkuro) in [#4937](https://github.com/jaegertracing/jaeger/pull/4937))
+* Remove google.golang.org/protobuf dependency from model & storage apis ([@akagami-harsh](https://github.com/akagami-harsh) in [#4917](https://github.com/jaegertracing/jaeger/pull/4917))
+* Read OTEL env vars for resource attributes ([@yurishkuro](https://github.com/yurishkuro) in [#4932](https://github.com/jaegertracing/jaeger/pull/4932))
+
+#### 🚧 Experimental Features:
+
+* Exp: rename jaeger-v2 binary to just jaeger ([@yurishkuro](https://github.com/yurishkuro) in [#4918](https://github.com/jaegertracing/jaeger/pull/4918))
+
+#### 👷 CI Improvements:
+
+* [CI]: improve kafka integration test self-sufficiency ([@RipulHandoo](https://github.com/RipulHandoo) in [#4989](https://github.com/jaegertracing/jaeger/pull/4989))
+* Separate all-in-one integration tests for v1 and v2 ([@yurishkuro](https://github.com/yurishkuro) in [#4968](https://github.com/jaegertracing/jaeger/pull/4968))
+* Collect code coverage from integration tests and upload to codecov ([@yurishkuro](https://github.com/yurishkuro) in [#4964](https://github.com/jaegertracing/jaeger/pull/4964))
+* [ci/es] use default template priorities ([@yurishkuro](https://github.com/yurishkuro) in [#4962](https://github.com/jaegertracing/jaeger/pull/4962))
+* Unleash dependabot on docker files and add dependency review workflow ([@step-security-bot](https://github.com/step-security-bot) in [#4945](https://github.com/jaegertracing/jaeger/pull/4945))
+* Split unit-test workflow into tests and lint ([@MeenuyD](https://github.com/MeenuyD) in [#4933](https://github.com/jaegertracing/jaeger/pull/4933))
+* [CI]: harden github actions ([@step-security-bot](https://github.com/step-security-bot) in [#4923](https://github.com/jaegertracing/jaeger/pull/4923))
+* [CI]: build jaeger v2 image on main branch runs ([@yurishkuro](https://github.com/yurishkuro) in [#4920](https://github.com/jaegertracing/jaeger/pull/4920))
+* Exp: publish jaeger v2 image ([@yurishkuro](https://github.com/yurishkuro) in [#4919](https://github.com/jaegertracing/jaeger/pull/4919))
+* [CI]: set default to fix 'unbound variable' error on main ([@yurishkuro](https://github.com/yurishkuro) in [#4916](https://github.com/jaegertracing/jaeger/pull/4916))
+* [CI]: test jaeger-v2 as all-in-one in ci ([@yurishkuro](https://github.com/yurishkuro) in [#4890](https://github.com/jaegertracing/jaeger/pull/4890))
+* Fix release script broken by recent linting cleanup ([@yurishkuro](https://github.com/yurishkuro) in [#4915](https://github.com/jaegertracing/jaeger/pull/4915))
+
+### UI Changes
+
+* UI pinned to version [1.36.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1360-2023-12-05).
+
 1.51.0 (2023-11-04)
 -------------------
 
