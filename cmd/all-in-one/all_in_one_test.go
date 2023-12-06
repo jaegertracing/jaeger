@@ -88,7 +88,7 @@ func healthCheck(t *testing.T) {
 
 func checkWebUI(t *testing.T) {
 	t.Run("logo", func(t *testing.T) {
-		resp, err := http.Get(queryAddr + "/static/jaeger-logo-ab11f618.svg")
+		resp, err := http.Get(queryAddr + "/static/jaeger-logo-jWbKFHZJ.svg")
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		defer resp.Body.Close()
