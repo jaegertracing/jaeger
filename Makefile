@@ -53,9 +53,8 @@ else
 endif
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
-GOCACHE=$(abspath .gocache)
-GOBUILD=GOCACHE=$(GOCACHE) CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
-GOTEST_QUIET=GOCACHE=$(GOCACHE) $(GO) test $(RACE)
+GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
+GOTEST_QUIET=$(GO) test $(RACE)
 GOTEST=$(GOTEST_QUIET) -v
 GOFMT=gofmt
 GOFUMPT=gofumpt
