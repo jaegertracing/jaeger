@@ -95,10 +95,13 @@ by default uses only in-memory database.`,
 				return err
 			}
 			logger := svc.Logger // shortcut
-			metricsFactory := fork.New("internal",
+			baseFactory := fork.New("internal",
 				expvar.NewFactory(10), // backend for internal opts
 				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
-			version.NewInfoMetrics(metricsFactory)
+			version.NewInfoMetrics(baseFactory)
+			agentMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent"})
+			collectorMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
+			queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
 			tracer, err := jtracer.New("jaeger-all-in-one")
 			if err != nil {
@@ -106,7 +109,7 @@ by default uses only in-memory database.`,
 			}
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
@@ -123,7 +126,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, metricsFactory)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, queryMetricsFactory)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -134,7 +137,7 @@ by default uses only in-memory database.`,
 			}
 
 			strategyStoreFactory.InitFromViper(v, logger)
-			if err := strategyStoreFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
+			if err := strategyStoreFactory.Initialize(collectorMetricsFactory, ssFactory, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
 			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
@@ -163,7 +166,7 @@ by default uses only in-memory database.`,
 			c := collectorApp.New(&collectorApp.CollectorParams{
 				ServiceName:    "jaeger-collector",
 				Logger:         logger,
-				MetricsFactory: metricsFactory,
+				MetricsFactory: collectorMetricsFactory,
 				SpanWriter:     spanWriter,
 				StrategyStore:  strategyStore,
 				Aggregator:     aggregator,
@@ -179,7 +182,6 @@ by default uses only in-memory database.`,
 			if len(grpcBuilder.CollectorHostPorts) == 0 {
 				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.GRPC.HostPort)
 			}
-			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
 				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
@@ -191,13 +193,13 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
-			agent := startAgent(cp, aOpts, logger, metricsFactory)
+			agent := startAgent(cp, aOpts, logger, agentMetricsFactory)
 
 			// query
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				metricsFactory, tm, tracer,
+				queryMetricsFactory, tm, tracer,
 			)
 
 			svc.RunAndThen(func() {
@@ -271,11 +273,11 @@ func startQuery(
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
-	baseFactory metrics.Factory,
+	metricsFactory metrics.Factory,
 	tm *tenancy.Manager,
 	jt *jtracer.JTracer,
 ) *queryApp.Server {
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
+	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 	server, err := queryApp.NewServer(svc.Logger, qs, metricsQueryService, qOpts, tm, jt)
 	if err != nil {
