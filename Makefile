@@ -41,7 +41,7 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
-# ALL_PKGS is used with 'nocover'
+# ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
 UNAME := $(shell uname -m)
@@ -162,6 +162,11 @@ cover: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
 	@scripts/check-test-files.sh $(ALL_PKGS)
+
+.PHONY: goleak
+goleak:
+	@echo Verifying that all packages with tests have goleak in their TestMain
+	@scripts/check-goleak-files.sh $(ALL_PKGS)
 
 .PHONY: fmt
 fmt:
