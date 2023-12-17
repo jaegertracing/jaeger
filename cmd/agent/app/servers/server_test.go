@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestReadBuf_EOF(t *testing.T) {
@@ -36,4 +37,8 @@ func TestReadBuf_Read(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 5, n)
 	assert.Equal(t, "hello", string(r))
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

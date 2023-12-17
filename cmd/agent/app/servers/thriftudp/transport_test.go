@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 var localListenAddr = &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)}
@@ -238,4 +239,8 @@ func withLocalServer(t *testing.T, f func(addr string)) {
 func TestCreateClient(t *testing.T) {
 	_, err := createClient(nil, nil)
 	assert.EqualError(t, err, "dial udp: missing address")
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

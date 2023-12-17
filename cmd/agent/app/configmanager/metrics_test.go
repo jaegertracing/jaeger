@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -84,4 +85,8 @@ func TestMetrics(t *testing.T) {
 		}
 		metricsFactory.AssertCounterMetrics(t, test.expected...)
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

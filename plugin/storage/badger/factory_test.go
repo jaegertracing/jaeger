@@ -23,6 +23,7 @@ import (
 	"time"
 
 	assert "github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -198,4 +199,8 @@ func TestInitFromOptions(t *testing.T) {
 	opts := Options{}
 	f.InitFromOptions(opts)
 	assert.Equal(t, &opts, f.Options)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

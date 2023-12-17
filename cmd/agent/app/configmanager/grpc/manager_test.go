@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -80,4 +81,8 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server
 		require.NoError(t, err)
 	}()
 	return server, lis.Addr()
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
