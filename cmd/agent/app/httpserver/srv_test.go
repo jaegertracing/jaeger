@@ -19,10 +19,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 )
 
 func TestHTTPServer(t *testing.T) {
 	s := NewHTTPServer(":1", nil, nil, zap.NewNop())
 	assert.NotNil(t, s)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

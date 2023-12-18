@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -65,4 +66,8 @@ func TestTraceNormalizeTimestamps(t *testing.T) {
 	span := trace.Spans[0]
 	assert.Equal(t, span.StartTime, tt1.UTC())
 	assert.Equal(t, span.Logs[0].Timestamp, tt2.UTC())
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // TestTBufferedReadTransport tests the TBufferedReadTransport
@@ -68,4 +69,8 @@ func TestTBufferedReadTransportEmptyFunctions(t *testing.T) {
 
 	isOpen := trans.IsOpen()
 	require.True(t, isOpen)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
