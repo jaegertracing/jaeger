@@ -19,7 +19,7 @@ for dir in $*; do
   done
   if ((good == 0)); then
     echo "🔴 Error(check-goleak): no goleak check in package ${dir}"
-    ((bad_pkgs++))
+    ((bad_pkgs+=1))
   fi
 done
 
