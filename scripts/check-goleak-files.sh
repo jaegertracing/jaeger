@@ -14,9 +14,7 @@ for dir in $*; do
     elif [[ ${dir} == "./" ]]; then
       i=$((i + 1))
       continue
-    # else
-    #   NO_GOLEAK_FILE_DIRS="${NO_GOLEAK_FILE_DIRS} ${dir}"
-    else
+    else 
       continue
     fi
   done
