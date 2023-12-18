@@ -154,7 +154,7 @@ index-rollover-integration-test: docker-images-elastic
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover -coverpkg=./... -coverprofile cover-index-rollover.out $(STORAGE_PKGS) $(COLORIZE)"
 
 .PHONY: cover
-cover: nocover
+cover: nocover goleak
 	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./...
 	go tool cover -html=cover.out -o cover.html
 
