@@ -3,7 +3,9 @@
 set -euo pipefail
 
 bad_pkgs=0
-for dir in "$@"; do
+
+# shellcheck disable=SC2048
+for dir in $*; do
   if [[ -f "${dir}/.nocover" ]]; then
     continue
   fi

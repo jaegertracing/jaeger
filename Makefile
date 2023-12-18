@@ -166,7 +166,7 @@ nocover:
 .PHONY: goleak
 goleak:
 	@echo Verifying that all packages with tests have goleak in their TestMain
-	scripts/check-goleak-files.sh $(ALL_PKGS)
+	@scripts/check-goleak-files.sh $(ALL_PKGS)
 
 .PHONY: fmt
 fmt:
