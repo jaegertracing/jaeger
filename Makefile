@@ -154,7 +154,7 @@ index-rollover-integration-test: docker-images-elastic
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover -coverpkg=./... -coverprofile cover-index-rollover.out $(STORAGE_PKGS) $(COLORIZE)"
 
 .PHONY: cover
-cover: nocover goleak
+cover: nocover
 	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./...
 	go tool cover -html=cover.out -o cover.html
 
@@ -178,7 +178,7 @@ fmt:
 	./scripts/updateLicenses.sh
 
 .PHONY: lint
-lint:
+lint: goleak
 	golangci-lint -v run
 	./scripts/updateLicenses.sh > $(FMT_LOG)
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)

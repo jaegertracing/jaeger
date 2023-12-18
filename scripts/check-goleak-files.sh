@@ -2,27 +2,28 @@
 
 set -euo pipefail
 
-NO_GOLEAK_FILE_DIRS=""
-
-# shellcheck disable=SC2048
-for dir in $*; do
+bad_pkgs=0
+for dir in "$@"; do
+  if [[ -f "${dir}/.nocover" ]]; then
+    continue
+  fi
   testFiles=$(find "${dir}" -maxdepth 1 -name '*_test.go')
-  i=0
+  good=0
   for test in ${testFiles}; do
     if grep -q "TestMain" "${test}" | grep -q "goleak.VerifyTestMain" "${test}"; then
-      i=$((i + 1))
-    elif [[ ${dir} == "./" ]]; then
-      i=$((i + 1))
-      continue
-    else 
-      continue
+      good=1
+      break
     fi
   done
-  if ((i == 0)); then
-    NO_GOLEAK_FILE_DIRS="${NO_GOLEAK_FILE_DIRS} ${dir}"
+  if ((good == 0)); then
+    echo "🔴 Error(check-goleak): no goleak check in package ${dir}"
+    ((bad_pkgs++))
   fi
 done
 
-echo "Directories Without Goleak Implemented:"
-echo "${NO_GOLEAK_FILE_DIRS}" | tr ' ' '\n' | sort -u | tee /dev/stderr | echo "Total=""$(wc -l)" 
- 
+if ((bad_pkgs > 0)); then
+  echo "Error(check-goleak): no goleak check in ${bad_pkgs} package(s)."
+  echo "See https://github.com/jaegertracing/jaeger/pull/5010/files for example of adding the checks."
+  echo "In the future this will be a fatal error in the CI."
+  exit 0 # TODO change to 1 in the future
+fi
