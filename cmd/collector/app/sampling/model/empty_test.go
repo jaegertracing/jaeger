@@ -14,8 +14,12 @@
 
 package model
 
-// import "testing"
+import (
+	"testing"
 
-// func TestNothing(t *testing.T) {
-// 	// just get the code coverage
-// }
+	"go.uber.org/goleak"
+)
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
