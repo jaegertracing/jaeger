@@ -15,31 +15,25 @@ runs:
           tip=$(git ls-remote https://github.com/golang/go.git HEAD | awk '{print $1;}')
           echo "Go Tip version: ${tip}"
           if curl_output=$(curl -fsSL -w "%{http_code}" -o gotip.tar.gz https://storage.googleapis.com/go-build-snap/go/linux-amd64/${tip}.tar.gz); then
-            http_code=$(tail -n1 <<< "$curl_output")
-            
-            if [[ "$http_code" == "404" ]]; then
-              echo "HTTP 404: File not found"
-            else
-              echo "Downloaded bundle:"
-              ls -lah gotip.tar.gz
-              success=true
-              break
-            fi
+            echo "Downloaded bundle:"
+            ls -lah gotip.tar.gz
+            success=true
+            break
           else
             echo "Failed to download. Retrying in $wait_time seconds..."
             sleep $wait_time
           fi
         done
 
-        if [[ "$success" == true ]]; then
-          export GOROOT="$HOME/sdk/gotip"
-          mkdir -p $GOROOT
-          tar -C $GOROOT -xzf gotip.tar.gz
-          export PATH="$GOROOT/bin/:$PATH"
-          echo "GOROOT=$GOROOT" >> $GITHUB_ENV
-          echo "PATH=$PATH" >> $GITHUB_ENV
-          echo "Active Go version:"
-          go version
-        else
+        if [[ "$success" == false ]]; then
           echo "Failed to download Go Tip after $retries attempts"
+          exit 1
         fi
+        export GOROOT="$HOME/sdk/gotip"
+        mkdir -p $GOROOT
+        tar -C $GOROOT -xzf gotip.tar.gz
+        export PATH="$GOROOT/bin/:$PATH"
+        echo "GOROOT=$GOROOT" >> $GITHUB_ENV
+        echo "PATH=$PATH" >> $GITHUB_ENV
+        echo "Active Go version:"
+        go version
