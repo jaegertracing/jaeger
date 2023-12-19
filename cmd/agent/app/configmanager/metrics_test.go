@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -64,24 +65,31 @@ func TestMetrics(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		metricsFactory := metricstest.NewFactory(time.Microsecond)
-		mgr := WrapWithMetrics(&noopManager{}, metricsFactory)
+		t.Run("", func(t *testing.T) {
+			metricsFactory := metricstest.NewFactory(time.Microsecond)
+			defer metricsFactory.Stop()
+			mgr := WrapWithMetrics(&noopManager{}, metricsFactory)
 
-		if test.err != nil {
-			s, err := mgr.GetSamplingStrategy(context.Background(), test.err.Error())
-			require.Nil(t, s)
-			assert.EqualError(t, err, test.err.Error())
-			b, err := mgr.GetBaggageRestrictions(context.Background(), test.err.Error())
-			require.Nil(t, b)
-			assert.EqualError(t, err, test.err.Error())
-		} else {
-			s, err := mgr.GetSamplingStrategy(context.Background(), "")
-			require.NoError(t, err)
-			require.NotNil(t, s)
-			b, err := mgr.GetBaggageRestrictions(context.Background(), "")
-			require.NoError(t, err)
-			require.NotNil(t, b)
-		}
-		metricsFactory.AssertCounterMetrics(t, test.expected...)
+			if test.err != nil {
+				s, err := mgr.GetSamplingStrategy(context.Background(), test.err.Error())
+				require.Nil(t, s)
+				assert.EqualError(t, err, test.err.Error())
+				b, err := mgr.GetBaggageRestrictions(context.Background(), test.err.Error())
+				require.Nil(t, b)
+				assert.EqualError(t, err, test.err.Error())
+			} else {
+				s, err := mgr.GetSamplingStrategy(context.Background(), "")
+				require.NoError(t, err)
+				require.NotNil(t, s)
+				b, err := mgr.GetBaggageRestrictions(context.Background(), "")
+				require.NoError(t, err)
+				require.NotNil(t, b)
+			}
+			metricsFactory.AssertCounterMetrics(t, test.expected...)
+		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
