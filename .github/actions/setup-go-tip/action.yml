@@ -14,7 +14,8 @@ runs:
         for ((i=1; i<=retries; i++)); do
           tip=$(git ls-remote https://github.com/golang/go.git HEAD | awk '{print $1;}')
           echo "Go Tip version: ${tip}"
-          if curl_output=$(curl -fsSL -w "%{http_code}" -o gotip.tar.gz https://storage.googleapis.com/go-build-snap/go/linux-amd64/${tip}.tar.gz); then
+          url="https://storage.googleapis.com/go-build-snap/go/linux-amd64/${tip}.tar.gz"
+          if curl -fsSL -o gotip.tar.gz "$url"; then
             echo "Downloaded bundle:"
             ls -lah gotip.tar.gz
             success=true
