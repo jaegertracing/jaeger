@@ -19,16 +19,17 @@ runs:
             ls -lah gotip.tar.gz
             success=true
             break
-          else
-            echo "Failed to download. Retrying in $wait_time seconds..."
-            sleep $wait_time
           fi
+          echo "Failed to download. Retrying in $wait_time seconds..."
+          sleep $wait_time
         done
 
         if [[ "$success" == false ]]; then
           echo "Failed to download Go Tip after $retries attempts"
           exit 1
         fi
+        echo "Downloaded bundle:"
+        ls -lah gotip.tar.gz
         export GOROOT="$HOME/sdk/gotip"
         mkdir -p $GOROOT
         tar -C $GOROOT -xzf gotip.tar.gz
