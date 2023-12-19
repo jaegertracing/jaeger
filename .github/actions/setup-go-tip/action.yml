@@ -16,8 +16,6 @@ runs:
           echo "Go Tip version: ${tip}"
           url="https://storage.googleapis.com/go-build-snap/go/linux-amd64/${tip}.tar.gz"
           if curl -fsSL -o gotip.tar.gz "$url"; then
-            echo "Downloaded bundle:"
-            ls -lah gotip.tar.gz
             success=true
             break
           fi
