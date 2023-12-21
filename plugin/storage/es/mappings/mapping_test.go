@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
@@ -329,4 +330,8 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 	}
 	_, err := mappingBuilder.GetDependenciesMappings()
 	assert.EqualError(t, err, "template load error")
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

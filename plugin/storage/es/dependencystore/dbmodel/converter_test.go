@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -48,4 +49,8 @@ func TestConvertDependencies(t *testing.T) {
 			assert.Equal(t, test.dLinks, a)
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

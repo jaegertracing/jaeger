@@ -26,6 +26,7 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -293,4 +294,8 @@ func stringMatcher(q string) interface{} {
 		return strings.Contains(s, q)
 	}
 	return mock.MatchedBy(matchFunc)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
