@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -173,4 +174,8 @@ func TestRendezvousHash(t *testing.T) {
 	subset1 := resolverInstance.rendezvousHash(addresses)
 	subset2 := resolverInstance.rendezvousHash(sameAddressesDifferentOrder)
 	assert.Equal(t, subset1, subset2)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

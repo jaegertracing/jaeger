@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -42,4 +43,8 @@ func TestReflectionServiceValidator(t *testing.T) {
 		Server:           server,
 		ExpectedServices: []string{"grpc.reflection.v1alpha.ServerReflection"},
 	}.Execute(t)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

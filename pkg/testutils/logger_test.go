@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 )
 
@@ -96,4 +97,8 @@ func TestLogMatcher(t *testing.T) {
 			assert.Equal(t, test.errMsg, errMsg)
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

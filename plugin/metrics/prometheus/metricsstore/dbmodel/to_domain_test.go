@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
@@ -78,4 +79,8 @@ func TestUnexpectedMetricsFamilyType(t *testing.T) {
 
 	require.Error(t, err)
 	assert.EqualError(t, err, "unexpected metrics ValueType: vector")
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

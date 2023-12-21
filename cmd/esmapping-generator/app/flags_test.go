@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func TestOptionsWithDefaultFlags(t *testing.T) {
@@ -58,4 +59,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "test", o.IndexPrefix)
 	assert.Equal(t, "true", o.UseILM)
 	assert.Equal(t, "jaeger-test-policy", o.ILMPolicyName)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

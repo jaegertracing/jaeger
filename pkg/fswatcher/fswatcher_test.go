@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -238,4 +239,8 @@ func assertLogs(t *testing.T, f func() bool, errorMsg string, logObserver *obser
 			fn: func() interface{} { return logObserver.All() },
 		},
 	)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
@@ -389,4 +390,8 @@ func TestProbabilitiesSetToString(t *testing.T) {
 	s := probabilitiesSetToString(map[string]struct{}{"0.000001": {}, "0.000002": {}})
 	assert.True(t, s == "0.000001,0.000002" || s == "0.000002,0.000001")
 	assert.Equal(t, "", probabilitiesSetToString(nil))
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

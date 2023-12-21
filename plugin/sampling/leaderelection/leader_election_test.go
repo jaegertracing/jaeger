@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
+	"go.uber.org/goleak"
 
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -105,4 +106,8 @@ func TestRunAcquireLockLoop_followerOnly(t *testing.T) {
 	match, errMsg := testutils.LogMatcher(2, expectedErrorMsg, logBuffer.Lines())
 	assert.True(t, match, errMsg)
 	assert.False(t, p.IsLeader())
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

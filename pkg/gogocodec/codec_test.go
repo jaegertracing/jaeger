@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -66,4 +67,8 @@ func TestWireCompatibility(t *testing.T) {
 	err = c.Unmarshal(data2, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 //go:embed test_assets/*
@@ -44,4 +45,8 @@ func TestPrefixedFS(t *testing.T) {
 			require.Equal(t, tt.isDir, stat.IsDir())
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -362,4 +363,8 @@ func TestInitArchiveStorage(t *testing.T) {
 	))
 	assert.Equal(t, reader, opts.ArchiveSpanReader)
 	assert.Equal(t, writer, opts.ArchiveSpanWriter)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

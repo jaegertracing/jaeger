@@ -19,6 +19,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestOptionsWithDefaultFlags(t *testing.T) {
@@ -59,4 +60,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, true, o.HashLogs)
 	assert.Equal(t, true, o.HashProcess)
 	assert.Equal(t, 100, o.MaxSpansCount)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

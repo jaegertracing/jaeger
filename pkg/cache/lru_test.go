@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestLRU(t *testing.T) {
@@ -239,4 +240,8 @@ func (c *simulatedClock) Elapse(d time.Duration) time.Time {
 	defer c.Unlock()
 	c.currTime = c.currTime.Add(d)
 	return c.currTime
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

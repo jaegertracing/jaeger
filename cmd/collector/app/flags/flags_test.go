@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -187,4 +188,8 @@ func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
 	c.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, false, c.Zipkin.KeepAlive)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
