@@ -10,9 +10,6 @@ for dir in $*; do
     continue
   fi
   testFiles=$(find "${dir}" -maxdepth 1 -name '*_test.go')
-  if [ -z "$testFiles" ]; then
-    continue
-  fi 
   good=0
   for test in ${testFiles}; do
     if grep -q "TestMain" "${test}" | grep -q "goleak.VerifyTestMain" "${test}"; then
