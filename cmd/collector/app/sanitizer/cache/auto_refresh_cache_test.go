@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache/mocks"
@@ -226,4 +227,8 @@ func TestIsEmpty(t *testing.T) {
 	assert.True(t, c.IsEmpty())
 	c.cache = testCache2
 	assert.False(t, c.IsEmpty())
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

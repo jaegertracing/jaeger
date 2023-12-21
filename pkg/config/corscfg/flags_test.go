@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -46,4 +47,8 @@ func TestCORSFlags(t *testing.T) {
 			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},
 		}, corsOpts)
 	})
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func TestOutputFormats(t *testing.T) {
@@ -65,4 +66,8 @@ func TestDocsForParent(t *testing.T) {
 	f, err := os.ReadFile("root_command.md")
 	require.NoError(t, err)
 	assert.True(t, strings.Contains(string(f), "some description"))
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

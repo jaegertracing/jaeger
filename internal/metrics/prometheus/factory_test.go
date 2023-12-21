@@ -22,6 +22,7 @@ import (
 	promModel "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	. "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -434,4 +435,8 @@ func findMetric(t *testing.T, snapshot []*promModel.MetricFamily, name string, t
 	}
 	t.FailNow()
 	return nil
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 type testAddr struct {
@@ -71,4 +72,8 @@ func TestFixLocalhost(t *testing.T) {
 	endpoints := []string{"collector:1111", ":2222"}
 	fixed := FixLocalhost(endpoints)
 	assert.Equal(t, []string{"collector:1111", "localhost:2222"}, fixed)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

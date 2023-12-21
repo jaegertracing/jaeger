@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -141,4 +142,8 @@ func TestNullMetrics(t *testing.T) {
 	}).Gauge(metrics.Options{
 		Name: "name2",
 	}).Update(0)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

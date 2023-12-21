@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -199,4 +200,8 @@ func TestSpanStartTimeSanitizer(t *testing.T) {
 	}
 	sanitized = sanitizer.Sanitize(span)
 	assert.Equal(t, int64(20), *sanitized.Timestamp)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

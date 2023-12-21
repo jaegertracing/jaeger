@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func readyHandler(w http.ResponseWriter, r *http.Request) {
@@ -69,4 +70,8 @@ func TestNoService(t *testing.T) {
 	cmd := Command(v, 12345)
 	err := cmd.Execute()
 	assert.Error(t, err)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

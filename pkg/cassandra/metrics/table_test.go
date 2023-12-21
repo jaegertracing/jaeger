@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -156,4 +157,8 @@ func (q insertQuery) String() string {
 
 func (q insertQuery) ScanCAS(dest ...interface{}) (bool, error) {
 	return true, nil
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

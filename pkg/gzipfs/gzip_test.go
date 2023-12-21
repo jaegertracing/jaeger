@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 //go:embed testdata
@@ -149,4 +150,8 @@ func TestFileRead(t *testing.T) {
 	n, err := f.Read(buf)
 	require.NoError(t, err)
 	assert.Equal(t, 5, n)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

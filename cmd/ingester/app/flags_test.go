@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -109,4 +110,8 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, DefaultParallelism, o.Parallelism)
 	assert.Equal(t, DefaultEncoding, o.Encoding)
 	assert.Equal(t, DefaultDeadlockInterval, o.DeadlockInterval)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

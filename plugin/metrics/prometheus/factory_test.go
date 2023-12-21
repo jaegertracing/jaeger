@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -146,4 +147,8 @@ func TestFailedTLSOptions(t *testing.T) {
 
 	f.InitFromViper(v, logger)
 	t.Errorf("f.InitFromViper did not panic")
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

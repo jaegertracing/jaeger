@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 // Fake test to provide test coverage.
@@ -33,4 +34,8 @@ func TestMocks(t *testing.T) {
 
 	s = CreateSpan("name", "id", "pid", "tid", 100, 100, false, "anno", "binAnno")
 	assert.Equal(t, `[{"name": "name", "id": "id", "parentId": "pid", "traceId": "tid", "timestamp": 100, "duration": 100, "debug": false, "annotations": [anno], "binaryAnnotations": [binAnno]}]`, s)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

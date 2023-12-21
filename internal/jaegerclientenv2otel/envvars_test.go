@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -34,4 +35,8 @@ func TestMapJaegerToOtelEnvVars(t *testing.T) {
 	assert.Equal(t, "user", os.Getenv("OTEL_EXPORTER_JAEGER_USER"))
 	assert.Contains(t, buffer.String(), "Replacing deprecated Jaeger SDK env var JAEGER_USER with OpenTelemetry env var OTEL_EXPORTER_JAEGER_USER")
 	assert.Contains(t, buffer.String(), "Ignoring deprecated Jaeger SDK env var JAEGER_TAGS")
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

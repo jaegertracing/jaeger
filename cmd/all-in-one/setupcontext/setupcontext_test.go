@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestSetupContext(t *testing.T) {
@@ -25,4 +26,8 @@ func TestSetupContext(t *testing.T) {
 	SetAllInOne()
 	defer UnsetAllInOne()
 	assert.True(t, IsAllInOne())
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
