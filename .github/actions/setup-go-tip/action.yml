@@ -10,7 +10,23 @@ runs:
         set -euo pipefail
         tip=$(git ls-remote https://github.com/golang/go.git HEAD | awk '{print $1;}')
         echo "Go Tip version: ${tip}"
-        curl -fsSL https://storage.googleapis.com/go-build-snap/go/linux-amd64/${tip}.tar.gz -o gotip.tar.gz
+        retries=10
+        wait_time=30
+        success=false
+        for ((i=1; i<=retries; i++)); do
+          url="https://storage.googleapis.com/go-build-snap/go/linux-amd64/${tip}.tar.gz"
+          if curl -fsSL -o gotip.tar.gz "$url"; then
+            success=true
+            break
+          fi
+          echo "Failed to download. Retrying in $wait_time seconds..."
+          sleep $wait_time
+        done
+
+        if [[ "$success" == false ]]; then
+          echo "Failed to download Go Tip after $retries attempts"
+          exit 1
+        fi
         echo "Downloaded bundle:"
         ls -lah gotip.tar.gz
         export GOROOT="$HOME/sdk/gotip"
