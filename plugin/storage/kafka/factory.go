@@ -77,11 +77,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),
 		zap.Any("topic", f.options.Topic))
-	p, err := f.NewProducer(logger)
-	if err != nil {
-		return err
-	}
-	f.producer = p
 	switch f.options.Encoding {
 	case EncodingProto:
 		f.marshaller = newProtobufMarshaller()
@@ -90,6 +85,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	default:
 		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
 	}
+	p, err := f.NewProducer(logger)
+	if err != nil {
+		return err
+	}
+	f.producer = p
 	return nil
 }
 
@@ -112,5 +112,10 @@ var _ io.Closer = (*Factory)(nil)
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	return f.options.Config.TLS.Close()
+	var errs []error
+	if f.producer != nil {
+		errs = append(errs, f.producer.Close())
+	}
+	errs = append(errs, f.options.Config.TLS.Close())
+	return errors.Join(errs...)
 }

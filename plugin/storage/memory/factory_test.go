@@ -74,7 +74,9 @@ func TestPublishOpts(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	baseMetrics := metricstest.NewFactory(time.Second)
+	defer baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
+	defer forkFactory.Stop()
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	assert.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
 
