@@ -119,6 +119,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	defer f.Close()
 	r, err := f.CreateSpanWriter()
 	require.Error(t, err)
 	assert.Nil(t, r)
@@ -132,6 +133,7 @@ func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	defer f.Close()
 	w, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	assert.Nil(t, w)
@@ -205,6 +207,7 @@ func TestCreateTemplateError(t *testing.T) {
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
+	defer f.Close()
 	w, err := f.CreateSpanWriter()
 	assert.Nil(t, w)
 	assert.Error(t, err, "template-error")
@@ -216,6 +219,7 @@ func TestILMDisableTemplateCreation(t *testing.T) {
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	defer f.Close()
 	require.NoError(t, err)
 	_, err = f.CreateSpanWriter()
 	assert.Nil(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error

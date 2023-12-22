@@ -99,6 +99,7 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 
 // Close closes ESClient and flushes all data to the storage.
 func (c ClientWrapper) Close() error {
+	c.client.Stop()
 	return c.bulkService.Close()
 }
 
