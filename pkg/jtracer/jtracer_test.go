@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.uber.org/goleak"
 )
 
 func TestNew(t *testing.T) {
@@ -59,7 +60,9 @@ func TestInitHelperExporterError(t *testing.T) {
 		func(ctx context.Context) (sdktrace.SpanExporter, error) {
 			return nil, fakeErr
 		},
-		nil,
+		func(ctx context.Context, svc string) (*resource.Resource, error) {
+			return nil, nil
+		},
 	)
 	require.Error(t, err)
 	assert.EqualError(t, err, fakeErr.Error())
@@ -67,7 +70,7 @@ func TestInitHelperExporterError(t *testing.T) {
 
 func TestInitHelperResourceError(t *testing.T) {
 	fakeErr := errors.New("fakeResourceError")
-	_, err := initHelper(
+	tp, err := initHelper(
 		context.Background(),
 		"svc",
 		otelExporter,
@@ -76,5 +79,10 @@ func TestInitHelperResourceError(t *testing.T) {
 		},
 	)
 	require.Error(t, err)
+	require.Nil(t, tp)
 	assert.EqualError(t, err, fakeErr.Error())
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

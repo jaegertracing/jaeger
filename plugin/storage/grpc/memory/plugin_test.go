@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
@@ -34,4 +35,8 @@ func TestPluginUsesMemoryStorage(t *testing.T) {
 	assert.Equal(t, mainStorage, memStorePlugin.StreamingSpanWriter())
 	assert.Equal(t, archiveStorage, memStorePlugin.ArchiveSpanReader())
 	assert.Equal(t, archiveStorage, memStorePlugin.ArchiveSpanWriter())
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

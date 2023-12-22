@@ -91,6 +91,7 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 			f.Builder = &mockProducerBuilder{t: t}
 			assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 			assert.IsType(t, test.marshaller, f.marshaller)
+			assert.NoError(t, f.Close())
 		})
 	}
 }
@@ -151,7 +152,8 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 			require.NoError(t, err)
 			logger.Sync()
 
-			require.NotContains(t, logbuf.String(), "SECRET", "log output must not contain password in clear text")
+			assert.NotContains(t, logbuf.String(), "SECRET", "log output must not contain password in clear text")
+			assert.NoError(t, f.Close())
 		})
 	}
 }

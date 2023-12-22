@@ -75,6 +75,11 @@ func initHelper(
 	otelExporter func(ctx context.Context) (sdktrace.SpanExporter, error),
 	otelResource func(ctx context.Context, svc string) (*resource.Resource, error),
 ) (*sdktrace.TracerProvider, error) {
+	res, err := otelResource(ctx, svc)
+	if err != nil {
+		return nil, err
+	}
+
 	traceExporter, err := otelExporter(ctx)
 	if err != nil {
 		return nil, err
@@ -83,11 +88,6 @@ func initHelper(
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
 	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
-
-	res, err := otelResource(ctx, svc)
-	if err != nil {
-		return nil, err
-	}
 
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
