@@ -16,6 +16,7 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -201,7 +202,7 @@ func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 	var traces []*model.Trace
 	var trace *model.Trace
 	var traceID model.TraceID
-	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
+	for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 		if err != nil {
 			return nil, fmt.Errorf("stream error: %w", err)
 		}
@@ -291,7 +292,7 @@ func (c *grpcClient) Capabilities() (*Capabilities, error) {
 
 func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace, error) {
 	trace := model.Trace{}
-	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
+	for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 		if err != nil {
 			if s, _ := status.FromError(err); s != nil {
 				if s.Message() == spanstore.ErrTraceNotFound.Error() {

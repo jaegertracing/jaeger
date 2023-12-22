@@ -15,6 +15,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -34,7 +35,8 @@ func (i ILMClient) Exists(name string) (bool, error) {
 		method:   http.MethodGet,
 	})
 
-	if respError, isResponseErr := err.(ResponseError); isResponseErr {
+	var respError ResponseError
+	if errors.As(err, &respError) {
 		if respError.StatusCode == http.StatusNotFound {
 			return false, nil
 		}

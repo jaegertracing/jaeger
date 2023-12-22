@@ -142,7 +142,7 @@ func (t TraceID) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON inflates trace id from base64 string, possibly enclosed in quotes.
-// User by protobuf JSON serialization.
+// Used by protobuf JSON serialization.
 func (t *TraceID) UnmarshalJSON(data []byte) error {
 	s := string(data)
 	if l := len(s); l > 2 && s[0] == '"' && s[l-1] == '"' {
@@ -150,7 +150,7 @@ func (t *TraceID) UnmarshalJSON(data []byte) error {
 	}
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal TraceID from string '%s': %v", string(data), err)
+		return fmt.Errorf("cannot unmarshal TraceID from string '%s': %w", string(data), err)
 	}
 	return t.Unmarshal(b)
 }
@@ -239,7 +239,7 @@ func (s *SpanID) UnmarshalJSON(data []byte) error {
 	}
 	b, err := base64.StdEncoding.DecodeString(str)
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal SpanID from string '%s': %v", string(data), err)
+		return fmt.Errorf("cannot unmarshal SpanID from string '%s': %w", string(data), err)
 	}
 	return s.Unmarshal(b)
 }
