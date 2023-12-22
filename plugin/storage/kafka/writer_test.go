@@ -77,6 +77,7 @@ var _ spanstore.Writer = &SpanWriter{}
 
 func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) {
 	serviceMetrics := metricstest.NewFactory(100 * time.Millisecond)
+	defer serviceMetrics.Stop()
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
 	producer := saramaMocks.NewAsyncProducer(t, saramaConfig)

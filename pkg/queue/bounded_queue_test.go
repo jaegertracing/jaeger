@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	uatomic "go.uber.org/atomic"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -196,6 +197,7 @@ func TestResizeUp(t *testing.T) {
 		// wait until we are signaled that we can finish
 		releaseConsumers.Wait()
 	})
+	defer q.Stop()
 
 	assert.True(t, q.Produce("a")) // in process
 	firstConsumer.Wait()
@@ -244,6 +246,7 @@ func TestResizeDown(t *testing.T) {
 		// wait until we are signaled that we can finish
 		releaseConsumers.Wait()
 	})
+	defer q.Stop()
 
 	assert.True(t, q.Produce("a")) // in process
 	consumer.Wait()
@@ -297,6 +300,7 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 			expected.Done()
 		}
 	})
+	defer q.Stop()
 
 	assert.True(t, q.Produce("a"))
 	consumerReady.Wait()
@@ -315,28 +319,24 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 }
 
 func TestNoopResize(t *testing.T) {
-	q := NewBoundedQueue(2, func(item interface{}) {
-	})
+	q := NewBoundedQueue(2, func(item interface{}) {})
 
 	assert.False(t, q.Resize(2))
 }
 
 func TestZeroSize(t *testing.T) {
-	q := NewBoundedQueue(0, func(item interface{}) {
-	})
+	q := NewBoundedQueue(0, func(item interface{}) {})
 
-	q.StartConsumers(1, func(item interface{}) {
-	})
+	q.StartConsumers(1, func(item interface{}) {})
+	defer q.Stop()
 
 	assert.False(t, q.Produce("a")) // in process
 }
 
 func BenchmarkBoundedQueue(b *testing.B) {
-	q := NewBoundedQueue(1000, func(item interface{}) {
-	})
-
-	q.StartConsumers(10, func(item interface{}) {
-	})
+	q := NewBoundedQueue(1000, func(item interface{}) {})
+	q.StartConsumers(10, func(item interface{}) {})
+	defer q.Stop()
 
 	for n := 0; n < b.N; n++ {
 		q.Produce(n)
@@ -344,14 +344,18 @@ func BenchmarkBoundedQueue(b *testing.B) {
 }
 
 func BenchmarkBoundedQueueWithFactory(b *testing.B) {
-	q := NewBoundedQueue(1000, func(item interface{}) {
-	})
+	q := NewBoundedQueue(1000, func(item interface{}) {})
 
 	q.StartConsumersWithFactory(10, func() Consumer {
 		return ConsumerFunc(func(item interface{}) {})
 	})
+	defer q.Stop()
 
 	for n := 0; n < b.N; n++ {
 		q.Produce(n)
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

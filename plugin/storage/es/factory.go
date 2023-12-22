@@ -327,15 +327,15 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 	newCfg := *cfg // copy by value
 	newCfg.Password = newPassword
 	newCfg.PasswordFilePath = "" // avoid error that both are set
+
 	newClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
-	} else {
-		oldClient := *client.Swap(&newClient)
-		if oldClient != nil {
-			if err := oldClient.Close(); err != nil {
-				f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
-			}
+		return
+	}
+	if oldClient := *client.Swap(&newClient); oldClient != nil {
+		if err := oldClient.Close(); err != nil {
+			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
 		}
 	}
 }
