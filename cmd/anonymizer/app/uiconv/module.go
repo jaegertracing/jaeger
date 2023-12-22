@@ -28,11 +28,11 @@ type Config struct {
 // Extract reads anonymized file, finds spans for a given trace,
 // and writes out that trace in the UI format.
 func Extract(config Config, logger *zap.Logger) error {
-	reader, err := NewReader(config.CapturedFile, logger)
+	reader, err := newSpanReader(config.CapturedFile, logger)
 	if err != nil {
 		return err
 	}
-	ext, err := NewExtractor(config.UIFile, config.TraceID, reader, logger)
+	ext, err := newExtractor(config.UIFile, config.TraceID, reader, logger)
 	if err != nil {
 		return err
 	}

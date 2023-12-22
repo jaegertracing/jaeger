@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 
 	"go.uber.org/zap"
@@ -26,8 +25,10 @@ import (
 	uimodel "github.com/jaegertracing/jaeger/model/json"
 )
 
-// Reader loads previously captured spans from a file.
-type Reader struct {
+var errNoMoreSpans = fmt.Errorf("no more spans")
+
+// spanReader loads previously captured spans from a file.
+type spanReader struct {
 	logger       *zap.Logger
 	capturedFile *os.File
 	reader       *bufio.Reader
@@ -35,25 +36,25 @@ type Reader struct {
 	eofReached   bool
 }
 
-// NewReader creates a Reader.
-func NewReader(capturedFile string, logger *zap.Logger) (*Reader, error) {
+// newSpanReader creates a spanReader.
+func newSpanReader(capturedFile string, logger *zap.Logger) (*spanReader, error) {
 	cf, err := os.OpenFile(capturedFile, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open captured file: %w", err)
 	}
 	logger.Sugar().Infof("Reading captured spans from file %s", capturedFile)
 
-	return &Reader{
+	return &spanReader{
 		logger:       logger,
 		capturedFile: cf,
 		reader:       bufio.NewReader(cf),
 	}, nil
 }
 
-// NextSpan reads the next span from the capture file, or returns io.EOF.
-func (r *Reader) NextSpan() (*uimodel.Span, error) {
+// NextSpan reads the next span from the capture file, or returns errNoMoreSpans.
+func (r *spanReader) NextSpan() (*uimodel.Span, error) {
 	if r.eofReached {
-		return nil, io.EOF
+		return nil, errNoMoreSpans
 	}
 	if r.spansRead == 0 {
 		b, err := r.reader.ReadByte()
