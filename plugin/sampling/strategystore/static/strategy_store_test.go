@@ -395,7 +395,10 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	// verify that reloading in no-op
-	value := store.reloadSamplingStrategy(store.samplingStrategyLoader(mockServer.URL), *mockStrategy.Load())
+	value := store.reloadSamplingStrategy(
+		store.samplingStrategyLoader(mockServer.URL),
+		*mockStrategy.Load(),
+	)
 	assert.Equal(t, *mockStrategy.Load(), value)
 
 	// update original strategies with new probability of 0.9
