@@ -21,8 +21,6 @@ import (
 	"time"
 	"unsafe"
 
-	uatomic "go.uber.org/atomic"
-
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
@@ -39,9 +37,9 @@ type Consumer interface {
 type BoundedQueue struct {
 	workers       int
 	stopWG        sync.WaitGroup
-	size          *uatomic.Uint32
-	capacity      *uatomic.Uint32
-	stopped       *uatomic.Uint32
+	size          atomic.Int32
+	capacity      atomic.Uint32
+	stopped       atomic.Uint32
 	items         *chan interface{}
 	onDroppedItem func(item interface{})
 	factory       func() Consumer
@@ -52,14 +50,13 @@ type BoundedQueue struct {
 // callback for dropped items (e.g. useful to emit metrics).
 func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *BoundedQueue {
 	queue := make(chan interface{}, capacity)
-	return &BoundedQueue{
+	bq := &BoundedQueue{
 		onDroppedItem: onDroppedItem,
 		items:         &queue,
 		stopCh:        make(chan struct{}),
-		capacity:      uatomic.NewUint32(uint32(capacity)),
-		stopped:       uatomic.NewUint32(0),
-		size:          uatomic.NewUint32(0),
 	}
+	bq.capacity.Store(uint32(capacity))
+	return bq
 }
 
 // StartConsumersWithFactory creates a given number of consumers consuming items
@@ -80,7 +77,7 @@ func (q *BoundedQueue) StartConsumersWithFactory(num int, factory func() Consume
 				select {
 				case item, ok := <-queue:
 					if ok {
-						q.size.Sub(1)
+						q.size.Add(-1)
 						consumer.Consume(item)
 					} else {
 						// channel closed, finish worker
@@ -135,7 +132,7 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 		return true
 	default:
 		// should not happen, as overflows should have been captured earlier
-		q.size.Sub(1)
+		q.size.Add(-1)
 		if q.onDroppedItem != nil {
 			q.onDroppedItem(item)
 		}

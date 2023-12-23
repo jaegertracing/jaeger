@@ -492,7 +492,7 @@ draft-release:
 
 .PHONY: install-test-tools
 install-test-tools:
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.1
+	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
 	$(GO) install mvdan.cc/gofumpt@latest
 
 .PHONY: install-build-tools

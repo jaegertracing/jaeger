@@ -17,9 +17,9 @@ package leaderelection
 import (
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	dl "github.com/jaegertracing/jaeger/pkg/distributedlock"
@@ -41,7 +41,7 @@ type ElectionParticipant interface {
 type DistributedElectionParticipant struct {
 	ElectionParticipantOptions
 	lock         dl.Lock
-	isLeader     *atomic.Bool
+	isLeader     atomic.Bool
 	resourceName string
 	closeChan    chan struct{}
 	wg           sync.WaitGroup
@@ -60,7 +60,6 @@ func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionP
 		ElectionParticipantOptions: options,
 		lock:                       lock,
 		resourceName:               resourceName,
-		isLeader:                   atomic.NewBool(false),
 		closeChan:                  make(chan struct{}),
 	}
 }

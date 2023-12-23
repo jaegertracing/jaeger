@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
@@ -67,7 +66,6 @@ func TestAcquireLock(t *testing.T) {
 				},
 				lock:         mockLock,
 				resourceName: "sampling_lock",
-				isLeader:     atomic.NewBool(false),
 			}
 
 			p.setLeader(test.isLeader)
@@ -78,7 +76,7 @@ func TestAcquireLock(t *testing.T) {
 	}
 }
 
-func TestRunAcquireLockLoop_followerOnly(t *testing.T) {
+func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	logger, logBuffer := testutils.NewLogger()
 	mockLock := &lmocks.Lock{}
 	mockLock.On("Acquire", "sampling_lock", time.Duration(5*time.Millisecond)).Return(false, errTestLock)

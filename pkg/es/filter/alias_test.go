@@ -17,7 +17,7 @@ package filter
 import (
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )

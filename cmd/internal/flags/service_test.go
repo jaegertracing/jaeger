@@ -17,12 +17,12 @@ import (
 	"flag"
 	"os"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -86,7 +86,7 @@ func TestStartErrors(t *testing.T) {
 			}
 			assert.NoError(t, err)
 
-			stopped := atomic.NewBool(false)
+			var stopped atomic.Bool
 			shutdown := func() {
 				stopped.Store(true)
 			}

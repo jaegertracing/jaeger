@@ -18,9 +18,9 @@ package app
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
@@ -54,8 +54,8 @@ type spanProcessor struct {
 	collectorTags      map[string]string
 	dynQueueSizeWarmup uint
 	dynQueueSizeMemory uint
-	bytesProcessed     *atomic.Uint64
-	spansProcessed     *atomic.Uint64
+	bytesProcessed     atomic.Uint64
+	spansProcessed     atomic.Uint64
 	stopCh             chan struct{}
 }
 
@@ -120,8 +120,6 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 		stopCh:             make(chan struct{}),
 		dynQueueSizeMemory: options.dynQueueSizeMemory,
 		dynQueueSizeWarmup: options.dynQueueSizeWarmup,
-		bytesProcessed:     atomic.NewUint64(0),
-		spansProcessed:     atomic.NewUint64(0),
 	}
 
 	processSpanFuncs := []ProcessSpan{options.preSave, sp.saveSpan}
@@ -173,7 +171,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 
 func (sp *spanProcessor) countSpan(span *model.Span, tenant string) {
 	sp.bytesProcessed.Add(uint64(span.Size()))
-	sp.spansProcessed.Inc()
+	sp.spansProcessed.Add(1)
 }
 
 func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {

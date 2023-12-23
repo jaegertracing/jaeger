@@ -25,7 +25,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	uatomic "go.uber.org/atomic"
 	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -280,7 +279,8 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 	readyToConsume.Add(1)
 	expected.Add(5) // we expect 5 items to be processed
 
-	consumed := uatomic.NewInt32(5)
+	var consumed atomic.Int32
+	consumed.Store(5)
 
 	first := true
 	q.StartConsumers(1, func(item interface{}) {
@@ -292,7 +292,7 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 
 		readyToConsume.Wait()
 
-		if consumed.Sub(1) >= 0 {
+		if consumed.Add(-1) >= 0 {
 			// we mark only the first 5 items as done
 			// we *might* get one item more in the queue given the right conditions
 			// but this small difference is OK -- making sure we are processing *exactly* N items

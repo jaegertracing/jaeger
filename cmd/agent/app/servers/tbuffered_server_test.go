@@ -19,13 +19,13 @@ import (
 	"context"
 	"io"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransport"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
@@ -35,7 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-func TestTBufferedServer_SendReceive(t *testing.T) {
+func TestTBufferedServerSendReceive(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 
 	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
@@ -101,7 +101,7 @@ type fakeTransport struct {
 // Second packet is simulated as error.
 // Third packet is returned as normal, but will be dropped as overflow by the server whose queue size = 1.
 func (t *fakeTransport) Read(p []byte) (n int, err error) {
-	packet := t.packet.Inc()
+	packet := t.packet.Add(1)
 	if packet == 2 {
 		// return some error packet, followed by valid one
 		return 0, io.ErrNoProgress
@@ -121,7 +121,7 @@ func (t *fakeTransport) Close() error {
 	return nil
 }
 
-func TestTBufferedServer_Metrics(t *testing.T) {
+func TestTBufferedServerMetrics(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 
 	transport := new(fakeTransport)

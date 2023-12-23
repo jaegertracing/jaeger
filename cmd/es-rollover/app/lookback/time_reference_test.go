@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetTimeReference(t *testing.T) {

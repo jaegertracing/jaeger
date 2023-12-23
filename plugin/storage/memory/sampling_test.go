@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
