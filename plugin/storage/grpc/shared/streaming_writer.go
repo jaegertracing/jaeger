@@ -18,8 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"go.uber.org/atomic"
+	"sync/atomic"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -36,13 +35,12 @@ const (
 type streamingSpanWriter struct {
 	client     storage_v1.StreamingSpanWriterPluginClient
 	streamPool chan storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient
-	closed     *atomic.Bool
+	closed     atomic.Bool
 }
 
 func newStreamingSpanWriter(client storage_v1.StreamingSpanWriterPluginClient) *streamingSpanWriter {
 	s := &streamingSpanWriter{
 		client:     client,
-		closed:     atomic.NewBool(false),
 		streamPool: make(chan storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient, defaultMaxPoolSize),
 	}
 	return s

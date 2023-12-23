@@ -15,10 +15,10 @@
 package app
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -30,11 +30,11 @@ type mockAggregator struct {
 }
 
 func (t *mockAggregator) RecordThroughput(service, operation string, samplerType model.SamplerType, probability float64) {
-	t.callCount.Inc()
+	t.callCount.Add(1)
 }
 func (t *mockAggregator) Start() {}
 func (t *mockAggregator) Close() error {
-	t.closeCount.Inc()
+	t.closeCount.Add(1)
 	return nil
 }
 

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"

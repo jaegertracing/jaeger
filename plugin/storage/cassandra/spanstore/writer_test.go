@@ -20,12 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -360,14 +360,17 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 
 func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
-		serviceWritten := atomic.NewString("")
-		operationWritten := &atomic.Value{}
+		var serviceWritten atomic.Pointer[string]
+		var operationWritten atomic.Pointer[dbmodel.Operation]
+		empty := ""
+		serviceWritten.Store(&empty)
+		operationWritten.Store(&dbmodel.Operation{})
 		w.writer.serviceNamesWriter = func(serviceName string) error {
-			serviceWritten.Store(serviceName)
+			serviceWritten.Store(&serviceName)
 			return nil
 		}
 		w.writer.operationNamesWriter = func(operation dbmodel.Operation) error {
-			operationWritten.Store(operation)
+			operationWritten.Store(&operation)
 			return nil
 		}
 		span := &model.Span{
@@ -398,12 +401,12 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", stringMatcher(tagIndex), matchEverything())
 		w.session.AssertNotCalled(t, "Query", stringMatcher(durationIndex), matchEverything())
-		assert.Equal(t, "planet-express", serviceWritten.Load())
+		assert.Equal(t, "planet-express", *serviceWritten.Load())
 		assert.Equal(t, dbmodel.Operation{
 			ServiceName:   "planet-express",
 			SpanKind:      "unspecified",
 			OperationName: "package-delivery",
-		}, operationWritten.Load())
+		}, *operationWritten.Load())
 	}, StoreIndexesOnly())
 }
 

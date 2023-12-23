@@ -21,12 +21,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
@@ -64,8 +64,10 @@ func strategiesJSON(probability float32) string {
 
 // Returns strategies in JSON format. Used for testing
 // URL option for sampling strategies.
-func mockStrategyServer() (*httptest.Server, *atomic.String) {
-	strategy := atomic.NewString(strategiesJSON(0.8))
+func mockStrategyServer() (*httptest.Server, *atomic.Pointer[string]) {
+	var strategy atomic.Pointer[string]
+	value := strategiesJSON(0.8)
+	strategy.Store(&value)
 	f := func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/bad-content":
@@ -83,10 +85,10 @@ func mockStrategyServer() (*httptest.Server, *atomic.String) {
 		default:
 			w.WriteHeader(200)
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(strategy.Load()))
+			w.Write([]byte(*strategy.Load()))
 		}
 	}
-	return httptest.NewServer(http.HandlerFunc(f)), strategy
+	return httptest.NewServer(http.HandlerFunc(f)), &strategy
 }
 
 func TestStrategyStoreWithFile(t *testing.T) {
@@ -393,11 +395,14 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	// verify that reloading in no-op
-	value := store.reloadSamplingStrategy(store.samplingStrategyLoader(mockServer.URL), mockStrategy.Load())
-	assert.Equal(t, mockStrategy.Load(), value)
+	value := store.reloadSamplingStrategy(store.samplingStrategyLoader(mockServer.URL), *mockStrategy.Load())
+	assert.Equal(t, *mockStrategy.Load(), value)
 
 	// update original strategies with new probability of 0.9
-	mockStrategy.Store(strategiesJSON(0.9))
+	{
+		v09 := strategiesJSON(0.9)
+		mockStrategy.Store(&v09)
+	}
 
 	// wait for reload timer
 	for i := 0; i < 1000; i++ { // wait up to 1sec

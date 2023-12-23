@@ -21,12 +21,12 @@ import (
 	"io"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -296,10 +296,10 @@ type blockingWriter struct {
 }
 
 func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	w.inWriteSpan.Inc()
+	w.inWriteSpan.Add(1)
 	w.Lock()
 	defer w.Unlock()
-	w.inWriteSpan.Dec()
+	w.inWriteSpan.Add(-1)
 	return nil
 }
 
@@ -443,7 +443,10 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			m := mb.Namespace(metrics.NSOptions{})
 
 			w := &fakeSpanWriter{}
-			opts := []Option{Options.HostMetrics(m), Options.SpanSizeMetricsEnabled(tt.enableSpanMetrics)}
+			opts := []Option{
+				Options.HostMetrics(m),
+				Options.SpanSizeMetricsEnabled(tt.enableSpanMetrics),
+			}
 			if tt.enableDynQueueSizeMem {
 				opts = append(opts, Options.DynQueueSizeMemory(1000))
 			} else {
@@ -456,7 +459,14 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			p.background(10*time.Millisecond, p.updateGauges)
 
 			p.processSpan(&model.Span{}, "")
-			assert.NotEqual(t, uint64(0), p.bytesProcessed)
+			if tt.enableSpanMetrics {
+				assert.Eventually(t,
+					func() bool { return p.spansProcessed.Load() > 0 },
+					time.Second,
+					time.Millisecond,
+				)
+				assert.Greater(t, p.spansProcessed.Load(), uint64(0))
+			}
 
 			for i := 0; i < 10000; i++ {
 				_, g := mb.Snapshot()
@@ -558,8 +568,8 @@ func TestUpdateDynQueueSize(t *testing.T) {
 			p := newSpanProcessor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
 			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
 
-			p.spansProcessed = atomic.NewUint64(tt.spansProcessed)
-			p.bytesProcessed = atomic.NewUint64(tt.bytesProcessed)
+			p.spansProcessed.Store(tt.spansProcessed)
+			p.bytesProcessed.Store(tt.bytesProcessed)
 
 			p.updateQueueSize()
 			assert.EqualValues(t, tt.expectedCapacity, p.queue.Capacity())
@@ -579,8 +589,8 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 	p := newSpanProcessor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
 	assert.EqualValues(t, 100, p.queue.Capacity())
 
-	p.spansProcessed = atomic.NewUint64(1000)
-	p.bytesProcessed = atomic.NewUint64(10 * 1024 * p.spansProcessed.Load()) // 10KiB per span
+	p.spansProcessed.Store(1000)
+	p.bytesProcessed.Store(10 * 1024 * p.spansProcessed.Load()) // 10KiB per span
 
 	// 1024 ^ 3 / (10 * 1024) = 104857,6
 	// ideal queue size = 104857

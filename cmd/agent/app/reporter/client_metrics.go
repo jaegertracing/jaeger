@@ -17,9 +17,9 @@ package reporter
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -75,7 +75,7 @@ type ClientMetricsReporter struct {
 	params        ClientMetricsReporterParams
 	clientMetrics *clientMetrics
 	shutdown      chan struct{}
-	closed        *atomic.Bool
+	closed        atomic.Bool
 
 	// map from client-uuid to *lastReceivedClientStats
 	lastReceivedClientStats sync.Map
@@ -104,7 +104,6 @@ func WrapWithClientMetrics(params ClientMetricsReporterParams) *ClientMetricsRep
 		params:        params,
 		clientMetrics: cm,
 		shutdown:      make(chan struct{}),
-		closed:        atomic.NewBool(false),
 	}
 	go r.expireClientMetricsLoop()
 	return r

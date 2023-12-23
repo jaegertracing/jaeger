@@ -17,7 +17,7 @@ package app
 import (
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRolloverIndices(t *testing.T) {
