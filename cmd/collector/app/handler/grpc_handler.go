@@ -16,6 +16,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -91,7 +92,7 @@ func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
 		Tenant:           tenant,
 	})
 	if err != nil {
-		if err == processor.ErrBusy {
+		if errors.Is(err, processor.ErrBusy) {
 			return status.Errorf(codes.ResourceExhausted, err.Error())
 		}
 		c.logger.Error("cannot process spans", zap.Error(err))

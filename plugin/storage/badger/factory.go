@@ -15,6 +15,7 @@
 package badger
 
 import (
+	"errors"
 	"expvar"
 	"flag"
 	"io"
@@ -224,7 +225,7 @@ func (f *Factory) maintenance() {
 			for err == nil {
 				err = f.store.RunValueLogGC(0.5) // 0.5 is selected to rewrite a file if half of it can be discarded
 			}
-			if err == badger.ErrNoRewrite {
+			if errors.Is(err, badger.ErrNoRewrite) {
 				f.metrics.LastValueLogCleaned.Update(t.UnixNano())
 			} else {
 				f.logger.Error("Failed to run ValueLogGC", zap.Error(err))

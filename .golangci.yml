@@ -51,8 +51,7 @@ linters:
     - errname
 
     # Suggests to use `%w` for error-wrapping.
-    # TODO enable this. Curently fails in about 20 places.
-    # - errorlint
+    - errorlint
 
     # Checks for pointers to enclosing loop variables.
     - exportloopref
@@ -109,6 +108,17 @@ linters-settings:
       - G601
   gosimple:
     go: "1.20"
+  govet:
+    check-shadowing: false
+    enable-all: true
+    disable:
+      # There is rarely performance differences due to padding,
+      # the most noticable impact is memory usage. However,
+      # the main trace data is Protobuf-generated and we ignore
+      # those files from linting, so this linter is not useful.
+      - fieldalignment
+      # Disable shadow
+      - shadow
 
 run:
   go: "1.20"

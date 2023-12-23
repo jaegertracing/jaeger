@@ -30,18 +30,15 @@ type UITrace struct {
 	Data []model.Trace
 }
 
-func TestExtractor_TraceSuccess(t *testing.T) {
+func TestExtractorTraceSuccess(t *testing.T) {
 	inputFile := "fixtures/trace_success.json"
 	outputFile := "fixtures/trace_success_ui_anonymized.json"
 	defer os.Remove(outputFile)
 
-	reader, err := NewReader(
-		inputFile,
-		zap.NewNop(),
-	)
+	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
-	extractor, err := NewExtractor(
+	extractor, err := newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,
@@ -62,22 +59,19 @@ func TestExtractor_TraceSuccess(t *testing.T) {
 	}
 }
 
-func TestExtractor_TraceOutputFileError(t *testing.T) {
+func TestExtractorTraceOutputFileError(t *testing.T) {
 	inputFile := "fixtures/trace_success.json"
 	outputFile := "fixtures/trace_success_ui_anonymized.json"
 	defer os.Remove(outputFile)
 
-	reader, err := NewReader(
-		inputFile,
-		zap.NewNop(),
-	)
+	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
 	err = os.Chmod("fixtures", 0o000)
 	require.NoError(t, err)
 	defer os.Chmod("fixtures", 0o755)
 
-	_, err = NewExtractor(
+	_, err = newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,
@@ -86,18 +80,15 @@ func TestExtractor_TraceOutputFileError(t *testing.T) {
 	require.Contains(t, err.Error(), "cannot create output file")
 }
 
-func TestExtractor_TraceScanError(t *testing.T) {
+func TestExtractorTraceScanError(t *testing.T) {
 	inputFile := "fixtures/trace_scan_error.json"
 	outputFile := "fixtures/trace_scan_error_ui_anonymized.json"
 	defer os.Remove(outputFile)
 
-	reader, err := NewReader(
-		inputFile,
-		zap.NewNop(),
-	)
+	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
-	extractor, err := NewExtractor(
+	extractor, err := newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,

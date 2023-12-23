@@ -16,6 +16,7 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -112,7 +113,7 @@ func (s *GRPCHandler) WriteSpanStream(stream storage_v1.StreamingSpanWriterPlugi
 	}
 	for {
 		in, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -150,7 +151,7 @@ func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterReques
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
 	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
-	if err == spanstore.ErrTraceNotFound {
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {
@@ -275,7 +276,7 @@ func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stor
 		return status.Error(codes.Unimplemented, "not implemented")
 	}
 	trace, err := reader.GetTrace(stream.Context(), r.TraceID)
-	if err == spanstore.ErrTraceNotFound {
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {

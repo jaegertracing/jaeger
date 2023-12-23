@@ -192,7 +192,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	if c.Version >= 8 {
 		rawClientV8, err = newElasticsearchV8(c, logger)
 		if err != nil {
-			return nil, fmt.Errorf("error creating v8 client: %v", err)
+			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
 	}
 

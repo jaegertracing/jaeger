@@ -17,6 +17,7 @@ package app
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -175,7 +176,7 @@ func stringSliceAsHeader(slice []string) (http.Header, error) {
 	tp := textproto.NewReader(reader)
 
 	header, err := tp.ReadMIMEHeader()
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("failed to parse headers")
 	}
 

@@ -16,8 +16,8 @@ package uiconv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 
 	"go.uber.org/zap"
@@ -25,23 +25,23 @@ import (
 	uimodel "github.com/jaegertracing/jaeger/model/json"
 )
 
-// Extractor reads the spans from reader, filters by traceID, and stores as JSON into uiFile.
-type Extractor struct {
+// extractor reads the spans from reader, filters by traceID, and stores as JSON into uiFile.
+type extractor struct {
 	uiFile  *os.File
 	traceID string
-	reader  *Reader
+	reader  *spanReader
 	logger  *zap.Logger
 }
 
-// NewExtractor creates Extractor.
-func NewExtractor(uiFile string, traceID string, reader *Reader, logger *zap.Logger) (*Extractor, error) {
+// newExtractor creates extractor.
+func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap.Logger) (*extractor, error) {
 	f, err := os.OpenFile(uiFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create output file: %w", err)
 	}
 	logger.Sugar().Infof("Writing spans to UI file %s", uiFile)
 
-	return &Extractor{
+	return &extractor{
 		uiFile:  f,
 		traceID: traceID,
 		reader:  reader,
@@ -50,7 +50,7 @@ func NewExtractor(uiFile string, traceID string, reader *Reader, logger *zap.Log
 }
 
 // Run executes the extraction.
-func (e *Extractor) Run() error {
+func (e *extractor) Run() error {
 	e.logger.Info("Parsing captured file for trace", zap.String("trace_id", e.traceID))
 
 	var (
@@ -63,7 +63,7 @@ func (e *Extractor) Run() error {
 			spans = append(spans, *span)
 		}
 	}
-	if err != io.EOF {
+	if !errors.Is(err, errNoMoreSpans) {
 		return fmt.Errorf("failed when scanning the file: %w", err)
 	}
 	trace := uimodel.Trace{
