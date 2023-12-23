@@ -252,7 +252,7 @@ func initalStartTime(timeBytes []byte) (time.Time, error) {
 	buf := bytes.NewReader(timeBytes)
 
 	if err := binary.Read(buf, binary.BigEndian, &usec); err != nil {
-		panic(nil)
+		return time.Time{}, err
 	}
 
 	t := time.UnixMicro(usec)
