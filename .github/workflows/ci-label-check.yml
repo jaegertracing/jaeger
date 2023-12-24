@@ -19,14 +19,8 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check PR author
-        id: check_author
-        run: |
-          is_dependabot=$(echo ${{ github.event.pull_request.user.login }} | grep -o 'dependabot')
-          echo "is_dependabot=$is_dependabot" >> $GITHUB_OUTPUT
-
       - name: Check PR label
-        if: steps.check_author.outputs.is_dependabot != 'dependabot'
+        if: github.event.pull_request.user.login != 'dependabot'
         run: |
           LABEL_NAME="changelog:"
           if [[ $(curl -s "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" | jq -r '.labels[].name' | grep -c "^$LABEL_NAME") -eq 0 ]]; then
