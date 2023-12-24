@@ -29,7 +29,6 @@ jobs:
 
     - name: Publish Unit Test Summary 📑
       uses: EnricoMi/publish-unit-test-result-action@v2
-      id: test-results
       if: always()
       with:
         check_name: Unit Tests Summary

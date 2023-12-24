@@ -513,7 +513,7 @@ test-ci: install-test-tools build-examples cover test-report
 
 .PHONY: test-report
 test-report:
-	@cat test-results.json | go-junit-report -parser gojson > junit-report.xml
+	cat test-results.json | go-junit-report -parser gojson > junit-report.xml
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
