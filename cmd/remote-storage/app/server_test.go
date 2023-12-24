@@ -336,7 +336,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				tm,
 				flagsSvc.Logger,
 			)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.NoError(t, server.Start())
 
 			var wg sync.WaitGroup
@@ -376,7 +376,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				require.NoError(t, clientError)
 				assert.Equal(t, expectedServices, res.Services)
 			}
-			require.Nil(t, client.conn.Close())
+			require.NoError(t, client.conn.Close())
 			server.Close()
 			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
@@ -396,7 +396,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		tenancy.NewManager(&tenancy.Options{}),
 		flagsSvc.Logger,
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NoError(t, server.Start())
 	defer server.Close()
 

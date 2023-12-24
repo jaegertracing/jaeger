@@ -127,7 +127,7 @@ func TestViaClient(t *testing.T) {
 		break
 	}
 
-	assert.Equal(t, 1, len(handler.jaegerBatchesHandler.(*mockJaegerHandler).getBatches()))
+	assert.Len(t, handler.jaegerBatchesHandler.(*mockJaegerHandler).getBatches(), 1)
 }
 
 func TestBadBody(t *testing.T) {

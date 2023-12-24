@@ -319,9 +319,9 @@ func TestGetDependenciesSuccess(t *testing.T) {
 	assert.NotEmpty(t, response.Data)
 	data := response.Data.([]interface{})[0]
 	actual := data.(map[string]interface{})
-	assert.Equal(t, actual["parent"], "killer")
-	assert.Equal(t, actual["child"], "queen")
-	assert.Equal(t, actual["callCount"], 12.00) // recovered type is float
+	assert.Equal(t, "killer", actual["parent"])
+	assert.Equal(t, "queen", actual["child"])
+	assert.Equal(t, 12.00, actual["callCount"]) // recovered type is float
 	assert.NoError(t, err)
 }
 

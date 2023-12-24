@@ -184,7 +184,7 @@ func TestWriterOptions(t *testing.T) {
 	opts.InitFromViper(v)
 
 	options, _ = writerOptions(opts)
-	assert.Len(t, options, 0)
+	assert.Empty(t, options)
 }
 
 func TestInitFromOptions(t *testing.T) {

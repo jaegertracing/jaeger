@@ -123,7 +123,7 @@ func TestTableExec(t *testing.T) {
 		err := tm.Exec(tc.q, useLogger)
 		if tc.q.err == nil {
 			assert.NoError(t, err)
-			assert.Len(t, logBuf.Bytes(), 0)
+			assert.Empty(t, logBuf.Bytes())
 		} else {
 			assert.Error(t, err, tc.q.err.Error())
 			if tc.log {
@@ -134,7 +134,7 @@ func TestTableExec(t *testing.T) {
 					"error": "failed",
 				}, logBuf.JSONLine(0))
 			} else {
-				assert.Len(t, logBuf.Bytes(), 0)
+				assert.Empty(t, logBuf.Bytes())
 			}
 		}
 		counts, _ := mf.Snapshot()

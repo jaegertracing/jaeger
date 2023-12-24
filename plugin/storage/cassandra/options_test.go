@@ -114,6 +114,6 @@ func TestEmptyBlackWhiteLists(t *testing.T) {
 	command.ParseFlags([]string{})
 	opts.InitFromViper(v)
 
-	assert.Len(t, opts.TagIndexBlacklist(), 0)
-	assert.Len(t, opts.TagIndexWhitelist(), 0)
+	assert.Empty(t, opts.TagIndexBlacklist())
+	assert.Empty(t, opts.TagIndexWhitelist())
 }

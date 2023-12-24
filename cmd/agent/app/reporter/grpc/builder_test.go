@@ -220,7 +220,7 @@ func TestProxyBuilder(t *testing.T) {
 				assert.NotNil(t, proxy.GetReporter())
 				assert.NotNil(t, proxy.GetManager())
 
-				assert.Nil(t, proxy.Close())
+				assert.NoError(t, proxy.Close())
 				assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
 			}
 		})
@@ -377,7 +377,7 @@ func TestProxyClientTLS(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Nil(t, proxy.Close())
+			require.NoError(t, proxy.Close())
 		})
 	}
 }

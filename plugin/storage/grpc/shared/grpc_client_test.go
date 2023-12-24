@@ -263,7 +263,7 @@ func TestGRPCClientFindTraces(t *testing.T) {
 		s, err := r.client.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		assert.NoError(t, err)
 		assert.NotNil(t, s)
-		assert.Equal(t, 2, len(s))
+		assert.Len(t, s, 2)
 	})
 }
 

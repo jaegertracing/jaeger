@@ -68,7 +68,7 @@ func TestMultipleCollectors(t *testing.T) {
 	assert.True(t, len(g) > 0)
 	assert.True(t, len(c) > 0)
 	assert.Equal(t, true, bothServers)
-	require.Nil(t, proxy.Close())
+	require.NoError(t, proxy.Close())
 }
 
 func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server), opts ...grpc.ServerOption) (*grpc.Server, net.Addr) {

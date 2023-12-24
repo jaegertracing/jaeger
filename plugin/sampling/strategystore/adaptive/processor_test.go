@@ -102,13 +102,13 @@ func TestAggregateThroughput(t *testing.T) {
 
 	opThroughput, ok := throughput["GET"]
 	require.True(t, ok)
-	assert.Equal(t, opThroughput.Count, int64(8))
-	assert.Equal(t, opThroughput.Probabilities, map[string]struct{}{"0.1": {}, "0.2": {}})
+	assert.Equal(t, int64(8), opThroughput.Count)
+	assert.Equal(t, map[string]struct{}{"0.1": {}, "0.2": {}}, opThroughput.Probabilities)
 
 	opThroughput, ok = throughput["PUT"]
 	require.True(t, ok)
-	assert.Equal(t, opThroughput.Count, int64(5))
-	assert.Equal(t, opThroughput.Probabilities, map[string]struct{}{"0.1": {}})
+	assert.Equal(t, int64(5), opThroughput.Count)
+	assert.Equal(t, map[string]struct{}{"0.1": {}}, opThroughput.Probabilities)
 
 	throughput, ok = aggregatedThroughput["svcB"]
 	require.True(t, ok)
@@ -116,8 +116,8 @@ func TestAggregateThroughput(t *testing.T) {
 
 	opThroughput, ok = throughput["GET"]
 	require.True(t, ok)
-	assert.Equal(t, opThroughput.Count, int64(3))
-	assert.Equal(t, opThroughput.Probabilities, map[string]struct{}{"0.1": {}})
+	assert.Equal(t, int64(3), opThroughput.Count)
+	assert.Equal(t, map[string]struct{}{"0.1": {}}, opThroughput.Probabilities)
 }
 
 func TestInitializeThroughput(t *testing.T) {
@@ -133,10 +133,10 @@ func TestInitializeThroughput(t *testing.T) {
 
 	require.Len(t, p.throughputs, 2)
 	require.Len(t, p.throughputs[0].throughput, 2)
-	assert.Equal(t, p.throughputs[0].interval, time.Minute)
+	assert.Equal(t, time.Minute, p.throughputs[0].interval)
 	assert.Equal(t, p.throughputs[0].endTime, time.Time{}.Add(time.Minute*20))
 	require.Len(t, p.throughputs[1].throughput, 1)
-	assert.Equal(t, p.throughputs[1].interval, time.Minute)
+	assert.Equal(t, time.Minute, p.throughputs[1].interval)
 	assert.Equal(t, p.throughputs[1].endTime, time.Time{}.Add(time.Minute*19))
 }
 
@@ -147,7 +147,7 @@ func TestInitializeThroughputFailure(t *testing.T) {
 	p := &Processor{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
-	assert.Len(t, p.throughputs, 0)
+	assert.Empty(t, p.throughputs)
 }
 
 func TestCalculateQPS(t *testing.T) {

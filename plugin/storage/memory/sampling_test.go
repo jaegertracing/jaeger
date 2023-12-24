@@ -53,7 +53,7 @@ func TestInsertThroughtput(t *testing.T) {
 		}
 		assert.NoError(t, samplingStore.InsertThroughput(throughputs))
 		ret, _ := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
-		assert.Equal(t, 2, len(ret))
+		assert.Len(t, ret, 2)
 
 		for i := 0; i < 10; i++ {
 			in := []*model.Throughput{
@@ -61,7 +61,7 @@ func TestInsertThroughtput(t *testing.T) {
 			}
 			samplingStore.InsertThroughput(in)
 		}
-		assert.Equal(t, 5, len(samplingStore.throughputs))
+		assert.Len(t, samplingStore.throughputs, 5)
 	})
 }
 
@@ -70,11 +70,11 @@ func TestGetThroughput(t *testing.T) {
 		start := time.Now()
 		ret, err := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(ret))
+		assert.Len(t, ret, 1)
 		ret1, _ := samplingStore.GetThroughput(start, start)
-		assert.Equal(t, 0, len(ret1))
+		assert.Empty(t, ret1)
 		ret2, _ := samplingStore.GetThroughput(start, start.Add(time.Hour*time.Duration(1)))
-		assert.Equal(t, 2, len(ret2))
+		assert.Len(t, ret2, 2)
 	})
 }
 
@@ -100,9 +100,9 @@ func TestGetLatestProbability(t *testing.T) {
 		// With some pregenerated data
 		ret, err := samplingStore.GetLatestProbabilities()
 		assert.NoError(t, err)
-		assert.Equal(t, ret, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}})
+		assert.Equal(t, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, ret)
 		assert.NoError(t, samplingStore.InsertProbabilitiesAndQPS("utfhyolf", model.ServiceOperationProbabilities{"another-service": {"hello": 0.009}}, model.ServiceOperationQPS{"new-srv": {"op": 5}}))
 		ret, _ = samplingStore.GetLatestProbabilities()
-		assert.NotEqual(t, ret, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}})
+		assert.NotEqual(t, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, ret)
 	})
 }

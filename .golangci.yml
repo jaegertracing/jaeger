@@ -86,6 +86,9 @@ linters:
     # Finds sending HTTP request without context.Context.
     - noctx
 
+    # Checks usage of github.com/stretchr/testify.
+    - testifylint
+
     # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
 
 linters-settings:
@@ -133,6 +136,21 @@ linters-settings:
       - fieldalignment
       # Disable shadow
       - shadow
+  testifylint:
+    disable:
+      - bool-compare
+      - compares
+      - float-compare
+      - go-require
+      - require-error
+    enable:
+      - empty
+      - error-is-as
+      - error-nil
+      - expected-actual
+      - len
+      - suite-dont-use-pkg
+      - suite-extra-assert-call
 
 run:
   go: "1.20"

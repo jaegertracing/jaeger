@@ -57,7 +57,7 @@ func TestWithConfiguration(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, f.options.Configuration.MaxTraces, 100)
+	assert.Equal(t, 100, f.options.Configuration.MaxTraces)
 }
 
 func TestInitFromOptions(t *testing.T) {

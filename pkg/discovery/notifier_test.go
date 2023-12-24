@@ -64,5 +64,5 @@ func TestDispatcher(t *testing.T) {
 	assert.Len(t, d.observers, 1)
 
 	d.Unregister(f2)
-	assert.Len(t, d.observers, 0)
+	assert.Empty(t, d.observers)
 }

@@ -166,7 +166,7 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 
 	require.NotNil(t, s.OperationSampling)
 	os := s.OperationSampling
-	assert.EqualValues(t, os.DefaultSamplingProbability, 0.8)
+	assert.EqualValues(t, 0.8, os.DefaultSamplingProbability)
 	require.Len(t, os.PerOperationStrategies, 4)
 
 	assert.Equal(t, "op6", os.PerOperationStrategies[0].Operation)
@@ -187,7 +187,7 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 
 	require.NotNil(t, s.OperationSampling)
 	os = s.OperationSampling
-	assert.EqualValues(t, os.DefaultSamplingProbability, 0.001)
+	assert.EqualValues(t, 0.001, os.DefaultSamplingProbability)
 	require.Len(t, os.PerOperationStrategies, 5)
 	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
 	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
@@ -244,7 +244,7 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 
 	require.NotNil(t, s.OperationSampling)
 	os := s.OperationSampling
-	assert.EqualValues(t, os.DefaultSamplingProbability, defaultSamplingProbability)
+	assert.EqualValues(t, defaultSamplingProbability, os.DefaultSamplingProbability)
 	require.Len(t, os.PerOperationStrategies, 1)
 	assert.Equal(t, "op1", os.PerOperationStrategies[0].Operation)
 	assert.EqualValues(t, 0.2, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
@@ -258,7 +258,7 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 
 	require.NotNil(t, s.OperationSampling)
 	os = s.OperationSampling
-	assert.EqualValues(t, os.DefaultSamplingProbability, 0.001)
+	assert.EqualValues(t, 0.001, os.DefaultSamplingProbability)
 	require.Len(t, os.PerOperationStrategies, 2)
 	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
 	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)

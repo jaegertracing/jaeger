@@ -33,7 +33,7 @@ func TestFixtures(t *testing.T) {
 	loadJSON(t, "fixtures/zipkin_01.json", &spans)
 	tSpans, err := SpansV2ToThrift(spans)
 	require.NoError(t, err)
-	assert.Equal(t, len(tSpans), 1)
+	assert.Len(t, tSpans, 1)
 	var pid int64 = 1
 	var ts int64 = 1
 	var d int64 = 10
@@ -60,7 +60,7 @@ func TestLCFromLocalEndpoint(t *testing.T) {
 	loadJSON(t, "fixtures/zipkin_02.json", &spans)
 	tSpans, err := SpansV2ToThrift(spans)
 	require.NoError(t, err)
-	assert.Equal(t, len(tSpans), 1)
+	assert.Len(t, tSpans, 1)
 	var ts int64 = 1
 	var d int64 = 10
 	tSpan := &zipkincore.Span{
@@ -80,7 +80,7 @@ func TestMissingKafkaEndpoint(t *testing.T) {
 	loadJSON(t, "fixtures/zipkin_03.json", &spans)
 	tSpans, err := SpansV2ToThrift(spans)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(tSpans))
+	assert.Len(t, tSpans, 1)
 	var ts int64 = 1597704629675602
 	var d int64 = 9550570
 	var parentId int64 = 0xc26551047c72d19
@@ -138,7 +138,7 @@ func TestKindToThrift(t *testing.T) {
 	}
 	for _, test := range tests {
 		banns := kindToThrift(test.ts, test.d, test.kind, nil)
-		assert.Equal(t, banns, test.expected)
+		assert.Equal(t, test.expected, banns)
 	}
 }
 
@@ -156,7 +156,7 @@ func TestRemoteEndpToThrift(t *testing.T) {
 	for _, test := range tests {
 		banns, err := remoteEndpToThrift(nil, test.kind)
 		require.NoError(t, err)
-		assert.Equal(t, banns, test.expected)
+		assert.Equal(t, test.expected, banns)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestErrIds(t *testing.T) {
 		tSpan, err := spanV2ToThrift(&test.span)
 		require.Error(t, err)
 		require.Nil(t, tSpan)
-		assert.Equal(t, err.Error(), "strconv.ParseUint: parsing \"z\": invalid syntax")
+		assert.Equal(t, "strconv.ParseUint: parsing \"z\": invalid syntax", err.Error())
 	}
 }
 
@@ -191,7 +191,7 @@ func TestErrEndpoints(t *testing.T) {
 		tSpan, err := spanV2ToThrift(&test.span)
 		require.Error(t, err)
 		require.Nil(t, tSpan)
-		assert.Equal(t, err.Error(), "wrong ipv4")
+		assert.Equal(t, "wrong ipv4", err.Error())
 	}
 }
 
@@ -200,7 +200,7 @@ func TestErrSpans(t *testing.T) {
 	tSpans, err := SpansV2ToThrift(models.ListOfSpans{&models.Span{ID: &id}})
 	require.Error(t, err)
 	require.Nil(t, tSpans)
-	assert.Equal(t, err.Error(), "strconv.ParseUint: parsing \"z\": invalid syntax")
+	assert.Equal(t, "strconv.ParseUint: parsing \"z\": invalid syntax", err.Error())
 }
 
 func loadJSON(t *testing.T, fileName string, i interface{}) {

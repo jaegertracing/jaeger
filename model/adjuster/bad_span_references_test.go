@@ -41,8 +41,8 @@ func TestSpanReferencesAdjuster(t *testing.T) {
 	}
 	trace, err := SpanReferences().Adjust(trace)
 	assert.NoError(t, err)
-	assert.Len(t, trace.Spans[0].References, 0)
-	assert.Len(t, trace.Spans[1].References, 0)
+	assert.Empty(t, trace.Spans[0].References)
+	assert.Empty(t, trace.Spans[1].References)
 	assert.Len(t, trace.Spans[2].References, 2)
 	assert.Contains(t, trace.Spans[2].Warnings[0], "Invalid span reference removed")
 }

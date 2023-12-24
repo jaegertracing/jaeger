@@ -32,7 +32,7 @@ func TestProtoSpanFixtures(t *testing.T) {
 	loadJSON(t, "fixtures/zipkin_proto_01.json", &spans)
 	tSpans, err := ProtoSpansV2ToThrift(&spans)
 	require.NoError(t, err)
-	assert.Equal(t, len(tSpans), 1)
+	assert.Len(t, tSpans, 1)
 	var pid int64 = 1
 	var ts int64 = 1
 	var d int64 = 10
@@ -59,7 +59,7 @@ func TestLCFromProtoSpanLocalEndpoint(t *testing.T) {
 	loadProto(t, "fixtures/zipkin_proto_02.json", &spans)
 	tSpans, err := ProtoSpansV2ToThrift(&spans)
 	require.NoError(t, err)
-	assert.Equal(t, len(tSpans), 1)
+	assert.Len(t, tSpans, 1)
 	var ts int64 = 1
 	var d int64 = 10
 	tSpan := &zipkincore.Span{
@@ -134,7 +134,7 @@ func TestProtoKindToThrift(t *testing.T) {
 	}
 	for _, test := range tests {
 		banns := protoKindToThrift(test.ts, test.d, test.kind, nil)
-		assert.Equal(t, banns, test.expected)
+		assert.Equal(t, test.expected, banns)
 	}
 }
 

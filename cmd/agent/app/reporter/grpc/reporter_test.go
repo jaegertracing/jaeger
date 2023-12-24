@@ -90,7 +90,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 		} else {
-			assert.Equal(t, 1, len(handler.requests))
+			assert.Len(t, handler.requests, 1)
 			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
 		}
 	}
@@ -124,7 +124,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 		} else {
-			assert.Equal(t, 1, len(handler.requests))
+			assert.Len(t, handler.requests, 1)
 			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
 		}
 	}

@@ -93,7 +93,7 @@ func TestDependencyReader(t *testing.T) {
 		links, err = dr.GetDependencies(context.Background(), time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, links)
-		assert.Equal(t, spans-1, len(links))                // First span does not create a dependency
+		assert.Len(t, links, spans-1)                       // First span does not create a dependency
 		assert.Equal(t, uint64(traces), links[0].CallCount) // Each trace calls the same services
 	})
 }

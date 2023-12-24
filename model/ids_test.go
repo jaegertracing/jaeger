@@ -95,7 +95,7 @@ func TestSpanIDFromBytes(t *testing.T) {
 	for _, data := range errTests {
 		_, err := model.SpanIDFromBytes(data)
 		require.Error(t, err)
-		assert.Equal(t, err.Error(), "invalid length for SpanID")
+		assert.Equal(t, "invalid length for SpanID", err.Error())
 	}
 
 	spanID, err := model.SpanIDFromBytes([]byte{0, 0, 0, 0, 0, 0, 0, 13})
@@ -112,7 +112,7 @@ func TestTraceIDFromBytes(t *testing.T) {
 	for _, data := range errTests {
 		_, err := model.TraceIDFromBytes(data)
 		require.Error(t, err)
-		assert.Equal(t, err.Error(), "invalid length for TraceID")
+		assert.Equal(t, "invalid length for TraceID", err.Error())
 	}
 
 	tests := []struct {
@@ -125,6 +125,6 @@ func TestTraceIDFromBytes(t *testing.T) {
 	for _, test := range tests {
 		traceID, err := model.TraceIDFromBytes(test.data)
 		require.NoError(t, err)
-		assert.Equal(t, traceID, test.expected)
+		assert.Equal(t, test.expected, traceID)
 	}
 }

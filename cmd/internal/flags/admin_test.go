@@ -151,7 +151,7 @@ func TestAdminServerTLS(t *testing.T) {
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorAdminHTTP), clientTLSCfg)
 			require.NoError(t, clientError)
-			require.Nil(t, conn.Close())
+			require.NoError(t, conn.Close())
 
 			client := &http.Client{
 				Transport: &http.Transport{

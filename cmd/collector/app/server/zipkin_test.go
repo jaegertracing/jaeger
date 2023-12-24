@@ -227,7 +227,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 				require.Error(t, clientError)
 			} else {
 				require.NoError(t, clientError)
-				require.Nil(t, conn.Close())
+				require.NoError(t, conn.Close())
 			}
 
 			client := &http.Client{

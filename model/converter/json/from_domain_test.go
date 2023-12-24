@@ -64,7 +64,7 @@ func TestMarshalJSON(t *testing.T) {
 	require.NoError(t, jsonpb.Unmarshal(bb, &trace2))
 	trace1.NormalizeTimestamps()
 	trace2.NormalizeTimestamps()
-	assert.Equal(t, trace1, &trace2)
+	assert.Equal(t, &trace2, trace1)
 }
 
 func TestFromDomain(t *testing.T) {

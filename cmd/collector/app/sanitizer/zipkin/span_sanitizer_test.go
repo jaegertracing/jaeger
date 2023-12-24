@@ -54,7 +54,7 @@ func TestSpanDurationSanitizer(t *testing.T) {
 	span = &zipkincore.Span{Duration: &positiveDuration}
 	actual = sanitizer.Sanitize(span)
 	assert.Equal(t, positiveDuration, *actual.Duration)
-	assert.Len(t, actual.BinaryAnnotations, 0)
+	assert.Empty(t, actual.BinaryAnnotations)
 
 	sanitizer = NewSpanDurationSanitizer()
 	nilDurationSpan := &zipkincore.Span{}
@@ -110,7 +110,7 @@ func TestSpanParentIDSanitizer(t *testing.T) {
 				assert.Equal(t, zeroParentIDTag, string(actual.BinaryAnnotations[0].Key))
 			}
 		} else {
-			assert.Len(t, actual.BinaryAnnotations, 0)
+			assert.Empty(t, actual.BinaryAnnotations)
 		}
 	}
 }
@@ -159,12 +159,12 @@ func TestSpanErrorSanitizer(t *testing.T) {
 			assert.Equal(t, zipkincore.AnnotationType_BOOL, sanitized.BinaryAnnotations[0].AnnotationType)
 
 			if test.addErrMsgAnno {
-				assert.Equal(t, 2, len(sanitized.BinaryAnnotations))
+				assert.Len(t, sanitized.BinaryAnnotations, 2)
 				assert.Equal(t, "error.message", sanitized.BinaryAnnotations[1].Key)
 				assert.Equal(t, "message", string(sanitized.BinaryAnnotations[1].Value))
 				assert.Equal(t, zipkincore.AnnotationType_STRING, sanitized.BinaryAnnotations[1].AnnotationType)
 			} else {
-				assert.Equal(t, 1, len(sanitized.BinaryAnnotations))
+				assert.Len(t, sanitized.BinaryAnnotations, 1)
 			}
 		}
 	}

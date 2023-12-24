@@ -57,7 +57,7 @@ func TestStoreGetServices(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		serviceNames, err := store.GetServices(context.Background())
 		assert.NoError(t, err)
-		assert.Len(t, serviceNames, 0)
+		assert.Empty(t, serviceNames)
 	})
 }
 
@@ -68,7 +68,7 @@ func TestStoreGetAllOperations(t *testing.T) {
 			spanstore.OperationQueryParameters{},
 		)
 		assert.NoError(t, err)
-		assert.Len(t, operations, 0)
+		assert.Empty(t, operations)
 	})
 }
 
@@ -76,7 +76,7 @@ func TestStoreFindTraces(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		traces, err := store.FindTraces(context.Background(), nil)
 		assert.NoError(t, err)
-		assert.Len(t, traces, 0)
+		assert.Empty(t, traces)
 	})
 }
 
@@ -84,6 +84,6 @@ func TestStoreFindTraceIDs(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		traceIDs, err := store.FindTraceIDs(context.Background(), nil)
 		assert.NoError(t, err)
-		assert.Len(t, traceIDs, 0)
+		assert.Empty(t, traceIDs)
 	})
 }

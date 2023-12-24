@@ -222,7 +222,7 @@ func TestILMDisableTemplateCreation(t *testing.T) {
 	defer f.Close()
 	require.NoError(t, err)
 	_, err = f.CreateSpanWriter()
-	assert.Nil(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
+	assert.NoError(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
 }
 
 func TestArchiveDisabled(t *testing.T) {
@@ -231,10 +231,10 @@ func TestArchiveDisabled(t *testing.T) {
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	w, err := f.CreateArchiveSpanWriter()
 	assert.Nil(t, w)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	r, err := f.CreateArchiveSpanReader()
 	assert.Nil(t, r)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestArchiveEnabled(t *testing.T) {
