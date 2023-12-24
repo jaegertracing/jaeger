@@ -84,7 +84,7 @@ func TestWithConfiguration(t *testing.T) {
 		assert.Equal(t, "http://localhost:1234", f.options.Primary.ServerURL)
 		assert.Equal(t, 5*time.Second, f.options.Primary.ConnectTimeout)
 		assert.Equal(t, "test/test_file.txt", f.options.Primary.TokenFilePath)
-		assert.Equal(t, false, f.options.Primary.TokenOverrideFromContext)
+		assert.False(t, f.options.Primary.TokenOverrideFromContext)
 	})
 	t.Run("with space in token file path", func(t *testing.T) {
 		f := NewFactory()

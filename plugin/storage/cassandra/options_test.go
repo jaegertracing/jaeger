@@ -78,9 +78,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "ONE", primary.Consistency)
 	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
 	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
-	assert.Equal(t, true, opts.Index.Tags)
-	assert.Equal(t, false, opts.Index.ProcessTags)
-	assert.Equal(t, true, opts.Index.Logs)
+	assert.True(t, opts.Index.Tags)
+	assert.False(t, opts.Index.ProcessTags)
+	assert.True(t, opts.Index.Logs)
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
@@ -105,7 +105,7 @@ func TestDefaultTlsHostVerify(t *testing.T) {
 	opts.InitFromViper(v)
 
 	primary := opts.GetPrimary()
-	assert.Equal(t, false, primary.TLS.SkipHostVerify)
+	assert.False(t, primary.TLS.SkipHostVerify)
 }
 
 func TestEmptyBlackWhiteLists(t *testing.T) {

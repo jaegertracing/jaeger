@@ -230,12 +230,12 @@ func TestGetSpanKind(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
 	spanKind, found := span.GetSpanKind()
 	assert.Equal(t, "unspecified", spanKind.String())
-	assert.Equal(t, false, found)
+	assert.False(t, found)
 
 	span = makeSpan(model.String("span.kind", "client"))
 	spanKind, found = span.GetSpanKind()
 	assert.Equal(t, "client", spanKind.String())
-	assert.Equal(t, true, found)
+	assert.True(t, found)
 }
 
 func TestSamplerType(t *testing.T) {

@@ -31,7 +31,7 @@ func TestReaderTraceSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "a071653098f9250d", s1.OperationName)
 	assert.Equal(t, 1, r.spansRead)
-	assert.Equal(t, false, r.eofReached)
+	assert.False(t, r.eofReached)
 
 	r.spansRead = 999
 
@@ -39,12 +39,12 @@ func TestReaderTraceSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "471418097747d04a", s2.OperationName)
 	assert.Equal(t, 1000, r.spansRead)
-	assert.Equal(t, true, r.eofReached)
+	assert.True(t, r.eofReached)
 
 	_, err = r.NextSpan()
 	require.Equal(t, errNoMoreSpans, err)
 	assert.Equal(t, 1000, r.spansRead)
-	assert.Equal(t, true, r.eofReached)
+	assert.True(t, r.eofReached)
 }
 
 func TestReaderTraceNonExistent(t *testing.T) {
@@ -61,7 +61,7 @@ func TestReaderTraceEmpty(t *testing.T) {
 	_, err = r.NextSpan()
 	require.Contains(t, err.Error(), "cannot read file")
 	assert.Equal(t, 0, r.spansRead)
-	assert.Equal(t, true, r.eofReached)
+	assert.True(t, r.eofReached)
 }
 
 func TestReaderTraceWrongFormat(t *testing.T) {
@@ -72,7 +72,7 @@ func TestReaderTraceWrongFormat(t *testing.T) {
 	_, err = r.NextSpan()
 	require.Equal(t, "file must begin with '['", err.Error())
 	assert.Equal(t, 0, r.spansRead)
-	assert.Equal(t, true, r.eofReached)
+	assert.True(t, r.eofReached)
 }
 
 func TestReaderTraceInvalidJson(t *testing.T) {
@@ -83,5 +83,5 @@ func TestReaderTraceInvalidJson(t *testing.T) {
 	_, err = r.NextSpan()
 	require.Contains(t, err.Error(), "cannot unmarshal span")
 	assert.Equal(t, 0, r.spansRead)
-	assert.Equal(t, true, r.eofReached)
+	assert.True(t, r.eofReached)
 }

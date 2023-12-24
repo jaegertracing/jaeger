@@ -46,8 +46,8 @@ func TestBindFlags(t *testing.T) {
 
 	c.InitFromViper(v)
 	assert.Equal(t, "tenant1-", c.IndexPrefix)
-	assert.Equal(t, true, c.Rollover)
-	assert.Equal(t, true, c.Archive)
+	assert.True(t, c.Rollover)
+	assert.True(t, c.Archive)
 	assert.Equal(t, 150, c.MasterNodeTimeoutSeconds)
 	assert.Equal(t, "@", c.IndexDateSeparator)
 	assert.Equal(t, "admin", c.Username)

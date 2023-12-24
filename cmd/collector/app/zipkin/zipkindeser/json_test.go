@@ -139,7 +139,7 @@ func TestUnmarshalSpan(t *testing.T) {
 	assert.NotNil(t, spans)
 	assert.Len(t, spans, 1)
 	assert.Equal(t, "bar", spans[0].Name)
-	assert.Equal(t, false, spans[0].Debug)
+	assert.False(t, spans[0].Debug)
 	assert.Equal(t, "1234567891234567", spans[0].ParentID)
 	assert.Equal(t, "1234567891234567", spans[0].TraceID)
 	assert.Equal(t, "1234567891234567", spans[0].ID)
