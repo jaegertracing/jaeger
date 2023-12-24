@@ -66,7 +66,7 @@ func TestCompareAndSwap(t *testing.T) {
 	cache := NewLRU(2)
 
 	item, ok := cache.CompareAndSwap("A", nil, "Foo")
-	assert.Equal(t, true, ok)
+	assert.True(t, ok)
 	assert.Equal(t, "Foo", item)
 	assert.Equal(t, "Foo", cache.Get("A"))
 	assert.Nil(t, cache.Get("B"))

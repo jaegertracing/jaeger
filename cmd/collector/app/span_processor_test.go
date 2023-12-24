@@ -663,7 +663,7 @@ func TestSpanProcessorContextPropagation(t *testing.T) {
 	assert.NoError(t, p.Close())
 
 	// Verify that the dummy tenant from SpansOptions context made it to writer
-	assert.Equal(t, true, w.tenants[dummyTenant])
+	assert.True(t, w.tenants[dummyTenant])
 	// Verify no other tenantKey context values made it to writer
 	assert.True(t, reflect.DeepEqual(w.tenants, map[string]bool{dummyTenant: true}))
 }
