@@ -45,3 +45,4 @@ deploy-staging/
 sha256sum.combined.txt
 resource.syso
 .gocache
+test-results/

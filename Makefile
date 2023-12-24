@@ -154,7 +154,8 @@ index-rollover-integration-test: docker-images-elastic
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./...
+	mkdir -p test-results
+	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... > test-results/cover.json
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
@@ -507,7 +508,7 @@ install-tools: install-test-tools install-build-tools
 install-ci: install-test-tools install-build-tools
 
 .PHONY: test-ci
-test-ci: GOTEST := $(GOTEST_QUIET)
+test-ci: GOTEST := $(GOTEST_QUIET) -json
 test-ci: build-examples cover
 
 .PHONY: thrift
