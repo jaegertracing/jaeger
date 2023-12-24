@@ -1,7 +1,8 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.4.0
+# TODO JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.4.0
+JAEGER_DOCKER_PROTOBUF=otel/build-protobuf:0.9.0
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 PROTO_INTERMEDIATE_DIR = proto-gen/.patched-otel-proto
@@ -23,14 +24,36 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
 	| sed 's/ //g')
 
-# The source directory for OTLP Protobufs.
-OPENTELEMETRY_PROTO_SRC_DIR=pdata/internal/opentelemetry-proto
+OPENMETRICS_PROTO_FILES=$(wildcard model/proto/metrics/*.proto)
 
-# The SHA matching the current version of the proto to use
-OPENTELEMETRY_PROTO_VERSION=v1.0.0
+# The source directory for OTLP Protobufs from the sub-sub-module.
+OTEL_PROTO_SRC_DIR=idl/opentelemetry-proto
 
-# Find all .proto files.
-OPENTELEMETRY_PROTO_FILES := $(subst $(OPENTELEMETRY_PROTO_SRC_DIR)/,,$(wildcard $(OPENTELEMETRY_PROTO_SRC_DIR)/opentelemetry/proto/*/v1/*.proto $(OPENTELEMETRY_PROTO_SRC_DIR)/opentelemetry/proto/collector/*/v1/*.proto))
+# Find all OTEL .proto files, remove repository path (only keep relevant namespace dirs).
+OTEL_PROTO_FILES=$(subst $(OTEL_PROTO_SRC_DIR)/,,\
+   $(shell ls $(OTEL_PROTO_SRC_DIR)/opentelemetry/proto/{common,resource,trace}/v1/*.proto))
+
+# Macro to compile Protobuf $(2) into directory $(1).
+# DO NOT DELETE EMPTY LINE at the end of the macro, it's required to separate commands.
+define proto_compile
+  $(PROTOC) \
+    $(PROTO_INCLUDES) \
+    --gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/$(1)/ \
+    $(2)
+
+endef
+
+# Macro to execute a command passed as argument.
+# DO NOT DELETE EMPTY LINE at the end of the macro, it's required to separate commands.
+define exec-command
+$(1)
+
+endef
+
+
+.PHONY: x
+x:
+	@echo $(OTEL_PROTO_FILES)
 
 .PHONY: proto
 proto: proto-prepare-otel
@@ -64,20 +87,8 @@ proto: proto-prepare-otel
 		idl/proto/api_v2/query.proto
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
 
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
-		model/proto/metrics/otelspankind.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
-		model/proto/metrics/openmetrics.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
-		model/proto/metrics/metricsquery.proto
+	@echo "Compile OpenMetrics Protos"
+	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, proto-gen/api_v2/metrics, $(file)))
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
@@ -147,19 +158,18 @@ proto: proto-prepare-otel
 .PHONY: proto-prepare-otel
 proto-prepare-otel:
 	@echo --
-	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
+	@echo -- "Enriching OpenTelemetry Protos into $(PROTO_INTERMEDIATE_DIR)"
 	@echo --
-	mkdir -p $(PROTO_INTERMEDIATE_DIR)
-	cp -R idl/opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
 
-	@echo --
-	@echo -- Editing proto
-	@echo --
-	@# Change:
-	@# go import from github.com/open-telemetry/opentelemetry-proto/gen/go/* to github.com/jaegertracing/jaeger/proto-gen/otel/*
-	@# proto package from opentelemetry.proto.* to jaeger.proto.*
-	@# remove import opentelemetry/proto
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i -f otel_proto_patch.sed
+	mkdir -p $(PROTO_INTERMEDIATE_DIR)
+	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
+
+	@# TODO replace otel_proto_patch.sed below with otel/collector/proto_patch.sed to include gogo annotations.
+	@$(foreach file,$(OTEL_PROTO_FILES), \
+	   $(call exec-command,\
+	     echo $(file); \
+		 mkdir -p $(shell dirname $(PROTO_INTERMEDIATE_DIR)/$(file)); \
+		 sed -f otel_proto_patch.sed $(OTEL_PROTO_SRC_DIR)/$(file) > $(PROTO_INTERMEDIATE_DIR)/$(file)))
 
 .PHONY: proto-hotrod
 proto-hotrod:

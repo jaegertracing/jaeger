@@ -7,7 +7,7 @@ STORAGE_PKGS = ./plugin/storage/integration/...
 GO = go
 
 include docker/Makefile
-include Makefile.Protobuf
+include Makefile.Protobuf.mk
 include crossdock/rules.mk
 
 # TODO we can compartmentalize this Makefile better, by separting:
