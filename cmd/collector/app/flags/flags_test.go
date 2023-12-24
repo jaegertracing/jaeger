@@ -149,7 +149,7 @@ func TestCollectorOptionsWithFlags_CheckNoTenancy(t *testing.T) {
 	command.ParseFlags([]string{})
 	c.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, false, c.GRPC.Tenancy.Enabled)
+	assert.False(t, c.GRPC.Tenancy.Enabled)
 }
 
 func TestCollectorOptionsWithFlags_CheckSimpleTenancy(t *testing.T) {
@@ -160,7 +160,7 @@ func TestCollectorOptionsWithFlags_CheckSimpleTenancy(t *testing.T) {
 	})
 	c.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, true, c.GRPC.Tenancy.Enabled)
+	assert.True(t, c.GRPC.Tenancy.Enabled)
 	assert.Equal(t, "x-tenant", c.GRPC.Tenancy.Header)
 }
 
@@ -174,7 +174,7 @@ func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
 	})
 	c.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, true, c.GRPC.Tenancy.Enabled)
+	assert.True(t, c.GRPC.Tenancy.Enabled)
 	assert.Equal(t, "custom-tenant-header", c.GRPC.Tenancy.Header)
 	assert.Equal(t, []string{"acme", "hardware-store"}, c.GRPC.Tenancy.Tenants)
 }
@@ -187,7 +187,7 @@ func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
 	})
 	c.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, false, c.Zipkin.KeepAlive)
+	assert.False(t, c.Zipkin.KeepAlive)
 }
 
 func TestMain(m *testing.M) {

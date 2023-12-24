@@ -40,7 +40,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "noop-grpc-plugin", opts.Configuration.PluginBinary)
 	assert.Equal(t, "config.json", opts.Configuration.PluginConfigurationFile)
 	assert.Equal(t, "debug", opts.Configuration.PluginLogLevel)
-	assert.Equal(t, false, opts.Configuration.TenancyOpts.Enabled)
+	assert.False(t, opts.Configuration.TenancyOpts.Enabled)
 	assert.Equal(t, "x-scope-orgid", opts.Configuration.TenancyOpts.Header)
 }
 
@@ -57,7 +57,7 @@ func TestRemoteOptionsWithFlags(t *testing.T) {
 
 	assert.Equal(t, "", opts.Configuration.PluginBinary)
 	assert.Equal(t, "localhost:2001", opts.Configuration.RemoteServerAddr)
-	assert.Equal(t, true, opts.Configuration.RemoteTLS.Enabled)
+	assert.True(t, opts.Configuration.RemoteTLS.Enabled)
 	assert.Equal(t, 60*time.Second, opts.Configuration.RemoteConnectTimeout)
 }
 
@@ -74,7 +74,7 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 
 	assert.Equal(t, "", opts.Configuration.PluginBinary)
 	assert.Equal(t, "localhost:2001", opts.Configuration.RemoteServerAddr)
-	assert.Equal(t, false, opts.Configuration.RemoteTLS.Enabled)
+	assert.False(t, opts.Configuration.RemoteTLS.Enabled)
 	assert.Equal(t, 60*time.Second, opts.Configuration.RemoteConnectTimeout)
 }
 

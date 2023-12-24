@@ -104,7 +104,7 @@ func TestExecuteAction(t *testing.T) {
 				assert.Equal(t, "https://localhost:9300", c.Endpoint)
 				transport, ok := c.Client.Transport.(*http.Transport)
 				require.True(t, ok)
-				assert.Equal(t, true, transport.TLSClientConfig.InsecureSkipVerify)
+				assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 				return &dummyAction{
 					TestFn: func() error {
 						executedAction = true
