@@ -192,8 +192,8 @@ func TestStoreWithLimit(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, maxTraces, len(store.getTenant("").traces))
-	assert.Equal(t, maxTraces, len(store.getTenant("").ids))
+	assert.Len(t, store.getTenant("").traces, maxTraces)
+	assert.Len(t, store.getTenant("").ids, maxTraces)
 }
 
 func TestStoreGetTraceSuccess(t *testing.T) {
@@ -211,7 +211,7 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, trace.Spans, 1)
 		assert.Equal(t, testingSpan, trace.Spans[0])
-		assert.Len(t, trace.Spans[0].Warnings, 0)
+		assert.Empty(t, trace.Spans[0].Warnings)
 
 		trace.Spans[0].Warnings = append(trace.Spans[0].Warnings, "the end is near")
 
@@ -219,7 +219,7 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, trace.Spans, 1)
 		assert.Equal(t, testingSpan, trace.Spans[0])
-		assert.Len(t, trace.Spans[0].Warnings, 0)
+		assert.Empty(t, trace.Spans[0].Warnings)
 	})
 }
 
@@ -293,7 +293,7 @@ func TestStoreGetOperationsNotFound(t *testing.T) {
 			spanstore.OperationQueryParameters{ServiceName: "notAService"},
 		)
 		assert.NoError(t, err)
-		assert.Len(t, operations, 0)
+		assert.Empty(t, operations)
 	})
 }
 
@@ -301,7 +301,7 @@ func TestStoreGetEmptyTraceSet(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
 		traces, err := store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		assert.NoError(t, err)
-		assert.Len(t, traces, 0)
+		assert.Empty(t, traces)
 	})
 }
 

@@ -379,15 +379,15 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	assert.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 1.0)
-	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, "jaeger")
+	assert.Equal(t, 1.0, f.FactoryConfig.DownsamplingRatio)
+	assert.Equal(t, "jaeger", f.FactoryConfig.DownsamplingHashSalt)
 
 	err = command.ParseFlags([]string{
 		"--downsampling.ratio=0.5",
 	})
 	assert.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
+	assert.Equal(t, 0.5, f.FactoryConfig.DownsamplingRatio)
 }
 
 func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
@@ -397,8 +397,8 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 	assert.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, defaultDownsamplingRatio)
-	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, defaultDownsamplingHashSalt)
+	assert.Equal(t, defaultDownsamplingRatio, f.FactoryConfig.DownsamplingRatio)
+	assert.Equal(t, defaultDownsamplingHashSalt, f.FactoryConfig.DownsamplingHashSalt)
 
 	err = command.ParseFlags([]string{
 		"--downsampling.ratio=0.5",

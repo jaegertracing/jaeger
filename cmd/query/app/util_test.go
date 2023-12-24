@@ -33,6 +33,6 @@ func Test_getUniqueOperationNames(t *testing.T) {
 
 	expNames := []string{"operation1", "operation2"}
 	names := getUniqueOperationNames(operations)
-	assert.Equal(t, 2, len(names))
+	assert.Len(t, names, 2)
 	assert.ElementsMatch(t, expNames, names)
 }

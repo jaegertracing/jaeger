@@ -85,7 +85,7 @@ func TestWriteReadBack(t *testing.T) {
 			})
 			assert.NoError(t, err)
 
-			assert.Equal(t, spans, len(tr.Spans))
+			assert.Len(t, tr.Spans, spans)
 		}
 	})
 }
@@ -190,23 +190,23 @@ func TestIndexSeeks(t *testing.T) {
 
 		trs, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(trs))
-		assert.Equal(t, spans, len(trs[0].Spans))
+		assert.Len(t, trs, 1)
+		assert.Len(t, trs[0].Spans, spans)
 
 		params.OperationName = "operation-1"
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(trs))
+		assert.Len(t, trs, 1)
 
 		params.ServiceName = "service-10" // this should not match
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(trs))
+		assert.Empty(t, trs)
 
 		params.OperationName = "operation-4"
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(trs))
+		assert.Empty(t, trs)
 
 		// Multi-index hits
 
@@ -220,8 +220,8 @@ func TestIndexSeeks(t *testing.T) {
 		params.DurationMin = time.Duration(1 * time.Millisecond)
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(trs))
-		assert.Equal(t, spans, len(trs[0].Spans))
+		assert.Len(t, trs, 1)
+		assert.Len(t, trs[0].Spans, spans)
 
 		// Query limited amount of hits
 
@@ -230,7 +230,7 @@ func TestIndexSeeks(t *testing.T) {
 		params.NumTraces = 2
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 2, len(trs))
+		assert.Len(t, trs, 2)
 		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
 		assert.Equal(t, traceOrder[55], trs[1].Spans[0].TraceID.Low)
 		testOrder(trs)
@@ -245,7 +245,7 @@ func TestIndexSeeks(t *testing.T) {
 		}
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 9, len(trs)) // Returns 23, we limited to 9
+		assert.Len(t, trs, 9) // Returns 23, we limited to 9
 
 		// Check the newest items are returned
 		assert.Equal(t, traceOrder[50], trs[0].Spans[0].TraceID.Low)
@@ -258,7 +258,7 @@ func TestIndexSeeks(t *testing.T) {
 		params.NumTraces = 7
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 7, len(trs))
+		assert.Len(t, trs, 7)
 		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
 		assert.Equal(t, traceOrder[53], trs[6].Spans[0].TraceID.Low)
 		testOrder(trs)
@@ -271,8 +271,8 @@ func TestIndexSeeks(t *testing.T) {
 
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 5, len(trs))
-		assert.Equal(t, spans, len(trs[0].Spans))
+		assert.Len(t, trs, 5)
+		assert.Len(t, trs[0].Spans, spans)
 		testOrder(trs)
 
 		// StartTime and Duration queries
@@ -282,7 +282,7 @@ func TestIndexSeeks(t *testing.T) {
 
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 6, len(trs))
+		assert.Len(t, trs, 6)
 		assert.Equal(t, traceOrder[56], trs[0].Spans[0].TraceID.Low)
 		assert.Equal(t, traceOrder[51], trs[5].Spans[0].TraceID.Low)
 		testOrder(trs)
@@ -300,7 +300,7 @@ func TestFindNothing(t *testing.T) {
 
 		trs, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Len(t, trs, 0)
+		assert.Empty(t, trs)
 
 		tr, err := sr.GetTrace(context.Background(), model.TraceID{High: 0, Low: 0})
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
@@ -370,8 +370,8 @@ func TestMenuSeeks(t *testing.T) {
 		serviceList, err := sr.GetServices(context.Background())
 		assert.NoError(t, err)
 
-		assert.Equal(t, spans, len(operations))
-		assert.Equal(t, services, len(serviceList))
+		assert.Len(t, operations, spans)
+		assert.Len(t, serviceList, services)
 	})
 }
 
@@ -438,7 +438,7 @@ func TestPersist(t *testing.T) {
 
 		services, err := sr.GetServices(context.Background())
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(services))
+		assert.Len(t, services, 1)
 	})
 }
 
@@ -703,6 +703,6 @@ func TestRandomTraceID(t *testing.T) {
 		}
 		traces, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(traces))
+		assert.Len(t, traces, 1)
 	})
 }

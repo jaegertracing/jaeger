@@ -27,5 +27,5 @@ func Test_GetBearerToken(t *testing.T) {
 	ctx = ContextWithBearerToken(ctx, token)
 	contextToken, ok := GetBearerToken(ctx)
 	assert.True(t, ok)
-	assert.Equal(t, contextToken, token)
+	assert.Equal(t, token, contextToken)
 }

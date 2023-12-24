@@ -102,7 +102,7 @@ func TestUnknownJaegerType(t *testing.T) {
 		Key:   "sneh",
 	})
 	expected := model.String("sneh", "Unknown VType: Tag({Key:sneh VType:<UNSET> VStr:<nil> VDouble:<nil> VBool:<nil> VLong:<nil> VBinary:[]})")
-	assert.Equal(t, mkv, expected)
+	assert.Equal(t, expected, mkv)
 }
 
 func TestToDomain_ToDomainProcess(t *testing.T) {

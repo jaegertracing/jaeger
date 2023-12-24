@@ -54,19 +54,19 @@ func TestBlacklistFilter(t *testing.T) {
 		tf := NewBlacklistFilter(test.filter)
 		actualKVs := tf.filter(inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterLogFields(nil, inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterProcessTags(nil, inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterTags(nil, inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 	}
 }
 
@@ -102,18 +102,18 @@ func TestWhitelistFilter(t *testing.T) {
 		tf := NewWhitelistFilter(test.filter)
 		actualKVs := tf.filter(inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterLogFields(nil, inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterProcessTags(nil, inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterTags(nil, inputKVs)
 		actualKVs.Sort()
-		assert.Equal(t, actualKVs, expectedKVs)
+		assert.Equal(t, expectedKVs, actualKVs)
 	}
 }

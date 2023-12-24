@@ -24,7 +24,7 @@ import (
 
 func TestFactoryConfigFromEnv(t *testing.T) {
 	f := FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 1, len(f.SpanWriterTypes))
+	assert.Len(t, f.SpanWriterTypes, 1)
 	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
@@ -35,7 +35,7 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	t.Setenv(SamplingStorageTypeEnvVar, cassandraStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 1, len(f.SpanWriterTypes))
+	assert.Len(t, f.SpanWriterTypes, 1)
 	assert.Equal(t, elasticsearchStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
@@ -44,14 +44,14 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	t.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 2, len(f.SpanWriterTypes))
+	assert.Len(t, f.SpanWriterTypes, 2)
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 
 	t.Setenv(SpanStorageTypeEnvVar, badgerStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, nil)
-	assert.Equal(t, 1, len(f.SpanWriterTypes))
+	assert.Len(t, f.SpanWriterTypes, 1)
 	assert.Equal(t, badgerStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, badgerStorageType, f.SpanReaderType)
 }
@@ -70,7 +70,7 @@ func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
 	for _, testCase := range testCases {
 		log := new(bytes.Buffer)
 		f := FactoryConfigFromEnvAndCLI(testCase.args, log)
-		assert.Equal(t, 1, len(f.SpanWriterTypes))
+		assert.Len(t, f.SpanWriterTypes, 1)
 		assert.Equal(t, testCase.value, f.SpanWriterTypes[0])
 		assert.Equal(t, testCase.value, f.SpanReaderType)
 		assert.Equal(t, testCase.value, f.DependenciesStorageType)

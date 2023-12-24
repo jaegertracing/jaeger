@@ -206,7 +206,7 @@ func TestResizeUp(t *testing.T) {
 	assert.False(t, q.Produce("d")) // dropped
 	assert.EqualValues(t, 2, q.Capacity())
 	assert.EqualValues(t, q.Capacity(), q.Size())
-	assert.EqualValues(t, q.Capacity(), len(*q.items))
+	assert.Len(t, *q.items, q.Capacity())
 
 	resized = true
 	assert.True(t, q.Resize(4))
@@ -219,7 +219,7 @@ func TestResizeUp(t *testing.T) {
 
 	assert.EqualValues(t, 4, q.Capacity())
 	assert.EqualValues(t, q.Capacity(), q.Size()) // the combined queues are at the capacity right now
-	assert.EqualValues(t, 2, len(*q.items))       // the new internal queue should have two items only
+	assert.Len(t, *q.items, 2)                    // the new internal queue should have two items only
 
 	released = true
 	releaseConsumers.Done()
@@ -256,14 +256,14 @@ func TestResizeDown(t *testing.T) {
 	assert.True(t, q.Produce("e")) // dropped
 	assert.EqualValues(t, 4, q.Capacity())
 	assert.EqualValues(t, q.Capacity(), q.Size())
-	assert.EqualValues(t, q.Capacity(), len(*q.items))
+	assert.Len(t, *q.items, q.Capacity())
 
 	assert.True(t, q.Resize(2))
 	assert.False(t, q.Produce("f")) // dropped
 
 	assert.EqualValues(t, 2, q.Capacity())
-	assert.EqualValues(t, 4, q.Size())      // the queue will eventually drain, but it will live for a while over capacity
-	assert.EqualValues(t, 0, len(*q.items)) // the new queue is empty, as the old queue is still full and over capacity
+	assert.EqualValues(t, 4, q.Size()) // the queue will eventually drain, but it will live for a while over capacity
+	assert.Empty(t, *q.items)          // the new queue is empty, as the old queue is still full and over capacity
 
 	released = true
 	releaseConsumers.Done()

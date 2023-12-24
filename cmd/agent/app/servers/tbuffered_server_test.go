@@ -61,7 +61,7 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 
 		select {
 		case readBuf := <-server.DataChan():
-			assert.NotEqual(t, 0, len(readBuf.GetBytes()))
+			assert.NotEmpty(t, readBuf.GetBytes())
 
 			inMemReporter := testutils.NewInMemoryReporter()
 			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})

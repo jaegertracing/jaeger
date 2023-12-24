@@ -78,7 +78,7 @@ func TestToDomainNoServiceNameError(t *testing.T) {
 	zSpans := getZipkinSpans(t, `[{ "trace_id": -1, "id": 31 }]`)
 	trace, err := ToDomain(zSpans)
 	assert.EqualError(t, err, "cannot find service name in Zipkin span [traceID=ffffffffffffffff, spanID=1f]")
-	assert.Equal(t, 1, len(trace.Spans))
+	assert.Len(t, trace.Spans, 1)
 	assert.Equal(t, "unknown-service-name", trace.Spans[0].Process.ServiceName)
 }
 
@@ -86,8 +86,8 @@ func TestToDomainServiceNameInBinAnnotation(t *testing.T) {
 	zSpans := getZipkinSpans(t, `[{ "trace_id": -1, "id": 31,
 	"binary_annotations": [{"key": "foo", "host": {"service_name": "bar", "ipv4": 23456}}] }]`)
 	trace, err := ToDomain(zSpans)
-	require.Nil(t, err)
-	assert.Equal(t, 1, len(trace.Spans))
+	require.NoError(t, err)
+	assert.Len(t, trace.Spans, 1)
 	assert.Equal(t, "bar", trace.Spans[0].Process.ServiceName)
 }
 
@@ -97,7 +97,7 @@ func TestToDomainWithDurationFromServerAnnotations(t *testing.T) {
 	{"value": "ss", "timestamp": 10, "host": {"service_name": "bar", "ipv4": 23456}}
 	]}]`)
 	trace, err := ToDomain(zSpans)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1000, int(trace.Spans[0].StartTime.Nanosecond()))
 	assert.Equal(t, 9000, int(trace.Spans[0].Duration))
 }
@@ -108,7 +108,7 @@ func TestToDomainWithDurationFromClientAnnotations(t *testing.T) {
 	{"value": "cr", "timestamp": 10, "host": {"service_name": "bar", "ipv4": 23456}}
 	]}]`)
 	trace, err := ToDomain(zSpans)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1000, int(trace.Spans[0].StartTime.Nanosecond()))
 	assert.Equal(t, 9000, int(trace.Spans[0].Duration))
 }
@@ -147,14 +147,14 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 
 	for _, test := range tests {
 		trace, err := ToDomain(getZipkinSpans(t, test.json))
-		require.Nil(t, err)
+		require.NoError(t, err)
 
-		assert.Equal(t, 2, len(trace.Spans))
-		assert.Equal(t, 1, len(trace.Spans[0].Tags))
+		assert.Len(t, trace.Spans, 2)
+		assert.Len(t, trace.Spans[0].Tags, 1)
 		assert.Equal(t, test.tagFirstKey, trace.Spans[0].Tags[0].Key)
 		assert.Equal(t, test.tagFirstVal.String(), trace.Spans[0].Tags[0].VStr)
 
-		assert.Equal(t, 1, len(trace.Spans[1].Tags))
+		assert.Len(t, trace.Spans[1].Tags, 1)
 		assert.Equal(t, test.tagSecondKey, trace.Spans[1].Tags[0].Key)
 		assert.Equal(t, time.Duration(1000), trace.Spans[1].Duration)
 		assert.Equal(t, test.tagSecondVal.String(), trace.Spans[1].Tags[0].VStr)

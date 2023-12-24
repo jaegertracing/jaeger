@@ -63,7 +63,7 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 		TLSConfig:   tlsCfg,
 	}
 	_, err := StartHTTPServer(params)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestSpanCollectorHTTP(t *testing.T) {
@@ -224,7 +224,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			}
 
 			if clientClose != nil {
-				require.Nil(t, clientClose())
+				require.NoError(t, clientClose())
 			}
 
 			client := &http.Client{

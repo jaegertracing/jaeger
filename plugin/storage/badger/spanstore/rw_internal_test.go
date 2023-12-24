@@ -42,7 +42,7 @@ func TestEncodingTypes(t *testing.T) {
 
 		tr, err := rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(tr.Spans))
+		assert.Len(t, tr.Spans, 1)
 	})
 
 	// Unknown encoding write
@@ -125,7 +125,7 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, 128, len(traces))
+		assert.Len(t, traces, 128)
 	})
 }
 
@@ -182,7 +182,7 @@ func TestMergeJoin(t *testing.T) {
 	}
 
 	merged := mergeJoinIds(left, right)
-	assert.Equal(16, len(merged))
+	assert.Len(merged, 16)
 
 	// Check order
 	assert.Equal(uint32(15), binary.BigEndian.Uint32(merged[15]))
@@ -195,6 +195,6 @@ func TestMergeJoin(t *testing.T) {
 	// Different size, some equalities
 
 	merged = mergeJoinIds(left[0:3], right[1:7])
-	assert.Equal(2, len(merged))
+	assert.Len(merged, 2)
 	assert.Equal(uint32(2), binary.BigEndian.Uint32(merged[1]))
 }

@@ -40,7 +40,7 @@ func TestExpiredItems(t *testing.T) {
 
 		services, err := cache.GetServices()
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(services)) // Everything should be expired
+		assert.Empty(t, services) // Everything should be expired
 
 		// Expired service for operations
 
@@ -49,7 +49,7 @@ func TestExpiredItems(t *testing.T) {
 
 		operations, err := cache.GetOperations("service1")
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(operations)) // Everything should be expired
+		assert.Empty(t, operations) // Everything should be expired
 
 		// Expired operations, stable service
 
@@ -60,7 +60,7 @@ func TestExpiredItems(t *testing.T) {
 
 		operations, err = cache.GetOperations("service1")
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(operations)) // Everything should be expired
+		assert.Empty(t, operations) // Everything should be expired
 	})
 }
 

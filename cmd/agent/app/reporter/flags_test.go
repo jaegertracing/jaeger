@@ -44,7 +44,7 @@ func TestBindFlags_NoJaegerTags(t *testing.T) {
 	b := &Options{}
 	b.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, Type("grpc"), b.ReporterType)
-	assert.Len(t, b.AgentTags, 0)
+	assert.Empty(t, b.AgentTags)
 }
 
 func TestBindFlags(t *testing.T) {

@@ -61,7 +61,7 @@ func TestGetArchivedTraceSuccess(t *testing.T) {
 		var response structuredTraceResponse
 		err := getJSON(ts.server.URL+"/api/traces/"+mockTraceID.String(), &response)
 		assert.NoError(t, err)
-		assert.Len(t, response.Errors, 0)
+		assert.Empty(t, response.Errors)
 		assert.Len(t, response.Traces, 1)
 		assert.Equal(t, traceID.String(), string(response.Traces[0].TraceID))
 	}, querysvc.QueryServiceOptions{ArchiveSpanReader: mockReader})
