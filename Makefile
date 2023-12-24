@@ -155,7 +155,7 @@ index-rollover-integration-test: docker-images-elastic
 .PHONY: cover
 cover: nocover
 	mkdir -p test-results
-	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... > test-results/cover.json
+	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... > test-results.json
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
@@ -495,6 +495,7 @@ draft-release:
 install-test-tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
 	$(GO) install mvdan.cc/gofumpt@latest
+	$(GO) install github.com/jstemmer/go-junit-report/v2@latest
 
 .PHONY: install-build-tools
 install-build-tools:
@@ -509,7 +510,11 @@ install-ci: install-test-tools install-build-tools
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET) -json
-test-ci: build-examples cover
+test-ci: build-examples cover test-report
+
+.PHONY: test-report
+test-report:
+	@cat test-results.json | go-junit-report -parser gojson > junit-report.xml
 
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image

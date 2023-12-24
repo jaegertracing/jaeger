@@ -41,7 +41,7 @@ jobs:
       if: always()
       with:
         check_name: Unit Tests Summary
-        files: test-results/**/*.json
+        junit_files: junit-report.xml
 
     - name: Setup CODECOV_TOKEN
       uses: ./.github/actions/setup-codecov
