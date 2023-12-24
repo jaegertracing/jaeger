@@ -282,9 +282,9 @@ func TestWithConfiguration(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, f.options.Configuration.PluginBinary, "noop-grpc-plugin")
-	assert.Equal(t, f.options.Configuration.PluginConfigurationFile, "config.json")
-	assert.Equal(t, f.options.Configuration.PluginLogLevel, "debug")
+	assert.Equal(t, "noop-grpc-plugin", f.options.Configuration.PluginBinary)
+	assert.Equal(t, "config.json", f.options.Configuration.PluginConfigurationFile)
+	assert.Equal(t, "debug", f.options.Configuration.PluginLogLevel)
 	assert.NoError(t, f.Close())
 }
 

@@ -151,7 +151,7 @@ func TestGetTraceSuccess(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
 	assert.NoError(t, err)
-	assert.Len(t, response.Errors, 0)
+	assert.Empty(t, response.Errors)
 }
 
 type logData struct {
@@ -188,9 +188,9 @@ func TestLogOnServerError(t *testing.T) {
 	h := NewAPIHandler(qs, &tenancy.Manager{}, apiHandlerOptions...)
 	e := errors.New("test error")
 	h.handleError(&testHttp.TestResponseWriter{}, e, http.StatusInternalServerError)
-	require.Equal(t, 1, len(*l.logs))
+	require.Len(t, *l.logs, 1)
 	assert.Equal(t, "HTTP handler, Internal Server Error", (*l.logs)[0].e.Message)
-	assert.Equal(t, 1, len((*l.logs)[0].f))
+	assert.Len(t, (*l.logs)[0].f, 1)
 	assert.Equal(t, e, (*l.logs)[0].f[0].Interface)
 }
 
@@ -321,7 +321,7 @@ func TestGetTrace(t *testing.T) {
 			var response structuredResponse
 			err := getJSON(ts.server.URL+`/api/traces/123456aBC`+testCase.suffix, &response) // trace ID in mixed lower/upper case
 			assert.NoError(t, err)
-			assert.Len(t, response.Errors, 0)
+			assert.Empty(t, response.Errors)
 
 			assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
 			assert.Equal(t, "/api/traces/{traceID}", exporter.GetSpans()[0].Name)
@@ -392,7 +392,7 @@ func TestSearchSuccess(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
 	assert.NoError(t, err)
-	assert.Len(t, response.Errors, 0)
+	assert.Empty(t, response.Errors)
 }
 
 func TestSearchByTraceIDSuccess(t *testing.T) {
@@ -404,7 +404,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
 	assert.NoError(t, err)
-	assert.Len(t, response.Errors, 0)
+	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
 }
 
@@ -422,7 +422,7 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
 	assert.NoError(t, err)
-	assert.Len(t, response.Errors, 0)
+	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
 }
 
@@ -902,7 +902,7 @@ func TestSearchTenancyHTTP(t *testing.T) {
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
 	require.Error(t, err)
 	assert.Equal(t, "401 error from server: missing tenant header", err.Error())
-	assert.Len(t, response.Errors, 0)
+	assert.Empty(t, response.Errors)
 	assert.Nil(t, response.Data)
 
 	err = getJSONCustomHeaders(
@@ -910,7 +910,7 @@ func TestSearchTenancyHTTP(t *testing.T) {
 		map[string]string{"x-tenant": "acme"},
 		&response)
 	assert.NoError(t, err)
-	assert.Len(t, response.Errors, 0)
+	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
 }
 
@@ -970,7 +970,7 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		map[string]string{"x-tenant": "acme"},
 		&responseAcme)
 	assert.NoError(t, err)
-	assert.Len(t, responseAcme.Errors, 0)
+	assert.Empty(t, responseAcme.Errors)
 	assert.Len(t, responseAcme.Data, 2)
 
 	var responseMegacorp structuredResponse
@@ -979,6 +979,6 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		map[string]string{"x-tenant": "megacorp"},
 		&responseMegacorp)
 	assert.Contains(t, err.Error(), "storage error")
-	assert.Len(t, responseMegacorp.Errors, 0)
+	assert.Empty(t, responseMegacorp.Errors)
 	assert.Nil(t, responseMegacorp.Data)
 }

@@ -283,7 +283,7 @@ func TestClientDeleteIndices(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errContains)
 			} else {
-				assert.Equal(t, len(test.indices), deletedIndicesCount)
+				assert.Len(t, test.indices, deletedIndicesCount)
 			}
 		})
 	}

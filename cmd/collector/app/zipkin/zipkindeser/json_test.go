@@ -137,7 +137,7 @@ func TestUnmarshalSpan(t *testing.T) {
 	spans, err := decode([]byte(spanJSON))
 	require.NoError(t, err)
 	assert.NotNil(t, spans)
-	assert.Equal(t, 1, len(spans))
+	assert.Len(t, spans, 1)
 	assert.Equal(t, "bar", spans[0].Name)
 	assert.Equal(t, false, spans[0].Debug)
 	assert.Equal(t, "1234567891234567", spans[0].ParentID)
@@ -145,15 +145,15 @@ func TestUnmarshalSpan(t *testing.T) {
 	assert.Equal(t, "1234567891234567", spans[0].ID)
 	assert.Equal(t, int64(15145), *spans[0].Duration)
 	assert.Equal(t, int64(156), *spans[0].Timestamp)
-	assert.Equal(t, 1, len(spans[0].Annotations))
-	assert.Equal(t, 1, len(spans[0].BinaryAnnotations))
+	assert.Len(t, spans[0].Annotations, 1)
+	assert.Len(t, spans[0].BinaryAnnotations, 1)
 
 	spans, err = decode([]byte(m.CreateSpan("bar", "1234567891234567", "1234567891234567", "1234567891234567",
 		156, 15145, false, "", "")))
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(spans))
-	assert.Equal(t, 0, len(spans[0].Annotations))
-	assert.Equal(t, 0, len(spans[0].BinaryAnnotations))
+	assert.Len(t, spans, 1)
+	assert.Empty(t, spans[0].Annotations)
+	assert.Empty(t, spans[0].BinaryAnnotations)
 }
 
 func TestIncorrectSpanIds(t *testing.T) {

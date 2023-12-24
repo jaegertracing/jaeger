@@ -877,7 +877,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
-		assert.Len(t, traces, 0)
+		assert.Empty(t, traces)
 	})
 }
 
@@ -911,7 +911,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.EqualError(t, err, "read error")
-		assert.Len(t, traces, 0)
+		assert.Empty(t, traces)
 	})
 }
 
@@ -950,7 +950,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err)
-		assert.Len(t, traces, 0)
+		assert.Empty(t, traces)
 	})
 }
 
@@ -972,12 +972,12 @@ func TestFindTraceIDs(t *testing.T) {
 func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
 	assert.NoError(t, err)
-	assert.Equal(t, 3, len(traceIDs))
+	assert.Len(t, traceIDs, 3)
 	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
 	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	assert.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
-	assert.Equal(t, 0, len(traceIDs))
+	assert.Empty(t, traceIDs)
 }
 
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
@@ -1048,7 +1048,7 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tqp.StartTimeMin = time.Now().Add(-1 * time.Hour)
 	tqp.StartTimeMax = time.Now()
 	err = validateQuery(tqp)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	tqp.DurationMin = time.Hour
 	tqp.DurationMax = time.Minute

@@ -37,9 +37,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.NoError(t, err)
 	opts.InitFromViper(v)
 
-	assert.Equal(t, opts.Configuration.PluginBinary, "noop-grpc-plugin")
-	assert.Equal(t, opts.Configuration.PluginConfigurationFile, "config.json")
-	assert.Equal(t, opts.Configuration.PluginLogLevel, "debug")
+	assert.Equal(t, "noop-grpc-plugin", opts.Configuration.PluginBinary)
+	assert.Equal(t, "config.json", opts.Configuration.PluginConfigurationFile)
+	assert.Equal(t, "debug", opts.Configuration.PluginLogLevel)
 	assert.Equal(t, false, opts.Configuration.TenancyOpts.Enabled)
 	assert.Equal(t, "x-scope-orgid", opts.Configuration.TenancyOpts.Header)
 }
@@ -55,10 +55,10 @@ func TestRemoteOptionsWithFlags(t *testing.T) {
 	assert.NoError(t, err)
 	opts.InitFromViper(v)
 
-	assert.Equal(t, opts.Configuration.PluginBinary, "")
-	assert.Equal(t, opts.Configuration.RemoteServerAddr, "localhost:2001")
-	assert.Equal(t, opts.Configuration.RemoteTLS.Enabled, true)
-	assert.Equal(t, opts.Configuration.RemoteConnectTimeout, 60*time.Second)
+	assert.Equal(t, "", opts.Configuration.PluginBinary)
+	assert.Equal(t, "localhost:2001", opts.Configuration.RemoteServerAddr)
+	assert.Equal(t, true, opts.Configuration.RemoteTLS.Enabled)
+	assert.Equal(t, 60*time.Second, opts.Configuration.RemoteConnectTimeout)
 }
 
 func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
@@ -72,10 +72,10 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 	assert.NoError(t, err)
 	opts.InitFromViper(v)
 
-	assert.Equal(t, opts.Configuration.PluginBinary, "")
-	assert.Equal(t, opts.Configuration.RemoteServerAddr, "localhost:2001")
-	assert.Equal(t, opts.Configuration.RemoteTLS.Enabled, false)
-	assert.Equal(t, opts.Configuration.RemoteConnectTimeout, 60*time.Second)
+	assert.Equal(t, "", opts.Configuration.PluginBinary)
+	assert.Equal(t, "localhost:2001", opts.Configuration.RemoteServerAddr)
+	assert.Equal(t, false, opts.Configuration.RemoteTLS.Enabled)
+	assert.Equal(t, 60*time.Second, opts.Configuration.RemoteConnectTimeout)
 }
 
 func TestFailedTLSFlags(t *testing.T) {

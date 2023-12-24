@@ -44,7 +44,7 @@ func TestBindFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	b.InitFromViper(v)
-	assert.Equal(t, 3, len(b.Processors))
+	assert.Len(t, b.Processors, 3)
 	assert.Equal(t, ":8080", b.HTTPServer.HostPort)
 	assert.Equal(t, ":1111", b.Processors[2].Server.HostPort)
 	assert.Equal(t, 4242, b.Processors[2].Server.MaxPacketSize)

@@ -56,7 +56,7 @@ func TestSpanProcessor_Process(t *testing.T) {
 			assert.NotNil(t, span.Process, "sanitizer must fix Process=nil data issue")
 		})
 
-	assert.Nil(t, processor.Process(message))
+	assert.NoError(t, processor.Process(message))
 
 	message.AssertExpectations(t)
 	mockWriter.AssertExpectations(t)

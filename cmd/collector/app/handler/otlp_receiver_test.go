@@ -176,20 +176,20 @@ func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 	}
 	applyGRPCSettings(otlpReceiverConfig.GRPC, grpcOpts)
 	out := otlpReceiverConfig.GRPC
-	assert.Equal(t, out.NetAddr.Endpoint, ":54321")
-	assert.EqualValues(t, out.MaxRecvMsgSizeMiB, 42)
+	assert.Equal(t, ":54321", out.NetAddr.Endpoint)
+	assert.EqualValues(t, 42, out.MaxRecvMsgSizeMiB)
 	require.NotNil(t, out.Keepalive)
 	require.NotNil(t, out.Keepalive.ServerParameters)
-	assert.Equal(t, out.Keepalive.ServerParameters.MaxConnectionAge, 33*time.Second)
-	assert.Equal(t, out.Keepalive.ServerParameters.MaxConnectionAgeGrace, 37*time.Second)
+	assert.Equal(t, 33*time.Second, out.Keepalive.ServerParameters.MaxConnectionAge)
+	assert.Equal(t, 37*time.Second, out.Keepalive.ServerParameters.MaxConnectionAgeGrace)
 	require.NotNil(t, out.TLSSetting)
-	assert.Equal(t, out.TLSSetting.CAFile, "ca")
-	assert.Equal(t, out.TLSSetting.CertFile, "cert")
-	assert.Equal(t, out.TLSSetting.KeyFile, "key")
-	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
-	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
-	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
-	assert.Equal(t, out.TLSSetting.ReloadInterval, 24*time.Hour)
+	assert.Equal(t, "ca", out.TLSSetting.CAFile)
+	assert.Equal(t, "cert", out.TLSSetting.CertFile)
+	assert.Equal(t, "key", out.TLSSetting.KeyFile)
+	assert.Equal(t, "clientca", out.TLSSetting.ClientCAFile)
+	assert.Equal(t, "1.1", out.TLSSetting.MinVersion)
+	assert.Equal(t, "1.3", out.TLSSetting.MaxVersion)
+	assert.Equal(t, 24*time.Hour, out.TLSSetting.ReloadInterval)
 }
 
 func TestApplyOTLPHTTPServerSettings(t *testing.T) {
@@ -218,15 +218,15 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 
 	out := otlpReceiverConfig.HTTP
 
-	assert.Equal(t, out.Endpoint, ":12345")
+	assert.Equal(t, ":12345", out.Endpoint)
 	require.NotNil(t, out.TLSSetting)
-	assert.Equal(t, out.TLSSetting.CAFile, "ca")
-	assert.Equal(t, out.TLSSetting.CertFile, "cert")
-	assert.Equal(t, out.TLSSetting.KeyFile, "key")
-	assert.Equal(t, out.TLSSetting.ClientCAFile, "clientca")
-	assert.Equal(t, out.TLSSetting.MinVersion, "1.1")
-	assert.Equal(t, out.TLSSetting.MaxVersion, "1.3")
-	assert.Equal(t, out.TLSSetting.ReloadInterval, 24*time.Hour)
-	assert.Equal(t, out.CORS.AllowedHeaders, []string{"Content-Type", "Accept", "X-Requested-With"})
-	assert.Equal(t, out.CORS.AllowedOrigins, []string{"http://example.domain.com", "http://*.domain.com"})
+	assert.Equal(t, "ca", out.TLSSetting.CAFile)
+	assert.Equal(t, "cert", out.TLSSetting.CertFile)
+	assert.Equal(t, "key", out.TLSSetting.KeyFile)
+	assert.Equal(t, "clientca", out.TLSSetting.ClientCAFile)
+	assert.Equal(t, "1.1", out.TLSSetting.MinVersion)
+	assert.Equal(t, "1.3", out.TLSSetting.MaxVersion)
+	assert.Equal(t, 24*time.Hour, out.TLSSetting.ReloadInterval)
+	assert.Equal(t, []string{"Content-Type", "Accept", "X-Requested-With"}, out.CORS.AllowedHeaders)
+	assert.Equal(t, []string{"http://example.domain.com", "http://*.domain.com"}, out.CORS.AllowedOrigins)
 }
