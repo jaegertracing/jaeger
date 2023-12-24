@@ -1,4 +1,4 @@
-name: Unit Tests Results
+name: Unit Test Results
 
 on:
   workflow_run:
@@ -7,8 +7,8 @@ on:
       - completed
 
 jobs:
-  unit-tests-results:
-    name: Unit Tests Results
+  unit-test-results:
+    name: Unit Test Results
     runs-on: ubuntu-latest
 
     permissions:
