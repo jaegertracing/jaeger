@@ -61,13 +61,3 @@ jobs:
         flags: unittests
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
-
-  event_file:
-    name: "Event File"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Upload
-        uses: actions/upload-artifact@v3
-        with:
-          name: Event File
-          path: ${{ github.event_path }}
