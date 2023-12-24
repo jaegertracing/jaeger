@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -73,10 +72,10 @@ func TestMetrics(t *testing.T) {
 			if test.err != nil {
 				s, err := mgr.GetSamplingStrategy(context.Background(), test.err.Error())
 				require.Nil(t, s)
-				assert.EqualError(t, err, test.err.Error())
+				require.EqualError(t, err, test.err.Error())
 				b, err := mgr.GetBaggageRestrictions(context.Background(), test.err.Error())
 				require.Nil(t, b)
-				assert.EqualError(t, err, test.err.Error())
+				require.EqualError(t, err, test.err.Error())
 			} else {
 				s, err := mgr.GetSamplingStrategy(context.Background(), "")
 				require.NoError(t, err)

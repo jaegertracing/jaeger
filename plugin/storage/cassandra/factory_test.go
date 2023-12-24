@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
@@ -56,7 +57,7 @@ func TestCassandraFactory(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	var (
 		session = &mocks.Session{}
@@ -66,43 +67,43 @@ func TestCassandraFactory(t *testing.T) {
 	query.On("Exec").Return(nil)
 	f.primaryConfig = newMockSessionBuilder(session, nil)
 	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.archiveConfig = nil
-	assert.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateSpanWriter()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateDependencyReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateArchiveSpanReader()
-	assert.EqualError(t, err, "archive storage not configured")
+	require.EqualError(t, err, "archive storage not configured")
 
 	_, err = f.CreateArchiveSpanWriter()
-	assert.EqualError(t, err, "archive storage not configured")
+	require.EqualError(t, err, "archive storage not configured")
 
 	f.archiveConfig = newMockSessionBuilder(session, nil)
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err = f.CreateArchiveSpanReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateArchiveSpanWriter()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateLock()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateSamplingStore(0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.NoError(t, f.Close())
+	require.NoError(t, f.Close())
 }
 
 func TestExclusiveWhitelistBlacklist(t *testing.T) {
@@ -119,7 +120,7 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	var (
 		session = &mocks.Session{}
@@ -129,20 +130,20 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	query.On("Exec").Return(nil)
 	f.primaryConfig = newMockSessionBuilder(session, nil)
 	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.archiveConfig = nil
-	assert.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanWriter()
-	assert.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 
 	f.archiveConfig = &mockSessionBuilder{}
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err = f.CreateArchiveSpanWriter()
-	assert.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 }
 
 func TestWriterOptions(t *testing.T) {

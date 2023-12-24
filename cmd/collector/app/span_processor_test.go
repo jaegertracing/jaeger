@@ -244,9 +244,9 @@ func TestSpanProcessor(t *testing.T) {
 	res, err := p.ProcessSpans(
 		[]*model.Span{{}}, // empty span should be enriched by sanitizers
 		processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
-	assert.NoError(t, p.Close())
+	require.NoError(t, p.Close())
 	assert.Len(t, w.spans, 1)
 	assert.NotNil(t, w.spans[0].Process)
 	assert.NotEmpty(t, w.spans[0].Process.ServiceName)
@@ -273,10 +273,10 @@ func TestSpanProcessorErrors(t *testing.T) {
 			},
 		},
 	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 
-	assert.NoError(t, p.Close())
+	require.NoError(t, p.Close())
 
 	assert.Equal(t, map[string]string{
 		"level": "error",
@@ -311,7 +311,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 		Options.QueueSize(1),
 		Options.ReportBusy(true),
 	).(*spanProcessor)
-	defer assert.NoError(t, p.Close())
+	defer require.NoError(t, p.Close())
 
 	// block the writer so that the first span is read from the queue and blocks the processor,
 	// and either the second or the third span is rejected since the queue capacity is just 1.
@@ -336,7 +336,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 		},
 	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 
-	assert.Error(t, err, "expecting busy error")
+	require.Error(t, err, "expecting busy error")
 	assert.Nil(t, res)
 }
 
@@ -346,7 +346,7 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
-	defer assert.NoError(t, p.Close())
+	defer require.NoError(t, p.Close())
 
 	p.saveSpan(&model.Span{}, "")
 
@@ -366,7 +366,7 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
 
-	defer assert.NoError(t, p.Close())
+	defer require.NoError(t, p.Close())
 	span := &model.Span{
 		Process: model.NewProcess("unit-test-service", []model.KeyValue{
 			{
@@ -454,7 +454,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			}
 			p := NewSpanProcessor(w, nil, opts...).(*spanProcessor)
 			defer func() {
-				assert.NoError(t, p.Close())
+				require.NoError(t, p.Close())
 			}()
 			p.background(10*time.Millisecond, p.updateGauges)
 
@@ -620,9 +620,9 @@ func TestAdditionalProcessors(t *testing.T) {
 			},
 		},
 	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
-	assert.NoError(t, p.Close())
+	require.NoError(t, p.Close())
 
 	// additional processor is called
 	count := 0
@@ -637,9 +637,9 @@ func TestAdditionalProcessors(t *testing.T) {
 			},
 		},
 	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
-	assert.NoError(t, p.Close())
+	require.NoError(t, p.Close())
 	assert.Equal(t, 1, count)
 }
 
@@ -658,9 +658,9 @@ func TestSpanProcessorContextPropagation(t *testing.T) {
 	}, processor.SpansOptions{
 		Tenant: dummyTenant,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
-	assert.NoError(t, p.Close())
+	require.NoError(t, p.Close())
 
 	// Verify that the dummy tenant from SpansOptions context made it to writer
 	assert.True(t, w.tenants[dummyTenant])
@@ -705,6 +705,6 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 		{OperationName: "op2"},
 		{OperationName: "op3"},
 	}, opts)
-	assert.EqualError(t, err, processor.ErrBusy.Error())
+	require.EqualError(t, err, processor.ErrBusy.Error())
 	assert.Equal(t, []string{"op3"}, droppedOperations)
 }

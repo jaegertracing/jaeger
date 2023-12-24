@@ -102,7 +102,7 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
 		escapedPat := regexp.QuoteMeta(pat)
 		ok, err := regexp.MatchString(escapedPat, t.Name())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		if ok {
 			t.Skip()
 			return
@@ -413,7 +413,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
 	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	sort.Slice(actual, func(i, j int) bool {
 		return actual[i].Parent < actual[j].Parent
 	})

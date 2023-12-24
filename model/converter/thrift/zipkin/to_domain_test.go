@@ -49,14 +49,14 @@ func TestToDomain(t *testing.T) {
 		name := in + " -> " + out + " : " + zSpans[0].Name
 		t.Run(name, func(t *testing.T) {
 			trace, err := ToDomain(zSpans)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			trace.NormalizeTimestamps()
 			if !assert.Equal(t, expectedTrace, trace) {
 				for _, err := range pretty.Diff(expectedTrace, trace) {
 					t.Log(err)
 				}
 				out, err := json.Marshal(trace)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				t.Logf("Actual trace: %s", string(out))
 			}
 		})
@@ -64,7 +64,7 @@ func TestToDomain(t *testing.T) {
 			t.Run("ToDomainSpans", func(t *testing.T) {
 				zSpan := zSpans[0]
 				jSpans, err := ToDomainSpan(zSpan)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				for _, jSpan := range jSpans {
 					jSpan.NormalizeTimestamps()
 					assert.Equal(t, expectedTrace.Spans[0], jSpan)
@@ -77,7 +77,7 @@ func TestToDomain(t *testing.T) {
 func TestToDomainNoServiceNameError(t *testing.T) {
 	zSpans := getZipkinSpans(t, `[{ "trace_id": -1, "id": 31 }]`)
 	trace, err := ToDomain(zSpans)
-	assert.EqualError(t, err, "cannot find service name in Zipkin span [traceID=ffffffffffffffff, spanID=1f]")
+	require.EqualError(t, err, "cannot find service name in Zipkin span [traceID=ffffffffffffffff, spanID=1f]")
 	assert.Len(t, trace.Spans, 1)
 	assert.Equal(t, "unknown-service-name", trace.Spans[0].Process.ServiceName)
 }
@@ -165,7 +165,7 @@ func TestInvalidAnnotationTypeError(t *testing.T) {
 	_, err := toDomain{}.transformBinaryAnnotation(&z.BinaryAnnotation{
 		AnnotationType: -1,
 	})
-	assert.EqualError(t, err, "unknown zipkin annotation type: -1")
+	require.EqualError(t, err, "unknown zipkin annotation type: -1")
 }
 
 // TestZipkinEncoding is just for reference to explain the base64 strings

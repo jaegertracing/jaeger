@@ -115,7 +115,7 @@ func TestExecuteAction(t *testing.T) {
 
 			assert.Equal(t, test.expectedExecuteAction, executedAction)
 			if test.configError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				assert.Equal(t, test.expectedError, err)
 			}

@@ -38,7 +38,7 @@ func TestConvertStrategyTypeFromDomain(t *testing.T) {
 	for _, test := range tests {
 		st, err := convertStrategyTypeFromDomain(test.in)
 		if test.err != "" {
-			assert.EqualError(t, err, test.err)
+			require.EqualError(t, err, test.err)
 		} else {
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, st)
@@ -73,7 +73,7 @@ func TestConvertRateLimitingFromDomain(t *testing.T) {
 	for _, test := range tests {
 		st, err := convertRateLimitingFromDomain(test.in)
 		if test.err != "" {
-			assert.EqualError(t, err, test.err)
+			require.EqualError(t, err, test.err)
 			require.Nil(t, st)
 		} else {
 			require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestConvertSamplingResponseFromDomain(t *testing.T) {
 	for _, test := range tests {
 		r, err := ConvertSamplingResponseFromDomain(test.in)
 		if test.err != "" {
-			assert.EqualError(t, err, test.err)
+			require.EqualError(t, err, test.err)
 			require.Nil(t, r)
 		} else {
 			require.NoError(t, err)

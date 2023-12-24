@@ -20,7 +20,7 @@ package badger
 import (
 	"testing"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -37,10 +37,10 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 	})
 	f.InitFromViper(v, zap.NewNop())
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer f.Close()
 
 	// We're not expecting any value in !linux, just no error
 	err = f.diskStatisticsUpdate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

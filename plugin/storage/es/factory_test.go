@@ -78,7 +78,7 @@ func TestElasticsearchFactory(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error")}).NewClient
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
 
 	f.archiveConfig.Enabled = true
 	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
@@ -87,26 +87,26 @@ func TestElasticsearchFactory(t *testing.T) {
 		f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error2")}).NewClient
 		return (&mockClientBuilder{}).NewClient(c, logger, metricsFactory)
 	}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create archive Elasticsearch client: made-up error2")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create archive Elasticsearch client: made-up error2")
 
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err := f.CreateSpanReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateSpanWriter()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateDependencyReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateArchiveSpanReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateArchiveSpanWriter()
-	assert.NoError(t, err)
-	assert.NoError(t, f.Close())
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
@@ -118,7 +118,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	defer f.Close()
 	r, err := f.CreateSpanWriter()
 	require.Error(t, err)
@@ -132,7 +132,7 @@ func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	defer f.Close()
 	w, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -210,7 +210,7 @@ func TestCreateTemplateError(t *testing.T) {
 	defer f.Close()
 	w, err := f.CreateSpanWriter()
 	assert.Nil(t, w)
-	assert.Error(t, err, "template-error")
+	require.Error(t, err, "template-error")
 }
 
 func TestILMDisableTemplateCreation(t *testing.T) {
@@ -222,7 +222,7 @@ func TestILMDisableTemplateCreation(t *testing.T) {
 	defer f.Close()
 	require.NoError(t, err)
 	_, err = f.CreateSpanWriter()
-	assert.NoError(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
+	require.NoError(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
 }
 
 func TestArchiveDisabled(t *testing.T) {
@@ -231,10 +231,10 @@ func TestArchiveDisabled(t *testing.T) {
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	w, err := f.CreateArchiveSpanWriter()
 	assert.Nil(t, w)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	r, err := f.CreateArchiveSpanReader()
 	assert.Nil(t, r)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestArchiveEnabled(t *testing.T) {
@@ -277,7 +277,7 @@ func TestPasswordFromFile(t *testing.T) {
 	t.Run("load token error", func(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "does not exist")
 		token, err := loadTokenFromFile(file)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "", token)
 	})
 }
@@ -298,7 +298,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		require.Len(t, h, 2)
 		require.Equal(t, "Basic", h[0])
 		authBytes, err := base64.StdEncoding.DecodeString(h[1])
-		assert.NoError(t, err, "header: %s", h)
+		require.NoError(t, err, "header: %s", h)
 		auth := string(authBytes)
 		authReceived.Store(auth, auth)
 		t.Logf("request to fake ES server contained auth=%s", auth)

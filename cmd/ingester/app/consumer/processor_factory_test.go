@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
@@ -30,7 +31,7 @@ import (
 func Test_NewFactory(t *testing.T) {
 	params := ProcessorFactoryParams{}
 	newFactory, err := NewProcessorFactory(params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, newFactory)
 }
 

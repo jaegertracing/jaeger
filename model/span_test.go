@@ -53,21 +53,18 @@ func TestTraceIDMarshalJSONPB(t *testing.T) {
 			ref := model.SpanRef{TraceID: model.NewTraceID(testCase.hi, testCase.lo)}
 			out := new(bytes.Buffer)
 			err := new(jsonpb.Marshaler).Marshal(out, &ref)
-			if assert.NoError(t, err) {
-				assert.Equal(t, expected, out.String())
-				assert.Equal(t, testCase.hex, ref.TraceID.String())
-			}
+			require.NoError(t, err)
+			assert.Equal(t, expected, out.String())
+			assert.Equal(t, testCase.hex, ref.TraceID.String())
 
 			ref = model.SpanRef{}
 			err = jsonpb.Unmarshal(bytes.NewReader([]byte(expected)), &ref)
-			if assert.NoError(t, err) {
-				assert.Equal(t, testCase.hi, ref.TraceID.High)
-				assert.Equal(t, testCase.lo, ref.TraceID.Low)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, testCase.hi, ref.TraceID.High)
+			assert.Equal(t, testCase.lo, ref.TraceID.Low)
 			traceID, err := model.TraceIDFromString(testCase.hex)
-			if assert.NoError(t, err) {
-				assert.Equal(t, ref.TraceID, traceID)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, ref.TraceID, traceID)
 		})
 	}
 }
@@ -88,10 +85,10 @@ func TestTraceIDUnmarshalJSONPBErrors(t *testing.T) {
 			var ref model.SpanRef
 			json := fmt.Sprintf(`{"traceId":"%s"}`, testCase.in)
 			err := jsonpb.Unmarshal(bytes.NewReader([]byte(json)), &ref)
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			_, err = model.TraceIDFromString(testCase.in)
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 	// for code coverage
@@ -131,20 +128,17 @@ func TestSpanIDMarshalJSON(t *testing.T) {
 			ref := model.SpanRef{SpanID: model.SpanID(testCase.id)}
 			out := new(bytes.Buffer)
 			err := new(jsonpb.Marshaler).Marshal(out, &ref)
-			if assert.NoError(t, err) {
-				assert.Equal(t, expected, out.String())
-			}
+			require.NoError(t, err)
+			assert.Equal(t, expected, out.String())
 			assert.Equal(t, testCase.hex, ref.SpanID.String())
 
 			ref = model.SpanRef{}
 			err = jsonpb.Unmarshal(bytes.NewReader([]byte(expected)), &ref)
-			if assert.NoError(t, err) {
-				assert.Equal(t, model.NewSpanID(testCase.id), ref.SpanID)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, model.NewSpanID(testCase.id), ref.SpanID)
 			spanID, err := model.SpanIDFromString(testCase.hex)
-			if assert.NoError(t, err) {
-				assert.Equal(t, model.NewSpanID(testCase.id), spanID)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, model.NewSpanID(testCase.id), spanID)
 		})
 	}
 }
@@ -164,10 +158,10 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 		t.Run(in, func(t *testing.T) {
 			var ref model.SpanRef
 			err := jsonpb.Unmarshal(bytes.NewReader([]byte(in)), &ref)
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			_, err = model.SpanIDFromString(testCase.in)
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 	// for code coverage

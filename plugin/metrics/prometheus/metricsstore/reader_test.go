@@ -72,7 +72,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 		sdktrace.WithSyncer(exporter),
 	)
 	closer := func() {
-		assert.NoError(t, tp.Shutdown(context.Background()))
+		require.NoError(t, tp.Shutdown(context.Background()))
 	}
 	return tp, exporter, closer
 }
@@ -684,7 +684,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 
 			_, err = reader.GetErrorRates(context.Background(), &params)
 			require.Error(t, err)
-			assert.EqualError(t, err, tc.wantErr)
+			require.EqualError(t, err, tc.wantErr)
 		})
 	}
 }
@@ -787,7 +787,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 
 	file, err := os.CreateTemp("", "token_")
 	require.NoError(t, err)
-	defer func() { assert.NoError(t, os.Remove(file.Name())) }()
+	defer func() { require.NoError(t, os.Remove(file.Name())) }()
 
 	_, err = file.Write([]byte(wantBearer))
 	require.NoError(t, err)
@@ -822,7 +822,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 func TestGetRoundTripperTokenFromContext(t *testing.T) {
 	file, err := os.CreateTemp("", "token_")
 	require.NoError(t, err)
-	defer func() { assert.NoError(t, os.Remove(file.Name())) }()
+	defer func() { require.NoError(t, os.Remove(file.Name())) }()
 	_, err = file.Write([]byte("token from file"))
 	require.NoError(t, err)
 	require.NoError(t, file.Close())

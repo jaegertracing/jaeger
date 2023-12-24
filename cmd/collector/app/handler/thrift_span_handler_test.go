@@ -57,7 +57,7 @@ func TestJaegerSpanHandler(t *testing.T) {
 			assert.Equal(t, tc.expectedErr, err)
 		} else {
 			assert.Len(t, res, 1)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.True(t, res[0].Ok)
 		}
 	}
@@ -131,7 +131,7 @@ func TestZipkinSpanHandler(t *testing.T) {
 				assert.Equal(t, tc.expectedErr, err)
 			} else {
 				assert.Len(t, res, len(spans))
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				for i := range res {
 					assert.True(t, res[i].Ok)
 				}

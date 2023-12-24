@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/kr/pretty"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -40,8 +39,8 @@ func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model
 		}
 		out, err := json.Marshal(actual)
 		out2, err2 := json.Marshal(expected)
-		assert.NoError(t, err)
-		assert.NoError(t, err2)
+		require.NoError(t, err)
+		require.NoError(t, err2)
 		t.Logf("Actual traces: %s", string(out))
 		t.Logf("Expected traces: %s", string(out2))
 		t.Fail()
@@ -65,7 +64,7 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 			t.Logf("Expected and actual differ: %v\n", d)
 		}
 		out, err := json.Marshal(actual)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		t.Logf("Actual trace: %s", string(out))
 		t.Fail()
 	}

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -66,7 +67,7 @@ func startTestServers(t *testing.T, count int) *test {
 	testInstance := &test{}
 	for i := 0; i < count; i++ {
 		lis, err := net.Listen("tcp", "localhost:0")
-		assert.NoError(t, err, "failed to listen on tcp")
+		require.NoError(t, err, "failed to listen on tcp")
 		s := grpc.NewServer()
 		grpc_testing.RegisterTestServiceServer(s, &testServer{})
 		testInstance.servers = append(testInstance.servers, s)
@@ -108,7 +109,7 @@ func assertRoundRobinCall(t *testing.T, connections int, testc grpc_testing.Test
 	var p peer.Peer
 	for i := 0; i < connections; i++ {
 		_, err := testc.EmptyCall(context.Background(), &grpc_testing.Empty{}, grpc.Peer(&p))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		addrs[p.Addr.String()] = struct{}{}
 	}
 	assert.Len(t, addrs, connections, "must call each of the servers once")
@@ -148,7 +149,7 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
 
 			cc, err := grpc.Dial(res.Scheme()+":///round_robin", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(GRPCServiceConfig))
-			assert.NoError(t, err, "could not dial using resolver's scheme")
+			require.NoError(t, err, "could not dial using resolver's scheme")
 			defer cc.Close()
 
 			testc := grpc_testing.NewTestServiceClient(cc)

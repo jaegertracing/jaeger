@@ -51,7 +51,7 @@ func TestNewGRPCHandler(t *testing.T) {
 	for _, test := range tests {
 		resp, err := h.GetSamplingStrategy(context.Background(), test.req)
 		if test.err != "" {
-			assert.EqualError(t, err, test.err)
+			require.EqualError(t, err, test.err)
 			require.Nil(t, resp)
 		} else {
 			require.NoError(t, err)

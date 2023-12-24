@@ -17,7 +17,7 @@ package static
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -37,7 +37,7 @@ func TestFactory(t *testing.T) {
 	command.ParseFlags([]string{"--sampling.strategies-file=fixtures/strategies.json"})
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
 	_, _, err := f.CreateStrategyStore()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
@@ -89,7 +90,7 @@ func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	)
 
 	defer func() {
-		assert.NoError(t, p.Close())
+		require.NoError(t, p.Close())
 	}()
 	go p.Start()
 

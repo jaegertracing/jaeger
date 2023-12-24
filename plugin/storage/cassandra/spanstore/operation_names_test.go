@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -104,13 +105,13 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 					ServiceName:   "service-a",
 					OperationName: "Operation-b",
 				})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				err = s.storage.Write(dbmodel.Operation{
 					ServiceName:   "service-c",
 					OperationName: "operation-d",
 				})
-				assert.EqualError(t, err,
+				require.EqualError(t, err,
 					"failed to Exec query 'select from "+
 						schemas[test.schemaVersion].tableName+
 						"': exec error")
@@ -133,7 +134,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 					ServiceName:   "service-a",
 					OperationName: "Operation-b",
 				})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				counts2, _ := s.metricsFactory.Snapshot()
 				expCounts := counts
@@ -185,12 +186,12 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 					ServiceName: "service-a",
 				})
 				if test.expErr == nil {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					// expect one empty operation result
 					// because mock iter.Scan(&placeholder) does not write to `placeholder`
 					assert.Equal(t, []spanstore.Operation{{}}, services)
 				} else {
-					assert.EqualError(
+					require.EqualError(
 						t,
 						err,
 						fmt.Sprintf("error reading %s from storage: %s",

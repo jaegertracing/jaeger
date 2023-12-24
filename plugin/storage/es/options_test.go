@@ -136,7 +136,7 @@ func TestMaxSpanAgeSetErrorInArchiveMode(t *testing.T) {
 	_, command := config.Viperize(opts.AddFlags)
 	flags := []string{"--es-archive.max-span-age=24h"}
 	err := command.ParseFlags(flags)
-	assert.EqualError(t, err, "unknown flag: --es-archive.max-span-age")
+	require.EqualError(t, err, "unknown flag: --es-archive.max-span-age")
 }
 
 func TestMaxDocCount(t *testing.T) {

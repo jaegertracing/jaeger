@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
@@ -123,7 +124,7 @@ func TestGetTraceSuccess(t *testing.T) {
 	type contextKey string
 	ctx := context.Background()
 	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
 }
 
@@ -150,7 +151,7 @@ func TestGetTraceFromArchiveStorage(t *testing.T) {
 	type contextKey string
 	ctx := context.Background()
 	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
 }
 
@@ -163,7 +164,7 @@ func TestGetServices(t *testing.T) {
 	type contextKey string
 	ctx := context.Background()
 	actualServices, err := tqs.queryService.GetServices(context.WithValue(ctx, contextKey("foo"), "bar"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedServices, actualServices)
 }
 
@@ -181,7 +182,7 @@ func TestGetOperations(t *testing.T) {
 	type contextKey string
 	ctx := context.Background()
 	actualOperations, err := tqs.queryService.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), operationQuery)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedOperations, actualOperations)
 }
 
@@ -202,7 +203,7 @@ func TestFindTraces(t *testing.T) {
 		NumTraces:     200,
 	}
 	traces, err := tqs.queryService.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, traces, 1)
 }
 
@@ -242,7 +243,7 @@ func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 	ctx := context.Background()
 	joinErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	// There are two spans in the mockTrace, ArchiveTrace should return a wrapped error.
-	assert.EqualError(t, joinErr, "cannot save\ncannot save")
+	require.EqualError(t, joinErr, "cannot save\ncannot save")
 }
 
 // Test QueryService.ArchiveTrace() with correctly configured ArchiveSpanWriter.
@@ -256,7 +257,7 @@ func TestArchiveTraceSuccess(t *testing.T) {
 	type contextKey string
 	ctx := context.Background()
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // Test QueryService.Adjust()
@@ -264,7 +265,7 @@ func TestTraceAdjustmentFailure(t *testing.T) {
 	tqs := initializeTestService(withAdjuster())
 
 	_, err := tqs.queryService.Adjust(mockTrace)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.EqualValues(t, errAdjustment.Error(), err.Error())
 }
 
@@ -282,7 +283,7 @@ func TestGetDependencies(t *testing.T) {
 	tqs.depsReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
 
 	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedDependencies, actualDependencies)
 }
 

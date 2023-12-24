@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -42,7 +42,7 @@ func TestReady(t *testing.T) {
 	cmd := Command(v, 80)
 	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://")})
 	err := cmd.Execute()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOnlyPortConfig(t *testing.T) {
@@ -52,7 +52,7 @@ func TestOnlyPortConfig(t *testing.T) {
 	cmd := Command(v, 80)
 	cmd.ParseFlags([]string{"--status.http.host-port=:" + strings.Split(ts.URL, ":")[len(strings.Split(ts.URL, ":"))-1]})
 	err := cmd.Execute()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestUnready(t *testing.T) {
@@ -62,14 +62,14 @@ func TestUnready(t *testing.T) {
 	cmd := Command(v, 80)
 	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://")})
 	err := cmd.Execute()
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestNoService(t *testing.T) {
 	v := viper.New()
 	cmd := Command(v, 12345)
 	err := cmd.Execute()
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestMain(m *testing.M) {

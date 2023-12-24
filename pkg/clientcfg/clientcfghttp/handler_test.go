@@ -221,7 +221,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 				assert.Equal(t, testCase.statusCode, resp.StatusCode)
 				if testCase.body != "" {
 					body, err := io.ReadAll(resp.Body)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, testCase.body, string(body))
 				}
 

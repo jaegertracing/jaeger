@@ -21,6 +21,7 @@ import (
 
 	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // UDTField describes a field in a gocql User Defined Type
@@ -57,17 +58,17 @@ func (testCase UDTTestCase) Run(t *testing.T) {
 			typeInfo := *(*gocql.NativeType)(unsafe.Pointer(&nt)) /* nolint #nosec */
 			data, err := testCase.Obj.MarshalUDT(field.Name, typeInfo)
 			if field.Err {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, field.ValIn, data)
 			}
 			obj := testCase.New()
 			err = obj.UnmarshalUDT(field.Name, typeInfo, field.ValIn)
 			if field.Err {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

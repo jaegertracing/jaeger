@@ -58,7 +58,7 @@ func initTracer(t *testing.T, zexp *zipkin.Exporter) (trace.TracerProvider, func
 		sdktrace.WithSyncer(zexp),
 	)
 	closer := func() {
-		assert.NoError(t, tp.Shutdown(context.Background()))
+		require.NoError(t, tp.Shutdown(context.Background()))
 	}
 	return tp, closer
 }
@@ -117,7 +117,7 @@ func TestThriftFormat(t *testing.T) {
 	defer server.Close()
 	bodyBytes := zipkinTrift.SerializeThrift(context.Background(), []*zipkincore.Span{{}})
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, bodyBytes, createHeader("application/x-thrift"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 }
@@ -138,7 +138,7 @@ func TestZipkinJsonV1Format(t *testing.T) {
 
 	t.Run("good span", func(t *testing.T) {
 		statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.EqualValues(t, http.StatusAccepted, statusCode)
 		assert.EqualValues(t, "", resBodyStr)
 		waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
@@ -150,7 +150,7 @@ func TestZipkinJsonV1Format(t *testing.T) {
 
 	t.Run("good span with utf8", func(t *testing.T) {
 		statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json; charset=utf-8"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.EqualValues(t, http.StatusAccepted, statusCode)
 		assert.EqualValues(t, "", resBodyStr)
 	})
@@ -212,7 +212,7 @@ func TestGzipEncoding(t *testing.T) {
 	header := createHeader("application/x-thrift")
 	header.Add("Content-Encoding", "gzip")
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, gzipEncode(bodyBytes), header)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 }
@@ -223,7 +223,7 @@ func TestGzipBadBody(t *testing.T) {
 	header := createHeader("")
 	header.Add("Content-Encoding", "gzip")
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte("not good"), header)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unable to process request body: unexpected EOF\n", resBodyStr)
 }
@@ -232,7 +232,7 @@ func TestMalformedContentType(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte{}, createHeader("application/json; =iammalformed;"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Cannot parse Content-Type: mime: invalid media parameter\n", resBodyStr)
 }
@@ -241,7 +241,7 @@ func TestUnsupportedContentType(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	statusCode, _, err := postBytes(server.URL+`/api/v1/spans`, []byte{}, createHeader("text/html"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 }
 
@@ -249,7 +249,7 @@ func TestFormatBadBody(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte("not good"), createHeader("application/x-thrift"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.Contains(t, resBodyStr, "Unable to process request body:")
 }
@@ -257,7 +257,7 @@ func TestFormatBadBody(t *testing.T) {
 func TestCannotReadBodyFromRequest(t *testing.T) {
 	handler := NewAPIHandler(&mockZipkinHandler{})
 	req, err := http.NewRequest(http.MethodPost, "whatever", &errReader{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	rw := dummyResponseWriter{}
 
 	tests := []struct {

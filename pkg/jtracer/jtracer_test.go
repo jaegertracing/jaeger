@@ -19,7 +19,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -49,7 +48,7 @@ func TestNewHelperProviderError(t *testing.T) {
 			return nil, fakeErr
 		})
 	require.Error(t, err)
-	assert.EqualError(t, err, fakeErr.Error())
+	require.EqualError(t, err, fakeErr.Error())
 }
 
 func TestInitHelperExporterError(t *testing.T) {
@@ -65,7 +64,7 @@ func TestInitHelperExporterError(t *testing.T) {
 		},
 	)
 	require.Error(t, err)
-	assert.EqualError(t, err, fakeErr.Error())
+	require.EqualError(t, err, fakeErr.Error())
 }
 
 func TestInitHelperResourceError(t *testing.T) {
@@ -80,7 +79,7 @@ func TestInitHelperResourceError(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.Nil(t, tp)
-	assert.EqualError(t, err, fakeErr.Error())
+	require.EqualError(t, err, fakeErr.Error())
 }
 
 func TestMain(m *testing.M) {

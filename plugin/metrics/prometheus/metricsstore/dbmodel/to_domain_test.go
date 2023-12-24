@@ -78,7 +78,7 @@ func TestUnexpectedMetricsFamilyType(t *testing.T) {
 	assert.Empty(t, mf)
 
 	require.Error(t, err)
-	assert.EqualError(t, err, "unexpected metrics ValueType: vector")
+	require.EqualError(t, err, "unexpected metrics ValueType: vector")
 }
 
 func TestMain(m *testing.M) {

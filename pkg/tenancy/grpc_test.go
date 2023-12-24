@@ -89,7 +89,7 @@ func TestTenancyInterceptors(t *testing.T) {
 			}
 			err := interceptor(0, &ss, &ssi, handler)
 			if test.errMsg == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
 				assert.Equal(t, test.errMsg, err.Error())
@@ -104,7 +104,7 @@ func TestTenancyInterceptors(t *testing.T) {
 			}
 			_, err = uinterceptor(test.ctx, iface, usi, uhandler)
 			if test.errMsg == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
 				assert.Equal(t, test.errMsg, err.Error())

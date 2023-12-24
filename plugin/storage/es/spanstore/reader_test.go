@@ -101,7 +101,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 		sdktrace.WithSyncer(exporter),
 	)
 	closer := func() {
-		assert.NoError(t, tp.Shutdown(context.Background()))
+		require.NoError(t, tp.Shutdown(context.Background()))
 	}
 	return tp, exporter, closer
 }
@@ -723,7 +723,7 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
 
 		_, err := bucketToStringArray(buckets)
-		assert.EqualError(t, err, "non-string key found in aggregation")
+		require.EqualError(t, err, "non-string key found in aggregation")
 	})
 }
 
@@ -971,12 +971,12 @@ func TestFindTraceIDs(t *testing.T) {
 
 func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, traceIDs, 3)
 	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
 	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
-	assert.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
+	require.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
 	assert.Empty(t, traceIDs)
 }
 
@@ -1022,7 +1022,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 func TestTraceQueryParameterValidation(t *testing.T) {
 	var malformedtqp *spanstore.TraceQueryParameters
 	err := validateQuery(malformedtqp)
-	assert.EqualError(t, err, ErrMalformedRequestObject.Error())
+	require.EqualError(t, err, ErrMalformedRequestObject.Error())
 
 	tqp := &spanstore.TraceQueryParameters{
 		ServiceName: "",
@@ -1031,29 +1031,29 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 		},
 	}
 	err = validateQuery(tqp)
-	assert.EqualError(t, err, ErrServiceNameNotSet.Error())
+	require.EqualError(t, err, ErrServiceNameNotSet.Error())
 
 	tqp.ServiceName = serviceName
 
 	tqp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tqp.StartTimeMax = time.Time{}
 	err = validateQuery(tqp)
-	assert.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
+	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 
 	tqp.StartTimeMin = time.Now()
 	tqp.StartTimeMax = time.Now().Add(-1 * time.Hour)
 	err = validateQuery(tqp)
-	assert.EqualError(t, err, ErrStartTimeMinGreaterThanMax.Error())
+	require.EqualError(t, err, ErrStartTimeMinGreaterThanMax.Error())
 
 	tqp.StartTimeMin = time.Now().Add(-1 * time.Hour)
 	tqp.StartTimeMax = time.Now()
 	err = validateQuery(tqp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	tqp.DurationMin = time.Hour
 	tqp.DurationMax = time.Minute
 	err = validateQuery(tqp)
-	assert.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
+	require.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
 }
 
 func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
@@ -1272,7 +1272,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)
-		assert.EqualError(t, err, "trace not found")
+		require.EqualError(t, err, "trace not found")
 	})
 }
 
@@ -1288,7 +1288,7 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)
-		assert.EqualError(t, err, "trace not found")
+		require.EqualError(t, err, "trace not found")
 	})
 }
 
@@ -1297,7 +1297,7 @@ func TestConvertTraceIDsStringsToModels(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
 	_, err = convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002", "blah"})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestBuildTraceByIDQuery(t *testing.T) {

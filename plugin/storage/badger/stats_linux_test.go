@@ -17,7 +17,8 @@ package badger
 import (
 	"testing"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -35,11 +36,11 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 	mFactory := metricstest.NewFactory(0)
 	err := f.Initialize(mFactory, zap.NewNop())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer f.Close()
 
 	err = f.diskStatisticsUpdate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, gs := mFactory.Snapshot()
 	assert.True(t, gs[keyLogSpaceAvailableName] > int64(0))
 	assert.True(t, gs[valueLogSpaceAvailableName] > int64(0))

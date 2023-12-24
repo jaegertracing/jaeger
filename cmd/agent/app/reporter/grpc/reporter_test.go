@@ -88,7 +88,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	for _, test := range tests {
 		err = rep.EmitZipkinBatch(context.Background(), []*zipkincore.Span{test.in})
 		if test.err != "" {
-			assert.EqualError(t, err, test.err)
+			require.EqualError(t, err, test.err)
 		} else {
 			assert.Len(t, handler.requests, 1)
 			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
@@ -122,7 +122,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 	for _, test := range tests {
 		err = rep.EmitBatch(context.Background(), test.in)
 		if test.err != "" {
-			assert.EqualError(t, err, test.err)
+			require.EqualError(t, err, test.err)
 		} else {
 			assert.Len(t, handler.requests, 1)
 			assert.Equal(t, test.expected, handler.requests[0].GetBatch())

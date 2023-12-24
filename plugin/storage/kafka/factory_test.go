@@ -54,22 +54,22 @@ func TestKafkaFactory(t *testing.T) {
 		err: errors.New("made-up error"),
 		t:   t,
 	}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.Builder = &mockProducerBuilder{t: t}
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
 
 	_, err := f.CreateSpanWriter()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = f.CreateSpanReader()
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	_, err = f.CreateDependencyReader()
-	assert.Error(t, err)
+	require.Error(t, err)
 
-	assert.NoError(t, f.Close())
+	require.NoError(t, f.Close())
 }
 
 func TestKafkaFactoryEncoding(t *testing.T) {
@@ -89,9 +89,9 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 			f.InitFromViper(v, zap.NewNop())
 
 			f.Builder = &mockProducerBuilder{t: t}
-			assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 			assert.IsType(t, test.marshaller, f.marshaller)
-			assert.NoError(t, f.Close())
+			require.NoError(t, f.Close())
 		})
 	}
 }
@@ -103,7 +103,7 @@ func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	f.Builder = &mockProducerBuilder{t: t}
-	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 }
 
 func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
@@ -153,7 +153,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 			logger.Sync()
 
 			assert.NotContains(t, logbuf.String(), "SECRET", "log output must not contain password in clear text")
-			assert.NoError(t, f.Close())
+			require.NoError(t, f.Close())
 		})
 	}
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	jaegerClient "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/transport"
 
@@ -74,24 +75,24 @@ func TestThriftFormat(t *testing.T) {
 	batch := jaeger.Batch{Process: process, Spans: spans}
 	tser := thrift.NewTSerializer()
 	someBytes, err := tser.Write(context.Background(), &batch)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, someBytes)
 	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
 	statusCode, resBodyStr, err := postBytes("application/x-thrift", server.URL+`/api/traces`, someBytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
 	statusCode, resBodyStr, err = postBytes("application/x-thrift; charset=utf-8", server.URL+`/api/traces`, someBytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
 	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBodyStr, err = postBytes("application/vnd.apache.thrift.binary", server.URL+`/api/traces`, someBytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
 	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
 }
@@ -135,7 +136,7 @@ func TestBadBody(t *testing.T) {
 	defer server.Close()
 	bodyBytes := []byte("not good")
 	statusCode, resBodyStr, err := postBytes("application/x-thrift", server.URL+`/api/traces`, bodyBytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unable to process request body: Unknown data type 110\n", resBodyStr)
 }
@@ -144,7 +145,7 @@ func TestWrongFormat(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	statusCode, resBodyStr, err := postBytes("nosoupforyou", server.URL+`/api/traces`, []byte{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unsupported content type: nosoupforyou\n", resBodyStr)
 }
@@ -153,7 +154,7 @@ func TestMalformedFormat(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	statusCode, resBodyStr, err := postBytes("application/json; =iammalformed", server.URL+`/api/traces`, []byte{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Cannot parse content type: mime: invalid media parameter\n", resBodyStr)
 }
@@ -161,7 +162,7 @@ func TestMalformedFormat(t *testing.T) {
 func TestCannotReadBodyFromRequest(t *testing.T) {
 	handler := NewAPIHandler(&mockJaegerHandler{})
 	req, err := http.NewRequest(http.MethodPost, "whatever", &errReader{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	rw := dummyResponseWriter{}
 	handler.SaveSpan(&rw, req)
 	assert.EqualValues(t, http.StatusInternalServerError, rw.myStatusCode)

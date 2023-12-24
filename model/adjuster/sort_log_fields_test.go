@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -90,7 +91,7 @@ func TestSortLogFields(t *testing.T) {
 			},
 		}
 		trace, err := SortLogFields().Adjust(trace)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testCase.expected, model.KeyValues(trace.Spans[0].Logs[0].Fields))
 	}
 }

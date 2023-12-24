@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
@@ -70,9 +71,9 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
 	_, _, err := f.CreateStrategyStore()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestBadConfigFail(t *testing.T) {
@@ -91,9 +92,9 @@ func TestBadConfigFail(t *testing.T) {
 
 		f.InitFromViper(v, zap.NewNop())
 
-		assert.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
+		require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
 		_, _, err := f.CreateStrategyStore()
-		assert.Error(t, err)
+		require.Error(t, err)
 	}
 }
 
@@ -101,13 +102,13 @@ func TestSamplingStoreFactoryFails(t *testing.T) {
 	f := NewFactory()
 
 	// nil fails
-	assert.Error(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
+	require.Error(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
 
 	// fail if lock fails
-	assert.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{lockFailsWith: errors.New("fail")}, zap.NewNop()))
+	require.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{lockFailsWith: errors.New("fail")}, zap.NewNop()))
 
 	// fail if store fails
-	assert.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{storeFailsWith: errors.New("fail")}, zap.NewNop()))
+	require.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{storeFailsWith: errors.New("fail")}, zap.NewNop()))
 }
 
 type mockSamplingStoreFactory struct {

@@ -55,7 +55,7 @@ func TestServerError(t *testing.T) {
 			HTTPHostPort: ":-1",
 		},
 	}
-	assert.Error(t, srv.Start())
+	require.Error(t, srv.Start())
 }
 
 func TestCreateTLSServerSinglePortError(t *testing.T) {
@@ -70,7 +70,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestCreateTLSGrpcServerError(t *testing.T) {
@@ -84,7 +84,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestCreateTLSHttpServerError(t *testing.T) {
@@ -98,7 +98,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 var testCases = []struct {
@@ -343,8 +343,8 @@ func TestServerHTTPTLS(t *testing.T) {
 			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 				serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				jtracer.NoOp())
-			assert.NoError(t, err)
-			assert.NoError(t, server.Start())
+			require.NoError(t, err)
+			require.NoError(t, server.Start())
 
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -408,7 +408,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return([]*model.Trace{mockTrace}, nil).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
 				req, err := http.NewRequest(http.MethodGet, "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
 
 				resp, err2 := client.Do(req)
@@ -505,8 +505,8 @@ func TestServerGRPCTLS(t *testing.T) {
 			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
 				serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				jtracer.NoOp())
-			assert.NoError(t, err)
-			assert.NoError(t, server.Start())
+			require.NoError(t, err)
+			require.NoError(t, server.Start())
 
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -567,7 +567,7 @@ func TestServerBadHostPort(t *testing.T) {
 		tenancy.NewManager(&tenancy.Options{}),
 		jtracer.NoOp())
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTPHostPort: "127.0.0.1:8081",
@@ -579,7 +579,7 @@ func TestServerBadHostPort(t *testing.T) {
 		tenancy.NewManager(&tenancy.Options{}),
 		jtracer.NoOp())
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestServerInUseHostPort(t *testing.T) {
@@ -612,10 +612,10 @@ func TestServerInUseHostPort(t *testing.T) {
 				tenancy.NewManager(&tenancy.Options{}),
 				jtracer.NoOp(),
 			)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = server.Start()
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			if server.grpcConn != nil {
 				server.grpcConn.Close()
@@ -647,8 +647,8 @@ func TestServerSinglePort(t *testing.T) {
 		},
 		tenancy.NewManager(&tenancy.Options{}),
 		jtracer.NoOp())
-	assert.NoError(t, err)
-	assert.NoError(t, server.Start())
+	require.NoError(t, err)
+	require.NoError(t, server.Start())
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -674,7 +674,7 @@ func TestServerSinglePort(t *testing.T) {
 	defer cancel()
 
 	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedServices, res.Services)
 
 	server.Close()
@@ -696,8 +696,8 @@ func TestServerGracefulExit(t *testing.T) {
 
 	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
 		tenancy.NewManager(&tenancy.Options{}), tracer)
-	assert.NoError(t, err)
-	assert.NoError(t, server.Start())
+	require.NoError(t, err)
+	require.NoError(t, server.Start())
 	go func() {
 		for s := range server.HealthCheckStatus() {
 			flagsSvc.HC().Set(s)
@@ -726,8 +726,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"},
 		tenancy.NewManager(&tenancy.Options{}),
 		tracer)
-	assert.NoError(t, err)
-	assert.NoError(t, server.Start())
+	require.NoError(t, err)
+	require.NoError(t, server.Start())
 	defer server.Close()
 
 	message := logs.FilterMessage("Query server started")
@@ -799,7 +799,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 			if test.tenant != "" {
 				req.Header.Add(tenancyMgr.Header, test.tenant)
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			req.Header.Add("Accept", "application/json")
 
 			client := &http.Client{}
@@ -807,7 +807,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 			if test.errMsg == "" {
 				require.NoError(t, err2)
 			} else {
-				assert.Error(t, err2)
+				require.Error(t, err2)
 				if err != nil {
 					assert.Equal(t, test.errMsg, err2.Error())
 				}

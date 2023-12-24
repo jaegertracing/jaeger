@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 	. "github.com/jaegertracing/jaeger/storage/spanstore"
@@ -43,15 +43,15 @@ func (n *noopWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) er
 
 func TestCompositeWriteSpanStoreSuccess(t *testing.T) {
 	c := NewCompositeWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
-	assert.NoError(t, c.WriteSpan(context.Background(), nil))
+	require.NoError(t, c.WriteSpan(context.Background(), nil))
 }
 
 func TestCompositeWriteSpanStoreSecondFailure(t *testing.T) {
 	c := NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
-	assert.EqualError(t, c.WriteSpan(context.Background(), nil), fmt.Sprintf("%s\n%s", errIWillAlwaysFail, errIWillAlwaysFail))
+	require.EqualError(t, c.WriteSpan(context.Background(), nil), fmt.Sprintf("%s\n%s", errIWillAlwaysFail, errIWillAlwaysFail))
 }
 
 func TestCompositeWriteSpanStoreFirstFailure(t *testing.T) {
 	c := NewCompositeWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
-	assert.EqualError(t, c.WriteSpan(context.Background(), nil), errIWillAlwaysFail.Error())
+	require.EqualError(t, c.WriteSpan(context.Background(), nil), errIWillAlwaysFail.Error())
 }

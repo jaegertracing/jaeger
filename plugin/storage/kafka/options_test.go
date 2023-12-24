@@ -121,16 +121,16 @@ func TestCompressionLevel(t *testing.T) {
 
 func TestFailedCompressionLevelScenario(t *testing.T) {
 	_, err := getCompressionLevel("gzip", 14)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	_, err = getCompressionLevel("lz4", 18)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	_, err = getCompressionLevel("zstd", 25)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	_, err = getCompressionLevel("test", 1)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestCompressionModes(t *testing.T) {
@@ -149,7 +149,7 @@ func TestCompressionModes(t *testing.T) {
 
 func TestCompressionModeFailures(t *testing.T) {
 	_, err := getCompressionMode("test")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestRequiredAcks(t *testing.T) {
@@ -168,7 +168,7 @@ func TestRequiredAcks(t *testing.T) {
 
 func TestRequiredAcksFailures(t *testing.T) {
 	_, err := getRequiredAcks("test")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestTLSFlags(t *testing.T) {

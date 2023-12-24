@@ -371,7 +371,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	p.Close()
 
 	strategy, err := p.GetSamplingStrategy(context.Background(), "svcA")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, strategy.OperationSampling.PerOperationStrategies, 2)
 }
 
@@ -493,7 +493,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	p.Close()
 
 	strategy, err := p.GetSamplingStrategy(context.Background(), "svcA")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Len(t, strategy.OperationSampling.PerOperationStrategies, 4)
 	strategies := strategy.OperationSampling.PerOperationStrategies
 
@@ -537,17 +537,17 @@ func TestConstructorFailure(t *testing.T) {
 		AggregationBuckets:         0,
 	}
 	_, err := newProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	assert.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
+	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = 0
 	_, err = newProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	assert.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
+	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = time.Millisecond
 	cfg.AggregationBuckets = 1
 	cfg.BucketsForCalculation = -1
 	_, err = newProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	assert.EqualError(t, err, "BucketsForCalculation cannot be less than 1")
+	require.EqualError(t, err, "BucketsForCalculation cannot be less than 1")
 }
 
 func TestGenerateStrategyResponses(t *testing.T) {
@@ -879,7 +879,7 @@ func TestErrors(t *testing.T) {
 
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	assert.Error(t, p.Start())
+	require.Error(t, p.Start())
 
 	// close errors
 	mockEP = &epmocks.ElectionParticipant{}
@@ -889,6 +889,6 @@ func TestErrors(t *testing.T) {
 
 	p, err = newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	assert.NoError(t, p.Start())
-	assert.Error(t, p.Close())
+	require.NoError(t, p.Start())
+	require.Error(t, p.Close())
 }

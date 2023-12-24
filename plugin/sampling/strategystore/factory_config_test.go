@@ -63,7 +63,7 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 
 			f, err := FactoryConfigFromEnv()
 			if tc.expectsError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 

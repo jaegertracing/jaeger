@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -61,7 +62,7 @@ func TestGetPort(t *testing.T) {
 	for _, c := range cases {
 		port, err := GetPort(&c.address)
 		if c.expectedError != "" {
-			assert.EqualError(t, err, c.expectedError)
+			require.EqualError(t, err, c.expectedError)
 		} else {
 			assert.Equal(t, c.expected, port)
 		}

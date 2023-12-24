@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
@@ -39,7 +40,7 @@ func TestNewMetricsHandler(t *testing.T) {
 	handler := Wrap(dummyHandlerFunc, mb, zap.NewNop())
 
 	req, err := http.NewRequest(http.MethodGet, "/subdir/qwerty", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	for i := 0; i < 1000; i++ {
@@ -81,6 +82,6 @@ func TestIllegalPrometheusLabel(t *testing.T) {
 
 	invalidUtf8 := []byte{0xC0, 0xAE, 0xC0, 0xAE}
 	req, err := http.NewRequest(http.MethodGet, string(invalidUtf8), nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 }
