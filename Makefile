@@ -632,7 +632,7 @@ proto: proto-prepare-otel
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		-Iplugin/storage/grpc/proto \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS),Mopenmetrics.proto=github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics:$(PWD)/proto-gen/storage_v1 \
 		plugin/storage/grpc/proto/storage.proto
 
 	$(PROTOC) \

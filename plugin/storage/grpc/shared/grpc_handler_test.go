@@ -21,16 +21,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	metricStoreMocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -42,6 +46,7 @@ type mockStoragePlugin struct {
 	archiveWriter *spanStoreMocks.Writer
 	depsReader    *dependencyStoreMocks.Reader
 	streamWriter  *spanStoreMocks.Writer
+	metricReader  *metricStoreMocks.Reader
 }
 
 func (plugin *mockStoragePlugin) ArchiveSpanReader() spanstore.Reader {
@@ -68,6 +73,10 @@ func (plugin *mockStoragePlugin) StreamingSpanWriter() spanstore.Writer {
 	return plugin.streamWriter
 }
 
+func (plugin *mockStoragePlugin) MetricsReader() metricsstore.Reader {
+	return plugin.metricReader
+}
+
 type grpcServerTest struct {
 	server *GRPCHandler
 	impl   *mockStoragePlugin
@@ -80,6 +89,7 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 	archiveWriter := new(spanStoreMocks.Writer)
 	depReader := new(dependencyStoreMocks.Reader)
 	streamWriter := new(spanStoreMocks.Writer)
+	metricsReader := new(metricStoreMocks.Reader)
 
 	impl := &mockStoragePlugin{
 		spanReader:    spanReader,
@@ -88,10 +98,11 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 		archiveWriter: archiveWriter,
 		depsReader:    depReader,
 		streamWriter:  streamWriter,
+		metricReader:  metricsReader,
 	}
 
 	r := &grpcServerTest{
-		server: NewGRPCHandlerWithPlugins(impl, impl, impl),
+		server: NewGRPCHandlerWithPlugins(impl, impl, impl, impl),
 		impl:   impl,
 	}
 	fn(r)
@@ -404,11 +415,144 @@ func TestGRPCServerWriteArchiveSpan_Error(t *testing.T) {
 	})
 }
 
+func TestGRPCServerMetricsReader(t *testing.T) {
+	serviceNames := []string{"my_service_name"}
+	groupByOperation := true
+	endTime := time.Date(2023, time.May, 3, 11, 33, 30, 0, time.UTC)
+	lookback := time.Hour
+	step := time.Minute
+	ratePer := 10 * time.Minute
+	spanKinds := []string{"SPAN_KIND_SERVER"}
+	quantile := 0.5
+	minStep := time.Second
+
+	mf := &metrics.MetricFamily{
+		Name: "service_operation_call_rate",
+		Type: metrics.MetricType_GAUGE,
+		Help: "calls/sec, grouped by service & operation",
+		Metrics: []*metrics.Metric{
+			{
+				Labels: []*metrics.Label{{Name: "service_name", Value: "my_service_name"}, {Name: "operation_name", Value: "my_operation_name"}},
+				MetricPoints: []*metrics.MetricPoint{{
+					Value:     &metrics.MetricPoint_GaugeValue{GaugeValue: &metrics.GaugeValue{Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 42}}},
+					Timestamp: &types.Timestamp{Seconds: 1683147612},
+				}},
+			},
+		},
+	}
+
+	t.Run("GetLatencies", func(t *testing.T) {
+		withGRPCServer(func(r *grpcServerTest) {
+			r.impl.metricReader.On("GetLatencies", mock.Anything, &metricsstore.LatenciesQueryParameters{
+				BaseQueryParameters: metricsstore.BaseQueryParameters{
+					ServiceNames:     serviceNames,
+					GroupByOperation: groupByOperation,
+					EndTime:          &endTime,
+					Lookback:         &lookback,
+					Step:             &step,
+					RatePer:          &ratePer,
+					SpanKinds:        spanKinds,
+				},
+				Quantile: quantile,
+			}).
+				Return(mf, nil)
+
+			s, err := r.server.GetLatencies(context.Background(), &storage_v1.GetLatenciesRequest{
+				BaseQueryParameters: &storage_v1.MetricsBaseQueryParameters{
+					ServiceNames:     serviceNames,
+					GroupByOperation: groupByOperation,
+					EndTime:          &types.Timestamp{Seconds: endTime.Unix(), Nanos: int32(endTime.Nanosecond())},
+					Lookback:         &types.Duration{Seconds: int64(lookback.Seconds())},
+					Step:             &types.Duration{Seconds: int64(step.Seconds())},
+					RatePer:          &types.Duration{Seconds: int64(ratePer.Seconds())},
+					SpanKinds:        spanKinds,
+				},
+				Quantile: float32(quantile),
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, &storage_v1.GetLatenciesResponse{MetricFamily: mf}, s)
+		})
+	})
+
+	t.Run("GetCallRates", func(t *testing.T) {
+		withGRPCServer(func(r *grpcServerTest) {
+			r.impl.metricReader.On("GetCallRates", mock.Anything, &metricsstore.CallRateQueryParameters{
+				BaseQueryParameters: metricsstore.BaseQueryParameters{
+					ServiceNames:     serviceNames,
+					GroupByOperation: groupByOperation,
+					EndTime:          &endTime,
+					Lookback:         &lookback,
+					Step:             &step,
+					RatePer:          &ratePer,
+					SpanKinds:        spanKinds,
+				},
+			}).
+				Return(mf, nil)
+
+			s, err := r.server.GetCallRates(context.Background(), &storage_v1.GetCallRatesRequest{
+				BaseQueryParameters: &storage_v1.MetricsBaseQueryParameters{
+					ServiceNames:     serviceNames,
+					GroupByOperation: groupByOperation,
+					EndTime:          &types.Timestamp{Seconds: endTime.Unix(), Nanos: int32(endTime.Nanosecond())},
+					Lookback:         &types.Duration{Seconds: int64(lookback.Seconds())},
+					Step:             &types.Duration{Seconds: int64(step.Seconds())},
+					RatePer:          &types.Duration{Seconds: int64(ratePer.Seconds())},
+					SpanKinds:        spanKinds,
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, &storage_v1.GetCallRatesResponse{MetricFamily: mf}, s)
+		})
+	})
+
+	t.Run("GetErrorRates", func(t *testing.T) {
+		withGRPCServer(func(r *grpcServerTest) {
+			r.impl.metricReader.On("GetErrorRates", mock.Anything, &metricsstore.ErrorRateQueryParameters{
+				BaseQueryParameters: metricsstore.BaseQueryParameters{
+					ServiceNames:     serviceNames,
+					GroupByOperation: groupByOperation,
+					EndTime:          &endTime,
+					Lookback:         &lookback,
+					Step:             &step,
+					RatePer:          &ratePer,
+					SpanKinds:        spanKinds,
+				},
+			}).
+				Return(mf, nil)
+
+			s, err := r.server.GetErrorRates(context.Background(), &storage_v1.GetErrorRatesRequest{
+				BaseQueryParameters: &storage_v1.MetricsBaseQueryParameters{
+					ServiceNames:     serviceNames,
+					GroupByOperation: groupByOperation,
+					EndTime:          &types.Timestamp{Seconds: endTime.Unix(), Nanos: int32(endTime.Nanosecond())},
+					Lookback:         &types.Duration{Seconds: int64(lookback.Seconds())},
+					Step:             &types.Duration{Seconds: int64(step.Seconds())},
+					RatePer:          &types.Duration{Seconds: int64(ratePer.Seconds())},
+					SpanKinds:        spanKinds,
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, &storage_v1.GetErrorRatesResponse{MetricFamily: mf}, s)
+		})
+	})
+
+	t.Run("GetMinStepDuration", func(t *testing.T) {
+		withGRPCServer(func(r *grpcServerTest) {
+			r.impl.metricReader.On("GetMinStepDuration", mock.Anything, &metricsstore.MinStepDurationQueryParameters{}).
+				Return(minStep, nil)
+
+			s, err := r.server.GetMinStepDuration(context.Background(), &storage_v1.GetMinStepDurationRequest{})
+			assert.NoError(t, err)
+			assert.Equal(t, &storage_v1.GetMinStepDurationResponse{MinStep: &types.Duration{Seconds: int64(minStep.Seconds())}}, s)
+		})
+	})
+}
+
 func TestGRPCServerCapabilities(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
 		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		assert.NoError(t, err)
-		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: true, StreamingSpanWriter: true}, capabilities)
+		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: true, StreamingSpanWriter: true, MetricsReader: true}, capabilities)
 	})
 }
 
@@ -423,6 +567,7 @@ func TestGRPCServerCapabilities_NoArchive(t *testing.T) {
 			ArchiveSpanReader:   false,
 			ArchiveSpanWriter:   false,
 			StreamingSpanWriter: true,
+			MetricsReader:       true,
 		}
 		assert.Equal(t, expected, capabilities)
 	})
@@ -437,6 +582,22 @@ func TestGRPCServerCapabilities_NoStreamWriter(t *testing.T) {
 		expected := &storage_v1.CapabilitiesResponse{
 			ArchiveSpanReader: true,
 			ArchiveSpanWriter: true,
+			MetricsReader:     true,
+		}
+		assert.Equal(t, expected, capabilities)
+	})
+}
+
+func TestGRPCServerCapabilities_NoMetricsReader(t *testing.T) {
+	withGRPCServer(func(r *grpcServerTest) {
+		r.server.impl.MetricsReader = func() metricsstore.Reader { return nil }
+
+		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
+		assert.NoError(t, err)
+		expected := &storage_v1.CapabilitiesResponse{
+			ArchiveSpanReader:   true,
+			ArchiveSpanWriter:   true,
+			StreamingSpanWriter: true,
 		}
 		assert.Equal(t, expected, capabilities)
 	})
@@ -453,8 +614,9 @@ func TestNewGRPCHandlerWithPlugins_Nils(t *testing.T) {
 		depsReader: depReader,
 	}
 
-	handler := NewGRPCHandlerWithPlugins(impl, nil, nil)
+	handler := NewGRPCHandlerWithPlugins(impl, nil, nil, nil)
 	assert.Nil(t, handler.impl.ArchiveSpanReader())
 	assert.Nil(t, handler.impl.ArchiveSpanWriter())
 	assert.Nil(t, handler.impl.StreamingSpanWriter())
+	assert.Nil(t, handler.impl.MetricsReader())
 }

@@ -75,6 +75,9 @@ type ArchiveFactory interface {
 	CreateArchiveSpanWriter() (spanstore.Writer, error)
 }
 
+// ErrMetricsStorageNotSupported can be returned by the MetricsFactory when the metrics storage is not supported by the backend.
+var ErrMetricsStorageNotSupported = errors.New("metrics storage not supported")
+
 // MetricsFactory defines an interface for a factory that can create implementations of different metrics storage components.
 // Implementations are also encouraged to implement plugin.Configurable interface.
 //

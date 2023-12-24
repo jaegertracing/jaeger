@@ -23,6 +23,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 
 import "model.proto";
+import "openmetrics.proto";
 
 // Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
 // Enable custom Marshal method.
@@ -174,6 +175,56 @@ service DependenciesReaderPlugin {
     rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
 }
 
+service MetricsReaderPlugin {
+    // metricsstore/Reader
+    rpc GetLatencies(GetLatenciesRequest) returns (GetLatenciesResponse);
+    rpc GetCallRates(GetCallRatesRequest) returns (GetCallRatesResponse);
+    rpc GetErrorRates(GetErrorRatesRequest) returns (GetErrorRatesResponse);
+    rpc GetMinStepDuration(GetMinStepDurationRequest) returns (GetMinStepDurationResponse);
+}
+
+message MetricsBaseQueryParameters {
+    repeated string service_names = 1;
+    bool group_by_operation = 2;
+    google.protobuf.Timestamp end_time = 3;
+    google.protobuf.Duration lookback = 4;
+    google.protobuf.Duration step = 5;
+    google.protobuf.Duration rate_per = 6;
+    repeated string span_kinds = 7;
+}
+
+message GetLatenciesRequest {
+    MetricsBaseQueryParameters base_query_parameters = 1;
+    float quantile = 2;
+}
+
+message GetLatenciesResponse {
+    jaeger.api_v2.metrics.MetricFamily metric_family = 1;
+}
+
+message GetCallRatesRequest {
+    MetricsBaseQueryParameters base_query_parameters = 1;
+}
+
+message GetCallRatesResponse {
+    jaeger.api_v2.metrics.MetricFamily metric_family = 1;
+}
+
+message GetErrorRatesRequest {
+    MetricsBaseQueryParameters base_query_parameters = 1;
+}
+
+message GetErrorRatesResponse {
+    jaeger.api_v2.metrics.MetricFamily metric_family = 1;
+}
+
+message GetMinStepDurationRequest {
+}
+
+message GetMinStepDurationResponse {
+    google.protobuf.Duration min_step = 1;
+}
+
 // empty; extensible in the future
 message CapabilitiesRequest {
 
@@ -183,6 +234,7 @@ message CapabilitiesResponse {
     bool archiveSpanReader = 1;
     bool archiveSpanWriter = 2;
     bool streamingSpanWriter = 3;
+    bool metricsReader = 4;
 }
 
 service PluginCapabilities {

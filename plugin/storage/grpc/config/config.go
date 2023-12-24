@@ -117,6 +117,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 			Store:               grpcClient,
 			ArchiveStore:        grpcClient,
 			StreamingSpanWriter: grpcClient,
+			MetricsReader:       grpcClient,
 		},
 		Capabilities: grpcClient,
 	}, nil
