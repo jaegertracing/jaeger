@@ -22,11 +22,15 @@ jobs:
     - name: Install Go Tip
       uses: ./.github/actions/setup-go-tip
 
-    - name: Install tools
-      run: make install-test-tools
-
     - name: Run unit tests
       run: make test-ci
+
+    - name: Publish Unit Test Summary 📑
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        check_name: Unit Tests Summary
+        junit_files: junit-report.xml
 
     - name: Lint
       run: echo skip linting on Go tip

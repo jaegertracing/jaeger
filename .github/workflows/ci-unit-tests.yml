@@ -34,6 +34,13 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
+    - name: Publish Unit Test Summary 📑
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        check_name: Unit Tests Summary
+        junit_files: junit-report.xml
+
     - name: Setup CODECOV_TOKEN
       uses: ./.github/actions/setup-codecov
 
