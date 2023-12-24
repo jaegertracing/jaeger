@@ -150,7 +150,7 @@ func TestGetTraceSuccess(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 }
 
@@ -320,7 +320,7 @@ func TestGetTrace(t *testing.T) {
 
 			var response structuredResponse
 			err := getJSON(ts.server.URL+`/api/traces/123456aBC`+testCase.suffix, &response) // trace ID in mixed lower/upper case
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Empty(t, response.Errors)
 
 			assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
@@ -341,7 +341,7 @@ func TestGetTraceDBFailure(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetTraceNotFound(t *testing.T) {
@@ -352,7 +352,7 @@ func TestGetTraceNotFound(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	assert.EqualError(t, err, parsedError(404, "trace not found"))
+	require.EqualError(t, err, parsedError(404, "trace not found"))
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
@@ -369,7 +369,7 @@ func TestGetTraceAdjustmentFailure(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, response.Errors, 1)
 	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
 }
@@ -380,7 +380,7 @@ func TestGetTraceBadTraceID(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/chumbawumba`, &response)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestSearchSuccess(t *testing.T) {
@@ -391,7 +391,7 @@ func TestSearchSuccess(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 }
 
@@ -403,7 +403,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
 }
@@ -421,7 +421,7 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
 }
@@ -434,7 +434,7 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, response.Errors, 1)
 	assert.Equal(t, structuredError{Msg: "trace not found", TraceID: ui.TraceID("0000000000000001")}, response.Errors[0])
 }
@@ -448,7 +448,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
-	assert.EqualError(t, err, parsedError(500, whatsamattayou))
+	require.EqualError(t, err, parsedError(500, whatsamattayou))
 }
 
 func TestSearchModelConversionFailure(t *testing.T) {
@@ -465,7 +465,7 @@ func TestSearchModelConversionFailure(t *testing.T) {
 		Return([]*model.Trace{mockTrace}, nil).Once()
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, response.Errors, 1)
 	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
 }
@@ -478,7 +478,7 @@ func TestSearchDBFailure(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	assert.EqualError(t, err, parsedError(500, "whatsamattayou"))
+	require.EqualError(t, err, parsedError(500, "whatsamattayou"))
 }
 
 func TestSearchFailures(t *testing.T) {
@@ -508,7 +508,7 @@ func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+urlStr, &response)
-	assert.EqualError(t, err, errMsg)
+	require.EqualError(t, err, errMsg)
 }
 
 func TestGetServicesSuccess(t *testing.T) {
@@ -519,7 +519,7 @@ func TestGetServicesSuccess(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services", &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	actualServices := make([]string, len(expectedServices))
 	for i, s := range response.Data.([]interface{}) {
 		actualServices[i] = s.(string)
@@ -534,7 +534,7 @@ func TestGetServicesStorageFailure(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services", &response)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetOperationsSuccess(t *testing.T) {
@@ -559,7 +559,7 @@ func TestGetOperationsSuccess(t *testing.T) {
 	}
 
 	err := getJSON(ts.server.URL+"/api/operations?service=abc%2Ftrifle&spanKind=server", &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, len(expectedOperations), len(response.Operations))
 	for i, op := range response.Operations {
 		assert.Equal(t, expectedOperations[i].Name, op.Name)
@@ -573,7 +573,7 @@ func TestGetOperationsNoServiceName(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/operations", &response)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetOperationsStorageFailure(t *testing.T) {
@@ -586,7 +586,7 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/operations?service=trifle", &response)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetOperationsLegacySuccess(t *testing.T) {
@@ -607,7 +607,7 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.ElementsMatch(t, expectedOperationNames, response.Data.([]interface{}))
 }
 
@@ -620,7 +620,7 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(nil, errStorage).Once()
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/trifle/operations", &response)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetMetricsSuccess(t *testing.T) {
@@ -909,7 +909,7 @@ func TestSearchTenancyHTTP(t *testing.T) {
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "acme"},
 		&response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
 }
@@ -926,11 +926,11 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 		Return(mockTrace, nil).Twice()
 
 	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces?traceID=1&traceID=2`, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	req.Header.Add("Accept", "application/json")
 	// We don't set tenant header
 	resp, err := httpClient.Do(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 	tm := tenancy.NewManager(&tenancyOptions)
@@ -969,7 +969,7 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "acme"},
 		&responseAcme)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, responseAcme.Errors)
 	assert.Len(t, responseAcme.Data, 2)
 

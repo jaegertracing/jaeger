@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
@@ -51,7 +52,7 @@ func TestInsertThroughtput(t *testing.T) {
 			{Service: "my-svc", Operation: "op"},
 			{Service: "our-svc", Operation: "op2"},
 		}
-		assert.NoError(t, samplingStore.InsertThroughput(throughputs))
+		require.NoError(t, samplingStore.InsertThroughput(throughputs))
 		ret, _ := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
 		assert.Len(t, ret, 2)
 
@@ -69,7 +70,7 @@ func TestGetThroughput(t *testing.T) {
 	withPopulatedSamplingStore(func(samplingStore *SamplingStore) {
 		start := time.Now()
 		ret, err := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, ret, 1)
 		ret1, _ := samplingStore.GetThroughput(start, start)
 		assert.Empty(t, ret1)
@@ -80,10 +81,10 @@ func TestGetThroughput(t *testing.T) {
 
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
 	withMemorySamplingStore(func(samplingStore *SamplingStore) {
-		assert.NoError(t, samplingStore.InsertProbabilitiesAndQPS("dell11eg843d", model.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, model.ServiceOperationQPS{"new-srv": {"op": 4}}))
+		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("dell11eg843d", model.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, model.ServiceOperationQPS{"new-srv": {"op": 4}}))
 		assert.NotEmpty(t, 1, samplingStore.probabilitiesAndQPS)
 		// Only latest one is kept in memory
-		assert.NoError(t, samplingStore.InsertProbabilitiesAndQPS("lncol73", model.ServiceOperationProbabilities{"my-app": {"hello": 0.3}}, model.ServiceOperationQPS{"new-srv": {"op": 7}}))
+		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("lncol73", model.ServiceOperationProbabilities{"my-app": {"hello": 0.3}}, model.ServiceOperationQPS{"new-srv": {"op": 7}}))
 		assert.Equal(t, 0.3, samplingStore.probabilitiesAndQPS.probabilities["my-app"]["hello"])
 	})
 }
@@ -92,16 +93,16 @@ func TestGetLatestProbability(t *testing.T) {
 	withMemorySamplingStore(func(samplingStore *SamplingStore) {
 		// No priod data
 		ret, err := samplingStore.GetLatestProbabilities()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, ret)
 	})
 
 	withPopulatedSamplingStore(func(samplingStore *SamplingStore) {
 		// With some pregenerated data
 		ret, err := samplingStore.GetLatestProbabilities()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, ret)
-		assert.NoError(t, samplingStore.InsertProbabilitiesAndQPS("utfhyolf", model.ServiceOperationProbabilities{"another-service": {"hello": 0.009}}, model.ServiceOperationQPS{"new-srv": {"op": 5}}))
+		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("utfhyolf", model.ServiceOperationProbabilities{"another-service": {"hello": 0.009}}, model.ServiceOperationQPS{"new-srv": {"op": 5}}))
 		ret, _ = samplingStore.GetLatestProbabilities()
 		assert.NotEqual(t, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, ret)
 	})

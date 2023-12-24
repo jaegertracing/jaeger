@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -43,7 +44,7 @@ func TestArchiveWriter_WriteSpan(t *testing.T) {
 	writer := &archiveWriter{client: archiveSpanWriter}
 
 	err := writer.WriteSpan(context.Background(), mockSpan)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestArchiveReader_GetTrace(t *testing.T) {
@@ -70,7 +71,7 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 	reader := &archiveReader{client: archiveSpanReader}
 
 	trace, err := reader.GetTrace(context.Background(), mockTraceID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, trace)
 }
 
@@ -90,23 +91,23 @@ func TestArchiveReaderGetTrace_NoTrace(t *testing.T) {
 func TestArchiveReader_FindTraceIDs(t *testing.T) {
 	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.FindTraceIDs(context.Background(), nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveReader_FindTraces(t *testing.T) {
 	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.FindTraces(context.Background(), nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveReader_GetOperations(t *testing.T) {
 	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveReader_GetServices(t *testing.T) {
 	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
 	_, err := reader.GetServices(context.Background())
-	assert.Error(t, err)
+	require.Error(t, err)
 }

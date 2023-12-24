@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	kafka "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
@@ -43,7 +44,7 @@ func TestNewCommittingProcessor(t *testing.T) {
 	msg := &kafka.Message{}
 	msg.On("Offset").Return(msgOffset)
 
-	assert.NoError(t, committingProcessor.Process(msg))
+	require.NoError(t, committingProcessor.Process(msg))
 
 	spanProcessor.AssertExpectations(t)
 	assert.Equal(t, msgOffset, offsetMarker.capturedOffset)
@@ -56,7 +57,7 @@ func TestNewCommittingProcessorError(t *testing.T) {
 	committingProcessor := NewCommittingProcessor(spanProcessor, offsetMarker)
 	msg := &kafka.Message{}
 
-	assert.Error(t, committingProcessor.Process(msg))
+	require.Error(t, committingProcessor.Process(msg))
 
 	spanProcessor.AssertExpectations(t)
 	assert.Equal(t, int64(0), offsetMarker.capturedOffset)
@@ -71,5 +72,5 @@ func (f fakeProcessorMessage) Value() []byte {
 func TestNewCommittingProcessorErrorNoKafkaMessage(t *testing.T) {
 	committingProcessor := NewCommittingProcessor(&mocks.SpanProcessor{}, &fakeOffsetMarker{})
 
-	assert.Error(t, committingProcessor.Process(fakeProcessorMessage{}))
+	require.Error(t, committingProcessor.Process(fakeProcessorMessage{}))
 }

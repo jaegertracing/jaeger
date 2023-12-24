@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -83,7 +84,7 @@ func TestOTelTagAdjuster(t *testing.T) {
 				Spans: []*model.Span{testCase.span},
 			}
 			trace, err := OTelTagAdjuster().Adjust(trace)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testCase.expected.Tags, trace.Spans[0].Tags)
 			assert.Equal(t, testCase.expected.Process.Tags, trace.Spans[0].Process.Tags)
 

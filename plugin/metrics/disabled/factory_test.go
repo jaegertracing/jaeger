@@ -28,7 +28,7 @@ var _ storage.MetricsFactory = new(Factory)
 
 func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(zap.NewNop()))
+	require.NoError(t, f.Initialize(zap.NewNop()))
 
 	err := f.Initialize(nil)
 	require.NoError(t, err)
@@ -37,6 +37,6 @@ func TestPrometheusFactory(t *testing.T) {
 	f.InitFromViper(nil, zap.NewNop())
 
 	reader, err := f.CreateMetricsReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }

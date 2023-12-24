@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
@@ -95,7 +96,7 @@ func TestInitialize(t *testing.T) {
 
 	mS.On("Load").Return(testCache1, nil)
 	mE.On("Load").Return(nil, errDefault)
-	assert.NoError(t, c.Initialize())
+	require.NoError(t, c.Initialize())
 	assert.Equal(t, "rt-supply", c.Get("supply"))
 }
 
@@ -105,7 +106,7 @@ func TestInitialize_error(t *testing.T) {
 
 	mS.On("Load").Return(nil, errDefault)
 	mE.On("Load").Return(nil, errDefault)
-	assert.NoError(t, c.Initialize())
+	require.NoError(t, c.Initialize())
 	assert.True(t, c.IsEmpty())
 }
 
@@ -113,18 +114,18 @@ func TestWarmCache(t *testing.T) {
 	c, mE, mS := getCache(t)
 	mS.On("Load").Return(testCache1, nil).Times(1)
 	err := c.warmCache()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "rt-supply", c.Get("supply"))
 
 	mS.On("Load").Return(nil, errDefault).Times(1)
 	mE.On("Load").Return(testCache2, nil).Times(1)
 	err = c.warmCache()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "rt-demand", c.Get("demand"), "External load should've succeeded")
 
 	mS.On("Load").Return(nil, errDefault).Times(1)
 	mE.On("Load").Return(nil, errDefault).Times(1)
-	assert.Error(t, c.warmCache(), "Both loads should've failed")
+	require.Error(t, c.warmCache(), "Both loads should've failed")
 }
 
 func TestRefreshFromStorage(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAdditionalHeadersHandler(t *testing.T) {
@@ -38,10 +39,10 @@ func TestAdditionalHeadersHandler(t *testing.T) {
 	defer server.Close()
 
 	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	resp, err := server.Client().Do(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for k, v := range additionalHeaders {
 		assert.Equal(t, v, resp.Header[k])

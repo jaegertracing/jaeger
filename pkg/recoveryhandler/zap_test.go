@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -34,7 +35,7 @@ func TestNewRecoveryHandler(t *testing.T) {
 
 	recovery := NewRecoveryHandler(logger, false)(handlerFunc)
 	req, err := http.NewRequest(http.MethodGet, "/subdir/asdf", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	res := httptest.NewRecorder()
 	recovery.ServeHTTP(res, req)

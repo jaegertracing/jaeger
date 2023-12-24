@@ -39,7 +39,7 @@ func TestAgentStartError(t *testing.T) {
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
 	agent.httpServer.Addr = "bad-address"
-	assert.Error(t, agent.Run())
+	require.Error(t, agent.Run())
 }
 
 func TestAgentSamplingEndpoint(t *testing.T) {
@@ -67,7 +67,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 		resp, err := http.Get(url)
 		require.NoError(t, err)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "collector error: no peers available\n", string(body))
 	})
 }
@@ -78,7 +78,7 @@ func TestAgentMetricsEndpoint(t *testing.T) {
 		resp, err := http.Get(url)
 		require.NoError(t, err)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, string(body), "# HELP")
 	})
 }
@@ -129,7 +129,7 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 	testcase(agent.HTTPAddr(), ch)
 
 	agent.Stop()
-	assert.NoError(t, <-ch)
+	require.NoError(t, <-ch)
 
 	for i := 0; i < 1000; i++ {
 		if strings.Contains(logBuf.String(), "agent's http server exiting") {

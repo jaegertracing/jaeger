@@ -220,8 +220,8 @@ func TestProxyBuilder(t *testing.T) {
 				assert.NotNil(t, proxy.GetReporter())
 				assert.NotNil(t, proxy.GetManager())
 
-				assert.NoError(t, proxy.Close())
-				assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
+				require.NoError(t, proxy.Close())
+				require.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
 			}
 		})
 	}
@@ -423,5 +423,5 @@ func TestBuilderWithAdditionalDialOptions(t *testing.T) {
 	assert.NotNil(t, r)
 
 	err = r.Invoke(context.Background(), "test", map[string]string{}, map[string]string{}, []grpc.CallOption{}...)
-	assert.Error(t, err, "should error because no server is running")
+	require.Error(t, err, "should error because no server is running")
 }

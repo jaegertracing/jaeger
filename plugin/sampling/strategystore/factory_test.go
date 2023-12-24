@@ -66,7 +66,7 @@ func TestNewFactory(t *testing.T) {
 	for _, tc := range tests {
 		f, err := NewFactory(FactoryConfig{StrategyStoreType: Kind(tc.strategyStoreType)})
 		if tc.expectError {
-			assert.Error(t, err)
+			require.Error(t, err)
 			continue
 		}
 		assert.NotEmpty(t, f.factories)
@@ -76,20 +76,20 @@ func TestNewFactory(t *testing.T) {
 		mock := new(mockFactory)
 		f.factories[Kind(tc.strategyStoreType)] = mock
 
-		assert.NoError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()))
+		require.NoError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()))
 		_, _, err = f.CreateStrategyStore()
 		require.NoError(t, err)
 
 		// force the mock to return errors
 		mock.retError = true
-		assert.EqualError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
+		require.EqualError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
 		_, _, err = f.CreateStrategyStore()
-		assert.EqualError(t, err, "error creating store")
+		require.EqualError(t, err, "error creating store")
 
 		// request something that doesn't exist
 		f.StrategyStoreType = "doesntexist"
 		_, _, err = f.CreateStrategyStore()
-		assert.EqualError(t, err, "no doesntexist strategy store registered")
+		require.EqualError(t, err, "no doesntexist strategy store registered")
 	}
 }
 

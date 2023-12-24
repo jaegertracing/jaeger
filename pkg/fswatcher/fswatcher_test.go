@@ -60,13 +60,13 @@ func TestFSWatcherAddFiles(t *testing.T) {
 	w, err := New([]string{file1}, nil, nil)
 	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
-	assert.NoError(t, w.Close())
+	require.NoError(t, w.Close())
 
 	// Add one empty-name file and one readable file
 	w, err = New([]string{"", file1}, nil, nil)
 	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
-	assert.NoError(t, w.Close())
+	require.NoError(t, w.Close())
 
 	// Add one readable file and one unreadable file
 	_, err = New([]string{file1, "invalid-file-name"}, nil, nil)
@@ -76,13 +76,13 @@ func TestFSWatcherAddFiles(t *testing.T) {
 	w, err = New([]string{file1, file2}, nil, nil)
 	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
-	assert.NoError(t, w.Close())
+	require.NoError(t, w.Close())
 
 	// Add two readable files from two different repos
 	w, err = New([]string{file1, file3}, nil, nil)
 	require.NoError(t, err)
 	assert.IsType(t, &FSWatcher{}, w)
-	assert.NoError(t, w.Close())
+	require.NoError(t, w.Close())
 }
 
 func TestFSWatcherWithMultipleFiles(t *testing.T) {

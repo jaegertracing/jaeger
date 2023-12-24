@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -34,7 +35,7 @@ func TestReadBuf_Read(t *testing.T) {
 	b := &ReadBuf{bytes: []byte("hello"), n: 5}
 	r := make([]byte, 5)
 	n, err := b.Read(r)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 5, n)
 	assert.Equal(t, "hello", string(r))
 }

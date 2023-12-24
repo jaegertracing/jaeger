@@ -92,7 +92,7 @@ func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.Gr
 
 func TestNewThriftProcessor_ZeroCount(t *testing.T) {
 	_, err := NewThriftProcessor(nil, 0, nil, nil, nil, zaptest.NewLogger(t))
-	assert.EqualError(t, err, "number of processors must be greater than 0, called with 0")
+	require.EqualError(t, err, "number of processors must be greater than 0, called with 0")
 }
 
 func TestProcessorWithCompactZipkin(t *testing.T) {

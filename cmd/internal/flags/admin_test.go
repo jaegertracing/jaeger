@@ -47,7 +47,7 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 
 	adminServer.initFromViper(v, logger)
 
-	assert.NoError(t, adminServer.Serve())
+	require.NoError(t, adminServer.Serve())
 	defer adminServer.Close()
 
 	message := logs.FilterMessage("Admin server started")

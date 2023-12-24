@@ -49,7 +49,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	cleanES(t, client, defaultILMPolicyName)
 	envVars := []string{"ES_USE_ILM=true"}
 	err = runEsRollover("init", envVars)
-	assert.EqualError(t, err, "exit status 1")
+	require.EqualError(t, err, "exit status 1")
 	indices, err := client.IndexNames()
 	require.NoError(t, err)
 	assert.Empty(t, indices)
@@ -85,7 +85,7 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 	if esVersion < 7 {
 		cleanES(t, client, "")
 		err := runEsRollover("init", envVars)
-		assert.EqualError(t, err, "exit status 1")
+		require.EqualError(t, err, "exit status 1")
 		indices, err1 := client.IndexNames()
 		require.NoError(t, err1)
 		assert.Empty(t, indices)

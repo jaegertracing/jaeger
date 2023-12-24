@@ -89,7 +89,7 @@ func TestServerStart_BadPortErrors(t *testing.T) {
 			GRPCHostPort: ":-1",
 		},
 	}
-	assert.Error(t, srv.Start())
+	require.Error(t, srv.Start())
 }
 
 type storageMocks struct {
@@ -336,8 +336,8 @@ func TestServerGRPCTLS(t *testing.T) {
 				tm,
 				flagsSvc.Logger,
 			)
-			assert.NoError(t, err)
-			assert.NoError(t, server.Start())
+			require.NoError(t, err)
+			require.NoError(t, server.Start())
 
 			var wg sync.WaitGroup
 			wg.Add(1)

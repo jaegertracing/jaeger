@@ -44,7 +44,7 @@ func TestFailToListenHTTP(t *testing.T) {
 		Logger:   logger,
 	})
 	assert.Nil(t, server)
-	assert.EqualError(t, err, "listen tcp: address -1: invalid port")
+	require.EqualError(t, err, "listen tcp: address -1: invalid port")
 }
 
 func TestCreateTLSHTTPServerError(t *testing.T) {
@@ -63,7 +63,7 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 		TLSConfig:   tlsCfg,
 	}
 	_, err := StartHTTPServer(params)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestSpanCollectorHTTP(t *testing.T) {
@@ -82,7 +82,7 @@ func TestSpanCollectorHTTP(t *testing.T) {
 	serveHTTP(server.Config, server.Listener, params)
 
 	response, err := http.Post(server.URL, "", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, response)
 }
 
@@ -204,7 +204,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			server, err := StartHTTPServer(params)
 			require.NoError(t, err)
 			defer func() {
-				assert.NoError(t, server.Close())
+				require.NoError(t, server.Close())
 			}()
 
 			clientTLSCfg, err0 := test.clientTLS.Config(logger)

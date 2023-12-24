@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -105,7 +106,7 @@ func TestKeyValuesHashErrors(t *testing.T) {
 	w := &mockHashWwiter{
 		answers: make([]mockHashWwiterAnswer, 3),
 	}
-	assert.EqualError(t, kvs.Hash(w), "unknown type -1")
+	require.EqualError(t, kvs.Hash(w), "unknown type -1")
 }
 
 // No memory allocations for IsLess and Equal

@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStringSlice(t *testing.T) {
@@ -46,17 +47,17 @@ func TestStringSliceTreatedAsStringSlice(t *testing.T) {
 	flagset.Var(f, "test", "test")
 
 	err := flagset.Set("test", "asdf")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = flagset.Set("test", "blerg")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = flagset.Set("test", "other,thing")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// add go flag set to pflag
 	pflagset := pflag.FlagSet{}
 	pflagset.AddGoFlagSet(flagset)
 	actual, err := pflagset.GetStringSlice("test")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, []string{"asdf", "blerg", "other,thing"}, actual)
 }

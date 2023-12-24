@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -81,7 +82,7 @@ func TestNew(t *testing.T) {
 	tempDir := t.TempDir()
 
 	file, err := os.CreateTemp(tempDir, "mapping.json")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = file.Write([]byte(`
 {
@@ -93,7 +94,7 @@ func TestNew(t *testing.T) {
 	}
 }
 `))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	anonymizer := New(file.Name(), Options{}, nopLogger)
 	assert.NotNil(t, anonymizer)

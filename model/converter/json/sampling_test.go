@@ -28,7 +28,7 @@ import (
 
 func TestSamplingStrategyResponseToJSON_Error(t *testing.T) {
 	_, err := SamplingStrategyResponseToJSON(nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 // TestSamplingStrategyResponseToJSON verifies that the function outputs
@@ -94,7 +94,7 @@ func compareProtoAndThriftJSON(t *testing.T, thriftObj *api_v1.SamplingStrategyR
 
 func TestSamplingStrategyResponseFromJSON(t *testing.T) {
 	_, err := SamplingStrategyResponseFromJSON([]byte("broken"))
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	s1 := &api_v2.SamplingStrategyResponse{
 		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,

@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -66,7 +67,7 @@ func TestSpanIDDeduperTriggered(t *testing.T) {
 	trace := newTrace()
 	deduper := SpanIDDeduper()
 	trace, err := deduper.Adjust(trace)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	clientSpan := trace.Spans[0]
 	assert.Equal(t, clientSpanID, clientSpan.SpanID, "client span ID should not change")
@@ -86,7 +87,7 @@ func TestSpanIDDeduperNotTriggered(t *testing.T) {
 
 	deduper := SpanIDDeduper()
 	trace, err := deduper.Adjust(trace)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	serverSpanID := clientSpanID // for better readability
 	serverSpan := trace.Spans[0]

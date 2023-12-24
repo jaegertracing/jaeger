@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -122,10 +123,10 @@ func TestTableExec(t *testing.T) {
 		}
 		err := tm.Exec(tc.q, useLogger)
 		if tc.q.err == nil {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Empty(t, logBuf.Bytes())
 		} else {
-			assert.Error(t, err, tc.q.err.Error())
+			require.Error(t, err, tc.q.err.Error())
 			if tc.log {
 				assert.Equal(t, map[string]string{
 					"level": "error",

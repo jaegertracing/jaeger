@@ -199,7 +199,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 		t.Run(testCase.description, func(t *testing.T) {
 			adjuster := ClockSkew(tt.maxAdjust)
 			trace, err := adjuster.Adjust(makeTrace(testCase.trace))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if testCase.err != "" {
 				var err string
 				for _, span := range trace.Spans {

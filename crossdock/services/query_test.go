@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	ui "github.com/jaegertracing/jaeger/model/json"
@@ -51,16 +52,16 @@ func TestGetTraces(t *testing.T) {
 	// Test with no http server
 	query := NewQueryService("", zap.NewNop())
 	_, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	query = NewQueryService(server.URL, zap.NewNop())
 	traces, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, traces, 1)
 	assert.EqualValues(t, "traceid", traces[0].TraceID)
 
 	_, err = query.GetTraces("bad_svc", "op", map[string]string{"key": "value"})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetTracesReadAllErr(t *testing.T) {
@@ -69,5 +70,5 @@ func TestGetTracesReadAllErr(t *testing.T) {
 	}))
 	query := NewQueryService(server.URL, zap.NewNop())
 	_, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
-	assert.EqualError(t, err, "unexpected EOF")
+	require.EqualError(t, err, "unexpected EOF")
 }

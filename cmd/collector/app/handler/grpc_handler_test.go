@@ -419,7 +419,7 @@ func TestBatchConsumer(t *testing.T) {
 					{OperationName: "test-op", Process: &model.Process{ServiceName: "foo"}},
 				},
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tc.transport, processor.getTransport())
 			assert.Equal(t, tc.expectedSpanFormat, processor.getSpanFormat())
 		})

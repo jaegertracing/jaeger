@@ -21,6 +21,7 @@ import (
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
@@ -36,7 +37,7 @@ func TestInsertThroughput(t *testing.T) {
 			{Service: "our-svc", Operation: "op2"},
 		}
 		err := store.InsertThroughput(throughputs)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -48,10 +49,10 @@ func TestGetThroughput(t *testing.T) {
 			{Service: "our-svc", Operation: "op2"},
 		}
 		err := store.InsertThroughput(expected)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		actual, err := store.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
 }
@@ -63,7 +64,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 			samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
 			samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
 		)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -74,17 +75,17 @@ func TestGetLatestProbabilities(t *testing.T) {
 			samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
 			samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
 		)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = store.InsertProbabilitiesAndQPS(
 			"newhostname",
 			samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}},
 			samplemodel.ServiceOperationQPS{"new-srv2": {"op": 1}},
 		)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		expected := samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}}
 		actual, err := store.GetLatestProbabilities()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
 }
@@ -97,16 +98,16 @@ func TestDecodeProbabilitiesValue(t *testing.T) {
 	}
 
 	marshalBytes, err := json.Marshal(expected)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// This should pass without error
 	actual, err := decodeProbabilitiesValue(marshalBytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
 
 	// Simulate data corruption by removing the first byte.
 	corruptedBytes := marshalBytes[1:]
 	_, err = decodeProbabilitiesValue(corruptedBytes)
-	assert.Error(t, err) // Expect an error
+	require.Error(t, err) // Expect an error
 }
 
 func TestDecodeThroughtputValue(t *testing.T) {
@@ -116,9 +117,9 @@ func TestDecodeThroughtputValue(t *testing.T) {
 	}
 
 	marshalBytes, err := json.Marshal(expected)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	acrual, err := decodeThroughtputValue(marshalBytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, acrual)
 }
 
@@ -131,9 +132,9 @@ func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) 
 	opts.ValueDir = dir
 
 	store, err := badger.Open(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer func() {
-		assert.NoError(t, store.Close())
+		require.NoError(t, store.Close())
 	}()
 	ss := newTestSamplingStore(store)
 	test(t, ss)

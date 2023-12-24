@@ -157,7 +157,7 @@ func TestParseTraceQuery(t *testing.T) {
 		test := tc // capture loop var
 		t.Run(test.urlStr, func(t *testing.T) {
 			request, err := http.NewRequest(http.MethodGet, test.urlStr, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			parser := &queryParser{
 				timeNow: func() time.Time {
 					return timeNow
@@ -165,7 +165,7 @@ func TestParseTraceQuery(t *testing.T) {
 			}
 			actualQuery, err := parser.parseTraceQueryParams(request)
 			if test.errMsg == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				if !assert.Equal(t, test.expectedQuery, actualQuery) {
 					for _, s := range pretty.Diff(test.expectedQuery, actualQuery) {
 						t.Log(s)

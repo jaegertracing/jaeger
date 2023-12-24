@@ -54,7 +54,7 @@ func TestStartOtlpReceiver(t *testing.T) {
 	rec, err := StartOTLPReceiver(optionsWithPorts(":0"), logger, spanProcessor, tm)
 	require.NoError(t, err)
 	defer func() {
-		assert.NoError(t, rec.Shutdown(context.Background()))
+		require.NoError(t, rec.Shutdown(context.Background()))
 	}()
 
 	// Ideally, we want to test with a real gRPC client, but OTEL repos only have those as internal packages.

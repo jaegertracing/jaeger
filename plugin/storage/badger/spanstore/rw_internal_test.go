@@ -22,6 +22,7 @@ import (
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -38,10 +39,10 @@ func TestEncodingTypes(t *testing.T) {
 
 		sw.encodingType = jsonEncoding
 		err := sw.WriteSpan(context.Background(), &testSpan)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		tr, err := rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, tr.Spans, 1)
 	})
 
@@ -55,7 +56,7 @@ func TestEncodingTypes(t *testing.T) {
 
 		sw.encodingType = 0x04
 		err := sw.WriteSpan(context.Background(), &testSpan)
-		assert.EqualError(t, err, "unknown encoding type: 0x04")
+		require.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 
 	// Unknown encoding reader
@@ -67,7 +68,7 @@ func TestEncodingTypes(t *testing.T) {
 		rw := NewTraceReader(store, cache)
 
 		err := sw.WriteSpan(context.Background(), &testSpan)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		startTime := model.TimeAsEpochMicroseconds(testSpan.StartTime)
 
@@ -84,7 +85,7 @@ func TestEncodingTypes(t *testing.T) {
 		})
 
 		_, err = rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
-		assert.EqualError(t, err, "unknown encoding type: 0x04")
+		require.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 }
 
@@ -92,10 +93,10 @@ func TestDecodeErrorReturns(t *testing.T) {
 	garbage := []byte{0x08}
 
 	_, err := decodeValue(garbage, protoEncoding)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	_, err = decodeValue(garbage, jsonEncoding)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestDuplicateTraceIDDetection(t *testing.T) {
@@ -113,7 +114,7 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 				testSpan.SpanID = model.SpanID(rand.Uint64())
 				testSpan.StartTime = origStartTime.Add(time.Duration(rand.Int31n(8000)) * time.Millisecond)
 				err := sw.WriteSpan(context.Background(), &testSpan)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		}
 
@@ -124,7 +125,7 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 			StartTimeMin: testSpan.StartTime.Add(-1 * time.Hour),
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, traces, 128)
 	})
 }

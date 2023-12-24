@@ -54,7 +54,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 		sdktrace.WithSyncer(exporter),
 	)
 	closer := func() {
-		assert.NoError(t, tp.Shutdown(context.Background()))
+		require.NoError(t, tp.Shutdown(context.Background()))
 	}
 	return tp, exporter, closer
 }
@@ -86,7 +86,7 @@ func TestSpanReaderGetServices(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		r.reader.serviceNamesReader = func() ([]string, error) { return []string{"service-a"}, nil }
 		s, err := r.reader.GetServices(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []string{"service-a"}, s)
 	})
 }
@@ -104,7 +104,7 @@ func TestSpanReaderGetOperations(t *testing.T) {
 		}
 		s, err := r.reader.GetOperations(context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "service-x", SpanKind: "server"})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedOperations, s)
 	})
 }
@@ -155,7 +155,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 				trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 				if testCase.expectedErr == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.NotNil(t, trace)
 				} else {
 					require.Error(t, err)
@@ -182,7 +182,7 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		assert.Nil(t, trace)
-		assert.EqualError(t, err, "trace not found")
+		require.EqualError(t, err, "trace not found")
 	})
 }
 
@@ -190,7 +190,7 @@ func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		_, err := r.reader.FindTraces(context.Background(), nil)
 		require.Empty(t, r.traceBuffer.GetSpans(), "Spans Not recorded")
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -407,10 +407,10 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				res, err := r.reader.FindTraces(context.Background(), queryParams)
 				if testCase.expectedError == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Len(t, res, testCase.expectedCount, "expecting certain number of traces")
 				} else {
-					assert.EqualError(t, err, testCase.expectedError)
+					require.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
 					assert.Contains(t, r.logBuffer.String(), expectedLog)
@@ -431,27 +431,27 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 		},
 	}
 	err := validateQuery(tsp)
-	assert.EqualError(t, err, ErrServiceNameNotSet.Error())
+	require.EqualError(t, err, ErrServiceNameNotSet.Error())
 
 	tsp.ServiceName = "serviceName"
 	tsp.StartTimeMin = time.Now()
 	tsp.StartTimeMax = time.Now().Add(-1 * time.Hour)
 	err = validateQuery(tsp)
-	assert.EqualError(t, err, ErrStartTimeMinGreaterThanMax.Error())
+	require.EqualError(t, err, ErrStartTimeMinGreaterThanMax.Error())
 
 	tsp.StartTimeMin = time.Now().Add(-12 * time.Hour)
 	tsp.DurationMin = time.Hour
 	tsp.DurationMax = time.Minute
 	err = validateQuery(tsp)
-	assert.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
+	require.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
 
 	tsp.DurationMin = time.Minute
 	tsp.DurationMax = time.Hour
 	err = validateQuery(tsp)
-	assert.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
+	require.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
 
 	tsp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tsp.StartTimeMax = time.Time{}
 	err = validateQuery(tsp)
-	assert.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
+	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 }

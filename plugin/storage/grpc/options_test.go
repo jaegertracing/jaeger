@@ -34,7 +34,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--grpc-storage-plugin.log-level=debug",
 		"--multi-tenancy.header=x-scope-orgid",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "noop-grpc-plugin", opts.Configuration.PluginBinary)
@@ -52,7 +52,7 @@ func TestRemoteOptionsWithFlags(t *testing.T) {
 		"--grpc-storage.tls.enabled=true",
 		"--grpc-storage.connection-timeout=60s",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "", opts.Configuration.PluginBinary)
@@ -69,7 +69,7 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 		"--grpc-storage.tls.enabled=false",
 		"--grpc-storage.connection-timeout=60s",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "", opts.Configuration.PluginBinary)
