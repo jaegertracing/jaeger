@@ -2,7 +2,7 @@ name: Unit Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, upload-test-report]
 
   pull_request:
     branches: [main]
@@ -14,6 +14,7 @@ concurrency:
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
+  checks: write
 
 jobs:
   unit-tests:
@@ -41,6 +42,13 @@ jobs:
         check_name: Unit Tests Summary
         junit_files: junit-report.xml
 
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Results
+        path: junit-report.xml
+
     - name: Setup CODECOV_TOKEN
       uses: ./.github/actions/setup-codecov
 
@@ -52,3 +60,13 @@ jobs:
         flags: unittests
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
+
+  event-file:
+    name: "Event File"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: Event File
+          path: ${{ github.event_path }}
