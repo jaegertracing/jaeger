@@ -2,7 +2,7 @@ name: Unit Tests
 
 on:
   push:
-    branches: [main, upload-test-report]
+    branches: [main, upload-test-report-1]
 
   pull_request:
     branches: [main]
