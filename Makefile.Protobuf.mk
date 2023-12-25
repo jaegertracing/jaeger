@@ -40,11 +40,11 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 OPENMETRICS_PROTO_FILES=$(wildcard model/proto/metrics/*.proto)
 
 # The source directory for OTLP Protobufs from the sub-sub-module.
-OTEL_PROTO_SRC_DIR=idl/opentelemetry-proto
+OTEL_PROTO_SRC_DIR=idl/opentelemetry-proto/opentelemetry/proto
 
-# Find all OTEL .proto files, remove repository path (only keep relevant namespace dirs).
+# Find all OTEL .proto files, remove leading path (only keep relevant namespace dirs).
 OTEL_PROTO_FILES=$(subst $(OTEL_PROTO_SRC_DIR)/,,\
-   $(shell ls $(OTEL_PROTO_SRC_DIR)/opentelemetry/proto/{common,resource,trace}/v1/*.proto))
+   $(shell ls $(OTEL_PROTO_SRC_DIR)/{common,resource,trace}/v1/*.proto))
 
 # Macro to execute a command passed as argument.
 # DO NOT DELETE EMPTY LINE at the end of the macro, it's required to separate commands.
@@ -116,15 +116,15 @@ proto-otel: proto-prepare-otel
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PATCHED_OTEL_PROTO_DIR)/opentelemetry/proto/common/v1/common.proto
+		$(PATCHED_OTEL_PROTO_DIR)/common/v1/common.proto
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PATCHED_OTEL_PROTO_DIR)/opentelemetry/proto/resource/v1/resource.proto
+		$(PATCHED_OTEL_PROTO_DIR)/resource/v1/resource.proto
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PATCHED_OTEL_PROTO_DIR)/opentelemetry/proto/trace/v1/trace.proto
+		$(PATCHED_OTEL_PROTO_DIR)/trace/v1/trace.proto
 
 	# Target  proto-prepare-otel modifies OTEL proto to use import path jaeger.proto.*
 	# The modification is needed because OTEL collector already uses opentelemetry.proto.*
