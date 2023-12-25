@@ -1,11 +1,23 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.4.0
-DOCKER_NAMESPACE?=jaegertracing
-DOCKER_TAG?=latest
+# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
+#
+# -I declares import folders, in order of importance. This is how proto resolves the protofile imports.
+# It will check for the protofile relative to each of thesefolders and use the first one it finds.
+#
+# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
+# --govalidators_out generates Go validation files for our messages types, if specified.
+#
+# The lines starting with Mgoogle/... are proto import replacements,
+# which cause the generated file to import the specified packages
+# instead of the go_package's declared by the imported protof files.
+#
+
+DOCKER_PROTOBUF_VERSION=0.5.0
+DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
 PROTO_INTERMEDIATE_DIR = proto-gen/.patched-otel-proto
-PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
 	-Iidl/proto/api_v3 \
@@ -64,27 +76,8 @@ x:
 	@echo $(OTEL_PROTO_FILES)
 
 
-# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
-#
-# -I declares import folders, in order of importance
-# This is how proto resolves the protofile imports.
-# It will check for the protofile relative to each of these
-# folders and use the first one it finds.
-#
-# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
-# --govalidators_out generates Go validation files for our messages types, if specified.
-#
-# The lines starting with Mgoogle/... are proto import replacements,
-# which cause the generated file to import the specified packages
-# instead of the go_package's declared by the imported protof files.
-#
-# $$GOPATH/src is the output directory. It is relative to the GOPATH/src directory
-# since we've specified a go_package option relative to that directory.
-#
-# model/proto/jaeger.proto is the location of the protofile we use.
-#
 .PHONY: proto
-proto: proto-model proto-api-v2 proto-storage-v1 proto-zipkin proto-openmetrics
+proto: proto-model proto-api-v2 proto-storage-v1 proto-zipkin proto-openmetrics proto-otel
 
 .PHONY: proto-model
 proto-model:
