@@ -73,6 +73,7 @@ define proto_compile
 
 endef
 
+# TODO add proto-hotrod to the list after regenerating its file (may need linter tweaking)
 .PHONY: proto
 proto: proto-model proto-api-v2 proto-storage-v1 proto-zipkin proto-openmetrics proto-otel
 
@@ -101,6 +102,10 @@ proto-storage-v1:
 		-Iplugin/storage/grpc/proto \
 		--go_out=$(PWD)/plugin/storage/grpc/proto/ \
 		plugin/storage/grpc/proto/storage_test.proto
+
+.PHONY: proto-hotrod
+proto-hotrod:
+	$(call proto_compile, , examples/hotrod/services/driver/driver.proto)
 
 .PHONY: proto-zipkin
 proto-zipkin:
@@ -157,10 +162,3 @@ proto-prepare-otel:
 	     echo $(file); \
 		 mkdir -p $(shell dirname $(PATCHED_OTEL_PROTO_DIR)/$(file)); \
 		 $(SED) -f otel_proto_patch.sed $(OTEL_PROTO_SRC_DIR)/$(file) > $(PATCHED_OTEL_PROTO_DIR)/$(file)))
-
-.PHONY: proto-hotrod
-proto-hotrod:
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/ \
-		examples/hotrod/services/driver/driver.proto
