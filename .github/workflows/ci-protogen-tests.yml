@@ -35,5 +35,5 @@ jobs:
     - name: Verify Protobuf types are up to date
       run: make proto && git diff --name-status --exit-code
 
-    # - name: Verify Thrift types are up to date
-    #   run: make thrift && git diff --name-status --exit-code
+    - name: Verify Thrift types are up to date
+      run: make thrift && git diff --name-status --exit-code

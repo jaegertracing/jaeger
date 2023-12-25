@@ -117,7 +117,7 @@ proto-zipkin:
 
 # Target 'proto-prepare-otel' modifies OTEL proto to use proto-import path jaeger.proto.*
 # The modification is needed because OTEL collector already uses opentelemetry.proto.*
-# and two complied protobuf types cannot have the same import path. The root cause is that the compiled OTLP
+# and two compiled protobuf types cannot have the same import path. The root cause is that the compiled OTLP
 # in the collector is in private package, hence it cannot be used in Jaeger.
 .PHONY: proto-prepare-otel
 proto-prepare-otel:
