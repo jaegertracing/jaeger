@@ -31,6 +31,8 @@ jobs:
         with:
           run-id: ${{ github.event.workflow_run.id }}
           path: artifacts
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
