@@ -52,6 +52,9 @@ ifeq ($(UNAME), s390x)
 else
 	RACE=-race
 endif
+# sed on Mac does not support the same syntax for in-place updates as sed on Linux
+# When running on MacOS it's best to install gsed and run Makefile with SED=gsed
+SED=sed
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
@@ -61,21 +64,20 @@ GOFMT=gofmt
 GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
-COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/☠️ SKIP/g'
+COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
 ifneq ($(GIT_CLOSEST_TAG),$(shell echo ${GIT_CLOSEST_TAG} | grep -E "$(semver_regex)"))
 	$(warning GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG) is not in the semver format $(semver_regex))
 endif
-GIT_CLOSEST_TAG_MAJOR := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v\([0-9]*\)\.[0-9]*\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_MINOR := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v[0-9]*\.\([0-9]*\)\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_PATCH := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v[0-9]*\.[0-9]*\.\([0-9]\)/\1/p')
+GIT_CLOSEST_TAG_MAJOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v\([0-9]*\)\.[0-9]*\.[0-9]/\1/p')
+GIT_CLOSEST_TAG_MINOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.\([0-9]*\)\.[0-9]/\1/p')
+GIT_CLOSEST_TAG_PATCH := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.[0-9]*\.\([0-9]\)/\1/p')
 DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
-SED=sed
 THRIFT_VER=0.14
 THRIFT_IMG=jaegertracing/thrift:$(THRIFT_VER)
 THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
@@ -516,8 +518,8 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
 #	TODO sed is GNU and BSD compatible
-	sed -i.bak 's|"zipkincore"|"$(JAEGER_IMPORT_PATH)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
-	sed -i.bak 's|"jaeger"|"$(JAEGER_IMPORT_PATH)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
+	$(SED) -i.bak 's|"zipkincore"|"$(JAEGER_IMPORT_PATH)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
+	$(SED) -i.bak 's|"jaeger"|"$(JAEGER_IMPORT_PATH)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/jaeger.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/baggage.thrift

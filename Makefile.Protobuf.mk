@@ -21,7 +21,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api, \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
-	| sed 's/ //g')
+	| $(SED) 's/ //g')
 
 OPENMETRICS_PROTO_FILES=$(wildcard model/proto/metrics/*.proto)
 
@@ -32,16 +32,6 @@ OTEL_PROTO_SRC_DIR=idl/opentelemetry-proto
 OTEL_PROTO_FILES=$(subst $(OTEL_PROTO_SRC_DIR)/,,\
    $(shell ls $(OTEL_PROTO_SRC_DIR)/opentelemetry/proto/{common,resource,trace}/v1/*.proto))
 
-# Macro to compile Protobuf $(2) into directory $(1).
-# DO NOT DELETE EMPTY LINE at the end of the macro, it's required to separate commands.
-define proto_compile
-  $(PROTOC) \
-    $(PROTO_INCLUDES) \
-    --gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/$(1)/ \
-    $(2)
-
-endef
-
 # Macro to execute a command passed as argument.
 # DO NOT DELETE EMPTY LINE at the end of the macro, it's required to separate commands.
 define exec-command
@@ -49,89 +39,97 @@ $(1)
 
 endef
 
+# DO NOT DELETE EMPTY LINE at the end of the macro, it's required to separate commands.
+define print_caption
+  @echo "🏗️ "
+  @echo "🏗️ " $1
+  @echo "🏗️ "
+
+endef
+
+# Macro to compile Protobuf $(2) into directory $(1). $(3) can provide additional flags.
+# DO NOT DELETE EMPTY LINE at the end of the macro, it's required to separate commands.
+define proto_compile
+  $(call print_caption, "Processing $(2) --> $(1)")
+
+  $(PROTOC) \
+    $(PROTO_INCLUDES) \
+    --gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/$(strip $(1)) \
+    $(3) $(2)
+
+endef
 
 .PHONY: x
 x:
 	@echo $(OTEL_PROTO_FILES)
 
+
+# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
+#
+# -I declares import folders, in order of importance
+# This is how proto resolves the protofile imports.
+# It will check for the protofile relative to each of these
+# folders and use the first one it finds.
+#
+# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
+# --govalidators_out generates Go validation files for our messages types, if specified.
+#
+# The lines starting with Mgoogle/... are proto import replacements,
+# which cause the generated file to import the specified packages
+# instead of the go_package's declared by the imported protof files.
+#
+# $$GOPATH/src is the output directory. It is relative to the GOPATH/src directory
+# since we've specified a go_package option relative to that directory.
+#
+# model/proto/jaeger.proto is the location of the protofile we use.
+#
 .PHONY: proto
-proto: proto-prepare-otel
-	# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
-	#
-	# -I declares import folders, in order of importance
-	# This is how proto resolves the protofile imports.
-	# It will check for the protofile relative to each of these
-	# folders and use the first one it finds.
-	#
-	# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
-	# --govalidators_out generates Go validation files for our messages types, if specified.
-	#
-	# The lines starting with Mgoogle/... are proto import replacements,
-	# which cause the generated file to import the specified packages
-	# instead of the go_package's declared by the imported protof files.
-	#
-	# $$GOPATH/src is the output directory. It is relative to the GOPATH/src directory
-	# since we've specified a go_package option relative to that directory.
-	#
-	# model/proto/jaeger.proto is the location of the protofile we use.
-	#
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
-		idl/proto/api_v2/model.proto
+proto: proto-model proto-api-v2 proto-storage-v1 proto-zipkin proto-openmetrics
 
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
-		idl/proto/api_v2/query.proto
-		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+.PHONY: proto-model
+proto-model:
+	$(call proto_compile, model, idl/proto/api_v2/model.proto)
+	$(PROTOC) -Imodel/proto --go_out=$(PWD)/model/ model/proto/model_test.proto
 
-	@echo "Compile OpenMetrics Protos"
+.PHONY: proto-api-v2
+proto-api-v2:
+	$(call proto_compile, proto-gen/api_v2, idl/proto/api_v2/query.proto)
+	$(call proto_compile, proto-gen/api_v2, idl/proto/api_v2/collector.proto)
+	$(call proto_compile, proto-gen/api_v2, idl/proto/api_v2/sampling.proto)
+
+.PHONY: proto-openmetrics
+proto-openmetrics:
+	$(call print_caption, Processing OpenMetrics Protos)
 	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, proto-gen/api_v2/metrics, $(file)))
+	@# TODO why is this file included in model/proto/metrics/ in the first place?
+	rm proto-gen/api_v2/metrics/otelmetric.pb.go
 
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
-		idl/proto/api_v2/collector.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
-		idl/proto/api_v2/sampling.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		-Iplugin/storage/grpc/proto \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
-		plugin/storage/grpc/proto/storage.proto
-
-	$(PROTOC) \
-		-Imodel/proto \
-		--go_out=$(PWD)/model/ \
-		model/proto/model_test.proto
-
+.PHONY: proto-storage-v1
+proto-storage-v1:
+	$(call proto_compile, proto-gen/storage_v1, plugin/storage/grpc/proto/storage.proto, -Iplugin/storage/grpc/proto)
 	$(PROTOC) \
 		-Iplugin/storage/grpc/proto \
 		--go_out=$(PWD)/plugin/storage/grpc/proto/ \
 		plugin/storage/grpc/proto/storage_test.proto
 
-	$(PROTOC) \
-		-Iidl/proto \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
-		idl/proto/zipkin.proto
+.PHONY: proto-zipkin
+proto-zipkin:
+	$(call proto_compile, proto-gen/zipkin, idl/proto/zipkin.proto, -Iidl/proto)
 
+.PHONY: proto-otel
+proto-otel: proto-prepare-otel
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
+		$(PROTO_INTERMEDIATE_DIR)/opentelemetry/proto/common/v1/common.proto
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
+		$(PROTO_INTERMEDIATE_DIR)/opentelemetry/proto/resource/v1/resource.proto
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+		$(PROTO_INTERMEDIATE_DIR)/opentelemetry/proto/trace/v1/trace.proto
 
 	# Target  proto-prepare-otel modifies OTEL proto to use import path jaeger.proto.*
 	# The modification is needed because OTEL collector already uses opentelemetry.proto.*
@@ -143,7 +141,7 @@ proto: proto-prepare-otel
 	# prevents panic of two equal proto types.
 	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
 	cp -R idl/opentelemetry-proto/* $(PROTO_INTERMEDIATE_DIR)
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 $(SED) -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
@@ -168,7 +166,7 @@ proto-prepare-otel:
 	   $(call exec-command,\
 	     echo $(file); \
 		 mkdir -p $(shell dirname $(PROTO_INTERMEDIATE_DIR)/$(file)); \
-		 sed -f otel_proto_patch.sed $(OTEL_PROTO_SRC_DIR)/$(file) > $(PROTO_INTERMEDIATE_DIR)/$(file)))
+		 $(SED) -f otel_proto_patch.sed $(OTEL_PROTO_SRC_DIR)/$(file) > $(PROTO_INTERMEDIATE_DIR)/$(file)))
 
 .PHONY: proto-hotrod
 proto-hotrod:
