@@ -79,7 +79,14 @@ endef
 
 # TODO add proto-hotrod to the list after regenerating its file (may need linter tweaking)
 .PHONY: proto
-proto: proto-model proto-api-v2 proto-storage-v1 proto-zipkin proto-openmetrics proto-otel proto-api-v3
+proto: proto-model \
+	proto-api-v2 \
+	proto-storage-v1 \
+	proto-hotrod \
+	proto-zipkin \
+	proto-openmetrics \
+	proto-otel \
+	proto-api-v3
 
 .PHONY: proto-model
 proto-model:
