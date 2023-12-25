@@ -2,7 +2,7 @@ name: Unit Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, upload-test-report]
 
   pull_request:
     branches: [main]
@@ -40,6 +40,16 @@ jobs:
       with:
         check_name: Unit Tests Summary
         junit_files: junit-report.xml
+        # PR comments and check run will be performed by the "Unit Test Results" workflow.
+        comment_mode: off
+        check_run: false
+
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Results
+        path: junit-report.xml
 
     - name: Setup CODECOV_TOKEN
       uses: ./.github/actions/setup-codecov
@@ -52,3 +62,13 @@ jobs:
         flags: unittests
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
+
+  event-file:
+    name: "Event File"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: Event File
+          path: ${{ github.event_path }}
