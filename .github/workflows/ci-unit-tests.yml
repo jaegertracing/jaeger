@@ -15,6 +15,7 @@ concurrency:
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
   checks: write
+  pull-requests: write
 
 jobs:
   unit-tests:
