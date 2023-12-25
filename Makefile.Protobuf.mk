@@ -1,8 +1,7 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# TODO JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.4.0
-JAEGER_DOCKER_PROTOBUF=otel/build-protobuf:0.9.0
+JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.4.0
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 PROTO_INTERMEDIATE_DIR = proto-gen/.patched-otel-proto
