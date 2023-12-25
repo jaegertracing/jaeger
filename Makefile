@@ -4,10 +4,12 @@
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
-GO = go
+
+# These DOCKER_xxx vars are used when building Docker images.
+DOCKER_NAMESPACE?=jaegertracing
+DOCKER_TAG?=latest
 
 # TODO we can compartmentalize this Makefile better, by separting:
-#  - thrift and proto builds
 #  - integration tests
 #  - all the binary building targets
 
@@ -51,6 +53,7 @@ endif
 # sed on Mac does not support the same syntax for in-place updates as sed on Linux
 # When running on MacOS it's best to install gsed and run Makefile with SED=gsed
 SED=sed
+GO=go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
@@ -74,12 +77,6 @@ DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' -
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
-THRIFT_VER=0.14
-THRIFT_IMG=jaegertracing/thrift:$(THRIFT_VER)
-THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
-THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
-THRIFT_GEN_DIR=thrift-gen
-
 SWAGGER_VER=0.27.0
 SWAGGER_IMAGE=quay.io/goswagger/swagger:v$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
@@ -89,9 +86,11 @@ MOCKERY=mockery
 GOVERSIONINFO=goversioninfo
 SYSOFILE=resource.syso
 
+# import other Makefiles after the variables are defined
 include docker/Makefile
 include Makefile.Protobuf.mk
-include crossdock/rules.mk
+include Makefile.Thrift.mk
+include Makefile.Crossdock.mk
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -423,25 +422,6 @@ docker-images-elastic: create-baseimg
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
-# TODO does this target need to exist? It's only called from crossdock, apparently.
-.PHONY: docker-images-jaeger-backend
-docker-images-jaeger-backend: create-baseimg create-debugimg
-	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
-		regex="jaeger-(.*)"; \
-		component_suffix=$$component; \
-		if [[ $$component =~ $$regex ]]; then \
-			component_suffix="$${BASH_REMATCH[1]}"; \
-		fi; \
-		docker buildx build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/$$component$(SUFFIX):${DOCKER_TAG} \
-			--build-arg base_image=$(BASE_IMAGE) \
-			--build-arg debug_image=$(DEBUG_IMAGE) \
-			--build-arg TARGETARCH=$(GOARCH) \
-			--load \
-			cmd/$$component_suffix; \
-		echo "Finished building $$component ==============" ; \
-	done;
-
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
@@ -451,34 +431,6 @@ docker-images-tracegen:
 docker-images-anonymizer:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-anonymizer =============="
-
-.PHONY: build-crossdock-binary
-build-crossdock-binary:
-	$(GOBUILD) -o ./crossdock/crossdock-$(GOOS)-$(GOARCH) ./crossdock/main.go
-
-.PHONY: build-crossdock-linux
-build-crossdock-linux:
-	GOOS=linux $(MAKE) build-crossdock-binary
-
-# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
-.PHONY: build-crossdock-ui-placeholder
-build-crossdock-ui-placeholder:
-	mkdir -p jaeger-ui/packages/jaeger-ui/build/
-	cp cmd/query/app/ui/placeholder/index.html jaeger-ui/packages/jaeger-ui/build/index.html
-	$(MAKE) build-ui
-
-.PHONY: build-crossdock
-build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} --build-arg TARGETARCH=$(GOARCH) crossdock/
-	@echo "Finished building test-driver ==============" ; \
-
-.PHONY: build-and-run-crossdock
-build-and-run-crossdock: build-crossdock
-	make crossdock
-
-.PHONY: build-crossdock-fresh
-build-crossdock-fresh: build-crossdock-linux
-	make crossdock-fresh
 
 .PHONY: changelog
 changelog:
@@ -513,29 +465,9 @@ test-ci: install-test-tools build-examples cover test-report
 test-report:
 	cat test-results.json | go-junit-report -parser gojson > junit-report.xml
 
-.PHONY: thrift
-thrift: idl/thrift/jaeger.thrift thrift-image
-	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
-#	TODO sed is GNU and BSD compatible
-	$(SED) -i.bak 's|"zipkincore"|"$(JAEGER_IMPORT_PATH)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
-	$(SED) -i.bak 's|"jaeger"|"$(JAEGER_IMPORT_PATH)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/jaeger.thrift
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/baggage.thrift
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/zipkincore.thrift
-	rm -rf thrift-gen/*/*-remote thrift-gen/*/*.bak
-
-idl/thrift/jaeger.thrift:
-	$(MAKE) init-submodules
-
 .PHONY: init-submodules
 init-submodules:
 	git submodule update --init --recursive
-
-.PHONY: thrift-image
-thrift-image:
-	$(THRIFT) -version
 
 .PHONY: generate-zipkin-swagger
 generate-zipkin-swagger: init-submodules
