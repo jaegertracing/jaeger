@@ -6,10 +6,6 @@ JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 GO = go
 
-include docker/Makefile
-include Makefile.Protobuf.mk
-include crossdock/rules.mk
-
 # TODO we can compartmentalize this Makefile better, by separting:
 #  - thrift and proto builds
 #  - integration tests
@@ -92,6 +88,10 @@ SWAGGER_GEN_DIR=swagger-gen
 MOCKERY=mockery
 GOVERSIONINFO=goversioninfo
 SYSOFILE=resource.syso
+
+include docker/Makefile
+include Makefile.Protobuf.mk
+include crossdock/rules.mk
 
 .DEFAULT_GOAL := test-and-lint
 

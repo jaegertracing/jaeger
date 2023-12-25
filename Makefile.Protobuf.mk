@@ -16,24 +16,26 @@
 
 DOCKER_PROTOBUF_VERSION=0.5.0
 DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
-PROTO_INTERMEDIATE_DIR = proto-gen/.patched-otel-proto
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+
+PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
+
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
 	-Iidl/proto/api_v3 \
 	-Imodel/proto/metrics \
-	-I$(PROTO_INTERMEDIATE_DIR) \
+	-I$(PATCHED_OTEL_PROTO_DIR) \
 	-I/usr/include/github.com/gogo/protobuf
 
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
-		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api, \
+		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types \
+		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types \
+		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types \
+		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types \
+		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
-	| $(SED) 's/ //g')
+	| $(SED) 's/  */,/g')
 
 OPENMETRICS_PROTO_FILES=$(wildcard model/proto/metrics/*.proto)
 
@@ -70,11 +72,6 @@ define proto_compile
     $(3) $(2)
 
 endef
-
-.PHONY: x
-x:
-	@echo $(OTEL_PROTO_FILES)
-
 
 .PHONY: proto
 proto: proto-model proto-api-v2 proto-storage-v1 proto-zipkin proto-openmetrics proto-otel
@@ -114,15 +111,15 @@ proto-otel: proto-prepare-otel
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/opentelemetry/proto/common/v1/common.proto
+		$(PATCHED_OTEL_PROTO_DIR)/opentelemetry/proto/common/v1/common.proto
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/opentelemetry/proto/resource/v1/resource.proto
+		$(PATCHED_OTEL_PROTO_DIR)/opentelemetry/proto/resource/v1/resource.proto
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/opentelemetry/proto/trace/v1/trace.proto
+		$(PATCHED_OTEL_PROTO_DIR)/opentelemetry/proto/trace/v1/trace.proto
 
 	# Target  proto-prepare-otel modifies OTEL proto to use import path jaeger.proto.*
 	# The modification is needed because OTEL collector already uses opentelemetry.proto.*
@@ -132,9 +129,9 @@ proto-otel: proto-prepare-otel
 	# This way the service will use opentelemetry.proto.trace.v1.ResourceSpans but in reality at runtime
 	# it uses jaeger.proto.trace.v1.ResourceSpans which is the same type in a different package which
 	# prevents panic of two equal proto types.
-	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
-	cp -R idl/opentelemetry-proto/* $(PROTO_INTERMEDIATE_DIR)
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 $(SED) -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
+	rm -rf $(PATCHED_OTEL_PROTO_DIR)/*
+	cp -R idl/opentelemetry-proto/* $(PATCHED_OTEL_PROTO_DIR)
+	find $(PATCHED_OTEL_PROTO_DIR) -name "*.proto" | xargs -L 1 $(SED) -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
@@ -143,23 +140,23 @@ proto-otel: proto-prepare-otel
 		$(PROTO_INCLUDES) \
  		--grpc-gateway_out=logtostderr=true,grpc_api_configuration=idl/proto/api_v3/query_service_http.yaml,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
 		idl/proto/api_v3/query_service.proto
-	rm -rf $(PROTO_INTERMEDIATE_DIR)
+	rm -rf $(PATCHED_OTEL_PROTO_DIR)
 
 .PHONY: proto-prepare-otel
 proto-prepare-otel:
 	@echo --
-	@echo -- "Enriching OpenTelemetry Protos into $(PROTO_INTERMEDIATE_DIR)"
+	@echo -- "Enriching OpenTelemetry Protos into $(PATCHED_OTEL_PROTO_DIR)"
 	@echo --
 
-	mkdir -p $(PROTO_INTERMEDIATE_DIR)
-	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
+	mkdir -p $(PATCHED_OTEL_PROTO_DIR)
+	rm -rf $(PATCHED_OTEL_PROTO_DIR)/*
 
 	@# TODO replace otel_proto_patch.sed below with otel/collector/proto_patch.sed to include gogo annotations.
 	@$(foreach file,$(OTEL_PROTO_FILES), \
 	   $(call exec-command,\
 	     echo $(file); \
-		 mkdir -p $(shell dirname $(PROTO_INTERMEDIATE_DIR)/$(file)); \
-		 $(SED) -f otel_proto_patch.sed $(OTEL_PROTO_SRC_DIR)/$(file) > $(PROTO_INTERMEDIATE_DIR)/$(file)))
+		 mkdir -p $(shell dirname $(PATCHED_OTEL_PROTO_DIR)/$(file)); \
+		 $(SED) -f otel_proto_patch.sed $(OTEL_PROTO_SRC_DIR)/$(file) > $(PATCHED_OTEL_PROTO_DIR)/$(file)))
 
 .PHONY: proto-hotrod
 proto-hotrod:
