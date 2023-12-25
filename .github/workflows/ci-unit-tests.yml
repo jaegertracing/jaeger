@@ -14,8 +14,6 @@ concurrency:
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
-  checks: write
-  pull-requests: write
 
 jobs:
   unit-tests:
@@ -42,6 +40,8 @@ jobs:
       with:
         check_name: Unit Tests Summary
         junit_files: junit-report.xml
+        comment_mode: off
+        check_run: false
 
     - name: Upload Test Results
       if: always()
