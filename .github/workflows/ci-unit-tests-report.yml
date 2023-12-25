@@ -28,11 +28,11 @@ jobs:
 
       - name: Download and Extract Artifacts
         uses: actions/download-artifact@v4
-        with:
+#        with:
 #          run-id: ${{ github.event.workflow_run.id }}
-          path: artifacts
+#          path: artifacts
       - name: Display structure of downloaded files
-        run: ls -R artifacts
+        run: ls -R
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
