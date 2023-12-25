@@ -28,6 +28,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
@@ -104,9 +105,9 @@ func TestRunTest(t *testing.T) {
 	for _, test := range tests {
 		err := handler.runTest("service", &test.request, test.f, validateTracesWithCount)
 		if test.shouldErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 		} else {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -174,9 +175,9 @@ func TestValidateTracesWithCount(t *testing.T) {
 	for _, test := range tests {
 		err := validateTracesWithCount(&test.expected, test.actual)
 		if test.errMsg == "" {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		} else {
-			assert.EqualError(t, err, test.errMsg)
+			require.EqualError(t, err, test.errMsg)
 		}
 	}
 }
@@ -225,17 +226,17 @@ func TestCreateTrace(t *testing.T) {
 	}
 
 	err := handler.createTrace("svc", &traceRequest{Operation: "op"})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	handler.getClientURL = func(service string) string {
 		return server.URL
 	}
 
 	err = handler.createTrace("svc", &traceRequest{Operation: badOperation})
-	assert.EqualError(t, err, "retrieved 400 status code from client service")
+	require.EqualError(t, err, "retrieved 400 status code from client service")
 
 	err = handler.createTrace("svc", &traceRequest{Operation: "op"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestTraceHandlerGetTraces(t *testing.T) {
@@ -387,9 +388,9 @@ func TestValidateAdaptiveSamplingTraces(t *testing.T) {
 	for _, test := range tests {
 		err := validateAdaptiveSamplingTraces(&test.expected, test.actual)
 		if test.errMsg == "" {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		} else {
-			assert.EqualError(t, err, test.errMsg)
+			require.EqualError(t, err, test.errMsg)
 		}
 	}
 }
@@ -450,9 +451,9 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 
 			_, err := handler.adaptiveSamplingTest("svc", &traceRequest{Operation: "op"})
 			if test.errMsg != "" {
-				assert.EqualError(t, err, test.errMsg)
+				require.EqualError(t, err, test.errMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

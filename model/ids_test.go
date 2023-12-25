@@ -95,7 +95,7 @@ func TestSpanIDFromBytes(t *testing.T) {
 	for _, data := range errTests {
 		_, err := model.SpanIDFromBytes(data)
 		require.Error(t, err)
-		assert.EqualError(t, err, "invalid length for SpanID")
+		require.EqualError(t, err, "invalid length for SpanID")
 	}
 
 	spanID, err := model.SpanIDFromBytes([]byte{0, 0, 0, 0, 0, 0, 0, 13})

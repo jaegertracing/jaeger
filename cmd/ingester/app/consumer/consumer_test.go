@@ -48,7 +48,7 @@ const (
 
 func TestConstructor(t *testing.T) {
 	newConsumer, err := New(Params{MetricsFactory: metrics.NullFactory})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, newConsumer)
 }
 

@@ -62,7 +62,7 @@ func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
 	manager := NewConfigManager(nil)
 	rest, err := manager.GetBaggageRestrictions(context.Background(), "foo")
 	require.Nil(t, rest)
-	assert.EqualError(t, err, "baggage not implemented")
+	require.EqualError(t, err, "baggage not implemented")
 }
 
 type mockSamplingHandler struct{}

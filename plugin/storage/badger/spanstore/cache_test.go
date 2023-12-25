@@ -19,6 +19,7 @@ import (
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -39,7 +40,7 @@ func TestExpiredItems(t *testing.T) {
 		cache.Update("service1", "op2", expireTime)
 
 		services, err := cache.GetServices()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, services) // Everything should be expired
 
 		// Expired service for operations
@@ -48,7 +49,7 @@ func TestExpiredItems(t *testing.T) {
 		cache.Update("service1", "op2", expireTime)
 
 		operations, err := cache.GetOperations("service1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, operations) // Everything should be expired
 
 		// Expired operations, stable service
@@ -59,7 +60,7 @@ func TestExpiredItems(t *testing.T) {
 		cache.services["service1"] = uint64(time.Now().Unix() + 1e10)
 
 		operations, err = cache.GetOperations("service1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, operations) // Everything should be expired
 	})
 }
@@ -117,7 +118,7 @@ func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
 		store.Close()
 	}()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	test(store, t)
 }

@@ -45,7 +45,7 @@ func TestFailToListen(t *testing.T) {
 		Logger:        logger,
 	})
 	assert.Nil(t, server)
-	assert.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
+	require.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
 }
 
 func TestFailServe(t *testing.T) {

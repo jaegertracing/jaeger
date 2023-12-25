@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -29,21 +30,21 @@ var _ storage.Factory = new(Factory)
 
 func TestStorageFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, reader)
 	writer, err := f.CreateSpanWriter()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, writer)
 	reader, err = f.CreateArchiveSpanReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, reader)
 	writer, err = f.CreateArchiveSpanWriter()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, writer)
 	depReader, err := f.CreateDependencyReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, depReader)
 }

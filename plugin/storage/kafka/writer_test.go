@@ -22,8 +22,8 @@ import (
 
 	"github.com/Shopify/sarama"
 	saramaMocks "github.com/Shopify/sarama/mocks"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -99,7 +99,7 @@ func TestKafkaWriter(t *testing.T) {
 		w.producer.ExpectInputAndSucceed()
 
 		err := w.writer.WriteSpan(context.Background(), span)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for i := 0; i < 100; i++ {
 			time.Sleep(time.Microsecond)
@@ -130,7 +130,7 @@ func TestKafkaWriterErr(t *testing.T) {
 	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
 		w.producer.ExpectInputAndFail(sarama.ErrRequestTimedOut)
 		err := w.writer.WriteSpan(context.Background(), span)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for i := 0; i < 100; i++ {
 			time.Sleep(time.Microsecond)
@@ -164,7 +164,7 @@ func TestMarshallerErr(t *testing.T) {
 		w.writer.marshaller = marshaller
 
 		err := w.writer.WriteSpan(context.Background(), span)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		w.writer.Close()
 

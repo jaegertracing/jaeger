@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/model"
@@ -56,7 +57,7 @@ func TestSpanProcessor_Process(t *testing.T) {
 			assert.NotNil(t, span.Process, "sanitizer must fix Process=nil data issue")
 		})
 
-	assert.NoError(t, processor.Process(message))
+	require.NoError(t, processor.Process(message))
 
 	message.AssertExpectations(t)
 	mockWriter.AssertExpectations(t)
@@ -76,7 +77,7 @@ func TestSpanProcessor_ProcessError(t *testing.T) {
 	message.On("Value").Return(data)
 	unmarshallerMock.On("Unmarshal", data).Return(nil, errors.New("moocow"))
 
-	assert.Error(t, processor.Process(message))
+	require.Error(t, processor.Process(message))
 
 	message.AssertExpectations(t)
 	writer.AssertExpectations(t)

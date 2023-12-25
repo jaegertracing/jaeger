@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -102,7 +103,7 @@ func TestParentReference(t *testing.T) {
 				},
 			}
 			trace, err := ParentReference().Adjust(trace)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, trace.Spans[0].References)
 		})
 	}

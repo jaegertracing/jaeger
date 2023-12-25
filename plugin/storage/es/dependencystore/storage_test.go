@@ -26,6 +26,7 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
@@ -121,9 +122,9 @@ func TestWriteDependencies(t *testing.T) {
 			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
 			err := r.storage.WriteDependencies(fixedTime, []model.DependencyLink{})
 			if testCase.expectedError != "" {
-				assert.EqualError(t, err, testCase.expectedError)
+				require.EqualError(t, err, testCase.expectedError)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -195,10 +196,10 @@ func TestGetDependencies(t *testing.T) {
 
 			actual, err := r.storage.GetDependencies(context.Background(), fixedTime, 24*time.Hour)
 			if testCase.expectedError != "" {
-				assert.EqualError(t, err, testCase.expectedError)
+				require.EqualError(t, err, testCase.expectedError)
 				assert.Nil(t, actual)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.EqualValues(t, testCase.expectedOutput, actual)
 			}
 		})

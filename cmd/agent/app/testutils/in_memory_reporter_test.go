@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -35,8 +36,8 @@ func TestInMemoryReporter(t *testing.T) {
 			{},
 		},
 	})
-	assert.NoError(t, e1)
-	assert.NoError(t, e2)
+	require.NoError(t, e1)
+	require.NoError(t, e2)
 	assert.Len(t, r.ZipkinSpans(), 1)
 	assert.Len(t, r.Spans(), 1)
 }

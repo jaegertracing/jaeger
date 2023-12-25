@@ -238,7 +238,7 @@ func withLocalServer(t *testing.T, f func(addr string)) {
 
 func TestCreateClient(t *testing.T) {
 	_, err := createClient(nil, nil)
-	assert.EqualError(t, err, "dial udp: missing address")
+	require.EqualError(t, err, "dial udp: missing address")
 }
 
 func TestMain(m *testing.M) {

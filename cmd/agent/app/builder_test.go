@@ -128,7 +128,7 @@ func TestBuilderFromConfig(t *testing.T) {
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, agent)
 }
 
@@ -159,7 +159,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 			},
 		}
 		_, err := cfg.CreateAgent(&fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
-		assert.Error(t, err)
+		require.Error(t, err)
 		if testCase.err != "" {
 			assert.Contains(t, err.Error(), testCase.err)
 		} else if testCase.errContains != "" {
@@ -262,7 +262,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 			Logger:  zap.NewNop(),
 		}, builders)
 		if test.err != "" {
-			assert.EqualError(t, err, test.err)
+			require.EqualError(t, err, test.err)
 			assert.Nil(t, proxy)
 		} else {
 			require.NoError(t, err)
@@ -280,7 +280,7 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	}
 	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
-	assert.EqualError(t, err, "unknown reporter type ")
+	require.EqualError(t, err, "unknown reporter type ")
 }
 
 func TestPublishOpts(t *testing.T) {
@@ -305,7 +305,7 @@ func TestPublishOpts(t *testing.T) {
 	forkFactory := metricstest.NewFactory(time.Second)
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, agent)
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{

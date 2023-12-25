@@ -56,6 +56,7 @@ func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr 
 	r1 := testutils.NewInMemoryReporter()
 	zapCore, logs := observer.New(zap.DebugLevel)
 	mb := metricstest.NewFactory(time.Hour)
+	defer mb.Stop()
 
 	params.Reporter = r1
 	params.Logger = zap.New(zapCore)
@@ -75,7 +76,7 @@ func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr 
 
 func TestClientMetricsReporter_Zipkin(t *testing.T) {
 	testClientMetrics(func(tr *clientMetricsTest) {
-		assert.NoError(t, tr.r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{}}))
+		require.NoError(t, tr.r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{}}))
 		assert.Len(t, tr.mr.ZipkinSpans(), 1)
 	})
 }
@@ -181,7 +182,7 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				}
 
 				err := tr.r.EmitBatch(context.Background(), batch)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Len(t, tr.mr.Spans(), i+1)
 
 				tr.assertLog(t, "new client", test.expLog)
@@ -248,7 +249,7 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 			assert.EqualValues(t, 0, getGauge(), "start with gauge=0")
 
 			err := tr.r.EmitBatch(context.Background(), batch)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(t, tr.mr.Spans(), 1)
 
 			// we want this test to pass asap, but need to account for possible CPU contention in the CI

@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -213,9 +214,9 @@ func TestSpanWriter(t *testing.T) {
 				err := w.writer.WriteSpan(context.Background(), span)
 
 				if testCase.expectedError == "" {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				} else {
-					assert.EqualError(t, err, testCase.expectedError)
+					require.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
 					assert.Contains(t, w.logBuffer.String(), expectedLog)
@@ -261,9 +262,9 @@ func TestSpanWriterSaveServiceNameAndOperationName(t *testing.T) {
 					OperationName: "operation",
 				})
 			if testCase.expectedError == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.EqualError(t, err, testCase.expectedError)
+				require.EqualError(t, err, testCase.expectedError)
 			}
 		})
 	}
@@ -325,7 +326,7 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 
 		err := w.writer.WriteSpan(context.Background(), span)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		serviceNameQuery.AssertExpectations(t)
 		serviceOperationNameQuery.AssertExpectations(t)
 		durationNoOperationQuery.AssertExpectations(t)
@@ -350,7 +351,7 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 			},
 		}
 		err := w.writer.WriteSpan(context.Background(), span)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceOperationIndex), matchEverything())
 		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex), matchEverything())
@@ -397,7 +398,7 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
 
 		err := w.writer.WriteSpan(context.Background(), span)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", stringMatcher(tagIndex), matchEverything())
 		w.session.AssertNotCalled(t, "Query", stringMatcher(durationIndex), matchEverything())
@@ -428,7 +429,7 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 
 		err := w.writer.WriteSpan(context.Background(), span)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		spanQuery.AssertExpectations(t)
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex), matchEverything())

@@ -101,10 +101,10 @@ func TestRoundTripper(t *testing.T) {
 
 			if tc.wantError {
 				assert.Nil(t, resp)
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				assert.NotNil(t, resp)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

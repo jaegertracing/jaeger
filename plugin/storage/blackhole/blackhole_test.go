@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -33,7 +34,7 @@ func withBlackhole(f func(store *Store)) {
 func TestStoreGetDependencies(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, links)
 	})
 }
@@ -41,14 +42,14 @@ func TestStoreGetDependencies(t *testing.T) {
 func TestStoreWriteSpan(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		err := store.WriteSpan(context.Background(), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
 func TestStoreGetTrace(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		trace, err := store.GetTrace(context.Background(), model.NewTraceID(1, 2))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, trace)
 	})
 }
@@ -56,7 +57,7 @@ func TestStoreGetTrace(t *testing.T) {
 func TestStoreGetServices(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		serviceNames, err := store.GetServices(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, serviceNames)
 	})
 }
@@ -67,7 +68,7 @@ func TestStoreGetAllOperations(t *testing.T) {
 			context.Background(),
 			spanstore.OperationQueryParameters{},
 		)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, operations)
 	})
 }
@@ -75,7 +76,7 @@ func TestStoreGetAllOperations(t *testing.T) {
 func TestStoreFindTraces(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		traces, err := store.FindTraces(context.Background(), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, traces)
 	})
 }
@@ -83,7 +84,7 @@ func TestStoreFindTraces(t *testing.T) {
 func TestStoreFindTraceIDs(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		traceIDs, err := store.FindTraceIDs(context.Background(), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, traceIDs)
 	})
 }

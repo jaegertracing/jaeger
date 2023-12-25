@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
@@ -36,10 +38,11 @@ func TestNewMetricsHandler(t *testing.T) {
 	})
 
 	mb := metricstest.NewFactory(time.Hour)
+	defer mb.Stop()
 	handler := Wrap(dummyHandlerFunc, mb, zap.NewNop())
 
 	req, err := http.NewRequest(http.MethodGet, "/subdir/qwerty", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	for i := 0; i < 1000; i++ {
@@ -55,6 +58,7 @@ func TestNewMetricsHandler(t *testing.T) {
 
 func TestMaxEntries(t *testing.T) {
 	mf := metricstest.NewFactory(time.Hour)
+	defer mf.Stop()
 	r := newRequestDurations(mf, zap.NewNop())
 	r.maxEntries = 1
 	r.record(recordedRequest{
@@ -81,6 +85,10 @@ func TestIllegalPrometheusLabel(t *testing.T) {
 
 	invalidUtf8 := []byte{0xC0, 0xAE, 0xC0, 0xAE}
 	req, err := http.NewRequest(http.MethodGet, string(invalidUtf8), nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

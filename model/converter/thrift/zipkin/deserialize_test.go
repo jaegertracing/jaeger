@@ -19,7 +19,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -28,7 +28,7 @@ func TestDeserializeWithBadListStart(t *testing.T) {
 	ctx := context.Background()
 	spanBytes := SerializeThrift(ctx, []*zipkincore.Span{{}})
 	_, err := DeserializeThrift(ctx, append([]byte{0, 255, 255}, spanBytes...))
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestDeserializeWithCorruptedList(t *testing.T) {
@@ -36,12 +36,12 @@ func TestDeserializeWithCorruptedList(t *testing.T) {
 	spanBytes := SerializeThrift(ctx, []*zipkincore.Span{{}})
 	spanBytes[2] = 255
 	_, err := DeserializeThrift(ctx, spanBytes)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestDeserialize(t *testing.T) {
 	ctx := context.Background()
 	spanBytes := SerializeThrift(ctx, []*zipkincore.Span{{}})
 	_, err := DeserializeThrift(ctx, spanBytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

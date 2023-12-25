@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"

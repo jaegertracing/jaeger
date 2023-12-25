@@ -19,8 +19,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -51,21 +51,21 @@ func TestStreamClientWriteSpan(t *testing.T) {
 			On("WriteSpanStream", mock.Anything).Return(stream, nil)
 
 		err := r.client.WriteSpan(context.Background(), &mockTraceSpans[0])
-		assert.ErrorContains(t, err, "timeout")
+		require.ErrorContains(t, err, "timeout")
 		err = r.client.WriteSpan(context.Background(), &mockTraceSpans[0])
-		assert.ErrorContains(t, err, "EOF")
+		require.ErrorContains(t, err, "EOF")
 		err = r.client.WriteSpan(context.Background(), &mockTraceSpans[0])
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = r.client.WriteSpan(context.Background(), &mockTraceSpans[0]) // get stream from pool should succeed
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		stream.On("CloseAndRecv").Return(nil, status.Error(codes.DeadlineExceeded, "timeout"))
 		for i := 0; i < defaultMaxPoolSize; i++ { // putStream when pool is full should call CloseAndRecv
 			err = r.client.putStream(stream)
 			if i == defaultMaxPoolSize-1 {
-				assert.ErrorContains(t, err, "timeout", i)
+				require.ErrorContains(t, err, "timeout", i)
 			} else {
-				assert.NoError(t, err, i)
+				require.NoError(t, err, i)
 			}
 		}
 	})
@@ -78,12 +78,12 @@ func TestStreamClientClose(t *testing.T) {
 		r.client.streamPool <- stream
 
 		err := r.client.Close()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = r.client.Close()
-		assert.ErrorContains(t, err, "already closed")
+		require.ErrorContains(t, err, "already closed")
 
 		err = r.client.WriteSpan(context.Background(), &mockTraceSpans[0]) // getStream from pool should fail when closed
-		assert.ErrorContains(t, err, "closed")
+		require.ErrorContains(t, err, "closed")
 	})
 }
 
@@ -94,8 +94,8 @@ func TestStreamClientCloseFail(t *testing.T) {
 		r.client.streamPool <- stream
 
 		err := r.client.Close()
-		assert.ErrorContains(t, err, "timeout")
+		require.ErrorContains(t, err, "timeout")
 		err = r.client.putStream(stream)
-		assert.ErrorContains(t, err, "timeout") // putStream after closed should call CloseAndRecv
+		require.ErrorContains(t, err, "timeout") // putStream after closed should call CloseAndRecv
 	})
 }

@@ -157,9 +157,9 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 			}
 			_, err := mappingBuilder.fixMapping("test")
 			if test.err != "" {
-				assert.EqualError(t, err, test.err)
+				require.EqualError(t, err, test.err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -311,9 +311,9 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 			}
 			_, _, err := mappingBuilder.GetSpanServiceMappings()
 			if test.err != "" {
-				assert.EqualError(t, err, test.err)
+				require.EqualError(t, err, test.err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -329,7 +329,7 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 		TemplateBuilder: &tb,
 	}
 	_, err := mappingBuilder.GetDependenciesMappings()
-	assert.EqualError(t, err, "template load error")
+	require.EqualError(t, err, "template load error")
 }
 
 func TestMain(m *testing.M) {

@@ -165,7 +165,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	for _, base := range []string{"x", "x/", "/x/"} {
 		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
@@ -227,9 +227,9 @@ func TestLoadUIConfig(t *testing.T) {
 		t.Run(description, func(t *testing.T) {
 			config, err := loadUIConfig(testCase.configFile)
 			if testCase.expectedError != "" {
-				assert.EqualError(t, err, testCase.expectedError)
+				require.EqualError(t, err, testCase.expectedError)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.EqualValues(t, testCase.expected, config)
 		})

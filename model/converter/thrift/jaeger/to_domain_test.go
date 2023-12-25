@@ -55,7 +55,7 @@ func TestToDomain(t *testing.T) {
 					t.Log(err)
 				}
 				out, err := json.Marshal(actualSpans)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				t.Logf("Actual trace %v: %s", i, string(out))
 			}
 		})

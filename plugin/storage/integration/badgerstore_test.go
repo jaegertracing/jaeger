@@ -19,7 +19,7 @@ package integration
 import (
 	"testing"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -85,7 +85,7 @@ func (s *BadgerIntegrationStorage) refresh() error {
 
 func TestBadgerStorage(t *testing.T) {
 	s := &BadgerIntegrationStorage{}
-	assert.NoError(t, s.initialize())
+	require.NoError(t, s.initialize())
 	s.IntegrationTestAll(t)
 	defer s.clear()
 }

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -145,7 +146,7 @@ func TestKeyValueAsStringAndValue(t *testing.T) {
 	t.Run("invalid type", func(t *testing.T) {
 		kv := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
 		assert.Equal(t, "unknown type -1", kv.AsString())
-		assert.EqualError(t, kv.Value().(error), "unknown type -1")
+		require.EqualError(t, kv.Value().(error), "unknown type -1")
 	})
 }
 
@@ -163,7 +164,7 @@ func TestKeyValueHash(t *testing.T) {
 		testCase := tt // capture loop var
 		t.Run(testCase.kv.String(), func(t *testing.T) {
 			out := new(bytes.Buffer)
-			assert.NoError(t, testCase.kv.Hash(out))
+			require.NoError(t, testCase.kv.Hash(out))
 		})
 	}
 }

@@ -71,6 +71,6 @@ func TestConfigManager(t *testing.T) {
 	t.Run("GetBaggageRestrictionsError", func(t *testing.T) {
 		mgr.BaggageManager = nil
 		_, err := mgr.GetBaggageRestrictions(context.Background(), "foo")
-		assert.EqualError(t, err, "baggage restrictions not implemented")
+		require.EqualError(t, err, "baggage restrictions not implemented")
 	})
 }

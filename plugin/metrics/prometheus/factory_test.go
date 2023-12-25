@@ -33,19 +33,19 @@ var _ storage.MetricsFactory = new(Factory)
 
 func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(zap.NewNop()))
+	require.NoError(t, f.Initialize(zap.NewNop()))
 	assert.NotNil(t, f.logger)
 	assert.Equal(t, "prometheus", f.options.Primary.namespace)
 
 	listener, err := net.Listen("tcp", "localhost:")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, listener)
 	defer listener.Close()
 
 	f.options.Primary.ServerURL = "http://" + listener.Addr().String()
 	reader, err := f.CreateMetricsReader()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
 

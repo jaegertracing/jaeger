@@ -73,13 +73,13 @@ func loadESSpanFixture(i int) (Span, error) {
 func failingSpanTransform(t *testing.T, embeddedSpan *Span, errMsg string) {
 	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
-	assert.EqualError(t, err, errMsg)
+	require.EqualError(t, err, errMsg)
 }
 
 func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *Span) {
 	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestFailureBadTypeTags(t *testing.T) {
@@ -305,7 +305,7 @@ func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
 			t.Log(err)
 		}
 		out, err := json.Marshal(actual)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		t.Logf("Actual trace: %s", string(out))
 	}
 }

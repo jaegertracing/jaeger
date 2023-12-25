@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Jaeger Authors.
+// Copyright (c) 2023 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,31 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package disabled
+package reporter
 
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/storage"
+	"go.uber.org/goleak"
 )
 
-var _ storage.MetricsFactory = new(Factory)
-
-func TestPrometheusFactory(t *testing.T) {
-	f := NewFactory()
-	require.NoError(t, f.Initialize(zap.NewNop()))
-
-	err := f.Initialize(nil)
-	require.NoError(t, err)
-
-	f.AddFlags(nil)
-	f.InitFromViper(nil, zap.NewNop())
-
-	reader, err := f.CreateMetricsReader()
-	require.NoError(t, err)
-	assert.NotNil(t, reader)
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

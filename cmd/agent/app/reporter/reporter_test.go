@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -39,8 +40,8 @@ func TestMultiReporter(t *testing.T) {
 			{},
 		},
 	})
-	assert.NoError(t, e1)
-	assert.NoError(t, e2)
+	require.NoError(t, e1)
+	require.NoError(t, e2)
 	assert.Len(t, r1.ZipkinSpans(), 1)
 	assert.Len(t, r1.Spans(), 1)
 	assert.Len(t, r2.ZipkinSpans(), 1)
@@ -60,8 +61,8 @@ func TestMultiReporterErrors(t *testing.T) {
 			{},
 		},
 	})
-	assert.EqualError(t, e1, fmt.Sprintf("%s\n%s", errMsg, errMsg))
-	assert.EqualError(t, e2, fmt.Sprintf("%s\n%s", errMsg, errMsg))
+	require.EqualError(t, e1, fmt.Sprintf("%s\n%s", errMsg, errMsg))
+	require.EqualError(t, e2, fmt.Sprintf("%s\n%s", errMsg, errMsg))
 }
 
 type mockReporter struct {

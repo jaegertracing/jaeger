@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -53,11 +54,11 @@ func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 		HashSalt: "jaeger-test",
 	}
 	c := NewDownsamplingWriter(&errorWriteSpanStore{}, downsamplingOptions)
-	assert.NoError(t, c.WriteSpan(context.Background(), span))
+	require.NoError(t, c.WriteSpan(context.Background(), span))
 
 	downsamplingOptions.Ratio = 1
 	c = NewDownsamplingWriter(&errorWriteSpanStore{}, downsamplingOptions)
-	assert.Error(t, c.WriteSpan(context.Background(), span))
+	require.Error(t, c.WriteSpan(context.Background(), span))
 }
 
 // This test is to make sure h.hash.Reset() works and same traceID will always hash to the same value.

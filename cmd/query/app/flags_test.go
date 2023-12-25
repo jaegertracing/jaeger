@@ -80,20 +80,20 @@ func TestStringSliceAsHeader(t *testing.T) {
 
 	assert.Equal(t, []string{"https://mozilla.org"}, parsedHeaders["Access-Control-Allow-Origin"])
 	assert.Equal(t, []string{"X-My-Custom-Header", "X-Another-Custom-Header"}, parsedHeaders["Access-Control-Expose-Headers"])
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	malformedHeaders := append(headers, "this is not a valid header")
 	parsedHeaders, err = stringSliceAsHeader(malformedHeaders)
 	assert.Nil(t, parsedHeaders)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	parsedHeaders, err = stringSliceAsHeader([]string{})
 	assert.Nil(t, parsedHeaders)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	parsedHeaders, err = stringSliceAsHeader(nil)
 	assert.Nil(t, parsedHeaders)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestBuildQueryServiceOptions(t *testing.T) {

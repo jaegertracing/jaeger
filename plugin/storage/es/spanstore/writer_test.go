@@ -203,7 +203,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 					indexServicePut.AssertNumberOfCalls(t, "Add", 1)
 					indexSpanPut.AssertNumberOfCalls(t, "Add", 1)
 				} else {
-					assert.EqualError(t, err, testCase.expectedError)
+					require.EqualError(t, err, testCase.expectedError)
 				}
 
 				for _, expectedLog := range testCase.expectedLogs {
@@ -295,7 +295,7 @@ func TestCreateTemplates(t *testing.T) {
 			w.client.On("CreateTemplate", prefix+"jaeger-service").Return(test.serviceTemplateService())
 			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, test.indexPrefix)
 			if test.err != "" {
-				assert.Error(t, err, test.err)
+				require.Error(t, err, test.err)
 			}
 		})
 	}

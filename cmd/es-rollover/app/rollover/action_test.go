@@ -18,7 +18,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
@@ -136,9 +136,9 @@ func TestRolloverAction(t *testing.T) {
 			test.setupCallExpectations(indexClient, &test)
 			err := rolloverAction.Do()
 			if test.expectedError || test.unmarshalErrExpected {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			indexClient.AssertExpectations(t)
 		})

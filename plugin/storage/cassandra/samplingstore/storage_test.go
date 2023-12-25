@@ -23,6 +23,7 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
@@ -78,7 +79,7 @@ func TestInsertThroughput(t *testing.T) {
 			},
 		}
 		err := s.store.InsertThroughput(throughput)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Len(t, args, 3)
 		if _, ok := args[0].(int64); !ok {
@@ -121,7 +122,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 		}
 
 		err := s.store.InsertProbabilitiesAndQPS(hostname, probabilities, qps)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Len(t, args, 4)
 		if d, ok := args[0].(int); ok {
@@ -198,7 +199,7 @@ func TestGetThroughput(t *testing.T) {
 				throughput, err := s.store.GetThroughput(testTime, testTime)
 
 				if testCase.expectedError == "" {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Len(t, throughput, 2)
 					assert.Equal(t,
 						model.Throughput{
@@ -219,7 +220,7 @@ func TestGetThroughput(t *testing.T) {
 						*throughput[1],
 					)
 				} else {
-					assert.EqualError(t, err, testCase.expectedError)
+					require.EqualError(t, err, testCase.expectedError)
 				}
 			})
 		})
@@ -278,10 +279,10 @@ func TestGetLatestProbabilities(t *testing.T) {
 				probabilities, err := s.store.GetLatestProbabilities()
 
 				if testCase.expectedError == "" {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, 0.84, probabilities["svc"]["op"])
 				} else {
-					assert.EqualError(t, err, testCase.expectedError)
+					require.EqualError(t, err, testCase.expectedError)
 				}
 			})
 		})

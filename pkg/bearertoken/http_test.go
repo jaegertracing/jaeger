@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -75,12 +76,12 @@ func Test_PropagationHandler(t *testing.T) {
 			server := httptest.NewServer(r)
 			defer server.Close()
 			req, err := http.NewRequest(http.MethodGet, server.URL, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if testCase.sendHeader {
 				req.Header.Add(testCase.headerName, testCase.headerValue)
 			}
 			_, err = httpClient.Do(req)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			stop.Wait()
 		})
 	}

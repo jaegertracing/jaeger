@@ -42,7 +42,7 @@ func TestFailToListenZipkin(t *testing.T) {
 		Logger:   logger,
 	})
 	assert.Nil(t, server)
-	assert.EqualError(t, err, "listen tcp: address -1: invalid port")
+	require.EqualError(t, err, "listen tcp: address -1: invalid port")
 }
 
 func TestSpanCollectorZipkin(t *testing.T) {
@@ -60,7 +60,7 @@ func TestSpanCollectorZipkin(t *testing.T) {
 	serveZipkin(server.Config, server.Listener, params)
 
 	response, err := http.Post(server.URL, "", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, response)
 }
 

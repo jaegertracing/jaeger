@@ -96,7 +96,7 @@ func TestStrategyStoreWithFile(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read strategies file fileNotFound.json")
 
 	_, err = NewStrategyStore(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
-	assert.EqualError(t, err,
+	require.EqualError(t, err,
 		"failed to unmarshal strategies: json: cannot unmarshal string into Go value of type static.strategies")
 
 	// Test default strategy

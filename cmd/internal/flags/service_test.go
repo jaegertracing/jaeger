@@ -77,14 +77,14 @@ func TestStartErrors(t *testing.T) {
 			s := NewService( /*default port=*/ 0)
 			v, cmd := config.Viperize(s.AddFlags)
 			err := cmd.ParseFlags(test.flags)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			err = s.Start(v)
 			if test.expErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.expErr)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			var stopped atomic.Bool
 			shutdown := func() {

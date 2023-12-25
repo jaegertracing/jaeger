@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
@@ -89,9 +90,9 @@ func TestExtendLease(t *testing.T) {
 				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
 				err := s.lock.extendLease(samplingLock, time.Second*60)
 				if testCase.expectedErrMsg == "" {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				} else {
-					assert.EqualError(t, err, testCase.expectedErrMsg)
+					require.EqualError(t, err, testCase.expectedErrMsg)
 				}
 
 				expectedArgs := []interface{}{60, localhost, samplingLock, localhost}
@@ -179,9 +180,9 @@ func TestAcquire(t *testing.T) {
 				s.session.On("Query", stringMatcher("UPDATE leases"), matchEverything()).Return(secondQuery)
 				acquired, err := s.lock.Acquire(samplingLock, 0)
 				if testCase.expectedErrMsg == "" {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				} else {
-					assert.EqualError(t, err, testCase.expectedErrMsg)
+					require.EqualError(t, err, testCase.expectedErrMsg)
 				}
 
 				assert.Equal(t, testCase.acquired, acquired)
@@ -236,9 +237,9 @@ func TestForfeit(t *testing.T) {
 				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
 				applied, err := s.lock.Forfeit(samplingLock)
 				if testCase.expectedErrMsg == "" {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				} else {
-					assert.EqualError(t, err, testCase.expectedErrMsg)
+					require.EqualError(t, err, testCase.expectedErrMsg)
 				}
 				assert.Equal(t, testCase.applied, applied)
 

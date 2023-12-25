@@ -69,7 +69,7 @@ func TestNewCollector(t *testing.T) {
 	collectorOpts := optionsForEphemeralPorts()
 	require.NoError(t, c.Start(collectorOpts))
 	assert.NotNil(t, c.SpanHandlers())
-	assert.NoError(t, c.Close())
+	require.NoError(t, c.Close())
 }
 
 func TestCollector_StartErrors(t *testing.T) {
@@ -208,8 +208,8 @@ func TestAggregator(t *testing.T) {
 		},
 	}
 	_, err := c.spanProcessor.ProcessSpans(spans, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
-	assert.NoError(t, err)
-	assert.NoError(t, c.Close())
+	require.NoError(t, err)
+	require.NoError(t, c.Close())
 
 	// spans are processed by background workers, so we may need to wait
 	for i := 0; i < 1000; i++ {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	esJson "github.com/jaegertracing/jaeger/model/json"
 )
@@ -35,7 +36,7 @@ func CompareJSONSpans(t *testing.T, expected *esJson.Span, actual *esJson.Span) 
 			t.Log(err)
 		}
 		out, err := json.Marshal(actual)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		t.Logf("Actual trace: %s", string(out))
 	}
 }

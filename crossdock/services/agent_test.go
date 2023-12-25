@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
@@ -56,7 +57,7 @@ func TestGetSamplingRateInternal(t *testing.T) {
 	for _, test := range tests {
 		rate, err := getSamplingRate(test.operation, test.response)
 		if test.shouldErr {
-			assert.EqualError(t, err, errSamplingRateMissing.Error())
+			require.EqualError(t, err, errSamplingRateMissing.Error())
 		}
 		assert.EqualValues(t, test.rate, rate)
 	}
@@ -94,15 +95,15 @@ func TestGetSamplingRate(t *testing.T) {
 	// Test with no http server
 	agent := NewAgentService("", zap.NewNop())
 	_, err := agent.GetSamplingRate("svc", "op")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	agent = NewAgentService(server.URL, zap.NewNop())
 	rate, err := agent.GetSamplingRate("svc", "op")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.EqualValues(t, 1, rate)
 
 	_, err = agent.GetSamplingRate("bad_svc", "op")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestGetSamplingRateReadAllErr(t *testing.T) {
@@ -111,5 +112,5 @@ func TestGetSamplingRateReadAllErr(t *testing.T) {
 	}))
 	agent := NewAgentService(server.URL, zap.NewNop())
 	_, err := agent.GetSamplingRate("svc", "op")
-	assert.EqualError(t, err, "unexpected EOF")
+	require.EqualError(t, err, "unexpected EOF")
 }

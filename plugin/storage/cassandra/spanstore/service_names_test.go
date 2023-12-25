@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -74,9 +75,9 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 				s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
 
 				err := s.storage.Write("service-a")
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				err = s.storage.Write("service-b")
-				assert.EqualError(t, err, "failed to Exec query 'select from service_names': exec error")
+				require.EqualError(t, err, "failed to Exec query 'select from service_names': exec error")
 				assert.Equal(t, map[string]string{
 					"level": "error",
 					"msg":   "Failed to exec query",
@@ -91,7 +92,7 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 
 				// write again
 				err = s.storage.Write("service-a")
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				counts2, _ := s.metricsFactory.Snapshot()
 				expCounts := counts
@@ -133,11 +134,11 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 
 			services, err := s.storage.GetServices()
 			if expErr == nil {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				// expect empty string because mock iter.Scan(&placeholder) does not write to `placeholder`
 				assert.Equal(t, []string{""}, services)
 			} else {
-				assert.EqualError(t, err, "error reading service_names from storage: "+expErr.Error())
+				require.EqualError(t, err, "error reading service_names from storage: "+expErr.Error())
 			}
 		})
 	}

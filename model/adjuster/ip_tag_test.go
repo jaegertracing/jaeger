@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -47,7 +48,7 @@ func TestIPTagAdjuster(t *testing.T) {
 		},
 	}
 	trace, err := IPTagAdjuster().Adjust(trace)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expectedSpanTags := model.KeyValues{
 		model.Int64("a", 42),

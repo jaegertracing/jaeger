@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
@@ -33,22 +34,22 @@ var _ storage.Factory = new(Factory)
 
 func TestMemoryStorageFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, reader)
 	writer, err := f.CreateSpanWriter()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, writer)
 	depReader, err := f.CreateDependencyReader()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, f.store, depReader)
 	samplingStore, err := f.CreateSamplingStore(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, samplingStore.(*SamplingStore).maxBuckets)
 	lock, err := f.CreateLock()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, lock)
 }
 
@@ -78,7 +79,7 @@ func TestPublishOpts(t *testing.T) {
 	forkFactory := metricstest.NewFactory(time.Second)
 	defer forkFactory.Stop()
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
-	assert.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "internal." + limit,

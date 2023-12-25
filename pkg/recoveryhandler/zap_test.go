@@ -21,6 +21,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -34,7 +36,7 @@ func TestNewRecoveryHandler(t *testing.T) {
 
 	recovery := NewRecoveryHandler(logger, false)(handlerFunc)
 	req, err := http.NewRequest(http.MethodGet, "/subdir/asdf", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	res := httptest.NewRecorder()
 	recovery.ServeHTTP(res, req)
@@ -43,4 +45,8 @@ func TestNewRecoveryHandler(t *testing.T) {
 		"level": "error",
 		"msg":   "Unexpected error!",
 	}, log.JSONLine(0))
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
