@@ -24,13 +24,15 @@ jobs:
       - name: Harden Runner
         uses: step-security/harden-runner@eb238b55efaa70779f274895e782ed17c84f2895 # v2.6.1
         with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+          egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
       - name: Download and Extract Artifacts
         uses: actions/download-artifact@v4
-        with:
-          run-id: ${{ github.event.workflow_run.id }}
-          path: artifacts
+#        with:
+#          run-id: ${{ github.event.workflow_run.id }}
+#          path: artifacts
+      - name: Display structure of downloaded files
+        run: ls -R
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
