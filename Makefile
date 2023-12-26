@@ -26,13 +26,10 @@ endif
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC = $(shell find . -name '*.go' \
-				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
-				   -not -name 'model.pb.go' \
-				   -not -name 'model_test.pb.go' \
-				   -not -name 'storage_test.pb.go' \
+				   -not -name '*.pb.go' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
@@ -166,18 +163,20 @@ goleak:
 
 .PHONY: fmt
 fmt:
-	./scripts/import-order-cleanup.sh inplace
+	@echo Running import-order-cleanup on ALL_SRC ...
+	@./scripts/import-order-cleanup.py -o inplace -t $(ALL_SRC)
 	@echo Running gofmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
-	./scripts/updateLicenses.sh
+	@echo Running updateLicense.py on ALL_SRC ...
+	@./scripts/updateLicense.py $(ALL_SRC)
 
 .PHONY: lint
 lint: goleak
 	golangci-lint -v run
-	./scripts/updateLicenses.sh > $(FMT_LOG)
-	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
+	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
+	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
 	./scripts/check-go-version.sh
