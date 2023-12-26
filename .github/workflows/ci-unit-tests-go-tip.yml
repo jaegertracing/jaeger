@@ -25,6 +25,9 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
+    - name: Display structure of GOROOT
+      run: "ls -R $HOME/sdk/gotip/bin"
+
     - name: Publish Unit Test Summary 📑
       uses: EnricoMi/publish-unit-test-result-action@v2
       if: always()
