@@ -28,9 +28,9 @@ jobs:
 
       - name: Download and Extract Artifacts
         uses: actions/download-artifact@v4
-#        with:
-#
-#          run-id: ${{ github.event.workflow_run.id }}
+        with:
+          github-token: ${{ secrets.GH_PAT }} # token with actions:read permissions on target repo
+          run_id: ${{ github.event.workflow_run.id }}
 #          path: artifacts
       - name: Display structure of downloaded files
         run: ls -R
