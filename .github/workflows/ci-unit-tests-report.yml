@@ -30,6 +30,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GH_PAT }} # token with actions:read permissions on target repo
+          run_id: ${{ github.event.workflow_run.id }}
 #          repository: actions/toolkit
 #          run-id: 1234
 #          run-id: ${{ github.event.workflow_run.id }}
