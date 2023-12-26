@@ -495,6 +495,8 @@ install-test-tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
 	$(GO) install mvdan.cc/gofumpt@latest
 	$(GO) install github.com/jstemmer/go-junit-report/v2@latest
+install-test-tools:
+	echo "install-test-tools: which go: " && which $(GO)
 
 .PHONY: install-build-tools
 install-build-tools:
