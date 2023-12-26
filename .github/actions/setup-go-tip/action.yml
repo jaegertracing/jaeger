@@ -30,10 +30,12 @@ runs:
         echo "Downloaded bundle:"
         ls -lah gotip.tar.gz
         export GOROOT="$HOME/sdk/gotip"
+        export GOPATH="$HOME/go"
         mkdir -p $GOROOT
         tar -C $GOROOT -xzf gotip.tar.gz
-        export PATH="$GOROOT/bin/:$PATH"
+        export PATH="$GOROOT/bin/:$GOPATH/bin:$PATH"
         echo "GOROOT=$GOROOT" >> $GITHUB_ENV
+        echo "GOPATH=$GOPATH" >> $GITHUB_ENV
         echo "PATH=$PATH" >> $GITHUB_ENV
         echo "Active Go version:"
         go version
