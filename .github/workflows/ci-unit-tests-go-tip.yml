@@ -23,6 +23,9 @@ jobs:
       uses: ./.github/actions/setup-go-tip
 
     - name: Run unit tests
+      run: make install-test-tools
+
+    - name: Run unit tests
       run: make test-ci
 
     - name: Display structure of GOROOT
