@@ -174,7 +174,7 @@ fmt:
 .PHONY: lint
 lint: goleak
 	golangci-lint -v run
-	./scripts/updateLicenses.sh > $(FMT_LOG)
+	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
