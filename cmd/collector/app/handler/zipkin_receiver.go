@@ -65,11 +65,6 @@ func startZipkinReceiver(
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
 			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
-			ReportComponentStatus: component.StatusFunc(func(ev *component.StatusEvent) error {
-				// TODO this could be wired into changing healthcheck.HealthCheck
-				logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
-				return nil
-			}),
 		},
 	}
 
@@ -88,7 +83,7 @@ func startZipkinReceiver(
 		return nil, fmt.Errorf("could not create Zipkin receiver: %w", err)
 	}
 	if err := rcvr.Start(context.Background(), &otelHost{logger: logger}); err != nil {
-		return nil, fmt.Errorf("could not start the OTLP receiver: %w", err)
+		return nil, fmt.Errorf("could not start Zipkin receiver: %w", err)
 	}
 	return rcvr, nil
 }
