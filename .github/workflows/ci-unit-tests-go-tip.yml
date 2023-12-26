@@ -22,21 +22,21 @@ jobs:
     - name: Install Go Tip
       uses: ./.github/actions/setup-go-tip
 
-    - name: Run unit tests
-      run: make install-test-tools
+#    - name: Run unit tests
+#      run: make install-test-tools
 
     - name: Run unit tests
       run: make test-ci
-
-    - name: Display structure of GOROOT
-      run: "ls -R $HOME/sdk/gotip/bin"
 
     - name: Publish Unit Test Summary 📑
       uses: EnricoMi/publish-unit-test-result-action@v2
       if: always()
       with:
-        check_name: Unit Tests Summary
+        check_name: Go Tip Unit Tests Summary
         junit_files: junit-report.xml
+        # This workflow isn't run during Pull Requests, so check run and PR comment summaries are not needed.
+        check_run: false
+        comment_mode: off
 
     - name: Lint
       run: echo skip linting on Go tip
