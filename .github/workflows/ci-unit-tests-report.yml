@@ -10,6 +10,7 @@ jobs:
   unit-test-results:
     name: Unit Test Results
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion != 'skipped'
 
     permissions:
       checks: write
@@ -27,14 +28,14 @@ jobs:
           egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
       - name: Download and Extract Artifacts
-        uses: actions/download-artifact@v4
+        uses: dawidd6/action-download-artifact@v3
         with:
-          github-token: ${{ secrets.GH_PAT }} # token with actions:read permissions on target repo
-          run-id: ${{ github.event.workflow_run.id }}
+#          github-token: ${{ secrets.GH_PAT }} # token with actions:read permissions on target repo
+          run_id: ${{ github.event.workflow_run.id }}
 #          repository: actions/toolkit
 #          run-id: 1234
 #          run-id: ${{ github.event.workflow_run.id }}
-#          path: artifacts
+          path: artifacts
       - name: Display structure of downloaded files
         run: ls -R
 
