@@ -56,6 +56,7 @@ func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr 
 	r1 := testutils.NewInMemoryReporter()
 	zapCore, logs := observer.New(zap.DebugLevel)
 	mb := metricstest.NewFactory(time.Hour)
+	defer mb.Stop()
 
 	params.Reporter = r1
 	params.Logger = zap.New(zapCore)
