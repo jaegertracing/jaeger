@@ -26,13 +26,10 @@ endif
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC = $(shell find . -name '*.go' \
-				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
-				   -not -name 'model.pb.go' \
-				   -not -name 'model_test.pb.go' \
-				   -not -name 'storage_test.pb.go' \
+				   -not -name '*.pb.go' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
@@ -171,7 +168,8 @@ fmt:
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
-	./scripts/updateLicenses.sh
+	@echo Running updateLicense.py on ALL_SRC ...
+	@./scripts/updateLicense.py $(ALL_SRC)
 
 .PHONY: lint
 lint: goleak
