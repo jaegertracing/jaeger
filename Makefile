@@ -4,13 +4,12 @@
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
-GO = go
 
-include docker/Makefile
-include crossdock/rules.mk
+# These DOCKER_xxx vars are used when building Docker images.
+DOCKER_NAMESPACE?=jaegertracing
+DOCKER_TAG?=latest
 
 # TODO we can compartmentalize this Makefile better, by separting:
-#  - thrift and proto builds
 #  - integration tests
 #  - all the binary building targets
 
@@ -27,13 +26,10 @@ endif
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC = $(shell find . -name '*.go' \
-				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
-				   -not -name 'model.pb.go' \
-				   -not -name 'model_test.pb.go' \
-				   -not -name 'storage_test.pb.go' \
+				   -not -name '*.pb.go' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
@@ -51,6 +47,10 @@ ifeq ($(UNAME), s390x)
 else
 	RACE=-race
 endif
+# sed on Mac does not support the same syntax for in-place updates as sed on Linux
+# When running on MacOS it's best to install gsed and run Makefile with SED=gsed
+SED=sed
+GO=go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
@@ -60,40 +60,34 @@ GOFMT=gofmt
 GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
-COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/☠️ SKIP/g'
+COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
 ifneq ($(GIT_CLOSEST_TAG),$(shell echo ${GIT_CLOSEST_TAG} | grep -E "$(semver_regex)"))
 	$(warning GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG) is not in the semver format $(semver_regex))
 endif
-GIT_CLOSEST_TAG_MAJOR := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v\([0-9]*\)\.[0-9]*\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_MINOR := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v[0-9]*\.\([0-9]*\)\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_PATCH := $(shell echo $(GIT_CLOSEST_TAG) | sed -n 's/v[0-9]*\.[0-9]*\.\([0-9]\)/\1/p')
+GIT_CLOSEST_TAG_MAJOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v\([0-9]*\)\.[0-9]*\.[0-9]/\1/p')
+GIT_CLOSEST_TAG_MINOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.\([0-9]*\)\.[0-9]/\1/p')
+GIT_CLOSEST_TAG_PATCH := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.[0-9]*\.\([0-9]\)/\1/p')
 DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
-
-SED=sed
-THRIFT_VER=0.14
-THRIFT_IMG=jaegertracing/thrift:$(THRIFT_VER)
-THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
-THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
-THRIFT_GEN_DIR=thrift-gen
 
 SWAGGER_VER=0.27.0
 SWAGGER_IMAGE=quay.io/goswagger/swagger:v$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
-JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.4.0
-
-DOCKER_NAMESPACE?=jaegertracing
-DOCKER_TAG?=latest
-
 MOCKERY=mockery
 GOVERSIONINFO=goversioninfo
 SYSOFILE=resource.syso
+
+# import other Makefiles after the variables are defined
+include docker/Makefile
+include Makefile.Protobuf.mk
+include Makefile.Thrift.mk
+include Makefile.Crossdock.mk
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -169,18 +163,20 @@ goleak:
 
 .PHONY: fmt
 fmt:
-	./scripts/import-order-cleanup.sh inplace
+	@echo Running import-order-cleanup on ALL_SRC ...
+	@./scripts/import-order-cleanup.py -o inplace -t $(ALL_SRC)
 	@echo Running gofmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
-	./scripts/updateLicenses.sh
+	@echo Running updateLicense.py on ALL_SRC ...
+	@./scripts/updateLicense.py $(ALL_SRC)
 
 .PHONY: lint
 lint: goleak
 	golangci-lint -v run
-	./scripts/updateLicenses.sh > $(FMT_LOG)
-	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
+	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
+	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
 	./scripts/check-go-version.sh
@@ -425,25 +421,6 @@ docker-images-elastic: create-baseimg
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
 
-# TODO does this target need to exist? It's only called from crossdock, apparently.
-.PHONY: docker-images-jaeger-backend
-docker-images-jaeger-backend: create-baseimg create-debugimg
-	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
-		regex="jaeger-(.*)"; \
-		component_suffix=$$component; \
-		if [[ $$component =~ $$regex ]]; then \
-			component_suffix="$${BASH_REMATCH[1]}"; \
-		fi; \
-		docker buildx build --target $(TARGET) \
-			--tag $(DOCKER_NAMESPACE)/$$component$(SUFFIX):${DOCKER_TAG} \
-			--build-arg base_image=$(BASE_IMAGE) \
-			--build-arg debug_image=$(DEBUG_IMAGE) \
-			--build-arg TARGETARCH=$(GOARCH) \
-			--load \
-			cmd/$$component_suffix; \
-		echo "Finished building $$component ==============" ; \
-	done;
-
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
@@ -453,34 +430,6 @@ docker-images-tracegen:
 docker-images-anonymizer:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-anonymizer:${DOCKER_TAG} cmd/anonymizer/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-anonymizer =============="
-
-.PHONY: build-crossdock-binary
-build-crossdock-binary:
-	$(GOBUILD) -o ./crossdock/crossdock-$(GOOS)-$(GOARCH) ./crossdock/main.go
-
-.PHONY: build-crossdock-linux
-build-crossdock-linux:
-	GOOS=linux $(MAKE) build-crossdock-binary
-
-# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
-.PHONY: build-crossdock-ui-placeholder
-build-crossdock-ui-placeholder:
-	mkdir -p jaeger-ui/packages/jaeger-ui/build/
-	cp cmd/query/app/ui/placeholder/index.html jaeger-ui/packages/jaeger-ui/build/index.html
-	$(MAKE) build-ui
-
-.PHONY: build-crossdock
-build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} --build-arg TARGETARCH=$(GOARCH) crossdock/
-	@echo "Finished building test-driver ==============" ; \
-
-.PHONY: build-and-run-crossdock
-build-and-run-crossdock: build-crossdock
-	make crossdock
-
-.PHONY: build-crossdock-fresh
-build-crossdock-fresh: build-crossdock-linux
-	make crossdock-fresh
 
 .PHONY: changelog
 changelog:
@@ -515,29 +464,9 @@ test-ci: install-test-tools build-examples cover test-report
 test-report:
 	cat test-results.json | go-junit-report -parser gojson > junit-report.xml
 
-.PHONY: thrift
-thrift: idl/thrift/jaeger.thrift thrift-image
-	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
-#	TODO sed is GNU and BSD compatible
-	sed -i.bak 's|"zipkincore"|"$(JAEGER_IMPORT_PATH)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
-	sed -i.bak 's|"jaeger"|"$(JAEGER_IMPORT_PATH)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/jaeger.thrift
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/baggage.thrift
-	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/zipkincore.thrift
-	rm -rf thrift-gen/*/*-remote thrift-gen/*/*.bak
-
-idl/thrift/jaeger.thrift:
-	$(MAKE) init-submodules
-
 .PHONY: init-submodules
 init-submodules:
 	git submodule update --init --recursive
-
-.PHONY: thrift-image
-thrift-image:
-	$(THRIFT) -version
 
 .PHONY: generate-zipkin-swagger
 generate-zipkin-swagger: init-submodules
@@ -553,160 +482,6 @@ generate-mocks: install-tools
 .PHONY: echo-version
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
-
-PROTO_INTERMEDIATE_DIR = proto-gen/.patched-otel-proto
-PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
-PROTO_INCLUDES := \
-	-Iidl/proto/api_v2 \
-	-Iidl/proto/api_v3 \
-	-Imodel/proto/metrics \
-	-I$(PROTO_INTERMEDIATE_DIR) \
-	-I/usr/include/github.com/gogo/protobuf
-# Remapping of std types to gogo types (must not contain spaces)
-PROTO_GOGO_MAPPINGS := $(shell echo \
-		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
-		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api, \
-		Mmodel.proto=github.com/jaegertracing/jaeger/model \
-	| sed 's/ //g')
-
-.PHONY: proto
-proto: proto-prepare-otel
-	# Generate gogo, swagger, go-validators, gRPC-storage-plugin output.
-	#
-	# -I declares import folders, in order of importance
-	# This is how proto resolves the protofile imports.
-	# It will check for the protofile relative to each of these
-	# folders and use the first one it finds.
-	#
-	# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
-	# --govalidators_out generates Go validation files for our messages types, if specified.
-	#
-	# The lines starting with Mgoogle/... are proto import replacements,
-	# which cause the generated file to import the specified packages
-	# instead of the go_package's declared by the imported protof files.
-	#
-	# $$GOPATH/src is the output directory. It is relative to the GOPATH/src directory
-	# since we've specified a go_package option relative to that directory.
-	#
-	# model/proto/jaeger.proto is the location of the protofile we use.
-	#
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
-		idl/proto/api_v2/model.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
-		idl/proto/api_v2/query.proto
-		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
-		model/proto/metrics/otelspankind.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
-		model/proto/metrics/openmetrics.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/metrics \
-		model/proto/metrics/metricsquery.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
-		idl/proto/api_v2/collector.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
-		idl/proto/api_v2/sampling.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		-Iplugin/storage/grpc/proto \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
-		plugin/storage/grpc/proto/storage.proto
-
-	$(PROTOC) \
-		-Imodel/proto \
-		--go_out=$(PWD)/model/ \
-		model/proto/model_test.proto
-
-	$(PROTOC) \
-		-Iplugin/storage/grpc/proto \
-		--go_out=$(PWD)/plugin/storage/grpc/proto/ \
-		plugin/storage/grpc/proto/storage_test.proto
-
-	$(PROTOC) \
-		-Iidl/proto \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
-		idl/proto/zipkin.proto
-
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,paths=source_relative,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/otel \
-		$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
-
-	# Target  proto-prepare-otel modifies OTEL proto to use import path jaeger.proto.*
-	# The modification is needed because OTEL collector already uses opentelemetry.proto.*
-	# and two complied protobuf types cannot have the same import path. The root cause is that the compiled OTLP
-	# in the collector is in private package, hence it cannot be used in Jaeger.
-	# The following statements revert changes in OTEL proto and only modify go package.
-	# This way the service will use opentelemetry.proto.trace.v1.ResourceSpans but in reality at runtime
-	# it uses jaeger.proto.trace.v1.ResourceSpans which is the same type in a different package which
-	# prevents panic of two equal proto types.
-	rm -rf $(PROTO_INTERMEDIATE_DIR)/*
-	cp -R idl/opentelemetry-proto/* $(PROTO_INTERMEDIATE_DIR)
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
-		idl/proto/api_v3/query_service.proto
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
- 		--grpc-gateway_out=logtostderr=true,grpc_api_configuration=idl/proto/api_v3/query_service_http.yaml,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
-		idl/proto/api_v3/query_service.proto
-	rm -rf $(PROTO_INTERMEDIATE_DIR)
-
-.PHONY: proto-prepare-otel
-proto-prepare-otel:
-	@echo --
-	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
-	@echo --
-	mkdir -p $(PROTO_INTERMEDIATE_DIR)
-	cp -R idl/opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
-
-	@echo --
-	@echo -- Editing proto
-	@echo --
-	@# Change:
-	@# go import from github.com/open-telemetry/opentelemetry-proto/gen/go/* to github.com/jaegertracing/jaeger/proto-gen/otel/*
-	@# proto package from opentelemetry.proto.* to jaeger.proto.*
-	@# remove import opentelemetry/proto
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i -f otel_proto_patch.sed
-
-.PHONY: proto-hotrod
-proto-hotrod:
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/ \
-		examples/hotrod/services/driver/driver.proto
 
 .PHONY: certs
 certs:

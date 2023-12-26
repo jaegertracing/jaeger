@@ -26,6 +26,7 @@ import (
 
 func TestConnectMetrics(t *testing.T) {
 	mf := metricstest.NewFactory(time.Hour)
+	defer mf.Stop()
 	cm := NewConnectMetrics(mf)
 
 	getGauge := func() map[string]int64 {
