@@ -12,19 +12,30 @@ s|import "opentelemetry/proto/|import "|g
 s|^package \(.*\)\;|package \1;\
 \
 import "gogoproto/gogo.proto";\
+\
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).\
+// Enable custom Marshal method.\
+option (gogoproto.marshaler_all) = true;\
+// Enable custom Unmarshal method.\
+option (gogoproto.unmarshaler_all) = true;\
+// Enable custom Size method (Required by Marshal and Unmarshal).\
+option (gogoproto.sizer_all) = true;\
+|
 
 s+bytes trace_id = \(.*\);+bytes trace_id = \1\
   [\
   // Use custom TraceId data type for this field.\
   (gogoproto.nullable) = false,\
-  (gogoproto.customtype) = "go.opentelemetry.io/collector/pdata/internal/data.TraceID"\
+  (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model/v2.TraceID",\
+  (gogoproto.customname) = "TraceID"\
   ];+g
 
 s+bytes \(.*span_id\) = \(.*\);+bytes \1 = \2\
   [\
   // Use custom SpanId data type for this field.\
   (gogoproto.nullable) = false,\
-  (gogoproto.customtype) = "go.opentelemetry.io/collector/pdata/internal/data.SpanID"\
+  (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model/v2.SpanID",\
+  (gogoproto.customname) = "SpanID"\
   ];+g
 
 s+repeated opentelemetry.proto.common.v1.KeyValue \(.*\);+repeated opentelemetry.proto.common.v1.KeyValue \1\

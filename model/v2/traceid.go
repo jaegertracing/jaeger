@@ -1,7 +1,8 @@
+// Copyright (c) 2023 The Jaeger Authors.
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package data // import "go.opentelemetry.io/collector/pdata/internal/data"
+package model
 
 import (
 	"errors"
@@ -20,7 +21,8 @@ var (
 // Protobuf messages.
 type TraceID [traceIDSize]byte
 
-var _ proto.Sizer = (*SpanID)(nil)
+var _ proto.Sizer = (*TraceID)(nil)
+var _ gogoCustom = (*TraceID)(nil)
 
 // Size returns the size of the data to serialize.
 func (tid TraceID) Size() int {
@@ -33,6 +35,11 @@ func (tid TraceID) Size() int {
 // IsEmpty returns true if id contains at leas one non-zero byte.
 func (tid TraceID) IsEmpty() bool {
 	return tid == [traceIDSize]byte{}
+}
+
+// Marshal implements gogoCustom.
+func (tid *TraceID) Marshal() ([]byte, error) {
+	return tid[:], nil
 }
 
 // MarshalTo converts trace ID into a binary representation. Called by Protobuf serialization.
