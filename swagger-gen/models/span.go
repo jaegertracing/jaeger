@@ -197,6 +197,8 @@ func (m *Span) validateAnnotations(formats strfmt.Registry) error {
 			if err := m.Annotations[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("annotations" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("annotations" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -297,6 +299,8 @@ func (m *Span) validateLocalEndpoint(formats strfmt.Registry) error {
 		if err := m.LocalEndpoint.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("localEndpoint")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("localEndpoint")
 			}
 			return err
 		}
@@ -334,6 +338,8 @@ func (m *Span) validateRemoteEndpoint(formats strfmt.Registry) error {
 		if err := m.RemoteEndpoint.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("remoteEndpoint")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("remoteEndpoint")
 			}
 			return err
 		}
@@ -351,6 +357,8 @@ func (m *Span) validateTags(formats strfmt.Registry) error {
 		if err := m.Tags.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("tags")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("tags")
 			}
 			return err
 		}
@@ -411,9 +419,16 @@ func (m *Span) contextValidateAnnotations(ctx context.Context, formats strfmt.Re
 	for i := 0; i < len(m.Annotations); i++ {
 
 		if m.Annotations[i] != nil {
+
+			if swag.IsZero(m.Annotations[i]) { // not required
+				return nil
+			}
+
 			if err := m.Annotations[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("annotations" + "." + strconv.Itoa(i))
+				} else if ce, ok := err.(*errors.CompositeError); ok {
+					return ce.ValidateName("annotations" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -427,9 +442,16 @@ func (m *Span) contextValidateAnnotations(ctx context.Context, formats strfmt.Re
 func (m *Span) contextValidateLocalEndpoint(ctx context.Context, formats strfmt.Registry) error {
 
 	if m.LocalEndpoint != nil {
+
+		if swag.IsZero(m.LocalEndpoint) { // not required
+			return nil
+		}
+
 		if err := m.LocalEndpoint.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("localEndpoint")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("localEndpoint")
 			}
 			return err
 		}
@@ -441,9 +463,16 @@ func (m *Span) contextValidateLocalEndpoint(ctx context.Context, formats strfmt.
 func (m *Span) contextValidateRemoteEndpoint(ctx context.Context, formats strfmt.Registry) error {
 
 	if m.RemoteEndpoint != nil {
+
+		if swag.IsZero(m.RemoteEndpoint) { // not required
+			return nil
+		}
+
 		if err := m.RemoteEndpoint.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("remoteEndpoint")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("remoteEndpoint")
 			}
 			return err
 		}
@@ -454,9 +483,15 @@ func (m *Span) contextValidateRemoteEndpoint(ctx context.Context, formats strfmt
 
 func (m *Span) contextValidateTags(ctx context.Context, formats strfmt.Registry) error {
 
+	if swag.IsZero(m.Tags) { // not required
+		return nil
+	}
+
 	if err := m.Tags.ContextValidate(ctx, formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("tags")
+		} else if ce, ok := err.(*errors.CompositeError); ok {
+			return ce.ValidateName("tags")
 		}
 		return err
 	}
