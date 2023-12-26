@@ -516,6 +516,7 @@ test-report:
 	echo "go path: " && which $(GO) && \
 	echo "path: $$PATH" && \
 	echo "contents of goroot: " && ls -al /home/runner/sdk/gotip/bin/ && \
+	echo "contents of original goroot: " && ls -al /home/runner/go/bin/ && \
 	cat test-results.json | go-junit-report -parser gojson > junit-report.xml
 
 .PHONY: thrift
