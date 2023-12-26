@@ -2,14 +2,15 @@
 
 package agent
 
-import (
+import(
 	"bytes"
 	"context"
 	"fmt"
+	"time"
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	"time"
+
 )
 
 // (needed to ensure safety because of naive import list construction.)
@@ -24,3 +25,4 @@ var _ = zipkincore.GoUnusedProtection__
 
 func init() {
 }
+
