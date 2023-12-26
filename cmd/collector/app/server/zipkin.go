@@ -47,7 +47,7 @@ type ZipkinServerParams struct {
 }
 
 // StartZipkinServer based on the given parameters
-func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
+func StartZipkinServerDeprecated(params *ZipkinServerParams) (*http.Server, error) {
 	if params.HostPort == "" {
 		params.Logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
 		return nil, nil

@@ -37,7 +37,7 @@ import (
 // test wrong port number
 func TestFailToListenZipkin(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	server, err := StartZipkinServer(&ZipkinServerParams{
+	server, err := StartZipkinServerDeprecated(&ZipkinServerParams{
 		HostPort: ":-1",
 		Logger:   logger,
 	})
@@ -209,7 +209,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 				TLSConfig:      test.serverTLS,
 			}
 
-			server, err := StartZipkinServer(params)
+			server, err := StartZipkinServerDeprecated(params)
 
 			if test.expectServerFail {
 				require.Error(t, err)

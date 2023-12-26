@@ -57,9 +57,9 @@ type Collector struct {
 
 	// state, read only
 	hServer                    *http.Server
-	zkServer                   *http.Server
 	grpcServer                 *grpc.Server
 	otlpReceiver               receiver.Traces
+	zipkinReceiver             receiver.Traces
 	tlsGRPCCertWatcherCloser   io.Closer
 	tlsHTTPCertWatcherCloser   io.Closer
 	tlsZipkinCertWatcherCloser io.Closer
@@ -141,20 +141,31 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	c.tlsGRPCCertWatcherCloser = &options.GRPC.TLS
 	c.tlsHTTPCertWatcherCloser = &options.HTTP.TLS
 	c.tlsZipkinCertWatcherCloser = &options.Zipkin.TLS
-	zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
-		HostPort:       options.Zipkin.HTTPHostPort,
-		Handler:        c.spanHandlers.ZipkinSpansHandler,
-		TLSConfig:      options.Zipkin.TLS,
-		HealthCheck:    c.hCheck,
-		CORSConfig:     options.Zipkin.CORS,
-		Logger:         c.logger,
-		MetricsFactory: c.metricsFactory,
-		KeepAlive:      options.Zipkin.KeepAlive,
-	})
-	if err != nil {
-		return fmt.Errorf("could not start Zipkin server: %w", err)
+
+	if options.Zipkin.HTTPHostPort == "" {
+		c.logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
+	} else {
+		zipkinReceiver, err := handler.StartZipkinReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
+		if err != nil {
+			return fmt.Errorf("could not start Zipkin receiver: %w", err)
+		}
+		c.zipkinReceiver = zipkinReceiver
+
 	}
-	c.zkServer = zkServer
+	// zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
+	// 	HostPort:       options.Zipkin.HTTPHostPort,
+	// 	Handler:        c.spanHandlers.ZipkinSpansHandler,
+	// 	TLSConfig:      options.Zipkin.TLS,
+	// 	HealthCheck:    c.hCheck,
+	// 	CORSConfig:     options.Zipkin.CORS,
+	// 	Logger:         c.logger,
+	// 	MetricsFactory: c.metricsFactory,
+	// 	KeepAlive:      options.Zipkin.KeepAlive,
+	// })
+	// if err != nil {
+	// 	return fmt.Errorf("could not start Zipkin server: %w", err)
+	// }
+	// c.zkServer = zkServer
 
 	if options.OTLP.Enabled {
 		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
@@ -191,11 +202,11 @@ func (c *Collector) Close() error {
 		defer cancel()
 	}
 
-	// Stop Zipkin server
-	if c.zkServer != nil {
+	// Stop Zipkin receiver
+	if c.zipkinReceiver != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := c.zkServer.Shutdown(timeout); err != nil {
-			c.logger.Fatal("failed to stop the Zipkin server", zap.Error(err))
+		if err := c.otlpReceiver.Shutdown(timeout); err != nil {
+			c.logger.Fatal("failed to stop the Zipkin receiver", zap.Error(err))
 		}
 		defer cancel()
 	}
