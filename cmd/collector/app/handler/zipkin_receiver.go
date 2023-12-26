@@ -25,7 +25,8 @@ func StartZipkinReceiver(
 	options *flags.CollectorOptions,
 	logger *zap.Logger,
 	spanProcessor processor.SpanProcessor,
-	tm *tenancy.Manager) (receiver.Traces, error) {
+	tm *tenancy.Manager,
+) (receiver.Traces, error) {
 	zipkinFactory := zipkinreceiver.NewFactory()
 	return startZipkinReceiver(
 		options,
