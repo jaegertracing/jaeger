@@ -511,8 +511,7 @@ install-ci: install-test-tools install-build-tools
 test-ci: GOTEST := $(GOTEST_QUIET) -json
 test-ci: install-test-tools build-examples cover test-report
 test-ci:
-	ls $(HOME)/sdk/gotip/bin && \
-    ls $(GOROOT)/bin
+	which go
 
 .PHONY: test-report
 test-report:
