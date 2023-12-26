@@ -163,7 +163,8 @@ goleak:
 
 .PHONY: fmt
 fmt:
-	./scripts/import-order-cleanup.sh inplace
+	@echo Running import-order-cleanup on ALL_SRC ...
+	@./scripts/import-order-cleanup.py -o inplace -t $(ALL_SRC)
 	@echo Running gofmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
@@ -175,7 +176,7 @@ fmt:
 lint: goleak
 	golangci-lint -v run
 	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
-	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
+	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
 	./scripts/check-go-version.sh
