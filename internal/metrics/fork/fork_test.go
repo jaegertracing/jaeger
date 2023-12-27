@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"go.uber.org/goleak"
 )
 
 var _ metrics.Factory = (*Factory)(nil)
