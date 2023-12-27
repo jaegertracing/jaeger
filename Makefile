@@ -74,11 +74,6 @@ DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' -
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
-SWAGGER_VER=0.27.0
-SWAGGER_IMAGE=quay.io/goswagger/swagger:v$(SWAGGER_VER)
-SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
-SWAGGER_GEN_DIR=swagger-gen
-
 MOCKERY=mockery
 GOVERSIONINFO=goversioninfo
 SYSOFILE=resource.syso
@@ -148,7 +143,7 @@ index-rollover-integration-test: docker-images-elastic
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... > test-results.json
+	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... | tee test-results.json
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
@@ -467,11 +462,6 @@ test-report:
 .PHONY: init-submodules
 init-submodules:
 	git submodule update --init --recursive
-
-.PHONY: generate-zipkin-swagger
-generate-zipkin-swagger: init-submodules
-	$(SWAGGER) generate server -f ./idl/swagger/zipkin2-api.yaml -t $(SWAGGER_GEN_DIR) -O PostSpans --exclude-main
-	rm $(SWAGGER_GEN_DIR)/restapi/operations/post_spans_urlbuilder.go $(SWAGGER_GEN_DIR)/restapi/server.go $(SWAGGER_GEN_DIR)/restapi/configure_zipkin.go $(SWAGGER_GEN_DIR)/models/trace.go $(SWAGGER_GEN_DIR)/models/list_of_traces.go $(SWAGGER_GEN_DIR)/models/dependency_link.go
 
 .PHONY: generate-mocks
 generate-mocks: install-tools

@@ -1,0 +1,79 @@
+[
+    {
+        "trace_id": 5679353540597208576,
+        "name": "get /",
+        "id": 5679353540597208576,
+        "annotations": [
+            {
+                "timestamp": 1633073248674949,
+                "value": "sr",
+                "host": {
+                    "ipv4": 0,
+                    "port": 0,
+                    "service_name": ""
+                }
+            },
+            {
+                "timestamp": 163307324868981,
+                "value": "ss",
+                "host": {
+                    "ipv4": 0,
+                    "port": 0,
+                    "service_name": ""
+                }
+            }
+        ],
+        "binary_annotations": null,
+        "debug": false,
+        "timestamp": 1633073248674949,
+        "duration": 14861
+    },
+    {
+        "trace_id": 5679353540597208576,
+        "name": "get /api",
+        "id": -3944181038374441761,
+        "parent_id": 5679353540597208576,
+        "annotations": [
+            {
+                "timestamp": 1633073248678309,
+                "value": "cs",
+                "host": {
+                    "ipv4": 0,
+                    "port": 0,
+                    "service_name": ""
+                }
+            },
+            {
+                "timestamp": 1633073248681669,
+                "value": "sr",
+                "host": {
+                    "ipv4": 0,
+                    "port": 0,
+                    "service_name": ""
+                }
+            },
+            {
+                "timestamp": 1633073248685029,
+                "value": "cr",
+                "host": {
+                    "ipv4": 0,
+                    "port": 0,
+                    "service_name": ""
+                }
+            },
+            {
+                "timestamp": 1633073248688388,
+                "value": "ss",
+                "host": {
+                    "ipv4": 0,
+                    "port": 0,
+                    "service_name": ""
+                }
+            }
+        ],
+        "binary_annotations": null,
+        "debug": false,
+        "timestamp": 1633073248678309,
+        "duration": 3360
+    }
+]
