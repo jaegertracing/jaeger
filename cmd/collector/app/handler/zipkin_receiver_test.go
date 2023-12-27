@@ -50,24 +50,14 @@ func TestZipkinReceiver(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
 	require.NoError(t, response.Body.Close())
 
-	readJSON := func(file string) []byte {
-		data, err := os.ReadFile(file)
-		require.NoError(t, err)
-		return data
-	}
-
-	readThrift := func(file string) []byte {
+	makeThrift := func(data []byte) []byte {
 		var spans []*zipkincore.Span
-		data, err := os.ReadFile(file)
-		require.NoError(t, err)
 		require.NoError(t, json.Unmarshal(data, &spans))
 		return zipkinthrift.SerializeThrift(context.Background(), spans)
 	}
 
-	readProto := func(file string) []byte {
+	makeProto := func(data []byte) []byte {
 		var spans zipkin_proto3.ListOfSpans
-		data, err := os.ReadFile(file)
-		require.NoError(t, err)
 		require.NoError(t, gogojsonpb.Unmarshal(bytes.NewReader(data), &spans))
 		out, err := gogoproto.Marshal(&spans)
 		require.NoError(t, err)
@@ -76,53 +66,53 @@ func TestZipkinReceiver(t *testing.T) {
 
 	testCases := []struct {
 		file     string
-		prepFn   func(file string) []byte
+		prepFn   func(file []byte) []byte
 		url      string
 		encoding string
 	}{
 		{
 			file:     "zipkin_thrift_v1_merged_spans.json",
-			prepFn:   readThrift,
+			prepFn:   makeThrift,
 			url:      "/api/v1/spans",
 			encoding: "application/x-thrift",
 		},
 		{
 			file:     "zipkin_proto_01.json",
-			prepFn:   readProto,
+			prepFn:   makeProto,
 			url:      "/",
 			encoding: "application/x-protobuf",
 		},
 		{
 			file:     "zipkin_proto_02.json",
 			url:      "/",
-			prepFn:   readProto,
+			prepFn:   makeProto,
 			encoding: "application/x-protobuf",
 		},
 		{
-			file:   "zipkin_v1_merged_spans.json",
-			prepFn: readJSON,
-			url:    "/api/v1/spans",
+			file: "zipkin_v1_merged_spans.json",
+			url:  "/api/v1/spans",
 		},
 		{
-			file:   "zipkin_v2_01.json",
-			prepFn: readJSON,
-			url:    "/",
+			file: "zipkin_v2_01.json",
+			url:  "/",
 		},
 		{
-			file:   "zipkin_v2_02.json",
-			prepFn: readJSON,
-			url:    "/",
+			file: "zipkin_v2_02.json",
+			url:  "/",
 		},
 		{
-			file:   "zipkin_v2_03.json",
-			prepFn: readJSON,
-			url:    "/",
+			file: "zipkin_v2_03.json",
+			url:  "/",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
-			data := tc.prepFn("./testdata/" + tc.file)
+			data, err := os.ReadFile("./testdata/" + tc.file)
+			require.NoError(t, err)
+			if tc.prepFn != nil {
+				data = tc.prepFn(data)
+			}
 			response, err := http.Post(
 				"http://localhost:11911"+tc.url,
 				tc.encoding,
@@ -138,8 +128,6 @@ func TestZipkinReceiver(t *testing.T) {
 			require.NoError(t, response.Body.Close())
 		})
 	}
-
-	// TODO add more tests by submitting different formats of spans (instead of relying)
 }
 
 func TestStartZipkinReceiver_Error(t *testing.T) {

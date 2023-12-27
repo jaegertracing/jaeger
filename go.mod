@@ -14,7 +14,6 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-kit/kit v0.13.0
 	github.com/go-logr/zapr v1.3.0
-	github.com/go-openapi/swag v0.22.4
 	github.com/gocql/gocql v1.3.2
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2

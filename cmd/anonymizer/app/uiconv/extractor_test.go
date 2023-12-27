@@ -15,10 +15,10 @@
 package uiconv
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 
-	"github.com/go-openapi/swag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -103,6 +103,6 @@ func TestExtractorTraceScanError(t *testing.T) {
 func loadJSON(t *testing.T, fileName string, i interface{}) {
 	b, err := os.ReadFile(fileName)
 	require.NoError(t, err)
-	err = swag.ReadJSON(b, i)
+	err = json.Unmarshal(b, i)
 	require.NoError(t, err, "Failed to parse json fixture file %s", fileName)
 }
