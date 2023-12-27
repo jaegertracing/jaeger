@@ -20,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"go.uber.org/goleak"
 )
 
 var _ metrics.Factory = (*Factory)(nil)
@@ -27,7 +28,9 @@ var _ metrics.Factory = (*Factory)(nil)
 func TestForkFactory(t *testing.T) {
 	forkNamespace := "internal"
 	forkFactory := metricstest.NewFactory(time.Second)
+	defer forkFactory.Stop()
 	defaultFactory := metricstest.NewFactory(time.Second)
+	defer defaultFactory.Stop()
 
 	// Create factory that will delegate namespaced metrics to forkFactory
 	// and add some metrics
@@ -98,4 +101,8 @@ func TestForkFactory(t *testing.T) {
 		Name:  "internal.someinternalcounter",
 		Value: 50,
 	})
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
