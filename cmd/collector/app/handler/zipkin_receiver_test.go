@@ -95,6 +95,7 @@ func TestZipkinReceiver(t *testing.T) {
 		{
 			file:     "zipkin_proto_02.json",
 			url:      "/",
+			prepFn:   readProto,
 			encoding: "application/x-protobuf",
 		},
 		{
@@ -121,9 +122,6 @@ func TestZipkinReceiver(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
-			if tc.prepFn == nil {
-				t.Skip("no prep function provided")
-			}
 			data := tc.prepFn("./testdata/" + tc.file)
 			response, err := http.Post(
 				"http://localhost:11911"+tc.url,
