@@ -16,6 +16,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"testing"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin/zipkindeser"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -101,7 +101,7 @@ func TestZipkinSpanHandler(t *testing.T) {
 		{
 			name:        "dual client-server span",
 			expectedErr: nil,
-			filename:    "testdata/zipkin_v1_merged_spans.json",
+			filename:    "testdata/zipkin_thrift_v1_merged_spans.json",
 		},
 	}
 	for _, tc := range tests {
@@ -116,8 +116,7 @@ func TestZipkinSpanHandler(t *testing.T) {
 			if tc.filename != "" {
 				data, err := os.ReadFile(tc.filename)
 				require.NoError(t, err)
-				spans, err = zipkindeser.DeserializeJSON(data)
-				require.NoError(t, err)
+				require.NoError(t, json.Unmarshal(data, &spans))
 			} else {
 				spans = []*zipkincore.Span{
 					{
