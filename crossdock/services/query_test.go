@@ -68,6 +68,7 @@ func TestGetTracesReadAllErr(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "1")
 	}))
+	defer server.Close()
 	query := NewQueryService(server.URL, zap.NewNop())
 	_, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
 	require.EqualError(t, err, "unexpected EOF")
