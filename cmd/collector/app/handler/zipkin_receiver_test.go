@@ -8,7 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -131,7 +131,7 @@ func TestZipkinReceiver(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotNil(t, response)
 			if !assert.Equal(t, http.StatusAccepted, response.StatusCode) {
-				bodyBytes, err := ioutil.ReadAll(response.Body)
+				bodyBytes, err := io.ReadAll(response.Body)
 				require.NoError(t, err)
 				t.Logf("response: %s %s", response.Status, string(bodyBytes))
 			}
