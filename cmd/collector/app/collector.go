@@ -191,7 +191,7 @@ func (c *Collector) Close() error {
 	// Stop Zipkin receiver
 	if c.zipkinReceiver != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := c.otlpReceiver.Shutdown(timeout); err != nil {
+		if err := c.zipkinReceiver.Shutdown(timeout); err != nil {
 			c.logger.Fatal("failed to stop the Zipkin receiver", zap.Error(err))
 		}
 		defer cancel()
