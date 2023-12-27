@@ -152,20 +152,6 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		c.zipkinReceiver = zipkinReceiver
 
 	}
-	// zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
-	// 	HostPort:       options.Zipkin.HTTPHostPort,
-	// 	Handler:        c.spanHandlers.ZipkinSpansHandler,
-	// 	TLSConfig:      options.Zipkin.TLS,
-	// 	HealthCheck:    c.hCheck,
-	// 	CORSConfig:     options.Zipkin.CORS,
-	// 	Logger:         c.logger,
-	// 	MetricsFactory: c.metricsFactory,
-	// 	KeepAlive:      options.Zipkin.KeepAlive,
-	// })
-	// if err != nil {
-	// 	return fmt.Errorf("could not start Zipkin server: %w", err)
-	// }
-	// c.zkServer = zkServer
 
 	if options.OTLP.Enabled {
 		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
