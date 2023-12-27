@@ -110,6 +110,7 @@ func TestGetSamplingRateReadAllErr(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "1")
 	}))
+	defer server.Close()
 	agent := NewAgentService(server.URL, zap.NewNop())
 	_, err := agent.GetSamplingRate("svc", "op")
 	require.EqualError(t, err, "unexpected EOF")
