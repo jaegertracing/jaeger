@@ -128,6 +128,7 @@ func TestStrategyStoreWithURL(t *testing.T) {
 	// Test default strategy when URL is temporarily unavailable.
 	logger, buf := testutils.NewLogger()
 	mockServer, _ := mockStrategyServer()
+	defer mockServer.Close()
 	store, err := NewStrategyStore(Options{StrategiesFile: mockServer.URL + "/service-unavailable"}, logger)
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "No sampling strategies provided or URL is unavailable, using defaults")
@@ -381,6 +382,7 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 
 func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	mockServer, mockStrategy := mockStrategyServer()
+	defer mockServer.Close()
 	ss, err := NewStrategyStore(Options{
 		StrategiesFile: mockServer.URL,
 		ReloadInterval: 10 * time.Millisecond,
@@ -452,6 +454,7 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 
 	// check status code other than 200
 	mockServer, _ := mockStrategyServer()
+	defer mockServer.Close()
 	assert.Equal(t, "duh", store.reloadSamplingStrategy(store.samplingStrategyLoader(mockServer.URL+"/bad-status"), "duh"))
 	assert.Len(t, logs.FilterMessage("failed to re-load sampling strategies").All(), 3)
 
@@ -484,6 +487,7 @@ func TestSamplingStrategyLoader(t *testing.T) {
 
 	// status code other than 200
 	mockServer, _ := mockStrategyServer()
+	defer mockServer.Close()
 	loader = store.samplingStrategyLoader(mockServer.URL + "/bad-status")
 	_, err = loader()
 	assert.Contains(t, err.Error(), "receiving 404 Not Found while downloading strategies file")
