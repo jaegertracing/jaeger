@@ -39,6 +39,7 @@ type testTracer struct {
 
 func withTestTracer(runTest func(tt *testTracer)) {
 	metrics := u.NewFactory(time.Minute)
+	defer metrics.Stop()
 	observer := NewObserver(metrics, DefaultNameNormalizer)
 
 	tp := sdktrace.NewTracerProvider(

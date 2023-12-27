@@ -12,59 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package handler
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
-	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-// test wrong port number
-func TestFailToListenZipkin(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	server, err := StartZipkinServer(&ZipkinServerParams{
-		HostPort: ":-1",
-		Logger:   logger,
-	})
-	assert.Nil(t, server)
-	require.EqualError(t, err, "listen tcp: address -1: invalid port")
-}
-
-func TestSpanCollectorZipkin(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	params := &ZipkinServerParams{
-		Handler:        handler.NewZipkinSpanHandler(logger, nil, nil),
-		MetricsFactory: metricstest.NewFactory(time.Hour),
-		HealthCheck:    healthcheck.New(),
-		Logger:         logger,
-	}
-
-	server := httptest.NewServer(nil)
-	defer server.Close()
-
-	serveZipkin(server.Config, server.Listener, params)
-
-	response, err := http.Post(server.URL, "", nil)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-}
-
 func TestSpanCollectorZipkinTLS(t *testing.T) {
+	const testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata"
 	testCases := []struct {
 		name                  string
 		serverTLS             tlscfg.Options
@@ -199,24 +169,23 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			logger, _ := zap.NewDevelopment()
-			params := &ZipkinServerParams{
-				HostPort:       fmt.Sprintf(":%d", ports.CollectorZipkin),
-				Handler:        handler.NewZipkinSpanHandler(logger, nil, nil),
-				MetricsFactory: metricstest.NewFactory(time.Hour),
-				HealthCheck:    healthcheck.New(),
-				Logger:         logger,
-				TLSConfig:      test.serverTLS,
-			}
+			spanProcessor := &mockSpanProcessor{}
+			logger, _ := testutils.NewLogger()
+			tm := &tenancy.Manager{}
 
-			server, err := StartZipkinServer(params)
+			opts := &flags.CollectorOptions{}
+			opts.Zipkin.HTTPHostPort = ports.PortToHostPort(ports.CollectorZipkin)
+			opts.Zipkin.TLS = test.serverTLS
 
+			server, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
 			if test.expectServerFail {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			defer server.Close()
+			defer func() {
+				require.NoError(t, server.Shutdown(context.Background()))
+			}()
 
 			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
 			require.NoError(t, err0)
@@ -243,6 +212,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 			} else {
 				require.NoError(t, requestError)
 				require.NotNil(t, response)
+				require.NoError(t, response.Body.Close())
 			}
 		})
 	}
