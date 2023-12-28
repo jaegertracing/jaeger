@@ -22,6 +22,7 @@ import (
 	"github.com/dgraph-io/badger/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
@@ -138,4 +139,8 @@ func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) 
 	}()
 	ss := newTestSamplingStore(store)
 	test(t, ss)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
