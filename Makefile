@@ -143,7 +143,7 @@ index-rollover-integration-test: docker-images-elastic
 
 .PHONY: cover
 cover: nocover
-	$(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... | tee test-results.json
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... | tee test-results.json"
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
