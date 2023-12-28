@@ -252,12 +252,13 @@ func runGatewayGetServices(t *testing.T, gw *testGateway, setupRequest func(*htt
 }
 
 func runGatewayGetOperations(t *testing.T, gw *testGateway, setupRequest func(*http.Request)) {
+	qp := spanstore.OperationQueryParameters{ServiceName: "foo", SpanKind: "server"}
 	gw.reader.
-		On("GetOperations", matchContext, mock.AnythingOfType("spanstore.OperationQueryParameters")).
+		On("GetOperations", matchContext, qp).
 		Return([]spanstore.Operation{{Name: "get_users", SpanKind: "server"}}, nil).Once()
 
 	body, statusCode := gw.execRequest(t, &gatewayRequest{
-		url:          "/api/v3/operations",
+		url:          "/api/v3/operations?service=foo&span_kind=server",
 		setupRequest: setupRequest,
 	})
 	require.Equal(t, http.StatusOK, statusCode)
@@ -272,10 +273,10 @@ func runGatewayGetOperations(t *testing.T, gw *testGateway, setupRequest func(*h
 
 func runGatewayGetTrace(t *testing.T, gw *testGateway, setupRequest func(*http.Request)) {
 	trace, traceID := makeTestTrace()
-	gw.reader.On("GetTrace", matchContext, matchTraceID).Return(trace, nil).Once()
+	gw.reader.On("GetTrace", matchContext, traceID).Return(trace, nil).Once()
 
 	body, statusCode := gw.execRequest(t, &gatewayRequest{
-		url:          "/api/v3/traces/123",
+		url:          "/api/v3/traces/" + traceID.String(), // hex string
 		setupRequest: setupRequest,
 	})
 	require.Equal(t, http.StatusOK, statusCode)

@@ -138,12 +138,11 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 func (aH *APIHandler) handleFunc(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
-	route string,
+	routeFmt string,
 	args ...interface{},
 ) *mux.Route {
-	route = aH.route(route, args...)
-	var handler http.Handler
-	handler = http.HandlerFunc(f)
+	route := aH.formatRoute(routeFmt, args...)
+	var handler http.Handler = http.HandlerFunc(f)
 	if aH.tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyMgr, handler)
 	}
@@ -154,7 +153,7 @@ func (aH *APIHandler) handleFunc(
 	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 
-func (aH *APIHandler) route(route string, args ...interface{}) string {
+func (aH *APIHandler) formatRoute(route string, args ...interface{}) string {
 	args = append([]interface{}{aH.apiPrefix}, args...)
 	return fmt.Sprintf("/%s"+route, args...)
 }
