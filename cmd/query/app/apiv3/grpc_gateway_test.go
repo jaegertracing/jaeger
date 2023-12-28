@@ -151,8 +151,7 @@ func setupGRPCGateway(
 }
 
 func (gw *testGateway) execRequest(t *testing.T, gwReq *gatewayRequest) ([]byte, int) {
-	url := gw.url + gwReq.url
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodGet, gw.url+gwReq.url, nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	gwReq.setupRequest(req)
