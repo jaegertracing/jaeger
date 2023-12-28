@@ -12,6 +12,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -36,6 +37,7 @@ func setupHTTPGateway(
 		QueryService: q,
 		TenancyMgr:   tenancy.NewManager(&tenancyOptions),
 		Logger:       zap.NewNop(),
+		Tracer:       jtracer.NoOp(),
 	}
 
 	router := &mux.Router{}

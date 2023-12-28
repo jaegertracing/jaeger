@@ -14,10 +14,12 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -37,9 +39,11 @@ type HTTPGateway struct {
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
 	Logger       *zap.Logger
+	Tracer       *jtracer.JTracer
 }
 
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
+// The called can create a subrouter if it needs to prepend a base path.
 func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 	h.addRoute(router, h.getTrace, routeGetTrace).Methods(http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces).Methods(http.MethodGet)
@@ -49,24 +53,21 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
-// TODO add tracing middleware.
 func (h *HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
 	args ...interface{},
 ) *mux.Route {
-	// route := aH.formatRoute(routeFmt, args...)
 	var handler http.Handler = http.HandlerFunc(f)
 	if h.TenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(h.TenancyMgr, handler)
 	}
-	// traceMiddleware := otelhttp.NewHandler(
-	// 	otelhttp.WithRouteTag(route, traceResponseHandler(handler)),
-	// 	route,
-	// 	otelhttp.WithTracerProvider(aH.tracer.OTEL))
-	// return router.HandleFunc(route, traceMiddleware.ServeHTTP)
-	return router.HandleFunc(route, handler.ServeHTTP)
+	traceMiddleware := otelhttp.NewHandler(
+		otelhttp.WithRouteTag(route, handler),
+		route,
+		otelhttp.WithTracerProvider(h.Tracer.OTEL))
+	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
@@ -118,10 +119,7 @@ func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
 }
 
 func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
-	m := &jsonpb.Marshaler{
-		EmitDefaults: false,
-	}
-	_ = m.Marshal(w, response)
+	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
