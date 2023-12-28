@@ -55,6 +55,7 @@ func Test_new(t *testing.T) {
 	}
 
 	processor := pf.new(topic, partition, offset)
+	defer processor.Close()
 	msg := &kmocks.Message{}
 	msg.On("Offset").Return(offset + 1)
 	processor.Process(msg)
