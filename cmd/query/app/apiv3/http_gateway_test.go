@@ -47,7 +47,6 @@ func setupHTTPGateway(
 	httpServer := httptest.NewServer(router)
 	t.Cleanup(func() { httpServer.Close() })
 
-	t.Logf("HTTP Gateway listening on %s", httpServer.URL)
 	gw.url = httpServer.URL
 	if basePath != "/" {
 		gw.url += basePath

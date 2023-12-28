@@ -1,8 +1,0 @@
-{
-  "operations": [
-    {
-      "name": "get_users",
-      "spanKind": "server"
-    }
-  ]
-}

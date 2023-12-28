@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -60,9 +61,8 @@ const (
 //	REGENERATE_SNAPSHOTS=true go test -v ./cmd/query/app/apiv3/...
 var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 
-// When run with USE_APIV3_HTTP_GATEWAY=true, the HTTP gateway is
-// used for tests instead of grpc-gateway.
-var useHTTPGateway = os.Getenv("USE_APIV3_HTTP_GATEWAY") == "true"
+// The tests in http_gateway_test.go set this to true to use manual gateway implementation.
+var useHTTPGateway = false
 
 type testGateway struct {
 	reader *spanstoremocks.Reader
@@ -152,7 +152,6 @@ func setupGRPCGateway(
 
 func (gw *testGateway) execRequest(t *testing.T, gwReq *gatewayRequest) ([]byte, int) {
 	url := gw.url + gwReq.url
-	t.Logf("executing request %s", url)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
@@ -172,9 +171,7 @@ func verifySnapshot(t *testing.T, body []byte) []byte {
 	body, err := json.MarshalIndent(data, "", "  ")
 	require.NoError(t, err)
 
-	testName := strings.ReplaceAll(t.Name(), "/", "_")
-	testName = strings.ReplaceAll(testName, "TestHTTPGateway_", "") // use same fixtures
-	// TODO strip all test names except the last one, the fixtures are likely identical
+	testName := path.Base(t.Name())
 	snapshotFile := filepath.Join(snapshotLocation, testName+".json")
 	if regenerateSnapshots {
 		os.WriteFile(snapshotFile, body, 0o644)
