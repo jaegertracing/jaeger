@@ -22,19 +22,16 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -291,15 +288,15 @@ func runGatewayGetTrace(t *testing.T, gw *testGateway, setupRequest func(*http.R
 
 func runGatewayFindTraces(t *testing.T, gw *testGateway, setupRequest func(*http.Request)) {
 	trace, traceID := makeTestTrace()
+	q, qp := mockFindQueries()
+	if !useHTTPGateway {
+		// grpc-gateway forces inbound timestamps into UTC, so simulate this here
+		qp.StartTimeMin = qp.StartTimeMin.UTC()
+		qp.StartTimeMax = qp.StartTimeMax.UTC()
+	}
 	gw.reader.
-		On("FindTraces", matchContext, mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+		On("FindTraces", matchContext, qp).
 		Return([]*model.Trace{trace}, nil).Once()
-
-	q := url.Values{}
-	q.Set("query.service_name", "foobar")
-	q.Set("query.start_time_min", time.Now().Format(time.RFC3339Nano))
-	q.Set("query.start_time_max", time.Now().Format(time.RFC3339Nano))
-
 	body, statusCode := gw.execRequest(t, &gatewayRequest{
 		url:          "/api/v3/traces?" + q.Encode(),
 		setupRequest: setupRequest,

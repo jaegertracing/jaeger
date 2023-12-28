@@ -137,8 +137,30 @@ func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 	assert.Contains(t, w.Body.String(), simErr)
 }
 
+func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
+	goodTime := time.Now().Truncate(time.Nanosecond) // truncated to reset monotonic clock
+	q := url.Values{}
+	q.Set(paramServiceName, "foo")
+	q.Set(paramOperationName, "bar")
+	q.Set(paramTimeMin, goodTime.Add(-time.Second).Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, goodTime.Format(time.RFC3339Nano))
+	q.Set(paramDurationMin, "1s")
+	q.Set(paramDurationMax, "2s")
+	q.Set(paramNumTraces, "10")
+
+	return q, &spanstore.TraceQueryParameters{
+		ServiceName:   "foo",
+		OperationName: "bar",
+		StartTimeMin:  goodTime.Add(-time.Second),
+		StartTimeMax:  goodTime,
+		DurationMin:   1 * time.Second,
+		DurationMax:   2 * time.Second,
+		NumTraces:     10,
+	}
+}
+
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
-	goodTimeV := time.Now().Truncate(time.Nanosecond) // truncated to reset monotonic clock
+	goodTimeV := time.Now()
 	goodTime := goodTimeV.Format(time.RFC3339Nano)
 	timeRangeErr := fmt.Sprintf("%s and %s are required", paramTimeMin, paramTimeMax)
 	testCases := []struct {
@@ -202,15 +224,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		})
 	}
 	t.Run("span reader error", func(t *testing.T) {
-		q := url.Values{}
-		q.Set(paramServiceName, "foo")
-		q.Set(paramOperationName, "bar")
-		q.Set(paramTimeMax, goodTime)
-		q.Set(paramTimeMin, goodTime)
-		q.Set(paramDurationMin, "1s")
-		q.Set(paramDurationMax, "2s")
-		q.Set(paramNumTraces, "10")
-
+		q, qp := mockFindQueries()
 		const simErr = "simulated error"
 		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
 		require.NoError(t, err)
@@ -218,15 +232,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 
 		gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
 		gw.reader.
-			On("FindTraces", matchContext, &spanstore.TraceQueryParameters{
-				ServiceName:   "foo",
-				OperationName: "bar",
-				StartTimeMin:  goodTimeV,
-				StartTimeMax:  goodTimeV,
-				DurationMin:   1 * time.Second,
-				DurationMax:   2 * time.Second,
-				NumTraces:     10,
-			}).
+			On("FindTraces", matchContext, qp).
 			Return(nil, fmt.Errorf(simErr)).Once()
 
 		gw.router.ServeHTTP(w, r)
