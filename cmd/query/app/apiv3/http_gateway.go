@@ -126,7 +126,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	traceIDVar := vars[traceIDParam]
 	traceID, err := model.TraceIDFromString(traceIDVar)
-	if h.tryHandleError(w, err, http.StatusBadRequest) {
+	if err != nil && h.tryHandleError(w, fmt.Errorf("malformed trace_id: %w", err), http.StatusBadRequest) {
 		return
 	}
 	trace, err := h.QueryService.GetTrace(r.Context(), traceID)
