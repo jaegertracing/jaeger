@@ -132,7 +132,6 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	trace, err := h.QueryService.GetTrace(r.Context(), traceID)
-	// TODO how do we distinguish internal error from bad parameters for FindTrace?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -186,6 +185,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	traces, err := h.QueryService.FindTraces(r.Context(), queryParams)
+	// TODO how do we distinguish internal error from bad parameters for FindTrace?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
