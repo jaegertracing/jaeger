@@ -10,7 +10,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if true {
-		goleak.VerifyTestMain(m)
-	}
+	goleak.VerifyTestMain(m)
 }
