@@ -279,7 +279,7 @@ func runGatewayGetTrace(t *testing.T, gw *testGateway, setupRequest func(*http.R
 		url:          "/api/v3/traces/" + traceID.String(), // hex string
 		setupRequest: setupRequest,
 	})
-	require.Equal(t, http.StatusOK, statusCode)
+	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = verifySnapshot(t, body)
 
 	var spansResponse api_v3.SpansResponseChunk
