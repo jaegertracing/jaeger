@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -22,13 +23,21 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
+	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
-	traceIDParam = "traceID"
+	paramTraceID       = "trace_id"           // get trace by ID
+	paramServiceName   = "query.service_name" // find traces
+	paramOperationName = "query.operation_name"
+	paramTimeMin       = "query.start_time_min"
+	paramTimeMax       = "query.start_time_max"
+	paramNumTraces     = "query.num_traces"
+	paramDurationMin   = "query.duration_min"
+	paramDurationMax   = "query.duration_max"
 
-	routeGetTrace      = "/api/v3/traces/{traceID}"
+	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
@@ -93,7 +102,24 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	return true
 }
 
+// tryParamError is similar to tryHandleError but specifically for reporting malformed params.
+func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName string) bool {
+	if err == nil {
+		return false
+	}
+	return h.tryHandleError(w, fmt.Errorf("malformed parameter %s: %w", paramName, err), http.StatusBadRequest)
+}
+
 func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
+	// modelToOTLP does not easily return an error, so allow mocking it
+	h.returnSpansTestable(spans, w, modelToOTLP)
+}
+
+func (h *HTTPGateway) returnSpansTestable(
+	spans []*model.Span,
+	w http.ResponseWriter,
+	modelToOTLP func(spans []*model.Span) ([]*tracev1.ResourceSpans, error),
+) {
 	resourceSpans, err := modelToOTLP(spans)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
@@ -124,9 +150,9 @@ func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWri
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	traceIDVar := vars[traceIDParam]
+	traceIDVar := vars[paramTraceID]
 	traceID, err := model.TraceIDFromString(traceIDVar)
-	if err != nil && h.tryHandleError(w, fmt.Errorf("malformed trace_id: %w", err), http.StatusBadRequest) {
+	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
 	trace, err := h.QueryService.GetTrace(r.Context(), traceID)
@@ -137,49 +163,9 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	queryParams := &spanstore.TraceQueryParameters{
-		ServiceName:   query.Get("query.service_name"),
-		OperationName: query.Get("query.operation_name"),
-		Tags:          nil, // most curiously not supported by grpc-gateway
-	}
-	if n := query.Get("query.num_traces"); n != "" {
-		numTraces, err := strconv.Atoi(n)
-		if h.tryHandleError(w, err, http.StatusBadRequest) {
-			return
-		}
-		queryParams.NumTraces = numTraces
-	}
-	timeMin := query.Get("query.start_time_min")
-	timeMax := query.Get("query.start_time_max")
-	if timeMin == "" || timeMax == "" {
-		err := fmt.Errorf("query.start_time_min and query.start_time_max are required")
-		h.tryHandleError(w, err, http.StatusBadRequest)
+	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
+	if shouldReturn {
 		return
-	}
-	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMin)
-	if h.tryHandleError(w, err, http.StatusBadRequest) {
-		return
-	}
-	queryParams.StartTimeMin = timeMinParsed
-	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMax)
-	if h.tryHandleError(w, err, http.StatusBadRequest) {
-		return
-	}
-	queryParams.StartTimeMax = timeMaxParsed
-	if d := query.Get("duration_min"); d != "" {
-		dur, err := time.ParseDuration(d)
-		if h.tryHandleError(w, err, http.StatusBadRequest) {
-			return
-		}
-		queryParams.DurationMin = dur
-	}
-	if d := query.Get("duration_max"); d != "" {
-		dur, err := time.ParseDuration(d)
-		if h.tryHandleError(w, err, http.StatusBadRequest) {
-			return
-		}
-		queryParams.DurationMax = dur
 	}
 
 	traces, err := h.QueryService.FindTraces(r.Context(), queryParams)
@@ -192,6 +178,56 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 		spans = append(spans, trace.Spans...)
 	}
 	h.returnSpans(spans, w)
+}
+
+func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*spanstore.TraceQueryParameters, bool) {
+	queryParams := &spanstore.TraceQueryParameters{
+		ServiceName:   q.Get(paramServiceName),
+		OperationName: q.Get(paramOperationName),
+		Tags:          nil, // most curiously not supported by grpc-gateway
+	}
+
+	timeMin := q.Get(paramTimeMin)
+	timeMax := q.Get(paramTimeMax)
+	if timeMin == "" || timeMax == "" {
+		err := fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
+		h.tryHandleError(w, err, http.StatusBadRequest)
+		return nil, true
+	}
+	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMin)
+	if h.tryParamError(w, err, paramTimeMin) {
+		return nil, true
+	}
+	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMax)
+	if h.tryParamError(w, err, paramTimeMax) {
+		return nil, true
+	}
+	queryParams.StartTimeMin = timeMinParsed
+	queryParams.StartTimeMax = timeMaxParsed
+
+	if n := q.Get(paramNumTraces); n != "" {
+		numTraces, err := strconv.Atoi(n)
+		if h.tryParamError(w, err, paramNumTraces) {
+			return nil, true
+		}
+		queryParams.NumTraces = numTraces
+	}
+
+	if d := q.Get(paramDurationMin); d != "" {
+		dur, err := time.ParseDuration(d)
+		if h.tryParamError(w, err, paramDurationMin) {
+			return nil, true
+		}
+		queryParams.DurationMin = dur
+	}
+	if d := q.Get(paramDurationMax); d != "" {
+		dur, err := time.ParseDuration(d)
+		if h.tryParamError(w, err, paramDurationMax) {
+			return nil, true
+		}
+		queryParams.DurationMax = dur
+	}
+	return queryParams, false
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {

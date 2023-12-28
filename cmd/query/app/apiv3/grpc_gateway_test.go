@@ -67,6 +67,7 @@ var useHTTPGateway = false
 type testGateway struct {
 	reader *spanstoremocks.Reader
 	url    string
+	router *mux.Router
 }
 
 type gatewayRequest struct {
@@ -296,8 +297,8 @@ func runGatewayFindTraces(t *testing.T, gw *testGateway, setupRequest func(*http
 
 	q := url.Values{}
 	q.Set("query.service_name", "foobar")
-	q.Set("query.start_time_min", time.Now().Format(time.RFC3339))
-	q.Set("query.start_time_max", time.Now().Format(time.RFC3339))
+	q.Set("query.start_time_min", time.Now().Format(time.RFC3339Nano))
+	q.Set("query.start_time_max", time.Now().Format(time.RFC3339Nano))
 
 	body, statusCode := gw.execRequest(t, &gatewayRequest{
 		url:          "/api/v3/traces?" + q.Encode(),

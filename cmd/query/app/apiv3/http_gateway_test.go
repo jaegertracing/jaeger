@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -15,19 +17,20 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
-func setupHTTPGateway(
+func setupHTTPGatewayNoServer(
 	t *testing.T,
 	basePath string,
-	serverTLS, clientTLS *tlscfg.Options,
 	tenancyOptions tenancy.Options,
 ) *testGateway {
 	gw := &testGateway{
@@ -46,13 +49,23 @@ func setupHTTPGateway(
 		Tracer:       jtracer.NoOp(),
 	}
 
-	router := &mux.Router{}
+	gw.router = &mux.Router{}
 	if basePath != "" && basePath != "/" {
-		router = router.PathPrefix(basePath).Subrouter()
+		gw.router = gw.router.PathPrefix(basePath).Subrouter()
 	}
-	hgw.RegisterRoutes(router)
+	hgw.RegisterRoutes(gw.router)
+	return gw
+}
 
-	httpServer := httptest.NewServer(router)
+func setupHTTPGateway(
+	t *testing.T,
+	basePath string,
+	serverTLS, clientTLS *tlscfg.Options,
+	tenancyOptions tenancy.Options,
+) *testGateway {
+	gw := setupHTTPGatewayNoServer(t, basePath, tenancyOptions)
+
+	httpServer := httptest.NewServer(gw.router)
 	t.Cleanup(func() { httpServer.Close() })
 
 	gw.url = httpServer.URL
@@ -87,29 +100,167 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
 }
 
-func TestHTTPGatewayGetTraceErrors(t *testing.T) {
-	gw := new(HTTPGateway)
-	reader := &spanstoremocks.Reader{}
-	gw.QueryService = querysvc.NewQueryService(reader,
-		&dependencyStoreMocks.Reader{},
-		querysvc.QueryServiceOptions{},
+func TestHTTPGatewayOTLPError(t *testing.T) {
+	w := httptest.NewRecorder()
+	gw := &HTTPGateway{
+		Logger: zap.NewNop(),
+	}
+	const simErr = "simulated error"
+	gw.returnSpansTestable(nil, w,
+		func(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
+			return nil, fmt.Errorf(simErr)
+		},
 	)
+	assert.Contains(t, w.Body.String(), simErr)
+}
 
+func TestHTTPGatewayGetTraceErrors(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
+
+	// malformed trace id
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/xyz", nil)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
-	gw.getTrace(w, r)
-	assert.Contains(t, w.Body.String(), "malformed trace_id")
+	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), "malformed parameter trace_id")
 
-	const e = "storage_error"
-	reader.
+	// error from span reader
+	const simErr = "simulated error"
+	gw.reader.
 		On("GetTrace", matchContext, matchTraceID).
-		Return(nil, fmt.Errorf(e)).Once()
+		Return(nil, fmt.Errorf(simErr)).Once()
 
-	// TODO this does not work because there is no matcher in the ctx for gorilla
 	r, err = http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)
 	require.NoError(t, err)
 	w = httptest.NewRecorder()
-	gw.getTrace(w, r)
-	assert.Contains(t, w.Body.String(), e)
+	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), simErr)
+}
+
+func TestHTTPGatewayFindTracesErrors(t *testing.T) {
+	goodTimeV := time.Now().Truncate(time.Microsecond)
+	goodTime := goodTimeV.Format(time.RFC3339Nano)
+	timeRangeErr := fmt.Sprintf("%s and %s are required", paramTimeMin, paramTimeMax)
+	testCases := []struct {
+		name   string
+		params map[string]string
+		expErr string
+	}{
+		{
+			name:   "no time range",
+			expErr: timeRangeErr,
+		},
+		{
+			name:   "no max time",
+			params: map[string]string{paramTimeMin: goodTime},
+			expErr: timeRangeErr,
+		},
+		{
+			name:   "no min time",
+			params: map[string]string{paramTimeMax: goodTime},
+			expErr: timeRangeErr,
+		},
+		{
+			name:   "bax min time",
+			params: map[string]string{paramTimeMin: "NaN", paramTimeMax: goodTime},
+			expErr: paramTimeMin,
+		},
+		{
+			name:   "bax max time",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: "NaN"},
+			expErr: paramTimeMax,
+		},
+		{
+			name:   "bad num_traces",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "NaN"},
+			expErr: paramNumTraces,
+		},
+		{
+			name:   "bad min duration",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMin: "NaN"},
+			expErr: paramDurationMin,
+		},
+		{
+			name:   "bad max duration",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMax: "NaN"},
+			expErr: paramDurationMax,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := url.Values{}
+			for k, v := range tc.params {
+				q.Set(k, v)
+			}
+			r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+
+			gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
+			gw.router.ServeHTTP(w, r)
+			assert.Contains(t, w.Body.String(), tc.expErr)
+		})
+	}
+	t.Run("span reader error", func(t *testing.T) {
+		q := url.Values{}
+		q.Set(paramServiceName, "foo")
+		q.Set(paramOperationName, "bar")
+		q.Set(paramTimeMax, goodTime)
+		q.Set(paramTimeMin, goodTime)
+		q.Set(paramDurationMin, "1s")
+		q.Set(paramDurationMax, "2s")
+		q.Set(paramNumTraces, "10")
+
+		const simErr = "simulated error"
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+
+		gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
+		gw.reader.
+			On("FindTraces", matchContext, &spanstore.TraceQueryParameters{
+				ServiceName:   "foo",
+				OperationName: "bar",
+				StartTimeMin:  goodTimeV,
+				StartTimeMax:  goodTimeV,
+				DurationMin:   1 * time.Second,
+				DurationMax:   2 * time.Second,
+				NumTraces:     10,
+			}).
+			Return(nil, fmt.Errorf(simErr)).Once()
+
+		gw.router.ServeHTTP(w, r)
+		assert.Contains(t, w.Body.String(), simErr)
+	})
+}
+
+func TestHTTPGatewayGetServicesErrors(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
+
+	const simErr = "simulated error"
+	gw.reader.
+		On("GetServices", matchContext).
+		Return(nil, fmt.Errorf(simErr)).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/services", nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), simErr)
+}
+
+func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
+
+	qp := spanstore.OperationQueryParameters{ServiceName: "foo", SpanKind: "server"}
+	const simErr = "simulated error"
+	gw.reader.
+		On("GetOperations", matchContext, qp).
+		Return(nil, fmt.Errorf(simErr)).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), simErr)
 }
