@@ -138,7 +138,7 @@ func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 }
 
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
-	goodTimeV := time.Now().Truncate(time.Microsecond)
+	goodTimeV := time.Now().Truncate(time.Nanosecond) // truncated to reset monotonic clock
 	goodTime := goodTimeV.Format(time.RFC3339Nano)
 	timeRangeErr := fmt.Sprintf("%s and %s are required", paramTimeMin, paramTimeMax)
 	testCases := []struct {
