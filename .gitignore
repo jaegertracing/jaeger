@@ -38,6 +38,7 @@ cmd/tracegen/tracegen-*
 crossdock/crossdock-*
 run-crossdock.log
 proto-gen/.patched-otel-proto/
+proto-gen/.includes/
 __pycache__
 .asset-manifest.json
 deploy/
