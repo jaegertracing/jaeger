@@ -138,12 +138,16 @@ func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 }
 
 func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
-	goodTime := time.Now().Truncate(time.Nanosecond) // truncated to reset monotonic clock
+	// mock performs deep comparison of the timestamps and can fail
+	// if they are different in the timezone or the monotonic clocks.
+	// To void that we truncate monotonic clock and force UTC timezone.
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
 	q := url.Values{}
 	q.Set(paramServiceName, "foo")
 	q.Set(paramOperationName, "bar")
-	q.Set(paramTimeMin, goodTime.Add(-time.Second).Format(time.RFC3339Nano))
-	q.Set(paramTimeMax, goodTime.Format(time.RFC3339Nano))
+	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
 	q.Set(paramDurationMin, "1s")
 	q.Set(paramDurationMax, "2s")
 	q.Set(paramNumTraces, "10")
@@ -151,8 +155,8 @@ func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
 	return q, &spanstore.TraceQueryParameters{
 		ServiceName:   "foo",
 		OperationName: "bar",
-		StartTimeMin:  goodTime.Add(-time.Second),
-		StartTimeMax:  goodTime,
+		StartTimeMin:  time1,
+		StartTimeMax:  time2,
 		DurationMin:   1 * time.Second,
 		DurationMax:   2 * time.Second,
 		NumTraces:     10,

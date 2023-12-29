@@ -289,11 +289,6 @@ func runGatewayGetTrace(t *testing.T, gw *testGateway, setupRequest func(*http.R
 func runGatewayFindTraces(t *testing.T, gw *testGateway, setupRequest func(*http.Request)) {
 	trace, traceID := makeTestTrace()
 	q, qp := mockFindQueries()
-	if !useHTTPGateway {
-		// grpc-gateway forces inbound timestamps into UTC, so simulate this here
-		qp.StartTimeMin = qp.StartTimeMin.UTC()
-		qp.StartTimeMax = qp.StartTimeMax.UTC()
-	}
 	gw.reader.
 		On("FindTraces", matchContext, qp).
 		Return([]*model.Trace{trace}, nil).Once()
