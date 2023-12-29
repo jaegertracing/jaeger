@@ -453,7 +453,7 @@ install-ci: install-test-tools install-build-tools
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET) -json
-test-ci: install-test-tools build-examples cover test-report
+test-ci: install-test-tools build-examples cover
 
 .PHONY: test-report
 test-report:

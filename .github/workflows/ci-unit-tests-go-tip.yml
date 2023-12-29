@@ -23,8 +23,16 @@ jobs:
     - name: Install Go Tip
       uses: ./.github/actions/setup-go-tip
 
+    - name: Install test deps
+      # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow
+      run: make install-test-tools
+
     - name: Run unit tests
       run: make test-ci
+
+    - name: Prepare unit tests report
+      if: always()
+      run: make test-report
 
     - name: Publish Unit Test Summary 📑
       uses: EnricoMi/publish-unit-test-result-action@v2
