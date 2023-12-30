@@ -61,8 +61,8 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	defer s.Stop()
 	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	//nolint:staticcheck // don't care about errors
-	require.NoError(t, err)
 	defer conn.Close()
+	require.NoError(t, err)
 
 	rep := NewReporter(conn, nil, zap.NewNop())
 
@@ -104,8 +104,8 @@ func TestReporter_EmitBatch(t *testing.T) {
 	defer s.Stop()
 	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	//nolint:staticcheck // don't care about errors
-	require.NoError(t, err)
 	defer conn.Close()
+	require.NoError(t, err)
 	rep := NewReporter(conn, nil, zap.NewNop())
 
 	tm := time.Unix(158, 0)
@@ -133,7 +133,6 @@ func TestReporter_EmitBatch(t *testing.T) {
 func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("invalid-host-name-blah:12345", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
-	defer conn.Close()
 	rep := NewReporter(conn, nil, zap.NewNop())
 	err = rep.send(context.Background(), nil, nil)
 	require.Error(t, err)
