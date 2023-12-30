@@ -77,7 +77,6 @@ define proto_compile
 
 endef
 
-# TODO add proto-hotrod to the list after regenerating its file (may need linter tweaking)
 .PHONY: proto
 proto: proto-model \
 	proto-api-v2 \
@@ -158,10 +157,3 @@ proto-api-v3:
 	find $(PATCHED_OTEL_PROTO_DIR) -name "*.proto" | xargs -L 1 $(SED) -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
 
 	$(call proto_compile, proto-gen/api_v3, idl/proto/api_v3/query_service.proto, -I$(PATCHED_OTEL_PROTO_DIR))
-
-	$(call print_caption, Generate API v3 gRPC Gateway)
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		-I$(PATCHED_OTEL_PROTO_DIR) \
- 		--grpc-gateway_out=logtostderr=true,grpc_api_configuration=idl/proto/api_v3/query_service_http.yaml,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v3 \
-		idl/proto/api_v3/query_service.proto

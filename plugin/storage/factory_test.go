@@ -411,7 +411,9 @@ func TestPublishOpts(t *testing.T) {
 	require.NoError(t, err)
 
 	baseMetrics := metricstest.NewFactory(time.Second)
+	baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
+	forkFactory.Stop()
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	f.metricsFactory = metricsFactory
 
