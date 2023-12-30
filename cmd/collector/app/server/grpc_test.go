@@ -108,17 +108,16 @@ func TestSpanCollector(t *testing.T) {
 
 func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	tlsconfig := tlscfg.Options{
-		Enabled:      true,
-		CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-		KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
-	}
 	params := &GRPCServerParams{
 		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
-		TLSConfig:     tlsconfig,
+		TLSConfig: tlscfg.Options{
+			Enabled:      true,
+			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+			KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+		},
 	}
 	stopOpenCensus(t)
 	server, err := StartGRPCServer(params)
