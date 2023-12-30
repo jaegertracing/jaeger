@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestCommand(t *testing.T) {
@@ -29,4 +30,8 @@ func TestCommand(t *testing.T) {
 	cmd.Run(cmd, nil)
 	assert.True(t, strings.Contains(buf.String(), "METRICS_BACKEND"))
 	assert.True(t, strings.Contains(buf.String(), "SPAN_STORAGE"))
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m, goleak.IgnoreTopFunction("github.com/golang/glog.(*fileSink).flushDaemon"))
 }
