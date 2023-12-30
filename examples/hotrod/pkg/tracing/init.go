@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +41,10 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-var once sync.Once
+var (
+	once                sync.Once
+	defaultOtlpEndpoint = "localhost:4318"
+)
 
 // InitOTEL initializes OpenTelemetry SDK.
 func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
@@ -87,6 +91,17 @@ func withSecure() bool {
 		strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) == "false"
 }
 
+// getEndpoint will parse the otlp endpoint from env variable
+func getEndpoint() string {
+	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if otlpEndpoint == "" {
+		return defaultOtlpEndpoint
+	}
+	regex := regexp.MustCompile(`\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+\b`)
+	result := regex.FindString(otlpEndpoint)
+	return result
+}
+
 func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	var exporter sdktrace.SpanExporter
 	var err error
@@ -94,9 +109,12 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	case "jaeger":
 		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
 	case "otlp":
-		var opts []otlptracehttp.Option
+		endpoint := getEndpoint()
+		opts := []otlptracehttp.Option{
+			otlptracehttp.WithEndpoint(endpoint),
+		}
 		if !withSecure() {
-			opts = []otlptracehttp.Option{otlptracehttp.WithInsecure()}
+			opts = append(opts, otlptracehttp.WithInsecure())
 		}
 		exporter, err = otlptrace.New(
 			context.Background(),
