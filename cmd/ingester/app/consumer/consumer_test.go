@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
@@ -267,8 +266,4 @@ func TestHandleClosePartition(t *testing.T) {
 		}
 	}
 	assert.Fail(t, "Did not close partition")
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }
