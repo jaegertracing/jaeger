@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -60,7 +60,6 @@ func setupHTTPGatewayNoServer(
 func setupHTTPGateway(
 	t *testing.T,
 	basePath string,
-	serverTLS, clientTLS *tlscfg.Options,
 	tenancyOptions tenancy.Options,
 ) *testGateway {
 	gw := setupHTTPGatewayNoServer(t, basePath, tenancyOptions)
@@ -73,6 +72,25 @@ func setupHTTPGateway(
 		gw.url += basePath
 	}
 	return gw
+}
+
+func TestHTTPGateway(t *testing.T) {
+	for _, ten := range []bool{false, true} {
+		t.Run(fmt.Sprintf("tenancy=%v", ten), func(t *testing.T) {
+			tenancyOptions := tenancy.Options{
+				Enabled: ten,
+			}
+			tm := tenancy.NewManager(&tenancyOptions)
+			runGatewayTests(t, "/",
+				tenancyOptions,
+				func(req *http.Request) {
+					if ten {
+						// Add a tenancy header on outbound requests
+						req.Header.Add(tm.Header, "dummy")
+					}
+				})
+		})
+	}
 }
 
 func TestHTTPGatewayTryHandleError(t *testing.T) {
@@ -265,4 +283,42 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), simErr)
+}
+
+func TestHTTPGatewayTenancyRejection(t *testing.T) {
+	basePath := "/"
+	tenancyOptions := tenancy.Options{Enabled: true}
+	gw := setupHTTPGateway(t, basePath, tenancyOptions)
+
+	traceID := model.NewTraceID(150, 160)
+	gw.reader.On("GetTrace", matchContext, matchTraceID).Return(
+		&model.Trace{
+			Spans: []*model.Span{
+				{
+					TraceID:       traceID,
+					SpanID:        model.NewSpanID(180),
+					OperationName: "foobar",
+				},
+			},
+		}, nil).Once()
+
+	req, err := http.NewRequest(http.MethodGet, gw.url+"/api/v3/traces/123", nil)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	// We don't set tenant header
+	response, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, http.StatusUnauthorized, response.StatusCode, "response=%s", string(body))
+
+	// Try again with tenant header set
+	tm := tenancy.NewManager(&tenancyOptions)
+	req.Header.Set(tm.Header, "acme")
+	response, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	// Skip unmarshal of response; it is enough that it succeeded
 }
