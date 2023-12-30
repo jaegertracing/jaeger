@@ -420,7 +420,6 @@ func TestBuilderWithAdditionalDialOptions(t *testing.T) {
 
 	r, err := cb.CreateConnection(zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
-	defer r.Close()
 	assert.NotNil(t, r)
 
 	err = r.Invoke(context.Background(), "test", map[string]string{}, map[string]string{}, []grpc.CallOption{}...)
