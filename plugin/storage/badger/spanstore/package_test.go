@@ -17,8 +17,9 @@ package spanstore
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"go.uber.org/goleak"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestMain(m *testing.M) {

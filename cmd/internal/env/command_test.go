@@ -19,9 +19,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestCommand(t *testing.T) {
