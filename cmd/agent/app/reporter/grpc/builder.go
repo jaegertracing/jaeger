@@ -58,7 +58,7 @@ func NewConnBuilder() *ConnBuilder {
 }
 
 // CreateConnection creates the gRPC connection
-func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Factory) (*grpc.ClientConn, error) {
+func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, mFactory metrics.Factory) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption
 	var dialTarget string
 	if b.TLS.Enabled { // user requested a secure connection
@@ -102,6 +102,9 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
 	dialOptions = append(dialOptions, b.AdditionalDialOptions...)
 
+	connCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	conn, err := grpc.Dial(dialTarget, dialOptions...)
 	if err != nil {
 		return nil, err
@@ -115,16 +118,24 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger, mFactory metrics.Fact
 		logger.Info("Checking connection to collector")
 
 		for {
-			s := cc.GetState()
-			if s == connectivity.Ready {
-				cm.OnConnectionStatusChange(true)
-				cm.RecordTarget(cc.Target())
-			} else {
-				cm.OnConnectionStatusChange(false)
-			}
+			select {
+			case <-connCtx.Done():
+				logger.Info("Stopping connection")
+				return
+			default:
+				s := cc.GetState()
+				if s == connectivity.Ready {
+					cm.OnConnectionStatusChange(true)
+					cm.RecordTarget(cc.Target())
+				} else {
+					cm.OnConnectionStatusChange(false)
+				}
 
-			logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
-			cc.WaitForStateChange(context.Background(), s)
+				logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
+				if !cc.WaitForStateChange(context.Background(), s) {
+					return
+				}
+			}
 		}
 	}(conn, connectMetrics)
 

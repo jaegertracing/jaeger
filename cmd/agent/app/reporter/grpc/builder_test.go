@@ -59,8 +59,11 @@ func TestBuilderFromConfig(t *testing.T) {
 		t,
 		[]string{"127.0.0.1:14268", "127.0.0.1:14269"},
 		cfg.CollectorHostPorts)
-	r, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r, err := cfg.CreateConnection(ctx, zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
+	defer r.Close()
 	assert.NotNil(t, r)
 }
 
@@ -148,10 +151,12 @@ func TestBuilderWithCollectors(t *testing.T) {
 			cfg.CollectorHostPorts = test.hostPorts
 			cfg.Notifier = test.notifier
 			cfg.Discoverer = test.discoverer
-
-			conn, err := cfg.CreateConnection(zap.NewNop(), metrics.NullFactory)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			conn, err := cfg.CreateConnection(ctx, zap.NewNop(), metrics.NullFactory)
 			if test.expectedError == "" {
 				require.NoError(t, err)
+				defer conn.Close()
 				require.NotNil(t, conn)
 				if test.checkConnectionState {
 					assertConnectionState(t, conn, test.expectedState)
@@ -342,6 +347,7 @@ func TestProxyClientTLS(t *testing.T) {
 				opts = []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}
 			}
 
+			defer test.serverTLS.Close()
 			spanHandler := &mockSpanHandler{}
 			s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 				api_v2.RegisterCollectorServiceServer(s, spanHandler)
@@ -349,6 +355,7 @@ func TestProxyClientTLS(t *testing.T) {
 			defer s.Stop()
 
 			mFactory := metricstest.NewFactory(time.Microsecond)
+			defer mFactory.Stop()
 			_, port, _ := net.SplitHostPort(addr.String())
 
 			grpcBuilder := &ConnBuilder{
@@ -417,9 +424,11 @@ func TestBuilderWithAdditionalDialOptions(t *testing.T) {
 		CollectorHostPorts:    []string{"127.0.0.1:14268"},
 		AdditionalDialOptions: []grpc.DialOption{grpc.WithUnaryInterceptor(fi.intercept)},
 	}
-
-	r, err := cb.CreateConnection(zap.NewNop(), metrics.NullFactory)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r, err := cb.CreateConnection(ctx, zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
+	defer r.Close()
 	assert.NotNil(t, r)
 
 	err = r.Invoke(context.Background(), "test", map[string]string{}, map[string]string{}, []grpc.CallOption{}...)
