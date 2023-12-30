@@ -17,9 +17,10 @@ package server
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"go.uber.org/goleak"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutils.IgnoreOpenCensusWorkerLeak())
 }
