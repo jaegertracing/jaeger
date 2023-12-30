@@ -23,14 +23,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 var testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata"
@@ -67,7 +68,7 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 }
 
 func TestSpanCollectorHTTP(t *testing.T) {
-	mFact:=metricstest.NewFactory(time.Hour)
+	mFact := metricstest.NewFactory(time.Hour)
 	defer mFact.Backend.Stop()
 	logger, _ := zap.NewDevelopment()
 	params := &HTTPServerParams{
@@ -194,7 +195,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			// Cannot reliably use zaptest.NewLogger(t) because it causes race condition
 			// See https://github.com/jaegertracing/jaeger/issues/4497.
 			logger := zap.NewNop()
-			mFact:=metricstest.NewFactory(time.Hour)
+			mFact := metricstest.NewFactory(time.Hour)
 			defer mFact.Backend.Stop()
 			params := &HTTPServerParams{
 				HostPort:       fmt.Sprintf(":%d", ports.CollectorHTTP),

@@ -35,12 +35,14 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
-func stopOpenCensus (t *testing.T) {
+
+func stopOpenCensus(t *testing.T) {
 	t.Cleanup(func() {
 		// Stop opencensus.io default worker
-	defer view.Stop()
+		defer view.Stop()
 	})
 }
+
 // test wrong port number
 func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
