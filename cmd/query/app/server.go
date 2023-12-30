@@ -15,7 +15,6 @@
 package app
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -62,7 +61,6 @@ type Server struct {
 	httpServer         *http.Server
 	separatePorts      bool
 	unavailableChannel chan healthcheck.Status
-	grpcGatewayCancel  context.CancelFunc
 }
 
 // NewServer creates and initializes Server
@@ -85,7 +83,7 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 		return nil, err
 	}
 
-	httpServer, closeGRPCGateway, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, tracer, logger)
+	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, tracer, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +97,6 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 		httpServer:         httpServer,
 		separatePorts:      grpcPort != httpPort,
 		unavailableChannel: make(chan healthcheck.Status),
-		grpcGatewayCancel:  closeGRPCGateway,
 	}, nil
 }
 
@@ -149,7 +146,14 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	return server, nil
 }
 
-func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, queryOpts *QueryOptions, tm *tenancy.Manager, tracer *jtracer.JTracer, logger *zap.Logger) (*http.Server, context.CancelFunc, error) {
+func createHTTPServer(
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	queryOpts *QueryOptions,
+	tm *tenancy.Manager,
+	tracer *jtracer.JTracer,
+	logger *zap.Logger,
+) (*http.Server, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
@@ -165,11 +169,12 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 	}
 
-	ctx, closeGRPCGateway := context.WithCancel(context.Background())
-	if err := apiv3.RegisterGRPCGateway(ctx, logger, r, queryOpts.BasePath, queryOpts.GRPCHostPort, &queryOpts.TLSGRPC, tm); err != nil {
-		closeGRPCGateway()
-		return nil, nil, err
-	}
+	(&apiv3.HTTPGateway{
+		QueryService: querySvc,
+		TenancyMgr:   tm,
+		Logger:       logger,
+		Tracer:       tracer,
+	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
 	RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
@@ -191,13 +196,12 @@ func createHTTPServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	if queryOpts.TLSHTTP.Enabled {
 		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
 		if err != nil {
-			closeGRPCGateway()
-			return nil, nil, err
+			return nil, err
 		}
 		server.TLSConfig = tlsCfg
 
 	}
-	return server, closeGRPCGateway, nil
+	return server, nil
 }
 
 // initListener initialises listeners of the server
@@ -320,17 +324,17 @@ func (s *Server) Start() error {
 
 // Close stops http, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
-	s.grpcGatewayCancel()
-	s.queryOptions.TLSGRPC.Close()
-	s.queryOptions.TLSHTTP.Close()
+	var errs []error
+	errs = append(errs, s.queryOptions.TLSGRPC.Close())
+	errs = append(errs, s.queryOptions.TLSHTTP.Close())
 	s.grpcServer.Stop()
-	s.httpServer.Close()
+	errs = append(errs, s.httpServer.Close())
 	if s.separatePorts {
-		s.httpConn.Close()
-		s.grpcConn.Close()
+		errs = append(errs, s.httpConn.Close())
+		errs = append(errs, s.grpcConn.Close())
 	} else {
 		s.cmuxServer.Close()
-		s.conn.Close()
+		errs = append(errs, s.conn.Close())
 	}
-	return nil
+	return errors.Join(errs...)
 }
