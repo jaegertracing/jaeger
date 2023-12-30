@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 )
@@ -33,5 +34,5 @@ func TestCommand(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, goleak.IgnoreTopFunction("github.com/golang/glog.(*fileSink).flushDaemon"))
+	goleak.VerifyTestMain(m, testutils.IgnoreGlogFlushDaemonLeak())
 }

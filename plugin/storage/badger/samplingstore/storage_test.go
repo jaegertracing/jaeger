@@ -25,6 +25,7 @@ import (
 	"go.uber.org/goleak"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func newTestSamplingStore(db *badger.DB) *SamplingStore {
@@ -142,5 +143,5 @@ func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) 
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, goleak.IgnoreTopFunction("github.com/golang/glog.(*fileSink).flushDaemon"))
+	goleak.VerifyTestMain(m, testutils.IgnoreGlogFlushDaemonLeak())
 }

@@ -17,9 +17,10 @@ package spanstore
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"go.uber.org/goleak"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, goleak.IgnoreTopFunction("github.com/golang/glog.(*fileSink).flushDaemon"))
+	goleak.VerifyTestMain(m, testutils.IgnoreGlogFlushDaemonLeak())
 }
