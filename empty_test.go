@@ -15,7 +15,6 @@
 package jaeger
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"go.uber.org/goleak"
@@ -24,7 +23,6 @@ import (
 func TestDummy(t *testing.T) {
 	// This is a dummy test in the root package.
 	// Without it `go test -v .` prints "testing: warning: no tests to run".
-	assert.FailNow(t, "failing to test out summary output")
 }
 
 func TestMain(m *testing.M) {

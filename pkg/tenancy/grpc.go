@@ -89,7 +89,7 @@ func NewGuardingStreamInterceptor(tc *Manager) grpc.StreamServerInterceptor {
 func tenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
 	tenants := md.Get(tenancyHeader)
 	if len(tenants) < 1 {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+		return "", status.Errorf(codes.Unauthenticated, "missing tenant header")
 	} else if len(tenants) > 1 {
 		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
 	}

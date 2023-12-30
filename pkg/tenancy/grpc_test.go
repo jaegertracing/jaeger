@@ -60,7 +60,7 @@ func TestTenancyInterceptors(t *testing.T) {
 			name:       "missing tenant header",
 			tenancyMgr: NewManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
 			ctx:        metadata.NewIncomingContext(context.Background(), map[string][]string{}),
-			errMsg:     "rpc error: code = PermissionDenied desc = missing tenant header",
+			errMsg:     "rpc error: code = Unauthenticated desc = missing tenant header",
 		},
 		{
 			name:       "valid tenant header",

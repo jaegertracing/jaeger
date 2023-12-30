@@ -32,7 +32,15 @@ import (
 )
 
 // RegisterGRPCGateway registers api_v3 endpoints into provided mux.
-func RegisterGRPCGateway(ctx context.Context, logger *zap.Logger, r *mux.Router, basePath string, grpcEndpoint string, grpcTLS tlscfg.Options, tm *tenancy.Manager) error {
+func RegisterGRPCGateway(
+	ctx context.Context,
+	logger *zap.Logger,
+	r *mux.Router,
+	basePath string,
+	grpcEndpoint string,
+	grpcTLS *tlscfg.Options,
+	tm *tenancy.Manager,
+) error {
 	grpcEndpoint = netutils.FixLocalhost([]string{grpcEndpoint})[0]
 	jsonpb := &runtime.JSONPb{}
 
