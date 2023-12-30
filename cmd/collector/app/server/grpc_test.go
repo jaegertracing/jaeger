@@ -21,7 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opencensus.io/stats/view"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -36,13 +35,6 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-func stopOpenCensus(t *testing.T) {
-	t.Cleanup(func() {
-		// Stop opencensus.io default worker
-		defer view.Stop()
-	})
-}
-
 // test wrong port number
 func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
@@ -54,7 +46,6 @@ func TestFailToListen(t *testing.T) {
 	})
 	assert.Nil(t, server)
 	require.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
-	stopOpenCensus(t)
 }
 
 func TestFailServe(t *testing.T) {
@@ -78,7 +69,6 @@ func TestFailServe(t *testing.T) {
 		},
 	})
 	wg.Wait()
-	stopOpenCensus(t)
 }
 
 func TestSpanCollector(t *testing.T) {
@@ -119,11 +109,10 @@ func TestCollectorStartWithTLS(t *testing.T) {
 			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 		},
 	}
-	stopOpenCensus(t)
 	server, err := StartGRPCServer(params)
 	require.NoError(t, err)
-	server.Stop()
-	params.TLSConfig.Close()
+	defer server.Stop()
+	defer params.TLSConfig.Close()
 }
 
 func TestCollectorReflection(t *testing.T) {

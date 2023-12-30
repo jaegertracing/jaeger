@@ -64,7 +64,7 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 	}
 	_, err := StartHTTPServer(params)
 	require.Error(t, err)
-	params.TLSConfig.Close()
+	defer params.TLSConfig.Close()
 }
 
 func TestSpanCollectorHTTP(t *testing.T) {
@@ -86,8 +86,8 @@ func TestSpanCollectorHTTP(t *testing.T) {
 	response, err := http.Post(server.URL, "", nil)
 	require.NoError(t, err)
 	assert.NotNil(t, response)
-	response.Body.Close()
-	server.Close()
+	defer response.Body.Close()
+	defer server.Close()
 }
 
 func TestSpanCollectorHTTPS(t *testing.T) {
@@ -248,7 +248,8 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			} else {
 				require.NoError(t, requestError)
 				require.NotNil(t, response)
-				response.Body.Close()
+				// ensures that the body has been initialized attempting to close
+				defer response.Body.Close()
 			}
 		})
 	}
