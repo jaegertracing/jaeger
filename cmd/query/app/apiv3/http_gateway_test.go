@@ -75,14 +75,6 @@ func setupHTTPGateway(
 	return gw
 }
 
-func TestHTTPGateway(t *testing.T) {
-	useHTTPGateway = true
-	t.Cleanup(func() { useHTTPGateway = false })
-	t.Run("TestGRPCGateway", TestGRPCGateway)
-	t.Run("TestGRPCGatewayWithTenancy", TestGRPCGatewayWithTenancy)
-	t.Run("TestGRPCGatewayTenancyRejection", TestGRPCGatewayTenancyRejection)
-}
-
 func TestHTTPGatewayTryHandleError(t *testing.T) {
 	gw := new(HTTPGateway)
 	assert.False(t, gw.tryHandleError(nil, nil, 0), "returns false if no error")

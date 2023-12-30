@@ -16,16 +16,12 @@ package apiv3
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
@@ -33,17 +29,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -58,9 +49,6 @@ const (
 //	REGENERATE_SNAPSHOTS=true go test -v ./cmd/query/app/apiv3/...
 var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 
-// The tests in http_gateway_test.go set this to true to use manual gateway implementation.
-var useHTTPGateway = false
-
 type testGateway struct {
 	reader *spanstoremocks.Reader
 	url    string
@@ -72,81 +60,90 @@ type gatewayRequest struct {
 	setupRequest func(*http.Request)
 }
 
-func setupGRPCGateway(
+func setupGateway(
 	t *testing.T,
 	basePath string,
 	serverTLS, clientTLS *tlscfg.Options,
 	tenancyOptions tenancy.Options,
 ) *testGateway {
-	if useHTTPGateway {
-		return setupHTTPGateway(t, basePath, serverTLS, clientTLS, tenancyOptions)
-	}
-	gw := &testGateway{
-		reader: &spanstoremocks.Reader{},
-	}
-
-	q := querysvc.NewQueryService(gw.reader,
-		&dependencyStoreMocks.Reader{},
-		querysvc.QueryServiceOptions{},
-	)
-
-	var serverGRPCOpts []grpc.ServerOption
-	if serverTLS.Enabled {
-		config, err := serverTLS.Config(zap.NewNop())
-		require.NoError(t, err)
-		t.Cleanup(func() { serverTLS.Close() })
-		creds := credentials.NewTLS(config)
-		serverGRPCOpts = append(serverGRPCOpts, grpc.Creds(creds))
-	}
-	if tenancyOptions.Enabled {
-		tm := tenancy.NewManager(&tenancyOptions)
-		serverGRPCOpts = append(serverGRPCOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
-		)
-	}
-	grpcServer := grpc.NewServer(serverGRPCOpts...)
-	h := &Handler{
-		QueryService: q,
-	}
-	api_v3.RegisterQueryServiceServer(grpcServer, h)
-	lis, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-
-	go func() {
-		err := grpcServer.Serve(lis)
-		require.NoError(t, err)
-	}()
-	t.Cleanup(func() { grpcServer.Stop() })
-
-	router := &mux.Router{}
-	router = router.PathPrefix(basePath).Subrouter()
-	ctx, cancel := context.WithCancel(context.Background())
-	err = RegisterGRPCGateway(
-		ctx, zap.NewNop(), router, basePath,
-		lis.Addr().String(), clientTLS, tenancy.NewManager(&tenancyOptions),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { cancel() })
-	t.Cleanup(func() { clientTLS.Close() })
-
-	httpLis, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	httpServer := &http.Server{
-		Handler: router,
-	}
-	go func() {
-		err = httpServer.Serve(httpLis)
-		require.Equal(t, http.ErrServerClosed, err)
-	}()
-	t.Cleanup(func() { httpServer.Shutdown(context.Background()) })
-
-	gw.url = fmt.Sprintf(
-		"http://localhost%s%s",
-		strings.Replace(httpLis.Addr().String(), "[::]", "", 1),
-		basePath)
-	return gw
+	return setupHTTPGateway(t, basePath, serverTLS, clientTLS, tenancyOptions)
 }
+
+// func setupGRPCGateway(
+// 	t *testing.T,
+// 	basePath string,
+// 	serverTLS, clientTLS *tlscfg.Options,
+// 	tenancyOptions tenancy.Options,
+// ) *testGateway {
+// 	if useHTTPGateway {
+// 		return setupHTTPGateway(t, basePath, serverTLS, clientTLS, tenancyOptions)
+// 	}
+// 	gw := &testGateway{
+// 		reader: &spanstoremocks.Reader{},
+// 	}
+
+// 	q := querysvc.NewQueryService(gw.reader,
+// 		&dependencyStoreMocks.Reader{},
+// 		querysvc.QueryServiceOptions{},
+// 	)
+
+// 	var serverGRPCOpts []grpc.ServerOption
+// 	if serverTLS.Enabled {
+// 		config, err := serverTLS.Config(zap.NewNop())
+// 		require.NoError(t, err)
+// 		t.Cleanup(func() { serverTLS.Close() })
+// 		creds := credentials.NewTLS(config)
+// 		serverGRPCOpts = append(serverGRPCOpts, grpc.Creds(creds))
+// 	}
+// 	if tenancyOptions.Enabled {
+// 		tm := tenancy.NewManager(&tenancyOptions)
+// 		serverGRPCOpts = append(serverGRPCOpts,
+// 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
+// 			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+// 		)
+// 	}
+// 	grpcServer := grpc.NewServer(serverGRPCOpts...)
+// 	h := &Handler{
+// 		QueryService: q,
+// 	}
+// 	api_v3.RegisterQueryServiceServer(grpcServer, h)
+// 	lis, err := net.Listen("tcp", ":0")
+// 	require.NoError(t, err)
+
+// 	go func() {
+// 		err := grpcServer.Serve(lis)
+// 		require.NoError(t, err)
+// 	}()
+// 	t.Cleanup(func() { grpcServer.Stop() })
+
+// 	router := &mux.Router{}
+// 	router = router.PathPrefix(basePath).Subrouter()
+// 	ctx, cancel := context.WithCancel(context.Background())
+// 	err = RegisterGRPCGateway(
+// 		ctx, zap.NewNop(), router, basePath,
+// 		lis.Addr().String(), clientTLS, tenancy.NewManager(&tenancyOptions),
+// 	)
+// 	require.NoError(t, err)
+// 	t.Cleanup(func() { cancel() })
+// 	t.Cleanup(func() { clientTLS.Close() })
+
+// 	httpLis, err := net.Listen("tcp", ":0")
+// 	require.NoError(t, err)
+// 	httpServer := &http.Server{
+// 		Handler: router,
+// 	}
+// 	go func() {
+// 		err = httpServer.Serve(httpLis)
+// 		require.Equal(t, http.ErrServerClosed, err)
+// 	}()
+// 	t.Cleanup(func() { httpServer.Shutdown(context.Background()) })
+
+// 	gw.url = fmt.Sprintf(
+// 		"http://localhost%s%s",
+// 		strings.Replace(httpLis.Addr().String(), "[::]", "", 1),
+// 		basePath)
+// 	return gw
+// }
 
 func (gw *testGateway) execRequest(t *testing.T, gwReq *gatewayRequest) ([]byte, int) {
 	req, err := http.NewRequest(http.MethodGet, gw.url+gwReq.url, nil)
@@ -196,11 +193,11 @@ func makeTestTrace() (*model.Trace, model.TraceID) {
 	}, traceID
 }
 
-func testGRPCGateway(
+func runTestGateway(
 	t *testing.T, basePath string,
 	serverTLS, clientTLS *tlscfg.Options,
 ) {
-	testGRPCGatewayWithTenancy(t, basePath, serverTLS, clientTLS,
+	runTestGatewayWithTenancy(t, basePath, serverTLS, clientTLS,
 		tenancy.Options{
 			Enabled: false,
 		},
@@ -208,7 +205,7 @@ func testGRPCGateway(
 	)
 }
 
-func testGRPCGatewayWithTenancy(
+func runTestGatewayWithTenancy(
 	t *testing.T,
 	basePath string,
 	serverTLS *tlscfg.Options,
@@ -216,7 +213,7 @@ func testGRPCGatewayWithTenancy(
 	tenancyOptions tenancy.Options,
 	setupRequest func(*http.Request),
 ) {
-	gw := setupGRPCGateway(t, basePath, serverTLS, clientTLS, tenancyOptions)
+	gw := setupGateway(t, basePath, serverTLS, clientTLS, tenancyOptions)
 	t.Run("GetServices", func(t *testing.T) {
 		runGatewayGetServices(t, gw, setupRequest)
 	})
@@ -316,11 +313,11 @@ func bytesOfTraceID(t *testing.T, high, low uint64) []byte {
 	return buf
 }
 
-func TestGRPCGateway(t *testing.T) {
-	testGRPCGateway(t, "/", &tlscfg.Options{}, &tlscfg.Options{})
+func TestGateway(t *testing.T) {
+	runTestGateway(t, "/", &tlscfg.Options{}, &tlscfg.Options{})
 }
 
-func TestGRPCGatewayWithBasePathAndTLS(t *testing.T) {
+func TestGatewayWithBasePathAndTLS(t *testing.T) {
 	serverTLS := &tlscfg.Options{
 		Enabled:  true,
 		CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
@@ -334,15 +331,15 @@ func TestGRPCGatewayWithBasePathAndTLS(t *testing.T) {
 		KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 		ServerName: "example.com",
 	}
-	testGRPCGateway(t, "/jaeger", serverTLS, clientTLS)
+	runTestGateway(t, "/jaeger", serverTLS, clientTLS)
 }
 
-func TestGRPCGatewayWithTenancy(t *testing.T) {
+func TestGatewayWithTenancy(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
 	tm := tenancy.NewManager(&tenancyOptions)
-	testGRPCGatewayWithTenancy(t, "/", &tlscfg.Options{}, &tlscfg.Options{},
+	runTestGatewayWithTenancy(t, "/", &tlscfg.Options{}, &tlscfg.Options{},
 		// Configure the gateway to forward tenancy header from HTTP to GRPC
 		tenancyOptions,
 		// Add a tenancy header on outbound requests
@@ -351,10 +348,10 @@ func TestGRPCGatewayWithTenancy(t *testing.T) {
 		})
 }
 
-func TestGRPCGatewayTenancyRejection(t *testing.T) {
+func TestGatewayTenancyRejection(t *testing.T) {
 	basePath := "/"
 	tenancyOptions := tenancy.Options{Enabled: true}
-	gw := setupGRPCGateway(t,
+	gw := setupGateway(t,
 		basePath, &tlscfg.Options{}, &tlscfg.Options{},
 		tenancyOptions)
 

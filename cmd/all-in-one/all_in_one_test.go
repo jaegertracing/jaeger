@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -182,8 +181,7 @@ func getServicesAPIV3(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 
 	var servicesResponse api_v3.GetServicesResponse
-	jsonpb := runtime.JSONPb{}
-	err = jsonpb.Unmarshal(body, &servicesResponse)
+	err = json.Unmarshal(body, &servicesResponse)
 	require.NoError(t, err)
 	require.Len(t, servicesResponse.GetServices(), 1)
 	assert.Contains(t, servicesResponse.GetServices()[0], "jaeger")
