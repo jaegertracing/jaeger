@@ -5,6 +5,7 @@
 package model
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,10 +15,10 @@ import (
 // Called by Protobuf JSON deserialization.
 func marshalJSON(id []byte) ([]byte, error) {
 	// Plus 2 quote chars at the start and end.
-	hexLen := hex.EncodedLen(len(id)) + 2
+	hexLen := base64.StdEncoding.EncodedLen(len(id)) + 2
 
 	b := make([]byte, hexLen)
-	hex.Encode(b[1:hexLen-1], id)
+	base64.StdEncoding.Encode(b[1:hexLen-1], id)
 	b[0], b[hexLen-1] = '"', '"'
 
 	return b, nil

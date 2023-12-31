@@ -30,12 +30,20 @@ s+bytes trace_id = \(.*\);+bytes trace_id = \1\
   (gogoproto.customname) = "TraceID"\
   ];+g
 
-s+bytes \(.*span_id\) = \(.*\);+bytes \1 = \2\
+s+bytes span_id = \(.*\);+bytes span_id = \1\
   [\
   // Use custom SpanId data type for this field.\
   (gogoproto.nullable) = false,\
   (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model/v2.SpanID",\
   (gogoproto.customname) = "SpanID"\
+  ];+g
+
+s+bytes parent_span_id = \(.*\);+bytes parent_span_id = \1\
+  [\
+  // Use custom SpanId data type for this field.\
+  (gogoproto.nullable) = false,\
+  (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model/v2.SpanID",\
+  (gogoproto.customname) = "ParentSpanID"\
   ];+g
 
 s+repeated opentelemetry.proto.common.v1.KeyValue \(.*\);+repeated opentelemetry.proto.common.v1.KeyValue \1\

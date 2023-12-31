@@ -73,9 +73,11 @@ func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 func (gw *testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	// reformat JSON body with indentation, to make diffing easier
 	var data interface{}
+	t.Log(string(body))
 	require.NoError(t, json.Unmarshal(body, &data), "response: %s", string(body))
 	body, err := json.MarshalIndent(data, "", "  ")
 	require.NoError(t, err)
+	t.Log(string(body))
 
 	testName := path.Base(t.Name())
 	snapshotFile := filepath.Join(snapshotLocation, testName+".json")
@@ -100,6 +102,7 @@ func makeTestTrace() (*model.Trace, model.TraceID) {
 				TraceID:       traceID,
 				SpanID:        model.NewSpanID(180),
 				OperationName: "foobar",
+				Tags:          []model.KeyValue{model.String("span.kind", "server")},
 			},
 		},
 	}, traceID
@@ -162,7 +165,7 @@ func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 	assert.Len(t, response.Result.ResourceSpans, 1)
 	assert.Equal(t,
 		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
+		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -181,7 +184,7 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	assert.Len(t, response.Result.ResourceSpans, 1)
 	assert.Equal(t,
 		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
+		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceID)
 }
 
 func bytesOfTraceID(t *testing.T, high, low uint64) []byte {

@@ -127,10 +127,10 @@ func (h *HTTPGateway) returnSpansTestable(
 	for _, rs := range resourceSpans {
 		for _, ss := range rs.ScopeSpans {
 			for _, s := range ss.Spans {
-				if len(s.ParentSpanId) == 0 {
-					// If ParentSpanId is empty array then gogo/jsonpb renders it as empty string.
+				if len(s.ParentSpanID) == 0 {
+					// If ParentSpanID is empty array then gogo/jsonpb renders it as empty string.
 					// To match the output with grpc-gateway we set it to nil and it won't be included.
-					s.ParentSpanId = nil
+					// s.ParentSpanID = nil
 				}
 			}
 		}
