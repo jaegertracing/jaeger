@@ -124,17 +124,6 @@ func (h *HTTPGateway) returnSpansTestable(
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	for _, rs := range resourceSpans {
-		for _, ss := range rs.ScopeSpans {
-			for _, s := range ss.Spans {
-				if len(s.ParentSpanID) == 0 {
-					// If ParentSpanID is empty array then gogo/jsonpb renders it as empty string.
-					// To match the output with grpc-gateway we set it to nil and it won't be included.
-					// s.ParentSpanID = nil
-				}
-			}
-		}
-	}
 	response := &api_v3.GRPCGatewayWrapper{
 		Result: &api_v3.SpansResponseChunk{
 			ResourceSpans: resourceSpans,
