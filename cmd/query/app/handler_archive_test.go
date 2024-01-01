@@ -17,7 +17,6 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,8 +46,8 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 			reader: mockReader,
 		},
 	} {
-		archiveReader := tc // capture loop var
-		t.Run(fmt.Sprint(archiveReader), func(t *testing.T) {
+		tc := tc // capture loop var
+		t.Run(tc.name, func(t *testing.T) {
 			withTestServer(func(ts *testServer) {
 				ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 					Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -57,7 +56,7 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 				require.EqualError(t, err,
 					`404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n",
 				)
-			}, querysvc.QueryServiceOptions{ArchiveSpanReader: archiveReader}) // nil is ok
+			}, querysvc.QueryServiceOptions{ArchiveSpanReader: tc.reader}) // nil is ok
 		})
 	}
 }
