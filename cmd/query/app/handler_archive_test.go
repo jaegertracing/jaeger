@@ -34,7 +34,19 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 	mockReader := &spanstoremocks.Reader{}
 	mockReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
-	for _, tc := range []spanstore.Reader{nil, mockReader} {
+	for _, tc := range []struct {
+		name   string
+		reader spanstore.Reader
+	}{
+		{
+			name:   "nil",
+			reader: nil,
+		},
+		{
+			name:   "mock reader",
+			reader: mockReader,
+		},
+	} {
 		archiveReader := tc // capture loop var
 		t.Run(fmt.Sprint(archiveReader), func(t *testing.T) {
 			withTestServer(func(ts *testServer) {
