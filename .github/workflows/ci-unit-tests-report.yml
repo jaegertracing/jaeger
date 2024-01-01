@@ -30,14 +30,8 @@ jobs:
       - name: Download and Extract Artifacts
         uses: dawidd6/action-download-artifact@v3
         with:
-#          github-token: ${{ secrets.GH_PAT }} # token with actions:read permissions on target repo
           run_id: ${{ github.event.workflow_run.id }}
-#          repository: actions/toolkit
-#          run-id: 1234
-#          run-id: ${{ github.event.workflow_run.id }}
           path: artifacts
-      - name: Display structure of downloaded files
-        run: ls -R
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2

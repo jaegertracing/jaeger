@@ -2,7 +2,7 @@ name: Unit Tests on Go Tip
 
 on:
   push:
-    branches: [main, upload-test-report-1]
+    branches: [main]
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
