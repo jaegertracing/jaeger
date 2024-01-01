@@ -973,7 +973,7 @@ func TestSearchTenancyGRPC(t *testing.T) {
 		require.NoError(t, err, "could not initiate GetTraceRequest")
 
 		spanResChunk, err := res.Recv()
-		assertGRPCError(t, err, codes.PermissionDenied, "missing tenant header")
+		assertGRPCError(t, err, codes.Unauthenticated, "missing tenant header")
 		assert.Nil(t, spanResChunk)
 
 		// Next try with tenancy
@@ -1003,7 +1003,7 @@ func TestServicesTenancyGRPC(t *testing.T) {
 
 		// First try without tenancy header
 		_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
-		assertGRPCError(t, err, codes.PermissionDenied, "missing tenant header")
+		assertGRPCError(t, err, codes.Unauthenticated, "missing tenant header")
 
 		// Next try with tenancy
 		res, err := client.GetServices(withOutgoingMetadata(t, context.Background(), tm.Header, "acme"), &api_v2.GetServicesRequest{})
@@ -1033,7 +1033,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 			{
 				name:           "no header",
 				wantErr:        true,
-				failureCode:    codes.PermissionDenied,
+				failureCode:    codes.Unauthenticated,
 				failureMessage: "missing tenant header",
 			},
 			{
@@ -1041,7 +1041,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 				tenancyHeader:  "not-the-correct-header",
 				tenant:         "mercury",
 				wantErr:        true,
-				failureCode:    codes.PermissionDenied,
+				failureCode:    codes.Unauthenticated,
 				failureMessage: "missing tenant header",
 			},
 			{

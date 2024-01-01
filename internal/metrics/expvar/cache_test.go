@@ -27,6 +27,7 @@ import (
 
 func TestCache(t *testing.T) {
 	f := metricstest.NewFactory(100 * time.Second)
+	defer f.Stop()
 	c1 := f.Counter(metrics.Options{Name: "x"})
 	g1 := f.Gauge(metrics.Options{Name: "y"})
 	t1 := f.Timer(metrics.TimerOptions{Name: "z"})

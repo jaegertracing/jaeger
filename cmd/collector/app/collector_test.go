@@ -109,7 +109,7 @@ func TestCollector_StartErrors(t *testing.T) {
 
 	options = optionsForEphemeralPorts()
 	options.Zipkin.HTTPHostPort = ":-1"
-	run("Zipkin", options, "could not start Zipkin server")
+	run("Zipkin", options, "could not start Zipkin receiver")
 
 	options = optionsForEphemeralPorts()
 	options.OTLP.GRPC.HostPort = ":-1"
