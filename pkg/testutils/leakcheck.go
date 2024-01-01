@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2023 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,28 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package env
+package testutils
 
 import (
-	"bytes"
-	"strings"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestCommand(t *testing.T) {
-	cmd := Command()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.Run(cmd, nil)
-	assert.True(t, strings.Contains(buf.String(), "METRICS_BACKEND"))
-	assert.True(t, strings.Contains(buf.String(), "SPAN_STORAGE"))
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutils.IgnoreGlogFlushDaemonLeak())
+// IgnoreGlogFlushDaemonLeak returns a goleak.Option that ignores the flushDaemon function
+// from the glog package that can cause false positives in leak detection.
+// This is necessary because glog starts a goroutine in the background that may not
+// be stopped when the test finishes, leading to a detected but expected leak.
+func IgnoreGlogFlushDaemonLeak() goleak.Option {
+	return goleak.IgnoreTopFunction("github.com/golang/glog.(*fileSink).flushDaemon")
 }
