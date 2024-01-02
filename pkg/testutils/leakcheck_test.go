@@ -16,6 +16,8 @@ package testutils
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIgnoreGlogFlushDaemonLeak(t *testing.T) {
