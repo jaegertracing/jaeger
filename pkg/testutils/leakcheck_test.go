@@ -16,14 +16,18 @@ package testutils
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestIgnoreGlogFlushDaemonLeak(t *testing.T) {
-	assert.Nil(t, IgnoreGlogFlushDaemonLeak())
+	opt := IgnoreGlogFlushDaemonLeak()
+	if opt == nil {
+		t.Errorf("IgnoreGlogFlushDaemonLeak() returned nil, want non-nil goleak.Option")
+	}
 }
 
 func TestIgnoreOpenCensusWorkerLeak(t *testing.T) {
-	assert.NotNil(t, IgnoreOpenCensusWorkerLeak())
+	opt := IgnoreOpenCensusWorkerLeak()
+	if opt == nil {
+		t.Errorf("IgnoreOpenCensusWorkerLeak() returned nil, want non-nil goleak.Option")
+	}
 }
