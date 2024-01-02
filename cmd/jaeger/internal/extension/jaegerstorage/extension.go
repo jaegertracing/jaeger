@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/clickhouse"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -71,6 +72,14 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		)
 	}
 	// TODO add support for other backends
+
+	for name, chCfg := range s.config.ClickHouse {
+		if _, ok := s.factories[name]; ok {
+			return fmt.Errorf("duplicate clickhouse storage name %s", name)
+		}
+		s.factories[name] = clickhouse.NewFactory(ctx, chCfg, s.logger.With(zap.String("storage_name", name)))
+	}
+
 	return nil
 }
 

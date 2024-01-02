@@ -5,6 +5,7 @@ package jaegerstorage
 
 import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
+	ch "github.com/jaegertracing/jaeger/plugin/storage/clickhouse"
 )
 
 // Config has the configuration for jaeger-query,
@@ -13,9 +14,6 @@ type Config struct {
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?
 	//      Option: instead of looking for specific name, check interface.
-}
 
-type MemoryStorage struct {
-	Name string `mapstructure:"name"`
-	memoryCfg.Configuration
+	ClickHouse map[string]ch.Config `mapstructure:"clickhouse"`
 }
