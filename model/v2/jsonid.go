@@ -6,12 +6,10 @@ package model
 
 import (
 	"encoding/base64"
-	"encoding/hex"
-	"errors"
 	"fmt"
 )
 
-// marshalJSON converts trace id into a hex string enclosed in quotes.
+// marshalJSON converts trace id into a base64 string enclosed in quotes.
 // Called by Protobuf JSON deserialization.
 func marshalJSON(id []byte) ([]byte, error) {
 	// Plus 2 quote chars at the start and end.
@@ -24,7 +22,7 @@ func marshalJSON(id []byte) ([]byte, error) {
 	return b, nil
 }
 
-// unmarshalJSON inflates trace id from hex string, possibly enclosed in quotes.
+// unmarshalJSON inflates trace id from base64 string, possibly enclosed in quotes.
 // Called by Protobuf JSON deserialization.
 func unmarshalJSON(dst []byte, src []byte) error {
 	if l := len(src); l >= 2 && src[0] == '"' && src[l-1] == '"' {
@@ -35,11 +33,11 @@ func unmarshalJSON(dst []byte, src []byte) error {
 		return nil
 	}
 
-	if len(dst) != hex.DecodedLen(nLen) {
-		return errors.New("invalid length for ID")
+	if l := base64.StdEncoding.DecodedLen(nLen); len(dst) != l {
+		return fmt.Errorf("invalid length for ID '%s', dst=%d, src=%d", string(src), len(dst), l)
 	}
 
-	_, err := hex.Decode(dst, src)
+	_, err := base64.StdEncoding.Decode(dst, src)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal ID from string '%s': %w", string(src), err)
 	}

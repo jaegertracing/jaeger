@@ -83,6 +83,12 @@ func (tid TraceID) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON inflates trace id from hex string, possibly enclosed in quotes.
 // Called by Protobuf JSON deserialization.
 func (tid *TraceID) UnmarshalJSON(data []byte) error {
+	// in base64 encoding a 16-byte array is padded to 18 bytes
+	buf := [traceIDSize + 2]byte{}
+	if err := unmarshalJSON(buf[:], data); err != nil {
+		return err
+	}
 	*tid = [traceIDSize]byte{}
-	return unmarshalJSON(tid[:], data)
+	copy(tid[:], buf[:traceIDSize])
+	return nil
 }

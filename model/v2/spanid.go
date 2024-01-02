@@ -83,6 +83,12 @@ func (sid SpanID) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes SpanID from hex string, possibly enclosed in quotes.
 // Called by Protobuf JSON deserialization.
 func (sid *SpanID) UnmarshalJSON(data []byte) error {
+	// in base64 encoding an 8-byte array is padded to 9 bytes
+	buf := [spanIDSize + 1]byte{}
+	if err := unmarshalJSON(buf[:], data); err != nil {
+		return err
+	}
 	*sid = [spanIDSize]byte{}
-	return unmarshalJSON(sid[:], data)
+	copy(sid[:], buf[:spanIDSize])
+	return nil
 }
