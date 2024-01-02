@@ -24,3 +24,10 @@ func TestIgnoreGlogFlushDaemonLeak(t *testing.T) {
 		t.Errorf("IgnoreGlogFlushDaemonLeak() returned nil, want non-nil goleak.Option")
 	}
 }
+
+func TestIgnoreOpenCensusWorkerLeak(t *testing.T) {
+	opt := IgnoreOpenCensusWorkerLeak()
+	if opt == nil {
+		t.Errorf("IgnoreOpenCensusWorkerLeak() returned nil, want non-nil goleak.Option")
+	}
+}
