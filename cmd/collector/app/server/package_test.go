@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package testutils
+package server
 
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestIgnoreGlogFlushDaemonLeak(t *testing.T) {
-	require.NotNil(t, IgnoreGlogFlushDaemonLeak())
-}
-
-func TestIgnoreOpenCensusWorkerLeak(t *testing.T) {
-	require.NotNil(t, IgnoreOpenCensusWorkerLeak())
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m, testutils.IgnoreOpenCensusWorkerLeak())
 }

@@ -64,26 +64,30 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 	}
 	_, err := StartHTTPServer(params)
 	require.Error(t, err)
+	defer params.TLSConfig.Close()
 }
 
 func TestSpanCollectorHTTP(t *testing.T) {
+	mFact := metricstest.NewFactory(time.Hour)
+	defer mFact.Backend.Stop()
 	logger, _ := zap.NewDevelopment()
 	params := &HTTPServerParams{
 		Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
 		SamplingStore:  &mockSamplingStore{},
-		MetricsFactory: metricstest.NewFactory(time.Hour),
+		MetricsFactory: mFact,
 		HealthCheck:    healthcheck.New(),
 		Logger:         logger,
 	}
 
 	server := httptest.NewServer(nil)
-	defer server.Close()
 
 	serveHTTP(server.Config, server.Listener, params)
 
 	response, err := http.Post(server.URL, "", nil)
 	require.NoError(t, err)
 	assert.NotNil(t, response)
+	defer response.Body.Close()
+	defer server.Close()
 }
 
 func TestSpanCollectorHTTPS(t *testing.T) {
@@ -191,15 +195,18 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			// Cannot reliably use zaptest.NewLogger(t) because it causes race condition
 			// See https://github.com/jaegertracing/jaeger/issues/4497.
 			logger := zap.NewNop()
+			mFact := metricstest.NewFactory(time.Hour)
+			defer mFact.Backend.Stop()
 			params := &HTTPServerParams{
 				HostPort:       fmt.Sprintf(":%d", ports.CollectorHTTP),
 				Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
 				SamplingStore:  &mockSamplingStore{},
-				MetricsFactory: metricstest.NewFactory(time.Hour),
+				MetricsFactory: mFact,
 				HealthCheck:    healthcheck.New(),
 				Logger:         logger,
 				TLSConfig:      test.TLS,
 			}
+			defer params.TLSConfig.Close()
 
 			server, err := StartHTTPServer(params)
 			require.NoError(t, err)
@@ -208,6 +215,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			}()
 
 			clientTLSCfg, err0 := test.clientTLS.Config(logger)
+			defer test.clientTLS.Close()
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), clientTLSCfg)
@@ -240,6 +248,8 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			} else {
 				require.NoError(t, requestError)
 				require.NotNil(t, response)
+				// ensures that the body has been initialized attempting to close
+				defer response.Body.Close()
 			}
 		})
 	}
@@ -247,11 +257,13 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 
 func TestStartHTTPServerParams(t *testing.T) {
 	logger := zap.NewNop()
+	mFact := metricstest.NewFactory(time.Hour)
+	defer mFact.Stop()
 	params := &HTTPServerParams{
 		HostPort:          fmt.Sprintf(":%d", ports.CollectorHTTP),
 		Handler:           handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
 		SamplingStore:     &mockSamplingStore{},
-		MetricsFactory:    metricstest.NewFactory(time.Hour),
+		MetricsFactory:    mFact,
 		HealthCheck:       healthcheck.New(),
 		Logger:            logger,
 		IdleTimeout:       5 * time.Minute,
