@@ -42,7 +42,7 @@ func TestRegisterHandler(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
 	require.NoError(t, err)
+	resp.Body.Close()
 	assert.Equal(t, expectedJSON, body)
 }
