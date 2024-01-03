@@ -235,8 +235,8 @@ Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).
 [doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
-[ci-img]: https://github.com/jaegertracing/jaeger/workflows/Unit%20Tests/badge.svg?branch=main
-[ci]: https://github.com/jaegertracing/jaeger/actions?query=branch%3Amain
+[ci-img]: https://github.com/jaegertracing/jaeger/actions/workflows/ci-unit-tests.yml/badge.svg?branch=main
+[ci]: https://github.com/jaegertracing/jaeger/actions/workflows/ci-unit-tests.yml?query=branch%3Amain
 [cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/graph/badge.svg
 [cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/
 [fossa-img]: https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield
