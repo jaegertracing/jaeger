@@ -37,9 +37,7 @@ type ProxyBuilder struct {
 }
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func NewCollectorProxy(ctx context.Context, builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
 	conn, err := builder.CreateConnection(ctx, logger, mFactory)
 	if err != nil {
 		return nil, err

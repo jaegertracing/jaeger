@@ -47,7 +47,9 @@ func TestMultipleCollectors(t *testing.T) {
 
 	mFactory := metricstest.NewFactory(time.Microsecond)
 	defer mFactory.Stop()
-	proxy, err := NewCollectorProxy(&ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, nil, mFactory, zap.NewNop())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	proxy, err := NewCollectorProxy(ctx, &ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, nil, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())

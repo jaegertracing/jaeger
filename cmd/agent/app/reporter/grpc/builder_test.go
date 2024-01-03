@@ -213,10 +213,12 @@ func TestProxyBuilder(t *testing.T) {
 			expectError: false,
 		},
 	}
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(ctx, test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -339,6 +341,8 @@ func TestProxyClientTLS(t *testing.T) {
 			expectError: false,
 		},
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var opts []grpc.ServerOption
@@ -364,6 +368,7 @@ func TestProxyClientTLS(t *testing.T) {
 				TLS:                test.clientTLS,
 			}
 			proxy, err := NewCollectorProxy(
+				ctx,
 				grpcBuilder,
 				nil,
 				mFactory,
@@ -377,7 +382,7 @@ func TestProxyClientTLS(t *testing.T) {
 
 			r := proxy.GetReporter()
 
-			err = r.EmitBatch(context.Background(), &jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+			err = r.EmitBatch(ctx, &jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
 
 			if test.expectError {
 				require.Error(t, err)
