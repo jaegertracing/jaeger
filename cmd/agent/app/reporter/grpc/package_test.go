@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,31 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package version
+package grpc
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
+	"testing"
 
-	"github.com/spf13/cobra"
+	"go.uber.org/goleak"
 )
 
-// Command creates version command
-func Command() *cobra.Command {
-	info := Get()
-	log.Println("application version:", info)
-	return &cobra.Command{
-		Use:   "version",
-		Short: "Print the version.",
-		Long:  `Print the version and build information.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			json, err := json.Marshal(info)
-			if err != nil {
-				return err
-			}
-			fmt.Fprint(cmd.OutOrStdout(), string(json))
-			return nil
-		},
-	}
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

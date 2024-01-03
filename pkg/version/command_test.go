@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,28 +15,26 @@
 package version
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
+	"bytes"
+	"io"
+	"testing"
 
-	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// Command creates version command
-func Command() *cobra.Command {
-	info := Get()
-	log.Println("application version:", info)
-	return &cobra.Command{
-		Use:   "version",
-		Short: "Print the version.",
-		Long:  `Print the version and build information.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			json, err := json.Marshal(info)
-			if err != nil {
-				return err
-			}
-			fmt.Fprint(cmd.OutOrStdout(), string(json))
-			return nil
-		},
-	}
+func TestNewCommand(t *testing.T) {
+	commitSHA = "foobar"
+	latestVersion = "v1.2.3"
+	date = "2024-01-04"
+	cmd := Command()
+
+	var b bytes.Buffer
+	cmd.SetOut(&b)
+	err := cmd.Execute()
+	require.NoError(t, err)
+	out, err := io.ReadAll(&b)
+	require.NoError(t, err)
+	expectedCommandOutput := `{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`
+	assert.Equal(t, expectedCommandOutput, string(out))
 }
