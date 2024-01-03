@@ -18,12 +18,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestComponents(t *testing.T) {
 	factories, err := components()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.NotNil(t, factories.Extensions)
 	assert.NotNil(t, factories.Receivers)
