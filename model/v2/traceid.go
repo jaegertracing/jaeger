@@ -19,9 +19,7 @@ var (
 // Protobuf messages.
 type TraceID [traceIDSize]byte
 
-var (
-	_ gogoCustom = (*TraceID)(nil)
-)
+var _ gogoCustom = (*TraceID)(nil)
 
 // Size returns the size of the data to serialize.
 func (tid TraceID) Size() int {

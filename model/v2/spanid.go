@@ -19,9 +19,7 @@ var (
 // Protobuf messages.
 type SpanID [spanIDSize]byte
 
-var (
-	_ gogoCustom = (*SpanID)(nil)
-)
+var _ gogoCustom = (*SpanID)(nil)
 
 // Size returns the size of the data to serialize.
 func (sid SpanID) Size() int {
