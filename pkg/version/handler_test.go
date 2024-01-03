@@ -25,14 +25,11 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	expectedJSON = []byte(`{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`) // Replace with expected values
-)
-
 func TestRegisterHandler(t *testing.T) {
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
+	expectedJSON := []byte(`{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`) // Replace with expected values
 
 	mockLogger := zap.NewNop()
 
