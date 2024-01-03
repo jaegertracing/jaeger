@@ -1,77 +1,158 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package model_test
+package model
 
 import (
-	"bytes"
-	"fmt"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/model/v2"
-	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 )
-
-func TestMarshalJSON(t *testing.T) {
-	// var spanID SpanID = [spanIDSize]byte{1, 2, 3, 4, 5, 6, 7, 8}
-	// var id [spanIDSize]byte = {1, 2, 3, 4, 5, 6, 7, 8}
-	s1 := &tracev1.Span{
-		TraceID: model.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		SpanID:  model.SpanID{1, 2, 3, 4, 5, 6, 7, 8},
-	}
-	var buf bytes.Buffer
-	require.NoError(t, new(jsonpb.Marshaler).Marshal(&buf, s1))
-
-	var s2 tracev1.Span
-	require.NoError(t, jsonpb.Unmarshal(&buf, &s2))
-	assert.Equal(t, s1, &s2)
-}
 
 func TestUnmarshalJSON(t *testing.T) {
 	tests := []struct {
-		name     string
-		dst      []byte
-		src      []byte
-		expected error
+		name   string
+		dst    []byte
+		src    []byte
+		expErr string
 	}{
 		{
-			name:     "Valid input",
-			dst:      make([]byte, 16+2),
-			src:      []byte(`"AAAAAAAAAJYAAAAAAAAAoA=="`),
-			expected: nil,
+			name:   "Valid input",
+			dst:    make([]byte, 16+2),
+			src:    []byte(`"AAAAAAAAAJYAAAAAAAAAoA=="`),
+			expErr: "",
 		},
 		{
-			name:     "Empty input",
-			dst:      make([]byte, 16),
-			src:      []byte(`""`),
-			expected: nil,
+			name:   "Empty input",
+			dst:    make([]byte, 16),
+			src:    []byte(`""`),
+			expErr: "",
 		},
 		{
-			name:     "Invalid length",
-			dst:      make([]byte, 16),
-			src:      []byte(`"AAAAAAAAAJYAAAAAAAAAoA=="`),
-			expected: fmt.Errorf("invalid length for ID"),
+			name:   "Invalid length",
+			dst:    make([]byte, 16),
+			src:    []byte(`"AAAAAAAAAJYAAAAAAAAAoA=="`),
+			expErr: "invalid length for ID",
 		},
 		{
-			name:     "Decode error",
-			dst:      make([]byte, 16+2),
-			src:      []byte(`"invalid_base64_length_18"`),
-			expected: fmt.Errorf("cannot unmarshal ID from string"),
+			name:   "Decode error",
+			dst:    make([]byte, 16+2),
+			src:    []byte(`"invalid_base64_length_18"`),
+			expErr: "cannot unmarshal ID from string",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := model.UnmarshalJSON(tt.dst, tt.src)
-			if tt.expected == nil {
+			err := unmarshalJSON(tt.dst, tt.src)
+			if tt.expErr == "" {
 				require.NoError(t, err)
 			} else {
-				assert.Contains(t, err.Error(), tt.expected.Error())
+				assert.ErrorContains(t, err, tt.expErr)
 			}
+		})
+	}
+}
+
+func TestMarshal(t *testing.T) {
+	validSpanID := SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+	validTraceID := TraceID{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1}
+	tests := []struct {
+		name   string
+		id     gogoCustom
+		expErr string
+	}{
+		{
+			name: "Valid span id",
+			id:   &validSpanID,
+		},
+		{
+			name: "Valid trace id",
+			id:   &validTraceID,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := tt.id.Marshal()
+			require.NoError(t, err)
+			assert.Len(t, d, tt.id.Size())
+		})
+	}
+}
+
+func TestMarshalTo(t *testing.T) {
+	validSpanID := SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+	validTraceID := TraceID{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1}
+	tests := []struct {
+		name   string
+		id     gogoCustom
+		len    int
+		expErr string
+	}{
+		{
+			name: "Valid span id buffer",
+			id:   &validSpanID,
+			len:  8,
+		},
+		{
+			name: "Valid trace id buffer",
+			id:   &validTraceID,
+			len:  16,
+		},
+		{
+			name:   "Invalid span id buffer",
+			id:     &validSpanID,
+			len:    4,
+			expErr: errMarshalSpanID.Error(),
+		},
+		{
+			name:   "Invalid trace id buffer",
+			id:     &validTraceID,
+			len:    4,
+			expErr: errMarshalTraceID.Error(),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := make([]byte, tt.len)
+			n, err := tt.id.MarshalTo(buf)
+			if tt.expErr == "" {
+				require.NoError(t, err)
+				assert.Equal(t, n, tt.id.Size())
+			} else {
+				assert.ErrorContains(t, err, tt.expErr)
+			}
+		})
+	}
+}
+
+func TestUnmarshalError(t *testing.T) {
+	validSpanID := SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+	validTraceID := TraceID{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1}
+	tests := []struct {
+		name string
+		id   gogoCustom
+	}{
+		{
+			name: "span id",
+			id:   &validSpanID,
+		},
+		{
+			name: "trace id",
+			id:   &validTraceID,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run("Protobuf", func(t *testing.T) {
+				err := tt.id.Unmarshal([]byte("invalid"))
+				assert.ErrorContains(t, err, "length")
+			})
+			t.Run("JSON", func(t *testing.T) {
+				err := tt.id.UnmarshalJSON([]byte("invalid"))
+				assert.ErrorContains(t, err, "length")
+			})
 		})
 	}
 }

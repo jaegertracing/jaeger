@@ -6,8 +6,6 @@ package model
 
 import (
 	"errors"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 const spanIDSize = 8
@@ -22,8 +20,7 @@ var (
 type SpanID [spanIDSize]byte
 
 var (
-	_ proto.Sizer = (*SpanID)(nil)
-	_ gogoCustom  = (*SpanID)(nil)
+	_ gogoCustom = (*SpanID)(nil)
 )
 
 // Size returns the size of the data to serialize.
@@ -54,7 +51,7 @@ func (sid SpanID) MarshalTo(data []byte) (n int, err error) {
 }
 
 // Marshal implements gogoCustom.
-func (sid *SpanID) Marshal() ([]byte, error) {
+func (sid SpanID) Marshal() ([]byte, error) {
 	return sid[:], nil
 }
 
@@ -86,7 +83,7 @@ func (sid SpanID) MarshalJSON() ([]byte, error) {
 func (sid *SpanID) UnmarshalJSON(data []byte) error {
 	// in base64 encoding an 8-byte array is padded to 9 bytes
 	buf := [spanIDSize + 1]byte{}
-	if err := UnmarshalJSON(buf[:], data); err != nil {
+	if err := unmarshalJSON(buf[:], data); err != nil {
 		return err
 	}
 	*sid = [spanIDSize]byte{}
