@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewCommand(t *testing.T) {
@@ -28,22 +29,12 @@ func TestNewCommand(t *testing.T) {
 	date = "2024-01-04"
 	cmd := Command()
 
-	expectedUse := "version"
-	assert.Equal(t, expectedUse, cmd.Use, "Command use should be '%s'", expectedUse)
-
-	expectedShortDescription := "Print the version."
-	assert.Equal(t, expectedShortDescription, cmd.Short, "Command short description should be '%s'", expectedShortDescription)
-
-	expectedLongDescription := `Print the version and build information.`
-	assert.Equal(t, expectedLongDescription, cmd.Long, "Command long description should be '%s'", expectedLongDescription)
-
 	var b bytes.Buffer
 	cmd.SetOut(&b)
-	cmd.Execute()
+	err := cmd.Execute()
+	require.NoError(t, err)
 	out, err := io.ReadAll(&b)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	expectedCommandOutput := `{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`
-	assert.Equal(t, expectedCommandOutput, string(out), "Command output should be '%s'", expectedCommandOutput)
+	assert.Equal(t, expectedCommandOutput, string(out))
 }

@@ -27,9 +27,9 @@ func TestGet(t *testing.T) {
 
 	info := Get()
 
-	assert.Equal(t, commitSHA, info.GitCommit, "Command long description should be '%s'", commitSHA)
-	assert.Equal(t, latestVersion, info.GitVersion, "Command long description should be '%s'", latestVersion)
-	assert.Equal(t, date, info.BuildDate, "Command long description should be '%s'", date)
+	assert.Equal(t, commitSHA, info.GitCommit)
+	assert.Equal(t, latestVersion, info.GitVersion)
+	assert.Equal(t, date, info.BuildDate)
 }
 
 func TestString(t *testing.T) {
@@ -42,5 +42,5 @@ func TestString(t *testing.T) {
 		BuildDate:  date,
 	}
 	expectedOutput := "git-commit=foobar, git-version=v1.2.3, build-date=2024-01-04"
-	assert.Equal(t, expectedOutput, test.String(), "Expected Output should be '%s'", expectedOutput)
+	assert.Equal(t, expectedOutput, test.String())
 }

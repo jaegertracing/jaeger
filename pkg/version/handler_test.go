@@ -15,13 +15,13 @@
 package version
 
 import (
-	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -29,32 +29,20 @@ func TestRegisterHandler(t *testing.T) {
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
-	expectedJSON := []byte(`{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`) // Replace with expected values
+	expectedJSON := []byte(`{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`)
 
 	mockLogger := zap.NewNop()
+	mux := http.NewServeMux()
+	RegisterHandler(mux, mockLogger)
+	server := httptest.NewServer(mux)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		RegisterHandler(http.DefaultServeMux, mockLogger)
-		http.DefaultServeMux.ServeHTTP(w, r)
-	}))
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/version")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status code 200, got %d", resp.StatusCode)
-	}
-
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(body, expectedJSON) {
-		t.Errorf("Unexpected response body: got %s, want %s", body, expectedJSON)
-	}
-	assert.Equal(t, expectedJSON, body, "Expected '%s'", expectedJSON)
+	require.NoError(t, err)
+	assert.Equal(t, expectedJSON, body)
 }
