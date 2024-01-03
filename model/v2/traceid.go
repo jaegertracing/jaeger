@@ -85,7 +85,7 @@ func (tid TraceID) MarshalJSON() ([]byte, error) {
 func (tid *TraceID) UnmarshalJSON(data []byte) error {
 	// in base64 encoding a 16-byte array is padded to 18 bytes
 	buf := [traceIDSize + 2]byte{}
-	if err := unmarshalJSON(buf[:], data); err != nil {
+	if err := UnmarshalJSON(buf[:], data); err != nil {
 		return err
 	}
 	*tid = [traceIDSize]byte{}

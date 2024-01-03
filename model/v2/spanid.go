@@ -39,7 +39,8 @@ func (sid SpanID) IsEmpty() bool {
 	return sid == [spanIDSize]byte{}
 }
 
-// MarshalTo converts trace ID into a binary representation. Called by Protobuf serialization.
+// MarshalTo converts trace ID into a binary representation.
+// Called by Protobuf serialization.
 func (sid SpanID) MarshalTo(data []byte) (n int, err error) {
 	if sid.IsEmpty() {
 		return 0, nil
@@ -85,7 +86,7 @@ func (sid SpanID) MarshalJSON() ([]byte, error) {
 func (sid *SpanID) UnmarshalJSON(data []byte) error {
 	// in base64 encoding an 8-byte array is padded to 9 bytes
 	buf := [spanIDSize + 1]byte{}
-	if err := unmarshalJSON(buf[:], data); err != nil {
+	if err := UnmarshalJSON(buf[:], data); err != nil {
 		return err
 	}
 	*sid = [spanIDSize]byte{}
