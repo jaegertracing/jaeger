@@ -49,7 +49,7 @@ func TestUnmarshalJSON(t *testing.T) {
 			if tt.expErr == "" {
 				require.NoError(t, err)
 			} else {
-				assert.ErrorContains(t, err, tt.expErr)
+				require.ErrorContains(t, err, tt.expErr)
 			}
 		})
 	}
@@ -121,7 +121,7 @@ func TestMarshalTo(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, n, tt.id.Size())
 			} else {
-				assert.ErrorContains(t, err, tt.expErr)
+				require.ErrorContains(t, err, tt.expErr)
 			}
 		})
 	}
@@ -147,11 +147,11 @@ func TestUnmarshalError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Run("Protobuf", func(t *testing.T) {
 				err := tt.id.Unmarshal([]byte("invalid"))
-				assert.ErrorContains(t, err, "length")
+				require.ErrorContains(t, err, "length")
 			})
 			t.Run("JSON", func(t *testing.T) {
 				err := tt.id.UnmarshalJSON([]byte("invalid"))
-				assert.ErrorContains(t, err, "length")
+				require.ErrorContains(t, err, "length")
 			})
 		})
 	}

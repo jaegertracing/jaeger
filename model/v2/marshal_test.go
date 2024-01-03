@@ -7,9 +7,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model/v2"
