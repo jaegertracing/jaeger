@@ -66,7 +66,7 @@ func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
 // Unmarshal implements encoding.Codec
 func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 	t := reflect.TypeOf(v)
-	elem := t.Elem()
+	elem := t.Elem() // only for collections
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
 		return gogoproto.Unmarshal(data, v.(gogoproto.Message))

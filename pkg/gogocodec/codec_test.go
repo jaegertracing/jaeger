@@ -15,6 +15,7 @@
 package gogocodec
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/model"
+	modelv2 "github.com/jaegertracing/jaeger/model/v2"
+	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 )
 
 func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
@@ -67,6 +70,19 @@ func TestWireCompatibility(t *testing.T) {
 	err = c.Unmarshal(data2, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
+}
+
+func TestUseGogo(t *testing.T) {
+	assert.False(t, useGogo(nil))
+
+	var span model.Span
+	assert.True(t, useGogo(reflect.TypeOf(span)))
+
+	var id modelv2.SpanID
+	assert.True(t, useGogo(reflect.TypeOf(id)))
+
+	var scopeSpans tracev1.ScopeSpans
+	assert.True(t, useGogo(reflect.TypeOf(scopeSpans)))
 }
 
 func TestMain(m *testing.M) {
