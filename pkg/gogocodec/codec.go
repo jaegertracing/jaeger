@@ -26,6 +26,7 @@ import (
 const (
 	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
+	jaegerModelV2PkgPath  = "github.com/jaegertracing/jaeger/model/v2"
 )
 
 var defaultCodec encoding.Codec
@@ -65,7 +66,7 @@ func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
 // Unmarshal implements encoding.Codec
 func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 	t := reflect.TypeOf(v)
-	elem := t.Elem()
+	elem := t.Elem() // only for collections
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
 		return gogoproto.Unmarshal(data, v.(gogoproto.Message))
@@ -74,5 +75,18 @@ func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 }
 
 func useGogo(t reflect.Type) bool {
-	return t != nil && (strings.HasPrefix(t.PkgPath(), jaegerProtoGenPkgPath) || strings.HasPrefix(t.PkgPath(), jaegerModelPkgPath))
+	if t == nil {
+		return false
+	}
+	pkg := t.PkgPath()
+	if strings.HasPrefix(pkg, jaegerProtoGenPkgPath) {
+		return true
+	}
+	if strings.HasPrefix(pkg, jaegerModelV2PkgPath) {
+		return true
+	}
+	if strings.HasPrefix(pkg, jaegerModelPkgPath) {
+		return true
+	}
+	return false
 }
