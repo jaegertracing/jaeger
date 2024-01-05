@@ -16,18 +16,47 @@ package storageexporter
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
 var (
 	storage_exporter *storageExporter
 	host             component.Host
+	storage_host     storageHost
 )
+
+type storageHost struct {
+	component *component.Component
+}
+
+func (host storageHost) GetExtensions() map[component.ID]component.Component {
+	myMap := make(map[component.ID]component.Component)
+	myMap[component.NewID("jaeger_storage")] = *host.component
+	return myMap
+}
+
+func (storageHost) ReportFatalError(err error) {
+	fmt.Println(err)
+}
+
+func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
+	return nil
+}
+
+func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
+	return nil
+}
 
 func TestExporter(t *testing.T) {
 	config := &Config{}
@@ -37,10 +66,25 @@ func TestExporter(t *testing.T) {
 	assert.Equal(t, storage_exporter.logger, telemetry_settings.Logger)
 	assert.Equal(t, storage_exporter.config, config)
 
+	storage_factory := jaegerstorage.NewFactory()
+	storage_config := jaegerstorage.Config{Memory: make(map[string]memoryCfg.Configuration)}
+	storage_config.Memory["memstore"] = memoryCfg.Configuration{MaxTraces: 10000}
+	storage_component, _ := storage_factory.CreateExtension(
+		context.Background(),
+		extension.CreateSettings{
+			TelemetrySettings: telemetry_settings,
+		},
+		&storage_config)
+
 	host = componenttest.NewNopHost()
-	err := storage_exporter.start(context.Background(), host)
-	assert.Nil(t, storage_exporter.spanWriter)
-	assert.Contains(t, err.Error(), "cannot find storage factory")
+	storage_component.Start(context.Background(), host)
+
+	storage_host = storageHost{
+		component: &storage_component,
+	}
+	err := storage_exporter.start(context.Background(), storage_host)
+	assert.NotNil(t, storage_exporter.spanWriter)
+	require.NoError(t, err)
 
 	traces := ptrace.NewTraces()
 	rSpans := traces.ResourceSpans().AppendEmpty()
@@ -49,8 +93,8 @@ func TestExporter(t *testing.T) {
 	span.SetName("test")
 
 	err = storage_exporter.pushTraces(context.Background(), traces)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	err = storage_exporter.close(context.Background())
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
