@@ -21,6 +21,7 @@ import (
 	"github.com/crossdock/crossdock-go/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 var (
@@ -40,6 +41,15 @@ func TestExporter(t *testing.T) {
 	err := storage_exporter.start(context.Background(), host)
 	assert.Nil(t, storage_exporter.spanWriter)
 	assert.Contains(t, err.Error(), "cannot find storage factory")
+
+	traces := ptrace.NewTraces()
+	rSpans := traces.ResourceSpans().AppendEmpty()
+	sSpans := rSpans.ScopeSpans().AppendEmpty()
+	span := sSpans.Spans().AppendEmpty()
+	span.SetName("test")
+
+	err = storage_exporter.pushTraces(context.Background(), traces)
+	assert.Nil(t, err)
 
 	err = storage_exporter.close(context.Background())
 	assert.Nil(t, err)
