@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,43 +16,28 @@ package storageexporter
 
 import (
 	"context"
-	"fmt"
 	"testing"
-
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/crossdock/crossdock-go/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 )
 
-var storage_exporter *storageExporter
-var host component.Host
-
-var yamlConfig = `
-exporters:
-  jaeger_storage_exporter:
-    trace_storage: memstore
-
-extensions:
-  jaeger_storage:
-    memory:
-      memstore:
-        max_traces: 100000
-`
+var (
+	storage_exporter *storageExporter
+	host             component.Host
+)
 
 func TestExporter(t *testing.T) {
-	var config component.Config
-	yaml.Unmarshal([]byte(yamlConfig), &config)
-	cfg := config.(*Config)
+	config := &Config{}
+	config.TraceStorage = "memstore"
 	telemetry_settings := componenttest.NewNopTelemetrySettings()
-	storage_exporter = newExporter(cfg, telemetry_settings)
+	storage_exporter = newExporter(config, telemetry_settings)
 	assert.Equal(t, storage_exporter.logger, telemetry_settings.Logger)
-	assert.Equal(t, storage_exporter.config, cfg)
+	assert.Equal(t, storage_exporter.config, config)
 
 	host = componenttest.NewNopHost()
 	err := storage_exporter.start(context.Background(), host)
-	fmt.Println(err)
 	assert.Nil(t, storage_exporter.spanWriter)
 	assert.Contains(t, err.Error(), "cannot find storage factory")
 
