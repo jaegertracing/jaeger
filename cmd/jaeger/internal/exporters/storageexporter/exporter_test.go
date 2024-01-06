@@ -58,18 +58,18 @@ func TestExporter(t *testing.T) {
 	const memstoreName = "memstore"
 	config := &Config{}
 	config.TraceStorage = memstoreName
-	telemetry_settings := component.TelemetrySettings{
+	telemetrySettings := component.TelemetrySettings{
 		Logger: zap.L(),
 	}
-	exporter := newExporter(config, telemetry_settings)
-	assert.Equal(t, exporter.logger, telemetry_settings.Logger)
+	exporter := newExporter(config, telemetrySettings)
+	assert.Equal(t, exporter.logger, telemetrySettings.Logger)
 	assert.Equal(t, exporter.config, config)
 
 	extensionFactory := jaegerstorage.NewFactory()
 	storageExtension, err := extensionFactory.CreateExtension(
 		ctx,
 		extension.CreateSettings{
-			TelemetrySettings: telemetry_settings,
+			TelemetrySettings: telemetrySettings,
 		},
 		&jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
 			memstoreName: {MaxTraces: 10000},
