@@ -25,7 +25,7 @@ import (
 // Command creates version command
 func Command() *cobra.Command {
 	info := Get()
-	log.Println("applicatio version:", info)
+	log.Println("application version:", info)
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version.",
@@ -35,8 +35,7 @@ func Command() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Println(string(json))
-
+			fmt.Fprint(cmd.OutOrStdout(), string(json))
 			return nil
 		},
 	}

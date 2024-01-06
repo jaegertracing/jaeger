@@ -1,7 +1,7 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-THRIFT_VER=0.14
+THRIFT_VER=0.19
 THRIFT_IMG=jaegertracing/thrift:$(THRIFT_VER)
 THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
 THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"

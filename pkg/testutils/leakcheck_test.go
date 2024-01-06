@@ -16,11 +16,14 @@ package testutils
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestIgnoreGlogFlushDaemonLeak(t *testing.T) {
-	opt := IgnoreGlogFlushDaemonLeak()
-	if opt == nil {
-		t.Errorf("IgnoreGlogFlushDaemonLeak() returned nil, want non-nil goleak.Option")
-	}
+	require.NotNil(t, IgnoreGlogFlushDaemonLeak())
+}
+
+func TestIgnoreOpenCensusWorkerLeak(t *testing.T) {
+	require.NotNil(t, IgnoreOpenCensusWorkerLeak())
 }

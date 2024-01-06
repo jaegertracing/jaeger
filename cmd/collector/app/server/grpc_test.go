@@ -56,7 +56,9 @@ func TestFailServe(t *testing.T) {
 	wg.Add(1)
 
 	logger := zap.New(core)
-	serveGRPC(grpc.NewServer(), lis, &GRPCServerParams{
+	server := grpc.NewServer()
+	defer server.Stop()
+	serveGRPC(server, lis, &GRPCServerParams{
 		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
@@ -107,10 +109,10 @@ func TestCollectorStartWithTLS(t *testing.T) {
 			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 		},
 	}
-
 	server, err := StartGRPCServer(params)
 	require.NoError(t, err)
 	defer server.Stop()
+	defer params.TLSConfig.Close()
 }
 
 func TestCollectorReflection(t *testing.T) {
