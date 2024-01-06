@@ -2,7 +2,7 @@ name: Unit Test Results
 
 on:
   workflow_run:
-    workflows: ["Unit Tests"]
+    workflows: ["Unit Tests", "Unit Tests on Go Tip"]
     types:
       - completed
 
