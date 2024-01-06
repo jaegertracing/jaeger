@@ -38,11 +38,28 @@ jobs:
       uses: EnricoMi/publish-unit-test-result-action@v2
       if: always()
       with:
-        check_name: Go Tip Unit Tests Summary
+        check_name: Unit Tests Summary
         junit_files: junit-report.xml
-        # This workflow isn't run during Pull Requests, so check run and PR comment summaries are not needed.
-        check_run: false
+        # PR comments and check run will be performed by the "Unit Test Results" workflow.
         comment_mode: off
+        check_run: false
+
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Results
+        path: junit-report.xml
 
     - name: Lint
       run: echo skip linting on Go tip
+
+  event-file:
+    name: "Event File"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: Event File
+          path: ${{ github.event_path }}
