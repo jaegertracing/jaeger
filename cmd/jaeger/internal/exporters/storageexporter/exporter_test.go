@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
@@ -32,7 +32,6 @@ import (
 
 var (
 	storage_exporter *storageExporter
-	host             component.Host
 	storage_host     storageHost
 )
 
@@ -58,30 +57,34 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 	return nil
 }
 
+const memstoreName = "memstore"
+
 func TestExporter(t *testing.T) {
 	config := &Config{}
-	config.TraceStorage = "memstore"
-	telemetry_settings := componenttest.NewNopTelemetrySettings()
+	config.TraceStorage = memstoreName
+	telemetry_settings := component.TelemetrySettings{
+		Logger: zap.L(),
+	}
 	storage_exporter = newExporter(config, telemetry_settings)
 	assert.Equal(t, storage_exporter.logger, telemetry_settings.Logger)
 	assert.Equal(t, storage_exporter.config, config)
 
 	storage_factory := jaegerstorage.NewFactory()
-	storage_config := jaegerstorage.Config{Memory: make(map[string]memoryCfg.Configuration)}
-	storage_config.Memory["memstore"] = memoryCfg.Configuration{MaxTraces: 10000}
+	storage_config := jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
+		memstoreName: {MaxTraces: 10000},
+	}}
+	storage_config.Memory[memstoreName] = memoryCfg.Configuration{MaxTraces: 10000}
 	storage_component, _ := storage_factory.CreateExtension(
 		context.Background(),
 		extension.CreateSettings{
 			TelemetrySettings: telemetry_settings,
 		},
 		&storage_config)
-
-	host = componenttest.NewNopHost()
-	storage_component.Start(context.Background(), host)
-
 	storage_host = storageHost{
 		component: &storage_component,
 	}
+
+	storage_component.Start(context.Background(), storage_host)
 	err := storage_exporter.start(context.Background(), storage_host)
 	assert.NotNil(t, storage_exporter.spanWriter)
 	require.NoError(t, err)
