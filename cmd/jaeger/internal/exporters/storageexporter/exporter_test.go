@@ -16,13 +16,13 @@ package storageexporter
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
@@ -30,23 +30,19 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
-var (
-	storage_exporter *storageExporter
-	storage_host     storageHost
-)
-
 type storageHost struct {
-	component *component.Component
+	storageExtension *component.Component
+	t                *testing.T
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {
 	myMap := make(map[component.ID]component.Component)
-	myMap[component.NewID("jaeger_storage")] = *host.component
+	myMap[jaegerstorage.ID] = *host.storageExtension
 	return myMap
 }
 
-func (storageHost) ReportFatalError(err error) {
-	fmt.Println(err)
+func (host storageHost) ReportFatalError(err error) {
+	host.t.Fatal(err)
 }
 
 func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
@@ -57,47 +53,51 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 	return nil
 }
 
-const memstoreName = "memstore"
-
 func TestExporter(t *testing.T) {
+	ctx := context.Background()
+	const memstoreName = "memstore"
 	config := &Config{}
 	config.TraceStorage = memstoreName
 	telemetry_settings := component.TelemetrySettings{
 		Logger: zap.L(),
 	}
-	storage_exporter = newExporter(config, telemetry_settings)
-	assert.Equal(t, storage_exporter.logger, telemetry_settings.Logger)
-	assert.Equal(t, storage_exporter.config, config)
+	exporter := newExporter(config, telemetry_settings)
+	assert.Equal(t, exporter.logger, telemetry_settings.Logger)
+	assert.Equal(t, exporter.config, config)
 
-	storage_factory := jaegerstorage.NewFactory()
-	storage_config := jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
-		memstoreName: {MaxTraces: 10000},
-	}}
-	storage_config.Memory[memstoreName] = memoryCfg.Configuration{MaxTraces: 10000}
-	storage_component, _ := storage_factory.CreateExtension(
-		context.Background(),
+	extensionFactory := jaegerstorage.NewFactory()
+	storageExtension, err := extensionFactory.CreateExtension(
+		ctx,
 		extension.CreateSettings{
 			TelemetrySettings: telemetry_settings,
 		},
-		&storage_config)
-	storage_host = storageHost{
-		component: &storage_component,
+		&jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
+			memstoreName: {MaxTraces: 10000},
+		}})
+	host := storageHost{
+		storageExtension: &storageExtension,
+		t:                t,
 	}
+	require.NoError(t, err)
 
-	storage_component.Start(context.Background(), storage_host)
-	err := storage_exporter.start(context.Background(), storage_host)
-	assert.NotNil(t, storage_exporter.spanWriter)
+	storageExtension.Start(ctx, host)
+
+	err = exporter.start(ctx, host)
+	assert.NotNil(t, exporter.spanWriter)
 	require.NoError(t, err)
 
 	traces := ptrace.NewTraces()
 	rSpans := traces.ResourceSpans().AppendEmpty()
 	sSpans := rSpans.ScopeSpans().AppendEmpty()
 	span := sSpans.Spans().AppendEmpty()
-	span.SetName("test")
 
-	err = storage_exporter.pushTraces(context.Background(), traces)
+	spanID := pcommon.NewSpanIDEmpty()
+	spanID[5] = 5
+	span.SetSpanID(spanID)
+
+	err = exporter.pushTraces(ctx, traces)
 	require.NoError(t, err)
 
-	err = storage_exporter.close(context.Background())
+	err = exporter.close(ctx)
 	require.NoError(t, err)
 }
