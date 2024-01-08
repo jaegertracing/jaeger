@@ -252,10 +252,12 @@ func TestCreateCollectorProxy(t *testing.T) {
 		require.NoError(t, err)
 
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
-
+		defer metricsFactory.Stop()
+		grpcProxyBuilder := GRPCCollectorProxyBuilder(grpcBuilder)
 		builders := map[reporter.Type]CollectorProxyBuilder{
-			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
+			reporter.GRPC: grpcProxyBuilder,
 		}
+
 		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
 			Options: *rOpts,
 			Metrics: metricsFactory,
@@ -268,6 +270,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 			require.NoError(t, err)
 			proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
 			metricsFactory.AssertCounterMetrics(t, test.metric)
+			require.NoError(t, proxy.Close())
 		}
 	}
 }
@@ -302,9 +305,12 @@ func TestPublishOpts(t *testing.T) {
 	cfg.InitFromViper(v)
 
 	baseMetrics := metricstest.NewFactory(time.Second)
+	defer baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
+	defer forkFactory.Stop()
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
+
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
 
@@ -320,4 +326,10 @@ func TestPublishOpts(t *testing.T) {
 		Name:  "internal.processor.jaeger-binary.workers",
 		Value: 42,
 	})
+
+	if err := agent.Run(); err != nil {
+		t.Fatalf("error from agent.Run(): %s", err)
+	}
+
+	defer agent.Stop()
 }
