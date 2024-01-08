@@ -27,6 +27,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/model"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
@@ -92,11 +93,25 @@ func TestExporter(t *testing.T) {
 	span := sSpans.Spans().AppendEmpty()
 
 	spanID := pcommon.NewSpanIDEmpty()
-	spanID[5] = 5
+	spanID[5] = 5 // 0000000000050000
 	span.SetSpanID(spanID)
+
+	traceID := pcommon.NewTraceIDEmpty()
+	traceID[15] = 1 // 00000000000000000000000000000001
+	span.SetTraceID(traceID)
 
 	err = exporter.pushTraces(ctx, traces)
 	require.NoError(t, err)
+
+	exporterStorageFactory, err := jaegerstorage.GetStorageFactory(exporter.config.TraceStorage, host)
+	require.NoError(t, err)
+	exporterSpanReader, err := exporterStorageFactory.CreateSpanReader()
+	require.NoError(t, err)
+	requiredTraceID := model.NewTraceID(0, 1) // 00000000000000000000000000000001
+	require.NoError(t, err)
+	requiredTrace, err := exporterSpanReader.GetTrace(ctx, requiredTraceID)
+	require.NoError(t, err)
+	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
 
 	err = exporter.close(ctx)
 	require.NoError(t, err)
