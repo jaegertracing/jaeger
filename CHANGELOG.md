@@ -21,6 +21,52 @@ run `make changelog` to generate content
 
 </details>
 
+1.53.0 (2024-01-08)
+-------------------
+
+#### ⛔ Breaking Changes:
+
+* 💤 swap zipkin server for zipkin receiver from otel collector contrib ([@yurishkuro](https://github.com/yurishkuro) in [#5045](https://github.com/jaegertracing/jaeger/pull/5045))
+* Make all-in-one metric names match metrics from standalone components ([@yurishkuro](https://github.com/yurishkuro) in [#5008](https://github.com/jaegertracing/jaeger/pull/5008))
+
+#### 🐞 Bug fixes, Minor Improvements:
+
+* Upgrade thrift compiler to v0.19 and regenerate types ([@yurishkuro](https://github.com/yurishkuro) in [#5080](https://github.com/jaegertracing/jaeger/pull/5080))
+* Add gogo/protobuf to opentelemetry otlp data model ([@yurishkuro](https://github.com/yurishkuro) in [#5067](https://github.com/jaegertracing/jaeger/pull/5067))
+* Remove grpc-gateway dependency ([@yurishkuro](https://github.com/yurishkuro) in [#5060](https://github.com/jaegertracing/jaeger/pull/5060))
+* Add manual implementation of apiv3 http endpoints ([@yurishkuro](https://github.com/yurishkuro) in [#5054](https://github.com/jaegertracing/jaeger/pull/5054))
+* Allow specifying version for hotrod docker-compose ([@yurishkuro](https://github.com/yurishkuro) in [#5011](https://github.com/jaegertracing/jaeger/pull/5011))
+
+#### 👷 CI Improvements:
+
+* Publish go tip test report ([@albertteoh](https://github.com/albertteoh) in [#5082](https://github.com/jaegertracing/jaeger/pull/5082))
+* Upload test report ([@albertteoh](https://github.com/albertteoh) in [#5035](https://github.com/jaegertracing/jaeger/pull/5035))
+* Separate test report collection from the main target ([@yurishkuro](https://github.com/yurishkuro) in [#5061](https://github.com/jaegertracing/jaeger/pull/5061))
+* Bugfix: set pipefail when running unit tests to preserve exit code ([@yurishkuro](https://github.com/yurishkuro) in [#5057](https://github.com/jaegertracing/jaeger/pull/5057))
+* Regenerate thrift types and enable thrift check ([@yurishkuro](https://github.com/yurishkuro) in [#5039](https://github.com/jaegertracing/jaeger/pull/5039))
+* Regenerate hotrod proto ([@yurishkuro](https://github.com/yurishkuro) in [#5040](https://github.com/jaegertracing/jaeger/pull/5040))
+* Fix permission failed on checks-run ([@albertteoh](https://github.com/albertteoh) in [#5041](https://github.com/jaegertracing/jaeger/pull/5041))
+* Refactor protobuf types generation ([@yurishkuro](https://github.com/yurishkuro) in [#5037](https://github.com/jaegertracing/jaeger/pull/5037))
+* Publish test report ([@albertteoh](https://github.com/albertteoh) in [#5030](https://github.com/jaegertracing/jaeger/pull/5030))
+* Ci: simplify check-label workflow ([@EshaanAgg](https://github.com/EshaanAgg) in [#5033](https://github.com/jaegertracing/jaeger/pull/5033))
+* Fix goroutine leaks in several packages ([@yurishkuro](https://github.com/yurishkuro) in [#5026](https://github.com/jaegertracing/jaeger/pull/5026))
+* Add goleak check in more tests that do not fail ([@akagami-harsh](https://github.com/akagami-harsh) in [#5025](https://github.com/jaegertracing/jaeger/pull/5025))
+* Ci: add retry logic in the install go tip github action ([@akagami-harsh](https://github.com/akagami-harsh) in [#5022](https://github.com/jaegertracing/jaeger/pull/5022))
+* Move go tip installation into sub-action ([@yurishkuro](https://github.com/yurishkuro) in [#5020](https://github.com/jaegertracing/jaeger/pull/5020))
+* Add goleak check to packages with empty tests ([@yurishkuro](https://github.com/yurishkuro) in [#5017](https://github.com/jaegertracing/jaeger/pull/5017))
+* Add goleak check to cmd/agent/app/configmanager ([@yurishkuro](https://github.com/yurishkuro) in [#5015](https://github.com/jaegertracing/jaeger/pull/5015))
+* Feature: add goleak to check goroutine leak in tests ([@akagami-harsh](https://github.com/akagami-harsh) in [#5010](https://github.com/jaegertracing/jaeger/pull/5010))
+* Remove custom gocache location ([@yurishkuro](https://github.com/yurishkuro) in [#4995](https://github.com/jaegertracing/jaeger/pull/4995))
+
+#### 💩💩💩 The following commits cannot be categorized (missing changeglog labels):
+
+* Reference example ([@yurishkuro](https://github.com/yurishkuro) in [370e756](https://github.com/jaegertracing/jaeger/commit/370e756832753433ecdf3a71dea739e3a17d6c6f))
+* Add example of running jaeger ui behind reverse proxy ([@yurishkuro](https://github.com/yurishkuro) in [11c6974](https://github.com/jaegertracing/jaeger/commit/11c697466b0787d0e3e947b14622f5b86b6e1563))
+* Fix ci badge ([@yurishkuro](https://github.com/yurishkuro) in [154d662](https://github.com/jaegertracing/jaeger/commit/154d6623bb83292be8ad3cb4ca61e1c7d29bf529))
+* Remove artifact hub badge ([@yurishkuro](https://github.com/yurishkuro) in [a0545b7](https://github.com/jaegertracing/jaeger/commit/a0545b7fbacc9ddc259487aa75be81347aafcad5))
+* Restore blank line before cncf badge ([@yurishkuro](https://github.com/yurishkuro) in [6cb46c4](https://github.com/jaegertracing/jaeger/commit/6cb46c4a4dd9bb0137fe70017f9b67de192a2372))
+* Fix link to cncf graduated badge ([@RupeshHacker](https://github.com/RupeshHacker) in [#5072](https://github.com/jaegertracing/jaeger/pull/5072))
+
 1.52.0 (2023-12-05)
 -------------------
 
