@@ -58,15 +58,6 @@ run `make changelog` to generate content
 * Feature: add goleak to check goroutine leak in tests ([@akagami-harsh](https://github.com/akagami-harsh) in [#5010](https://github.com/jaegertracing/jaeger/pull/5010))
 * Remove custom gocache location ([@yurishkuro](https://github.com/yurishkuro) in [#4995](https://github.com/jaegertracing/jaeger/pull/4995))
 
-#### 💩💩💩 The following commits cannot be categorized (missing changeglog labels):
-
-* Reference example ([@yurishkuro](https://github.com/yurishkuro) in [370e756](https://github.com/jaegertracing/jaeger/commit/370e756832753433ecdf3a71dea739e3a17d6c6f))
-* Add example of running jaeger ui behind reverse proxy ([@yurishkuro](https://github.com/yurishkuro) in [11c6974](https://github.com/jaegertracing/jaeger/commit/11c697466b0787d0e3e947b14622f5b86b6e1563))
-* Fix ci badge ([@yurishkuro](https://github.com/yurishkuro) in [154d662](https://github.com/jaegertracing/jaeger/commit/154d6623bb83292be8ad3cb4ca61e1c7d29bf529))
-* Remove artifact hub badge ([@yurishkuro](https://github.com/yurishkuro) in [a0545b7](https://github.com/jaegertracing/jaeger/commit/a0545b7fbacc9ddc259487aa75be81347aafcad5))
-* Restore blank line before cncf badge ([@yurishkuro](https://github.com/yurishkuro) in [6cb46c4](https://github.com/jaegertracing/jaeger/commit/6cb46c4a4dd9bb0137fe70017f9b67de192a2372))
-* Fix link to cncf graduated badge ([@RupeshHacker](https://github.com/RupeshHacker) in [#5072](https://github.com/jaegertracing/jaeger/pull/5072))
-
 1.52.0 (2023-12-05)
 -------------------
 
