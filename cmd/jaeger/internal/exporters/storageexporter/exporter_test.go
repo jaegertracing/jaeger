@@ -65,12 +65,13 @@ func TestExporter(t *testing.T) {
 		TracerProvider: nooptrace.NewTracerProvider(),
 	}
 
-	const memstoreName = "memstore"
-	config := &Config{
-		TraceStorage: memstoreName,
-	}
-
+	config := &Config{}
 	err := config.Validate()
+	require.EqualError(t, err, "TraceStorage: non zero value required")
+
+	const memstoreName = "memstore"
+	config.TraceStorage = memstoreName
+	err = config.Validate()
 	require.NoError(t, err)
 
 	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.CreateSettings{
