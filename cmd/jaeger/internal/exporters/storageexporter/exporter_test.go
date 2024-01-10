@@ -56,6 +56,12 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 	return nil
 }
 
+func TestExporterConfigError(t *testing.T) {
+	config := &Config{}
+	err := config.Validate()
+	require.EqualError(t, err, "TraceStorage: non zero value required")
+}
+
 func TestExporter(t *testing.T) {
 	exporterFactory := NewFactory()
 
@@ -65,13 +71,11 @@ func TestExporter(t *testing.T) {
 		TracerProvider: nooptrace.NewTracerProvider(),
 	}
 
-	config := &Config{}
-	err := config.Validate()
-	require.EqualError(t, err, "TraceStorage: non zero value required")
-
 	const memstoreName = "memstore"
-	config.TraceStorage = memstoreName
-	err = config.Validate()
+	config := &Config{
+		TraceStorage: memstoreName,
+	}
+	err := config.Validate()
 	require.NoError(t, err)
 
 	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.CreateSettings{
