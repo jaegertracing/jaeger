@@ -34,13 +34,13 @@ import (
 )
 
 type storageHost struct {
-	storageExtension *component.Component
+	storageExtension component.Component
 	t                *testing.T
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {
 	myMap := make(map[component.ID]component.Component)
-	myMap[jaegerstorage.ID] = *host.storageExtension
+	myMap[jaegerstorage.ID] = host.storageExtension
 	return myMap
 }
 
@@ -66,8 +66,9 @@ func TestExporter(t *testing.T) {
 	}
 
 	const memstoreName = "memstore"
-	config := &Config{}
-	config.TraceStorage = memstoreName
+	config := &Config{
+		TraceStorage: memstoreName,
+	}
 
 	err := config.Validate()
 	require.NoError(t, err)
@@ -90,7 +91,7 @@ func TestExporter(t *testing.T) {
 		}})
 	require.NoError(t, err)
 	host := storageHost{
-		storageExtension: &storageExtension,
+		storageExtension: storageExtension,
 		t:                t,
 	}
 
@@ -99,6 +100,10 @@ func TestExporter(t *testing.T) {
 
 	err = tracesExporter.Start(ctx, host)
 	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, tracesExporter.Shutdown(ctx))
+	}()
 
 	traces := ptrace.NewTraces()
 	rSpans := traces.ResourceSpans().AppendEmpty()
@@ -121,11 +126,7 @@ func TestExporter(t *testing.T) {
 	spanReader, err := storageFactory.CreateSpanReader()
 	require.NoError(t, err)
 	requiredTraceID := model.NewTraceID(0, 1) // 00000000000000000000000000000001
-	require.NoError(t, err)
 	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
-
-	err = tracesExporter.Shutdown(ctx)
-	require.NoError(t, err)
 }
