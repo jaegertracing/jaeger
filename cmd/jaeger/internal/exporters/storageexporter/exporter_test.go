@@ -57,7 +57,7 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 }
 
 func TestExporterConfigError(t *testing.T) {
-	config := &Config{}
+	config := createDefaultConfig().(*Config)
 	err := config.Validate()
 	require.EqualError(t, err, "TraceStorage: non zero value required")
 }
