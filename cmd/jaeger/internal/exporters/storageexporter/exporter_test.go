@@ -34,8 +34,8 @@ import (
 )
 
 type storageHost struct {
-	storageExtension component.Component
 	t                *testing.T
+	storageExtension component.Component
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {
@@ -62,6 +62,18 @@ func TestExporterConfigError(t *testing.T) {
 	require.EqualError(t, err, "TraceStorage: non zero value required")
 }
 
+func TestExporterStartError(t *testing.T) {
+	host := makeStorageExtension(t, "foo")
+	exporter := &storageExporter{
+		config: &Config{
+			TraceStorage: "bar",
+		},
+	}
+	err := exporter.start(context.Background(), host)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "cannot find storage factory")
+}
+
 func TestExporter(t *testing.T) {
 	exporterFactory := NewFactory()
 
@@ -85,26 +97,7 @@ func TestExporter(t *testing.T) {
 	}, config)
 	require.NoError(t, err)
 
-	extensionFactory := jaegerstorage.NewFactory()
-	storageExtension, err := extensionFactory.CreateExtension(
-		ctx,
-		extension.CreateSettings{
-			TelemetrySettings: telemetrySettings,
-		},
-		&jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
-			memstoreName: {MaxTraces: 10000},
-		}})
-	require.NoError(t, err)
-	host := storageHost{
-		storageExtension: storageExtension,
-		t:                t,
-	}
-
-	err = storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, storageExtension.Shutdown(ctx))
-	}()
+	host := makeStorageExtension(t, memstoreName)
 
 	err = tracesExporter.Start(ctx, host)
 	require.NoError(t, err)
@@ -136,4 +129,26 @@ func TestExporter(t *testing.T) {
 	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
+}
+
+func makeStorageExtension(t *testing.T, memstoreName string) storageHost {
+	extensionFactory := jaegerstorage.NewFactory()
+	storageExtension, err := extensionFactory.CreateExtension(
+		context.Background(),
+		extension.CreateSettings{
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         zap.L(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+			},
+		},
+		&jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
+			memstoreName: {MaxTraces: 10000},
+		}})
+	require.NoError(t, err)
+	host := storageHost{t: t, storageExtension: storageExtension}
+
+	err = storageExtension.Start(context.Background(), host)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(context.Background())) })
+	return host
 }
