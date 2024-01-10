@@ -98,6 +98,10 @@ func TestExporter(t *testing.T) {
 	err = storageExtension.Start(ctx, host)
 	require.NoError(t, err)
 
+	defer func() {
+		require.NoError(t, storageExtension.Shutdown(ctx))
+	}()
+
 	err = tracesExporter.Start(ctx, host)
 	require.NoError(t, err)
 
