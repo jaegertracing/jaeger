@@ -21,9 +21,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -55,16 +57,22 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 }
 
 func TestExporter(t *testing.T) {
+	exporterFactory := NewFactory()
+
 	ctx := context.Background()
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zap.L(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+	}
 	const memstoreName = "memstore"
 	config := &Config{}
 	config.TraceStorage = memstoreName
-	telemetrySettings := component.TelemetrySettings{
-		Logger: zap.L(),
-	}
-	exporter := newExporter(config, telemetrySettings)
-	assert.Equal(t, exporter.logger, telemetrySettings.Logger)
-	assert.Equal(t, exporter.config, config)
+	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.CreateSettings{
+		ID:                ID,
+		TelemetrySettings: telemetrySettings,
+		BuildInfo:         component.NewDefaultBuildInfo(),
+	}, config)
+	require.NoError(t, err)
 
 	extensionFactory := jaegerstorage.NewFactory()
 	storageExtension, err := extensionFactory.CreateExtension(
@@ -75,16 +83,16 @@ func TestExporter(t *testing.T) {
 		&jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
 			memstoreName: {MaxTraces: 10000},
 		}})
+	require.NoError(t, err)
 	host := storageHost{
 		storageExtension: &storageExtension,
 		t:                t,
 	}
+
+	err = storageExtension.Start(ctx, host)
 	require.NoError(t, err)
 
-	storageExtension.Start(ctx, host)
-
-	err = exporter.start(ctx, host)
-	assert.NotNil(t, exporter.spanWriter)
+	err = tracesExporter.Start(ctx, host)
 	require.NoError(t, err)
 
 	traces := ptrace.NewTraces()
@@ -100,19 +108,19 @@ func TestExporter(t *testing.T) {
 	traceID[15] = 1 // 00000000000000000000000000000001
 	span.SetTraceID(traceID)
 
-	err = exporter.pushTraces(ctx, traces)
+	err = tracesExporter.ConsumeTraces(ctx, traces)
 	require.NoError(t, err)
 
-	exporterStorageFactory, err := jaegerstorage.GetStorageFactory(exporter.config.TraceStorage, host)
+	storageFactory, err := jaegerstorage.GetStorageFactory(memstoreName, host)
 	require.NoError(t, err)
-	exporterSpanReader, err := exporterStorageFactory.CreateSpanReader()
+	spanReader, err := storageFactory.CreateSpanReader()
 	require.NoError(t, err)
 	requiredTraceID := model.NewTraceID(0, 1) // 00000000000000000000000000000001
 	require.NoError(t, err)
-	requiredTrace, err := exporterSpanReader.GetTrace(ctx, requiredTraceID)
+	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
 
-	err = exporter.close(ctx)
+	err = tracesExporter.Shutdown(ctx)
 	require.NoError(t, err)
 }
