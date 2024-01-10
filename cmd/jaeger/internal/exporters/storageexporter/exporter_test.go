@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
@@ -81,6 +82,7 @@ func TestExporter(t *testing.T) {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zap.L(),
 		TracerProvider: nooptrace.NewTracerProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
 	}
 
 	const memstoreName = "memstore"
