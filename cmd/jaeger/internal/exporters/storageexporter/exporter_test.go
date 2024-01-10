@@ -64,9 +64,14 @@ func TestExporter(t *testing.T) {
 		Logger:         zap.L(),
 		TracerProvider: nooptrace.NewTracerProvider(),
 	}
+
 	const memstoreName = "memstore"
 	config := &Config{}
 	config.TraceStorage = memstoreName
+
+	err := config.Validate()
+	require.NoError(t, err)
+
 	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.CreateSettings{
 		ID:                ID,
 		TelemetrySettings: telemetrySettings,
