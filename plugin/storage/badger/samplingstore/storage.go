@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/dgraph-io/badger/v3"
@@ -252,7 +251,6 @@ func initalStartTime(timeBytes []byte) (time.Time, error) {
 	buf := bytes.NewReader(timeBytes)
 
 	if err := binary.Read(buf, binary.BigEndian, &usec); err != nil {
-		fmt.Println("error-------------------------------------")
 		return time.Time{}, err
 	}
 
