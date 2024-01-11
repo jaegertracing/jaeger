@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/dgraph-io/badger/v3"
@@ -95,7 +96,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 			if err != nil {
 				return err
 			}
-			if t.Before(end) || t.Equal(end) {
+			if t.After(start) && (t.Before(end) || t.Equal(end)) {
 				retSlice = append(retSlice, throughputs...)
 			}
 		}
@@ -251,6 +252,7 @@ func initalStartTime(timeBytes []byte) (time.Time, error) {
 	buf := bytes.NewReader(timeBytes)
 
 	if err := binary.Read(buf, binary.BigEndian, &usec); err != nil {
+		fmt.Println("error-------------------------------------")
 		return time.Time{}, err
 	}
 
