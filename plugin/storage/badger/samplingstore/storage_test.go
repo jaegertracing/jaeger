@@ -55,6 +55,7 @@ func TestGetThroughput(t *testing.T) {
 
 		actual, err := store.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
 		require.NoError(t, err)
+		require.NotNil(t, expected, actual)
 		assert.Equal(t, expected, actual)
 	})
 }
