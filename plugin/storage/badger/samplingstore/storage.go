@@ -96,7 +96,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 				return err
 			}
 
-			if t.After(start) && (t.Before(end) || t.Equal(end)) && len(throughputs) > 0 {
+			if t.After(start) && (t.Before(end) || t.Equal(end)) {
 				retSlice = append(retSlice, throughputs...)
 			}
 		}
