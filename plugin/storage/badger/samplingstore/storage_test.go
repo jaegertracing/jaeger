@@ -45,11 +45,13 @@ func TestInsertThroughput(t *testing.T) {
 
 func TestGetThroughput(t *testing.T) {
 	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
-		start := time.Now().Truncate(time.Millisecond)
+		start := time.Now()
 		expected := []*samplemodel.Throughput{
 			{Service: "my-svc", Operation: "op"},
 			{Service: "our-svc", Operation: "op2"},
 		}
+
+		assert.Eventually(t, func() bool { return true }, time.Second, time.Microsecond*10)
 		err := store.InsertThroughput(expected)
 		require.NoError(t, err)
 
