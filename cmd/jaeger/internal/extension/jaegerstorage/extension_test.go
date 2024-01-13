@@ -50,42 +50,29 @@ func TestStartStorageExtensionError(t *testing.T) {
 
 	host := componenttest.NewNopHost()
 	err := storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
-
-	err = storageExtension.Start(ctx, host)
 	require.Error(t, err)
 	require.EqualError(t, err, fmt.Sprintf("duplicate memory storage name %s", memstoreName))
 }
 
 func TestGetStorageFactoryError(t *testing.T) {
-	ctx := context.Background()
 	const memstoreName = "memstore"
 
-	storageExtension := makeStorageExtension(t, memstoreName)
+	makeStorageExtension(t, memstoreName)
 
 	host := componenttest.NewNopHost()
-	err := storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
-
-	_, err = GetStorageFactory(memstoreName, host)
+	_, err := GetStorageFactory(memstoreName, host)
 	require.Error(t, err)
 	require.EqualError(t, err, fmt.Sprintf("cannot find extension '%s' (make sure it's defined earlier in the config)", ID))
 }
 
 func TestStorageExtension(t *testing.T) {
-	ctx := context.Background()
 	const memstoreName = "memstore"
 
 	storageExtension := makeStorageExtension(t, memstoreName)
 
 	host := storageHost{t: t, storageExtension: storageExtension}
-	err := storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
 
-	_, err = GetStorageFactory(memstoreName, host)
+	_, err := GetStorageFactory(memstoreName, host)
 	require.NoError(t, err)
 }
 
@@ -110,6 +97,11 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Component
 		BuildInfo:         component.NewDefaultBuildInfo(),
 	}, config)
 	require.NoError(t, err)
+
+	host := componenttest.NewNopHost()
+	err = storageExtension.Start(ctx, host)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
 
 	return storageExtension
 }
