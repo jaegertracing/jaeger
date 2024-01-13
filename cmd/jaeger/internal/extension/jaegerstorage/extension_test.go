@@ -42,6 +42,12 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 	return nil
 }
 
+func TestExtensionConfigError(t *testing.T) {
+	config := createDefaultConfig().(*Config)
+	err := config.Validate()
+	require.EqualError(t, err, "Memory: non zero value required")
+}
+
 func TestStartStorageExtensionError(t *testing.T) {
 	ctx := context.Background()
 	const memstoreName = "memstore"
@@ -90,6 +96,8 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Component
 			memstoreName: {MaxTraces: 10000},
 		},
 	}
+	err := config.Validate()
+	require.NoError(t, err)
 
 	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
 		ID:                ID,

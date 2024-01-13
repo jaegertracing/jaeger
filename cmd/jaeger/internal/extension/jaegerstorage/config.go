@@ -4,12 +4,14 @@
 package jaegerstorage
 
 import (
+	"github.com/asaskevich/govalidator"
+
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
 // Config has the configuration for jaeger-query,
 type Config struct {
-	Memory map[string]memoryCfg.Configuration `mapstructure:"memory"`
+	Memory map[string]memoryCfg.Configuration `valid:"required" mapstructure:"memory"`
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?
 	//      Option: instead of looking for specific name, check interface.
@@ -18,4 +20,9 @@ type Config struct {
 type MemoryStorage struct {
 	Name string `mapstructure:"name"`
 	memoryCfg.Configuration
+}
+
+func (cfg *Config) Validate() error {
+	_, err := govalidator.ValidateStruct(cfg)
+	return err
 }
