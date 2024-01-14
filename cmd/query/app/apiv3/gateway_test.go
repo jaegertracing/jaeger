@@ -30,10 +30,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3/internal/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -160,13 +160,14 @@ func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
 
-	var response api_v3.GRPCGatewayWrapper
-	parseResponse(t, body, &response)
+	var response api_v3.TracesData
+	// TODO parseResponse(t, body, &response)
+	td := response.ToTraces()
 
-	assert.Len(t, response.Result.ResourceSpans, 1)
+	assert.Len(t, td.ResourceSpans(), 1)
 	assert.EqualValues(t,
 		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceID)
+		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -179,13 +180,14 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
 
-	var response api_v3.GRPCGatewayWrapper
-	parseResponse(t, body, &response)
+	var response api_v3.TracesData
+	// TODO parseResponse(t, body, &response)
+	td := response.ToTraces()
 
-	assert.Len(t, response.Result.ResourceSpans, 1)
+	assert.Len(t, td.ResourceSpans(), 1)
 	assert.EqualValues(t,
 		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceID)
+		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID)
 }
 
 func bytesOfTraceID(t *testing.T, high, low uint64) []byte {

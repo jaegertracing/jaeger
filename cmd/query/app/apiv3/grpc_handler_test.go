@@ -27,10 +27,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -106,10 +106,12 @@ func TestGetTrace(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	spansChunk, err := getTraceStream.Recv()
+	recv, err := getTraceStream.Recv()
 	require.NoError(t, err)
-	require.Len(t, spansChunk.GetResourceSpans(), 1)
-	assert.Equal(t, "foobar", spansChunk.GetResourceSpans()[0].GetScopeSpans()[0].GetSpans()[0].GetName())
+	td := recv.ToTraces()
+	require.EqualValues(t, 1, td.SpanCount())
+	assert.Equal(t, "foobar",
+		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
 }
 
 func TestGetTraceStorageError(t *testing.T) {
@@ -121,10 +123,10 @@ func TestGetTraceStorageError(t *testing.T) {
 		TraceId: "156",
 	})
 	require.NoError(t, err)
-	spansChunk, err := getTraceStream.Recv()
+	recv, err := getTraceStream.Recv()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "storage_error")
-	assert.Nil(t, spansChunk)
+	assert.Nil(t, recv)
 }
 
 func TestGetTraceTraceIDError(t *testing.T) {
@@ -138,10 +140,10 @@ func TestGetTraceTraceIDError(t *testing.T) {
 		TraceId: "Z",
 	})
 	require.NoError(t, err)
-	spansChunk, err := getTraceStream.Recv()
+	recv, err := getTraceStream.Recv()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "strconv.ParseUint:")
-	assert.Nil(t, spansChunk)
+	assert.Nil(t, recv)
 }
 
 func TestFindTraces(t *testing.T) {
@@ -171,7 +173,8 @@ func TestFindTraces(t *testing.T) {
 	require.NoError(t, err)
 	recv, err := responseStream.Recv()
 	require.NoError(t, err)
-	assert.Len(t, recv.GetResourceSpans(), 1)
+	td := recv.ToTraces()
+	require.EqualValues(t, 1, td.SpanCount())
 }
 
 func TestFindTracesQueryNil(t *testing.T) {

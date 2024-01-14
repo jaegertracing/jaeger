@@ -31,6 +31,19 @@ const (
 
 var defaultCodec encoding.Codec
 
+// CustomType is an interface that Gogo expects custom types to implement.
+// https://github.com/gogo/protobuf/blob/master/custom_types.md
+type CustomType interface {
+	Marshal() ([]byte, error)
+	MarshalTo(data []byte) (n int, err error)
+	Unmarshal(data []byte) error
+
+	gogoproto.Sizer
+
+	MarshalJSON() ([]byte, error)
+	UnmarshalJSON(data []byte) error
+}
+
 func init() {
 	defaultCodec = encoding.GetCodec(proto.Name)
 	defaultCodec.Name() // ensure it's not nil
