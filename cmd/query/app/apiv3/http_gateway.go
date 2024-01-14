@@ -125,7 +125,10 @@ func (h *HTTPGateway) returnSpansTestable(
 		return
 	}
 	tracesData := api_v3.TracesData(td)
-	h.marshalResponse(&tracesData, w)
+	response := &api_v3.GRPCGatewayWrapper{
+		Result: &tracesData,
+	}
+	h.marshalResponse(response, w)
 }
 
 func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {

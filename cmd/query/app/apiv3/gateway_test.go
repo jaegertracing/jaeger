@@ -172,9 +172,9 @@ func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTrac
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
 
-	var response api_v3.TracesData
+	var response api_v3.GRPCGatewayWrapper
 	parseResponse(t, body, &response)
-	td := response.ToTraces()
+	td := response.Result.ToTraces()
 	assert.EqualValues(t, 1, td.SpanCount())
 	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 	assert.Equal(t, expectedTraceID.String(), traceID.String())
