@@ -157,7 +157,7 @@ proto-api-v3:
 	cp -R idl/opentelemetry-proto/* $(PATCHED_OTEL_PROTO_DIR)
 	find $(PATCHED_OTEL_PROTO_DIR) -name "*.proto" | xargs -L 1 $(SED) -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
 
-	$(call proto_compile, cmd/query/app/apiv3/internal/api_v3, idl/proto/api_v3/query_service.proto, -Iidl/opentelemetry-proto)
+	$(call proto_compile, cmd/query/app/internal/api_v3, idl/proto/api_v3/query_service.proto, -Iidl/opentelemetry-proto)
 	@#
-	$(SED) -i 's/v1.TracesData/TracesData/g' cmd/query/app/apiv3/internal/api_v3/query_service.pb.go
-	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' cmd/query/app/apiv3/internal/api_v3/query_service.pb.go
+	$(SED) -i 's/v1.TracesData/TracesData/g' cmd/query/app/internal/api_v3/query_service.pb.go
+	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' cmd/query/app/internal/api_v3/query_service.pb.go

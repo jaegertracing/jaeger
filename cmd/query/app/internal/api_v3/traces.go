@@ -1,6 +1,7 @@
 package api_v3
 
 import (
+	"github.com/gogo/protobuf/jsonpb"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jaegertracing/jaeger/pkg/gogocodec"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -22,7 +23,23 @@ func (td *TracesData) Marshal() ([]byte, error) {
 
 // MarshalTo implements gogocodec.CustomType.
 func (*TracesData) MarshalTo(data []byte) (n int, err error) {
+	// unclear when this might be called, perhaps when type is embedded inside other structs.
 	panic("unimplemented")
+}
+
+// MarshalJSONPB implements gogocodec.CustomType.
+func (td *TracesData) MarshalJSONPB(*jsonpb.Marshaler) ([]byte, error) {
+	return new(ptrace.JSONMarshaler).MarshalTraces(td.ToTraces())
+}
+
+// UnmarshalJSONPB implements gogocodec.CustomType.
+func (td *TracesData) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, data []byte) error {
+	t, err := new(ptrace.JSONUnmarshaler).UnmarshalTraces(data)
+	if err != nil {
+		return err
+	}
+	*td = TracesData(t)
+	return nil
 }
 
 // Size implements gogocodec.CustomType.
@@ -38,16 +55,6 @@ func (td *TracesData) Unmarshal(data []byte) error {
 	}
 	*td = TracesData(t)
 	return nil
-}
-
-// MarshalJSON implements gogocodec.CustomType.
-func (*TracesData) MarshalJSON() ([]byte, error) {
-	panic("unimplemented")
-}
-
-// UnmarshalJSON implements gogocodec.CustomType.
-func (*TracesData) UnmarshalJSON(data []byte) error {
-	panic("unimplemented")
 }
 
 // ProtoMessage implements proto.Message.

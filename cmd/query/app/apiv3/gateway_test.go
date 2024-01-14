@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3/internal/api_v3"
+	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -155,19 +155,7 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 	trace, traceID := makeTestTrace()
 	gw.reader.On("GetTrace", matchContext, traceID).Return(trace, nil).Once()
-
-	body, statusCode := gw.execRequest(t, "/api/v3/traces/"+traceID.String())
-	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
-	body = gw.verifySnapshot(t, body)
-
-	var response api_v3.TracesData
-	// TODO parseResponse(t, body, &response)
-	td := response.ToTraces()
-
-	assert.Len(t, td.ResourceSpans(), 1)
-	assert.EqualValues(t,
-		bytesOfTraceID(t, traceID.High, traceID.Low),
-		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID)
+	gw.getTracesAndVerify(t, "/api/v3/traces/"+traceID.String(), traceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -176,24 +164,18 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	gw.reader.
 		On("FindTraces", matchContext, qp).
 		Return([]*model.Trace{trace}, nil).Once()
-	body, statusCode := gw.execRequest(t, "/api/v3/traces?"+q.Encode())
+	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
+}
+
+func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID model.TraceID) {
+	body, statusCode := gw.execRequest(t, url)
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
 
 	var response api_v3.TracesData
-	// TODO parseResponse(t, body, &response)
+	parseResponse(t, body, &response)
 	td := response.ToTraces()
-
-	assert.Len(t, td.ResourceSpans(), 1)
-	assert.EqualValues(t,
-		bytesOfTraceID(t, traceID.High, traceID.Low),
-		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID)
-}
-
-func bytesOfTraceID(t *testing.T, high, low uint64) []byte {
-	traceID := model.NewTraceID(high, low)
-	buf := make([]byte, 16)
-	_, err := traceID.MarshalTo(buf)
-	require.NoError(t, err)
-	return buf
+	assert.EqualValues(t, 1, td.SpanCount())
+	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+	assert.Equal(t, expectedTraceID.String(), traceID.String())
 }

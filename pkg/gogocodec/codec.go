@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/encoding/proto"
@@ -40,8 +41,8 @@ type CustomType interface {
 
 	gogoproto.Sizer
 
-	MarshalJSON() ([]byte, error)
-	UnmarshalJSON(data []byte) error
+	jsonpb.JSONPBMarshaler
+	jsonpb.JSONPBUnmarshaler
 }
 
 func init() {
