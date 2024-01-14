@@ -1,16 +1,27 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package api_v3
 
 import (
 	"github.com/gogo/protobuf/jsonpb"
 	proto "github.com/gogo/protobuf/proto"
-	"github.com/jaegertracing/jaeger/pkg/gogocodec"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/pkg/gogocodec"
 )
 
+// TracesData is an alias to ptrace.Traces that supports Gogo marshaling.
+// Our .proto APIs may refer to otlp.TraceData type, but its corresponding
+// protoc-generated struct is internal in OTel Collector, so we substitute
+// it for this TracesData type that implements marshaling methods by
+// delegating to public functions in the OTel Collector's ptrace module.
 type TracesData ptrace.Traces
 
-var _ gogocodec.CustomType = (*TracesData)(nil)
-var _ proto.Message = (*TracesData)(nil)
+var (
+	_ gogocodec.CustomType = (*TracesData)(nil)
+	_ proto.Message        = (*TracesData)(nil)
+)
 
 func (td TracesData) ToTraces() ptrace.Traces {
 	return ptrace.Traces(td)
@@ -23,7 +34,7 @@ func (td *TracesData) Marshal() ([]byte, error) {
 
 // MarshalTo implements gogocodec.CustomType.
 func (*TracesData) MarshalTo(data []byte) (n int, err error) {
-	// unclear when this might be called, perhaps when type is embedded inside other structs.
+	// TODO unclear when this might be called, perhaps when type is embedded inside other structs.
 	panic("unimplemented")
 }
 
@@ -64,7 +75,7 @@ func (*TracesData) ProtoMessage() {
 
 // Reset implements proto.Message.
 func (td *TracesData) Reset() {
-	*td = TracesData{}
+	*td = TracesData(ptrace.NewTraces())
 }
 
 // String implements proto.Message.

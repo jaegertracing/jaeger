@@ -25,23 +25,3 @@ func modelToOTLP(spans []*model.Span) (ptrace.Traces, error) {
 	batch := &model.Batch{Spans: spans}
 	return model2otel.ProtoToTraces([]*model.Batch{batch})
 }
-
-// func Unused_modelToOTLP(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
-// 	batch := &model.Batch{Spans: spans}
-// 	td, err := model2otel.ProtoToTraces([]*model.Batch{batch})
-// 	if err != nil {
-// 		return nil, fmt.Errorf("cannot convert trace to OpenTelemetry: %w", err)
-// 	}
-// 	req := ptraceotlp.NewExportRequestFromTraces(td)
-// 	// OTEL Collector hides the internal proto implementation, so do a roundtrip conversion (inefficient)
-// 	b, err := req.MarshalProto()
-// 	if err != nil {
-// 		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
-// 	}
-// 	// use api_v3.SpansResponseChunk which has the same shape as otlp.ExportTraceServiceRequest
-// 	var chunk api_v3.SpansResponseChunk
-// 	if err := proto.Unmarshal(b, &chunk); err != nil {
-// 		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
-// 	}
-// 	return chunk.ResourceSpans, nil
-// }
