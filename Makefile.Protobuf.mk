@@ -146,8 +146,12 @@ proto-otel: proto-prepare-otel
 	$(foreach file,$(OTEL_PROTO_FILES), \
 	  $(call proto_compile, proto-gen/otel, $(file), -I$(PATCHED_OTEL_PROTO_DIR), paths=source_relative))
 
-# This way the API v3 service uses official OTEL type opentelemetry.proto.trace.v1.TracesData
+# The API v3 service uses official OTEL type opentelemetry.proto.trace.v1.TracesData,
 # which at runtime is mapped to a custom type in cmd/query/app/internal/api_v3/traces.go
+# Unfortunately, gogoproto.customtype annotation cannot be applied to a method's return type,
+# only to fields in a struct, so we use regex search/replace to swap it.
+# Note that the .pb.go types must be generated into the same internal package $(API_V3_PATH)
+# where a manually defined traces.go file is located.
 API_V3_PATH=cmd/query/app/internal/api_v3
 .PHONY: proto-api-v3
 proto-api-v3:
