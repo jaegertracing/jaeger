@@ -45,7 +45,7 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 func TestExtensionConfigError(t *testing.T) {
 	config := createDefaultConfig().(*Config)
 	err := config.Validate()
-	require.EqualError(t, err, "Memory: non zero value required")
+	require.EqualError(t, err, "no storage type present in config")
 }
 
 func TestStartStorageExtensionError(t *testing.T) {
