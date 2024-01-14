@@ -445,7 +445,6 @@ func (m *GetOperationsResponse) GetOperations() []*Operation {
 }
 
 // GRPCGatewayError is the type returned when GRPC server returns an error.
-// Note that for streaming responses it would be wrapped in GRPCGatewayWrapper below.
 // Example: {"error":{"grpcCode":2,"httpCode":500,"message":"...","httpStatus":"text..."}}.
 type GRPCGatewayError struct {
 	Error                *GRPCGatewayError_GRPCGatewayErrorDetails `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
@@ -553,8 +552,10 @@ func (m *GRPCGatewayError_GRPCGatewayErrorDetails) GetHttpStatus() string {
 // Today there is always only one response because internally the HTTP server gets
 // data from QueryService that does not support multiple responses. But in the
 // future the server may return multiple responeses using Transfer-Encoding: chunked.
+// In case of errors, GRPCGatewayError above is used.
 //
-// Example: {"result": {"resourceSpans": ...}}
+// Example:
+//     {"result": {"resourceSpans": ...}}
 //
 // See https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
 //
