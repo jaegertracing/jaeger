@@ -1,4 +1,4 @@
-// Copyright (c) 2023 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,16 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package handler
+
+package driver
 
 import (
 	"testing"
 
 	"go.uber.org/goleak"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutils.IgnoreOpenCensusWorkerLeak())
+	goleak.VerifyTestMain(m)
 }

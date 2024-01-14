@@ -100,6 +100,10 @@ func makeTestTrace() (*model.Trace, model.TraceID) {
 				TraceID:       traceID,
 				SpanID:        model.NewSpanID(180),
 				OperationName: "foobar",
+				Tags: []model.KeyValue{
+					model.String("span.kind", "server"),
+					model.Bool("error", true),
+				},
 			},
 		},
 	}, traceID
@@ -160,9 +164,9 @@ func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 	parseResponse(t, body, &response)
 
 	assert.Len(t, response.Result.ResourceSpans, 1)
-	assert.Equal(t,
+	assert.EqualValues(t,
 		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
+		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -179,9 +183,9 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	parseResponse(t, body, &response)
 
 	assert.Len(t, response.Result.ResourceSpans, 1)
-	assert.Equal(t,
+	assert.EqualValues(t,
 		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
+		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceID)
 }
 
 func bytesOfTraceID(t *testing.T, high, low uint64) []byte {
