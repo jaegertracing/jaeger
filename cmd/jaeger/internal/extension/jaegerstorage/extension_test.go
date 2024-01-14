@@ -19,15 +19,17 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
+const memstoreName = "memstore"
+
 type storageHost struct {
 	t                *testing.T
 	storageExtension component.Component
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {
-	myMap := make(map[component.ID]component.Component)
-	myMap[ID] = host.storageExtension
-	return myMap
+	return map[component.ID]component.Component{
+		ID: host.storageExtension,
+	}
 }
 
 func (host storageHost) ReportFatalError(err error) {
@@ -45,12 +47,11 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 func TestExtensionConfigError(t *testing.T) {
 	config := createDefaultConfig().(*Config)
 	err := config.Validate()
-	require.EqualError(t, err, "no storage type present in config")
+	require.EqualError(t, err, fmt.Sprintf("%s: no storage type present in config", ID))
 }
 
 func TestStartStorageExtensionError(t *testing.T) {
 	ctx := context.Background()
-	const memstoreName = "memstore"
 
 	storageExtension := makeStorageExtension(t, memstoreName)
 
@@ -61,8 +62,6 @@ func TestStartStorageExtensionError(t *testing.T) {
 }
 
 func TestGetStorageFactoryError(t *testing.T) {
-	const memstoreName = "memstore"
-
 	makeStorageExtension(t, memstoreName)
 
 	host := componenttest.NewNopHost()
@@ -72,8 +71,6 @@ func TestGetStorageFactoryError(t *testing.T) {
 }
 
 func TestStorageExtension(t *testing.T) {
-	const memstoreName = "memstore"
-
 	storageExtension := makeStorageExtension(t, memstoreName)
 
 	host := storageHost{t: t, storageExtension: storageExtension}
