@@ -250,7 +250,9 @@ func TestCreateCollectorProxy(t *testing.T) {
 		rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
 		grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
 		require.NoError(t, err)
-
+		ctx, cancel := context.WithCancel(context.Background())
+		grpcBuilder.Context = ctx
+		defer cancel()
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 		defer metricsFactory.Stop()
 		grpcProxyBuilder := GRPCCollectorProxyBuilder(grpcBuilder)

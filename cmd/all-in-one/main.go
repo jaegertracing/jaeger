@@ -148,6 +148,9 @@ by default uses only in-memory database.`,
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			grpcBuilder, err := agentGrpcRep.NewConnBuilder().InitFromViper(v)
+			builderCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			grpcBuilder.Context = builderCtx
 			if err != nil {
 				logger.Fatal("Failed to configure connection for grpc", zap.Error(err))
 			}

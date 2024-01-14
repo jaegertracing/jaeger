@@ -50,6 +50,8 @@ type ConnBuilder struct {
 	Discoverer        discovery.Discoverer
 
 	AdditionalDialOptions []grpc.DialOption
+
+	Context context.Context
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -117,6 +119,7 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 		for {
 			select {
 			case <-ctx.Done():
+				fmt.Println("Closing Connection")
 				logger.Info("Stopping connection")
 				return
 			default:
@@ -129,6 +132,7 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 				}
 
 				logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
+				fmt.Println(s, "State Change")
 				cc.WaitForStateChange(ctx, s)
 			}
 		}

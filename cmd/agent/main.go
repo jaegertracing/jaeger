@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -67,6 +68,9 @@ func main() {
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
+			builderCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			grpcBuilder.Context = builderCtx
 			if err != nil {
 				logger.Fatal("Failed to configure gRPC connection", zap.Error(err))
 			}

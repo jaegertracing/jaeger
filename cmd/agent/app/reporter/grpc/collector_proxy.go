@@ -17,7 +17,6 @@ package grpc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 
 	"go.uber.org/zap"
@@ -76,7 +75,6 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
-	fmt.Printf("Get proxy")
 	return errors.Join(
 		b.reporter.Close(),
 		b.tlsCloser.Close(),

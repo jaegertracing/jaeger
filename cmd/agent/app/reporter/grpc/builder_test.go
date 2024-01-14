@@ -61,6 +61,7 @@ func TestBuilderFromConfig(t *testing.T) {
 		cfg.CollectorHostPorts)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	cfg.Context = ctx
 	r, err := cfg.CreateConnection(ctx, zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
 	defer r.Close()
@@ -154,6 +155,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+			cfg.Context = ctx
 			conn, err := cfg.CreateConnection(ctx, zap.NewNop(), metrics.NullFactory)
 			if test.expectedError == "" {
 				require.NoError(t, err)
