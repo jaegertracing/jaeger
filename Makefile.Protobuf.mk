@@ -146,18 +146,13 @@ proto-otel: proto-prepare-otel
 	$(foreach file,$(OTEL_PROTO_FILES), \
 	  $(call proto_compile, proto-gen/otel, $(file), -I$(PATCHED_OTEL_PROTO_DIR), paths=source_relative))
 
-# Similar to 'proto-prepare-otel', this target modifies OTEL Protos by changing their Go package.
-# This way the API v3 service uses official OTEL types like opentelemetry.proto.trace.v1.ResourceSpans
-# which at runtime are mapped to our internal classes generated in proto-gen/otel by 'proto-otel' target.
+# This way the API v3 service uses official OTEL type opentelemetry.proto.trace.v1.TracesData
+# which at runtime is mapped to a custom type in cmd/query/app/internal/api_v3/traces.go
+API_V3_PATH=cmd/query/app/internal/api_v3
 .PHONY: proto-api-v3
 proto-api-v3:
-	$(call print_caption, Enriching OpenTelemetry Protos into $(PATCHED_OTEL_PROTO_DIR))
-	rm -rf $(PATCHED_OTEL_PROTO_DIR)/*
-	mkdir -p $(PATCHED_OTEL_PROTO_DIR)
-	cp -R idl/opentelemetry-proto/* $(PATCHED_OTEL_PROTO_DIR)
-	find $(PATCHED_OTEL_PROTO_DIR) -name "*.proto" | xargs -L 1 $(SED) -i 's+go.opentelemetry.io/proto/otlp+github.com/jaegertracing/jaeger/proto-gen/otel+g'
-
-	$(call proto_compile, cmd/query/app/internal/api_v3, idl/proto/api_v3/query_service.proto, -Iidl/opentelemetry-proto)
-	@#
-	$(SED) -i 's/v1.TracesData/TracesData/g' cmd/query/app/internal/api_v3/query_service.pb.go
-	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' cmd/query/app/internal/api_v3/query_service.pb.go
+	$(call proto_compile, $(API_V3_PATH), idl/proto/api_v3/query_service.proto, -Iidl/opentelemetry-proto)
+	@echo "🏗️  replace TracesData with internal custom type"
+	$(SED) -i 's/v1.TracesData/TracesData/g' $(API_V3_PATH)/query_service.pb.go
+	@echo "🏗️  remove OTEL import because we're not using any other OTLP types"
+	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' $(API_V3_PATH)/query_service.pb.go
