@@ -31,7 +31,6 @@ import (
 
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 )
 
 // These tests are only run when the environment variable TEST_MODE=integration is set.
@@ -180,9 +179,11 @@ func getServicesAPIV3(t *testing.T) {
 	require.NoError(t, err)
 	body, _ := io.ReadAll(resp.Body)
 
-	var servicesResponse api_v3.GetServicesResponse
+	var servicesResponse struct {
+		Services []string
+	}
 	err = json.Unmarshal(body, &servicesResponse)
 	require.NoError(t, err)
-	require.Len(t, servicesResponse.GetServices(), 1)
-	assert.Contains(t, servicesResponse.GetServices()[0], "jaeger")
+	require.Len(t, servicesResponse.Services, 1)
+	assert.Contains(t, servicesResponse.Services[0], "jaeger")
 }
