@@ -119,7 +119,6 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 		for {
 			select {
 			case <-ctx.Done():
-				fmt.Println("Closing Connection")
 				logger.Info("Stopping connection")
 				return
 			default:
