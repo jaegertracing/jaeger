@@ -70,12 +70,11 @@ func main() {
 			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
 			builderCtx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			grpcBuilder.Context = builderCtx
 			if err != nil {
 				logger.Fatal("Failed to configure gRPC connection", zap.Error(err))
 			}
 			builders := map[reporter.Type]app.CollectorProxyBuilder{
-				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),
+				reporter.GRPC: app.GRPCCollectorProxyBuilder(builderCtx, grpcBuilder),
 			}
 			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
 				Options: *rOpts,

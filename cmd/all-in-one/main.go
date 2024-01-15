@@ -148,9 +148,6 @@ by default uses only in-memory database.`,
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			grpcBuilder, err := agentGrpcRep.NewConnBuilder().InitFromViper(v)
-			builderCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			grpcBuilder.Context = builderCtx
 			if err != nil {
 				logger.Fatal("Failed to configure connection for grpc", zap.Error(err))
 			}
@@ -185,8 +182,10 @@ by default uses only in-memory database.`,
 			if len(grpcBuilder.CollectorHostPorts) == 0 {
 				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.GRPC.HostPort)
 			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
-				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
+				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(ctx,grpcBuilder),
 			}
 			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
 				Options: *repOpts,

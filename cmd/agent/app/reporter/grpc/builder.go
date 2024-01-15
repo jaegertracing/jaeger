@@ -51,7 +51,6 @@ type ConnBuilder struct {
 
 	AdditionalDialOptions []grpc.DialOption
 
-	Context context.Context
 }
 
 // NewConnBuilder creates a new grpc connection builder.

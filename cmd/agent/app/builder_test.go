@@ -250,13 +250,12 @@ func TestCreateCollectorProxy(t *testing.T) {
 		rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
 		grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
 		require.NoError(t, err)
-		ctx, cancel := context.WithCancel(context.Background())
-		grpcBuilder.Context = ctx
-		defer cancel()
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
-
+		defer metricsFactory.Stop()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		builders := map[reporter.Type]CollectorProxyBuilder{
-			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
+			reporter.GRPC: GRPCCollectorProxyBuilder(ctx, grpcBuilder),
 		}
 		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
 			Options: *rOpts,
@@ -276,9 +275,10 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	grpcBuilder := grpc.NewConnBuilder()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	builders := map[reporter.Type]CollectorProxyBuilder{
-		reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
+		reporter.GRPC: GRPCCollectorProxyBuilder(ctx, grpcBuilder),
 	}
 	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
