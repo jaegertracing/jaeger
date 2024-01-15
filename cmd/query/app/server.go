@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
+	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -42,7 +43,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 )
 
 // Server runs HTTP, Mux and a grpc server
