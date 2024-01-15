@@ -50,7 +50,6 @@ func TestGetThroughput(t *testing.T) {
 			{Service: "my-svc", Operation: "op"},
 			{Service: "our-svc", Operation: "op2"},
 		}
-
 		err := store.InsertThroughput(expected)
 		require.NoError(t, err)
 
