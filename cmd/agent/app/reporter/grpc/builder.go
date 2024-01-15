@@ -129,7 +129,6 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 				}
 
 				logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
-				fmt.Println(s, "State Change")
 				cc.WaitForStateChange(ctx, s)
 			}
 		}
