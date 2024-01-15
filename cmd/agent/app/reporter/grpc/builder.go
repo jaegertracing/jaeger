@@ -50,7 +50,6 @@ type ConnBuilder struct {
 	Discoverer        discovery.Discoverer
 
 	AdditionalDialOptions []grpc.DialOption
-
 }
 
 // NewConnBuilder creates a new grpc connection builder.
