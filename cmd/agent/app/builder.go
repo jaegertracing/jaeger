@@ -16,6 +16,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -234,6 +235,7 @@ type ProxyBuilderOptions struct {
 	reporter.Options
 	Logger  *zap.Logger
 	Metrics metrics.Factory
+	Context context.Context
 }
 
 // CollectorProxyBuilder is a func which builds CollectorProxy.

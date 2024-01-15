@@ -74,12 +74,13 @@ func main() {
 				logger.Fatal("Failed to configure gRPC connection", zap.Error(err))
 			}
 			builders := map[reporter.Type]app.CollectorProxyBuilder{
-				reporter.GRPC: app.GRPCCollectorProxyBuilder(builderCtx, grpcBuilder),
+				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
 			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
 				Options: *rOpts,
 				Logger:  logger,
 				Metrics: mFactory,
+				Context: builderCtx,
 			}, builders)
 			if err != nil {
 				logger.Fatal("Failed to create collector proxy", zap.Error(err))

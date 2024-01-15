@@ -185,9 +185,10 @@ by default uses only in-memory database.`,
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
-				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(ctx, grpcBuilder),
+				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
 			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
+				Context: ctx,
 				Options: *repOpts,
 				Logger:  logger,
 				Metrics: agentMetricsFactory,
