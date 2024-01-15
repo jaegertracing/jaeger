@@ -50,7 +50,7 @@ func TestExtensionConfigError(t *testing.T) {
 	require.EqualError(t, err, fmt.Sprintf("%s: no storage type present in config", ID))
 }
 
-func TestStartStorageExtensionError(t *testing.T) {
+func TestStartStorageExtensionTwiceError(t *testing.T) {
 	ctx := context.Background()
 
 	storageExtension := makeStorageExtension(t, memstoreName)
