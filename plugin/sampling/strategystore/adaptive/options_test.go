@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
@@ -56,8 +57,8 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--sampling.leader-lease-refresh-interval=5s",
 		"--sampling.follower-lease-refresh-interval=1m0s",
 	})
-  
 	opts := &Options{}
+
 	opts.InitFromViper(v)
 
 	assert.Equal(t, 2.0, opts.TargetSamplesPerSecond)
