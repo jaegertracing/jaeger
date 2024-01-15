@@ -91,7 +91,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 			if err != nil {
 				return err
 			}
-			throughputs, err := decodeThroughtputValue(val)
+			throughputs, err := decodeThroughputValue(val)
 			if err != nil {
 				return err
 			}
@@ -226,7 +226,7 @@ func (s *SamplingStore) createThroughputKV(throughput []*model.Throughput, start
 	return key, bb, err
 }
 
-func decodeThroughtputValue(val []byte) ([]*model.Throughput, error) {
+func decodeThroughputValue(val []byte) ([]*model.Throughput, error) {
 	var throughput []*model.Throughput
 
 	err := json.Unmarshal(val, &throughput)

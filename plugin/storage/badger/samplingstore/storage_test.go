@@ -53,7 +53,7 @@ func TestGetThroughput(t *testing.T) {
 		err := store.InsertThroughput(expected)
 		require.NoError(t, err)
 
-		actual, err := store.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
+		actual, err := store.GetThroughput(start.Add(-time.Millisecond), start.Add(time.Second*time.Duration(10)))
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
@@ -120,7 +120,7 @@ func TestDecodeThroughtputValue(t *testing.T) {
 
 	marshalBytes, err := json.Marshal(expected)
 	require.NoError(t, err)
-	acrual, err := decodeThroughtputValue(marshalBytes)
+	acrual, err := decodeThroughputValue(marshalBytes)
 	require.NoError(t, err)
 	assert.Equal(t, expected, acrual)
 }
