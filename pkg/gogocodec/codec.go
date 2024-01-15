@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/encoding/proto"
@@ -30,6 +31,19 @@ const (
 )
 
 var defaultCodec encoding.Codec
+
+// CustomType is an interface that Gogo expects custom types to implement.
+// https://github.com/gogo/protobuf/blob/master/custom_types.md
+type CustomType interface {
+	Marshal() ([]byte, error)
+	MarshalTo(data []byte) (n int, err error)
+	Unmarshal(data []byte) error
+
+	gogoproto.Sizer
+
+	jsonpb.JSONPBMarshaler
+	jsonpb.JSONPBUnmarshaler
+}
 
 func init() {
 	defaultCodec = encoding.GetCodec(proto.Name)
