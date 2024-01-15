@@ -176,6 +176,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 			opts := &flags.CollectorOptions{}
 			opts.Zipkin.HTTPHostPort = ports.PortToHostPort(ports.CollectorZipkin)
 			opts.Zipkin.TLS = test.serverTLS
+			defer test.serverTLS.Close()
 
 			server, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
 			if test.expectServerFail {
@@ -188,6 +189,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 			}()
 
 			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
+			defer test.clientTLS.Close()
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorZipkin), clientTLSCfg)
