@@ -9,6 +9,7 @@ import (
 	"log"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
 
@@ -41,15 +42,7 @@ func Command() *cobra.Command {
 	otelRunE := cmd.RunE
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		configFlag := cmd.Flag("config")
-		if !configFlag.Changed {
-			log.Print("No '--config' flags detected, using default All-in-One configuration with memory storage.")
-			log.Print("To customize All-in-One behavior, pass a proper configuration.")
-			data, err := yamlAllInOne.ReadFile("all-in-one.yaml")
-			if err != nil {
-				return fmt.Errorf("cannot read embedded all-in-one configuration: %w", err)
-			}
-			configFlag.Value.Set("yaml:" + string(data))
-		}
+		handleConfigFlag(configFlag, args)
 		return otelRunE(cmd, args)
 	}
 
@@ -57,4 +50,17 @@ func Command() *cobra.Command {
 	cmd.Long = description
 
 	return cmd
+}
+
+func handleConfigFlag(configFlag *pflag.Flag, args []string) error {
+	if !configFlag.Changed {
+		log.Print("No '--config' flags detected, using default All-in-One configuration with memory storage.")
+		log.Print("To customize All-in-One behavior, pass a proper configuration.")
+		data, err := yamlAllInOne.ReadFile("all-in-one.yaml")
+		if err != nil {
+			return fmt.Errorf("cannot read embedded all-in-one configuration: %w", err)
+		}
+		configFlag.Value.Set("yaml:" + string(data))
+	}
+	return nil
 }

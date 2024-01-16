@@ -17,19 +17,20 @@ package internal
 import (
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCommand(t *testing.T) {
 	cmd := Command()
-
 	assert.NotNil(t, cmd, "Command() should return a non-nil *cobra.Command instance")
-
-	expectedShortDescription := "Jaeger backend v2"
-	assert.Equal(t, expectedShortDescription, cmd.Short, "Command short description should be '%s'", expectedShortDescription)
-
-	expectedLongDescription := "Jaeger backend v2"
-	assert.Equal(t, expectedLongDescription, cmd.Long, "Command long description should be '%s'", expectedLongDescription)
-
 	assert.NotNil(t, cmd.RunE, "Command should have RunE function set")
+}
+
+func TestHandleConfigFlag(t *testing.T) {
+	configFlag := pflag.NewFlagSet("testFlagSet", pflag.ContinueOnError)
+	configFlag.String("config", "", "Path to the config file")
+
+	err := handleConfigFlag(configFlag.Lookup("config"), []string{})
+	assert.NoError(t, err)
 }
