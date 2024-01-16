@@ -118,7 +118,7 @@ linters-settings:
          - pkg: go.uber.org/goleak
            desc: "Use github.com/jaegertracing/jaeger/pkg/testutils instead of go.uber.org/goleak"
         files:
-          - "**_test.go**"
+          - "**_test.go"
 
   goimports:
     local-prefixes: github.com/jaegertracing/jaeger
