@@ -61,13 +61,24 @@ func TestStartStorageExtensionTwiceError(t *testing.T) {
 	require.EqualError(t, err, fmt.Sprintf("duplicate memory storage name %s", memstoreName))
 }
 
-func TestGetStorageFactoryError(t *testing.T) {
+func TestBadHostGetStorageFactoryError(t *testing.T) {
 	makeStorageExtension(t, memstoreName)
 
 	host := componenttest.NewNopHost()
 	_, err := GetStorageFactory(memstoreName, host)
 	require.Error(t, err)
 	require.EqualError(t, err, fmt.Sprintf("cannot find extension '%s' (make sure it's defined earlier in the config)", ID))
+}
+
+func TestBadNameGetStorageFactoryError(t *testing.T) {
+	storageExtension := makeStorageExtension(t, memstoreName)
+
+	host := storageHost{t: t, storageExtension: storageExtension}
+	const badMemstoreName = "test"
+
+	_, err := GetStorageFactory(badMemstoreName, host)
+	require.Error(t, err)
+	require.EqualError(t, err, fmt.Sprintf("cannot find storage '%s' declared with '%s' extension", badMemstoreName, ID))
 }
 
 func TestStorageExtension(t *testing.T) {
