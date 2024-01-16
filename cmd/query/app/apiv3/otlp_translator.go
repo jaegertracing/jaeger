@@ -15,33 +15,13 @@
 package apiv3
 
 import (
-	"fmt"
-
-	"github.com/gogo/protobuf/proto"
 	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
-	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 )
 
-func modelToOTLP(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
+func modelToOTLP(spans []*model.Span) (ptrace.Traces, error) {
 	batch := &model.Batch{Spans: spans}
-	td, err := model2otel.ProtoToTraces([]*model.Batch{batch})
-	if err != nil {
-		return nil, fmt.Errorf("cannot convert trace to OpenTelemetry: %w", err)
-	}
-	req := ptraceotlp.NewExportRequestFromTraces(td)
-	// OTEL Collector hides the internal proto implementation, so do a roundtrip conversion (inefficient)
-	b, err := req.MarshalProto()
-	if err != nil {
-		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
-	}
-	// use api_v3.SpansResponseChunk which has the same shape as otlp.ExportTraceServiceRequest
-	var chunk api_v3.SpansResponseChunk
-	if err := proto.Unmarshal(b, &chunk); err != nil {
-		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
-	}
-	return chunk.ResourceSpans, nil
+	return model2otel.ProtoToTraces([]*model.Batch{batch})
 }
