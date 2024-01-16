@@ -310,7 +310,7 @@ func TestPublishOpts(t *testing.T) {
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
-	assert.NoError(t, agent.Run())
+	require.NoError(t, agent.Run())
 	defer agent.Stop()
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
