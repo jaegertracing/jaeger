@@ -250,11 +250,11 @@ func TestCreateCollectorProxy(t *testing.T) {
 		require.NoError(t, err)
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 		defer metricsFactory.Stop()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		builders := map[reporter.Type]CollectorProxyBuilder{
 			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{
 			Options: *rOpts,
 			Metrics: metricsFactory,
