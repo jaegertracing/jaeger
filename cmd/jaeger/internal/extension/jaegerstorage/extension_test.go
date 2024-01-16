@@ -17,6 +17,10 @@ import (
 	"go.uber.org/zap"
 
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const memstoreName = "memstore"
@@ -42,6 +46,30 @@ func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Fact
 
 func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
+}
+
+type errorFactory struct {
+	closeErr error
+}
+
+func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	panic("implement me")
+}
+
+func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
+	panic("implement me")
+}
+
+func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
+	panic("implement me")
+}
+
+func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	panic("implement me")
+}
+
+func (e errorFactory) Close() error {
+	return e.closeErr
 }
 
 func TestExtensionConfigError(t *testing.T) {
@@ -79,6 +107,20 @@ func TestBadNameGetStorageFactoryError(t *testing.T) {
 	_, err := GetStorageFactory(badMemstoreName, host)
 	require.Error(t, err)
 	require.EqualError(t, err, fmt.Sprintf("cannot find storage '%s' declared with '%s' extension", badMemstoreName, ID))
+}
+
+func TestBadFactoryShutdownError(t *testing.T) {
+	storageExtension := storageExt{
+		factories: make(map[string]storage.Factory),
+	}
+	badFactoryError := fmt.Errorf("error factory")
+	storageExtension.factories[memstoreName] = errorFactory{closeErr: badFactoryError}
+
+	t.Cleanup(func() {
+		err := storageExtension.Shutdown(context.Background())
+		require.Error(t, err)
+		require.EqualError(t, err, badFactoryError.Error())
+	})
 }
 
 func TestStorageExtension(t *testing.T) {
