@@ -27,7 +27,6 @@ import (
 const (
 	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
-	jaegerModelV2PkgPath  = "github.com/jaegertracing/jaeger/model/v2"
 )
 
 var defaultCodec encoding.Codec
@@ -94,9 +93,6 @@ func useGogo(t reflect.Type) bool {
 	}
 	pkg := t.PkgPath()
 	if strings.HasPrefix(pkg, jaegerProtoGenPkgPath) {
-		return true
-	}
-	if strings.HasPrefix(pkg, jaegerModelV2PkgPath) {
 		return true
 	}
 	if strings.HasPrefix(pkg, jaegerModelPkgPath) {
