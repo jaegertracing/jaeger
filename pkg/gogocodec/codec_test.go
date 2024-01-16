@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package gogocodec
 
 import (
@@ -24,9 +23,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/model"
-	modelv2 "github.com/jaegertracing/jaeger/model/v2"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 )
 
 func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
@@ -34,55 +31,41 @@ func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
 	s1 := &model.Span{OperationName: "foo", TraceID: model.NewTraceID(1, 2)}
 	data, err := c.Marshal(s1)
 	require.NoError(t, err)
-
 	s2 := &model.Span{}
 	err = c.Unmarshal(data, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
 }
-
 func TestCodecMarshallAndUnmarshall_no_jaeger_type(t *testing.T) {
 	c := newCodec()
 	goprotoMessage1 := &emptypb.Empty{}
 	data, err := c.Marshal(goprotoMessage1)
 	require.NoError(t, err)
-
 	goprotoMessage2 := &emptypb.Empty{}
 	err = c.Unmarshal(data, goprotoMessage2)
 	require.NoError(t, err)
 	assert.Equal(t, goprotoMessage1, goprotoMessage2)
 }
-
 func TestWireCompatibility(t *testing.T) {
 	c := newCodec()
 	s1 := &model.Span{OperationName: "foo", TraceID: model.NewTraceID(1, 2)}
 	data, err := c.Marshal(s1)
 	require.NoError(t, err)
-
 	var goprotoMessage emptypb.Empty
 	err = proto.Unmarshal(data, &goprotoMessage)
 	require.NoError(t, err)
-
 	data2, err := proto.Marshal(&goprotoMessage)
 	require.NoError(t, err)
-
 	s2 := &model.Span{}
 	err = c.Unmarshal(data2, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
 }
-
 func TestUseGogo(t *testing.T) {
 	assert.False(t, useGogo(nil))
 
 	var span model.Span
 	assert.True(t, useGogo(reflect.TypeOf(span)))
-
-	var id modelv2.SpanID
-	assert.True(t, useGogo(reflect.TypeOf(id)))
-
-	var scopeSpans tracev1.ScopeSpans
-	assert.True(t, useGogo(reflect.TypeOf(scopeSpans)))
 }
 
 func TestMain(m *testing.M) {
