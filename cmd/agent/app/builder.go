@@ -235,14 +235,14 @@ type ProxyBuilderOptions struct {
 	reporter.Options
 	Logger  *zap.Logger
 	Metrics metrics.Factory
-	Context context.Context
 }
 
 // CollectorProxyBuilder is a func which builds CollectorProxy.
-type CollectorProxyBuilder func(ProxyBuilderOptions) (CollectorProxy, error)
+type CollectorProxyBuilder func(context.Context, ProxyBuilderOptions) (CollectorProxy, error)
 
 // CreateCollectorProxy creates collector proxy
 func CreateCollectorProxy(
+	ctx context.Context,
 	opts ProxyBuilderOptions,
 	builders map[reporter.Type]CollectorProxyBuilder,
 ) (CollectorProxy, error) {
@@ -250,5 +250,5 @@ func CreateCollectorProxy(
 	if !ok {
 		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))
 	}
-	return builder(opts)
+	return builder(ctx, opts)
 }

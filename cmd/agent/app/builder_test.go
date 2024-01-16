@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -176,7 +175,6 @@ func TestMultipleCollectorProxies(t *testing.T) {
 	r := b.getReporter(rb)
 	mr, ok := r.(reporter.MultiReporter)
 	require.True(t, ok)
-	fmt.Println(mr)
 	assert.Equal(t, rb, mr[0])
 	assert.Equal(t, ra, mr[1])
 }
@@ -257,11 +255,10 @@ func TestCreateCollectorProxy(t *testing.T) {
 		builders := map[reporter.Type]CollectorProxyBuilder{
 			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 		}
-		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
+		proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{
 			Options: *rOpts,
 			Metrics: metricsFactory,
 			Logger:  zap.NewNop(),
-			Context: ctx,
 		}, builders)
 		if test.err != "" {
 			require.EqualError(t, err, test.err)
@@ -270,6 +267,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 			require.NoError(t, err)
 			proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
 			metricsFactory.AssertCounterMetrics(t, test.metric)
+			defer proxy.Close()
 		}
 	}
 }
@@ -281,9 +279,7 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	builders := map[reporter.Type]CollectorProxyBuilder{
 		reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 	}
-	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
-		Context: ctx,
-	}, builders)
+	proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	require.EqualError(t, err, "unknown reporter type ")
 }
@@ -307,11 +303,15 @@ func TestPublishOpts(t *testing.T) {
 	cfg.InitFromViper(v)
 
 	baseMetrics := metricstest.NewFactory(time.Second)
+	defer baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
+	defer forkFactory.Stop()
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
+	assert.NoError(t, agent.Run())
+	defer agent.Stop()
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "internal.processor.jaeger-binary.server-max-packet-size",

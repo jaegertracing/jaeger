@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Jaeger Authors.
+// Copyright (c) 2023 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,14 +15,11 @@
 package app
 
 import (
-	"context"
+	"testing"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-// GRPCCollectorProxyBuilder creates CollectorProxyBuilder for GRPC reporter
-func GRPCCollectorProxyBuilder(builder *grpc.ConnBuilder) CollectorProxyBuilder {
-	return func(ctx context.Context, opts ProxyBuilderOptions) (proxy CollectorProxy, err error) {
-		return grpc.NewCollectorProxy(ctx, builder, opts.AgentTags, opts.Metrics, opts.Logger)
-	}
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }

@@ -187,8 +187,7 @@ by default uses only in-memory database.`,
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
 				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
-			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
-				Context: ctx,
+			cp, err := agentApp.CreateCollectorProxy(ctx, agentApp.ProxyBuilderOptions{
 				Options: *repOpts,
 				Logger:  logger,
 				Metrics: agentMetricsFactory,
