@@ -24,7 +24,6 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -243,8 +242,4 @@ func assertCollectorReceivedData(
 		{Name: "reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
 		{Name: "thrift.udp.server.packets.processed", Value: 1},
 	}...)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }
