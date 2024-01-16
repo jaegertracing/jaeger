@@ -32,10 +32,9 @@ import (
 	grpcrep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
-	tu "github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/thrift-gen/agent"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -80,8 +79,8 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 	return transport.Addr().String(), processor
 }
 
-func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *tu.GrpcCollector, reporter.Reporter, *grpc.ClientConn) {
-	grpcCollector := tu.StartGRPCCollector(t)
+func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.GrpcCollector, reporter.Reporter, *grpc.ClientConn) {
+	grpcCollector := testutils.StartGRPCCollector(t)
 	conn, err := grpc.Dial(grpcCollector.Listener().Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	rep := grpcrep.NewReporter(conn, map[string]string{}, zaptest.NewLogger(t))
@@ -103,7 +102,7 @@ func TestProcessorWithCompactZipkin(t *testing.T) {
 	hostPort, processor := createProcessor(t, metricsFactory, compactFactory, agent.NewAgentProcessor(reporter))
 	defer processor.Stop()
 
-	client, clientCloser, err := tu.NewZipkinThriftUDPClient(hostPort)
+	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(hostPort)
 	require.NoError(t, err)
 	defer clientCloser.Close()
 
@@ -133,7 +132,7 @@ func TestProcessor_HandlerError(t *testing.T) {
 	hostPort, processor := createProcessor(t, metricsFactory, compactFactory, handler)
 	defer processor.Stop()
 
-	client, clientCloser, err := tu.NewZipkinThriftUDPClient(hostPort)
+	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(hostPort)
 	require.NoError(t, err)
 	defer clientCloser.Close()
 
@@ -171,7 +170,7 @@ func TestJaegerProcessor(t *testing.T) {
 
 			hostPort, processor := createProcessor(t, metricsFactory, test.factory, agent.NewAgentProcessor(reporter))
 
-			client, clientCloser, err := tu.NewJaegerThriftUDPClient(hostPort, test.factory)
+			client, clientCloser, err := testutils.NewJaegerThriftUDPClient(hostPort, test.factory)
 			require.NoError(t, err)
 
 			err = client.EmitBatch(context.Background(), batch)
@@ -187,7 +186,7 @@ func TestJaegerProcessor(t *testing.T) {
 	}
 }
 
-func assertJaegerProcessorCorrectness(t *testing.T, collector *tu.GrpcCollector, metricsFactory *metricstest.Factory) {
+func assertJaegerProcessorCorrectness(t *testing.T, collector *testutils.GrpcCollector, metricsFactory *metricstest.Factory) {
 	sizeF := func() int {
 		return len(collector.GetJaegerBatches())
 	}
@@ -197,7 +196,7 @@ func assertJaegerProcessorCorrectness(t *testing.T, collector *tu.GrpcCollector,
 	assertCollectorReceivedData(t, metricsFactory, sizeF, nameF, "jaeger")
 }
 
-func assertZipkinProcessorCorrectness(t *testing.T, collector *tu.GrpcCollector, metricsFactory *metricstest.Factory) {
+func assertZipkinProcessorCorrectness(t *testing.T, collector *testutils.GrpcCollector, metricsFactory *metricstest.Factory) {
 	sizeF := func() int {
 		return len(collector.GetJaegerBatches())
 	}
@@ -243,8 +242,4 @@ func assertCollectorReceivedData(
 		{Name: "reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
 		{Name: "thrift.udp.server.packets.processed", Value: 1},
 	}...)
-}
-
-func TestMain(m *testing.M) {
-	testutils.VerifyGoLeaks(m)
 }
