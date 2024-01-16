@@ -20,12 +20,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/model"
 	modelv2 "github.com/jaegertracing/jaeger/model/v2"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 )
 
@@ -86,5 +86,5 @@ func TestUseGogo(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }
