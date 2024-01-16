@@ -17,6 +17,7 @@ package internal
 import (
 	"testing"
 
+	"github.com/crossdock/crossdock-go/require"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 )
@@ -32,5 +33,5 @@ func TestHandleConfigFlag(t *testing.T) {
 	configFlag.String("config", "", "Path to the config file")
 
 	err := handleConfigFlag(configFlag.Lookup("config"), []string{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
