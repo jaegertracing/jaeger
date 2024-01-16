@@ -22,7 +22,6 @@ import (
 	"github.com/dgraph-io/badger/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -143,5 +142,5 @@ func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) 
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutils.IgnoreGlogFlushDaemonLeak())
+	testutils.VerifyGoLeaks(m)
 }

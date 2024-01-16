@@ -19,7 +19,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestOptionsWithDefaultFlags(t *testing.T) {
@@ -63,5 +64,5 @@ func TestOptionsWithFlags(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	. "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
@@ -155,5 +155,5 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }
