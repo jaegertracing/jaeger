@@ -33,7 +33,6 @@ func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
 	data, err := c.Marshal(s1)
 	require.NoError(t, err)
 	s2 := &model.Span{}
-
 	err = c.Unmarshal(data, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
@@ -64,7 +63,6 @@ func TestWireCompatibility(t *testing.T) {
 	data2, err := proto.Marshal(&goprotoMessage)
 	require.NoError(t, err)
 	s2 := &model.Span{}
-
 	err = c.Unmarshal(data2, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
