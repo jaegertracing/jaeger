@@ -274,11 +274,11 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	grpcBuilder := grpc.NewConnBuilder()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	builders := map[reporter.Type]CollectorProxyBuilder{
 		reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	require.EqualError(t, err, "unknown reporter type ")
