@@ -5,11 +5,13 @@ package jaegerstorage
 
 import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 
 // Config has the configuration for jaeger-query,
 type Config struct {
 	Memory map[string]memoryCfg.Configuration `mapstructure:"memory"`
+	GRPC   map[string]grpcCfg.Configuration   `mapstructure:"grpc"`
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?
 	//      Option: instead of looking for specific name, check interface.

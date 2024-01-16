@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -69,6 +70,20 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			metrics.NullFactory,
 			s.logger.With(zap.String("storage_name", name)),
 		)
+	}
+	for name, g := range s.config.GRPC {
+		if _, ok := s.factories[name]; ok {
+			return fmt.Errorf("duplicate grpc storage name %s", name)
+		}
+		var err error
+		s.factories[name], err = grpc.NewFactoryWithConfig(
+			g,
+			metrics.NullFactory,
+			s.logger.With(zap.String("storage_name", name)),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to initialize grpc storage: %w", err)
+		}
 	}
 	// TODO add support for other backends
 	return nil
