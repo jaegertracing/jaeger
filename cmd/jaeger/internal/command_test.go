@@ -17,21 +17,40 @@ package internal
 import (
 	"testing"
 
-	"github.com/spf13/pflag"
+	"github.com/crossdock/crossdock-go/require"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCommand(t *testing.T) {
 	cmd := Command()
-	assert.NotNil(t, cmd, "Command() should return a non-nil *cobra.Command instance")
-	assert.NotNil(t, cmd.RunE, "Command should have RunE function set")
+
+	assert.NotNil(t, cmd)
+	assert.Equal(t, "jaeger", cmd.Use)
+	assert.Equal(t, description, cmd.Long)
+
+	runE := cmd.RunE
+	assert.NotNil(t, runE)
 }
 
-func TestHandleConfigFlag(t *testing.T) {
-	configFlag := pflag.NewFlagSet("testFlagSet", pflag.ContinueOnError)
-	configFlag.String("config", "", "Path to the config file")
+func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
+	cmd := &cobra.Command{
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd.Flags().String("config", "", "path to config file")
+	getCfg := func(name string) ([]byte, error) {
+		return []byte("default-config"), nil
+	}
+	runE := func(cmd *cobra.Command, args []string) error {
+		return nil
+	}
 
-	err := handleConfigFlag(configFlag.Lookup("config"), []string{})
+	err := checkConfigAndRun(cmd, nil, getCfg, runE)
 	require.NoError(t, err)
+
+	configFlag := cmd.Flag("config")
+	assert.Equal(t, "yaml:default-config", configFlag.Value.String())
+	assert.False(t, configFlag.Changed)
 }
