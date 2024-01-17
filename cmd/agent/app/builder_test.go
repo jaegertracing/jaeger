@@ -233,42 +233,46 @@ func TestCreateCollectorProxy(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		flags := &flag.FlagSet{}
-		grpc.AddFlags(flags)
-		reporter.AddFlags(flags)
+		t.Run("", func(t *testing.T) {
+			flags := &flag.FlagSet{}
+			grpc.AddFlags(flags)
+			reporter.AddFlags(flags)
 
-		command := cobra.Command{}
-		command.PersistentFlags().AddGoFlagSet(flags)
-		v := viper.New()
-		v.BindPFlags(command.PersistentFlags())
+			command := cobra.Command{}
+			command.PersistentFlags().AddGoFlagSet(flags)
+			v := viper.New()
+			v.BindPFlags(command.PersistentFlags())
 
-		err := command.ParseFlags(test.flags)
-		require.NoError(t, err)
-
-		rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
-		grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
-		require.NoError(t, err)
-		metricsFactory := metricstest.NewFactory(time.Microsecond)
-		defer metricsFactory.Stop()
-		builders := map[reporter.Type]CollectorProxyBuilder{
-			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
-		}
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{
-			Options: *rOpts,
-			Metrics: metricsFactory,
-			Logger:  zap.NewNop(),
-		}, builders)
-		if test.err != "" {
-			require.EqualError(t, err, test.err)
-			assert.Nil(t, proxy)
-		} else {
+			err := command.ParseFlags(test.flags)
 			require.NoError(t, err)
-			proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
-			metricsFactory.AssertCounterMetrics(t, test.metric)
-			defer proxy.Close()
-		}
+
+			rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
+			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
+			require.NoError(t, err)
+			metricsFactory := metricstest.NewFactory(time.Microsecond)
+			defer metricsFactory.Stop()
+			builders := map[reporter.Type]CollectorProxyBuilder{
+				reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{
+				Options: *rOpts,
+				Metrics: metricsFactory,
+				Logger:  zap.NewNop(),
+			}, builders)
+			if err != nil {
+				defer proxy.Close()
+			}
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+				assert.Nil(t, proxy)
+			} else {
+				require.NoError(t, err)
+				proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
+				metricsFactory.AssertCounterMetrics(t, test.metric)
+			}
+		})
 	}
 }
 
