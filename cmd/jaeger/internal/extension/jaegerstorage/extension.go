@@ -82,7 +82,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			metrics.NullFactory,
 			s.logger.With(zap.String("storage_name", name)),
 		)
-		fmt.Println("------------------init badger storage-----------------------------")
 		if err != nil {
 			return fmt.Errorf("failed to initialize badger storage: %v", err)
 		}
