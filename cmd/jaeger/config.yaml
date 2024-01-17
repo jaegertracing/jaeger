@@ -16,7 +16,7 @@ extensions:
   jaeger_query:
     trace_storage: memstore
     trace_storage_archive: memstore_archive
-    ui_config: ./config-ui.json
+    ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     memory:
