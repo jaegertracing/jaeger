@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 )
 
-func components() (otelcol.Factories, error) {
+func Components() (otelcol.Factories, error) {
 	var err error
 	factories := otelcol.Factories{}
 
