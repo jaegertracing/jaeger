@@ -53,32 +53,32 @@ type errorFactory struct {
 }
 
 func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (e errorFactory) Close() error {
 	return e.closeErr
 }
 
-func TestExtensionConfigError(t *testing.T) {
+func TestStorageExtensionConfigError(t *testing.T) {
 	config := createDefaultConfig().(*Config)
 	err := config.Validate()
 	require.EqualError(t, err, fmt.Sprintf("%s: no storage type present in config", ID))
 }
 
-func TestStartStorageExtensionTwiceError(t *testing.T) {
+func TestStorageExtensionStartTwiceError(t *testing.T) {
 	ctx := context.Background()
 
 	storageExtension := makeStorageExtension(t, memstoreName)
@@ -89,7 +89,7 @@ func TestStartStorageExtensionTwiceError(t *testing.T) {
 	require.EqualError(t, err, fmt.Sprintf("duplicate memory storage name %s", memstoreName))
 }
 
-func TestBadHostGetStorageFactoryError(t *testing.T) {
+func TestStorageFactoryBadHostError(t *testing.T) {
 	makeStorageExtension(t, memstoreName)
 
 	host := componenttest.NewNopHost()
@@ -98,7 +98,7 @@ func TestBadHostGetStorageFactoryError(t *testing.T) {
 	require.EqualError(t, err, fmt.Sprintf("cannot find extension '%s' (make sure it's defined earlier in the config)", ID))
 }
 
-func TestBadNameGetStorageFactoryError(t *testing.T) {
+func TestStorageFactoryBadNameError(t *testing.T) {
 	storageExtension := makeStorageExtension(t, memstoreName)
 
 	host := storageHost{t: t, storageExtension: storageExtension}
@@ -109,18 +109,15 @@ func TestBadNameGetStorageFactoryError(t *testing.T) {
 	require.EqualError(t, err, fmt.Sprintf("cannot find storage '%s' declared with '%s' extension", badMemstoreName, ID))
 }
 
-func TestBadFactoryShutdownError(t *testing.T) {
+func TestStorageFactoryBadShutdownError(t *testing.T) {
 	storageExtension := storageExt{
 		factories: make(map[string]storage.Factory),
 	}
 	badFactoryError := fmt.Errorf("error factory")
 	storageExtension.factories[memstoreName] = errorFactory{closeErr: badFactoryError}
 
-	t.Cleanup(func() {
-		err := storageExtension.Shutdown(context.Background())
-		require.Error(t, err)
-		require.EqualError(t, err, badFactoryError.Error())
-	})
+	err := storageExtension.Shutdown(context.Background())
+	require.ErrorIs(t, err, badFactoryError)
 }
 
 func TestStorageExtension(t *testing.T) {
