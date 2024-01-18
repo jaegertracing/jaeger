@@ -20,13 +20,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/model"
-	modelv2 "github.com/jaegertracing/jaeger/model/v2"
-	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
@@ -77,14 +75,8 @@ func TestUseGogo(t *testing.T) {
 
 	var span model.Span
 	assert.True(t, useGogo(reflect.TypeOf(span)))
-
-	var id modelv2.SpanID
-	assert.True(t, useGogo(reflect.TypeOf(id)))
-
-	var scopeSpans tracev1.ScopeSpans
-	assert.True(t, useGogo(reflect.TypeOf(scopeSpans)))
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

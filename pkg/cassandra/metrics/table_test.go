@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -161,5 +160,5 @@ func (q insertQuery) ScanCAS(dest ...interface{}) (bool, error) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

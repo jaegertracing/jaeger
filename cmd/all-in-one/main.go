@@ -182,10 +182,12 @@ by default uses only in-memory database.`,
 			if len(grpcBuilder.CollectorHostPorts) == 0 {
 				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.GRPC.HostPort)
 			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
 				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
-			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
+			cp, err := agentApp.CreateCollectorProxy(ctx, agentApp.ProxyBuilderOptions{
 				Options: *repOpts,
 				Logger:  logger,
 				Metrics: agentMetricsFactory,

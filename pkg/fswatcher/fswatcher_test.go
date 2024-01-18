@@ -23,10 +23,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func createTestFiles(t *testing.T) (file1 string, file2 string, file3 string) {
@@ -242,5 +243,5 @@ func assertLogs(t *testing.T, f func() bool, errorMsg string, logObserver *obser
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }
