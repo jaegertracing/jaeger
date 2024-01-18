@@ -261,7 +261,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 				Metrics: metricsFactory,
 				Logger:  zap.NewNop(),
 			}, builders)
-			if err != nil {
+			if err == nil {
 				defer proxy.Close()
 			}
 			if test.err != "" {
