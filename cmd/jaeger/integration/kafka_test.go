@@ -64,16 +64,14 @@ func TestKafkaStorage(t *testing.T) {
 		require.NoError(t, err, "collector configuration resulted in: %v", err)
 		defer configCleanup()
 
-		tc := testbed.NewTestCase(
+		tc := testbed.NewLoadGeneratorTestCase(
 			t,
-			dataProvider,
-			sender,
+			loadGenerator,
 			test.receiver,
 			runner,
 			validator,
 			correctnessResults,
 		)
-		tc.LoadGenerator = loadGenerator
 		defer tc.Stop()
 
 		tc.EnableRecording()

@@ -142,9 +142,7 @@ index-rollover-integration-test: docker-images-elastic
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover -coverpkg=./... -coverprofile cover-index-rollover.out $(STORAGE_PKGS) $(COLORIZE)"
 
-# Don't detect data race because testbed has race condition issue
 .PHONY: otel-integration-test
-otel-integration-test: GOTEST := GOCACHE=$(GOCACHE) $(GO) test -v
 otel-integration-test:
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
