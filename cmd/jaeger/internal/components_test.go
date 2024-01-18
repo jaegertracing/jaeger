@@ -15,10 +15,17 @@
 package internal
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/connector"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/receiver"
 )
 
 func TestComponents(t *testing.T) {
@@ -34,4 +41,78 @@ func TestComponents(t *testing.T) {
 
 	_, jaegerReceiverFactoryExists := factories.Receivers["jaeger"]
 	assert.True(t, jaegerReceiverFactoryExists)
+}
+
+func TestGetOtelcolFactories(t *testing.T) {
+	_, err := getOtelcolFactories(
+		mockExtension(errors.New("mock error")),
+		mockReceiver(nil),
+		mockExporter(nil),
+		mockProcessor(nil),
+		mockConnector(nil),
+	)
+	require.Error(t, err)
+
+	_, err = getOtelcolFactories(
+		mockExtension(nil),
+		mockReceiver(errors.New("mockReceiver error")),
+		mockExporter(nil),
+		mockProcessor(nil),
+		mockConnector(nil),
+	)
+	require.Error(t, err)
+
+	_, err = getOtelcolFactories(
+		mockExtension(nil),
+		mockReceiver(nil),
+		mockExporter(errors.New("mockExporter error")),
+		mockProcessor(nil),
+		mockConnector(nil),
+	)
+	require.Error(t, err)
+
+	_, err = getOtelcolFactories(
+		mockExtension(nil),
+		mockReceiver(nil),
+		mockExporter(nil),
+		mockProcessor(errors.New("mockProcessor error")),
+		mockConnector(nil),
+	)
+	require.Error(t, err)
+
+	_, err = getOtelcolFactories(
+		mockExtension(nil),
+		mockReceiver(nil),
+		mockExporter(nil),
+		mockProcessor(nil),
+		mockConnector(errors.New("mockConnector error")),
+	)
+	require.Error(t, err)
+
+}
+
+func mockExtension(err error) func(factories ...extension.Factory) (map[component.Type]extension.Factory, error) {
+	return func(factories ...extension.Factory) (map[component.Type]extension.Factory, error) {
+		return nil, err
+	}
+}
+func mockReceiver(err error) func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error) {
+	return func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error) {
+		return nil, err
+	}
+}
+func mockExporter(err error) func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error) {
+	return func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error) {
+		return nil, err
+	}
+}
+func mockConnector(err error) func(factories ...connector.Factory) (map[component.Type]connector.Factory, error) {
+	return func(factories ...connector.Factory) (map[component.Type]connector.Factory, error) {
+		return nil, err
+	}
+}
+func mockProcessor(err error) func(factories ...processor.Factory) (map[component.Type]processor.Factory, error) {
+	return func(factories ...processor.Factory) (map[component.Type]processor.Factory, error) {
+		return nil, err
+	}
 }

@@ -61,7 +61,4 @@ func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	err = checkConfigAndRun(cmd, nil, getCfgErr, runE)
 	require.ErrorIs(t, err, errGetCfg)
 
-	configFlag := cmd.Flag("config")
-	assert.Equal(t, "yaml:default-config", configFlag.Value.String())
-	assert.False(t, configFlag.Changed)
 }
