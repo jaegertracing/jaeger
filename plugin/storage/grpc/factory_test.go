@@ -143,6 +143,13 @@ func TestGRPCStorageFactory(t *testing.T) {
 	assert.Equal(t, f.store.DependencyReader(), depReader)
 }
 
+func TestGRPCStorageFactoryWithConfig(t *testing.T) {
+	cfg := grpcConfig.Configuration{}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "grpc-plugin builder failed to create a store: error connecting to remote storage")
+}
+
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
