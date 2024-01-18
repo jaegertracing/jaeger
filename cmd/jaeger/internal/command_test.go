@@ -29,8 +29,11 @@ func TestCommand(t *testing.T) {
 	assert.Equal(t, "jaeger", cmd.Use)
 	assert.Equal(t, description, cmd.Long)
 
-	runE := cmd.RunE
-	assert.NotNil(t, runE)
+	require.NotNil(t, cmd.RunE)
+
+	cmd.ParseFlags([]string{"--config", "bad-file-name"})
+	err := cmd.Execute()
+	require.ErrorContains(t, err, "bad-file-name")
 }
 
 func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
