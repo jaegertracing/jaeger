@@ -103,6 +103,7 @@ func getOtelcolFactories(
 
 	return factories, nil
 }
+
 func components() (otelcol.Factories, error) {
 	return getOtelcolFactories(
 		extension.MakeFactoryMap,

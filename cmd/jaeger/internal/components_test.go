@@ -88,7 +88,6 @@ func TestGetOtelcolFactories(t *testing.T) {
 		mockConnector(errors.New("mockConnector error")),
 	)
 	require.Error(t, err)
-
 }
 
 func mockExtension(err error) func(factories ...extension.Factory) (map[component.Type]extension.Factory, error) {
@@ -96,21 +95,25 @@ func mockExtension(err error) func(factories ...extension.Factory) (map[componen
 		return nil, err
 	}
 }
+
 func mockReceiver(err error) func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error) {
 	return func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error) {
 		return nil, err
 	}
 }
+
 func mockExporter(err error) func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error) {
 	return func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error) {
 		return nil, err
 	}
 }
+
 func mockConnector(err error) func(factories ...connector.Factory) (map[component.Type]connector.Factory, error) {
 	return func(factories ...connector.Factory) (map[component.Type]connector.Factory, error) {
 		return nil, err
 	}
 }
+
 func mockProcessor(err error) func(factories ...processor.Factory) (map[component.Type]processor.Factory, error) {
 	return func(factories ...processor.Factory) (map[component.Type]processor.Factory, error) {
 		return nil, err

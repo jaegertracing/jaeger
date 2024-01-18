@@ -60,5 +60,4 @@ func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	}
 	err = checkConfigAndRun(cmd, nil, getCfgErr, runE)
 	require.ErrorIs(t, err, errGetCfg)
-
 }
