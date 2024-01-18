@@ -30,10 +30,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -100,6 +100,10 @@ func makeTestTrace() (*model.Trace, model.TraceID) {
 				TraceID:       traceID,
 				SpanID:        model.NewSpanID(180),
 				OperationName: "foobar",
+				Tags: []model.KeyValue{
+					model.String("span.kind", "server"),
+					model.Bool("error", true),
+				},
 			},
 		},
 	}, traceID
@@ -151,18 +155,7 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 	trace, traceID := makeTestTrace()
 	gw.reader.On("GetTrace", matchContext, traceID).Return(trace, nil).Once()
-
-	body, statusCode := gw.execRequest(t, "/api/v3/traces/"+traceID.String())
-	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
-	body = gw.verifySnapshot(t, body)
-
-	var response api_v3.GRPCGatewayWrapper
-	parseResponse(t, body, &response)
-
-	assert.Len(t, response.Result.ResourceSpans, 1)
-	assert.Equal(t,
-		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
+	gw.getTracesAndVerify(t, "/api/v3/traces/"+traceID.String(), traceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -171,23 +164,18 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	gw.reader.
 		On("FindTraces", matchContext, qp).
 		Return([]*model.Trace{trace}, nil).Once()
-	body, statusCode := gw.execRequest(t, "/api/v3/traces?"+q.Encode())
+	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
+}
+
+func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID model.TraceID) {
+	body, statusCode := gw.execRequest(t, url)
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
 
 	var response api_v3.GRPCGatewayWrapper
 	parseResponse(t, body, &response)
-
-	assert.Len(t, response.Result.ResourceSpans, 1)
-	assert.Equal(t,
-		bytesOfTraceID(t, traceID.High, traceID.Low),
-		response.Result.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
-}
-
-func bytesOfTraceID(t *testing.T, high, low uint64) []byte {
-	traceID := model.NewTraceID(high, low)
-	buf := make([]byte, 16)
-	_, err := traceID.MarshalTo(buf)
-	require.NoError(t, err)
-	return buf
+	td := response.Result.ToTraces()
+	assert.EqualValues(t, 1, td.SpanCount())
+	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+	assert.Equal(t, expectedTraceID.String(), traceID.String())
 }

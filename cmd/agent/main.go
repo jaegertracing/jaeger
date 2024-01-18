@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -73,7 +74,9 @@ func main() {
 			builders := map[reporter.Type]app.CollectorProxyBuilder{
 				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
-			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			cp, err := app.CreateCollectorProxy(ctx, app.ProxyBuilderOptions{
 				Options: *rOpts,
 				Logger:  logger,
 				Metrics: mFactory,

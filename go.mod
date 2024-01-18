@@ -20,20 +20,20 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
-	github.com/hashicorp/go-hclog v1.6.1
+	github.com/hashicorp/go-hclog v1.6.2
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.91.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.91.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/testbed v0.92.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.92.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.92.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.92.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.92.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.91.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.92.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.92.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/testbed v0.92.0
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/prometheus/common v0.45.0
+	github.com/prometheus/common v0.46.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
@@ -44,9 +44,10 @@ require (
 	go.opentelemetry.io/collector/component v0.92.0
 	go.opentelemetry.io/collector/config/configgrpc v0.92.0
 	go.opentelemetry.io/collector/config/confighttp v0.92.0
+	go.opentelemetry.io/collector/config/configretry v0.92.0
 	go.opentelemetry.io/collector/config/configtls v0.92.0
 	go.opentelemetry.io/collector/connector v0.92.0
-	go.opentelemetry.io/collector/connector/forwardconnector v0.91.0
+	go.opentelemetry.io/collector/connector/forwardconnector v0.92.0
 	go.opentelemetry.io/collector/consumer v0.92.0
 	go.opentelemetry.io/collector/exporter v0.92.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.92.0
@@ -86,7 +87,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/IBM/sarama v1.42.1 // indirect
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
-	github.com/aws/aws-sdk-go v1.48.14 // indirect
+	github.com/aws/aws-sdk-go v1.49.17 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
@@ -114,7 +115,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/google/uuid v1.5.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -166,11 +167,13 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.92.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.92.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza v0.92.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.91.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.92.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.92.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.92.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/syslogreceiver v0.92.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.92.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.92.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.92.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
@@ -229,7 +232,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.18.0 // indirect
-	golang.org/x/exp v0.0.0-20231127185646-65229373498e // indirect
+	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc // indirect
 	golang.org/x/text v0.14.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect

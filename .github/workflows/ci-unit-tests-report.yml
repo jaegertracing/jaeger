@@ -2,13 +2,13 @@ name: Unit Test Results
 
 on:
   workflow_run:
-    workflows: ["Unit Tests"]
+    workflows: ["Unit Tests", "Unit Tests on Go Tip"]
     types:
       - completed
 
 jobs:
   unit-test-results:
-    name: Unit Test Results
+    name: ${{ github.event.workflow_run.name }}
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion != 'skipped'
 

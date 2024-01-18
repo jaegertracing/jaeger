@@ -19,7 +19,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestPortToHostPort(t *testing.T) {
@@ -54,5 +55,5 @@ func TestFormatHostPort(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

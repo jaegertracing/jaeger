@@ -15,15 +15,16 @@
 package gogocodec
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
@@ -69,6 +70,13 @@ func TestWireCompatibility(t *testing.T) {
 	assert.Equal(t, s1, s2)
 }
 
+func TestUseGogo(t *testing.T) {
+	assert.False(t, useGogo(nil))
+
+	var span model.Span
+	assert.True(t, useGogo(reflect.TypeOf(span)))
+}
+
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

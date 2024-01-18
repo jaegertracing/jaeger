@@ -15,15 +15,15 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v3"
-	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -118,29 +118,16 @@ func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
 func (h *HTTPGateway) returnSpansTestable(
 	spans []*model.Span,
 	w http.ResponseWriter,
-	modelToOTLP func(spans []*model.Span) ([]*tracev1.ResourceSpans, error),
+	modelToOTLP func(spans []*model.Span) (ptrace.Traces, error),
 ) {
-	resourceSpans, err := modelToOTLP(spans)
+	td, err := modelToOTLP(spans)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	for _, rs := range resourceSpans {
-		for _, ss := range rs.ScopeSpans {
-			for _, s := range ss.Spans {
-				if len(s.ParentSpanId) == 0 {
-					// If ParentSpanId is empty array then gogo/jsonpb renders it as empty string.
-					// To match the output with grpc-gateway we set it to nil and it won't be included.
-					s.ParentSpanId = nil
-				}
-			}
-		}
-	}
+	tracesData := api_v3.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
-		Result: &api_v3.SpansResponseChunk{
-			ResourceSpans: resourceSpans,
-		},
+		Result: &tracesData,
 	}
-
 	h.marshalResponse(response, w)
 }
 

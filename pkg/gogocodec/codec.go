@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/encoding/proto"
@@ -29,6 +30,19 @@ const (
 )
 
 var defaultCodec encoding.Codec
+
+// CustomType is an interface that Gogo expects custom types to implement.
+// https://github.com/gogo/protobuf/blob/master/custom_types.md
+type CustomType interface {
+	Marshal() ([]byte, error)
+	MarshalTo(data []byte) (n int, err error)
+	Unmarshal(data []byte) error
+
+	gogoproto.Sizer
+
+	jsonpb.JSONPBMarshaler
+	jsonpb.JSONPBUnmarshaler
+}
 
 func init() {
 	defaultCodec = encoding.GetCodec(proto.Name)
@@ -65,7 +79,7 @@ func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
 // Unmarshal implements encoding.Codec
 func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 	t := reflect.TypeOf(v)
-	elem := t.Elem()
+	elem := t.Elem() // only for collections
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
 		return gogoproto.Unmarshal(data, v.(gogoproto.Message))
@@ -74,5 +88,15 @@ func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 }
 
 func useGogo(t reflect.Type) bool {
-	return t != nil && (strings.HasPrefix(t.PkgPath(), jaegerProtoGenPkgPath) || strings.HasPrefix(t.PkgPath(), jaegerModelPkgPath))
+	if t == nil {
+		return false
+	}
+	pkg := t.PkgPath()
+	if strings.HasPrefix(pkg, jaegerProtoGenPkgPath) {
+		return true
+	}
+	if strings.HasPrefix(pkg, jaegerModelPkgPath) {
+		return true
+	}
+	return false
 }

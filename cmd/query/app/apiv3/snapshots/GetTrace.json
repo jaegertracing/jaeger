@@ -9,11 +9,15 @@
             "spans": [
               {
                 "endTimeUnixNano": "11651379494838206464",
+                "kind": 2,
                 "name": "foobar",
-                "spanId": "AAAAAAAAALQ=",
+                "parentSpanId": "",
+                "spanId": "00000000000000b4",
                 "startTimeUnixNano": "11651379494838206464",
-                "status": {},
-                "traceId": "AAAAAAAAAJYAAAAAAAAAoA=="
+                "status": {
+                  "code": 2
+                },
+                "traceId": "000000000000009600000000000000a0"
               }
             ]
           }

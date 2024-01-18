@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -176,7 +175,6 @@ func TestMultipleCollectorProxies(t *testing.T) {
 	r := b.getReporter(rb)
 	mr, ok := r.(reporter.MultiReporter)
 	require.True(t, ok)
-	fmt.Println(mr)
 	assert.Equal(t, rb, mr[0])
 	assert.Equal(t, ra, mr[1])
 }
@@ -235,50 +233,57 @@ func TestCreateCollectorProxy(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		flags := &flag.FlagSet{}
-		grpc.AddFlags(flags)
-		reporter.AddFlags(flags)
+		t.Run("", func(t *testing.T) {
+			flags := &flag.FlagSet{}
+			grpc.AddFlags(flags)
+			reporter.AddFlags(flags)
 
-		command := cobra.Command{}
-		command.PersistentFlags().AddGoFlagSet(flags)
-		v := viper.New()
-		v.BindPFlags(command.PersistentFlags())
+			command := cobra.Command{}
+			command.PersistentFlags().AddGoFlagSet(flags)
+			v := viper.New()
+			v.BindPFlags(command.PersistentFlags())
 
-		err := command.ParseFlags(test.flags)
-		require.NoError(t, err)
-
-		rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
-		grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
-		require.NoError(t, err)
-
-		metricsFactory := metricstest.NewFactory(time.Microsecond)
-
-		builders := map[reporter.Type]CollectorProxyBuilder{
-			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
-		}
-		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
-			Options: *rOpts,
-			Metrics: metricsFactory,
-			Logger:  zap.NewNop(),
-		}, builders)
-		if test.err != "" {
-			require.EqualError(t, err, test.err)
-			assert.Nil(t, proxy)
-		} else {
+			err := command.ParseFlags(test.flags)
 			require.NoError(t, err)
-			proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
-			metricsFactory.AssertCounterMetrics(t, test.metric)
-		}
+
+			rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
+			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
+			require.NoError(t, err)
+			metricsFactory := metricstest.NewFactory(time.Microsecond)
+			defer metricsFactory.Stop()
+			builders := map[reporter.Type]CollectorProxyBuilder{
+				reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{
+				Options: *rOpts,
+				Metrics: metricsFactory,
+				Logger:  zap.NewNop(),
+			}, builders)
+			if err == nil {
+				defer proxy.Close()
+			}
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+				assert.Nil(t, proxy)
+			} else {
+				require.NoError(t, err)
+				proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
+				metricsFactory.AssertCounterMetrics(t, test.metric)
+			}
+		})
 	}
 }
 
 func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	grpcBuilder := grpc.NewConnBuilder()
-
 	builders := map[reporter.Type]CollectorProxyBuilder{
 		reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 	}
-	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	proxy, err := CreateCollectorProxy(ctx, ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	require.EqualError(t, err, "unknown reporter type ")
 }
@@ -302,11 +307,15 @@ func TestPublishOpts(t *testing.T) {
 	cfg.InitFromViper(v)
 
 	baseMetrics := metricstest.NewFactory(time.Second)
+	defer baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
+	defer forkFactory.Stop()
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
+	require.NoError(t, agent.Run())
+	defer agent.Stop()
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "internal.processor.jaeger-binary.server-max-packet-size",

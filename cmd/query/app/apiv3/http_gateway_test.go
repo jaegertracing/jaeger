@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -22,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	tracev1 "github.com/jaegertracing/jaeger/proto-gen/otel/trace/v1"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -117,8 +117,8 @@ func TestHTTPGatewayOTLPError(t *testing.T) {
 	}
 	const simErr = "simulated error"
 	gw.returnSpansTestable(nil, w,
-		func(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
-			return nil, fmt.Errorf(simErr)
+		func(spans []*model.Span) (ptrace.Traces, error) {
+			return ptrace.Traces{}, fmt.Errorf(simErr)
 		},
 	)
 	assert.Contains(t, w.Body.String(), simErr)

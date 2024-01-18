@@ -1,0 +1,28 @@
+version: '3.7'
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # Collector, OpenTelemetry gRPC
+      - "4318:4318"    # Collector, OpenTelemetry gRPC
+    environment:
+      # This tells Jaeger that it should run the UI with a given prefix.
+      QUERY_BASE_PATH: /jaeger/prefix
+    networks:
+      - proxy-net
+
+  httpd:
+    image: httpd:latest
+    ports:
+      - "18080:80"
+    volumes:
+      - ./httpd.conf:/usr/local/apache2/conf/httpd.conf
+    depends_on:
+      - jaeger
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:

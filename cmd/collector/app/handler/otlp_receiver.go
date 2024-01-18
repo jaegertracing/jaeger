@@ -72,16 +72,20 @@ func startOTLPReceiver(
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
 	applyHTTPSettings(otlpReceiverConfig.HTTP.HTTPServerSettings, &options.OTLP.HTTP)
+	statusReporter := func(ev *component.StatusEvent) {
+		// TODO this could be wired into changing healthcheck.HealthCheck
+		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
+	}
 	otlpReceiverSettings := receiver.CreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
 			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
-			ReportComponentStatus: component.StatusFunc(func(ev *component.StatusEvent) error {
-				// TODO this could be wired into changing healthcheck.HealthCheck
-				logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
+			ReportComponentStatus: func(ev *component.StatusEvent) error {
+				statusReporter(ev)
 				return nil
-			}),
+			},
+			ReportStatus: statusReporter,
 		},
 	}
 

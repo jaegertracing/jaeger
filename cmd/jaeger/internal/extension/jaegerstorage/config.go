@@ -4,6 +4,9 @@
 package jaegerstorage
 
 import (
+	"fmt"
+	"reflect"
+
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
@@ -21,8 +24,17 @@ type MemoryStorage struct {
 	Name string `mapstructure:"name"`
 	memoryCfg.Configuration
 }
-
 type BadgerStorage struct {
 	Name string `mapstructure:"name"`
 	badgerCfg.NamespaceConfig
+}
+
+func (cfg *Config) Validate() error {
+	emptyCfg := createDefaultConfig().(*Config)
+	if reflect.DeepEqual(*cfg, *emptyCfg) {
+		return fmt.Errorf("%s: no storage type present in config", ID)
+	} else {
+		return nil
+	}
+
 }
