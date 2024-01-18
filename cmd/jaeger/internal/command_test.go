@@ -15,6 +15,7 @@
 package internal
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/spf13/cobra"
