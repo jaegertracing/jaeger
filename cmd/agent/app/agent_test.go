@@ -99,6 +99,7 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 			HostPort: "127.0.0.1:0",
 		},
 	}
+
 	logger, logBuf := testutils.NewLogger()
 	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")

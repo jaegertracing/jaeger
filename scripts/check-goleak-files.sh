@@ -15,7 +15,7 @@ for dir in $*; do
   fi 
   good=0
   for test in ${testFiles}; do
-    if grep -q "TestMain" "${test}" | grep -q "goleak.VerifyTestMain" "${test}"; then
+    if grep -q "TestMain" "${test}" | grep -q "testutils.VerifyGoLeaks" "${test}"; then
       good=1
       break
     fi

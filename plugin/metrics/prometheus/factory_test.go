@@ -21,7 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -150,5 +149,5 @@ func TestFailedTLSOptions(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

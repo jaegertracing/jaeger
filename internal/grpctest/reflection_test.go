@@ -19,9 +19,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestReflectionServiceValidator(t *testing.T) {
@@ -46,5 +47,5 @@ func TestReflectionServiceValidator(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

@@ -17,11 +17,9 @@ package badger
 import (
 	"testing"
 
-	"go.uber.org/goleak"
-
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutils.IgnoreGlogFlushDaemonLeak())
+	testutils.VerifyGoLeaks(m)
 }
