@@ -50,6 +50,13 @@ func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	err := checkConfigAndRun(cmd, nil, getCfg, runE)
 	require.NoError(t, err)
 
+	errGetCfg := errors.New("error")
+	getCfgErr := func(name string) ([]byte, error) {
+		return nil, errGetCfg
+	}
+	err = checkConfigAndRun(cmd, nil, getCfgErr, runE)
+	require.ErrorIs(t, err, errGetCfg)
+
 	configFlag := cmd.Flag("config")
 	assert.Equal(t, "yaml:default-config", configFlag.Value.String())
 	assert.False(t, configFlag.Changed)
