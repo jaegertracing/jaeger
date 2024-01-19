@@ -36,5 +36,4 @@ func (cfg *Config) Validate() error {
 	} else {
 		return nil
 	}
-
 }

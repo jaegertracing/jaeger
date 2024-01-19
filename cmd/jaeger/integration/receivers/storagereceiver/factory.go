@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 )
 
-// componentType is the name of this extension in configuration.
 const componentType = component.Type("jaeger_storage_receiver")
 
 func NewFactory() receiver.Factory {

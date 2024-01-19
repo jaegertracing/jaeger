@@ -80,7 +80,6 @@ func (r *storageReceiver) Start(_ context.Context, host component.Host) error {
 }
 
 func (r *storageReceiver) consumeLoop(ctx context.Context) error {
-	// golden data provider can produce one of these service names
 	services := []string{"", "customers", "OTLPResourceNoServiceName"}
 
 	for {
@@ -122,8 +121,6 @@ func (r *storageReceiver) consumeTraces(ctx context.Context, serviceName string)
 }
 
 func (r *storageReceiver) consumeSpans(ctx context.Context, tc *consumedTrace, spans []*model.Span) error {
-	// Spans are consumed one at a time because we don't know whether all spans
-	// in a trace have been completely exported
 	for _, span := range spans {
 		if _, ok := tc.spanIDs[span.SpanID]; !ok {
 			tc.spanIDs[span.SpanID] = struct{}{}
