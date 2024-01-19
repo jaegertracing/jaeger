@@ -57,6 +57,11 @@ func TestParentReference(t *testing.T) {
 			expected: []model.SpanRef{childOf(b)},
 		},
 		{
+			name:     "local, local follows - keep order",
+			incoming: []model.SpanRef{childOf(a), followsFrom(a)},
+			expected: []model.SpanRef{childOf(a), followsFrom(a)},
+		},
+		{
 			name:     "local and remote child in order",
 			incoming: []model.SpanRef{childOf(a), childOf(b)},
 			expected: []model.SpanRef{childOf(a), childOf(b)},
