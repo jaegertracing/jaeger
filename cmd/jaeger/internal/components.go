@@ -31,17 +31,29 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 )
 
-func getOtelcolFactories(
-	extension func(factories ...extension.Factory) (map[component.Type]extension.Factory, error),
-	receiver func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error),
-	exporter func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error),
-	processor func(factories ...processor.Factory) (map[component.Type]processor.Factory, error),
-	connector func(factories ...connector.Factory) (map[component.Type]connector.Factory, error),
-) (otelcol.Factories, error) {
+type builders struct {
+	extension func(factories ...extension.Factory) (map[component.Type]extension.Factory, error)
+	receiver  func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error)
+	exporter  func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error)
+	processor func(factories ...processor.Factory) (map[component.Type]processor.Factory, error)
+	connector func(factories ...connector.Factory) (map[component.Type]connector.Factory, error)
+}
+
+func defaultBuilders() builders {
+	return builders{
+		extension: extension.MakeFactoryMap,
+		receiver:  receiver.MakeFactoryMap,
+		exporter:  exporter.MakeFactoryMap,
+		processor: processor.MakeFactoryMap,
+		connector: connector.MakeFactoryMap,
+	}
+}
+
+func (b builders) build() (otelcol.Factories, error) {
 	var err error
 	factories := otelcol.Factories{}
 
-	factories.Extensions, err = extension(
+	factories.Extensions, err = b.extension(
 		// standard
 		ballastextension.NewFactory(),
 		zpagesextension.NewFactory(),
@@ -54,7 +66,7 @@ func getOtelcolFactories(
 		return otelcol.Factories{}, err
 	}
 
-	factories.Receivers, err = receiver(
+	factories.Receivers, err = b.receiver(
 		// standard
 		otlpreceiver.NewFactory(),
 		// add-ons
@@ -66,7 +78,7 @@ func getOtelcolFactories(
 		return otelcol.Factories{}, err
 	}
 
-	factories.Exporters, err = exporter(
+	factories.Exporters, err = b.exporter(
 		// standard
 		loggingexporter.NewFactory(),
 		otlpexporter.NewFactory(),
@@ -80,7 +92,7 @@ func getOtelcolFactories(
 		return otelcol.Factories{}, err
 	}
 
-	factories.Processors, err = processor(
+	factories.Processors, err = b.processor(
 		// standard
 		batchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
@@ -91,7 +103,7 @@ func getOtelcolFactories(
 		return otelcol.Factories{}, err
 	}
 
-	factories.Connectors, err = connector(
+	factories.Connectors, err = b.connector(
 		// standard
 		forwardconnector.NewFactory(),
 		// add-ons
@@ -105,10 +117,5 @@ func getOtelcolFactories(
 }
 
 func components() (otelcol.Factories, error) {
-	return getOtelcolFactories(
-		extension.MakeFactoryMap,
-		receiver.MakeFactoryMap,
-		exporter.MakeFactoryMap,
-		processor.MakeFactoryMap,
-		connector.MakeFactoryMap)
+	return defaultBuilders().build()
 }

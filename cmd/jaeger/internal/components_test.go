@@ -44,78 +44,41 @@ func TestComponents(t *testing.T) {
 }
 
 func TestGetOtelcolFactories(t *testing.T) {
-	_, err := getOtelcolFactories(
-		mockExtension(errors.New("mock error")),
-		mockReceiver(nil),
-		mockExporter(nil),
-		mockProcessor(nil),
-		mockConnector(nil),
-	)
-	require.Error(t, err)
-
-	_, err = getOtelcolFactories(
-		mockExtension(nil),
-		mockReceiver(errors.New("mockReceiver error")),
-		mockExporter(nil),
-		mockProcessor(nil),
-		mockConnector(nil),
-	)
-	require.Error(t, err)
-
-	_, err = getOtelcolFactories(
-		mockExtension(nil),
-		mockReceiver(nil),
-		mockExporter(errors.New("mockExporter error")),
-		mockProcessor(nil),
-		mockConnector(nil),
-	)
-	require.Error(t, err)
-
-	_, err = getOtelcolFactories(
-		mockExtension(nil),
-		mockReceiver(nil),
-		mockExporter(nil),
-		mockProcessor(errors.New("mockProcessor error")),
-		mockConnector(nil),
-	)
-	require.Error(t, err)
-
-	_, err = getOtelcolFactories(
-		mockExtension(nil),
-		mockReceiver(nil),
-		mockExporter(nil),
-		mockProcessor(nil),
-		mockConnector(errors.New("mockConnector error")),
-	)
-	require.Error(t, err)
-}
-
-func mockExtension(err error) func(factories ...extension.Factory) (map[component.Type]extension.Factory, error) {
-	return func(factories ...extension.Factory) (map[component.Type]extension.Factory, error) {
-		return nil, err
+	errMock := errors.New("mock error")
+	{
+		b := defaultBuilders()
+		b.extension = mockFactoryMap[extension.Factory](errMock)
+		_, err := b.build()
+		require.ErrorIs(t, err, errMock)
+	}
+	{
+		b := defaultBuilders()
+		b.receiver = mockFactoryMap[receiver.Factory](errMock)
+		_, err := b.build()
+		require.ErrorIs(t, err, errMock)
+	}
+	{
+		b := defaultBuilders()
+		b.exporter = mockFactoryMap[exporter.Factory](errMock)
+		_, err := b.build()
+		require.ErrorIs(t, err, errMock)
+	}
+	{
+		b := defaultBuilders()
+		b.processor = mockFactoryMap[processor.Factory](errMock)
+		_, err := b.build()
+		require.ErrorIs(t, err, errMock)
+	}
+	{
+		b := defaultBuilders()
+		b.connector = mockFactoryMap[connector.Factory](errMock)
+		_, err := b.build()
+		require.ErrorIs(t, err, errMock)
 	}
 }
 
-func mockReceiver(err error) func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error) {
-	return func(factories ...receiver.Factory) (map[component.Type]receiver.Factory, error) {
-		return nil, err
-	}
-}
-
-func mockExporter(err error) func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error) {
-	return func(factories ...exporter.Factory) (map[component.Type]exporter.Factory, error) {
-		return nil, err
-	}
-}
-
-func mockConnector(err error) func(factories ...connector.Factory) (map[component.Type]connector.Factory, error) {
-	return func(factories ...connector.Factory) (map[component.Type]connector.Factory, error) {
-		return nil, err
-	}
-}
-
-func mockProcessor(err error) func(factories ...processor.Factory) (map[component.Type]processor.Factory, error) {
-	return func(factories ...processor.Factory) (map[component.Type]processor.Factory, error) {
+func mockFactoryMap[FACTORY component.Factory](err error) func(factories ...FACTORY) (map[component.Type]FACTORY, error) {
+	return func(factories ...FACTORY) (map[component.Type]FACTORY, error) {
 		return nil, err
 	}
 }
