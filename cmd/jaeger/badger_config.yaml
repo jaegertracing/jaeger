@@ -9,7 +9,8 @@ service:
 extensions:
   jaeger_query:
     trace_storage: memstore
-    ui_config: ./config-ui.json
+    trace_storage_archive: memstore_archive
+    ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     badger_primary:
