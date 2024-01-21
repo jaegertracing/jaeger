@@ -18,6 +18,10 @@ import (
 	"testing"
 )
 
+func TestVerifyGoLeaksOnes(t *testing.T) {
+	defer VerifyGoLeaksOnce(t)
+}
+
 func TestMain(m *testing.M) {
 	VerifyGoLeaks(m)
 }
