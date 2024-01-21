@@ -30,36 +30,5 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
-    - name: Prepare unit tests report
-      if: always()
-      run: make test-report
-
-    - name: Publish Unit Test Summary 📑
-      uses: EnricoMi/publish-unit-test-result-action@v2
-      if: always()
-      with:
-        check_name: Go Tip Unit Tests Summary
-        junit_files: junit-report.xml
-        # This workflow isn't run during Pull Requests, so check run and PR comment summaries are not needed.
-        check_run: false
-        comment_mode: off
-
-    - name: Upload Test Results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Test Results
-        path: junit-report.xml
-
     - name: Lint
       run: echo skip linting on Go tip
-
-  event-file:
-    name: "Event File"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: Event File
-          path: ${{ github.event_path }}
