@@ -187,13 +187,12 @@ func TestBadgerStorageExtensionError(t *testing.T) {
 				badgerName: {},
 			},
 		},
-		logger: zap.NewNop(),
-		factories: map[string]storage.Factory{
-			memstoreName: factory,
-		},
+		logger:    zap.NewNop(),
+		factories: map[string]storage.Factory{"badger": factory},
 	}
 	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.Error(t, err)
+	require.EqualError(t, err, "failed to initialize badger storage: Error Creating Dir: \"\" error: mkdir : no such file or directory")
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Component {
