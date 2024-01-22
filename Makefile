@@ -53,6 +53,7 @@ SED=sed
 GO=go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
+GOBIN ?= $(shell $(GO) env GOPATH)/bin
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
 GOTEST_QUIET=$(GO) test $(RACE)
 GOTEST=$(GOTEST_QUIET) -v
