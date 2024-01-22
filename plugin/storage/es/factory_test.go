@@ -264,6 +264,7 @@ func TestInitFromOptions(t *testing.T) {
 }
 
 func TestPasswordFromFile(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
 	t.Run("primary client", func(t *testing.T) {
 		f := NewFactory()
 		testPasswordFromFile(t, f, f.getPrimaryClient, f.CreateSpanWriter)
@@ -375,6 +376,7 @@ func TestFactoryESClientsAreNil(t *testing.T) {
 }
 
 func TestPasswordFromFileErrors(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
