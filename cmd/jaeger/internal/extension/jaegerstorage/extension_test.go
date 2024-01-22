@@ -6,7 +6,6 @@ package jaegerstorage
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -142,14 +141,9 @@ func TestBadgerStorageExtension(t *testing.T) {
 		MeterProvider:  noopmetric.NewMeterProvider(),
 	}
 
-	tempDir := t.TempDir()
-	defer os.RemoveAll(tempDir)
-
 	config := &Config{
 		Badger: map[string]badgerCfg.NamespaceConfig{
 			badgerName: {
-				ValueDirectory:        tempDir,
-				KeyDirectory:          tempDir,
 				Ephemeral:             true,
 				MaintenanceInterval:   5,
 				MetricsUpdateInterval: 10,
@@ -172,10 +166,10 @@ func TestBadgerStorageExtension(t *testing.T) {
 	require.NoError(t, err)
 
 	err = storageExtension.Start(ctx, host)
+	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
 	require.Error(t, err)
 	require.EqualError(t, err, fmt.Sprintf("duplicate badger storage name %s", badgerName))
 
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
 }
 
 func TestBadgerStorageExtensionError(t *testing.T) {
