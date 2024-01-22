@@ -336,7 +336,7 @@ _prepare-winres:
 	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Rollover"      PKGPATH="cmd/es-rollover"
 
 .PHONY: _prepare-winres-helper
-_prepare-winres-helper:
+_prepare-winres-helper: $(GOBIN)/goversioninfo
 	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
 
 .PHONY: build-binaries-linux
