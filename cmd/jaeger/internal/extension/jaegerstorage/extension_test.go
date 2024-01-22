@@ -6,6 +6,7 @@ package jaegerstorage
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -18,12 +19,16 @@ import (
 
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const memstoreName = "memstore"
+const (
+	memstoreName = "memstore"
+	badgerName   = "badgerstore"
+)
 
 type storageHost struct {
 	t                *testing.T
@@ -127,6 +132,68 @@ func TestStorageExtension(t *testing.T) {
 
 	_, err := GetStorageFactory(memstoreName, host)
 	require.NoError(t, err)
+}
+
+func TestBadgerStorageExtension(t *testing.T) {
+	ctx := context.Background()
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zap.NewNop(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+	}
+
+	tempDir := t.TempDir()
+	defer os.RemoveAll(tempDir)
+
+	config := &Config{
+		Badger: map[string]badgerCfg.NamespaceConfig{
+			badgerName: {
+				ValueDirectory:        tempDir,
+				KeyDirectory:          tempDir,
+				Ephemeral:             true,
+				MaintenanceInterval:   5,
+				MetricsUpdateInterval: 10,
+			},
+		},
+	}
+
+	require.NoError(t, config.Validate())
+
+	extensionFactory := NewFactory()
+	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
+		ID:                ID,
+		TelemetrySettings: telemetrySettings,
+		BuildInfo:         component.NewDefaultBuildInfo(),
+	}, config)
+	require.NoError(t, err)
+
+	host := componenttest.NewNopHost()
+	err = storageExtension.Start(ctx, host)
+	require.NoError(t, err)
+
+	err = storageExtension.Start(ctx, host)
+	require.Error(t, err)
+	require.EqualError(t, err, fmt.Sprintf("duplicate badger storage name %s", badgerName))
+
+	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
+}
+
+func TestBadgerStorageExtensionError(t *testing.T) {
+	ctx := context.Background()
+	factory, _ := badgerCfg.NewFactoryWithConfig(badgerCfg.NamespaceConfig{}, metrics.NullFactory, zap.NewNop())
+	ext := storageExt{
+		config: &Config{
+			Badger: map[string]badgerCfg.NamespaceConfig{
+				badgerName: {},
+			},
+		},
+		logger: zap.NewNop(),
+		factories: map[string]storage.Factory{
+			memstoreName: factory,
+		},
+	}
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.Error(t, err)
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Component {
