@@ -9,7 +9,7 @@ service:
 extensions:
   jaeger_query:
     trace_storage: badger_main
-    trace_storage_archive: memstore_archive
+    trace_storage_archive: badger_archive
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
@@ -38,4 +38,4 @@ processors:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: memstore
+    trace_storage: badger_main
