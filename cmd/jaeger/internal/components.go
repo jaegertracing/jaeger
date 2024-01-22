@@ -116,6 +116,6 @@ func (b builders) build() (otelcol.Factories, error) {
 	return factories, nil
 }
 
-func Components() (otelcol.Factories, error) {
+func components() (otelcol.Factories, error) {
 	return defaultBuilders().build()
 }

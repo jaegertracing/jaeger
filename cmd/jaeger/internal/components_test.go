@@ -29,7 +29,7 @@ import (
 )
 
 func TestComponents(t *testing.T) {
-	factories, err := Components()
+	factories, err := components()
 
 	require.NoError(t, err)
 
