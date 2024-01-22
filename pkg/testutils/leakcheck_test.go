@@ -18,7 +18,7 @@ import (
 	"testing"
 )
 
-func TestVerifyGoLeaksOnes(t *testing.T) {
+func TestVerifyGoLeaksOnce(t *testing.T) {
 	defer VerifyGoLeaksOnce(t)
 }
 
