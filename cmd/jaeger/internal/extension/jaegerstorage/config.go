@@ -24,10 +24,6 @@ type MemoryStorage struct {
 	Name string `mapstructure:"name"`
 	memoryCfg.Configuration
 }
-type BadgerStorage struct {
-	Name string `mapstructure:"name"`
-	badgerCfg.NamespaceConfig
-}
 
 func (cfg *Config) Validate() error {
 	emptyCfg := createDefaultConfig().(*Config)
