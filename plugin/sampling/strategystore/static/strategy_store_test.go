@@ -333,6 +333,7 @@ func TestDeepCopy(t *testing.T) {
 		},
 	}
 	cp := deepCopy(s)
+	assert.NotEqual(t, cp, s)
 	assert.EqualValues(t, cp, s)
 }
 
