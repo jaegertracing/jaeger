@@ -8,19 +8,19 @@ service:
 
 extensions:
   jaeger_query:
-    trace_storage: memstore
+    trace_storage: badger_main
     trace_storage_archive: memstore_archive
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
-    badger_primary:
-      memstore:
+    badger:
+      badger_main:
         directory_key: "/tmp/jaeger/"
         directory_value: "/tmp/jaeger/"
         ephemeral: false
         maintenance_interval: 5
         metrics_update_interval: 10
-      memstore_archive:
+      badger_archive:
         directory_key: "/tmp/jaeger_archive/"
         directory_value: "/tmp/jaeger_archive/"
         ephemeral: false

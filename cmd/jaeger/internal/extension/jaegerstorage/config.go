@@ -14,7 +14,7 @@ import (
 // Config has the configuration for jaeger-query,
 type Config struct {
 	Memory map[string]memoryCfg.Configuration   `mapstructure:"memory"`
-	Badger map[string]badgerCfg.NamespaceConfig `mapstructure:"badger_primary"`
+	Badger map[string]badgerCfg.NamespaceConfig `mapstructure:"badger"`
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?
 	//      Option: instead of looking for specific name, check interface.
@@ -23,10 +23,6 @@ type Config struct {
 type MemoryStorage struct {
 	Name string `mapstructure:"name"`
 	memoryCfg.Configuration
-}
-type BadgerStorage struct {
-	Name string `mapstructure:"name"`
-	badgerCfg.NamespaceConfig
 }
 
 func (cfg *Config) Validate() error {
