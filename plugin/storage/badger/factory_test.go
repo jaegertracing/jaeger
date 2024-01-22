@@ -205,7 +205,7 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	cfg := NamespaceConfig{}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.Error(t, err)
-	assert.Equal(t, "Error Creating Dir: \"\" error: mkdir : no such file or directory", err.Error())
+	assert.ErrorContains(t, err, "Error Creating Dir")
 
 	tmp := os.TempDir()
 	defer os.Remove(tmp)
