@@ -145,11 +145,11 @@ linters-settings:
       - shadow
   testifylint:
     disable:
-      - compares
       - float-compare
       - go-require
     enable:
       - bool-compare
+      - compares
       - empty
       - error-is-as
       - error-nil

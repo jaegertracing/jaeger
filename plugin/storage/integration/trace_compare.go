@@ -75,10 +75,10 @@ func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	for i := range expected.Spans {
 		expectedSpan := expected.Spans[i]
 		actualSpan := actual.Spans[i]
-		require.True(t, len(expectedSpan.Tags) == len(actualSpan.Tags))
-		require.True(t, len(expectedSpan.Logs) == len(actualSpan.Logs))
+		require.Equal(t, len(expectedSpan.Tags), len(actualSpan.Tags))
+		require.Equal(t, len(expectedSpan.Logs), len(actualSpan.Logs))
 		if expectedSpan.Process != nil && actualSpan.Process != nil {
-			require.True(t, len(expectedSpan.Process.Tags) == len(actualSpan.Process.Tags))
+			require.Equal(t, len(expectedSpan.Process.Tags), len(actualSpan.Process.Tags))
 		}
 	}
 }
