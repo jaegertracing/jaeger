@@ -84,6 +84,7 @@ include docker/Makefile
 include Makefile.Protobuf.mk
 include Makefile.Thrift.mk
 include Makefile.Crossdock.mk
+include Makefile.tools.mk
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -436,17 +437,13 @@ draft-release:
 	./scripts/draft-release.py
 
 .PHONY: install-test-tools
-install-test-tools:
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
-	$(GO) install mvdan.cc/gofumpt@latest
+install-test-tools: $(GOBIN)/golangci-lint $(GOBIN)/gofumpt
 
 .PHONY: install-build-tools
-install-build-tools:
-	$(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
+install-build-tools: $(GOBIN)/goversioninfo
 
 .PHONY: install-tools
-install-tools: install-test-tools install-build-tools
-	$(GO) install github.com/vektra/mockery/v2@v2.14.0
+install-tools: install-test-tools install-build-tools $(GOBIN)/mockery
 
 .PHONY: install-ci
 install-ci: install-test-tools install-build-tools
