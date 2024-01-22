@@ -13,8 +13,8 @@ extensions:
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
-    badger_primary:
-      memstore:
+    badger:
+      badger_main:
         directory_key: "/tmp/jaeger/"
         directory_value: "/tmp/jaeger/"
         ephemeral: false
