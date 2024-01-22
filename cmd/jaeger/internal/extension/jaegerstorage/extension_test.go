@@ -169,7 +169,6 @@ func TestBadgerStorageExtension(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
 	require.Error(t, err)
 	require.EqualError(t, err, fmt.Sprintf("duplicate badger storage name %s", badgerName))
-
 }
 
 func TestBadgerStorageExtensionError(t *testing.T) {
