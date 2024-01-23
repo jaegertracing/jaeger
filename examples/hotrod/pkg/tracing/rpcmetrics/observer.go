@@ -70,7 +70,7 @@ func (o *Observer) OnEnd(sp sdktrace.ReadOnlySpan) {
 		mets.RequestLatencySuccess.Record(latency)
 	}
 	for _, attr := range sp.Attributes() {
-		if string(attr.Key) == string(semconv.HTTPStatusCodeKey) {
+		if string(attr.Key) == string(semconv.HTTPResponseStatusCodeKey) {
 			if attr.Value.Type() == attribute.INT64 {
 				mets.recordHTTPStatusCode(attr.Value.AsInt64())
 			} else if attr.Value.Type() == attribute.STRING {

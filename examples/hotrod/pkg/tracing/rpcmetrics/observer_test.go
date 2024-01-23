@@ -120,7 +120,7 @@ func TestTags(t *testing.T) {
 
 	for i := 200; i <= 500; i += 100 {
 		testCases = append(testCases, tagTestCase{
-			attr: semconv.HTTPStatusCode(i),
+			attr: semconv.HTTPResponseStatusCode(i),
 			metrics: []u.ExpectedMetric{
 				{Name: "http_requests", Value: 1, Tags: tags("status_code", fmt.Sprintf("%dxx", i/100))},
 			},
