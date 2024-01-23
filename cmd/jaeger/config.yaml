@@ -25,7 +25,6 @@ extensions:
       memstore_archive:
         max_traces: 100000
 
-
 receivers:
   otlp:
     protocols:

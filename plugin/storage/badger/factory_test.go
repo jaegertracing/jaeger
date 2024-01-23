@@ -200,3 +200,23 @@ func TestInitFromOptions(t *testing.T) {
 	f.InitFromOptions(opts)
 	assert.Equal(t, &opts, f.Options)
 }
+
+func TestBadgerStorageFactoryWithConfig(t *testing.T) {
+	cfg := NamespaceConfig{}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "Error Creating Dir")
+
+	tmp := os.TempDir()
+	defer os.Remove(tmp)
+	cfg = NamespaceConfig{
+		ValueDirectory:        tmp,
+		KeyDirectory:          tmp,
+		Ephemeral:             false,
+		MaintenanceInterval:   5,
+		MetricsUpdateInterval: 10,
+	}
+	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	defer factory.Close()
+}
