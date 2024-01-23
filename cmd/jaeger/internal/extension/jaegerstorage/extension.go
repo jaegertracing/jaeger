@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -70,6 +71,23 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			s.logger.With(zap.String("storage_name", name)),
 		)
 	}
+
+	for name, b := range s.config.Badger {
+		if _, ok := s.factories[name]; ok {
+			return fmt.Errorf("duplicate badger storage name %s", name)
+		}
+		var err error
+		factory, err := badger.NewFactoryWithConfig(
+			b,
+			metrics.NullFactory,
+			s.logger.With(zap.String("storage_name", name)),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to initialize badger storage: %w", err)
+		}
+		s.factories[name] = factory
+	}
+
 	// TODO add support for other backends
 	return nil
 }

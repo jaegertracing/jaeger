@@ -34,7 +34,7 @@ jobs:
       run: bash scripts/kafka-integration-test.sh -k
 
     - name: Output Kafka logs
-      run: docker logs "${{ job.services.kafka.id }}"
+      run: docker logs kafka
       if: ${{ failure() }}
 
     - name: Setup CODECOV_TOKEN

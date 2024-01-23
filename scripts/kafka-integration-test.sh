@@ -18,7 +18,7 @@ start_kafka() {
     -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
     -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
     -e KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT \
-    bitnami/kafka:3.6
+    bitnami/kafka:3.6.0
 }
 
 # Check if the -k parameter is provided or not
@@ -38,6 +38,7 @@ while [ $SECONDS -lt $end_time ]; do
     if nc -z localhost 9092; then
         break
     fi
+    echo "Kafka broker not ready, waiting ${interval} seconds"
     sleep $interval
 done
 
