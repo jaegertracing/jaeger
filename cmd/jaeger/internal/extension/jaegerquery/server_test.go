@@ -6,6 +6,7 @@ package jaegerquery
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,18 +24,21 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
-type storageHost struct{}
+type storageHost struct {
+	extension component.Component
+}
 
 func (host storageHost) ReportFatalError(err error) {
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {
 	return map[component.ID]component.Component{
-		component.NewID("jaeger_storage"): makeStorageExtension("jaeger_storage"),
+		jaegerstorage.ID: host.extension,
 	}
 }
 
@@ -79,7 +83,9 @@ func Test_Start(t *testing.T) {
 				TraceStorageArchive: "jaeger_storage",
 				TraceStoragePrimary: "jaeger_storage",
 			},
-			host:        storageHost{},
+			host: storageHost{
+				extension: makeStorageExtension(t, "jaeger_storage"),
+			},
 			logger:      zap.NewNop(),
 			expectedErr: "",
 		},
@@ -102,13 +108,14 @@ func Test_Start(t *testing.T) {
 	}
 }
 
-func Test_AddArchiveStorage(t *testing.T) {
+func TestServerAddArchiveStorage(t *testing.T) {
 	host := componenttest.NewNopHost()
 
 	tests := []struct {
 		name           string
 		qSvcOpts       *querysvc.QueryServiceOptions
 		config         *Config
+		extension      component.Component
 		expectedOutput string
 		expectedErr    string
 	}{
@@ -128,6 +135,26 @@ func Test_AddArchiveStorage(t *testing.T) {
 			expectedOutput: "",
 			expectedErr:    "cannot find archive storage factory: cannot find extension 'jaeger_storage' (make sure it's defined earlier in the config)",
 		},
+		{
+			name: "Archive storage not supported",
+			config: &Config{
+				TraceStorageArchive: "badger",
+			},
+			qSvcOpts: &querysvc.QueryServiceOptions{},
+			extension: makeStorageExtensionWithConfig(t,
+				&jaegerstorage.Config{
+					Badger: map[string]badgerCfg.NamespaceConfig{
+						"badger": {
+							Ephemeral:             true,
+							MaintenanceInterval:   time.Minute,
+							MetricsUpdateInterval: time.Minute,
+						},
+					},
+				},
+			),
+			expectedOutput: "Archive storage not supported by the factory",
+			expectedErr:    "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -137,6 +164,9 @@ func Test_AddArchiveStorage(t *testing.T) {
 				Logger: logger,
 			}
 			server := newServer(tt.config, telemetrySettings)
+			if tt.extension != nil {
+				host = storageHost{extension: tt.extension}
+			}
 			err := server.addArchiveStorage(tt.qSvcOpts, host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
@@ -144,7 +174,7 @@ func Test_AddArchiveStorage(t *testing.T) {
 				require.ErrorContains(t, err, tt.expectedErr)
 			}
 
-			assert.Equal(t, tt.expectedOutput, buf.String())
+			assert.Contains(t, buf.String(), tt.expectedOutput)
 		})
 	}
 }
@@ -203,7 +233,18 @@ func Test_Shutdown(t *testing.T) {
 	}
 }
 
-func makeStorageExtension(memstoreName string) component.Component {
+func makeStorageExtension(t *testing.T, memstoreName string) component.Component {
+	return makeStorageExtensionWithConfig(
+		t,
+		&jaegerstorage.Config{
+			Memory: map[string]memoryCfg.Configuration{
+				memstoreName: {MaxTraces: 10000},
+			},
+		},
+	)
+}
+
+func makeStorageExtensionWithConfig(t *testing.T, cfg *jaegerstorage.Config) component.Component {
 	extensionFactory := jaegerstorage.NewFactory()
 
 	ctx := context.Background()
@@ -212,20 +253,17 @@ func makeStorageExtension(memstoreName string) component.Component {
 		TracerProvider: nooptrace.NewTracerProvider(),
 		MeterProvider:  noopmetric.NewMeterProvider(),
 	}
-	config := &jaegerstorage.Config{
-		Memory: map[string]memoryCfg.Configuration{
-			memstoreName: {MaxTraces: 10000},
-		},
-	}
 
-	storageExtension, _ := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
+	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
 		ID:                ID,
 		TelemetrySettings: telemetrySettings,
 		BuildInfo:         component.NewDefaultBuildInfo(),
-	}, config)
+	}, cfg)
+	require.NoError(t, err)
 
 	host := componenttest.NewNopHost()
-	storageExtension.Start(ctx, host)
+	err = storageExtension.Start(ctx, host)
+	require.NoError(t, err)
 
 	return storageExtension
 }
