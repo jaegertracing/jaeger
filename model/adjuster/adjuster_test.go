@@ -62,7 +62,7 @@ func TestSequences(t *testing.T) {
 
 		adjTrace, err := testCase.adjuster.Adjust(&trace)
 
-		assert.True(t, span == adjTrace.Spans[0], "same trace & span returned")
+		assert.Equal(t, span, adjTrace.Spans[0], "same trace & span returned")
 		assert.EqualValues(t, testCase.lastSpanID, span.SpanID, "expect span ID to be incremented")
 		require.EqualError(t, err, testCase.err)
 	}
