@@ -597,6 +597,22 @@ func (*Batch) ProtoMessage()    {}
 func (*Batch) Descriptor() ([]byte, []int) {
 	return fileDescriptor_4c16552f9fdb66d8, []int{6}
 }
+
+func (m *Batch)ConvertToTraces()(*Trace){
+   ret_trace := Trace{}
+   ret_trace.Spans = m.Spans
+   for _,v := range ret_trace.Spans{
+      v.Process = m.Process
+   }
+   ret_trace.ProcessMap = append(ret_trace.ProcessMap, Trace_ProcessMapping{
+      ProcessID: m.Process.ServiceName,
+      Process: *m.Process,
+   })
+   return &ret_trace
+
+}
+
+
 func (m *Batch) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }

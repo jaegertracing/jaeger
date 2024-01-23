@@ -17,8 +17,10 @@ package apiv3
 import (
 	"fmt"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -44,4 +46,27 @@ func modelToOTLP(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
 		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
 	}
 	return chunk.ResourceSpans, nil
+}
+
+func OTLP2model(OTLPSpans []byte) ([]model.Trace, error) {
+	ptrace_unmarshaler := ptrace.JSONUnmarshaler{}
+	otlp_traces, err := ptrace_unmarshaler.UnmarshalTraces(OTLPSpans)
+	if err != nil {
+		fmt.Println(err)
+		return nil, fmt.Errorf("cannot marshal OTLP : %w", err)
+	}
+	batches, err := model2otel.ProtoFromTraces(otlp_traces)
+   fmt.Println(otlp_traces.ResourceSpans())
+	if err != nil {
+		fmt.Println(err)
+		return nil, fmt.Errorf("cannot marshal OTLP : %w", err)
+	}
+   jaeger_traces := make([]model.Trace, len(batches) )
+	for _, v := range batches {
+		mar := jsonpb.Marshaler{}
+		fmt.Println(mar.MarshalToString(v))
+      jaeger_trace := v.ConvertToTraces()
+      jaeger_traces = append(jaeger_traces, *jaeger_trace)
+	}
+	return jaeger_traces, nil
 }
