@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	GRPC grpcCfg.Configuration `mapstructure:"grpc-plugin"`
+	GRPC grpcCfg.Configuration `mapstructure:"grpc"`
 }
 
 func (cfg *Config) Validate() error {

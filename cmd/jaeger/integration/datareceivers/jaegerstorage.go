@@ -50,7 +50,7 @@ func (dr *jaegerStorageDataReceiver) Stop() error {
 func (dr *jaegerStorageDataReceiver) GenConfigYAMLStr() string {
 	return fmt.Sprintf(`
   jaeger_storage_receiver:
-    grpc-plugin:
+    grpc:
 	  server: localhost:%d`, dr.Port)
 }
 
