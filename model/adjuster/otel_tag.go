@@ -15,7 +15,7 @@
 package adjuster
 
 import (
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 
 	"github.com/jaegertracing/jaeger/model"
 )

@@ -446,7 +446,6 @@ draft-release:
 install-test-tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
 	$(GO) install mvdan.cc/gofumpt@latest
-	$(GO) install github.com/jstemmer/go-junit-report/v2@latest
 
 .PHONY: install-build-tools
 install-build-tools:
@@ -460,12 +459,8 @@ install-tools: install-test-tools install-build-tools
 install-ci: install-test-tools install-build-tools
 
 .PHONY: test-ci
-test-ci: GOTEST := $(GOTEST_QUIET) -json
+test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover
-
-.PHONY: test-report
-test-report:
-	cat test-results.json | go-junit-report -parser gojson > junit-report.xml
 
 .PHONY: init-submodules
 init-submodules:

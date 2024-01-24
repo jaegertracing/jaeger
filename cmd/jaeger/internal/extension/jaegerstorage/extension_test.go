@@ -18,6 +18,7 @@ import (
 
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
@@ -27,6 +28,7 @@ import (
 
 const (
 	memstoreName  = "memstore"
+	badgerName    = "badgerstore"
 	grpcstoreName = "grpcstore"
 )
 
@@ -183,6 +185,61 @@ func TestGRPCStorageExtensionError(t *testing.T) {
 	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to initialize grpc storage: grpc-plugin builder failed to create a store: error connecting to remote storage")
+}
+
+func TestBadgerStorageExtension(t *testing.T) {
+	ctx := context.Background()
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zap.NewNop(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+	}
+
+	config := &Config{
+		Badger: map[string]badgerCfg.NamespaceConfig{
+			badgerName: {
+				Ephemeral:             true,
+				MaintenanceInterval:   5,
+				MetricsUpdateInterval: 10,
+			},
+		},
+	}
+
+	require.NoError(t, config.Validate())
+
+	extensionFactory := NewFactory()
+	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
+		ID:                ID,
+		TelemetrySettings: telemetrySettings,
+		BuildInfo:         component.NewDefaultBuildInfo(),
+	}, config)
+	require.NoError(t, err)
+
+	host := componenttest.NewNopHost()
+	err = storageExtension.Start(ctx, host)
+	require.NoError(t, err)
+
+	err = storageExtension.Start(ctx, host)
+	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
+	require.Error(t, err)
+	require.EqualError(t, err, fmt.Sprintf("duplicate badger storage name %s", badgerName))
+}
+
+func TestBadgerStorageExtensionError(t *testing.T) {
+	ctx := context.Background()
+	factory, _ := badgerCfg.NewFactoryWithConfig(badgerCfg.NamespaceConfig{}, metrics.NullFactory, zap.NewNop())
+	ext := storageExt{
+		config: &Config{
+			Badger: map[string]badgerCfg.NamespaceConfig{
+				badgerName: {},
+			},
+		},
+		logger:    zap.NewNop(),
+		factories: map[string]storage.Factory{"badger": factory},
+	}
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.Error(t, err)
+	require.EqualError(t, err, "failed to initialize badger storage: Error Creating Dir: \"\" error: mkdir : no such file or directory")
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Component {

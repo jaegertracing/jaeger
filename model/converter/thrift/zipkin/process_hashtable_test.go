@@ -34,11 +34,11 @@ func TestProcessHashtable(t *testing.T) {
 		model.String("host", "facebook.com"),
 	})
 	ht := newProcessHashtable()
-	assert.True(t, p1 == ht.add(p1))
-	assert.True(t, p2 == ht.add(p2))
-	assert.True(t, p1 == ht.add(p1))
-	assert.True(t, p2 == ht.add(p2))
-	assert.True(t, p1 == ht.add(p1dup))
+	assert.Equal(t, p1, ht.add(p1))
+	assert.Equal(t, p2, ht.add(p2))
+	assert.Equal(t, p1, ht.add(p1))
+	assert.Equal(t, p2, ht.add(p2))
+	assert.Equal(t, p1, ht.add(p1dup))
 }
 
 func TestProcessHashtableCollision(t *testing.T) {
@@ -54,8 +54,8 @@ func TestProcessHashtableCollision(t *testing.T) {
 	p2 := model.NewProcess("s2", []model.KeyValue{
 		model.String("host", "facebook.com"),
 	})
-	assert.True(t, p1 == ht.add(p1))
-	assert.True(t, p2 == ht.add(p2))
-	assert.True(t, p1 == ht.add(p1))
-	assert.True(t, p2 == ht.add(p2))
+	assert.Equal(t, p1, ht.add(p1))
+	assert.Equal(t, p2, ht.add(p2))
+	assert.Equal(t, p1, ht.add(p1))
+	assert.Equal(t, p2, ht.add(p2))
 }
