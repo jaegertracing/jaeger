@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
-    labels: [ "changelog:dependencies" ]
+    labels: ["changelog:dependencies"]
     # Groups are updated together in one pull request
     groups:
       otel:
@@ -22,11 +22,22 @@ updates:
         patterns:
           - "github.com/hashicorp/*"
 
+  - package-ecosystem: gomod
+    directory: /model
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels: ["changelog:dependencies"]
+    groups:
+      otel:
+        patterns:
+          - "go.opentelemetry.io/otel*"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    labels: [ "changelog:dependencies" ]
+    labels: ["changelog:dependencies"]
 
   - package-ecosystem: docker
     directory: /
