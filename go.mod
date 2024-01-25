@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger
 
-go 1.20
+go 1.21.6
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
@@ -22,6 +22,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/hashicorp/go-hclog v1.6.2
 	github.com/hashicorp/go-plugin v1.6.0
+	github.com/jaegertracing/jaeger/model v0.0.0-00010101000000-000000000000
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.93.0
@@ -224,3 +225,5 @@ require (
 )
 
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.33.0
+
+replace github.com/jaegertracing/jaeger/model => ./model
