@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger/model
 
-go 1.21.6
+go 1.20
 
 replace github.com/jaegertracing/jaeger => ../
 
