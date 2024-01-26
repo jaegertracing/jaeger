@@ -17,7 +17,6 @@ package apiv3
 import (
 	"fmt"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -48,25 +47,37 @@ func modelToOTLP(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
 	return chunk.ResourceSpans, nil
 }
 
-func OTLP2model(OTLPSpans []byte) ([]model.Trace, error) {
-	ptrace_unmarshaler := ptrace.JSONUnmarshaler{}
-	otlp_traces, err := ptrace_unmarshaler.UnmarshalTraces(OTLPSpans)
+func OTLP2model(OTLPSpans []byte) ([]*model.Batch, error) {
+	ptraceUnmarshaler := ptrace.JSONUnmarshaler{}
+	otlpTraces, err := ptraceUnmarshaler.UnmarshalTraces(OTLPSpans)
 	if err != nil {
 		fmt.Println(err)
-		return nil, fmt.Errorf("cannot marshal OTLP : %w", err)
+		return nil, fmt.Errorf("cannot unmarshal OTLP : %w", err)
 	}
-	batches, err := model2otel.ProtoFromTraces(otlp_traces)
-   fmt.Println(otlp_traces.ResourceSpans())
+	jaegerBatches, err := model2otel.ProtoFromTraces(otlpTraces)
 	if err != nil {
 		fmt.Println(err)
-		return nil, fmt.Errorf("cannot marshal OTLP : %w", err)
+		return nil, fmt.Errorf("cannot transform OTLP to Jaeger: %w", err)
 	}
-   jaeger_traces := make([]model.Trace, len(batches) )
-	for _, v := range batches {
-		mar := jsonpb.Marshaler{}
-		fmt.Println(mar.MarshalToString(v))
-      jaeger_trace := v.ConvertToTraces()
-      jaeger_traces = append(jaeger_traces, *jaeger_trace)
+
+	return jaegerBatches, nil
+}
+
+func BatchesToTraces(jaegerBatches []*model.Batch) ([]model.Trace, error) {
+	var jaegerTraces []model.Trace
+	spanMap := make(map[model.TraceID][]*model.Span)
+	for _, v := range jaegerBatches {
+		jaegerTrace := model.Trace{
+			Spans: v.Spans,
+		}
+		jaegerTrace.DenormalizeProcess(v.Process)
+		jaegerTrace.FlattenToSpansMaps(spanMap)
 	}
-	return jaeger_traces, nil
+	for _, v := range spanMap {
+		jaegerTrace := model.Trace{
+			Spans: v,
+		}
+		jaegerTraces = append(jaegerTraces, jaegerTrace)
+	}
+	return jaegerTraces, nil
 }

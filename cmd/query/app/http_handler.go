@@ -123,7 +123,6 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.getTrace, "/traces/{%s}", traceIDParam).Methods(http.MethodGet)
-	aH.handleFunc(router, aH.transformOTLP, "/transform").Methods(http.MethodPost)
 	aH.handleFunc(router, aH.archiveTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodPost)
 	aH.handleFunc(router, aH.search, "/traces").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.getServices, "/services").Methods(http.MethodGet)
@@ -131,6 +130,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.getOperations, "/operations").Methods(http.MethodGet)
 	// TODO - remove this when UI catches up
 	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.transformOTLP, "/transform").Methods(http.MethodPost)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.latencies, "/metrics/latencies").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
@@ -159,39 +159,6 @@ func (aH *APIHandler) handleFunc(
 func (aH *APIHandler) formatRoute(route string, args ...interface{}) string {
 	args = append([]interface{}{aH.apiPrefix}, args...)
 	return fmt.Sprintf("/%s"+route, args...)
-}
-
-func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
-		return
-	}
-
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	var uiErrors []structuredError
-	traces, err := apiv3.OTLP2model(body)
-
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-
-	uiTraces := make([]*ui.Trace, len(traces))
-	for i, v := range traces {
-		uiTrace, uiErr := aH.convertModelToUI(&v, false)
-		if uiErr != nil {
-			uiErrors = append(uiErrors, *uiErr)
-		}
-		uiTraces[i] = uiTrace
-	}
-
-	structuredRes := structuredResponse{
-		Data:   uiTraces,
-		Errors: uiErrors,
-	}
-   aH.writeJSON(w,r,structuredRes)
-
 }
 
 func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
@@ -227,6 +194,43 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 		Total: len(operationNames),
 	}
 	aH.writeJSON(w, r, &structuredRes)
+}
+
+func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if aH.handleError(w, err, http.StatusBadRequest) {
+		return
+	}
+
+	var uiErrors []structuredError
+	batches, err := apiv3.OTLP2model(body)
+
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	traces, err := apiv3.BatchesToTraces(batches)
+
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	uiTraces := make([]*ui.Trace, len(traces))
+
+	for i, v := range traces {
+		uiTrace, uiErr := aH.convertModelToUI(&v, false)
+		if uiErr != nil {
+			uiErrors = append(uiErrors, *uiErr)
+		}
+		uiTraces[i] = uiTrace
+	}
+
+	structuredRes := structuredResponse{
+		Data:   uiTraces,
+		Errors: uiErrors,
+	}
+	aH.writeJSON(w, r, structuredRes)
+
 }
 
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
