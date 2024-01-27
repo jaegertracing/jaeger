@@ -32,7 +32,7 @@ security-artifacts:
   self-assessment:
     self-assessment-created: true
     evidence-url:
-    - https://github.com/jaegertracing/jaeger/blob/main/SELF-ASSESMENT.md
+    - https://github.com/cncf/tag-security/blob/main/assessments/projects/jaeger/self-assessment.md
 security-testing:
 - tool-type: sca
   tool-name: Dependabot
