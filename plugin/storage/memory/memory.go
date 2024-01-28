@@ -354,15 +354,17 @@ func isProducerSpan(span *model.Span) bool {
 }
 
 func updateServiceDependencyLinks(parentService, childService string, deps map[string]*model.DependencyLink) {
-	depKey := parentService + "&&&" + childService
-	if _, ok := deps[depKey]; !ok {
-		deps[depKey] = &model.DependencyLink{
-			Parent:    parentService,
-			Child:     childService,
-			CallCount: 1,
+	if parentService != childService {
+		depKey := parentService + "&&&" + childService
+		if _, ok := deps[depKey]; !ok {
+			deps[depKey] = &model.DependencyLink{
+				Parent:    parentService,
+				Child:     childService,
+				CallCount: 1,
+			}
+		} else {
+			deps[depKey].CallCount++
 		}
-	} else {
-		deps[depKey].CallCount++
 	}
 }
 
