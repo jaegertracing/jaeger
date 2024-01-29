@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -88,6 +89,22 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		s.factories[name] = factory
 	}
 
+	for name, e := range s.config.Elasticsearch {
+		if _, ok := s.factories[name]; ok {
+			return fmt.Errorf("duplicate elasticsearch storage name %s", name)
+		}
+		var err error
+		factory, err := es.NewFactoryWithConfig(
+			e,
+			metrics.NullFactory,
+			s.logger.With(zap.String("storage_name", name)),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to initialize elasticsearch storage: %w", err)
+		}
+		s.factories[name] = factory
+
+	}
 	// TODO add support for other backends
 	return nil
 }

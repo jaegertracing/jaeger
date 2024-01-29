@@ -83,6 +83,21 @@ func NewFactory() *Factory {
 	}
 }
 
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) (*Factory, error) {
+	f := NewFactory()
+	f.InitFromOptions(Options{Primary: namespaceConfig{Configuration: cfg},
+		others: make(map[string]*namespaceConfig)})
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
