@@ -263,6 +263,26 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
 }
 
+func TestESStorageFactoryWithConfig(t *testing.T) {
+	cfg := escfg.Configuration{}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	cfg = escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "error",
+	}
+	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	defer factory.Close()
+}
+
 func TestPasswordFromFile(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
 	t.Run("primary client", func(t *testing.T) {

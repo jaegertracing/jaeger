@@ -6,6 +6,8 @@ package jaegerstorage
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,9 +18,11 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -27,6 +31,7 @@ import (
 const (
 	memstoreName = "memstore"
 	badgerName   = "badgerstore"
+	esName       = "esstore"
 )
 
 type storageHost struct {
@@ -186,6 +191,74 @@ func TestBadgerStorageExtensionError(t *testing.T) {
 	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.Error(t, err)
 	require.EqualError(t, err, "failed to initialize badger storage: Error Creating Dir: \"\" error: mkdir : no such file or directory")
+}
+
+func TestESStorageExtension(t *testing.T) {
+	ctx := context.Background()
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zap.NewNop(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+	}
+
+	mockEsServerResponse := []byte(`
+	{
+		"Version": {
+			"Number": "6"
+		}
+	}
+	`)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+
+	defer server.Close()
+	config := &Config{
+		Elasticsearch: map[string]esCfg.Configuration{
+			esName: {
+				Servers:  []string{server.URL},
+				LogLevel: "error",
+			},
+		},
+	}
+
+	require.NoError(t, config.Validate())
+
+	extensionFactory := NewFactory()
+	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
+		ID:                ID,
+		TelemetrySettings: telemetrySettings,
+		BuildInfo:         component.NewDefaultBuildInfo(),
+	}, config)
+	require.NoError(t, err)
+
+	host := componenttest.NewNopHost()
+	err = storageExtension.Start(ctx, host)
+	require.NoError(t, err)
+
+	err = storageExtension.Start(ctx, host)
+	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
+	require.Error(t, err)
+	require.EqualError(t, err, fmt.Sprintf("duplicate elasticsearch storage name %s", esName))
+}
+
+func TestESStorageExtensionError(t *testing.T) {
+	ctx := context.Background()
+	factory, _ := es.NewFactoryWithConfig(esCfg.Configuration{}, metrics.NullFactory, zap.NewNop())
+	ext := storageExt{
+		config: &Config{
+			Elasticsearch: map[string]esCfg.Configuration{
+				esName: {},
+			},
+		},
+		logger:    zap.NewNop(),
+		factories: map[string]storage.Factory{"elasticsearch": factory},
+	}
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.Error(t, err)
+	fmt.Println(err)
+	require.EqualError(t, err, "failed to initialize elasticsearch storage: failed to create primary Elasticsearch client: no servers specified")
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Component {
