@@ -89,8 +89,10 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.InitFromOptions(Options{Primary: namespaceConfig{Configuration: cfg},
-		others: make(map[string]*namespaceConfig)})
+	f.InitFromOptions(Options{
+		Primary: namespaceConfig{Configuration: cfg},
+		others:  make(map[string]*namespaceConfig),
+	})
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
