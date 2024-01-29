@@ -109,41 +109,41 @@ test:
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test:
-	TEST_MODE=integration $(GOTEST) ./cmd/all-in-one/
+	TEST_MODE=integration find . -type f -name "go.mod" -execdir $(GOTEST) ./cmd/all-in-one/ \;
 
 .PHONY: storage-integration-test
 storage-integration-test:
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; find . -type f -name "go.mod" -execdir $(GOTEST) -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) \; $(COLORIZE)"
 
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration -coverpkg=./... -coverprofile cover-badger.out $(STORAGE_PKGS) $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; find . -type f -name "go.mod" -execdir $(GOTEST) -tags=badger_storage_integration -coverpkg=./... -coverprofile cover-badger.out $(STORAGE_PKGS) \; $(COLORIZE)"
 
 .PHONY: grpc-storage-integration-test
 grpc-storage-integration-test:
 	(cd examples/memstore-plugin/ && go build .)
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=grpc_storage_integration -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; find . -type f -name "go.mod" -execdir $(GOTEST) -tags=grpc_storage_integration -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) \; $(COLORIZE)"
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
 	# Expire test results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner -coverpkg=./... -coverprofile cover-index-cleaner.out $(STORAGE_PKGS) $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; find . -type f -name "go.mod" -execdir $(GOTEST) -tags index_cleaner -coverpkg=./... -coverprofile cover-index-cleaner.out $(STORAGE_PKGS) \; $(COLORIZE)"
 
 .PHONY: index-rollover-integration-test
 index-rollover-integration-test: docker-images-elastic
 	# Expire test results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover -coverpkg=./... -coverprofile cover-index-rollover.out $(STORAGE_PKGS) $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; find . -type f -name "go.mod" -execdir $(GOTEST) -tags index_rollover -coverpkg=./... -coverprofile cover-index-rollover.out $(STORAGE_PKGS) \; $(COLORIZE)"
 
 .PHONY: cover
 cover: nocover
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... | tee test-results.json"
+	bash -c "set -e; set -o pipefail; find . -type f -name "go.mod" -execdir $(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... \; | tee test-results.json"
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
