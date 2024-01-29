@@ -105,7 +105,7 @@ clean:
 
 .PHONY: test
 test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; find . -type f -name "go.mod" -execdir $(GOTEST) -tags=memory_storage_integration ./... \; $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test:
