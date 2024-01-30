@@ -16,8 +16,8 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -41,16 +41,16 @@ const defaultLocalKafkaBroker = "127.0.0.1:9092"
 
 type KafkaIntegrationTestSuite struct {
 	StorageIntegration
-	logger *zap.Logger
+	encoding string
+	logger   *zap.Logger
 }
 
 func (s *KafkaIntegrationTestSuite) initialize() error {
 	s.logger, _ = testutils.NewLogger()
-	const encoding = "json"
 	const groupID = "kafka-integration-test"
 	const clientID = "kafka-integration-test"
 	// A new topic is generated per execution to avoid data overlap
-	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	topic := fmt.Sprintf("jaeger-kafka-integration-test-%s-%d", s.encoding, time.Now().UnixNano())
 
 	f := kafka.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
@@ -60,7 +60,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		"--kafka.producer.brokers",
 		defaultLocalKafkaBroker,
 		"--kafka.producer.encoding",
-		encoding,
+		s.encoding,
 	})
 	if err != nil {
 		return err
@@ -81,7 +81,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		"--kafka.consumer.brokers",
 		defaultLocalKafkaBroker,
 		"--kafka.consumer.encoding",
-		encoding,
+		s.encoding,
 		"--kafka.consumer.group-id",
 		groupID,
 		"--kafka.consumer.client-id",
@@ -144,7 +144,12 @@ func TestKafkaStorage(t *testing.T) {
 	if os.Getenv("STORAGE") != "kafka" {
 		t.Skip("Integration test against kafka skipped; set STORAGE env var to kafka to run this")
 	}
-	s := &KafkaIntegrationTestSuite{}
+	runKafkaStorageTest(t, kafka.EncodingJSON)
+	runKafkaStorageTest(t, kafka.EncodingProto)
+}
+
+func runKafkaStorageTest(t *testing.T, encoding string) {
+	s := &KafkaIntegrationTestSuite{encoding: encoding}
 	require.NoError(t, s.initialize())
-	t.Run("GetTrace", s.testGetTrace)
+	t.Run(encoding, s.testGetTrace)
 }
