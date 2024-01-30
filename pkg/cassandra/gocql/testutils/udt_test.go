@@ -40,7 +40,7 @@ func (c *CustomUDT) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) 
 
 func TestUDTTestCase(t *testing.T) {
 	udtInstance := &CustomUDT{
-		Field1: 42,
+		Field1: 1,
 		Field2: "test",
 	}
 
@@ -49,7 +49,7 @@ func TestUDTTestCase(t *testing.T) {
 		{
 			Name:  "Field1",
 			Type:  gocql.TypeBigInt,
-			ValIn: []byte{0, 0, 0, 0, 0, 0, 0, 42},
+			ValIn: []byte{0, 0, 0, 0, 0, 0, 0, 1},
 			Err:   false,
 		},
 		{
@@ -57,6 +57,24 @@ func TestUDTTestCase(t *testing.T) {
 			Type:  gocql.TypeVarchar,
 			ValIn: []byte("test"),
 			Err:   false,
+		},
+		{
+			Name:  "InvalidType",
+			Type:  gocql.TypeBigInt,
+			ValIn: []byte("test"),
+			Err:   true,
+		},
+		{
+			Name:  "NilTypeInfo",
+			Type:  gocql.TypeBigInt,
+			ValIn: []byte{},
+			Err:   true,
+		},
+		{
+			Name:  "InvalidDataLength",
+			Type:  gocql.TypeBigInt,
+			ValIn: []byte{0, 0, 0, 0, 0, 0, 0},
+			Err:   true,
 		},
 	}
 
