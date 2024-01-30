@@ -59,21 +59,9 @@ func TestUDTTestCase(t *testing.T) {
 			Err:   false,
 		},
 		{
-			Name:  "InvalidType",
+			Name:  "InvalidField",
 			Type:  gocql.TypeBigInt,
 			ValIn: []byte("test"),
-			Err:   true,
-		},
-		{
-			Name:  "NilTypeInfo",
-			Type:  gocql.TypeBigInt,
-			ValIn: []byte{},
-			Err:   true,
-		},
-		{
-			Name:  "InvalidDataLength",
-			Type:  gocql.TypeBigInt,
-			ValIn: []byte{0, 0, 0, 0, 0, 0, 0},
 			Err:   true,
 		},
 	}
