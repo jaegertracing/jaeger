@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func OTLP2model(OTLPSpans []byte) ([]*model.Batch, error) {
+func otlp2model(OTLPSpans []byte) ([]*model.Batch, error) {
 	ptraceUnmarshaler := ptrace.JSONUnmarshaler{}
 	otlpTraces, err := ptraceUnmarshaler.UnmarshalTraces(OTLPSpans)
 	if err != nil {
@@ -33,39 +33,28 @@ func OTLP2model(OTLPSpans []byte) ([]*model.Batch, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot transform OTLP to Jaeger: %w", err)
 	}
-
 	return jaegerBatches, nil
 }
 
-func BatchesToTraces(jaegerBatches []*model.Batch) ([]model.Trace, error) {
-	var jaegerTraces []model.Trace
-	spanMap := make(map[model.TraceID][]*model.Span)
-	for _, v := range jaegerBatches {
-		DenormalizeProcess(v)
-		FlattenToSpansMaps(v, spanMap)
-	}
-	for _, v := range spanMap {
-		jaegerTrace := model.Trace{
-			Spans: v,
-		}
-		jaegerTraces = append(jaegerTraces, jaegerTrace)
-	}
-	return jaegerTraces, nil
-}
-
-func DenormalizeProcess(m *model.Batch) {
-	for _, v := range m.Spans {
-		v.Process = m.Process
-	}
-}
-
-func FlattenToSpansMaps(m *model.Batch, spanMap map[model.TraceID][]*model.Span) {
-	for _, v := range m.Spans {
-		val, ok := spanMap[v.TraceID]
-		if !ok {
-			spanMap[v.TraceID] = []*model.Span{v}
-		} else {
-			spanMap[v.TraceID] = append(val, v)
+func batchesToTraces(jaegerBatches []*model.Batch) ([]*model.Trace, error) {
+	var traces []*model.Trace
+	traceMap := make(map[model.TraceID]*model.Trace)
+	for _, batch := range jaegerBatches {
+		for _, span := range batch.Spans {
+			if span.Process == nil {
+				span.Process = batch.Process
+			}
+			trace, ok := traceMap[span.TraceID]
+			if !ok {
+				newtrace := model.Trace{
+					Spans: []*model.Span{span},
+				}
+				traceMap[span.TraceID] = &newtrace
+				traces = append(traces, &newtrace)
+			} else {
+				trace.Spans = append(trace.Spans, span)
+			}
 		}
 	}
+	return traces, nil
 }

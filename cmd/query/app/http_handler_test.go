@@ -25,6 +25,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -267,6 +268,33 @@ func TestWriteJSON(t *testing.T) {
 			out := get(server.URL + testCase.param)
 			assert.Contains(t, out, testCase.output)
 		})
+	}
+}
+
+func readOTLPTraces(t *testing.T) (interface{}, error) {
+	dat, err := os.ReadFile("./fixture/otlp2jaeger-in.json")
+	if err != nil {
+		return nil, err
+	} else {
+		require.NoError(t, err)
+		var out interface{}
+		err := json.Unmarshal(dat, out)
+		require.NoError(t, err)
+		return out, nil
+
+	}
+}
+
+func readJaegerTraces(t *testing.T) (interface{}, error) {
+	dat, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
+	if err != nil {
+		return nil, err
+	} else {
+		var out interface{}
+		require.NoError(t, err)
+		err := json.Unmarshal(dat, out)
+		require.NoError(t, err)
+		return out, nil
 	}
 }
 
@@ -621,6 +649,29 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/trifle/operations", &response)
 	require.Error(t, err)
+}
+
+func TestTransformOTLPSuccess(t *testing.T) {
+	withTestServer(func(ts *testServer) {
+		var response interface{}
+		request, err := readOTLPTraces(t)
+		require.NoError(t, err)
+		err = postJSON(ts.server.URL+"/api/transform", request, response)
+		require.NoError(t, err)
+		corectResponse, err := readJaegerTraces(t)
+		require.NoError(t, err)
+		assert.Equal(t, response, corectResponse)
+	}, querysvc.QueryServiceOptions{})
+}
+
+func TestTransformOTLPEmptyFailure(t *testing.T) {
+	withTestServer(func(ts *testServer) {
+		var response interface{}
+		var request interface{} // Keeping request empty for checking behaviour
+		request = ""
+		err := postJSON(ts.server.URL+"/api/transform", request, response)
+		require.Error(t, err)
+	}, querysvc.QueryServiceOptions{})
 }
 
 func TestGetMetricsSuccess(t *testing.T) {

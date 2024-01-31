@@ -202,13 +202,13 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	batches, err := OTLP2model(body)
+	batches, err := otlp2model(body)
 
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 
-	traces, err := BatchesToTraces(batches)
+	traces, err := batchesToTraces(batches)
 
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
@@ -217,7 +217,7 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	uiTraces := make([]*ui.Trace, len(traces))
 
 	for i, v := range traces {
-		uiTrace, uiErr := aH.convertModelToUI(&v, false)
+		uiTrace, uiErr := aH.convertModelToUI(v, false)
 		if uiErr != nil {
 			uiErrors = append(uiErrors, *uiErr)
 		}
