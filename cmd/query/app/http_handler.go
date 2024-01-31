@@ -32,7 +32,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
@@ -203,13 +202,13 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	batches, err := apiv3.OTLP2model(body)
+	batches, err := OTLP2model(body)
 
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 
-	traces, err := apiv3.BatchesToTraces(batches)
+	traces, err := BatchesToTraces(batches)
 
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
@@ -230,7 +229,6 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 		Errors: uiErrors,
 	}
 	aH.writeJSON(w, r, structuredRes)
-
 }
 
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {

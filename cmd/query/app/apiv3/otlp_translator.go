@@ -19,7 +19,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -45,39 +44,4 @@ func modelToOTLP(spans []*model.Span) ([]*tracev1.ResourceSpans, error) {
 		return nil, fmt.Errorf("cannot marshal OTLP: %w", err)
 	}
 	return chunk.ResourceSpans, nil
-}
-
-func OTLP2model(OTLPSpans []byte) ([]*model.Batch, error) {
-	ptraceUnmarshaler := ptrace.JSONUnmarshaler{}
-	otlpTraces, err := ptraceUnmarshaler.UnmarshalTraces(OTLPSpans)
-	if err != nil {
-		fmt.Println(err)
-		return nil, fmt.Errorf("cannot unmarshal OTLP : %w", err)
-	}
-	jaegerBatches, err := model2otel.ProtoFromTraces(otlpTraces)
-	if err != nil {
-		fmt.Println(err)
-		return nil, fmt.Errorf("cannot transform OTLP to Jaeger: %w", err)
-	}
-
-	return jaegerBatches, nil
-}
-
-func BatchesToTraces(jaegerBatches []*model.Batch) ([]model.Trace, error) {
-	var jaegerTraces []model.Trace
-	spanMap := make(map[model.TraceID][]*model.Span)
-	for _, v := range jaegerBatches {
-		jaegerTrace := model.Trace{
-			Spans: v.Spans,
-		}
-		jaegerTrace.DenormalizeProcess(v.Process)
-		jaegerTrace.FlattenToSpansMaps(spanMap)
-	}
-	for _, v := range spanMap {
-		jaegerTrace := model.Trace{
-			Spans: v,
-		}
-		jaegerTraces = append(jaegerTraces, jaegerTrace)
-	}
-	return jaegerTraces, nil
 }

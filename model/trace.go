@@ -32,21 +32,3 @@ func (t *Trace) NormalizeTimestamps() {
 		span.NormalizeTimestamps()
 	}
 }
-
-func (m *Trace) DenormalizeProcess(p *Process) {
-	for _, v := range m.Spans {
-		v.Process = p
-	}
-}
-
-func (m *Trace) FlattenToSpansMaps(spanMap map[TraceID][]*Span) {
-	for _, v := range m.Spans {
-		val, ok := spanMap[v.TraceID]
-		if !ok {
-			spanMap[v.TraceID] = []*Span{v}
-		} else {
-			spanMap[v.TraceID] = append(val, v)
-		}
-	}
-
-}
