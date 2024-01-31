@@ -15,31 +15,20 @@
 package samplingstore
 
 import (
+	"context"
+	"encoding/json"
 	"sync/atomic"
 	"time"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
-	// jaegermodel "github.com/jaegertracing/jaeger/model"
+	"github.com/olivere/elastic"
 )
 
 const (
 	samplingType = "sampling"
 )
-
-// create all this
-// 	// InsertThroughput inserts aggregated throughput for operations into storage.
-// 	InsertThroughput(throughput []*model.Throughput) error
-
-// 	// InsertProbabilitiesAndQPS inserts calculated sampling probabilities and measured qps into storage.
-// 	InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error
-
-// 	// GetThroughput retrieves aggregated throughput for operations within a time range.
-// 	GetThroughput(start, end time.Time) ([]*model.Throughput, error)
-
-// 	// GetLatestProbabilities retrieves the latest sampling probabilities.
-// 	GetLatestProbabilities() (model.ServiceOperationProbabilities, error)
 
 type SamplingStore struct {
 	client func() es.Client
@@ -49,6 +38,12 @@ type SamplingStore struct {
 	// serviceWriter    serviceWriter
 	// spanConverter    dbmodel.FromDomain
 	// spanServiceIndex spanAndServiceIndexFn
+}
+
+type ProbabilitiesAndQPS struct {
+	Hostname      string
+	Probabilities model.ServiceOperationProbabilities
+	QPS           model.ServiceOperationQPS
 }
 
 // type SamplingStore struct {
@@ -62,26 +57,6 @@ func NewSamplingStore(db *badger.DB) *atomic.Pointer[es.Client] {
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
-	// startTime := jaegermodel.TimeAsEpochMicroseconds(time.Now())
-	// entriesToStore := make([]*badger.Entry, 0)
-	// // here converting *model.Throughput to *badger.Entry
-	// entries, err := s.createThroughputEntry(throughput, startTime)
-	// if err != nil {
-	// 	return err
-	// }
-	// entriesToStore = append(entriesToStore, entries)
-	// err = s.store.Update(func(txn *badger.Txn) error {
-	// 	for i := range entriesToStore {
-	// 		err = txn.SetEntry(entriesToStore[i])
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 	}
-
-	// 	return nil
-	// })
-
-	// return nil
 	for i := range throughput {
 		// spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
 		// // converts model.Span into json.Span
@@ -90,88 +65,85 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 		// }
 		// s.writeSpan(spanIndexName, throughput[i])
 		s.writeSpan(throughput[i])
-		return nil
 	}
 	return nil
 }
 
-// func (s *SamplingStore) writeSpan(indexName string, jsonSpan *model.Throughput) {
 func (s *SamplingStore) writeSpan(jsonSpan *model.Throughput) {
-	// s.client().Index().Index(indexName).Type(samplingType).BodyJson(&jsonSpan).Add()
 	s.client().Index().Type(samplingType).BodyJson(&jsonSpan).Add()
 }
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
-	// 	var retSlice []*model.Throughput
-	// 	prefix := []byte{throughputKeyPrefix}
+	ctx := context.Background()
+	rangeQuery := elastic.NewRangeQuery("timestamp").
+		Gte(start).
+		Lte(end)
 
-	// 	err := s.store.View(func(txn *badger.Txn) error {
-	// 		opts := badger.DefaultIteratorOptions
-	// 		it := txn.NewIterator(opts)
-	// 		defer it.Close()
+	boolQuery := elastic.NewBoolQuery().Filter(rangeQuery)
+	result, err := s.client().Search().Query(boolQuery).Do(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	// 		val := []byte{}
-	// 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-	// 			item := it.Item()
-	// 			k := item.Key()
-	// 			startTime := k[1:9]
-	// 			val, err := item.ValueCopy(val)
-	// 			if err != nil {
-	// 				return err
-	// 			}
-	// 			t, err := initalStartTime(startTime)
-	// 			if err != nil {
-	// 				return err
-	// 			}
-	// 			throughputs, err := decodeThroughputValue(val)
-	// 			if err != nil {
-	// 				return err
-	// 			}
+	var throughputs []*model.Throughput
+	for _, hit := range result.Hits.Hits {
+		var throughput model.Throughput
+		err := json.Unmarshal(*hit.Source, &throughput)
+		if err != nil {
+			return nil, err
+		}
+		throughputs = append(throughputs, &throughput)
+	}
 
-	// 			if t.After(start) && (t.Before(end) || t.Equal(end)) {
-	// 				retSlice = append(retSlice, throughputs...)
-	// 			}
-	// 		}
-	// 		return nil
-	// 	})
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// return retSlice, nil
+	return throughputs, nil
 }
 
-// func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
-// 	probabilities model.ServiceOperationProbabilities,
-// 	qps model.ServiceOperationQPS,
-// ) error {
-// 	startTime := jaegermodel.TimeAsEpochMicroseconds(time.Now())
-// 	entriesToStore := make([]*badger.Entry, 0)
-// 	entries, err := s.createProbabilitiesEntry(hostname, probabilities, qps, startTime)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	entriesToStore = append(entriesToStore, entries)
-// 	err = s.store.Update(func(txn *badger.Txn) error {
-// 		// Write the entries
-// 		for i := range entriesToStore {
-// 			err = txn.SetEntry(entriesToStore[i])
-// 			if err != nil {
-// 				return err
-// 			}
-// 		}
+func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+) error {
+	val := ProbabilitiesAndQPS{
+		Hostname:      hostname,
+		Probabilities: probabilities,
+		QPS:           qps,
+	}
+	jsonSpan, err := json.Marshal(val)
+	if err != nil {
+		return err
+	}
+	s.client().Index().Type(samplingType).BodyJson(&jsonSpan).Add()
+	return nil
+}
 
-// 		return nil
-// 	})
+func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
+	var retVal model.ServiceOperationProbabilities
+	var unMarshalProbabilities ProbabilitiesAndQPS
+	ctx := context.Background()
+	result, err := s.client().Search().Do(ctx) //fix
+	if err != nil {
+		return nil, err
+	}
+	val := []byte{}
+	for _, hit := range result.Hits.Hits {
+		err := json.Unmarshal(*hit.Source, &val)
+		if err != nil {
+			return nil, err
+		}
+		unMarshalProbabilities, err = decodeProbabilitiesValue(val)
+		if err != nil {
+			return nil, err
+		}
+		retVal = unMarshalProbabilities.Probabilities
+	}
+	return retVal, nil
+}
 
-// 	return nil
-// }
+func decodeProbabilitiesValue(val []byte) (ProbabilitiesAndQPS, error) {
+	var probabilities ProbabilitiesAndQPS
 
-// func (ss *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
-// 	ss.Lock()
-// 	defer ss.Unlock()
-// 	if ss.probabilitiesAndQPS != nil {
-// 		return ss.probabilitiesAndQPS.probabilities, nil
-// 	}
-// 	return model.ServiceOperationProbabilities{}, nil
-// }
+	err := json.Unmarshal(val, &probabilities)
+	if err != nil {
+		return ProbabilitiesAndQPS{}, err
+	}
+	return probabilities, nil
+}
