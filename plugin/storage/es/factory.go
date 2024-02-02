@@ -37,9 +37,11 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
+	esSampling "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -270,6 +272,10 @@ func createSpanWriter(
 		}
 	}
 	return writer, nil
+}
+
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return esSampling.NewSamplingStore(f.getPrimaryClient), nil
 }
 
 func createDependencyReader(

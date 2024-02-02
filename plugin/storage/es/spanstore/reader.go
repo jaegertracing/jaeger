@@ -240,7 +240,6 @@ func indexNames(prefix, index string) string {
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-// poi
 func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "GetTrace")
 	defer span.End()
@@ -363,7 +362,6 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return convertTraceIDsStringsToModels(esTraceIDs)
 }
 
-// ctx, []model.TraceID{traceID}, currentTime.Add(-s.maxSpanAge), currentTime
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()

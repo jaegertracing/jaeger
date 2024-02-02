@@ -150,7 +150,6 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, spanDat
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
-	// converts model.Span into json.Span
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, jsonSpan)
