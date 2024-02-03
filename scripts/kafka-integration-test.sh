@@ -35,7 +35,8 @@ interval=5
 end_time=$((SECONDS + timeout))
 
 while [ $SECONDS -lt $end_time ]; do
-    if nc -z localhost 9092; then
+    # Check if Kafka is ready by attempting to describe a topic
+    if docker exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 >/dev/null 2>&1; then
         break
     fi
     echo "Kafka broker not ready, waiting ${interval} seconds"
@@ -43,9 +44,10 @@ while [ $SECONDS -lt $end_time ]; do
 done
 
 # Check if Kafka is still not available after the timeout
-if ! nc -z localhost 9092; then
+if ! docker exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 >/dev/null 2>&1; then
     echo "Timed out waiting for Kafka to start"
     exit 1
 fi
 
+# Continue with the integration tests
 make storage-integration-test
