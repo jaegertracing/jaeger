@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossdock/crossdock-go/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -110,7 +109,7 @@ func TestWriter_WriteSpan(t *testing.T) {
 
 	for i := 0; i <= 99; i++ {
 		err = writer.WriteSpan(span)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
