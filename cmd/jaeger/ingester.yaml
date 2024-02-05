@@ -1,0 +1,32 @@
+service:
+  extensions: [jaeger_storage]
+  pipelines:
+    traces:
+      receivers: [kafka]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]  # same as in the default cmd/jaeger-v2/config.yaml
+  telemetry:
+    metrics:
+      address: 0.0.0.0:8889 # to avoid port conflict with collector-with-kafka.yaml
+
+extensions:
+  jaeger_storage:
+    memory:
+      memstore:
+        max_traces: 100000
+      memstore_archive:
+        max_traces: 100000
+
+receivers:
+  kafka:
+    brokers:
+      - localhost:9092
+    encoding: otlp_proto # available encodings are otlp_proto, jaeger_proto, jaeger_json, zipkin_proto, zipkin_json, zipkin_thrift
+    initial_offset: earliest # consume messages from the beginning
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: memstore

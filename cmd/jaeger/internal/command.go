@@ -29,7 +29,7 @@ func Command() *cobra.Command {
 
 	settings := otelcol.CollectorSettings{
 		BuildInfo: info,
-		Factories: components,
+		Factories: Components,
 	}
 
 	cmd := otelcol.NewCommand(settings)

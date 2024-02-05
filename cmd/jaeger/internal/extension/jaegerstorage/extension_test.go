@@ -19,14 +19,17 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
-	memstoreName = "memstore"
-	badgerName   = "badgerstore"
+	memstoreName  = "memstore"
+	badgerName    = "badgerstore"
+	grpcstoreName = "grpcstore"
 )
 
 type storageHost struct {
@@ -82,15 +85,45 @@ func TestStorageExtensionConfigError(t *testing.T) {
 	require.EqualError(t, err, fmt.Sprintf("%s: no storage type present in config", ID))
 }
 
-func TestStorageExtensionStartTwiceError(t *testing.T) {
+func TestStorageExtensionDuplicateNameError(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *Config
+	}{
+		{
+			name: "memory",
+			config: &Config{
+				Memory: map[string]memoryCfg.Configuration{
+					memstoreName: {},
+				},
+			},
+		},
+		{
+			name: "grpc",
+			config: &Config{
+				GRPC: map[string]grpcCfg.Configuration{
+					memstoreName: {},
+				},
+			},
+		},
+	}
+
 	ctx := context.Background()
+	ext := storageExt{
+		factories: map[string]storage.Factory{
+			memstoreName: memory.NewFactoryWithConfig(memoryCfg.Configuration{}, metrics.NullFactory, zap.NewNop()),
+		},
+	}
 
-	storageExtension := makeStorageExtension(t, memstoreName)
-
-	host := componenttest.NewNopHost()
-	err := storageExtension.Start(ctx, host)
-	require.Error(t, err)
-	require.EqualError(t, err, fmt.Sprintf("duplicate memory storage name %s", memstoreName))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ext.config = test.config
+			err := ext.Start(ctx, componenttest.NewNopHost())
+			require.Error(t, err)
+			require.EqualError(t, err, fmt.Sprintf("duplicate %s storage name %s", test.name, memstoreName))
+		})
+	}
+	t.Cleanup(func() { require.NoError(t, ext.Shutdown(ctx)) })
 }
 
 func TestStorageFactoryBadHostError(t *testing.T) {
@@ -131,6 +164,27 @@ func TestStorageExtension(t *testing.T) {
 
 	_, err := GetStorageFactory(memstoreName, host)
 	require.NoError(t, err)
+}
+
+// This test is only to cover the grpc.NewFactoryWithConfig
+// since it can't be mocked yet require external grpc connection
+func TestGRPCStorageExtensionError(t *testing.T) {
+	ctx := context.Background()
+	ext := storageExt{
+		config: &Config{
+			GRPC: map[string]grpcCfg.Configuration{
+				grpcstoreName: {},
+			},
+		},
+		logger: zap.NewNop(),
+		factories: map[string]storage.Factory{
+			memstoreName: memory.NewFactoryWithConfig(memoryCfg.Configuration{}, metrics.NullFactory, zap.NewNop()),
+		},
+	}
+
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to initialize grpc storage: grpc-plugin builder failed to create a store: error connecting to remote storage")
 }
 
 func TestBadgerStorageExtension(t *testing.T) {
