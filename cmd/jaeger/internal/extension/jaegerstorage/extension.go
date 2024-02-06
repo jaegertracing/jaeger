@@ -89,7 +89,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		s.factories[name] = factory
 	}
 
-	for name, e := range s.config.Elasticsearch {
+	for name, cfg := range s.config.Elasticsearch {
 		if _, ok := s.factories[name]; ok {
 			return fmt.Errorf("duplicate elasticsearch storage name %s", name)
 		}
