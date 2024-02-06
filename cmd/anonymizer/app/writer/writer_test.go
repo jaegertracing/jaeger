@@ -48,49 +48,30 @@ func TestNew(t *testing.T) {
 	nopLogger := zap.NewNop()
 	tempDir := t.TempDir()
 
-	tests := []struct {
-		name   string
-		config Config
-	}{
-		{
-			name: "successfully create writer",
-			config: Config{
-				MaxSpansCount:  10,
-				CapturedFile:   tempDir + "/captured.json",
-				AnonymizedFile: tempDir + "/anonymized.json",
-				MappingFile:    tempDir + "/mapping.json",
-			},
-		},
-		{
-			name: "captured.json doesn't exist",
-			config: Config{
-				CapturedFile:   tempDir + "/nonexistent_directory/captured.json",
-				AnonymizedFile: tempDir + "/anonymized.json",
-				MappingFile:    tempDir + "/mapping.json",
-			},
-		},
-		{
-			name: "anonymized.json doesn't exist",
-			config: Config{
-				CapturedFile:   tempDir + "/captured.json",
-				AnonymizedFile: tempDir + "/nonexistent_directory/anonymized.json",
-				MappingFile:    tempDir + "/mapping.json",
-			},
-		},
+	config := Config{
+		MaxSpansCount:  10,
+		CapturedFile:   tempDir + "/captured.json",
+		AnonymizedFile: tempDir + "/anonymized.json",
+		MappingFile:    tempDir + "/mapping.json",
 	}
+	_, err := New(config, nopLogger)
+	require.NoError(t, err)
 
-	t.Run(tests[0].name, func(t *testing.T) {
-		_, err := New(tests[0].config, nopLogger)
-		require.NoError(t, err)
-	})
-	t.Run(tests[1].name, func(t *testing.T) {
-		_, err := New(tests[1].config, nopLogger)
-		require.Error(t, err)
-	})
-	t.Run(tests[2].name, func(t *testing.T) {
-		_, err := New(tests[2].config, nopLogger)
-		require.Error(t, err)
-	})
+	config = Config{
+		CapturedFile:   tempDir + "/nonexistent_directory/captured.json",
+		AnonymizedFile: tempDir + "/anonymized.json",
+		MappingFile:    tempDir + "/mapping.json",
+	}
+	_, err = New(config, nopLogger)
+	require.Error(t, err)
+
+	config = Config{
+		CapturedFile:   tempDir + "/captured.json",
+		AnonymizedFile: tempDir + "/nonexistent_directory/anonymized.json",
+		MappingFile:    tempDir + "/mapping.json",
+	}
+	_, err = New(config, nopLogger)
+	require.Error(t, err)
 }
 
 func TestWriter_WriteSpan(t *testing.T) {
@@ -129,10 +110,7 @@ func TestWriter_WriteSpan_Exits(t *testing.T) {
 		err = writer.WriteSpan(span)
 		require.NoError(t, err)
 
-		err = writer.WriteSpan(span)
-		if err == nil {
-			t.Fatal("expected an error but got none")
-		}
+		require.Error(t, writer.WriteSpan(span))
 
 		return
 	}
@@ -142,7 +120,5 @@ func TestWriter_WriteSpan_Exits(t *testing.T) {
 	err := cmd.Run()
 	// The process should have exited with status 1, but exec.Command returns
 	// an *ExitError when the process exits with a non-zero status.
-	if err != nil {
-		t.Fatalf("process ran with err %v, want exit status 1", err)
-	}
+	require.NoError(t, err)
 }
