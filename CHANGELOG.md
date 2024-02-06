@@ -21,6 +21,32 @@ run `make changelog` to generate content
 
 </details>
 
+1.54.0 (2024-02-06)
+-------------------
+
+#### ⛔ Breaking Changes:
+
+* Remove remnants of internal otlp types ([@yurishkuro](https://github.com/yurishkuro) in [#5107](https://github.com/jaegertracing/jaeger/pull/5107))
+* Use official otlp types in api_v3 and avoid triple-marshaling ([@yurishkuro](https://github.com/yurishkuro) in [#5098](https://github.com/jaegertracing/jaeger/pull/5098))
+
+#### ✨ New Features:
+
+* [jaeger-v2] add support for badger ([@akagami-harsh](https://github.com/akagami-harsh) in [#5112](https://github.com/jaegertracing/jaeger/pull/5112))
+
+#### 🐞 Bug fixes, Minor Improvements:
+
+* [jaeger-v2] streamline storage initialization ([@yurishkuro](https://github.com/yurishkuro) in [#5171](https://github.com/jaegertracing/jaeger/pull/5171))
+* Replace security self-assesment with one from cncf/tag-security ([@jkowall](https://github.com/jkowall) in [#5142](https://github.com/jaegertracing/jaeger/pull/5142))
+* Avoid changing a correct order of span references ([@sherwoodwang](https://github.com/sherwoodwang) in [#5121](https://github.com/jaegertracing/jaeger/pull/5121))
+
+#### 👷 CI Improvements:
+
+* Remove test summary reports ([@albertteoh](https://github.com/albertteoh) in [#5126](https://github.com/jaegertracing/jaeger/pull/5126))
+
+### UI Changes
+
+* UI pinned to version [1.38.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1380-2024-02-06).
+
 1.53.0 (2024-01-08)
 -------------------
 
