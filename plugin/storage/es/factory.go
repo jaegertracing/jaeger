@@ -37,9 +37,11 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
+	esSamplingStore "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -144,6 +146,10 @@ func (f *Factory) getPrimaryClient() es.Client {
 		return *c
 	}
 	return nil
+}
+
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return esSamplingStore.NewSamplingStore(f.getPrimaryClient), nil
 }
 
 func (f *Factory) getArchiveClient() es.Client {
