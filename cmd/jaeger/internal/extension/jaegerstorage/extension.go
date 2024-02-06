@@ -93,7 +93,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		if _, ok := s.factories[name]; ok {
 			return fmt.Errorf("duplicate elasticsearch storage name %s", name)
 		}
-		var err error
 		factory, err := es.NewFactoryWithConfig(
 			e,
 			metrics.NullFactory,
