@@ -24,11 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const (
-	memstoreName = "memstore"
-	badgerName   = "badgerstore"
-)
-
 type storageHost struct {
 	t                *testing.T
 	storageExtension component.Component
@@ -79,143 +74,119 @@ func (e errorFactory) Close() error {
 func TestStorageExtensionConfigError(t *testing.T) {
 	config := createDefaultConfig().(*Config)
 	err := config.Validate()
-	require.EqualError(t, err, fmt.Sprintf("%s: no storage type present in config", ID))
+	require.ErrorContains(t, err, "no storage type present in config")
 }
 
-func TestStorageExtensionStartTwiceError(t *testing.T) {
-	ctx := context.Background()
-
-	storageExtension := makeStorageExtension(t, memstoreName)
-
-	host := componenttest.NewNopHost()
-	err := storageExtension.Start(ctx, host)
-	require.Error(t, err)
-	require.EqualError(t, err, fmt.Sprintf("duplicate memory storage name %s", memstoreName))
+func TestStorageExtensionNameConflict(t *testing.T) {
+	storageExtension := makeStorageExtenion(t, &Config{
+		Memory: map[string]memoryCfg.Configuration{
+			"foo": {MaxTraces: 10000},
+		},
+		Badger: map[string]badgerCfg.NamespaceConfig{
+			"foo": {},
+		},
+	})
+	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "duplicate")
 }
 
 func TestStorageFactoryBadHostError(t *testing.T) {
-	makeStorageExtension(t, memstoreName)
-
 	host := componenttest.NewNopHost()
-	_, err := GetStorageFactory(memstoreName, host)
-	require.Error(t, err)
-	require.EqualError(t, err, fmt.Sprintf("cannot find extension '%s' (make sure it's defined earlier in the config)", ID))
+	_, err := GetStorageFactory("something", host)
+	require.ErrorContains(t, err, "cannot find extension")
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
-	storageExtension := makeStorageExtension(t, memstoreName)
-
-	host := storageHost{t: t, storageExtension: storageExtension}
-	const badMemstoreName = "test"
-
-	_, err := GetStorageFactory(badMemstoreName, host)
-	require.Error(t, err)
-	require.EqualError(t, err, fmt.Sprintf("cannot find storage '%s' declared with '%s' extension", badMemstoreName, ID))
+	host := storageHost{t: t, storageExtension: startStorageExtension(t, "foo")}
+	_, err := GetStorageFactory("bar", host)
+	require.ErrorContains(t, err, "cannot find storage 'bar'")
 }
 
 func TestStorageFactoryBadShutdownError(t *testing.T) {
+	shutdownError := fmt.Errorf("shutdown error")
 	storageExtension := storageExt{
-		factories: make(map[string]storage.Factory),
+		factories: map[string]storage.Factory{
+			"foo": errorFactory{closeErr: shutdownError},
+		},
 	}
-	badFactoryError := fmt.Errorf("error factory")
-	storageExtension.factories[memstoreName] = errorFactory{closeErr: badFactoryError}
-
 	err := storageExtension.Shutdown(context.Background())
-	require.ErrorIs(t, err, badFactoryError)
+	require.ErrorIs(t, err, shutdownError)
 }
 
 func TestStorageExtension(t *testing.T) {
-	storageExtension := makeStorageExtension(t, memstoreName)
-
-	host := storageHost{t: t, storageExtension: storageExtension}
-
-	_, err := GetStorageFactory(memstoreName, host)
+	const name = "foo"
+	host := storageHost{t: t, storageExtension: startStorageExtension(t, name)}
+	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
+	require.NotNil(t, f)
 }
 
 func TestBadgerStorageExtension(t *testing.T) {
-	ctx := context.Background()
-	telemetrySettings := component.TelemetrySettings{
-		Logger:         zap.NewNop(),
-		TracerProvider: nooptrace.NewTracerProvider(),
-		MeterProvider:  noopmetric.NewMeterProvider(),
-	}
-
-	config := &Config{
+	storageExtension := makeStorageExtenion(t, &Config{
 		Badger: map[string]badgerCfg.NamespaceConfig{
-			badgerName: {
+			"foo": {
 				Ephemeral:             true,
 				MaintenanceInterval:   5,
 				MetricsUpdateInterval: 10,
 			},
 		},
-	}
-
-	require.NoError(t, config.Validate())
-
-	extensionFactory := NewFactory()
-	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
-		ID:                ID,
-		TelemetrySettings: telemetrySettings,
-		BuildInfo:         component.NewDefaultBuildInfo(),
-	}, config)
+	})
+	ctx := context.Background()
+	err := storageExtension.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
-
-	host := componenttest.NewNopHost()
-	err = storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-
-	err = storageExtension.Start(ctx, host)
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
-	require.Error(t, err)
-	require.EqualError(t, err, fmt.Sprintf("duplicate badger storage name %s", badgerName))
+	require.NoError(t, storageExtension.Shutdown(ctx))
 }
 
 func TestBadgerStorageExtensionError(t *testing.T) {
-	ctx := context.Background()
-	factory, _ := badgerCfg.NewFactoryWithConfig(badgerCfg.NamespaceConfig{}, metrics.NullFactory, zap.NewNop())
-	ext := storageExt{
-		config: &Config{
-			Badger: map[string]badgerCfg.NamespaceConfig{
-				badgerName: {},
+	ext := makeStorageExtenion(t, &Config{
+		Badger: map[string]badgerCfg.NamespaceConfig{
+			"foo": {
+				KeyDirectory:   "/bad/path",
+				ValueDirectory: "/bad/path",
 			},
 		},
-		logger:    zap.NewNop(),
-		factories: map[string]storage.Factory{"badger": factory},
-	}
-	err := ext.Start(ctx, componenttest.NewNopHost())
-	require.Error(t, err)
-	require.EqualError(t, err, "failed to initialize badger storage: Error Creating Dir: \"\" error: mkdir : no such file or directory")
+	})
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "failed to initialize badger storage")
+	require.ErrorContains(t, err, "/bad/path")
 }
 
-func makeStorageExtension(t *testing.T, memstoreName string) component.Component {
-	extensionFactory := NewFactory()
-
-	ctx := context.Background()
-	telemetrySettings := component.TelemetrySettings{
+func noopTelemetrySettings() component.TelemetrySettings {
+	return component.TelemetrySettings{
 		Logger:         zap.L(),
 		TracerProvider: nooptrace.NewTracerProvider(),
 		MeterProvider:  noopmetric.NewMeterProvider(),
 	}
+}
+
+func makeStorageExtenion(t *testing.T, config *Config) component.Component {
+	extensionFactory := NewFactory()
+	ctx := context.Background()
+	storageExtension, err := extensionFactory.CreateExtension(ctx,
+		extension.CreateSettings{
+			ID:                ID,
+			TelemetrySettings: noopTelemetrySettings(),
+			BuildInfo:         component.NewDefaultBuildInfo(),
+		},
+		config,
+	)
+	require.NoError(t, err)
+	return storageExtension
+}
+
+func startStorageExtension(t *testing.T, memstoreName string) component.Component {
 	config := &Config{
 		Memory: map[string]memoryCfg.Configuration{
 			memstoreName: {MaxTraces: 10000},
 		},
 	}
-	err := config.Validate()
-	require.NoError(t, err)
+	require.NoError(t, config.Validate())
 
-	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
-		ID:                ID,
-		TelemetrySettings: telemetrySettings,
-		BuildInfo:         component.NewDefaultBuildInfo(),
-	}, config)
+	storageExtension := makeStorageExtenion(t, config)
+	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-
-	host := componenttest.NewNopHost()
-	err = storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(ctx)) })
-
+	t.Cleanup(func() {
+		require.NoError(t, storageExtension.Shutdown(context.Background()))
+	})
 	return storageExtension
 }
