@@ -24,6 +24,8 @@ run `make changelog` to generate content
 1.54.0 (2024-02-06)
 -------------------
 
+### Backend Changes
+
 #### ⛔ Breaking Changes:
 
 * Remove remnants of internal otlp types ([@yurishkuro](https://github.com/yurishkuro) in [#5107](https://github.com/jaegertracing/jaeger/pull/5107))
@@ -49,6 +51,8 @@ run `make changelog` to generate content
 
 1.53.0 (2024-01-08)
 -------------------
+
+### Backend Changes
 
 #### ⛔ Breaking Changes:
 
@@ -86,6 +90,8 @@ run `make changelog` to generate content
 
 1.52.0 (2023-12-05)
 -------------------
+
+### Backend Changes
 
 #### ✨ New Features:
 
