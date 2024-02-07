@@ -273,29 +273,20 @@ func TestWriteJSON(t *testing.T) {
 
 func readOTLPTraces(t *testing.T) (interface{}, error) {
 	dat, err := os.ReadFile("./fixture/otlp2jaeger-in.json")
-	if err != nil {
-		return nil, err
-	} else {
-		require.NoError(t, err)
-		var out interface{}
-		err := json.Unmarshal(dat, out)
-		require.NoError(t, err)
-		return out, nil
-
-	}
+	require.NoError(t, err)
+	out := new(interface{})
+	err = json.Unmarshal(dat, out)
+	require.NoError(t, err)
+	return out, nil
 }
 
 func readJaegerTraces(t *testing.T) (interface{}, error) {
 	dat, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
-	if err != nil {
-		return nil, err
-	} else {
-		var out interface{}
-		require.NoError(t, err)
-		err := json.Unmarshal(dat, out)
-		require.NoError(t, err)
-		return out, nil
-	}
+	out := new(interface{})
+	require.NoError(t, err)
+	err = json.Unmarshal(dat, out)
+	require.NoError(t, err)
+	return out, nil
 }
 
 func TestGetTrace(t *testing.T) {
@@ -653,7 +644,7 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 
 func TestTransformOTLPSuccess(t *testing.T) {
 	withTestServer(func(ts *testServer) {
-		var response interface{}
+		response := new(interface{})
 		request, err := readOTLPTraces(t)
 		require.NoError(t, err)
 		err = postJSON(ts.server.URL+"/api/transform", request, response)
@@ -666,9 +657,8 @@ func TestTransformOTLPSuccess(t *testing.T) {
 
 func TestTransformOTLPEmptyFailure(t *testing.T) {
 	withTestServer(func(ts *testServer) {
-		var response interface{}
-		var request interface{} // Keeping request empty for checking behaviour
-		request = ""
+		response := new(interface{})
+		request := ""
 		err := postJSON(ts.server.URL+"/api/transform", request, response)
 		require.Error(t, err)
 	}, querysvc.QueryServiceOptions{})

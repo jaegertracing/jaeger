@@ -23,9 +23,9 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func otlp2model(OTLPSpans []byte) ([]*model.Batch, error) {
+func otlp2model(otlpSpans []byte) ([]*model.Batch, error) {
 	ptraceUnmarshaler := ptrace.JSONUnmarshaler{}
-	otlpTraces, err := ptraceUnmarshaler.UnmarshalTraces(OTLPSpans)
+	otlpTraces, err := ptraceUnmarshaler.UnmarshalTraces(otlpSpans)
 	if err != nil {
 		return nil, fmt.Errorf("cannot unmarshal OTLP : %w", err)
 	}

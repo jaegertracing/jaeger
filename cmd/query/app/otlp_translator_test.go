@@ -31,7 +31,7 @@ func TestBatchesToTraces(t *testing.T) {
 	mainBatch := []*model.Batch{b1, b2}
 
 	traces, err := batchesToTraces(mainBatch)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	s1 := []*model.Span{
 		{
