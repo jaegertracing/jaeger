@@ -17,22 +17,48 @@ package samplingstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
-	"github.com/olivere/elastic"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/olivere/elastic"
 )
 
 const (
-	indexName         = "sampling"
-	throughputType    = "throughput"
-	probabilitiesType = "probabilities"
+	samplingIndex        = "jaeger-sampling-"
+	throughputType       = "throughput-sampling"
+	probabilitiesType    = "probabilities-sampling"
+	indexPrefixSeparator = "-"
 )
 
 type SamplingStore struct {
-	client func() es.Client
+	client              func() es.Client
+	logger              *zap.Logger
+	samplingIndexPrefix string
+	indexDateLayout     string
+	maxDocCount         int
+}
+
+type SamplingStoreParams struct {
+	Client          func() es.Client
+	Logger          *zap.Logger
+	IndexPrefix     string
+	IndexDateLayout string
+	MaxDocCount     int
+}
+
+type TimeThroughput struct {
+	Timestamp  time.Time           `json:"timestamp"`
+	Throughput []*model.Throughput `json:"dependencies"`
+}
+
+type TimeProbabilitiesAndQPS struct {
+	Timestamp  time.Time           `json:"timestamp"`
+	Throughput ProbabilitiesAndQPS `json:"dependencies"`
 }
 
 type ProbabilitiesAndQPS struct {
@@ -41,81 +67,95 @@ type ProbabilitiesAndQPS struct {
 	QPS           model.ServiceOperationQPS
 }
 
-func NewSamplingStore(clientFn func() es.Client) *SamplingStore {
+func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 	return &SamplingStore{
-		client: clientFn,
+		client:              p.Client,
+		logger:              p.Logger,
+		samplingIndexPrefix: prefixIndexName(p.IndexPrefix, samplingIndex),
+		indexDateLayout:     p.IndexDateLayout,
+		maxDocCount:         p.MaxDocCount,
 	}
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
-	err := s.createIndexIfNotExists()
-	if err != nil {
-		return err
-	}
-	for i := range throughput {
-		s.write(throughputType, throughput[i])
-	}
+	ts := time.Now()
+	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	s.writeThroughput(writeIndexName, ts, throughput)
 	return nil
-}
-
-func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
-	ctx := context.Background()
-	client := s.client()
-	rangeQuery := elastic.NewRangeQuery("timestamp").
-		Gte(start).
-		Lte(end)
-
-	searchQuery := elastic.NewBoolQuery().Filter(rangeQuery)
-	result, err := client.Search().Query(searchQuery).Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var throughputs []*model.Throughput
-	for _, hit := range result.Hits.Hits {
-		var throughput model.Throughput
-		err := json.Unmarshal(*hit.Source, &throughput)
-		if err != nil {
-			return nil, err
-		}
-		throughputs = append(throughputs, &throughput)
-	}
-
-	return throughputs, nil
 }
 
 func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
-	err := s.createIndexIfNotExists()
-	if err != nil {
-		return err
-	}
-
+	ts := time.Now()
+	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
 	val := ProbabilitiesAndQPS{
 		Hostname:      hostname,
 		Probabilities: probabilities,
 		QPS:           qps,
 	}
-	s.write(probabilitiesType, val)
-	return err
+	s.writeProbabilitiesAndQPS(writeIndexName, ts, val)
+	return nil
+}
+
+func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, dependencies ProbabilitiesAndQPS) {
+	s.client().Index().Index(indexName).Type(probabilitiesType).
+		BodyJson(&TimeProbabilitiesAndQPS{
+			Timestamp:  ts,
+			Throughput: dependencies,
+		}).Add()
+}
+
+func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
+	return indexNamePrefix + date.UTC().Format(indexDateLayout)
+}
+
+func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, dependencies []*model.Throughput) {
+	s.client().Index().Index(indexName).Type(throughputType).
+		BodyJson(&TimeThroughput{
+			Timestamp:  ts,
+			Throughput: dependencies,
+		}).Add()
+}
+
+func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+	ctx := context.Background()
+	indices := s.getReadIndices(start, end)
+	searchResult, err := s.client().Search(indices...).
+		Size(s.maxDocCount).
+		Query(buildTSQuery(start, end)).
+		IgnoreUnavailable(true).
+		Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
+	}
+	var retSamples []*model.Throughput
+	hits := searchResult.Hits.Hits
+	for _, hit := range hits {
+		source := hit.Source
+		var tToD TimeThroughput
+		if err := json.Unmarshal(*source, &tToD); err != nil {
+			return nil, errors.New("unmarshalling ElasticSearch documents failed12312")
+		}
+		retSamples = append(retSamples, tToD.Throughput...)
+	}
+	return retSamples, nil
 }
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
-	client := s.client()
-	query := elastic.NewMatchAllQuery()
-	result, err := client.Search().Query(query).Size(1).Do(ctx)
+	searchResult, err := s.client().Search().
+		Size(1).
+		IgnoreUnavailable(true).
+		Do(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
 	}
-
-	if len(result.Hits.Hits) == 0 {
+	if len(searchResult.Hits.Hits) == 0 {
 		return nil, nil
 	}
-
-	hit := result.Hits.Hits[0]
+	hit := searchResult.Hits.Hits[0]
 	var unMarshalProbabilities ProbabilitiesAndQPS
 	err = json.Unmarshal(*hit.Source, &unMarshalProbabilities)
 	if err != nil {
@@ -125,21 +165,25 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	return unMarshalProbabilities.Probabilities, nil
 }
 
-func (s *SamplingStore) createIndexIfNotExists() error {
-	ctx := context.Background()
-	exists, err := s.client().IndexExists(indexName).Do(ctx)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		_, err := s.client().CreateIndex(indexName).Do(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+func buildTSQuery(start, end time.Time) elastic.Query {
+	return elastic.NewRangeQuery("timestamp").Gte(start).Lte(end)
 }
 
-func (s *SamplingStore) write(typeEs string, jsonSpan interface{}) {
-	s.client().Index().Index(indexName).Type(typeEs).BodyJson(&jsonSpan).Add()
+func (s *SamplingStore) getReadIndices(start, end time.Time) []string {
+	var indices []string
+	firstIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, start)
+	currentIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, end)
+	for currentIndex != firstIndex {
+		indices = append(indices, currentIndex)
+		end = end.Add(-24 * time.Hour)
+		currentIndex = indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, end)
+	}
+	return append(indices, firstIndex)
+}
+
+func prefixIndexName(prefix, index string) string {
+	if prefix != "" {
+		return prefix + indexPrefixSeparator + index
+	}
+	return index
 }

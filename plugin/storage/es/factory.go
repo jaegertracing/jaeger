@@ -275,7 +275,22 @@ func createSpanWriter(
 }
 
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return esSampling.NewSamplingStore(f.getPrimaryClient), nil
+	return createSamplingStore(f.getPrimaryClient, f.primaryConfig, f.logger)
+}
+
+func createSamplingStore(
+	clientFn func() es.Client,
+	cfg *config.Configuration,
+	logger *zap.Logger,
+) (samplingstore.Store, error) {
+	store := esSampling.NewSamplingStore(esSampling.SamplingStoreParams{
+		Client:          clientFn,
+		Logger:          logger,
+		IndexPrefix:     cfg.IndexPrefix,
+		IndexDateLayout: cfg.IndexDateLayoutDependencies,
+		MaxDocCount:     cfg.MaxDocCount,
+	})
+	return store, nil
 }
 
 func createDependencyReader(
