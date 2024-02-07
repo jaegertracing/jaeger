@@ -94,7 +94,7 @@ func TestMaintenanceRun(t *testing.T) {
 	// Safeguard
 	mFactory := metricstest.NewFactory(0)
 	_, gs := mFactory.Snapshot()
-	assert.True(t, gs[lastMaintenanceRunName] == 0)
+	assert.Equal(t, int64(0), gs[lastMaintenanceRunName])
 	f.Initialize(mFactory, zap.NewNop())
 
 	waiter := func(previousValue int64) int64 {
@@ -106,7 +106,7 @@ func TestMaintenanceRun(t *testing.T) {
 			sleeps++
 			_, gs = mFactory.Snapshot()
 		}
-		assert.True(t, gs[lastMaintenanceRunName] > previousValue)
+		assert.Greater(t, gs[lastMaintenanceRunName], previousValue)
 		return gs[lastMaintenanceRunName]
 	}
 
@@ -120,7 +120,7 @@ func TestMaintenanceRun(t *testing.T) {
 
 	waiter(runtime)
 	_, gs = mFactory.Snapshot()
-	assert.True(t, gs[lastValueLogCleanedName] > 0)
+	assert.Greater(t, gs[lastValueLogCleanedName], int64(0))
 
 	err := io.Closer(f).Close()
 	require.NoError(t, err)
@@ -178,14 +178,14 @@ func TestBadgerMetrics(t *testing.T) {
 			sleeps++
 			_, gs = mFactory.Snapshot()
 		}
-		assert.True(t, gs["badger_v3_memtable_gets_total"] == previousValue)
+		assert.Equal(t, gs["badger_v3_memtable_gets_total"], previousValue)
 		return gs["badger_v3_memtable_gets_total"]
 	}
 
 	vlogSize := waiter(0)
 	_, gs := mFactory.Snapshot()
-	assert.True(t, vlogSize == 0)
-	assert.True(t, gs["badger_v3_memtable_gets_total"] == 0) // IntVal metric
+	assert.EqualValues(t, 0, vlogSize)
+	assert.EqualValues(t, int64(0), gs["badger_v3_memtable_gets_total"]) // IntVal metric
 
 	_, found = gs["badger_v3_lsm_size_bytes"] // Map metric
 	assert.True(t, found)
@@ -199,4 +199,24 @@ func TestInitFromOptions(t *testing.T) {
 	opts := Options{}
 	f.InitFromOptions(opts)
 	assert.Equal(t, &opts, f.Options)
+}
+
+func TestBadgerStorageFactoryWithConfig(t *testing.T) {
+	cfg := NamespaceConfig{}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "Error Creating Dir")
+
+	tmp := os.TempDir()
+	defer os.Remove(tmp)
+	cfg = NamespaceConfig{
+		ValueDirectory:        tmp,
+		KeyDirectory:          tmp,
+		Ephemeral:             false,
+		MaintenanceInterval:   5,
+		MetricsUpdateInterval: 10,
+	}
+	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	defer factory.Close()
 }

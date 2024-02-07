@@ -26,7 +26,7 @@ func ParentReference() Adjuster {
 		for _, span := range trace.Spans {
 			firstChildOfRef := -1
 			firstOtherRef := -1
-			for i := 1; i < len(span.References); i++ {
+			for i := 0; i < len(span.References); i++ {
 				if span.References[i].TraceID == span.TraceID {
 					if span.References[i].RefType == model.SpanRefType_CHILD_OF {
 						firstChildOfRef = i
@@ -40,7 +40,7 @@ func ParentReference() Adjuster {
 			if swap == -1 {
 				swap = firstOtherRef
 			}
-			if swap != -1 {
+			if swap != 0 && swap != -1 {
 				span.References[swap], span.References[0] = span.References[0], span.References[swap]
 			}
 		}

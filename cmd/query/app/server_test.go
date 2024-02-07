@@ -710,7 +710,7 @@ func TestServerGracefulExit(t *testing.T) {
 	server.Close()
 
 	for _, logEntry := range logs.All() {
-		assert.True(t, logEntry.Level != zap.ErrorLevel,
+		assert.NotEqual(t, zap.ErrorLevel, logEntry.Level,
 			"Error log found on server exit: %v", logEntry)
 	}
 }

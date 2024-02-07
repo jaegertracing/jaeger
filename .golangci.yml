@@ -112,6 +112,13 @@ linters-settings:
             desc: "Do not refer to crossdock from other packages"
         files:
           - "!**/crossdock/**"
+      
+      disallow-uber/goleak:
+        deny:
+         - pkg: go.uber.org/goleak
+           desc: "Use github.com/jaegertracing/jaeger/pkg/testutils"
+        files:
+          - "**_test.go"
 
   goimports:
     local-prefixes: github.com/jaegertracing/jaeger
@@ -138,11 +145,11 @@ linters-settings:
       - shadow
   testifylint:
     disable:
-      - compares
       - float-compare
       - go-require
     enable:
       - bool-compare
+      - compares
       - empty
       - error-is-as
       - error-nil

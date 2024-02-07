@@ -16,14 +16,12 @@ package testutils
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func TestIgnoreGlogFlushDaemonLeak(t *testing.T) {
-	require.NotNil(t, IgnoreGlogFlushDaemonLeak())
+func TestVerifyGoLeaksOnce(t *testing.T) {
+	defer VerifyGoLeaksOnce(t)
 }
 
-func TestIgnoreOpenCensusWorkerLeak(t *testing.T) {
-	require.NotNil(t, IgnoreOpenCensusWorkerLeak())
+func TestMain(m *testing.M) {
+	VerifyGoLeaks(m)
 }

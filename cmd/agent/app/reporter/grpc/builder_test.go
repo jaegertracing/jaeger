@@ -165,7 +165,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 				if test.checkSuffixOnly {
 					assert.True(t, strings.HasSuffix(conn.Target(), test.target))
 				} else {
-					assert.True(t, conn.Target() == test.target)
+					assert.Equal(t, conn.Target(), test.target)
 				}
 			} else {
 				require.Error(t, err)
@@ -399,11 +399,11 @@ func assertConnectionState(t *testing.T, conn *grpc.ClientConn, expectedState st
 	for {
 		s := conn.GetState()
 		if s == connectivity.Ready {
-			assert.True(t, s.String() == expectedState)
+			assert.Equal(t, expectedState, s.String())
 			break
 		}
 		if s == connectivity.TransientFailure {
-			assert.True(t, s.String() == expectedState)
+			assert.Equal(t, expectedState, s.String())
 			break
 		}
 	}

@@ -21,10 +21,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestInitMetrics(t *testing.T) {
@@ -66,7 +66,7 @@ func TestInitMetrics(t *testing.T) {
 
 	stopwatch := metrics.StartStopwatch(testMetrics.Timer)
 	stopwatch.Stop()
-	assert.True(t, 0 < stopwatch.ElapsedTime())
+	assert.Greater(t, stopwatch.ElapsedTime(), time.Duration(0))
 }
 
 var (
@@ -146,5 +146,5 @@ func TestNullMetrics(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	testutils.VerifyGoLeaks(m)
 }

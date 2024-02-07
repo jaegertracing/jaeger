@@ -68,8 +68,8 @@ func TestMultipleCollectors(t *testing.T) {
 		}
 	}
 	c, g := mFactory.Snapshot()
-	assert.True(t, len(g) > 0)
-	assert.True(t, len(c) > 0)
+	assert.NotEmpty(t, g)
+	assert.NotEmpty(t, c)
 	assert.True(t, bothServers)
 	require.NoError(t, proxy.Close())
 }

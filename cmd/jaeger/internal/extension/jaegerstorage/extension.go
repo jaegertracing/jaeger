@@ -13,7 +13,10 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
+	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -59,18 +62,62 @@ func newStorageExt(config *Config, otel component.TelemetrySettings) *storageExt
 	}
 }
 
-func (s *storageExt) Start(ctx context.Context, host component.Host) error {
-	for name, mem := range s.config.Memory {
-		if _, ok := s.factories[name]; ok {
-			return fmt.Errorf("duplicate memory storage name %s", name)
+type starter[Config any, Factory storage.Factory] struct {
+	ext         *storageExt
+	storageKind string
+	cfg         map[string]Config
+	builder     func(Config, metrics.Factory, *zap.Logger) (Factory, error)
+}
+
+func (s *starter[Config, Factory]) build(ctx context.Context, host component.Host) error {
+	for name, cfg := range s.cfg {
+		if _, ok := s.ext.factories[name]; ok {
+			return fmt.Errorf("duplicate %s storage name %s", s.storageKind, name)
 		}
-		s.factories[name] = memory.NewFactoryWithConfig(
-			mem,
+		factory, err := s.builder(
+			cfg,
 			metrics.NullFactory,
-			s.logger.With(zap.String("storage_name", name)),
+			s.ext.logger.With(zap.String("storage_name", name)),
 		)
+		if err != nil {
+			return fmt.Errorf("failed to initialize %s storage %s: %w", s.storageKind, name, err)
+		}
+		s.ext.factories[name] = factory
 	}
-	// TODO add support for other backends
+	return nil
+}
+
+func (s *storageExt) Start(ctx context.Context, host component.Host) error {
+	memStarter := &starter[memoryCfg.Configuration, *memory.Factory]{
+		ext:         s,
+		storageKind: "memory",
+		cfg:         s.config.Memory,
+		// memory factory does not return an error, so need to wrap it
+		builder: func(
+			cfg memoryCfg.Configuration,
+			metricsFactory metrics.Factory,
+			logger *zap.Logger,
+		) (*memory.Factory, error) {
+			return memory.NewFactoryWithConfig(cfg, metricsFactory, logger), nil
+		},
+	}
+	badgerStarter := &starter[badgerCfg.NamespaceConfig, *badger.Factory]{
+		ext:         s,
+		storageKind: "badger",
+		cfg:         s.config.Badger,
+		builder:     badger.NewFactoryWithConfig,
+	}
+
+	builders := []func(ctx context.Context, host component.Host) error{
+		memStarter.build,
+		badgerStarter.build,
+		// TODO add support for other backends
+	}
+	for _, builder := range builders {
+		if err := builder(ctx, host); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
