@@ -88,6 +88,9 @@ func TestStorageExtensionNameConflict(t *testing.T) {
 		Badger: map[string]badgerCfg.NamespaceConfig{
 			"foo": {},
 		},
+		Elasticsearch: map[string]esCfg.Configuration{
+			"foo": {},
+		},
 	})
 	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "duplicate")
