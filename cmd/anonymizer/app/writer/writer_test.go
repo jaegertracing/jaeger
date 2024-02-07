@@ -96,6 +96,7 @@ func TestWriter_WriteSpan(t *testing.T) {
 			err = writer.WriteSpan(span)
 			require.NoError(t, err)
 		}
+		defer writer.Close()
 	})
 	t.Run("write span with MaxSpansCount", func(t *testing.T) {
 		tempDir := t.TempDir()
@@ -111,5 +112,6 @@ func TestWriter_WriteSpan(t *testing.T) {
 
 		err = writer.WriteSpan(span)
 		require.ErrorContains(t, err, "saved MaxSpansCount")
+		defer writer.Close()
 	})
 }
