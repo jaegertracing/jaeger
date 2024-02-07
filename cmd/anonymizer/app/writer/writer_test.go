@@ -4,8 +4,6 @@
 package writer
 
 import (
-	"os"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -48,54 +46,58 @@ func TestNew(t *testing.T) {
 	nopLogger := zap.NewNop()
 	tempDir := t.TempDir()
 
-	config := Config{
-		MaxSpansCount:  10,
-		CapturedFile:   tempDir + "/captured.json",
-		AnonymizedFile: tempDir + "/anonymized.json",
-		MappingFile:    tempDir + "/mapping.json",
-	}
-	_, err := New(config, nopLogger)
-	require.NoError(t, err)
+	t.Run("no error", func(t *testing.T) {
+		config := Config{
+			MaxSpansCount:  10,
+			CapturedFile:   tempDir + "/captured.json",
+			AnonymizedFile: tempDir + "/anonymized.json",
+			MappingFile:    tempDir + "/mapping.json",
+		}
+		_, err := New(config, nopLogger)
+		require.NoError(t, err)
+	})
 
-	config = Config{
-		CapturedFile:   tempDir + "/nonexistent_directory/captured.json",
-		AnonymizedFile: tempDir + "/anonymized.json",
-		MappingFile:    tempDir + "/mapping.json",
-	}
-	_, err = New(config, nopLogger)
-	require.Error(t, err)
+	t.Run("CapturedFile does not exist", func(t *testing.T) {
+		config := Config{
+			CapturedFile:   tempDir + "/nonexistent_directory/captured.json",
+			AnonymizedFile: tempDir + "/anonymized.json",
+			MappingFile:    tempDir + "/mapping.json",
+		}
+		_, err := New(config, nopLogger)
+		require.ErrorContains(t, err, "cannot create output file")
+	})
 
-	config = Config{
-		CapturedFile:   tempDir + "/captured.json",
-		AnonymizedFile: tempDir + "/nonexistent_directory/anonymized.json",
-		MappingFile:    tempDir + "/mapping.json",
-	}
-	_, err = New(config, nopLogger)
-	require.Error(t, err)
+	t.Run("AnonymizedFile does not exist", func(t *testing.T) {
+		config := Config{
+			CapturedFile:   tempDir + "/captured.json",
+			AnonymizedFile: tempDir + "/nonexistent_directory/anonymized.json",
+			MappingFile:    tempDir + "/mapping.json",
+		}
+		_, err := New(config, nopLogger)
+		require.ErrorContains(t, err, "cannot create output file")
+	})
 }
 
 func TestWriter_WriteSpan(t *testing.T) {
 	nopLogger := zap.NewNop()
-	tempDir := t.TempDir()
+	t.Run("write span", func(t *testing.T) {
+		tempDir := t.TempDir()
+		config := Config{
+			MaxSpansCount:  10,
+			CapturedFile:   tempDir + "/captured.json",
+			AnonymizedFile: tempDir + "/anonymized.json",
+			MappingFile:    tempDir + "/mapping.json",
+		}
 
-	config := Config{
-		MaxSpansCount:  101,
-		CapturedFile:   tempDir + "/captured.json",
-		AnonymizedFile: tempDir + "/anonymized.json",
-		MappingFile:    tempDir + "/mapping.json",
-	}
-
-	writer, err := New(config, nopLogger)
-	require.NoError(t, err)
-
-	for i := 0; i <= 99; i++ {
-		err = writer.WriteSpan(span)
+		writer, err := New(config, nopLogger)
 		require.NoError(t, err)
-	}
-}
 
-func TestWriter_WriteSpan_Exits(t *testing.T) {
-	if os.Getenv("BE_SUBPROCESS") == "1" {
+		for i := 0; i < 9; i++ {
+			err = writer.WriteSpan(span)
+			require.NoError(t, err)
+		}
+	})
+	t.Run("write span with MaxSpansCount", func(t *testing.T) {
 		tempDir := t.TempDir()
 		config := Config{
 			MaxSpansCount:  1,
@@ -108,17 +110,6 @@ func TestWriter_WriteSpan_Exits(t *testing.T) {
 		require.NoError(t, err)
 
 		err = writer.WriteSpan(span)
-		require.NoError(t, err)
-
-		require.Error(t, writer.WriteSpan(span))
-
-		return
-	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=TestWriter_WriteSpan_Exits")
-	cmd.Env = append(os.Environ(), "BE_SUBPROCESS=1")
-	err := cmd.Run()
-	// The process should have exited with status 1, but exec.Command returns
-	// an *ExitError when the process exits with a non-zero status.
-	require.NoError(t, err)
+		require.ErrorContains(t, err, "saved MaxSpansCount")
+	})
 }

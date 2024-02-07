@@ -17,6 +17,7 @@ package writer
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -130,7 +131,7 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 	if w.config.MaxSpansCount > 0 && w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
 		w.Close()
-		os.Exit(0)
+		return errors.New("saved MaxSpansCount")
 	}
 
 	return nil
