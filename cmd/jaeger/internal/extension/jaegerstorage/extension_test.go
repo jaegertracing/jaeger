@@ -6,6 +6,8 @@ package jaegerstorage
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,6 +18,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
@@ -149,6 +152,43 @@ func TestBadgerStorageExtensionError(t *testing.T) {
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize badger storage")
 	require.ErrorContains(t, err, "/bad/path")
+}
+
+func TestESStorageExtension(t *testing.T) {
+	mockEsServerResponse := []byte(`
+	{
+		"Version": {
+			"Number": "6"
+		}
+	}
+	`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+	storageExtension := makeStorageExtenion(t, &Config{
+		Elasticsearch: map[string]esCfg.Configuration{
+			"foo": {
+				Servers:  []string{server.URL},
+				LogLevel: "error",
+			},
+		},
+	})
+	ctx := context.Background()
+	err := storageExtension.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, storageExtension.Shutdown(ctx))
+}
+
+func TestESStorageExtensionError(t *testing.T) {
+	ext := makeStorageExtenion(t, &Config{
+		Elasticsearch: map[string]esCfg.Configuration{
+			"foo": {},
+		},
+	})
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
+	require.ErrorContains(t, err, "no servers specified")
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {
