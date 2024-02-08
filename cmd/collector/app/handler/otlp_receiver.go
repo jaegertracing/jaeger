@@ -71,7 +71,7 @@ func startOTLPReceiver(
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
-	applyHTTPSettings(otlpReceiverConfig.HTTP.HTTPServerSettings, &options.OTLP.HTTP)
+	applyHTTPSettings(otlpReceiverConfig.HTTP.ServerConfig, &options.OTLP.HTTP)
 	statusReporter := func(ev *component.StatusEvent) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
@@ -81,11 +81,7 @@ func startOTLPReceiver(
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
 			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
-			ReportComponentStatus: func(ev *component.StatusEvent) error {
-				statusReporter(ev)
-				return nil
-			},
-			ReportStatus: statusReporter,
+			ReportStatus:   statusReporter,
 		},
 	}
 
