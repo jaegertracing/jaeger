@@ -49,6 +49,7 @@ var (
 func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
 		BasePath:            qOpts.BasePath,
+		UIBasePath:          qOpts.UIBasePath, // Added UIBasePath here
 		UIConfigPath:        qOpts.UIConfig,
 		StorageCapabilities: qCapabilities,
 		Logger:              logger,
@@ -93,7 +94,7 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 			uiBasePath = "/ui" // default value
 		}
 		assetsFS = http.Dir(filepath.Join(staticAssetsRoot, uiBasePath))
-
+	}
 	if options.Logger == nil {
 		options.Logger = zap.NewNop()
 	}
@@ -144,7 +145,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 		sH.options.BasePath = "/"
 	}
 	if sH.options.UIBasePath == "" {
-		sH.options.UIBasePath = "/ui" //default value
+		sH.options.UIBasePath = "/ui" // default value
 	}
 	if sH.options.BasePath != "/" && sH.options.UIBasePath != "/ui" {
 		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
