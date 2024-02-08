@@ -15,18 +15,22 @@
 package samplingstore
 
 import (
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/olivere/elastic"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const defaultMaxDocCount = 10_000
@@ -169,72 +173,164 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 	}
 }
 
-// func TestGetThroughput(t *testing.T) {
-// 	mockIndex := "jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")
+func TestGetThroughput(t *testing.T) {
+	mockIndex := "jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")
+	goodThroughputs := `{
+		"timestamp": "2024-02-08T12:00:00Z",
+		"throughputs": [
+			{
+				"Service": "my-svc",
+				"Operation": "op",
+				"Count": 10
+			},
+			{
+				"Service": "another-svc",
+				"Operation": "another-op",
+				"Count": 20
+			}
+		]
+	}`
+	badThroughputs := `badJson{hello}world`
+	testCases := []struct {
+		searchResult   *elastic.SearchResult
+		searchError    error
+		expectedError  string
+		expectedOutput []*samplemodel.Throughput
+		indexPrefix    string
+		maxDocCount    int
+		indices        []interface{}
+	}{
+		{
+			searchResult: createSearchResult(goodThroughputs),
+			expectedOutput: []*samplemodel.Throughput{
+				{
+					Service:   "my-svc",
+					Operation: "op",
+					Count:     10,
+				},
+				{
+					Service:   "another-svc",
+					Operation: "another-op",
+					Count:     20,
+				},
+			},
+			indices:       []interface{}{mockIndex},
+			maxDocCount:   1000,
+			expectedError: "",
+		},
+		{
+			searchResult:  createSearchResult(badThroughputs),
+			expectedError: "unmarshalling ElasticSearch documents failed",
+			indices:       []interface{}{mockIndex},
+		},
+		{
+			searchError:   errors.New("search failure"),
+			expectedError: "failed to search for throughputs: search failure",
+			indices:       []interface{}{mockIndex},
+		},
+		{
+			searchError:   errors.New("search failure"),
+			expectedError: "failed to search for throughputs: search failure",
+			indexPrefix:   "foo",
+			indices:       []interface{}{mockIndex},
+		},
+	}
+	for _, testCase := range testCases {
+		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+			searchService := &mocks.SearchService{}
+			w.client.On("Search", testCase.indices...).Return(searchService)
 
-// 	goodThroughputs := []*samplemodel.Throughput{
-// 		{Service: "my-svc", Operation: "op", Count: 10},
-// 		{Service: "our-svc", Operation: "op2", Count: 20},
-// 	}
+			searchService.On("Size", mock.Anything).Return(searchService)
+			searchService.On("Query", mock.Anything).Return(searchService)
+			searchService.On("IgnoreUnavailable", true).Return(searchService)
+			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
 
-// 	testCases := []struct {
-// 		searchResult   *elastic.SearchResult
-// 		searchError    error
-// 		expectedError  string
-// 		expectedOutput []model.DependencyLink
-// 		indexPrefix    string
-// 		maxDocCount    int
-// 		indices        []interface{}
-// 	}{
-// 		{
-// 			searchResult: createSearchResult(goodThroughputs),
-// 			expectedOutput: []model.DependencyLink{
-// 				{
-// 					Parent:    "hello",
-// 					Child:     "world",
-// 					CallCount: 12,
-// 				},
-// 			},
-// 			indices:       []interface{}{mockIndex},
-// 			maxDocCount:   1000,
-// 			expectedError: "", // can be anything, assertion will check this value is used in search query.
-// 		},
-// 	}
-// 	for _, testCase := range testCases {
-// 		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-// 			searchService := &mocks.SearchService{}
-// 			w.client.On("Search", testCase.indices...).Return(searchService)
+			actual, err := w.storage.GetThroughput(time.Now().Add(-time.Minute), time.Now())
+			if testCase.expectedError != "" {
+				require.EqualError(t, err, testCase.expectedError)
+				assert.Nil(t, actual)
+			} else {
+				require.NoError(t, err)
+				assert.EqualValues(t, testCase.expectedOutput, actual)
+			}
+		})
+	}
+}
 
-// 			searchService.On("Size", mock.Anything).Return(searchService)
-// 			searchService.On("Query", mock.Anything).Return(searchService)
-// 			searchService.On("IgnoreUnavailable", true).Return(searchService)
-// 			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
+func TestGetLatestProbabilities(t *testing.T) {
+	mockIndex := "jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")
+	latestProbabilities := `{
+		"timestamp": "2024-02-08T12:00:00Z",
+		"probabilitiesandqps": {
+			"Hostname": "dell11eg843d",
+			"Probabilities": {
+				"new-srv": {"op": 0.1}
+			},
+			"QPS": {
+				"new-srv": {"op": 4}
+			}
+		}
+	}`
+	badProbabilities := `badJson{hello}world`
+	testCases := []struct {
+		searchResult   *elastic.SearchResult
+		searchError    error
+		expectedOutput samplemodel.ServiceOperationProbabilities
+		expectedError  string
+		maxDocCount    int
+		indices        []interface{}
+	}{
+		{
+			searchResult: createSearchResult(latestProbabilities),
+			expectedOutput: samplemodel.ServiceOperationProbabilities{
+				"new-srv": {
+					"op": 0.1,
+				},
+			},
+			indices:       []interface{}{mockIndex},
+			maxDocCount:   1000,
+			expectedError: "",
+		},
+		{
+			searchResult:  createSearchResult(badProbabilities),
+			expectedError: "invalid character 'b' looking for beginning of value",
+			indices:       []interface{}{mockIndex},
+		},
+		{
+			searchError:   errors.New("search failure"),
+			expectedError: "failed to search for Latest Probabilities: search failure",
+			indices:       []interface{}{mockIndex},
+		},
+	}
+	for _, testCase := range testCases {
+		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+			searchService := &mocks.SearchService{}
+			w.client.On("Search", testCase.indices...).Return(searchService)
+			searchService.On("Size", mock.Anything).Return(searchService)
+			searchService.On("IgnoreUnavailable", true).Return(searchService)
+			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
 
-// 			actual, err := w.storage.GetThroughput(time.Now().Add(-time.Minute), time.Now())
-// 			if testCase.expectedError != "" {
-// 				require.EqualError(t, err, testCase.expectedError)
-// 				assert.Nil(t, actual)
-// 			} else {
-// 				require.NoError(t, err)
-// 				assert.EqualValues(t, testCase.expectedOutput, actual)
-// 			}
-// 		})
-// 	}
-// }
+			actual, err := w.storage.GetLatestProbabilities()
+			if testCase.expectedError != "" {
+				require.EqualError(t, err, testCase.expectedError)
+				assert.Nil(t, actual)
+			} else {
+				require.NoError(t, err)
+				assert.EqualValues(t, testCase.expectedOutput, actual)
+			}
+		})
+	}
+}
 
-// func createSearchResult(throughputs []*samplemodel.Throughput) *elastic.SearchResult {
-// 	throughputsJSON, err := json.Marshal(&throughputs)
-// 	if err != nil {
-// 		panic("failed to marshal throughput data to JSON")
-// 	}
-// 	rawMessage := json.RawMessage(throughputsJSON)
-// 	hits := make([]*elastic.SearchHit, 1)
-// 	hits[0] = &elastic.SearchHit{
-// 		Source: (*json.RawMessage)(&rawMessage),
-// 	}
-// 	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
-// 	return searchResult
-// }
+func createSearchResult(rawJsonStr string) *elastic.SearchResult {
+	rawJsonArr := []byte(rawJsonStr)
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&rawJsonArr),
+	}
+	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
+	return searchResult
+}
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)

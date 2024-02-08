@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/olivere/elastic"
 )
 
 const (
@@ -53,12 +53,12 @@ type SamplingStoreParams struct {
 
 type TimeThroughput struct {
 	Timestamp  time.Time           `json:"timestamp"`
-	Throughput []*model.Throughput `json:"dependencies"`
+	Throughput []*model.Throughput `json:"throughputs"`
 }
 
 type TimeProbabilitiesAndQPS struct {
-	Timestamp  time.Time           `json:"timestamp"`
-	Throughput ProbabilitiesAndQPS `json:"dependencies"`
+	Timestamp           time.Time           `json:"timestamp"`
+	ProbabilitiesAndQPS ProbabilitiesAndQPS `json:"probabilitiesandqps"`
 }
 
 type ProbabilitiesAndQPS struct {
@@ -99,11 +99,11 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	return nil
 }
 
-func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, dependencies ProbabilitiesAndQPS) {
+func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps ProbabilitiesAndQPS) {
 	s.client().Index().Index(indexName).Type(probabilitiesType).
 		BodyJson(&TimeProbabilitiesAndQPS{
-			Timestamp:  ts,
-			Throughput: dependencies,
+			Timestamp:           ts,
+			ProbabilitiesAndQPS: pandqps,
 		}).Add()
 }
 
@@ -111,11 +111,11 @@ func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) stri
 	return indexNamePrefix + date.UTC().Format(indexDateLayout)
 }
 
-func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, dependencies []*model.Throughput) {
+func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, throughputs []*model.Throughput) {
 	s.client().Index().Index(indexName).Type(throughputType).
 		BodyJson(&TimeThroughput{
 			Timestamp:  ts,
-			Throughput: dependencies,
+			Throughput: throughputs,
 		}).Add()
 }
 
@@ -136,7 +136,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 		source := hit.Source
 		var tToD TimeThroughput
 		if err := json.Unmarshal(*source, &tToD); err != nil {
-			return nil, errors.New("unmarshalling ElasticSearch documents failed12312")
+			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
 		retSamples = append(retSamples, tToD.Throughput...)
 	}
@@ -145,8 +145,9 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
-	searchResult, err := s.client().Search().
-		Size(1).
+	indices := s.getLatestIndices()
+	searchResult, err := s.client().Search(indices...).
+		Size(s.maxDocCount).
 		IgnoreUnavailable(true).
 		Do(ctx)
 	if err != nil {
@@ -156,17 +157,23 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		return nil, nil
 	}
 	hit := searchResult.Hits.Hits[0]
-	var unMarshalProbabilities ProbabilitiesAndQPS
+	var unMarshalProbabilities TimeProbabilitiesAndQPS
 	err = json.Unmarshal(*hit.Source, &unMarshalProbabilities)
 	if err != nil {
 		return nil, err
 	}
 
-	return unMarshalProbabilities.Probabilities, nil
+	return unMarshalProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {
 	return elastic.NewRangeQuery("timestamp").Gte(start).Lte(end)
+}
+
+func (s *SamplingStore) getLatestIndices() []string {
+	currTime := time.Now().UTC()
+	indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, currTime)
+	return []string{indexName}
 }
 
 func (s *SamplingStore) getReadIndices(start, end time.Time) []string {
