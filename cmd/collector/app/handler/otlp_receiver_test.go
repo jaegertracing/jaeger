@@ -214,7 +214,7 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 		},
 	}
 
-	applyHTTPSettings(otlpReceiverConfig.HTTP.HTTPServerSettings, httpOpts)
+	applyHTTPSettings(otlpReceiverConfig.HTTP.ServerConfig, httpOpts)
 
 	out := otlpReceiverConfig.HTTP
 
