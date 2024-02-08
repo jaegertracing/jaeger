@@ -29,6 +29,8 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+var ErrMaxSpansCountReached = errors.New("max spans count reached")
+
 // Config contains parameters to NewWriter.
 type Config struct {
 	MaxSpansCount  int                `yaml:"max_spans_count" name:"max_spans_count"`
@@ -131,7 +133,7 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 	if w.config.MaxSpansCount > 0 && w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
 		w.Close()
-		return errors.New("saved MaxSpansCount")
+		return ErrMaxSpansCountReached
 	}
 
 	return nil
