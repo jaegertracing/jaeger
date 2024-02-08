@@ -39,7 +39,7 @@ jobs:
     - name: Setup CODECOV_TOKEN
       uses: ./.github/actions/setup-codecov
     
-    - name: Retry action for codecov uploads
+    - name: Upload coverage to codecov
       uses: Wandalen/wretry.action@v1.3.0
       with:
         attempt_limit: 3
