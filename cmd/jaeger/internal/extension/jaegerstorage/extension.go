@@ -29,6 +29,19 @@ type storageExt struct {
 	factories map[string]storage.Factory
 }
 
+func (se storageExt) Factory(name string) (storage.Factory, error) {
+	f, ok := se.factories[name]
+	if !ok {
+		return nil, fmt.Errorf("no factory with name: %s found", name)
+	}
+
+	return f, nil
+}
+
+type StorageExt interface {
+	Factory(string) (storage.Factory, error)
+}
+
 // GetStorageFactory locates the extension in Host and retrieves a storage factory from it with the given name.
 func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
 	var comp component.Component
@@ -44,8 +57,9 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 			componentType,
 		)
 	}
-	f, ok := comp.(*storageExt).factories[name]
-	if !ok {
+	// f, ok := comp.(*storageExt).factories[name]
+	f, err := comp.(StorageExt).Factory(name)
+	if err != nil {
 		return nil, fmt.Errorf(
 			"cannot find storage '%s' declared with '%s' extension",
 			name, componentType,

@@ -5,29 +5,78 @@ package jaegerquery
 
 import (
 	"context"
+	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/extension"
-	noopmetric "go.opentelemetry.io/otel/metric/noop"
-	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
+
+type fakeFactory struct {
+	name string
+}
+
+func (ff fakeFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	if ff.name == "need-dependency-reader-error" {
+		return nil, fmt.Errorf("test-error")
+	}
+	return &depsmocks.Reader{}, nil
+}
+
+func (ff fakeFactory) CreateSpanReader() (spanstore.Reader, error) {
+	if ff.name == "need-span-reader-error" {
+		return nil, fmt.Errorf("test-error")
+	}
+	return &spanstoremocks.Reader{}, nil
+}
+
+func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
+	if ff.name == "need-span-writer-error" {
+		return nil, fmt.Errorf("test-error")
+	}
+	return &spanstoremocks.Writer{}, nil
+}
+
+func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
+	if ff.name == "need-initialize-error" {
+		return fmt.Errorf("test-error")
+	}
+	return nil
+}
+
+type fakeStorageExt struct{}
+
+func (fse fakeStorageExt) Factory(name string) (storage.Factory, error) {
+	fmt.Println("Name: ", name)
+	if name == "need-factory-error" {
+		return nil, fmt.Errorf("test-error")
+	}
+	return fakeFactory{name: name}, nil
+}
+
+func (fse fakeStorageExt) Start(ctx context.Context, host component.Host) error {
+	return nil
+}
+
+func (fse fakeStorageExt) Shutdown(ctx context.Context) error {
+	return nil
+}
 
 type storageHost struct {
 	extension component.Component
@@ -50,7 +99,7 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 	return nil
 }
 
-func Test_Dependencies(t *testing.T) {
+func TestServerDependencies(t *testing.T) {
 	expectedDependencies := []component.ID{jaegerstorage.ID}
 	telemetrySettings := component.TelemetrySettings{
 		Logger: zap.NewNop(),
@@ -62,42 +111,77 @@ func Test_Dependencies(t *testing.T) {
 	assert.Equal(t, expectedDependencies, dependencies)
 }
 
-func Test_Start(t *testing.T) {
+func TestServerStart(t *testing.T) {
+	host := storageHost{
+		extension: fakeStorageExt{},
+	}
+	logger := zap.NewNop()
+
 	tests := []struct {
 		name        string
 		config      *Config
-		host        component.Host
-		logger      *zap.Logger
 		expectedErr string
 	}{
 		{
-			name:        "Empty config",
-			config:      &Config{},
-			host:        componenttest.NewNopHost(),
-			logger:      zap.NewNop(),
-			expectedErr: "cannot find primary storage : cannot find extension",
-		},
-		{
-			name: "Non-empty config with custom storage host",
+			name: "Non-empty config with fake storage host",
 			config: &Config{
 				TraceStorageArchive: "jaeger_storage",
 				TraceStoragePrimary: "jaeger_storage",
 			},
-			host: storageHost{
-				extension: makeStorageExtension(t, "jaeger_storage"),
+		},
+		{
+			name: "factory error",
+			config: &Config{
+				TraceStorageArchive: "jaeger_storage",
+				TraceStoragePrimary: "need-factory-error",
 			},
-			logger:      zap.NewNop(),
-			expectedErr: "",
+			expectedErr: "cannot find primary storage",
+		},
+		{
+			name: "span reader error",
+			config: &Config{
+				TraceStorageArchive: "jaeger_storage",
+				TraceStoragePrimary: "need-span-reader-error",
+			},
+			expectedErr: "cannot create span reader",
+		},
+		{
+			name: "dependency error",
+			config: &Config{
+				TraceStorageArchive: "jaeger_storage",
+				TraceStoragePrimary: "need-dependency-reader-error",
+			},
+			expectedErr: "cannot create dependencies reader",
+		},
+		{
+			name: "storage archive error",
+			config: &Config{
+				TraceStorageArchive: "need-factory-error",
+				TraceStoragePrimary: "jaeger_storage",
+			},
+			expectedErr: "cannot find archive storage factory",
+		},
+		{
+			name: "tenacy manager error",
+			config: &Config{
+				TraceStorageArchive: "jaeger_storage",
+				TraceStoragePrimary: "jaeger_storage",
+				Tenancy: tenancy.Options{
+					Enabled: true,
+					Header:  "test",
+				},
+			},
+			expectedErr: "could not start jaeger-query",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger: tt.logger,
+				Logger: logger,
 			}
 			server := newServer(tt.config, telemetrySettings)
-			err := server.Start(context.Background(), tt.host)
+			err := server.Start(context.Background(), host)
 
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
@@ -133,25 +217,15 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			expectedOutput: "",
-			expectedErr:    "cannot find archive storage factory: cannot find extension 'jaeger_storage' (make sure it's defined earlier in the config)",
+			expectedErr:    "cannot find archive storage factory: cannot find extension",
 		},
 		{
 			name: "Archive storage not supported",
 			config: &Config{
 				TraceStorageArchive: "badger",
 			},
-			qSvcOpts: &querysvc.QueryServiceOptions{},
-			extension: makeStorageExtensionWithConfig(t,
-				&jaegerstorage.Config{
-					Badger: map[string]badgerCfg.NamespaceConfig{
-						"badger": {
-							Ephemeral:             true,
-							MaintenanceInterval:   time.Minute,
-							MetricsUpdateInterval: time.Minute,
-						},
-					},
-				},
-			),
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			extension:      fakeStorageExt{},
 			expectedOutput: "Archive storage not supported by the factory",
 			expectedErr:    "",
 		},
@@ -179,7 +253,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 	}
 }
 
-func Test_Shutdown(t *testing.T) {
+func TestServerShutdown(t *testing.T) {
 	tests := []struct {
 		name           string
 		hasQueryServer bool
@@ -231,39 +305,4 @@ func Test_Shutdown(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-func makeStorageExtension(t *testing.T, memstoreName string) component.Component {
-	return makeStorageExtensionWithConfig(
-		t,
-		&jaegerstorage.Config{
-			Memory: map[string]memoryCfg.Configuration{
-				memstoreName: {MaxTraces: 10000},
-			},
-		},
-	)
-}
-
-func makeStorageExtensionWithConfig(t *testing.T, cfg *jaegerstorage.Config) component.Component {
-	extensionFactory := jaegerstorage.NewFactory()
-
-	ctx := context.Background()
-	telemetrySettings := component.TelemetrySettings{
-		Logger:         zap.L(),
-		TracerProvider: nooptrace.NewTracerProvider(),
-		MeterProvider:  noopmetric.NewMeterProvider(),
-	}
-
-	storageExtension, err := extensionFactory.CreateExtension(ctx, extension.CreateSettings{
-		ID:                ID,
-		TelemetrySettings: telemetrySettings,
-		BuildInfo:         component.NewDefaultBuildInfo(),
-	}, cfg)
-	require.NoError(t, err)
-
-	host := componenttest.NewNopHost()
-	err = storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-
-	return storageExtension
 }
