@@ -10,6 +10,7 @@ services:
     environment:
       # This tells Jaeger that it should run the UI with a given prefix.
       QUERY_BASE_PATH: /jaeger/prefix
+      QUERY_UI_BASE_PATH: /hub/jaeger-query/v1/jaeger/viewer
     networks:
       - proxy-net
 
