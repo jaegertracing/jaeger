@@ -15,6 +15,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -53,7 +54,7 @@ func main() {
 				},
 			}
 
-			writer, err := writer.New(conf, logger)
+			w, err := writer.New(conf, logger)
 			if err != nil {
 				logger.Fatal("error while creating writer object", zap.Error(err))
 			}
@@ -69,9 +70,15 @@ func main() {
 			}
 
 			for _, span := range spans {
-				writer.WriteSpan(&span)
+				if err := w.WriteSpan(&span); err != nil {
+					if errors.Is(err, writer.ErrMaxSpansCountReached) {
+						logger.Info("max spans count reached")
+						os.Exit(0)
+					}
+					logger.Error("error while writing span", zap.Error(err))
+				}
 			}
-			writer.Close()
+			w.Close()
 
 			uiCfg := uiconv.Config{
 				CapturedFile: conf.AnonymizedFile,
