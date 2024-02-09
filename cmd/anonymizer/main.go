@@ -54,7 +54,7 @@ func main() {
 				},
 			}
 
-			writerObj, err := writer.New(conf, logger)
+			w, err := writer.New(conf, logger)
 			if err != nil {
 				logger.Fatal("error while creating writer object", zap.Error(err))
 			}
@@ -70,15 +70,14 @@ func main() {
 			}
 
 			for _, span := range spans {
-				err := writerObj.WriteSpan(&span)
-				if err != nil {
-					logger.Fatal("error while writing span", zap.Error(err))
+				if err := w.WriteSpan(&span); err != nil {
 					if errors.Is(err, writer.ErrMaxSpansCountReached) {
+						logger.Error("error while writing span", zap.Error(err))
 						os.Exit(0)
 					}
 				}
 			}
-			writerObj.Close()
+			w.Close()
 
 			uiCfg := uiconv.Config{
 				CapturedFile: conf.AnonymizedFile,
