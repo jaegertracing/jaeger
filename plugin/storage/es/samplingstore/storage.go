@@ -153,10 +153,11 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
 	}
-	if len(searchResult.Hits.Hits) == 0 {
+	lengthOfSearchResult := len(searchResult.Hits.Hits)
+	if lengthOfSearchResult == 0 {
 		return nil, nil
 	}
-	hit := searchResult.Hits.Hits[0]
+	hit := searchResult.Hits.Hits[lengthOfSearchResult-1]
 	var unMarshalProbabilities TimeProbabilitiesAndQPS
 	err = json.Unmarshal(*hit.Source, &unMarshalProbabilities)
 	if err != nil {
