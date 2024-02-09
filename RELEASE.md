@@ -5,14 +5,13 @@
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog` or use `scripts/release-notes.py`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
-    * If the submodules have new releases, please also upgrade the submodule versions then commit, for example:
+    * If the jaeger-ui submodule has changes cut a new release and also upgrade the submodule versions then commit, for example:
         ```
         cd jaeger-ui
         git ls-remote --tags origin
         git fetch
         git checkout {new_version} //e.g. v1.5.0
         ```
-      * Even if a submodule does not have a new release, it should be checked to see if there were any changes warranting cutting a new release and then including it.
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
     * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
 2. After the PR is merged, create a release on Github:
@@ -54,8 +53,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.53.0  | @pavolloffay    | 3 January 2024         |
-| 1.54.0  | @joe-elliott    | 7 February 2024        |
 | 1.55.0  | @jkowall        | 6 March 2024           |
 | 1.56.0  | @yurishkuro     | 3 April 2024           |
 | 1.57.0  | @albertteoh     | 1 May 2024             |
+| 1.58.0  | @pavolloffay    | 5 June 2024            |
+| 1.59.0  | @joe-elliott    | 3 July 2024            |
