@@ -41,6 +41,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 )
 
@@ -121,6 +122,9 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	if err := s.initSpanstore(allTagsAsFields, archive); err != nil {
 		return err
 	}
+	if err := s.initSamplingStore(); err != nil {
+		return err
+	}
 	s.CleanUp = func() error {
 		return s.esCleanUp(allTagsAsFields, archive)
 	}
@@ -137,6 +141,27 @@ func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 		return err
 	}
 	return s.initSpanstore(allTagsAsFields, archive)
+}
+
+func (s *ESStorageIntegration) initSamplingStore() error {
+	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
+	s.bulkProcessor = bp
+	esVersion, err := s.getVersion()
+	if err != nil {
+		return err
+	}
+	client := eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
+	clientFn := func() estemplate.Client { return client }
+	w := samplingstore.NewSamplingStore(
+		samplingstore.SamplingStoreParams{
+			Client:          clientFn,
+			Logger:          s.logger,
+			IndexPrefix:     indexPrefix,
+			IndexDateLayout: indexDateLayout,
+			MaxDocCount:     defaultMaxDocCount,
+		})
+	s.SamplingStore = w
+	return nil
 }
 
 func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
