@@ -91,12 +91,12 @@ func TestWriter_WriteSpan(t *testing.T) {
 
 		writer, err := New(config, nopLogger)
 		require.NoError(t, err)
+		defer writer.Close()
 
 		for i := 0; i < 9; i++ {
 			err = writer.WriteSpan(span)
 			require.NoError(t, err)
 		}
-		defer writer.Close()
 	})
 	t.Run("write span with MaxSpansCount", func(t *testing.T) {
 		tempDir := t.TempDir()
@@ -109,9 +109,9 @@ func TestWriter_WriteSpan(t *testing.T) {
 
 		writer, err := New(config, zap.NewNop())
 		require.NoError(t, err)
+		defer writer.Close()
 
 		err = writer.WriteSpan(span)
 		require.ErrorIs(t, err, ErrMaxSpansCountReached)
-		defer writer.Close()
 	})
 }
