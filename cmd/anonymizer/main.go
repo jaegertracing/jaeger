@@ -72,9 +72,10 @@ func main() {
 			for _, span := range spans {
 				if err := w.WriteSpan(&span); err != nil {
 					if errors.Is(err, writer.ErrMaxSpansCountReached) {
-						logger.Error("error while writing span", zap.Error(err))
+						logger.Info("max spans count reached")
 						os.Exit(0)
 					}
+					logger.Error("error while writing span", zap.Error(err))
 				}
 			}
 			w.Close()

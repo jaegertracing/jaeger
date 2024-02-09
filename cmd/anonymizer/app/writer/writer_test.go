@@ -111,7 +111,7 @@ func TestWriter_WriteSpan(t *testing.T) {
 		require.NoError(t, err)
 
 		err = writer.WriteSpan(span)
-		require.ErrorContains(t, err, "max spans count reached")
+		require.ErrorIs(t, err, ErrMaxSpansCountReached)
 		defer writer.Close()
 	})
 }
