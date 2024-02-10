@@ -37,7 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
-	esSampling "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
+	esSampleStore "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -283,11 +283,11 @@ func createSamplingStore(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (samplingstore.Store, error) {
-	store := esSampling.NewSamplingStore(esSampling.SamplingStoreParams{
+	store := esSampleStore.NewSamplingStore(esSampleStore.SamplingStoreParams{
 		Client:          clientFn,
 		Logger:          logger,
 		IndexPrefix:     cfg.IndexPrefix,
-		IndexDateLayout: cfg.IndexDateLayoutDependencies,
+		IndexDateLayout: cfg.IndexDateLayoutSampling,
 		MaxDocCount:     cfg.MaxDocCount,
 	})
 	return store, nil

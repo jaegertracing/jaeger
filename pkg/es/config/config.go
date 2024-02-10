@@ -69,6 +69,7 @@ type Configuration struct {
 	IndexPrefix                    string         `mapstructure:"index_prefix"`
 	IndexDateLayoutSpans           string         `mapstructure:"-"`
 	IndexDateLayoutServices        string         `mapstructure:"-"`
+	IndexDateLayoutSampling        string         `mapstructure:"-"`
 	IndexDateLayoutDependencies    string         `mapstructure:"-"`
 	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
 	IndexRolloverFrequencyServices string         `mapstructure:"-"`

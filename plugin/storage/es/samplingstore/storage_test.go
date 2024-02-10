@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore/dbmodel"
 )
 
 const defaultMaxDocCount = 10_000
@@ -148,7 +149,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			pAQ := ProbabilitiesAndQPS{
+			pAQ := dbmodel.ProbabilitiesAndQPS{
 				Hostname:      "dell11eg843d",
 				Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
 				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},

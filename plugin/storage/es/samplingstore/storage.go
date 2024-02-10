@@ -26,6 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore/dbmodel"
 )
 
 const (
@@ -51,22 +52,6 @@ type SamplingStoreParams struct {
 	MaxDocCount     int
 }
 
-type TimeThroughput struct {
-	Timestamp  time.Time           `json:"timestamp"`
-	Throughput []*model.Throughput `json:"throughputs"`
-}
-
-type TimeProbabilitiesAndQPS struct {
-	Timestamp           time.Time           `json:"timestamp"`
-	ProbabilitiesAndQPS ProbabilitiesAndQPS `json:"probabilitiesandqps"`
-}
-
-type ProbabilitiesAndQPS struct {
-	Hostname      string
-	Probabilities model.ServiceOperationProbabilities
-	QPS           model.ServiceOperationQPS
-}
-
 func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 	return &SamplingStore{
 		client:              p.Client,
@@ -90,7 +75,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 ) error {
 	ts := time.Now()
 	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
-	val := ProbabilitiesAndQPS{
+	val := dbmodel.ProbabilitiesAndQPS{
 		Hostname:      hostname,
 		Probabilities: probabilities,
 		QPS:           qps,
@@ -99,9 +84,9 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	return nil
 }
 
-func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps ProbabilitiesAndQPS) {
+func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
 	s.client().Index().Index(indexName).Type(probabilitiesType).
-		BodyJson(&TimeProbabilitiesAndQPS{
+		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
 		}).Add()
@@ -113,7 +98,7 @@ func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) stri
 
 func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, throughputs []*model.Throughput) {
 	s.client().Index().Index(indexName).Type(throughputType).
-		BodyJson(&TimeThroughput{
+		BodyJson(&dbmodel.TimeThroughput{
 			Timestamp:  ts,
 			Throughput: throughputs,
 		}).Add()
@@ -134,7 +119,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	hits := searchResult.Hits.Hits
 	for _, hit := range hits {
 		source := hit.Source
-		var tToD TimeThroughput
+		var tToD dbmodel.TimeThroughput
 		if err := json.Unmarshal(*source, &tToD); err != nil {
 			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
@@ -158,7 +143,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		return nil, nil
 	}
 	hit := searchResult.Hits.Hits[lengthOfSearchResult-1]
-	var unMarshalProbabilities TimeProbabilitiesAndQPS
+	var unMarshalProbabilities dbmodel.TimeProbabilitiesAndQPS
 	err = json.Unmarshal(*hit.Source, &unMarshalProbabilities)
 	if err != nil {
 		return nil, err

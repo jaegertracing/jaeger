@@ -144,13 +144,10 @@ func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 }
 
 func (s *ESStorageIntegration) initSamplingStore() error {
-	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	s.bulkProcessor = bp
-	esVersion, err := s.getVersion()
+	client, err := s.getEsClient()
 	if err != nil {
 		return err
 	}
-	client := eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 	clientFn := func() estemplate.Client { return client }
 	w := samplingstore.NewSamplingStore(
 		samplingstore.SamplingStoreParams{
@@ -164,14 +161,23 @@ func (s *ESStorageIntegration) initSamplingStore() error {
 	return nil
 }
 
-func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) getEsClient() (eswrapper.ClientWrapper, error) {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	s.bulkProcessor = bp
 	esVersion, err := s.getVersion()
+	var client eswrapper.ClientWrapper
+	if err != nil {
+		return client, err
+	}
+	client = eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
+	return client, nil
+}
+
+func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
+	client, err := s.getEsClient()
 	if err != nil {
 		return err
 	}
-	client := eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: estemplate.TextTemplateBuilder{},
 		Shards:          5,
