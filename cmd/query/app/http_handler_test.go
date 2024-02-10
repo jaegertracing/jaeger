@@ -25,7 +25,6 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -269,24 +268,6 @@ func TestWriteJSON(t *testing.T) {
 			assert.Contains(t, out, testCase.output)
 		})
 	}
-}
-
-func readOTLPTraces(t *testing.T) (interface{}, error) {
-	dat, err := os.ReadFile("./fixture/otlp2jaeger-in.json")
-	require.NoError(t, err)
-	out := new(interface{})
-	err = json.Unmarshal(dat, out)
-	require.NoError(t, err)
-	return out, nil
-}
-
-func readJaegerTraces(t *testing.T) (interface{}, error) {
-	dat, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
-	out := new(interface{})
-	require.NoError(t, err)
-	err = json.Unmarshal(dat, out)
-	require.NoError(t, err)
-	return out, nil
 }
 
 func TestGetTrace(t *testing.T) {
@@ -645,12 +626,22 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 func TestTransformOTLPSuccess(t *testing.T) {
 	withTestServer(func(ts *testServer) {
 		response := new(interface{})
-		request, err := readOTLPTraces(t)
+		request := new(interface{})
+
+		requestBytes := readOTLPTraces(t)
+
+		err := json.Unmarshal(requestBytes, request)
 		require.NoError(t, err)
+
 		err = postJSON(ts.server.URL+"/api/transform", request, response)
 		require.NoError(t, err)
-		corectResponse, err := readJaegerTraces(t)
+
+		corectResponseBytes := readJaegerTraces(t)
+		corectResponse := new(interface{})
+
+		err = json.Unmarshal(corectResponseBytes, corectResponse)
 		require.NoError(t, err)
+
 		assert.Equal(t, response, corectResponse)
 	}, querysvc.QueryServiceOptions{})
 }
