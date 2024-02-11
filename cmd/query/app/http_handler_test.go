@@ -56,6 +56,15 @@ import (
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
 
+type IoReaderMock struct {
+	mock.Mock
+}
+
+func (m *IoReaderMock) Read(b []byte) (int, error) {
+	args := m.Called(b)
+	return args.Int(0), args.Error(1)
+}
+
 var (
 	errStorageMsg = "storage error"
 	errStorage    = errors.New(errStorageMsg)
@@ -625,24 +634,25 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 
 func TestTransformOTLPSuccess(t *testing.T) {
 	withTestServer(func(ts *testServer) {
-		response := new(interface{})
-		request := new(interface{})
-
 		requestBytes := readOTLPTraces(t)
 
-		err := json.Unmarshal(requestBytes, request)
+		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", bytes.NewReader(requestBytes))
 		require.NoError(t, err)
 
-		err = postJSON(ts.server.URL+"/api/transform", request, response)
+		responseBytes, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 
 		corectResponseBytes := readJaegerTraces(t)
-		corectResponse := new(interface{})
+		assert.Equal(t, corectResponseBytes, responseBytes)
+	}, querysvc.QueryServiceOptions{})
+}
 
-		err = json.Unmarshal(corectResponseBytes, corectResponse)
-		require.NoError(t, err)
-
-		assert.Equal(t, response, corectResponse)
+func TestTransformOTLPReadError(t *testing.T) {
+	withTestServer(func(ts *testServer) {
+		bytesReader := &IoReaderMock{}
+		bytesReader.On("Read", mock.AnythingOfType("[]uint8")).Return(0, errors.New("Mocked error"))
+		_, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", bytesReader)
+		require.Error(t, err)
 	}, querysvc.QueryServiceOptions{})
 }
 
