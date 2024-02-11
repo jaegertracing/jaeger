@@ -33,10 +33,10 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collectorFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	printConfig "github.com/jaegertracing/jaeger/cmd/internal/config"
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/env"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -230,7 +230,7 @@ by default uses only in-memory database.`,
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))
-	command.AddCommand(printConfig.Command(v))
+	command.AddCommand(printconfig.Command(v))
 
 	config.AddFlags(
 		v,

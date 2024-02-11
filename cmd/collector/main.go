@@ -28,10 +28,10 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	printConfig "github.com/jaegertracing/jaeger/cmd/internal/config"
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/env"
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
+	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
@@ -143,7 +143,7 @@ func main() {
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.CollectorAdminHTTP))
-	command.AddCommand(printConfig.Command(v))
+	command.AddCommand(printconfig.Command(v))
 
 	config.AddFlags(
 		v,
