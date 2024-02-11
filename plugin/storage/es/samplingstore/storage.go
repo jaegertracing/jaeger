@@ -142,14 +142,25 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	if lengthOfSearchResult == 0 {
 		return nil, nil
 	}
-	hit := searchResult.Hits.Hits[lengthOfSearchResult-1]
-	var unMarshalProbabilities dbmodel.TimeProbabilitiesAndQPS
-	err = json.Unmarshal(*hit.Source, &unMarshalProbabilities)
-	if err != nil {
-		return nil, err
+
+	var latestProbabilities *dbmodel.TimeProbabilitiesAndQPS
+	latestTime := time.Time{}
+	for _, hit := range searchResult.Hits.Hits {
+		var unMarshalProbabilities dbmodel.TimeProbabilitiesAndQPS
+		err = json.Unmarshal(*hit.Source, &unMarshalProbabilities)
+		if err != nil {
+			return nil, err
+		}
+		if unMarshalProbabilities.Timestamp.After(latestTime) {
+			latestTime = unMarshalProbabilities.Timestamp
+			latestProbabilities = &unMarshalProbabilities
+		}
+	}
+	if latestProbabilities == nil {
+		return nil, nil
 	}
 
-	return unMarshalProbabilities.ProbabilitiesAndQPS.Probabilities, nil
+	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {
