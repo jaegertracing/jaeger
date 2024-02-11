@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package print_config
 
 import (
@@ -29,10 +30,10 @@ func Command(v *viper.Viper) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			keys := v.AllKeys()
 			sort.Strings(keys)
-
 			for _, env := range keys {
 				value := v.Get(env)
-				fmt.Printf("%s=%v\n", env, value)
+				str := fmt.Sprintf("%s=%v\n", env, value)
+				fmt.Fprintf(cmd.OutOrStdout(), str)
 			}
 			return nil
 		},
