@@ -22,8 +22,7 @@ func Command(v *viper.Viper) *cobra.Command {
 			sort.Strings(keys)
 			for _, key := range keys {
 				value := v.Get(key)
-				str := fmt.Sprintf("%s=%v\n", key, value)
-				fmt.Fprint(cmd.OutOrStdout(), str)
+				fmt.Fprint(cmd.OutOrStdout(), fmt.Sprintf("%s=%v\n", key, value))
 			}
 			return nil
 		},
