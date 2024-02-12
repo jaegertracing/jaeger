@@ -84,6 +84,29 @@ func TestNewIndexPrefix(t *testing.T) {
 	}
 }
 
+func TestGetReadIndices(t *testing.T) {
+	testCases := []struct {
+		start time.Time
+		end   time.Time
+	}{
+		{
+			start: time.Date(2024, time.February, 10, 0, 0, 0, 0, time.UTC),
+			end:   time.Date(2024, time.February, 12, 0, 0, 0, 0, time.UTC),
+		},
+	}
+	for _, testCase := range testCases {
+		withEsSampling("prefix", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+			expectedIndices := []string{
+				"prefix-jaeger-sampling-2024-02-12",
+				"prefix-jaeger-sampling-2024-02-11",
+				"prefix-jaeger-sampling-2024-02-10",
+			}
+			indices := w.storage.getReadIndices(testCase.start, testCase.end)
+			assert.Equal(t, expectedIndices, indices)
+		})
+	}
+}
+
 func TestInsertThroughput(t *testing.T) {
 	testCases := []struct {
 		writeError    error

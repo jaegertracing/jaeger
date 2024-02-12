@@ -156,10 +156,6 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 			latestProbabilities = &unMarshalProbabilities
 		}
 	}
-	if latestProbabilities == nil {
-		return nil, nil
-	}
-
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }
 
