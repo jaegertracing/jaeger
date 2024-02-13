@@ -126,5 +126,10 @@ func TestCassandraStorage(t *testing.T) {
 	}
 	s := newCassandraStorageIntegration()
 	require.NoError(t, s.initializeCassandra())
-	s.IntegrationTestAll(t)
+
+	if archive {
+		t.Run("ArchiveTrace", s.testArchiveTrace)
+	} else {
+		s.IntegrationTestAll(t)
+	}
 }

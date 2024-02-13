@@ -86,6 +86,11 @@ func (s *BadgerIntegrationStorage) refresh() error {
 func TestBadgerStorage(t *testing.T) {
 	s := &BadgerIntegrationStorage{}
 	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+
+	if archive {
+		t.Run("ArchiveTrace", s.testArchiveTrace)
+	} else {
+		s.IntegrationTestAll(t)
+	}
 	defer s.clear()
 }

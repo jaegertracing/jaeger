@@ -146,5 +146,10 @@ func TestKafkaStorage(t *testing.T) {
 	}
 	s := &KafkaIntegrationTestSuite{}
 	require.NoError(t, s.initialize())
-	t.Run("GetTrace", s.testGetTrace)
+
+	if archive {
+		t.Run("ArchiveTrace", s.testArchiveTrace)
+	} else {
+		s.IntegrationTestAll(t)
+	}
 }

@@ -199,5 +199,10 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		server: server,
 	}
 	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+
+	if archive {
+		t.Run("ArchiveTrace", s.testArchiveTrace)
+	} else {
+		s.IntegrationTestAll(t)
+	}
 }

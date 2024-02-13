@@ -58,5 +58,10 @@ func (s *MemStorageIntegrationTestSuite) cleanUp() error {
 func TestMemoryStorage(t *testing.T) {
 	s := &MemStorageIntegrationTestSuite{}
 	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+
+	if archive {
+		t.Run("ArchiveTrace", s.testArchiveTrace)
+	} else {
+		s.IntegrationTestAll(t)
+	}
 }
