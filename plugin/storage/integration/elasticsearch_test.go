@@ -101,13 +101,11 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool, t *testing.T) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
@@ -115,16 +113,14 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
 	})
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
-	if err := s.initSpanstore(allTagsAsFields, archive); err != nil {
-		return err
-	}
-	if err := s.initSamplingStore(); err != nil {
-		return err
-	}
+	err = s.initSpanstore(allTagsAsFields, archive)
+	require.NoError(t, err)
+
+	err = s.initSamplingStore(t)
+	require.NoError(t, err)
+
 	s.CleanUp = func() error {
 		return s.esCleanUp(allTagsAsFields, archive)
 	}
@@ -143,11 +139,9 @@ func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 	return s.initSpanstore(allTagsAsFields, archive)
 }
 
-func (s *ESStorageIntegration) initSamplingStore() error {
+func (s *ESStorageIntegration) initSamplingStore(t *testing.T) error {
 	client, err := s.getEsClient()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	clientFn := func() estemplate.Client { return client }
 	w := samplingstore.NewSamplingStore(
 		samplingstore.SamplingStoreParams{
@@ -269,7 +263,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES(allTagsAsFields, archive))
+	require.NoError(t, s.initializeES(allTagsAsFields, archive, t))
 
 	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
@@ -300,7 +294,7 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES(true, false))
+	require.NoError(t, s.initializeES(true, false, t))
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
