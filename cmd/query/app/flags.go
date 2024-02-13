@@ -71,8 +71,7 @@ type QueryOptionsStaticAssets struct {
 type QueryOptionsBase struct {
 	// BasePath is the base path for all HTTP routes
 	BasePath   string
-	UIBasePath string
-
+	
 	StaticAssets QueryOptionsStaticAssets `valid:"optional" mapstructure:"static_assets"`
 
 	// UIConfig is the path to a configuration file for the UI
