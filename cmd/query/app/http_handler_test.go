@@ -25,6 +25,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -634,16 +635,20 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 
 func TestTransformOTLPSuccess(t *testing.T) {
 	withTestServer(func(ts *testServer) {
-		requestBytes := readOTLPTraces(t)
+		inFile, err := os.Open("./fixture/otlp2jaeger-in.json")
+		require.NoError(t, err)
 
-		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", bytes.NewReader(requestBytes))
+		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", inFile)
 		require.NoError(t, err)
 
 		responseBytes, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 
-		corectResponseBytes := readJaegerTraces(t)
-		assert.Equal(t, corectResponseBytes, responseBytes)
+		expectedBytes, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
+		require.NoError(t, err)
+
+		// removing EOF char as comparing bytes and not objects
+		assert.Equal(t, expectedBytes[:len(expectedBytes)-1], responseBytes)
 	}, querysvc.QueryServiceOptions{})
 }
 
@@ -656,12 +661,12 @@ func TestTransformOTLPReadError(t *testing.T) {
 	}, querysvc.QueryServiceOptions{})
 }
 
-func TestTransformOTLPEmptyFailure(t *testing.T) {
+func TestTransformOTLPBadPayload(t *testing.T) {
 	withTestServer(func(ts *testServer) {
 		response := new(interface{})
-		request := ""
+		request := "Bad Payload"
 		err := postJSON(ts.server.URL+"/api/transform", request, response)
-		require.Error(t, err)
+		require.ErrorContains(t, err, "cannot unmarshal OTLP")
 	}, querysvc.QueryServiceOptions{})
 }
 
