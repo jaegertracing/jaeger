@@ -1,0 +1,40 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package dbmodel
+
+import (
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+)
+
+func FromThroughputs(throughputs []*model.Throughput) []model.Throughput {
+	if throughputs == nil {
+		return nil
+	}
+	ret := make([]model.Throughput, len(throughputs))
+	for i, d := range throughputs {
+		ret[i] = model.Throughput{
+			Service:       d.Service,
+			Operation:     d.Operation,
+			Count:         d.Count,
+			Probabilities: d.Probabilities,
+		}
+	}
+	return ret
+}
+
+func ToThroughputs(throughputs []model.Throughput) []*model.Throughput {
+	if throughputs == nil {
+		return nil
+	}
+	ret := make([]*model.Throughput, len(throughputs))
+	for i, d := range throughputs {
+		ret[i] = &model.Throughput{
+			Service:       d.Service,
+			Operation:     d.Operation,
+			Count:         d.Count,
+			Probabilities: d.Probabilities,
+		}
+	}
+	return ret
+}

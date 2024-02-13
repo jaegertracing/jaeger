@@ -21,8 +21,8 @@ import (
 )
 
 type TimeThroughput struct {
-	Timestamp  time.Time           `json:"timestamp"`
-	Throughput []*model.Throughput `json:"throughputs"`
+	Timestamp  time.Time          `json:"timestamp"`
+	Throughput []model.Throughput `json:"throughputs"`
 }
 
 type TimeProbabilitiesAndQPS struct {

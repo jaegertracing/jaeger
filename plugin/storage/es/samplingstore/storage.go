@@ -100,7 +100,7 @@ func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, throughp
 	s.client().Index().Index(indexName).Type(throughputType).
 		BodyJson(&dbmodel.TimeThroughput{
 			Timestamp:  ts,
-			Throughput: throughputs,
+			Throughput: dbmodel.FromThroughputs(throughputs),
 		}).Add()
 }
 
@@ -123,7 +123,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 		if err := json.Unmarshal(*source, &tToD); err != nil {
 			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
-		retSamples = append(retSamples, tToD.Throughput...)
+		retSamples = append(retSamples, dbmodel.ToThroughputs(tToD.Throughput)...)
 	}
 	return retSamples, nil
 }
