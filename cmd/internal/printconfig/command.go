@@ -11,21 +11,39 @@ import (
 	"github.com/spf13/viper"
 )
 
-func Command(v *viper.Viper) *cobra.Command {
-	c := &cobra.Command{
-		Use:   "print-config",
-		Short: "Print configurations",
-		Long:  `Iterates through the overall configuration used by Jaeger and prints them out`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) {
+	keys := v.AllKeys()
+	sort.Strings(keys)
 
-			keys := v.AllKeys()
-			sort.Strings(keys)
-			for _, key := range keys {
-				value := v.Get(key)
-				fmt.Fprint(cmd.OutOrStdout(), fmt.Sprintf("%s=%v\n", key, value))
-			}
+	for _, key := range keys {
+		value := v.Get(key)
+		source := "default"
+		if v.IsSet(key) {
+			source = "user-assigned"
+		}
+
+		if includeEmpty {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: %v=%s\n", source, key, value)
+		} else if value != nil && value != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: %v=%s\n", source, key, value)
+		}
+
+	}
+}
+
+func Command(v *viper.Viper) *cobra.Command {
+
+	allFlag := true
+	rootCmd := &cobra.Command{
+		Use:   "print-config",
+		Short: "Print configurations that have an actual value",
+		Long:  "Iterates through the configuration used by Jaeger that has a existing value and prints them indicating whether it is a default or user-assigned value",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			printConfigurations(cmd, v, allFlag)
 			return nil
 		},
 	}
-	return c
+	rootCmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Print all configurations, including those without a value")
+
+	return rootCmd
 }
