@@ -49,7 +49,6 @@ var (
 func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
 		BasePath:            qOpts.BasePath,
-		UIBasePath:          qOpts.UIBasePath, // Added UIBasePath here
 		UIConfigPath:        qOpts.UIConfig,
 		StorageCapabilities: qCapabilities,
 		Logger:              logger,
@@ -73,7 +72,6 @@ type StaticAssetsHandler struct {
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
 type StaticAssetsHandlerOptions struct {
 	BasePath            string
-	UIBasePath          string
 	UIConfigPath        string
 	LogAccess           bool
 	StorageCapabilities querysvc.StorageCapabilities
@@ -89,12 +87,9 @@ type loadedConfig struct {
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
 	assetsFS := ui.StaticFiles
 	if staticAssetsRoot != "" {
-		uiBasePath := options.UIBasePath
-		if uiBasePath == "" {
-			uiBasePath = "/ui" // default value
-		}
-		assetsFS = http.Dir(filepath.Join(staticAssetsRoot, uiBasePath))
+		assetsFS = http.Dir(staticAssetsRoot)
 	}
+
 	if options.Logger == nil {
 		options.Logger = zap.NewNop()
 	}
@@ -144,10 +139,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	if sH.options.BasePath == "" {
 		sH.options.BasePath = "/"
 	}
-	if sH.options.UIBasePath == "" {
-		sH.options.UIBasePath = "/ui" // default value
-	}
-	if sH.options.BasePath != "/" && sH.options.UIBasePath != "/ui" {
+	if sH.options.BasePath != "/" {
 		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
 			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
 		}
@@ -233,8 +225,8 @@ func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 	fileServer := http.FileServer(sH.assetsFS)
-	if sH.options.UIBasePath != "/" {
-		fileServer = http.StripPrefix(sH.options.UIBasePath+"/", fileServer)
+	if sH.options.BasePath != "/" {
+		fileServer = http.StripPrefix(sH.options.BasePath+"/", fileServer)
 	}
 	router.PathPrefix("/static/").Handler(sH.loggingHandler(fileServer))
 	// index.html is served by notFound handler
