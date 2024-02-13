@@ -32,7 +32,6 @@ func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) 
 }
 
 func Command(v *viper.Viper) *cobra.Command {
-
 	allFlag := true
 	rootCmd := &cobra.Command{
 		Use:   "print-config",
