@@ -54,7 +54,7 @@ func startZipkinReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	applyHTTPSettings(&receiverConfig.HTTPServerSettings, &flags.HTTPOptions{
+	applyHTTPSettings(&receiverConfig.ServerConfig, &flags.HTTPOptions{
 		HostPort: options.Zipkin.HTTPHostPort,
 		TLS:      options.Zipkin.TLS,
 		CORS:     options.HTTP.CORS,
