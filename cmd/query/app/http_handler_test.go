@@ -634,6 +634,14 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 }
 
 func TestTransformOTLPSuccess(t *testing.T) {
+	reformat := func(in []byte) []byte {
+		obj := new(interface{})
+		require.NoError(t, json.Unmarshal(in, obj))
+		// format json similar to `jq .`
+		out, err := json.MarshalIndent(obj, "", "  ")
+		require.NoError(t, err)
+		return out
+	}
 	withTestServer(func(ts *testServer) {
 		inFile, err := os.Open("./fixture/otlp2jaeger-in.json")
 		require.NoError(t, err)
@@ -643,12 +651,13 @@ func TestTransformOTLPSuccess(t *testing.T) {
 
 		responseBytes, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
+		responseBytes = reformat(responseBytes)
 
 		expectedBytes, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
 		require.NoError(t, err)
+		expectedBytes = reformat(expectedBytes)
 
-		// removing EOF char as comparing bytes and not objects
-		assert.Equal(t, expectedBytes[:len(expectedBytes)-1], responseBytes)
+		assert.Equal(t, string(expectedBytes), string(responseBytes))
 	}, querysvc.QueryServiceOptions{})
 }
 
