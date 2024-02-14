@@ -11,7 +11,7 @@ import (
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
 
@@ -55,39 +55,30 @@ func (plugin *mockStreamingSpanWriterPlugin) StreamingSpanWriter() spanstore.Wri
 }
 
 func TestStorageGRPCPlugin_RegisterHandlers(t *testing.T) {
-
 	plugin := StorageGRPCPlugin{
 		Impl:        &mockStorageGRPCPlugin{},
 		ArchiveImpl: &mockArchiveStoragePlugin{},
 		StreamImpl:  &mockStreamingSpanWriterPlugin{},
 	}
-
 	server := grpc.NewServer()
-
 	err := plugin.RegisterHandlers(server)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestStorageGRPCPlugin_GRPCServer(t *testing.T) {
-
 	plugin := &StorageGRPCPlugin{
 		Impl:        &mockStoragePlugin{},
 		ArchiveImpl: &mockArchiveStoragePlugin{},
 		StreamImpl:  &mockStreamingSpanWriterPlugin{},
 	}
-
 	server := grpc.NewServer()
-
 	err := plugin.GRPCServer(nil, server)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestStorageGRPCPlugin_GRPCClient(t *testing.T) {
-
 	clientConn := &grpc.ClientConn{}
-
 	plugin := &StorageGRPCPlugin{}
-
 	_, err := plugin.GRPCClient(context.Background(), nil, clientConn)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
