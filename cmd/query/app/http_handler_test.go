@@ -25,6 +25,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -55,6 +56,15 @@ import (
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
+
+type IoReaderMock struct {
+	mock.Mock
+}
+
+func (m *IoReaderMock) Read(b []byte) (int, error) {
+	args := m.Called(b)
+	return args.Int(0), args.Error(1)
+}
 
 var (
 	errStorageMsg = "storage error"
@@ -621,6 +631,52 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/trifle/operations", &response)
 	require.Error(t, err)
+}
+
+func TestTransformOTLPSuccess(t *testing.T) {
+	reformat := func(in []byte) []byte {
+		obj := new(interface{})
+		require.NoError(t, json.Unmarshal(in, obj))
+		// format json similar to `jq .`
+		out, err := json.MarshalIndent(obj, "", "  ")
+		require.NoError(t, err)
+		return out
+	}
+	withTestServer(func(ts *testServer) {
+		inFile, err := os.Open("./fixture/otlp2jaeger-in.json")
+		require.NoError(t, err)
+
+		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", inFile)
+		require.NoError(t, err)
+
+		responseBytes, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		responseBytes = reformat(responseBytes)
+
+		expectedBytes, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
+		require.NoError(t, err)
+		expectedBytes = reformat(expectedBytes)
+
+		assert.Equal(t, string(expectedBytes), string(responseBytes))
+	}, querysvc.QueryServiceOptions{})
+}
+
+func TestTransformOTLPReadError(t *testing.T) {
+	withTestServer(func(ts *testServer) {
+		bytesReader := &IoReaderMock{}
+		bytesReader.On("Read", mock.AnythingOfType("[]uint8")).Return(0, errors.New("Mocked error"))
+		_, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", bytesReader)
+		require.Error(t, err)
+	}, querysvc.QueryServiceOptions{})
+}
+
+func TestTransformOTLPBadPayload(t *testing.T) {
+	withTestServer(func(ts *testServer) {
+		response := new(interface{})
+		request := "Bad Payload"
+		err := postJSON(ts.server.URL+"/api/transform", request, response)
+		require.ErrorContains(t, err, "cannot unmarshal OTLP")
+	}, querysvc.QueryServiceOptions{})
 }
 
 func TestGetMetricsSuccess(t *testing.T) {
