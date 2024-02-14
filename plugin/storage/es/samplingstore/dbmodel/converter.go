@@ -18,13 +18,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
 
-func FromThroughputs(throughputs []*model.Throughput) []model.Throughput {
+func FromThroughputs(throughputs []*model.Throughput) []Throughput {
 	if throughputs == nil {
 		return nil
 	}
-	ret := make([]model.Throughput, len(throughputs))
+	ret := make([]Throughput, len(throughputs))
 	for i, d := range throughputs {
-		ret[i] = model.Throughput{
+		ret[i] = Throughput{
 			Service:       d.Service,
 			Operation:     d.Operation,
 			Count:         d.Count,
@@ -34,7 +34,7 @@ func FromThroughputs(throughputs []*model.Throughput) []model.Throughput {
 	return ret
 }
 
-func ToThroughputs(throughputs []model.Throughput) []*model.Throughput {
+func ToThroughputs(throughputs []Throughput) []*model.Throughput {
 	if throughputs == nil {
 		return nil
 	}

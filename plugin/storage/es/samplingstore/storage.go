@@ -115,7 +115,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
 	}
-	var retSamples []*model.Throughput
+	var retSamples []dbmodel.Throughput
 	hits := searchResult.Hits.Hits
 	for _, hit := range hits {
 		source := hit.Source
@@ -123,9 +123,9 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 		if err := json.Unmarshal(*source, &tToD); err != nil {
 			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
-		retSamples = append(retSamples, dbmodel.ToThroughputs(tToD.Throughput)...)
+		retSamples = append(retSamples, tToD.Throughput...)
 	}
-	return retSamples, nil
+	return dbmodel.ToThroughputs(retSamples), nil
 }
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
@@ -143,7 +143,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		return nil, nil
 	}
 
-	var latestProbabilities *dbmodel.TimeProbabilitiesAndQPS
+	var latestProbabilities dbmodel.TimeProbabilitiesAndQPS
 	latestTime := time.Time{}
 	for _, hit := range searchResult.Hits.Hits {
 		var unMarshalProbabilities dbmodel.TimeProbabilitiesAndQPS
@@ -153,7 +153,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		}
 		if unMarshalProbabilities.Timestamp.After(latestTime) {
 			latestTime = unMarshalProbabilities.Timestamp
-			latestProbabilities = &unMarshalProbabilities
+			latestProbabilities = unMarshalProbabilities
 		}
 	}
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil

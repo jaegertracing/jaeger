@@ -16,22 +16,27 @@ package dbmodel
 
 import (
 	"time"
-
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 )
 
+type Throughput struct {
+	Service       string
+	Operation     string
+	Count         int64
+	Probabilities map[string]struct{}
+}
+
 type TimeThroughput struct {
-	Timestamp  time.Time          `json:"timestamp"`
-	Throughput []model.Throughput `json:"throughputs"`
+	Timestamp  time.Time    `json:"timestamp"`
+	Throughput []Throughput `json:"throughputs"`
+}
+
+type ProbabilitiesAndQPS struct {
+	Hostname      string
+	Probabilities map[string]map[string]float64
+	QPS           map[string]map[string]float64
 }
 
 type TimeProbabilitiesAndQPS struct {
 	Timestamp           time.Time           `json:"timestamp"`
 	ProbabilitiesAndQPS ProbabilitiesAndQPS `json:"probabilitiesandqps"`
-}
-
-type ProbabilitiesAndQPS struct {
-	Hostname      string
-	Probabilities model.ServiceOperationProbabilities
-	QPS           model.ServiceOperationQPS
 }
