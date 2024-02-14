@@ -41,27 +41,15 @@
           "logs": [],
           "processID": "p1",
           "warnings": null
-        }
-      ],
-      "processes": {
-        "p1": {
-          "serviceName": "telemetrygen",
-          "tags": []
-        }
-      },
-      "warnings": null
-    },
-    {
-      "traceID": "000083a9efd15c1c98a977e0711cc93e",
-      "spans": [
+        },
         {
-          "traceID": "000083a9efd15c1c98a977e0711cc93e",
+          "traceID": "83a9efd15c1c98a977e0711cc93ee28b",
           "spanID": "e127af99e3b3e074",
           "operationName": "okey-dokey-0",
           "references": [
             {
               "refType": "CHILD_OF",
-              "traceID": "000083a9efd15c1c98a977e0711cc93e",
+              "traceID": "83a9efd15c1c98a977e0711cc93ee28b",
               "spanID": "909541b92cf05311"
             }
           ],
