@@ -109,7 +109,10 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
-	indices := s.getLatestIndices()
+	indices, err := s.getLatestIndices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest indices: %w", err)
+	}
 	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
 		IgnoreUnavailable(true).
@@ -153,10 +156,19 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func (s *SamplingStore) getLatestIndices() []string {
-	currTime := time.Now().UTC()
-	indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, currTime)
-	return []string{indexName}
+func (s *SamplingStore) getLatestIndices(ctx context.Context) ([]string, error) {
+	now := time.Now().UTC()
+	for {
+		indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, now)
+		exists, err := s.client().IndexExists(indexName).Do(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return []string{indexName}, nil
+		}
+		now = now.Add(-time.Hour * 24)
+	}
 }
 
 func (s *SamplingStore) getReadIndices(start, end time.Time) []string {

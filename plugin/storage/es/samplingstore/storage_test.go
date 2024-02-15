@@ -303,6 +303,8 @@ func TestGetLatestProbabilities(t *testing.T) {
 		expectedError  string
 		maxDocCount    int
 		indices        []interface{}
+		indexPresent   bool
+		indexError     error
 	}{
 		{
 			searchResult: createSearchResult(latestProbabilities),
@@ -311,19 +313,21 @@ func TestGetLatestProbabilities(t *testing.T) {
 					"op": 0.1,
 				},
 			},
-			indices:       []interface{}{mockIndex},
-			maxDocCount:   1000,
-			expectedError: "",
+			indices:      []interface{}{mockIndex},
+			maxDocCount:  1000,
+			indexPresent: true,
 		},
 		{
 			searchResult:  createSearchResult(badProbabilities),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
 			indices:       []interface{}{mockIndex},
+			indexPresent:  true,
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for Latest Probabilities: search failure",
 			indices:       []interface{}{mockIndex},
+			indexPresent:  true,
 		},
 	}
 	for _, testCase := range testCases {
@@ -333,6 +337,10 @@ func TestGetLatestProbabilities(t *testing.T) {
 			searchService.On("Size", mock.Anything).Return(searchService)
 			searchService.On("IgnoreUnavailable", true).Return(searchService)
 			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
+
+			indicesexistsservice := &mocks.IndicesExistsService{}
+			w.client.On("IndexExists", testCase.indices...).Return(indicesexistsservice)
+			indicesexistsservice.On("Do", mock.Anything).Return(testCase.indexPresent, testCase.indexError)
 
 			actual, err := w.storage.GetLatestProbabilities()
 			if testCase.expectedError != "" {
