@@ -57,7 +57,6 @@ func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) 
 		}
 	}
 	printLineBreak(cmd, maxRowLength)
-
 }
 
 func Command(v *viper.Viper) *cobra.Command {
