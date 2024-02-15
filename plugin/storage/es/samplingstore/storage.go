@@ -92,6 +92,21 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	return dbmodel.ToThroughputs(retSamples), nil
 }
 
+func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+) error {
+	ts := time.Now()
+	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	val := dbmodel.ProbabilitiesAndQPS{
+		Hostname:      hostname,
+		Probabilities: probabilities,
+		QPS:           qps,
+	}
+	s.writeProbabilitiesAndQPS(writeIndexName, ts, val)
+	return nil
+}
+
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
 	indices := s.getLatestIndices()
@@ -112,7 +127,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	for _, hit := range searchResult.Hits.Hits {
 		var data dbmodel.TimeProbabilitiesAndQPS
 		if err = json.Unmarshal(*hit.Source, &data); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
 		}
 		if data.Timestamp.After(latestTime) {
 			latestTime = data.Timestamp
@@ -128,21 +143,6 @@ func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, throughp
 			Timestamp:  ts,
 			Throughput: dbmodel.FromThroughputs(throughputs),
 		}).Add()
-}
-
-func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
-	probabilities model.ServiceOperationProbabilities,
-	qps model.ServiceOperationQPS,
-) error {
-	ts := time.Now()
-	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
-	val := dbmodel.ProbabilitiesAndQPS{
-		Hostname:      hostname,
-		Probabilities: probabilities,
-		QPS:           qps,
-	}
-	s.writeProbabilitiesAndQPS(writeIndexName, ts, val)
-	return nil
 }
 
 func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {

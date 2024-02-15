@@ -244,7 +244,7 @@ func TestGetThroughput(t *testing.T) {
 		},
 		{
 			searchResult:  createSearchResult(badThroughputs),
-			expectedError: "unmarshalling ElasticSearch documents failed",
+			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
 			indices:       []interface{}{mockIndex},
 		},
 		{
@@ -317,7 +317,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 		},
 		{
 			searchResult:  createSearchResult(badProbabilities),
-			expectedError: "invalid character 'b' looking for beginning of value",
+			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
 			indices:       []interface{}{mockIndex},
 		},
 		{
