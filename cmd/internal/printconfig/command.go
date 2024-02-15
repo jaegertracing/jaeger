@@ -35,7 +35,7 @@ func Command(v *viper.Viper) *cobra.Command {
 	allFlag := true
 	rootCmd := &cobra.Command{
 		Use:   "print-config",
-		Short: "Print configurations that have an actual value",
+		Short: "Print names and values of configuration options",
 		Long:  "Print names and values of configuration options, distinguishing between default and user-assigned values",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			printConfigurations(cmd, v, allFlag)
