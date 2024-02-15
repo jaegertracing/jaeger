@@ -35,12 +35,24 @@ func TestCommand(t *testing.T) {
 		{"TEST_REPORTER_LOG_SPANS", "true"},
 		{"TEST_NUM_WORKS", "0"},
 	}
+	source := "user-assigned"
 
 	v := viper.New()
 
 	v.SetDefault(testPairs[0].Key, testPairs[0].Value)
 	v.SetDefault(testPairs[1].Key, testPairs[1].Value)
 	v.SetDefault(testPairs[2].Key, testPairs[2].Value)
+
+	maxSourceLength := len(source)
+	maxKeyLength, maxValueLength := 0, 0
+	for _, t := range testPairs {
+		if len(t.Key) > maxKeyLength {
+			maxKeyLength = len(t.Key)
+		}
+		if len(t.Value) > maxValueLength {
+			maxValueLength = len(t.Value)
+		}
+	}
 
 	buf := new(bytes.Buffer)
 	printCmd := Command(v)
@@ -53,7 +65,11 @@ func TestCommand(t *testing.T) {
 
 		key := strings.ToLower(pair.Key)
 		value := strings.ToLower(pair.Value)
-		str := fmt.Sprintf("%s=%s", key, value)
+		str := fmt.Sprintf(
+			"| %-*s %-*s %-*s |\n",
+			maxKeyLength, key,
+			maxValueLength, value,
+			maxSourceLength, source)
 
 		assert.Contains(t, output, str, "Output should contain the value '%s' for key '%s'", value, key)
 	}
