@@ -42,7 +42,7 @@ func Command(v *viper.Viper) *cobra.Command {
 			return nil
 		},
 	}
-	rootCmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Print all configurations, including those without a value")
+	rootCmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Print all configuration options including those with empty values")
 
 	return rootCmd
 }
