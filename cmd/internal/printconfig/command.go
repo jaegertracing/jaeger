@@ -36,7 +36,7 @@ func Command(v *viper.Viper) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "print-config",
 		Short: "Print configurations that have an actual value",
-		Long:  "Iterates through the configuration used by Jaeger that has a existing value and prints them indicating whether it is a default or user-assigned value",
+		Long:  "Print names and values of configuration options, distinguishing between default and user-assigned values",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			printConfigurations(cmd, v, allFlag)
 			return nil
