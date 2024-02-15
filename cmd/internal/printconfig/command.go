@@ -6,34 +6,63 @@ package printconfig
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
+func printLineBreak(cmd *cobra.Command, n int) {
+	fmt.Fprint(cmd.OutOrStdout(), strings.Repeat("-", n), "\n")
+}
+
 func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) {
 	keys := v.AllKeys()
 	sort.Strings(keys)
 
+	maxKeyLength, maxValueLength := 0, 0
+	maxSourceLength := len("user-assigned")
 	for _, key := range keys {
-		value := v.Get(key)
+		value := v.GetString(key)
+		if len(key) > maxKeyLength {
+			maxKeyLength = len(key)
+		}
+		if len(value) > maxValueLength {
+			maxValueLength = len(value)
+		}
+	}
+	maxRowLength := maxKeyLength + maxValueLength + maxSourceLength + 6
+
+	printLineBreak(cmd, maxRowLength)
+	fmt.Fprintf(cmd.OutOrStdout(),
+		"| %-*s %-*s %-*s |\n",
+		maxKeyLength, "Configuration Option Name",
+		maxValueLength, "Value",
+		maxSourceLength, "Source")
+	printLineBreak(cmd, maxRowLength)
+
+	for _, key := range keys {
+		value := v.GetString(key)
 		source := "default"
 		if v.IsSet(key) {
 			source = "user-assigned"
 		}
 
-		if includeEmpty {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s: %v=%s\n", source, key, value)
-		} else if value != nil && value != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s: %v=%s\n", source, key, value)
+		if includeEmpty || value != "" {
+			fmt.Fprintf(cmd.OutOrStdout(),
+				"| %-*s %-*s %-*s |\n",
+				maxKeyLength, key,
+				maxValueLength, value,
+				maxSourceLength, source)
 		}
-
 	}
+	printLineBreak(cmd, maxRowLength)
+
 }
 
 func Command(v *viper.Viper) *cobra.Command {
 	allFlag := true
-	rootCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "print-config",
 		Short: "Print names and values of configuration options",
 		Long:  "Print names and values of configuration options, distinguishing between default and user-assigned values",
@@ -42,7 +71,7 @@ func Command(v *viper.Viper) *cobra.Command {
 			return nil
 		},
 	}
-	rootCmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Print all configuration options including those with empty values")
+	cmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Print all configuration options including those with empty values")
 
-	return rootCmd
+	return cmd
 }
