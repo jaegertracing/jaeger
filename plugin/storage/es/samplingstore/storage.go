@@ -17,7 +17,6 @@ package samplingstore
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -69,41 +68,6 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	return nil
 }
 
-func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
-	probabilities model.ServiceOperationProbabilities,
-	qps model.ServiceOperationQPS,
-) error {
-	ts := time.Now()
-	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
-	val := dbmodel.ProbabilitiesAndQPS{
-		Hostname:      hostname,
-		Probabilities: probabilities,
-		QPS:           qps,
-	}
-	s.writeProbabilitiesAndQPS(writeIndexName, ts, val)
-	return nil
-}
-
-func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
-	s.client().Index().Index(indexName).Type(probabilitiesType).
-		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
-			Timestamp:           ts,
-			ProbabilitiesAndQPS: pandqps,
-		}).Add()
-}
-
-func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
-	return indexNamePrefix + date.UTC().Format(indexDateLayout)
-}
-
-func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, throughputs []*model.Throughput) {
-	s.client().Index().Index(indexName).Type(throughputType).
-		BodyJson(&dbmodel.TimeThroughput{
-			Timestamp:  ts,
-			Throughput: dbmodel.FromThroughputs(throughputs),
-		}).Add()
-}
-
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
 	indices := s.getReadIndices(start, end)
@@ -121,7 +85,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 		source := hit.Source
 		var tToD dbmodel.TimeThroughput
 		if err := json.Unmarshal(*source, &tToD); err != nil {
-			return nil, errors.New("unmarshalling ElasticSearch documents failed")
+			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
 		}
 		retSamples = append(retSamples, tToD.Throughput...)
 	}
@@ -146,21 +110,47 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	var latestProbabilities dbmodel.TimeProbabilitiesAndQPS
 	latestTime := time.Time{}
 	for _, hit := range searchResult.Hits.Hits {
-		var unMarshalProbabilities dbmodel.TimeProbabilitiesAndQPS
-		err = json.Unmarshal(*hit.Source, &unMarshalProbabilities)
-		if err != nil {
+		var data dbmodel.TimeProbabilitiesAndQPS
+		if err = json.Unmarshal(*hit.Source, &data); err != nil {
 			return nil, err
 		}
-		if unMarshalProbabilities.Timestamp.After(latestTime) {
-			latestTime = unMarshalProbabilities.Timestamp
-			latestProbabilities = unMarshalProbabilities
+		if data.Timestamp.After(latestTime) {
+			latestTime = data.Timestamp
+			latestProbabilities = data
 		}
 	}
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }
 
-func buildTSQuery(start, end time.Time) elastic.Query {
-	return elastic.NewRangeQuery("timestamp").Gte(start).Lte(end)
+func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, throughputs []*model.Throughput) {
+	s.client().Index().Index(indexName).Type(throughputType).
+		BodyJson(&dbmodel.TimeThroughput{
+			Timestamp:  ts,
+			Throughput: dbmodel.FromThroughputs(throughputs),
+		}).Add()
+}
+
+func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+) error {
+	ts := time.Now()
+	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	val := dbmodel.ProbabilitiesAndQPS{
+		Hostname:      hostname,
+		Probabilities: probabilities,
+		QPS:           qps,
+	}
+	s.writeProbabilitiesAndQPS(writeIndexName, ts, val)
+	return nil
+}
+
+func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
+	s.client().Index().Index(indexName).Type(probabilitiesType).
+		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
+			Timestamp:           ts,
+			ProbabilitiesAndQPS: pandqps,
+		}).Add()
 }
 
 func (s *SamplingStore) getLatestIndices() []string {
@@ -186,4 +176,12 @@ func prefixIndexName(prefix, index string) string {
 		return prefix + indexPrefixSeparator + index
 	}
 	return index
+}
+
+func buildTSQuery(start, end time.Time) elastic.Query {
+	return elastic.NewRangeQuery("timestamp").Gte(start).Lte(end)
+}
+
+func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
+	return indexNamePrefix + date.UTC().Format(indexDateLayout)
 }
