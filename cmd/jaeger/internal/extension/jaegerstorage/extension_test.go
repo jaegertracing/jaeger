@@ -88,9 +88,6 @@ func TestStorageExtensionNameConflict(t *testing.T) {
 		Badger: map[string]badgerCfg.NamespaceConfig{
 			"foo": {},
 		},
-		Elasticsearch: map[string]esCfg.Configuration{
-			"foo": {},
-		},
 	})
 	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "duplicate")
@@ -186,12 +183,15 @@ func TestESStorageExtension(t *testing.T) {
 func TestESStorageExtensionError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Elasticsearch: map[string]esCfg.Configuration{
-			"foo": {},
+			"foo": {
+				Servers:  []string{"badurl"},
+				LogLevel: "error",
+			},
 		},
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
-	require.ErrorContains(t, err, "no servers specified")
+	require.ErrorContains(t, err, "no Elasticsearch node available")
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {
