@@ -20,7 +20,7 @@ func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) 
 	keys := v.AllKeys()
 	sort.Strings(keys)
 
-	maxKeyLength, maxValueLength := 0, 0
+	maxKeyLength, maxValueLength := len("Configuration Option Name"), len("Value")
 	maxSourceLength := len("user-assigned")
 	for _, key := range keys {
 		value := v.GetString(key)
