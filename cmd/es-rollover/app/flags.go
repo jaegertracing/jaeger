@@ -18,17 +18,20 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
-	indexPrefix      = "index-prefix"
-	archive          = "archive"
-	username         = "es.username"
-	password         = "es.password"
-	useILM           = "es.use-ilm"
-	ilmPolicyName    = "es.ilm-policy-name"
-	timeout          = "timeout"
-	skipDependencies = "skip-dependencies"
+	deprecatedIndexPrefix        = "index-prefix"
+	deprecatedIndexPrefixWarning = "(deprecated, will be removed after 2023-06-05 or in release v1.44.0, whichever is later)"
+	archive                      = "archive"
+	username                     = "es.username"
+	password                     = "es.password"
+	useILM                       = "es.use-ilm"
+	ilmPolicyName                = "es.ilm-policy-name"
+	indexPrefix                  = "es.index-prefix"
+	timeout                      = "timeout"
+	skipDependencies             = "skip-dependencies"
 )
 
 // Config holds the global configurations for the es rollover, common to all actions
@@ -46,19 +49,27 @@ type Config struct {
 
 // AddFlags adds flags
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(indexPrefix, "", "Index prefix")
+	flags.String(deprecatedIndexPrefix, "", deprecatedIndexPrefixWarning+" see --"+indexPrefix)
 	flags.Bool(archive, false, "Handle archive indices")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
 	flags.Bool(useILM, false, "Use ILM to manage jaeger indices")
 	flags.String(ilmPolicyName, "jaeger-ilm-policy", "The name of the ILM policy to use if ILM is active")
+	flags.String(indexPrefix, "", "Index prefix")
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 	flags.Bool(skipDependencies, false, "Disable rollover for dependencies index")
 }
 
 // InitFromViper initializes config from viper.Viper.
-func (c *Config) InitFromViper(v *viper.Viper) {
+func (c *Config) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	c.IndexPrefix = v.GetString(indexPrefix)
+	if c.IndexPrefix == "" {
+		// try with deprecated flag
+		c.IndexPrefix = v.GetString(deprecatedIndexPrefix)
+		if c.IndexPrefix != "" {
+			logger.Warn(deprecatedIndexPrefix + " " + deprecatedIndexPrefixWarning + " see --" + indexPrefix)
+		}
+	}
 	if c.IndexPrefix != "" {
 		c.IndexPrefix += "-"
 	}

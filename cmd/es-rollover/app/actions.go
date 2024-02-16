@@ -60,7 +60,7 @@ type ActionCreatorFunction func(client.Client, Config) Action
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
 	cfg := Config{}
-	cfg.InitFromViper(opts.Viper)
+	cfg.InitFromViper(opts.Viper, opts.Logger)
 	tlsOpts, err := opts.TLSFlags.InitFromViper(opts.Viper)
 	if err != nil {
 		return err

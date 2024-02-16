@@ -18,16 +18,19 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
-	indexPrefix        = "index-prefix"
-	archive            = "archive"
-	rollover           = "rollover"
-	timeout            = "timeout"
-	indexDateSeparator = "index-date-separator"
-	username           = "es.username"
-	password           = "es.password"
+	deprecatedIndexPrefix        = "index-prefix"
+	deprecatedIndexPrefixWarning = "(deprecated, will be removed after 2023-06-05 or in release v1.44.0, whichever is later)"
+	archive                      = "archive"
+	rollover                     = "rollover"
+	timeout                      = "timeout"
+	indexDateSeparator           = "index-date-separator"
+	username                     = "es.username"
+	password                     = "es.password"
+	indexPrefix                  = "es.index-prefix"
 )
 
 // Config holds configuration for index cleaner binary.
@@ -44,18 +47,26 @@ type Config struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c *Config) AddFlags(flags *flag.FlagSet) {
-	flags.String(indexPrefix, "", "Index prefix")
+	flags.String(deprecatedIndexPrefix, "", deprecatedIndexPrefixWarning+" see --"+indexPrefix)
 	flags.Bool(archive, false, "Whether to remove archive indices. It works only for rollover")
 	flags.Bool(rollover, false, "Whether to remove indices created by rollover")
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 	flags.String(indexDateSeparator, "-", "Index date separator")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
+	flags.String(indexPrefix, "", "Index prefix")
 }
 
 // InitFromViper initializes config from viper.Viper.
-func (c *Config) InitFromViper(v *viper.Viper) {
+func (c *Config) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	c.IndexPrefix = v.GetString(indexPrefix)
+	if c.IndexPrefix == "" {
+		// try with deprecated flag
+		c.IndexPrefix = v.GetString(deprecatedIndexPrefix)
+		if c.IndexPrefix != "" {
+			logger.Warn(deprecatedIndexPrefix + " " + deprecatedIndexPrefixWarning + " see --" + indexPrefix)
+		}
+	}
 	if c.IndexPrefix != "" {
 		c.IndexPrefix += "-"
 	}
