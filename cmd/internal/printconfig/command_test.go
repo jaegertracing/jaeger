@@ -20,12 +20,12 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestCommand(t *testing.T) {
-
 	expected := `-------------------------------------------------
 | Configuration Option Name Value Source        |
 -------------------------------------------------
@@ -43,12 +43,11 @@ func TestCommand(t *testing.T) {
 	printCmd := Command(v)
 	printCmd.SetOut(buf)
 	_, err := printCmd.ExecuteC()
-
-	if assert.NoError(t, err, "printCmd.ExecuteC() returned the error %v", err) {
+	if err != nil {
+		require.NoError(t, err, "printCmd.ExecuteC() returned the error %v", err)
 		actual := buf.String()
 		assert.Equal(t, expected, actual)
 	}
-
 }
 
 func TestMain(m *testing.M) {
