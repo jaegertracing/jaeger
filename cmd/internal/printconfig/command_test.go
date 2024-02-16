@@ -16,8 +16,6 @@ package printconfig
 
 import (
 	"bytes"
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -27,52 +25,30 @@ import (
 )
 
 func TestCommand(t *testing.T) {
-	testPairs := []struct {
-		Key   string
-		Value string
-	}{
-		{"TEST_METRICS", "1"},
-		{"TEST_REPORTER_LOG_SPANS", "true"},
-		{"TEST_NUM_WORKS", "0"},
-	}
-	source := "user-assigned"
 
+	expected := `-------------------------------------------------
+| Configuration Option Name Value Source        |
+-------------------------------------------------
+| test_metrics              1     user-assigned |
+| test_num_works            0     user-assigned |
+| test_reporter_log_spans   true  user-assigned |
+-------------------------------------------------
+`
 	v := viper.New()
-
-	v.SetDefault(testPairs[0].Key, testPairs[0].Value)
-	v.SetDefault(testPairs[1].Key, testPairs[1].Value)
-	v.SetDefault(testPairs[2].Key, testPairs[2].Value)
-
-	maxSourceLength := len(source)
-	maxKeyLength, maxValueLength := 0, 0
-	for _, t := range testPairs {
-		if len(t.Key) > maxKeyLength {
-			maxKeyLength = len(t.Key)
-		}
-		if len(t.Value) > maxValueLength {
-			maxValueLength = len(t.Value)
-		}
-	}
+	v.SetDefault("TEST_METRICS", "1")
+	v.SetDefault("TEST_REPORTER_LOG_SPANS", "true")
+	v.SetDefault("TEST_NUM_WORKS", "0")
 
 	buf := new(bytes.Buffer)
 	printCmd := Command(v)
 	printCmd.SetOut(buf)
-	printCmd.ExecuteC()
+	_, err := printCmd.ExecuteC()
 
-	output := buf.String()
-
-	for _, pair := range testPairs {
-
-		key := strings.ToLower(pair.Key)
-		value := strings.ToLower(pair.Value)
-		str := fmt.Sprintf(
-			"| %-*s %-*s %-*s |\n",
-			maxKeyLength, key,
-			maxValueLength, value,
-			maxSourceLength, source)
-
-		assert.Contains(t, output, str, "Output should contain the value '%s' for key '%s'", value, key)
+	if assert.NoError(t, err, "printCmd.ExecuteC() returned the error %v", err) {
+		actual := buf.String()
+		assert.Equal(t, expected, actual)
 	}
+
 }
 
 func TestMain(m *testing.M) {
