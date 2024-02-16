@@ -45,7 +45,7 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                        []string       `mapstructure:"server_urls"`
+	Servers                        []string       `mapstructure:"server_urls" validate:"required,min=1,dive,url"`
 	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
 	Username                       string         `mapstructure:"username"`
 	Password                       string         `mapstructure:"password" json:"-"`
