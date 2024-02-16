@@ -45,9 +45,9 @@ func TestCommand(t *testing.T) {
 	_, err := printCmd.ExecuteC()
 	if err != nil {
 		require.NoError(t, err, "printCmd.ExecuteC() returned the error %v", err)
-		actual := buf.String()
-		assert.Equal(t, expected, actual)
 	}
+	actual := buf.String()
+	assert.Equal(t, expected, actual)
 }
 
 func TestMain(m *testing.M) {
