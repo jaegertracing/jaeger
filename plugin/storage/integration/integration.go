@@ -121,6 +121,33 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 	return predicate(t)
 }
 
+func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
+	defer s.CleanUp()
+
+	tID := model.NewTraceID(uint64(11), uint64(22))
+	expected := &model.Span{
+		OperationName: "archive_span",
+		StartTime:     time.Now().Add(-time.Hour * 72 * 5),
+		TraceID:       tID,
+		SpanID:        model.NewSpanID(55),
+		References:    []model.SpanRef{},
+		Process:       model.NewProcess("archived_service", model.KeyValues{}),
+	}
+
+	require.NoError(t, s.SpanWriter.WriteSpan(context.Background(), expected))
+	s.Refresh()
+
+	var actual *model.Trace
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
+		return err == nil && len(actual.Spans) == 1
+	})
+	if !assert.True(t, found) {
+		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
+	}
+}
+
 func (s *StorageIntegration) testGetServices(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
@@ -480,6 +507,7 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 
 // IntegrationTestAll runs all integration tests
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
+	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
