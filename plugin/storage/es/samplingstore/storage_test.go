@@ -95,17 +95,34 @@ func TestGetReadIndices(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withEsSampling("prefix", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			expectedIndices := []string{
-				"prefix-jaeger-sampling-2024-02-12",
-				"prefix-jaeger-sampling-2024-02-11",
-				"prefix-jaeger-sampling-2024-02-10",
-			}
-			indices := w.storage.getReadIndices(testCase.start, testCase.end)
-			assert.Equal(t, expectedIndices, indices)
-		})
+		expectedIndices := []string{
+			"prefix-jaeger-sampling-2024-02-12",
+			"prefix-jaeger-sampling-2024-02-11",
+			"prefix-jaeger-sampling-2024-02-10",
+		}
+		reduceDuration := -time.Hour * 24
+		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", testCase.start, testCase.end, reduceDuration)
+		assert.Equal(t, expectedIndices, indices)
 	}
 }
+
+// func TestGetLatestIndices(t *testing.T) {
+// 	withEsSampling("prefix", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+// 		expectedIndices := []string{
+// 			"prefix-jaeger-sampling-2024-02-12",
+// 			"prefix-jaeger-sampling-2024-02-11",
+// 			"prefix-jaeger-sampling-2024-02-10",
+// 		}
+// 		indexService := &mocks.IndexService{}
+// 		fixedTime := time.Now()
+// 		indexName := indexWithDate("", "2006-01-02", fixedTime)
+// 		w.client.On("IndexExists", stringMatcher(indexName)).Return(indexService)
+// 		w.client.On("Do", mock.Anything).Return(true, nil)
+// 		indices, _ := getLatestIndices("prefix", "2006-01-02", w.storage.client())
+// 		// assert.NoError(t, err)
+// 		assert.Equal(t, expectedIndices, indices)
+// 	})
+// }
 
 func TestInsertThroughput(t *testing.T) {
 	testCases := []struct {

@@ -73,6 +73,8 @@ type Configuration struct {
 	IndexDateLayoutDependencies    string         `mapstructure:"-"`
 	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
 	IndexRolloverFrequencyServices string         `mapstructure:"-"`
+	IndexRolloverFrequencySampling string         `mapstructure:"-"`
+	MaxSampleTime                  time.Duration  `mapstructure:"-"`
 	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
 	Enabled                        bool           `mapstructure:"-"`
 	TLS                            tlscfg.Options `mapstructure:"tls"`
@@ -295,6 +297,14 @@ func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
 // GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
 	if c.IndexRolloverFrequencyServices == "hour" {
+		return -1 * time.Hour
+	}
+	return -24 * time.Hour
+}
+
+// GetIndexRolloverFrequencySamplingDuration returns jaeger-sampling index rollover frequency duration
+func (c *Configuration) GetIndexRolloverFrequencySamplingDuration() time.Duration {
+	if c.IndexRolloverFrequencySampling == "hour" {
 		return -1 * time.Hour
 	}
 	return -24 * time.Hour

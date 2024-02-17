@@ -52,6 +52,7 @@ const (
 	suffixIndexDateSeparator             = ".index-date-separator"
 	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
 	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
+	suffixIndexRolloverFrequencySampling = ".index-rollover-frequency-sampling"
 	suffixTagsAsFields                   = ".tags-as-fields"
 	suffixTagsAsFieldsAll                = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
@@ -244,6 +245,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		defaultIndexRolloverFrequency,
 		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexRolloverFrequencySampling,
+		defaultIndexRolloverFrequency,
+		"Rotates jaeger-sampling indices over the given period. For example \"day\" creates \"jaeger-sampling-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
@@ -365,6 +371,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
 	cfg.IndexRolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
+	cfg.IndexRolloverFrequencySampling = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
 
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
 	cfg.IndexDateLayoutSpans = initDateLayout(cfg.IndexRolloverFrequencySpans, separator)

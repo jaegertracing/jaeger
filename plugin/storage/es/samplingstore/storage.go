@@ -36,28 +36,34 @@ const (
 )
 
 type SamplingStore struct {
-	client              func() es.Client
-	logger              *zap.Logger
-	samplingIndexPrefix string
-	indexDateLayout     string
-	maxDocCount         int
+	client                         func() es.Client
+	logger                         *zap.Logger
+	samplingIndexPrefix            string
+	indexDateLayout                string
+	maxDocCount                    int
+	samplingIndexRolloverFrequency time.Duration
+	maxSampleTime                  time.Duration
 }
 
 type SamplingStoreParams struct {
-	Client          func() es.Client
-	Logger          *zap.Logger
-	IndexPrefix     string
-	IndexDateLayout string
-	MaxDocCount     int
+	Client                         func() es.Client
+	Logger                         *zap.Logger
+	IndexPrefix                    string
+	IndexDateLayout                string
+	MaxDocCount                    int
+	SamplingIndexRolloverFrequency time.Duration
+	MaxSampleTime                  time.Duration
 }
 
 func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 	return &SamplingStore{
-		client:              p.Client,
-		logger:              p.Logger,
-		samplingIndexPrefix: prefixIndexName(p.IndexPrefix, samplingIndex),
-		indexDateLayout:     p.IndexDateLayout,
-		maxDocCount:         p.MaxDocCount,
+		client:                         p.Client,
+		logger:                         p.Logger,
+		samplingIndexPrefix:            prefixIndexName(p.IndexPrefix, samplingIndex),
+		indexDateLayout:                p.IndexDateLayout,
+		maxDocCount:                    p.MaxDocCount,
+		samplingIndexRolloverFrequency: p.SamplingIndexRolloverFrequency,
+		maxSampleTime:                  p.MaxSampleTime,
 	}
 }
 
@@ -70,7 +76,7 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
-	indices := s.getReadIndices(start, end)
+	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.samplingIndexRolloverFrequency)
 	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(start, end)).
@@ -109,11 +115,12 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
-	indices, err := s.getLatestIndices(ctx)
+	clientFn := s.client()
+	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.samplingIndexRolloverFrequency, s.maxSampleTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest indices: %w", err)
 	}
-	searchResult, err := s.client().Search(indices...).
+	searchResult, err := clientFn.Search(indices...).
 		Size(s.maxDocCount).
 		IgnoreUnavailable(true).
 		Do(ctx)
@@ -156,31 +163,39 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func (s *SamplingStore) getLatestIndices(ctx context.Context) ([]string, error) {
+func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, reduceDuration time.Duration, maxDuration time.Duration) ([]string, error) {
+	ctx := context.Background()
 	now := time.Now().UTC()
+	end := now.Add(-maxDuration)
 	for {
-		indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, now)
-		exists, err := s.client().IndexExists(indexName).Do(ctx)
+		indexName := indexWithDate(indexPrefix, indexDateLayout, now)
+		exists, err := clientFn.IndexExists(indexName).Do(ctx)
 		if err != nil {
 			return nil, err
 		}
 		if exists {
 			return []string{indexName}, nil
 		}
-		now = now.Add(-time.Hour * 24)
+		if now == end {
+			return nil, fmt.Errorf("falied to find latest index")
+		}
+		now = now.Add(reduceDuration)
 	}
 }
 
-func (s *SamplingStore) getReadIndices(start, end time.Time) []string {
+func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 	var indices []string
-	firstIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, start)
-	currentIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, end)
+	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
+	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		end = end.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, end)
+		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
+			indices = append(indices, currentIndex)
+		}
+		endTime = endTime.Add(reduceDuration)
+		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
-	return append(indices, firstIndex)
+	indices = append(indices, firstIndex)
+	return indices
 }
 
 func prefixIndexName(prefix, index string) string {
