@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,13 +32,16 @@ func TestCommand(t *testing.T) {
 -------------------------------------------------
 | test_metrics              1     user-assigned |
 | test_num_works            0     user-assigned |
-| test_reporter_log_spans   true  user-assigned |
+| test_reporter_log_spans   true  default       |
 -------------------------------------------------
 `
+
 	v := viper.New()
-	v.SetDefault("TEST_METRICS", "1")
-	v.SetDefault("TEST_REPORTER_LOG_SPANS", "true")
-	v.SetDefault("TEST_NUM_WORKS", "0")
+
+	v.Set("TEST_METRICS", "1")
+	v.Set("TEST_NUM_WORKS", "0")
+	pflag.Bool("TEST_REPORTER_LOG_SPANS", true, "")
+	v.BindPFlags(pflag.CommandLine)
 
 	buf := new(bytes.Buffer)
 	printCmd := Command(v)
@@ -46,6 +50,7 @@ func TestCommand(t *testing.T) {
 	if err != nil {
 		require.NoError(t, err, "printCmd.ExecuteC() returned the error %v", err)
 	}
+
 	actual := buf.String()
 	assert.Equal(t, expected, actual)
 }
