@@ -233,6 +233,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
+	if c.MaxSampleTime == 0 {
+		c.MaxSampleTime = source.MaxSampleTime
+	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
