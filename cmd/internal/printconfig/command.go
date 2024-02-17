@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func printLineBreak(cmd *cobra.Command, n int) {
+func printDivider(cmd *cobra.Command, n int) {
 	fmt.Fprint(cmd.OutOrStdout(), strings.Repeat("-", n), "\n")
 }
 
@@ -33,13 +33,13 @@ func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) 
 	}
 	maxRowLength := maxKeyLength + maxValueLength + maxSourceLength + 6
 
-	printLineBreak(cmd, maxRowLength)
+	printDivider(cmd, maxRowLength)
 	fmt.Fprintf(cmd.OutOrStdout(),
 		"| %-*s %-*s %-*s |\n",
 		maxKeyLength, "Configuration Option Name",
 		maxValueLength, "Value",
 		maxSourceLength, "Source")
-	printLineBreak(cmd, maxRowLength)
+	printDivider(cmd, maxRowLength)
 
 	for _, key := range keys {
 		value := v.GetString(key)
@@ -56,7 +56,7 @@ func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) 
 				maxSourceLength, source)
 		}
 	}
-	printLineBreak(cmd, maxRowLength)
+	printDivider(cmd, maxRowLength)
 }
 
 func Command(v *viper.Viper) *cobra.Command {
