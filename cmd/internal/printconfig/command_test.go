@@ -59,7 +59,6 @@ func TestPrintConfigCommand(t *testing.T) {
 }
 
 func setConfig(v *viper.Viper) {
-
 	v.Set("STATUS.HTTP.HOST_PORT_TEST", ":8080")
 	v.Set("METRICS_ENABLED_TEST", "")
 	v.Set("NEW_FEATURE_TEST", nil)
@@ -87,5 +86,4 @@ func runPrintConfigCommand(v *viper.Viper, t *testing.T, allFlag bool) string {
 	require.NoError(t, err, "printCmd.ExecuteC() returned the error %v", err)
 
 	return buf.String()
-
 }
