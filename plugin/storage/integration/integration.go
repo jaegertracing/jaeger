@@ -31,9 +31,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -48,12 +50,14 @@ var fixtures embed.FS
 
 // StorageIntegration holds components for storage integration test
 type StorageIntegration struct {
-	SpanWriter       spanstore.Writer
-	SpanReader       spanstore.Reader
-	DependencyWriter dependencystore.Writer
-	DependencyReader dependencystore.Reader
-	SamplingStore    samplingstore.Store
-	Fixtures         []*QueryFixtures
+	SpanWriter        spanstore.Writer
+	SpanReader        spanstore.Reader
+	ArchiveSpanReader spanstore.Reader
+	ArchiveSpanWriter spanstore.Writer
+	DependencyWriter  dependencystore.Writer
+	DependencyReader  dependencystore.Reader
+	SamplingStore     samplingstore.Store
+	Fixtures          []*QueryFixtures
 
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
@@ -121,6 +125,27 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 	return predicate(t)
 }
 
+func (s *StorageIntegration) InitArchiveStorage(storageFactory storage.Factory, logger *zap.Logger) bool {
+	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
+	if !ok {
+		logger.Info("Archive storage not supported by the factory")
+		return false
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return false
+	}
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return false
+	}
+	s.ArchiveSpanReader = reader
+	s.ArchiveSpanWriter = writer
+	return true
+}
+
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	defer s.CleanUp()
 
@@ -134,13 +159,13 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
-	require.NoError(t, s.SpanWriter.WriteSpan(context.Background(), expected))
+	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
 	s.Refresh()
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
+		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
 	})
 	if !assert.True(t, found) {
