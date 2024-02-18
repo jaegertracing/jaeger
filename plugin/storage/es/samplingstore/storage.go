@@ -189,7 +189,7 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 	currentIndex := indexWithDate(indexName, indexDateLayout, startTime)
 	for currentIndex != lastIndex {
 		indices = append(indices, currentIndex)
-		startTime = startTime.Add(rollover)
+		startTime = startTime.Add(-rollover)
 		currentIndex = indexWithDate(indexName, indexDateLayout, startTime)
 	}
 	return indices

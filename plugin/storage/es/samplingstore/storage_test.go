@@ -100,8 +100,8 @@ func TestGetReadIndices(t *testing.T) {
 			"prefix-jaeger-sampling-2024-02-11",
 			"prefix-jaeger-sampling-2024-02-10",
 		}
-		reduceDuration := -time.Hour * 24
-		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", testCase.start, testCase.end, reduceDuration)
+		rollover := -time.Hour * 24
+		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", testCase.start, testCase.end, rollover)
 		assert.Equal(t, expectedIndices, indices)
 	}
 }
