@@ -15,12 +15,14 @@ extensions:
   jaeger_storage:
     elasticsearch:
       es_main:
-        server_urls: http://127.0.0.1:9200
+        server_urls: http://elasticsearch:9200
         log_level: "error"
+        num_shards: 5
       es_archive:
-        server_urls: http://127.0.0.1:9200
+        server_urls: http://elasticsearch:9200
         log_level: "error"
         index_prefix: "jaeger-archive"
+        num_shards: 5
 receivers:
   otlp:
     protocols:

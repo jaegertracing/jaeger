@@ -89,6 +89,7 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
+	cfg.MaxDocCount = defaultMaxDocCount
 	f.InitFromOptions(Options{
 		Primary: namespaceConfig{Configuration: cfg},
 		others:  make(map[string]*namespaceConfig),
