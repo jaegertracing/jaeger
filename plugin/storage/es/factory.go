@@ -290,7 +290,7 @@ func createSamplingStore(
 		IndexDateLayout:                cfg.IndexDateLayoutSampling,
 		MaxDocCount:                    cfg.MaxDocCount,
 		SamplingIndexRolloverFrequency: cfg.GetIndexRolloverFrequencySamplingDuration(),
-		MaxSampleTime:                  cfg.MaxSampleTime,
+		AdaptiveSamplingLookback:       cfg.AdaptiveSamplingLookback,
 	})
 	return store, nil
 }

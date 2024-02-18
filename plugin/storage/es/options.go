@@ -38,7 +38,7 @@ const (
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
 	suffixMaxSpanAge                     = ".max-span-age"
-	suffixMaxSampleTime                  = ".max-sampling-time"
+	suffixAdaptiveSamplingLookback       = ".adaptive-sampling.lookback"
 	suffixNumShards                      = ".num-shards"
 	suffixNumReplicas                    = ".num-replicas"
 	suffixPrioritySpanTemplate           = ".prioirity-span-template"
@@ -53,7 +53,7 @@ const (
 	suffixIndexDateSeparator             = ".index-date-separator"
 	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
 	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
-	suffixIndexRolloverFrequencySampling = ".index-rollover-frequency-sampling"
+	suffixIndexRolloverFrequencySampling = ".index-rollover-frequency-adaptive-sampling"
 	suffixTagsAsFields                   = ".tags-as-fields"
 	suffixTagsAsFieldsAll                = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
@@ -103,7 +103,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		Password:                     "",
 		Sniffer:                      false,
 		MaxSpanAge:                   72 * time.Hour,
-		MaxSampleTime:                72 * time.Hour,
+		AdaptiveSamplingLookback:     72 * time.Hour,
 		NumShards:                    5,
 		NumReplicas:                  1,
 		PrioritySpanTemplate:         0,
@@ -305,9 +305,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.SendGetBodyAs,
 		"HTTP verb for requests that contain a body [GET, POST].")
 	flagSet.Duration(
-		nsConfig.namespace+suffixMaxSampleTime,
-		nsConfig.MaxSampleTime,
-		"The maximum lookback for sampling in Elasticsearch")
+		nsConfig.namespace+suffixAdaptiveSamplingLookback,
+		nsConfig.AdaptiveSamplingLookback,
+		"How far back to look for the latest adaptive sampling probabilities")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -341,7 +341,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
-	cfg.MaxSampleTime = v.GetDuration(cfg.namespace + suffixMaxSampleTime)
+	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
 	cfg.PrioritySpanTemplate = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)

@@ -42,7 +42,7 @@ type SamplingStore struct {
 	indexDateLayout                string
 	maxDocCount                    int
 	samplingIndexRolloverFrequency time.Duration
-	maxSampleTime                  time.Duration
+	adaptiveSamplingLookback       time.Duration
 }
 
 type SamplingStoreParams struct {
@@ -52,18 +52,18 @@ type SamplingStoreParams struct {
 	IndexDateLayout                string
 	MaxDocCount                    int
 	SamplingIndexRolloverFrequency time.Duration
-	MaxSampleTime                  time.Duration
+	AdaptiveSamplingLookback       time.Duration
 }
 
 func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 	return &SamplingStore{
 		client:                         p.Client,
 		logger:                         p.Logger,
-		samplingIndexPrefix:            prefixIndexName(p.IndexPrefix, samplingIndex),
+		samplingIndexPrefix:            p.prefixIndexName(),
 		indexDateLayout:                p.IndexDateLayout,
 		maxDocCount:                    p.MaxDocCount,
 		samplingIndexRolloverFrequency: p.SamplingIndexRolloverFrequency,
-		maxSampleTime:                  p.MaxSampleTime,
+		adaptiveSamplingLookback:       p.AdaptiveSamplingLookback,
 	}
 }
 
@@ -116,7 +116,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
 	clientFn := s.client()
-	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.samplingIndexRolloverFrequency, s.maxSampleTime)
+	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.samplingIndexRolloverFrequency, s.adaptiveSamplingLookback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest indices: %w", err)
 	}
@@ -163,7 +163,7 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, reduceDuration time.Duration, maxDuration time.Duration) ([]string, error) {
+func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	end := now.Add(-maxDuration)
@@ -179,30 +179,27 @@ func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, r
 		if now == end {
 			return nil, fmt.Errorf("falied to find latest index")
 		}
-		now = now.Add(reduceDuration)
+		now = now.Add(rollover)
 	}
 }
 
-func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
-	var indices []string
-	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
-	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
-	for currentIndex != firstIndex {
-		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
-			indices = append(indices, currentIndex)
-		}
-		endTime = endTime.Add(reduceDuration)
-		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
+func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, rollover time.Duration) []string {
+	lastIndex := indexWithDate(indexName, indexDateLayout, endTime)
+	indices := []string{lastIndex}
+	currentIndex := indexWithDate(indexName, indexDateLayout, startTime)
+	for currentIndex != lastIndex {
+		indices = append(indices, currentIndex)
+		startTime = startTime.Add(rollover)
+		currentIndex = indexWithDate(indexName, indexDateLayout, startTime)
 	}
-	indices = append(indices, firstIndex)
 	return indices
 }
 
-func prefixIndexName(prefix, index string) string {
-	if prefix != "" {
-		return prefix + indexPrefixSeparator + index
+func (p *SamplingStoreParams) prefixIndexName() string {
+	if p.IndexPrefix != "" {
+		return p.IndexPrefix + indexPrefixSeparator + samplingIndex
 	}
-	return index
+	return samplingIndex
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {

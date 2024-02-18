@@ -119,7 +119,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields, archi
 	s.initSamplingStore(t)
 
 	s.CleanUp = func() error {
-		return s.esCleanUp(t, allTagsAsFields, archive)
+		s.esCleanUp(t, allTagsAsFields, archive)
+		return nil
 	}
 	s.Refresh = s.esRefresh
 	s.esCleanUp(t, allTagsAsFields, archive)
@@ -128,13 +129,13 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields, archi
 	return nil
 }
 
-func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields, archive bool) {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
-	return s.initSpanstore(t, allTagsAsFields, archive)
+	s.initSpanstore(t, allTagsAsFields, archive)
 }
 
-func (s *ESStorageIntegration) initSamplingStore(t *testing.T) error {
+func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
 	client := s.getEsClient(t)
 	clientFn := func() estemplate.Client { return client }
 	w := samplingstore.NewSamplingStore(
@@ -146,18 +147,15 @@ func (s *ESStorageIntegration) initSamplingStore(t *testing.T) error {
 			MaxDocCount:     defaultMaxDocCount,
 		})
 	s.SamplingStore = w
-	return nil
 }
 
 func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper {
 	bp, err := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	require.NoError(t, err)
 	s.bulkProcessor = bp
-	var client eswrapper.ClientWrapper
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
-	client = eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
-	return client
+	return eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields, archive bool) error {

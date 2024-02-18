@@ -74,7 +74,7 @@ type Configuration struct {
 	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
 	IndexRolloverFrequencyServices string         `mapstructure:"-"`
 	IndexRolloverFrequencySampling string         `mapstructure:"-"`
-	MaxSampleTime                  time.Duration  `mapstructure:"-"`
+	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
 	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
 	Enabled                        bool           `mapstructure:"-"`
 	TLS                            tlscfg.Options `mapstructure:"tls"`
@@ -233,8 +233,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
-	if c.MaxSampleTime == 0 {
-		c.MaxSampleTime = source.MaxSampleTime
+	if c.AdaptiveSamplingLookback == 0 {
+		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
 	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
