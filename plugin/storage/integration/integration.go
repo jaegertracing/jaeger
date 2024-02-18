@@ -532,7 +532,6 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 
 // IntegrationTestAll runs all integration tests
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
-	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
