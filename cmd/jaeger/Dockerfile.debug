@@ -1,0 +1,11 @@
+FROM alpine:latest
+
+WORKDIR /app
+
+COPY jaeger-linux-amd64 /app/
+
+RUN chmod +x /app/jaeger-linux-amd64
+
+EXPOSE 5775/udp 6831/udp 6832/udp 5778 16686 14268 14250 9200
+
+ENTRYPOINT ["/app/jaeger-linux-amd64"]

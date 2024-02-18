@@ -1,0 +1,45 @@
+version: '3.7'
+
+services:
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - esnet
+
+  jaeger:
+    build:
+      context: ./
+      dockerfile: Dockerfile.debug
+    container_name: jaeger
+    ports:
+      - "16686:16686"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "14268:14268"
+      - "14250:14250"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - esnet
+    volumes:
+      - ./es_config.yaml:/app/es_config.yaml
+      - ./config-ui.json:/app/cmd/jaeger/config-ui.json
+    command: ["--config", "/app/es_config.yaml"]
+    restart: always
+
+networks:
+  esnet:
+    driver: bridge
