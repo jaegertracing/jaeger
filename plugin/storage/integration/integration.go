@@ -31,7 +31,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
@@ -125,28 +124,22 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 	return predicate(t)
 }
 
-func (s *StorageIntegration) InitArchiveStorage(t *testing.T, storageFactory storage.Factory, logger *zap.Logger) bool {
-	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
+func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
+	defer s.CleanUp()
+
+	archiveFactory, ok := s.storageFactory.(storage.ArchiveFactory)
 	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-		return false
+		t.Skip("Skipping ArchiveTrace test because archive storage is not supported")
+		return
 	}
+
 	reader, err := archiveFactory.CreateArchiveSpanReader()
 	require.NoError(t, err)
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 	s.ArchiveSpanReader = reader
 	s.ArchiveSpanWriter = writer
-	return true
-}
 
-func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
-	defer s.CleanUp()
-	success := s.InitArchiveStorage(t, s.storageFactory, zap.NewNop())
-	if !success {
-		t.Skip("Skipping ArchiveTrace test because archive storage is not supported")
-		return
-	}
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
