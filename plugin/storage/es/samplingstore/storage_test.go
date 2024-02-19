@@ -135,11 +135,11 @@ func TestGetLatestIndices(t *testing.T) {
 			clientFnMock := w.storage.client()
 			actualIndices, err := getLatestIndices(testCase.indexPrefix, testCase.indexDateLayout, clientFnMock, -24*time.Hour, testCase.maxDuration)
 			if testCase.expectedErrorSubstr != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.expectedErrorSubstr)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), testCase.expectedErrorSubstr)
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, testCase.expectedIndices, actualIndices)
+				require.NoError(t, err)
+				require.Equal(t, testCase.expectedIndices, actualIndices)
 			}
 		})
 	}
