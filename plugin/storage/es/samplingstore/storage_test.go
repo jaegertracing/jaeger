@@ -106,23 +106,44 @@ func TestGetReadIndices(t *testing.T) {
 	}
 }
 
-// func TestGetLatestIndices(t *testing.T) {
-// 	withEsSampling("prefix", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-// 		expectedIndices := []string{
-// 			"prefix-jaeger-sampling-2024-02-12",
-// 			"prefix-jaeger-sampling-2024-02-11",
-// 			"prefix-jaeger-sampling-2024-02-10",
-// 		}
-// 		indexService := &mocks.IndexService{}
-// 		fixedTime := time.Now()
-// 		indexName := indexWithDate("", "2006-01-02", fixedTime)
-// 		w.client.On("IndexExists", stringMatcher(indexName)).Return(indexService)
-// 		w.client.On("Do", mock.Anything).Return(true, nil)
-// 		indices, _ := getLatestIndices("prefix", "2006-01-02", w.storage.client())
-// 		// assert.NoError(t, err)
-// 		assert.Equal(t, expectedIndices, indices)
-// 	})
-// }
+func TestGetLatestIndices(t *testing.T) {
+	testCases := []struct {
+		indexPrefix         string
+		indexDateLayout     string
+		maxDuration         time.Duration
+		expectedIndices     []string
+		expectedErrorSubstr string
+		indexExist          bool
+	}{
+		{
+			indexPrefix:         "",
+			indexDateLayout:     "2006-01-02",
+			maxDuration:         24 * time.Hour,
+			expectedIndices:     []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
+			expectedErrorSubstr: "",
+			indexExist:          true,
+		},
+		// Add more test cases as needed
+	}
+
+	for _, testCase := range testCases {
+		withEsSampling(testCase.indexPrefix, testCase.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
+			indexService := &mocks.IndicesExistsService{}
+			indexName := indexWithDate(testCase.indexPrefix, testCase.indexDateLayout, time.Now().UTC())
+			w.client.On("IndexExists", indexName).Return(indexService)
+			indexService.On("Do", mock.Anything).Return(testCase.indexExist, nil)
+			clientFnMock := w.storage.client()
+			actualIndices, err := getLatestIndices(testCase.indexPrefix, testCase.indexDateLayout, clientFnMock, -24*time.Hour, testCase.maxDuration)
+			if testCase.expectedErrorSubstr != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.expectedErrorSubstr)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, testCase.expectedIndices, actualIndices)
+			}
+		})
+	}
+}
 
 func TestInsertThroughput(t *testing.T) {
 	testCases := []struct {

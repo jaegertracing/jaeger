@@ -184,14 +184,15 @@ func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, r
 }
 
 func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, rollover time.Duration) []string {
-	lastIndex := indexWithDate(indexName, indexDateLayout, endTime)
-	indices := []string{lastIndex}
-	currentIndex := indexWithDate(indexName, indexDateLayout, startTime)
-	for currentIndex != lastIndex {
+	var indices []string
+	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
+	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
+	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
-		startTime = startTime.Add(-rollover)
-		currentIndex = indexWithDate(indexName, indexDateLayout, startTime)
+		endTime = endTime.Add(rollover)
+		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
+	indices = append(indices, firstIndex)
 	return indices
 }
 
