@@ -246,7 +246,7 @@ func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	currentTime := time.Now()
 	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, currentTime.Add(-s.maxSpanAge), currentTime)
 	if err != nil {
-		return nil, err
+		return nil, es.DetailedError(err)
 	}
 	if len(traces) == 0 {
 		return nil, spanstore.ErrTraceNotFound
@@ -337,7 +337,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 
 	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
-		return nil, err
+		return nil, es.DetailedError(err)
 	}
 	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
@@ -412,6 +412,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		traceIDs = nil
 		results, err := s.client().MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
 		if err != nil {
+			err = es.DetailedError(err)
 			logErrorToSpan(childSpan, err)
 			return nil, err
 		}
@@ -426,6 +427,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			}
 			spans, err := s.collectSpans(result.Hits.Hits)
 			if err != nil {
+				err = es.DetailedError(err)
 				logErrorToSpan(childSpan, err)
 				return nil, err
 			}
@@ -580,6 +582,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
+		err = es.DetailedError(err)
 		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
