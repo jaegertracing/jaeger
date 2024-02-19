@@ -16,60 +16,54 @@ package printconfig
 
 import (
 	"bytes"
-	"os"
+	"flag"
 	"testing"
+	"time"
 
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
-func TestAllFlag(t *testing.T) {
-	expected := `-------------------------------------------------------
-| Configuration Option Name       Value Source        |
--------------------------------------------------------
-| metrics_enabled_test                  user-assigned |
-| new_feature_test                      default       |
-| num_works_test                  5     user-assigned |
-| reporter_log_spans_enabled_test true  default       |
-| status.http.host_port_test      :8080 user-assigned |
--------------------------------------------------------
-`
+const (
+	testPluginBinary             = "test-plugin.binary"
+	testPluginConfigurationFile  = "test-plugin.configuration-file"
+	testPluginLogLevel           = "test-plugin.log-level"
+	testRemotePrefix             = "test-remote"
+	testRemoteServer             = testRemotePrefix + ".server"
+	testRemoteConnectionTimeout  = testRemotePrefix + ".connection-timeout"
+	defaultTestPluginLogLevel    = "warn"
+	defaultTestConnectionTimeout = time.Duration(5 * time.Second)
+)
 
-	v := viper.New()
-	setConfig(v)
-	actual := runPrintConfigCommand(v, t, true)
-	assert.Equal(t, expected, actual)
+func addFlags(flagSet *flag.FlagSet) {
+	tlscfg.ClientFlagsConfig{
+		Prefix: "test",
+	}.AddFlags(flagSet)
+
+	flagSet.String(testPluginBinary, "", "")
+	flagSet.String(testPluginConfigurationFile, "", "")
+	flagSet.String(testPluginLogLevel, defaultTestPluginLogLevel, "")
+	flagSet.String(testRemoteServer, "", "")
+	flagSet.Duration(testRemoteConnectionTimeout, defaultTestConnectionTimeout, "")
 }
 
-func TestPrintConfigCommand(t *testing.T) {
-	expected := `-------------------------------------------------------
-| Configuration Option Name       Value Source        |
--------------------------------------------------------
-| num_works_test                  5     user-assigned |
-| reporter_log_spans_enabled_test true  default       |
-| status.http.host_port_test      :8080 user-assigned |
--------------------------------------------------------
-`
-	v := viper.New()
-	setConfig(v)
-	actual := runPrintConfigCommand(v, t, false)
-	assert.Equal(t, expected, actual)
-}
+func setConfig(t *testing.T) *viper.Viper {
+	v, command := config.Viperize(addFlags, tenancy.AddFlags)
+	err := command.ParseFlags([]string{
+		"--test-plugin.binary=noop-test-plugin",
+		"--test-plugin.configuration-file=config.json",
+		"--test-plugin.log-level=debug",
+		"--multi-tenancy.header=x-scope-orgid",
+	})
 
-func setConfig(v *viper.Viper) {
-	v.Set("STATUS.HTTP.HOST_PORT_TEST", ":8080")
-	v.Set("METRICS_ENABLED_TEST", "")
-	v.Set("NEW_FEATURE_TEST", nil)
+	require.NoError(t, err)
 
-	if flag := pflag.Lookup("REPORTER_LOG_SPANS_ENABLED_TEST"); flag == nil {
-		pflag.Bool("REPORTER_LOG_SPANS_ENABLED_TEST", true, "")
-	}
-	v.BindPFlags(pflag.CommandLine)
-
-	os.Setenv("NUM_WORKS_TEST", "5")
-	v.BindEnv("NUM_WORKS_TEST")
+	return v
 }
 
 func runPrintConfigCommand(v *viper.Viper, t *testing.T, allFlag bool) string {
@@ -86,4 +80,49 @@ func runPrintConfigCommand(v *viper.Viper, t *testing.T, allFlag bool) string {
 	require.NoError(t, err, "printCmd.ExecuteC() returned the error %v", err)
 
 	return buf.String()
+}
+
+func TestAllFlag(t *testing.T) {
+	expected := `-----------------------------------------------------------------
+| Configuration Option Name      Value            Source        |
+-----------------------------------------------------------------
+| multi-tenancy.enabled          false            default       |
+| multi-tenancy.header           x-scope-orgid    user-assigned |
+| multi-tenancy.tenants                           default       |
+| test-plugin.binary             noop-test-plugin user-assigned |
+| test-plugin.configuration-file config.json      user-assigned |
+| test-plugin.log-level          debug            user-assigned |
+| test-remote.connection-timeout 5s               default       |
+| test-remote.server                              default       |
+| test.tls.ca                                     default       |
+| test.tls.cert                                   default       |
+| test.tls.enabled               false            default       |
+| test.tls.key                                    default       |
+| test.tls.server-name                            default       |
+| test.tls.skip-host-verify      false            default       |
+-----------------------------------------------------------------
+`
+
+	v := setConfig(t)
+	actual := runPrintConfigCommand(v, t, true)
+	assert.Equal(t, expected, actual)
+}
+
+func TestPrintConfigCommand(t *testing.T) {
+	expected := `-----------------------------------------------------------------
+| Configuration Option Name      Value            Source        |
+-----------------------------------------------------------------
+| multi-tenancy.enabled          false            default       |
+| multi-tenancy.header           x-scope-orgid    user-assigned |
+| test-plugin.binary             noop-test-plugin user-assigned |
+| test-plugin.configuration-file config.json      user-assigned |
+| test-plugin.log-level          debug            user-assigned |
+| test-remote.connection-timeout 5s               default       |
+| test.tls.enabled               false            default       |
+| test.tls.skip-host-verify      false            default       |
+-----------------------------------------------------------------
+`
+	v := setConfig(t)
+	actual := runPrintConfigCommand(v, t, false)
+	assert.Equal(t, expected, actual)
 }
