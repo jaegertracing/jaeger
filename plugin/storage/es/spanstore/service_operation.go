@@ -87,7 +87,7 @@ func (s *ServiceOperationStorage) getServices(context context.Context, indices [
 
 	searchResult, err := searchService.Do(context)
 	if err != nil {
-		return nil, fmt.Errorf("search services failed: %w", err)
+		return nil, fmt.Errorf("search services failed: %w", es.DetailedError(err))
 	}
 	if searchResult.Aggregations == nil {
 		return []string{}, nil
@@ -118,7 +118,7 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 
 	searchResult, err := searchService.Do(context)
 	if err != nil {
-		return nil, fmt.Errorf("search operations failed: %w", err)
+		return nil, fmt.Errorf("search operations failed: %w", es.DetailedError(err))
 	}
 	if searchResult.Aggregations == nil {
 		return []string{}, nil
