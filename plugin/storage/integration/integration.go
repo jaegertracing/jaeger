@@ -131,10 +131,10 @@ func (s *StorageIntegration) InitArchiveStorage(t *testing.T, storageFactory sto
 		logger.Info("Archive storage not supported by the factory")
 		return false
 	}
-	reader, errReader := archiveFactory.CreateArchiveSpanReader()
-	require.NoError(t, errReader)
-	writer, errWriter := archiveFactory.CreateArchiveSpanWriter()
-	require.NoError(t, errWriter)
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	require.NoError(t, err)
 	s.ArchiveSpanReader = reader
 	s.ArchiveSpanWriter = writer
 	return true
