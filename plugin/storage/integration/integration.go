@@ -58,7 +58,7 @@ type StorageIntegration struct {
 	DependencyReader  dependencystore.Reader
 	SamplingStore     samplingstore.Store
 	Fixtures          []*QueryFixtures
-
+	storageFactory    storage.Factory
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
 
@@ -142,7 +142,11 @@ func (s *StorageIntegration) InitArchiveStorage(t *testing.T, storageFactory sto
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	defer s.CleanUp()
-
+	success := s.InitArchiveStorage(t, s.storageFactory, zap.NewNop())
+	if !success {
+		t.Skip("Skipping ArchiveTrace test because archive storage is not supported")
+		return
+	}
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
@@ -526,6 +530,7 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 
 // IntegrationTestAll runs all integration tests
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
+	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
