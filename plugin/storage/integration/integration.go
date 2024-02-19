@@ -125,22 +125,16 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 	return predicate(t)
 }
 
-func (s *StorageIntegration) InitArchiveStorage(storageFactory storage.Factory, logger *zap.Logger) bool {
+func (s *StorageIntegration) InitArchiveStorage(t *testing.T, storageFactory storage.Factory, logger *zap.Logger) bool {
 	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
 	if !ok {
 		logger.Info("Archive storage not supported by the factory")
 		return false
 	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return false
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return false
-	}
+	reader, errReader := archiveFactory.CreateArchiveSpanReader()
+	require.NoError(t, errReader)
+	writer, errWriter := archiveFactory.CreateArchiveSpanWriter()
+	require.NoError(t, errWriter)
 	s.ArchiveSpanReader = reader
 	s.ArchiveSpanWriter = writer
 	return true
