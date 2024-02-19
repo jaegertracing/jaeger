@@ -54,8 +54,8 @@ type Configuration struct {
 	AllowTokenFromContext          bool           `mapstructure:"-"`
 	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount                    int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge                     time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
+	MaxDocCount                    int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge                     time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
 	NumShards                      int64          `mapstructure:"num_shards"`
 	NumReplicas                    int64          `mapstructure:"num_replicas"`
 	PrioritySpanTemplate           int64          `mapstructure:"priority_span_template"`
