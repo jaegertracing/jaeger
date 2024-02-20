@@ -12,8 +12,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//go:build memory_storage_integration
-// +build memory_storage_integration
 
 package integration
 
@@ -23,13 +21,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 type MemStorageIntegrationTestSuite struct {
 	StorageIntegration
-	logger *zap.Logger
+	factory *memory.Factory
+	logger  *zap.Logger
 }
 
 func (s *MemStorageIntegrationTestSuite) initialize() error {
@@ -47,6 +48,28 @@ func (s *MemStorageIntegrationTestSuite) initialize() error {
 	return nil
 }
 
+func (s *MemStorageIntegrationTestSuite) initializeFactory() error {
+	s.logger, _ = testutils.NewLogger()
+
+	cfg := config.Configuration{}
+	s.factory = memory.NewFactoryWithConfig(cfg, metrics.NullFactory, s.logger)
+
+	sw, err := s.factory.CreateSpanWriter()
+	if err != nil {
+		return err
+	}
+	sr, err := s.factory.CreateSpanReader()
+	if err != nil {
+		return err
+	}
+	s.SpanReader = sr
+	s.SpanWriter = sw
+
+	s.Refresh = s.refresh
+	s.CleanUp = s.cleanUp
+	return nil
+}
+
 func (s *MemStorageIntegrationTestSuite) refresh() error {
 	return nil
 }
@@ -58,5 +81,11 @@ func (s *MemStorageIntegrationTestSuite) cleanUp() error {
 func TestMemoryStorage(t *testing.T) {
 	s := &MemStorageIntegrationTestSuite{}
 	require.NoError(t, s.initialize())
+	s.IntegrationTestAll(t)
+}
+
+func TestMemoryStorageWithConfig(t *testing.T) {
+	s := &MemStorageIntegrationTestSuite{}
+	require.NoError(t, s.initializeFactory())
 	s.IntegrationTestAll(t)
 }
