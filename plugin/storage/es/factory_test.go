@@ -264,23 +264,27 @@ func TestInitFromOptions(t *testing.T) {
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
-	cfg := escfg.Configuration{}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.Error(t, err)
-	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
-
-	cfg = escfg.Configuration{
+	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
 	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer factory.Close()
+}
+
+func TestESStorageFactoryWithConfigError(t *testing.T) {
+	cfg := escfg.Configuration{
+		Servers:  []string{"http://badurl"},
+		LogLevel: "error",
+	}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
 }
 
 func TestPasswordFromFile(t *testing.T) {
