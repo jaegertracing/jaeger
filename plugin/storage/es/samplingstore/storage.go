@@ -167,16 +167,17 @@ func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, r
 	ctx := context.Background()
 	now := time.Now().UTC()
 	end := now.Add(-maxDuration)
+	endIndex := indexWithDate(indexPrefix, indexDateLayout, end)
 	for {
-		indexName := indexWithDate(indexPrefix, indexDateLayout, now)
-		exists, err := clientFn.IndexExists(indexName).Do(ctx)
+		currentIndex := indexWithDate(indexPrefix, indexDateLayout, now)
+		exists, err := clientFn.IndexExists(currentIndex).Do(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to check index existence: %w", err)
 		}
 		if exists {
-			return []string{indexName}, nil
+			return []string{currentIndex}, nil
 		}
-		if now == end {
+		if currentIndex == endIndex {
 			return nil, fmt.Errorf("falied to find latest index")
 		}
 		now = now.Add(rollover)

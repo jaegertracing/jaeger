@@ -108,35 +108,45 @@ func TestGetReadIndices(t *testing.T) {
 
 func TestGetLatestIndices(t *testing.T) {
 	testCases := []struct {
-		indexPrefix         string
-		indexDateLayout     string
-		maxDuration         time.Duration
-		expectedIndices     []string
-		expectedErrorSubstr string
-		indexExist          bool
+		indexDateLayout string
+		maxDuration     time.Duration
+		expectedIndices []string
+		expectedError   string
+		IndexExistError error
+		indexExist      bool
 	}{
 		{
-			indexPrefix:         "",
-			indexDateLayout:     "2006-01-02",
-			maxDuration:         24 * time.Hour,
-			expectedIndices:     []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
-			expectedErrorSubstr: "",
-			indexExist:          true,
+			indexDateLayout: "2006-01-02",
+			maxDuration:     24 * time.Hour,
+			expectedIndices: []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
+			expectedError:   "",
+			indexExist:      true,
 		},
-		// Add more test cases as needed
+		{
+			indexDateLayout: "2006-01-02",
+			maxDuration:     23 * time.Hour,
+			expectedError:   "falied to find latest index",
+			indexExist:      false,
+		},
+		{
+			indexDateLayout: "2006-01-02",
+			maxDuration:     24 * time.Hour,
+			expectedError:   "failed to check index existence: fail",
+			indexExist:      true,
+			IndexExistError: errors.New("fail"),
+		},
 	}
 
 	for _, testCase := range testCases {
-		withEsSampling(testCase.indexPrefix, testCase.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
+		withEsSampling("", testCase.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
 			indexService := &mocks.IndicesExistsService{}
-			indexName := indexWithDate(testCase.indexPrefix, testCase.indexDateLayout, time.Now().UTC())
-			w.client.On("IndexExists", indexName).Return(indexService)
-			indexService.On("Do", mock.Anything).Return(testCase.indexExist, nil)
+			w.client.On("IndexExists", mock.Anything).Return(indexService)
+			indexService.On("Do", mock.Anything).Return(testCase.indexExist, testCase.IndexExistError)
 			clientFnMock := w.storage.client()
-			actualIndices, err := getLatestIndices(testCase.indexPrefix, testCase.indexDateLayout, clientFnMock, -24*time.Hour, testCase.maxDuration)
-			if testCase.expectedErrorSubstr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), testCase.expectedErrorSubstr)
+			actualIndices, err := getLatestIndices("", testCase.indexDateLayout, clientFnMock, -24*time.Hour, testCase.maxDuration)
+			if testCase.expectedError != "" {
+				require.EqualError(t, err, testCase.expectedError)
+				assert.Nil(t, actualIndices)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, testCase.expectedIndices, actualIndices)
