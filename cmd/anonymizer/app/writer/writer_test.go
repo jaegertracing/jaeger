@@ -53,8 +53,9 @@ func TestNew(t *testing.T) {
 			AnonymizedFile: tempDir + "/anonymized.json",
 			MappingFile:    tempDir + "/mapping.json",
 		}
-		_, err := New(config, nopLogger)
+		writer, err := New(config, nopLogger)
 		require.NoError(t, err)
+		defer writer.anonymizer.Stop()
 	})
 
 	t.Run("CapturedFile does not exist", func(t *testing.T) {
@@ -75,6 +76,7 @@ func TestNew(t *testing.T) {
 		}
 		_, err := New(config, nopLogger)
 		require.ErrorContains(t, err, "cannot create output file")
+		// defer writer.anonymizer.Stop()
 	})
 }
 
@@ -92,6 +94,7 @@ func TestWriter_WriteSpan(t *testing.T) {
 		writer, err := New(config, nopLogger)
 		require.NoError(t, err)
 		defer writer.Close()
+		defer writer.anonymizer.Stop()
 
 		for i := 0; i < 9; i++ {
 			err = writer.WriteSpan(span)
@@ -110,6 +113,7 @@ func TestWriter_WriteSpan(t *testing.T) {
 		writer, err := New(config, zap.NewNop())
 		require.NoError(t, err)
 		defer writer.Close()
+		defer writer.anonymizer.Stop()
 
 		err = writer.WriteSpan(span)
 		require.ErrorIs(t, err, ErrMaxSpansCountReached)
