@@ -17,12 +17,13 @@ extensions:
       es_main:
         server_urls: http://localhost:9200
         log_level: "error"
-        num_shards: 5
+        index_prefix: "jaeger-main"
+        use_aliases: true
       es_archive:
         server_urls: http://localhost:9200
         log_level: "error"
         index_prefix: "jaeger-archive"
-        num_shards: 5
+        use_aliases: true
 receivers:
   otlp:
     protocols:
