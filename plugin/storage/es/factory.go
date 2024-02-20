@@ -93,6 +93,7 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 	cfg.MaxDocCount = defaultMaxDocCount
+	cfg.Enabled = true
 	f.InitFromOptions(Options{
 		Primary: namespaceConfig{Configuration: cfg},
 		others:  make(map[string]*namespaceConfig),

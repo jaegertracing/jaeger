@@ -184,7 +184,7 @@ func TestESStorageExtensionError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Elasticsearch: map[string]esCfg.Configuration{
 			"foo": {
-				Servers:  []string{"badurl"},
+				Servers:  []string{"http://badurl"},
 				LogLevel: "error",
 			},
 		},
