@@ -102,7 +102,7 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 			case <-ticker.C:
 				a.SaveMapping()
 			case <-a.ctx.Done():
-				return // Exit the goroutine when the context is canceled
+				return
 			}
 		}
 	}()
