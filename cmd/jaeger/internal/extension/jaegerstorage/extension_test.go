@@ -191,7 +191,7 @@ func TestESStorageExtensionError(t *testing.T) {
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
-	require.ErrorContains(t, err, "no Elasticsearch node available")
+	require.ErrorContains(t, err, "badurl")
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {

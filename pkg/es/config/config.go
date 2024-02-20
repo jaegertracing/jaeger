@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	esV8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
@@ -45,7 +46,7 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                        []string       `mapstructure:"server_urls" validate:"required,min=1,dive,url"`
+	Servers                        []string       `mapstructure:"server_urls" valid:"required,url"`
 	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
 	Username                       string         `mapstructure:"username"`
 	Password                       string         `mapstructure:"password" json:"-"`
@@ -61,7 +62,7 @@ type Configuration struct {
 	PrioritySpanTemplate           int64          `mapstructure:"priority_span_template"`
 	PriorityServiceTemplate        int64          `mapstructure:"priority_service_template"`
 	PriorityDependenciesTemplate   int64          `mapstructure:"priority_dependencies_template"`
-	Timeout                        time.Duration  `validate:"min=500" mapstructure:"-"`
+	Timeout                        time.Duration  `valid:"min=500" mapstructure:"-"`
 	BulkSize                       int            `mapstructure:"-"`
 	BulkWorkers                    int            `mapstructure:"-"`
 	BulkActions                    int            `mapstructure:"-"`
@@ -466,4 +467,9 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+func (c *Configuration) Validate() error {
+	_, err := govalidator.ValidateStruct(c)
+	return err
 }
