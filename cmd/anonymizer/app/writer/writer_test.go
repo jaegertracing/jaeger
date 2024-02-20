@@ -76,7 +76,6 @@ func TestNew(t *testing.T) {
 		}
 		_, err := New(config, nopLogger)
 		require.ErrorContains(t, err, "cannot create output file")
-		// defer writer.anonymizer.Stop()
 	})
 }
 
