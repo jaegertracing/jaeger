@@ -112,12 +112,9 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 	return a
 }
 
-func (a *Anonymizer) WaitForStop() {
-	a.wg.Wait()
-}
-
 func (a *Anonymizer) Stop() {
 	a.cancel()
+	a.wg.Wait()
 }
 
 // SaveMapping writes the mapping from original to obfuscated strings to a file.

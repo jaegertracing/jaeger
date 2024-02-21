@@ -146,6 +146,5 @@ func (w *Writer) Close() {
 	w.anonymizedFile.WriteString("\n]\n")
 	w.anonymizedFile.Close()
 	w.anonymizer.Stop()
-	w.anonymizer.WaitForStop()
 	w.anonymizer.SaveMapping()
 }
