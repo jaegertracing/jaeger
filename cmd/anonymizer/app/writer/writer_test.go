@@ -55,7 +55,7 @@ func TestNew(t *testing.T) {
 		}
 		writer, err := New(config, nopLogger)
 		require.NoError(t, err)
-		defer writer.anonymizer.Stop()
+		defer writer.Close()
 	})
 
 	t.Run("CapturedFile does not exist", func(t *testing.T) {
@@ -93,7 +93,6 @@ func TestWriter_WriteSpan(t *testing.T) {
 		writer, err := New(config, nopLogger)
 		require.NoError(t, err)
 		defer writer.Close()
-		defer writer.anonymizer.Stop()
 
 		for i := 0; i < 9; i++ {
 			err = writer.WriteSpan(span)
@@ -112,7 +111,6 @@ func TestWriter_WriteSpan(t *testing.T) {
 		writer, err := New(config, zap.NewNop())
 		require.NoError(t, err)
 		defer writer.Close()
-		defer writer.anonymizer.Stop()
 
 		err = writer.WriteSpan(span)
 		require.ErrorIs(t, err, ErrMaxSpansCountReached)
