@@ -42,6 +42,7 @@ const (
 	queryHTTPHostPort          = "query.http-server.host-port"
 	queryGRPCHostPort          = "query.grpc-server.host-port"
 	queryBasePath              = "query.base-path"
+	queryUIBasePath            = "query.ui-base-path"
 	queryStaticFiles           = "query.static-files"
 	queryLogStaticAssetsAccess = "query.log-static-assets-access"
 	queryUIConfig              = "query.ui-config"
@@ -71,6 +72,7 @@ type QueryOptionsStaticAssets struct {
 type QueryOptionsBase struct {
 	// BasePath is the base path for all HTTP routes
 	BasePath   string
+	// UIBasePath is the external prefix that comes from the UI
 	UIBasePath string
 
 	StaticAssets QueryOptionsStaticAssets `valid:"optional" mapstructure:"static_assets"`
@@ -109,6 +111,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the query's HTTP server")
 	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server")
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy. See https://github.com/jaegertracing/jaeger/blob/main/examples/reverse-proxy/README.md")
+	flagSet.String(queryUIBasePath, "/", "The external base path that comes from the UI")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.Bool(queryLogStaticAssetsAccess, false, "Log when static assets are accessed (for debugging)")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
@@ -134,6 +137,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 		return qOpts, fmt.Errorf("failed to process HTTP TLS options: %w", err)
 	}
 	qOpts.BasePath = v.GetString(queryBasePath)
+	qOpts.UIBasePath = v.GetString(queryUIBasePath)
 	qOpts.StaticAssets.Path = v.GetString(queryStaticFiles)
 	qOpts.StaticAssets.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
