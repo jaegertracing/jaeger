@@ -60,6 +60,7 @@ type Anonymizer struct {
 	options     Options
 	ctx         context.Context
 	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 // Options represents the various options with which the anonymizer can be configured.
@@ -94,7 +95,9 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 			logger.Fatal("Cannot unmarshal previous mapping", zap.Error(err))
 		}
 	}
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -107,6 +110,10 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 		}
 	}()
 	return a
+}
+
+func (a *Anonymizer) WaitForStop() {
+	a.wg.Wait()
 }
 
 func (a *Anonymizer) Stop() {
