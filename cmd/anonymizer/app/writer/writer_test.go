@@ -53,8 +53,9 @@ func TestNew(t *testing.T) {
 			AnonymizedFile: tempDir + "/anonymized.json",
 			MappingFile:    tempDir + "/mapping.json",
 		}
-		_, err := New(config, nopLogger)
+		writer, err := New(config, nopLogger)
 		require.NoError(t, err)
+		defer writer.Close()
 	})
 
 	t.Run("CapturedFile does not exist", func(t *testing.T) {

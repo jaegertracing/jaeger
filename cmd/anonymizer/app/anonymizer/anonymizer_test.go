@@ -83,6 +83,7 @@ func TestNew(t *testing.T) {
 
 	file, err := os.CreateTemp(tempDir, "mapping.json")
 	require.NoError(t, err)
+	defer file.Close()
 
 	_, err = file.Write([]byte(`
 {
@@ -97,6 +98,7 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 
 	anonymizer := New(file.Name(), Options{}, nopLogger)
+	defer anonymizer.Stop()
 	assert.NotNil(t, anonymizer)
 }
 
