@@ -124,7 +124,7 @@ func TestGetLatestIndices(t *testing.T) {
 		},
 		{
 			indexDateLayout: "2006-01-02",
-			maxDuration:     23 * time.Hour,
+			maxDuration:     72 * time.Hour,
 			expectedError:   "falied to find latest index",
 			indexExist:      false,
 		},

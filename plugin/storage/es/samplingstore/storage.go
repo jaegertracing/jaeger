@@ -46,13 +46,13 @@ type SamplingStore struct {
 }
 
 type SamplingStoreParams struct {
-	Client                         func() es.Client
-	Logger                         *zap.Logger
-	IndexPrefix                    string
-	IndexDateLayout                string
-	MaxDocCount                    int
-	SamplingIndexRolloverFrequency time.Duration
-	AdaptiveSamplingLookback       time.Duration
+	Client                 func() es.Client
+	Logger                 *zap.Logger
+	IndexPrefix            string
+	IndexDateLayout        string
+	IndexRolloverFrequency time.Duration
+	Lookback               time.Duration
+	MaxDocCount            int
 }
 
 func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
@@ -62,8 +62,8 @@ func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 		samplingIndexPrefix:            p.prefixIndexName(),
 		indexDateLayout:                p.IndexDateLayout,
 		maxDocCount:                    p.MaxDocCount,
-		samplingIndexRolloverFrequency: p.SamplingIndexRolloverFrequency,
-		adaptiveSamplingLookback:       p.AdaptiveSamplingLookback,
+		samplingIndexRolloverFrequency: p.IndexRolloverFrequency,
+		adaptiveSamplingLookback:       p.Lookback,
 	}
 }
 
@@ -161,6 +161,14 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
 		}).Add()
+}
+
+func (s *SamplingStore) CreateTemplates(samplingTemplate string) error {
+	_, err := s.client().CreateTemplate("jaeger-sampling").Body(samplingTemplate).Do(context.Background())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {

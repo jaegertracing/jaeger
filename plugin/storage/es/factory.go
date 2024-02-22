@@ -284,13 +284,13 @@ func createSamplingStore(
 	logger *zap.Logger,
 ) (samplingstore.Store, error) {
 	store := esSampleStore.NewSamplingStore(esSampleStore.SamplingStoreParams{
-		Client:                         clientFn,
-		Logger:                         logger,
-		IndexPrefix:                    cfg.IndexPrefix,
-		IndexDateLayout:                cfg.IndexDateLayoutSampling,
-		MaxDocCount:                    cfg.MaxDocCount,
-		SamplingIndexRolloverFrequency: cfg.GetIndexRolloverFrequencySamplingDuration(),
-		AdaptiveSamplingLookback:       cfg.AdaptiveSamplingLookback,
+		Client:                 clientFn,
+		Logger:                 logger,
+		IndexPrefix:            cfg.IndexPrefix,
+		IndexDateLayout:        cfg.IndexDateLayoutSampling,
+		IndexRolloverFrequency: cfg.GetIndexRolloverFrequencySamplingDuration(),
+		Lookback:               cfg.AdaptiveSamplingLookback,
+		MaxDocCount:            cfg.MaxDocCount,
 	})
 	return store, nil
 }

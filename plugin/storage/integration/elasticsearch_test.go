@@ -137,8 +137,16 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields, archive 
 
 func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
 	client := s.getEsClient(t)
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: estemplate.TextTemplateBuilder{},
+		Shards:          5,
+		Replicas:        1,
+		EsVersion:       client.GetVersion(),
+		IndexPrefix:     indexPrefix,
+		UseILM:          false,
+	}
 	clientFn := func() estemplate.Client { return client }
-	w := samplingstore.NewSamplingStore(
+	samplingstore := samplingstore.NewSamplingStore(
 		samplingstore.SamplingStoreParams{
 			Client:          clientFn,
 			Logger:          s.logger,
@@ -146,7 +154,11 @@ func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
 			IndexDateLayout: indexDateLayout,
 			MaxDocCount:     defaultMaxDocCount,
 		})
-	s.SamplingStore = w
+	sampleMapping, err := mappingBuilder.GetSamplingMappings()
+	require.NoError(t, err)
+	err = samplingstore.CreateTemplates(sampleMapping)
+	require.NoError(t, err)
+	s.SamplingStore = samplingstore
 }
 
 func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper {

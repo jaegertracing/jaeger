@@ -91,7 +91,7 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 		assert.Empty(t, indices)
 
 	} else {
-		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001"}
+		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-sampling-000001"}
 		t.Run(fmt.Sprintf("NoPrefix"), func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName)
 		})
@@ -102,7 +102,7 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 }
 
 func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string, ilmPolicyName string) {
-	writeAliases := []string{"jaeger-service-write", "jaeger-span-write", "jaeger-dependencies-write"}
+	writeAliases := []string{"jaeger-service-write", "jaeger-span-write", "jaeger-dependencies-write", "jaeger-sampling-write"}
 
 	// make sure ES is cleaned before test
 	cleanES(t, client, ilmPolicyName)
