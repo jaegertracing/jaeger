@@ -158,8 +158,11 @@ func createAllIndices(client *elastic.Client, prefix string) error {
 	}
 	// create daily indices and archive index
 	err := createEsIndices(client, []string{
-		prefixWithSeparator + spanIndexName, prefixWithSeparator + serviceIndexName,
-		prefixWithSeparator + dependenciesIndexName, prefixWithSeparator + samplingIndexName, prefixWithSeparator + archiveIndexName,
+		prefixWithSeparator + spanIndexName,
+		prefixWithSeparator + serviceIndexName,
+		prefixWithSeparator + dependenciesIndexName,
+		prefixWithSeparator + samplingIndexName,
+		prefixWithSeparator + archiveIndexName,
 	})
 	if err != nil {
 		return err
