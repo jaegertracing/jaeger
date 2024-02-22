@@ -58,7 +58,6 @@ type Anonymizer struct {
 	lock        sync.Mutex
 	mapping     mapping
 	options     Options
-	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
 }
@@ -83,7 +82,6 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 			Operations: make(map[string]string),
 		},
 		options: options,
-		ctx:     ctx,
 		cancel:  cancel,
 	}
 	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
@@ -104,7 +102,7 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 			select {
 			case <-ticker.C:
 				a.SaveMapping()
-			case <-a.ctx.Done():
+			case <-ctx.Done():
 				return
 			}
 		}
