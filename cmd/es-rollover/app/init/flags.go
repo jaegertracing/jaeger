@@ -28,6 +28,7 @@ const (
 	prioritySpanTemplate         = "priority-span-template"
 	priorityServiceTemplate      = "priority-service-template"
 	priorityDependenciesTemplate = "priority-dependencies-template"
+	prioritySamplingTemplate     = "priority-sampling-template"
 )
 
 // Config holds configuration for index cleaner binary.
@@ -38,6 +39,7 @@ type Config struct {
 	PrioritySpanTemplate         int
 	PriorityServiceTemplate      int
 	PriorityDependenciesTemplate int
+	PrioritySamplingTemplate     int
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
@@ -46,7 +48,8 @@ func (c *Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(replicas, 1, "Number of replicas")
 	flags.Int(prioritySpanTemplate, 0, "Priority of jaeger-span index template (ESv8 only)")
 	flags.Int(priorityServiceTemplate, 0, "Priority of jaeger-service index template (ESv8 only)")
-	flags.Int(priorityDependenciesTemplate, 0, "Priority of jaeger-dependecies index template (ESv8 only)")
+	flags.Int(priorityDependenciesTemplate, 0, "Priority of jaeger-dependencies index template (ESv8 only)")
+	flags.Int(prioritySamplingTemplate, 0, "Priority of jaeger-sampling index template (ESv8 only)")
 }
 
 // InitFromViper initializes config from viper.Viper.
@@ -56,4 +59,5 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.PrioritySpanTemplate = v.GetInt(prioritySpanTemplate)
 	c.PriorityServiceTemplate = v.GetInt(priorityServiceTemplate)
 	c.PriorityDependenciesTemplate = v.GetInt(priorityDependenciesTemplate)
+	c.PrioritySamplingTemplate = v.GetInt(prioritySamplingTemplate)
 }

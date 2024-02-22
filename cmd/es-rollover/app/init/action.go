@@ -44,6 +44,7 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		PrioritySpanTemplate:         int64(c.Config.PrioritySpanTemplate),
 		PriorityServiceTemplate:      int64(c.Config.PriorityServiceTemplate),
 		PriorityDependenciesTemplate: int64(c.Config.PriorityDependenciesTemplate),
+		PrioritySamplingTemplate:     int64(c.Config.PrioritySamplingTemplate),
 		Shards:                       int64(c.Config.Shards),
 		Replicas:                     int64(c.Config.Replicas),
 		IndexPrefix:                  c.Config.IndexPrefix,
