@@ -34,6 +34,7 @@ import (
 const (
 	archiveIndexName      = "jaeger-span-archive"
 	dependenciesIndexName = "jaeger-dependencies-2019-01-01"
+	samplingIndexName     = "jaeger-sampling-2019-01-01"
 	spanIndexName         = "jaeger-span-2019-01-01"
 	serviceIndexName      = "jaeger-service-2019-01-01"
 	indexCleanerImage     = "jaegertracing/jaeger-es-index-cleaner:latest"
@@ -97,14 +98,14 @@ func TestIndexCleaner(t *testing.T) {
 			expectedIndices: []string{
 				archiveIndexName,
 				"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
-				"jaeger-span-archive-000001", "jaeger-span-archive-000002", "jaeger-sampling-000001", "jaeger-sampling-000002",
+				"jaeger-span-archive-000001", "jaeger-span-archive-000002",
 			},
 		},
 		{
 			name:    "RemoveRolloverIndices",
 			envVars: []string{"ROLLOVER=true"},
 			expectedIndices: []string{
-				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName,
+				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName, samplingIndexName,
 				"jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000001", "jaeger-span-archive-000002", "jaeger-sampling-000002",
 			},
@@ -113,7 +114,7 @@ func TestIndexCleaner(t *testing.T) {
 			name:    "RemoveArchiveIndices",
 			envVars: []string{"ARCHIVE=true"},
 			expectedIndices: []string{
-				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName,
+				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName, samplingIndexName,
 				"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000002", "jaeger-sampling-000001", "jaeger-sampling-000002",
 			},
@@ -158,7 +159,7 @@ func createAllIndices(client *elastic.Client, prefix string) error {
 	// create daily indices and archive index
 	err := createEsIndices(client, []string{
 		prefixWithSeparator + spanIndexName, prefixWithSeparator + serviceIndexName,
-		prefixWithSeparator + dependenciesIndexName, prefixWithSeparator + archiveIndexName,
+		prefixWithSeparator + dependenciesIndexName, prefixWithSeparator + samplingIndexName, prefixWithSeparator + archiveIndexName,
 	})
 	if err != nil {
 		return err
