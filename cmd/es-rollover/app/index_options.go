@@ -65,6 +65,12 @@ func RolloverIndices(archive bool, skipDependencies bool, prefix string) []Index
 		})
 	}
 
+	indexOptions = append(indexOptions, IndexOption{
+		prefix:    prefix,
+		Mapping:   "jaeger-sampling",
+		indexType: "jaeger-sampling",
+	})
+
 	return indexOptions
 }
 
