@@ -107,7 +107,7 @@ func TestIndexCleaner(t *testing.T) {
 			expectedIndices: []string{
 				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName, samplingIndexName,
 				"jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
-				"jaeger-span-archive-000001", "jaeger-span-archive-000002", "jaeger-sampling-000001", "jaeger-sampling-000002",
+				"jaeger-span-archive-000001", "jaeger-span-archive-000002", "jaeger-sampling-000002",
 			},
 		},
 		{
