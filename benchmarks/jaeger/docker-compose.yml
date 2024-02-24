@@ -16,8 +16,7 @@ services:
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     expose:
       - 9100
-    networks:
-      - monitoring
+    
 
   prometheus:
     image: prom/prometheus:latest
@@ -36,8 +35,7 @@ services:
       - 9090
     ports:
       - 9090:9090
-    networks:
-      - monitoring
+    
     depends_on:
       - node-exporter
 
@@ -52,8 +50,7 @@ services:
       - ./provisioning:/etc/grafana/provisioning
     depends_on:
       - prometheus
-    networks:
-      - monitoring
+    
 
   jaeger-collector:
     image: jaegertracing/jaeger-collector:latest
@@ -62,11 +59,7 @@ services:
     environment:
       - SPAN_STORAGE_TYPE=elasticsearch
       - ES_SERVER_URLS=http://elasticsearch:9200
-      - LOG_LEVEL=debug
-    command: [
-      "--es.server-urls=http://elasticsearch:9200",
-      "--log-level=debug"
-    ]
+      - LOG_LEVEL=info
     ports:
       - 14268:14268
       - 14269:14269
@@ -74,18 +67,44 @@ services:
       - 9411:9411
     depends_on:
       - elasticsearch
-    networks:
-      - monitoring
+    
+
+  # jaeger-v2:
+  #   image: jaegertracing/jaeger:latest
+  #   container_name: jaeger-v2
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./config-v2.yml:/etc/jaeger/config.yml
+  #   command: [
+  #     "--config=/etc/jaeger/config.yml",
+  #   ]
+  #   depends_on:
+  #     - elasticsearch
+  #   networks:
+  #     - monitoring
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
+      - ELASTIC_PASSWORD=jaeger
+      - ELASTIC_USERNAME=jaeger
+      - xpack.security.http.ssl.enabled=false
     ports:
       - 9200:9200
-    networks:
-      - monitoring
+      - 9300:9300
+    
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.8.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=jaeger
+      - ELASTICSEARCH_PASSWORD=jaeger
+    ports:
+      - 5601:5601
+    depends_on:
+      - elasticsearch
 
   tracegen:
     image: jaegertracing/jaeger-tracegen
@@ -94,19 +113,14 @@ services:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger-collector:14250
     command: [
       "-spans", "10",
-      "-traces", "15000000",
+      "-traces", "1500",
       "-services", "2",
       "-trace-exporter", "otlp-grpc"
     ]
     depends_on:
       - jaeger-collector
-    networks:
-      - monitoring
+    
 
 volumes:
   prometheus-data:
   grafana-data:
-
-networks:
-  monitoring:
-    driver: bridge

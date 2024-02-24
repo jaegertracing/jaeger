@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+    ports:
+      - 9200:9200
+    networks:
+      - monitoring
+  tracegen:
+    image: jaegertracing/jaeger-tracegen
+    container_name: tracegen
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger-collector:14250
+    command: [
+      "-spans", "10",
+      "-traces", "15000000",
+      "-services", "2",
+      "-trace-exporter", "otlp-grpc"
+    ]
+    depends_on:
+      - jaeger-collector
+    networks:
+      - monitoring
