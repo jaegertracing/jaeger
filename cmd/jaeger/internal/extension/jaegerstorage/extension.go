@@ -17,6 +17,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -107,10 +109,17 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Badger,
 		builder:     badger.NewFactoryWithConfig,
 	}
+	grpcStarter := &starter[grpcCfg.Configuration, *grpc.Factory]{
+		ext:         s,
+		storageKind: "grpc",
+		cfg:         s.config.GRPC,
+		builder:     grpc.NewFactoryWithConfig,
+	}
 
 	builders := []func(ctx context.Context, host component.Host) error{
 		memStarter.build,
 		badgerStarter.build,
+		grpcStarter.build,
 		// TODO add support for other backends
 	}
 	for _, builder := range builders {
