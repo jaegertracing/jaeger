@@ -103,8 +103,10 @@ func NewFactoryWithConfig(
 
 	f := NewFactory()
 	f.InitFromOptions(Options{
-		Primary: namespaceConfig{Configuration: cfg,
-			namespace: primaryNamespace},
+		Primary: namespaceConfig{
+			Configuration: cfg,
+			namespace:     primaryNamespace,
+		},
 		others: archive,
 	})
 	err := f.Initialize(metricsFactory, logger)
