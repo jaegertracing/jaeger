@@ -16,7 +16,6 @@ services:
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     expose:
       - 9100
-    
 
   prometheus:
     image: prom/prometheus:latest
@@ -68,7 +67,6 @@ services:
     depends_on:
       - elasticsearch
     
-
   # jaeger-v2:
   #   image: jaegertracing/jaeger:latest
   #   container_name: jaeger-v2
@@ -91,20 +89,10 @@ services:
       - ELASTIC_PASSWORD=jaeger
       - ELASTIC_USERNAME=jaeger
       - xpack.security.http.ssl.enabled=false
+      - xpack.security.enabled=false
     ports:
       - 9200:9200
       - 9300:9300
-    
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.8.0
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=jaeger
-      - ELASTICSEARCH_PASSWORD=jaeger
-    ports:
-      - 5601:5601
-    depends_on:
-      - elasticsearch
 
   tracegen:
     image: jaegertracing/jaeger-tracegen
@@ -113,14 +101,13 @@ services:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger-collector:14250
     command: [
       "-spans", "10",
-      "-traces", "1500",
+      "-traces", "150000",
       "-services", "2",
       "-trace-exporter", "otlp-grpc"
     ]
     depends_on:
       - jaeger-collector
     
-
 volumes:
   prometheus-data:
   grafana-data:
