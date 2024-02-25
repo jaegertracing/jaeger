@@ -94,29 +94,25 @@ func TestNewIndexPrefix(t *testing.T) {
 }
 
 func TestGetReadIndices(t *testing.T) {
-	tests := []struct {
+	test := struct {
 		name  string
 		start time.Time
 		end   time.Time
 	}{
-		{
-			name:  "",
-			start: time.Date(2024, time.February, 10, 0, 0, 0, 0, time.UTC),
-			end:   time.Date(2024, time.February, 12, 0, 0, 0, 0, time.UTC),
-		},
+		name:  "",
+		start: time.Date(2024, time.February, 10, 0, 0, 0, 0, time.UTC),
+		end:   time.Date(2024, time.February, 12, 0, 0, 0, 0, time.UTC),
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			expectedIndices := []string{
-				"prefix-jaeger-sampling-2024-02-12",
-				"prefix-jaeger-sampling-2024-02-11",
-				"prefix-jaeger-sampling-2024-02-10",
-			}
-			rollover := -time.Hour * 24
-			indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", test.start, test.end, rollover)
-			assert.Equal(t, expectedIndices, indices)
-		})
-	}
+	t.Run(test.name, func(t *testing.T) {
+		expectedIndices := []string{
+			"prefix-jaeger-sampling-2024-02-12",
+			"prefix-jaeger-sampling-2024-02-11",
+			"prefix-jaeger-sampling-2024-02-10",
+		}
+		rollover := -time.Hour * 24
+		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", test.start, test.end, rollover)
+		assert.Equal(t, expectedIndices, indices)
+	})
 }
 
 func TestGetLatestIndices(t *testing.T) {
@@ -175,85 +171,70 @@ func TestGetLatestIndices(t *testing.T) {
 }
 
 func TestInsertThroughput(t *testing.T) {
-	tests := []struct {
+	test := struct {
 		name          string
 		expectedError string
-		esVersion     uint
 	}{
-		{
-			name:          "es v6",
-			expectedError: "",
-			esVersion:     6,
-		},
+		name:          "insert throughput",
+		expectedError: "",
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-				throughputs := []*samplemodel.Throughput{
-					{Service: "my-svc", Operation: "op"},
-					{Service: "our-svc", Operation: "op2"},
-				}
-				fixedTime := time.Now()
-				indexName := indexWithDate("", "2006-01-02", fixedTime)
-				writeService := &mocks.IndexService{}
-				w.client.On("Index").Return(writeService)
-				w.client.On("GetVersion").Return(test.esVersion)
 
-				writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-				writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
-				writeService.On("BodyJson", mock.Anything).Return(writeService)
-				writeService.On("Add", mock.Anything)
-				err := w.storage.InsertThroughput(throughputs)
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-				} else {
-					require.NoError(t, err)
-				}
-			})
+	t.Run(test.name, func(t *testing.T) {
+		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+			throughputs := []*samplemodel.Throughput{
+				{Service: "my-svc", Operation: "op"},
+				{Service: "our-svc", Operation: "op2"},
+			}
+			fixedTime := time.Now()
+			indexName := indexWithDate("", "2006-01-02", fixedTime)
+			writeService := &mocks.IndexService{}
+			w.client.On("Index").Return(writeService)
+			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
+			writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
+			writeService.On("BodyJson", mock.Anything).Return(writeService)
+			writeService.On("Add", mock.Anything)
+			err := w.storage.InsertThroughput(throughputs)
+			if test.expectedError != "" {
+				require.EqualError(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
 		})
-	}
+	})
 }
 
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
-	tests := []struct {
+	test := struct {
 		name          string
-		writeError    error
 		expectedError string
-		esVersion     uint
 	}{
-		{
-			name:          "es v7",
-			expectedError: "",
-			esVersion:     7,
-		},
+		name:          "insert probabilities and qps",
+		expectedError: "",
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-				pAQ := dbmodel.ProbabilitiesAndQPS{
-					Hostname:      "dell11eg843d",
-					Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
-					QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
-				}
-				fixedTime := time.Now()
-				indexName := indexWithDate("", "2006-01-02", fixedTime)
-				writeService := &mocks.IndexService{}
-				w.client.On("Index").Return(writeService)
-				w.client.On("GetVersion").Return(test.esVersion)
 
-				writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-				writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
-				writeService.On("BodyJson", mock.Anything).Return(writeService)
-				writeService.On("Add", mock.Anything)
-				err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-				} else {
-					require.NoError(t, err)
-				}
-			})
+	t.Run(test.name, func(t *testing.T) {
+		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+			pAQ := dbmodel.ProbabilitiesAndQPS{
+				Hostname:      "dell11eg843d",
+				Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+			}
+			fixedTime := time.Now()
+			indexName := indexWithDate("", "2006-01-02", fixedTime)
+			writeService := &mocks.IndexService{}
+			w.client.On("Index").Return(writeService)
+			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
+			writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
+			writeService.On("BodyJson", mock.Anything).Return(writeService)
+			writeService.On("Add", mock.Anything)
+			err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
+			if test.expectedError != "" {
+				require.EqualError(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
 		})
-	}
+	})
 }
 
 func TestGetThroughput(t *testing.T) {
@@ -273,7 +254,6 @@ func TestGetThroughput(t *testing.T) {
 			}
 		]
 	}`
-	badThroughputs := `badJson{hello}world`
 	tests := []struct {
 		name           string
 		searchResult   *elastic.SearchResult
@@ -323,7 +303,7 @@ func TestGetThroughput(t *testing.T) {
 		},
 		{
 			name:          "bad throughputs",
-			searchResult:  createSearchResult(badThroughputs),
+			searchResult:  createSearchResult(`badJson{hello}world`),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
 			index:         mockIndex,
 		},
@@ -375,7 +355,6 @@ func TestGetLatestProbabilities(t *testing.T) {
 			}
 		}
 	}`
-	badProbabilities := `badJson{hello}world`
 	tests := []struct {
 		name           string
 		searchResult   *elastic.SearchResult
@@ -415,7 +394,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 		},
 		{
 			name:          "bad probabilities",
-			searchResult:  createSearchResult(badProbabilities),
+			searchResult:  createSearchResult(`badJson{hello}world`),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
 			index:         mockIndex,
 			indexPresent:  true,
