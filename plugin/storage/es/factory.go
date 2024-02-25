@@ -88,15 +88,24 @@ func NewFactoryWithConfig(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
-	f := NewFactory()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+
 	cfg.MaxDocCount = defaultMaxDocCount
 	cfg.Enabled = true
+
+	archive := make(map[string]*namespaceConfig)
+	archive[archiveNamespace] = &namespaceConfig{
+		Configuration: cfg,
+		namespace:     archiveNamespace,
+	}
+
+	f := NewFactory()
 	f.InitFromOptions(Options{
-		Primary: namespaceConfig{Configuration: cfg},
-		others:  make(map[string]*namespaceConfig),
+		Primary: namespaceConfig{Configuration: cfg,
+			namespace: primaryNamespace},
+		others: archive,
 	})
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
