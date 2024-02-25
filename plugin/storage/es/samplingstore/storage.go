@@ -97,29 +97,6 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	return dbmodel.ToThroughputs(retSamples), nil
 }
 
-// func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
-// 	ctx := context.Background()
-// 	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
-// 	searchResult, err := s.client().Search(indices...).
-// 		Size(s.maxDocCount).
-// 		Query(buildTSQuery(start, end)).
-// 		IgnoreUnavailable(true).
-// 		Do(ctx)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
-// 	}
-// 	retSamples := make([][]dbmodel.Throughput, len(searchResult.Hits.Hits))
-// 	for i, hit := range searchResult.Hits.Hits {
-// 		source := hit.Source
-// 		var tToD dbmodel.TimeThroughput
-// 		if err := json.Unmarshal(*source, &tToD); err != nil {
-// 			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
-// 		}
-// 		retSamples[i] = tToD.Throughput
-// 	}
-// 	return dbmodel.ToThroughputs(retSamples), nil
-// }
-
 func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
