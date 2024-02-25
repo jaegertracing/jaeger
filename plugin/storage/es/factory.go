@@ -275,22 +275,14 @@ func createSpanWriter(
 }
 
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return createSamplingStore(f.getPrimaryClient, f.primaryConfig, f.logger)
-}
-
-func createSamplingStore(
-	clientFn func() es.Client,
-	cfg *config.Configuration,
-	logger *zap.Logger,
-) (samplingstore.Store, error) {
 	store := esSampleStore.NewSamplingStore(esSampleStore.SamplingStoreParams{
-		Client:                 clientFn,
-		Logger:                 logger,
-		IndexPrefix:            cfg.IndexPrefix,
-		IndexDateLayout:        cfg.IndexDateLayoutSampling,
-		IndexRolloverFrequency: cfg.GetIndexRolloverFrequencySamplingDuration(),
-		Lookback:               cfg.AdaptiveSamplingLookback,
-		MaxDocCount:            cfg.MaxDocCount,
+		Client:                 f.getPrimaryClient,
+		Logger:                 f.logger,
+		IndexPrefix:            f.primaryConfig.IndexPrefix,
+		IndexDateLayout:        f.primaryConfig.IndexDateLayoutSampling,
+		IndexRolloverFrequency: f.primaryConfig.GetIndexRolloverFrequencySamplingDuration(),
+		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
+		MaxDocCount:            f.primaryConfig.MaxDocCount,
 	})
 	return store, nil
 }

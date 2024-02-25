@@ -62,52 +62,66 @@ func withEsSampling(indexPrefix, indexDateLayout string, maxDocCount int, fn fun
 }
 
 func TestNewIndexPrefix(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
+		name     string
 		prefix   string
 		expected string
 	}{
-		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo-"},
-		{prefix: ":", expected: ":-"},
+		{
+			name:     "without prefix",
+			prefix:   "",
+			expected: "",
+		},
+		{
+			name:     "with prefix",
+			prefix:   "foo",
+			expected: "foo-",
+		},
 	}
-	for _, testCase := range testCases {
-		client := &mocks.Client{}
-		r := NewSamplingStore(SamplingStoreParams{
-			Client:          func() es.Client { return client },
-			Logger:          zap.NewNop(),
-			IndexPrefix:     testCase.prefix,
-			IndexDateLayout: "2006-01-02",
-			MaxDocCount:     defaultMaxDocCount,
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &mocks.Client{}
+			r := NewSamplingStore(SamplingStoreParams{
+				Client:          func() es.Client { return client },
+				Logger:          zap.NewNop(),
+				IndexPrefix:     test.prefix,
+				IndexDateLayout: "2006-01-02",
+				MaxDocCount:     defaultMaxDocCount,
+			})
+			assert.Equal(t, test.expected+samplingIndex, r.samplingIndexPrefix)
 		})
-
-		assert.Equal(t, testCase.expected+samplingIndex, r.samplingIndexPrefix)
 	}
 }
 
 func TestGetReadIndices(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
+		name  string
 		start time.Time
 		end   time.Time
 	}{
 		{
+			name:  "",
 			start: time.Date(2024, time.February, 10, 0, 0, 0, 0, time.UTC),
 			end:   time.Date(2024, time.February, 12, 0, 0, 0, 0, time.UTC),
 		},
 	}
-	for _, testCase := range testCases {
-		expectedIndices := []string{
-			"prefix-jaeger-sampling-2024-02-12",
-			"prefix-jaeger-sampling-2024-02-11",
-			"prefix-jaeger-sampling-2024-02-10",
-		}
-		rollover := -time.Hour * 24
-		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", testCase.start, testCase.end, rollover)
-		assert.Equal(t, expectedIndices, indices)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			expectedIndices := []string{
+				"prefix-jaeger-sampling-2024-02-12",
+				"prefix-jaeger-sampling-2024-02-11",
+				"prefix-jaeger-sampling-2024-02-10",
+			}
+			rollover := -time.Hour * 24
+			indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", test.start, test.end, rollover)
+			assert.Equal(t, expectedIndices, indices)
+		})
 	}
 }
 
 func TestGetLatestIndices(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
+		name            string
 		indexDateLayout string
 		maxDuration     time.Duration
 		expectedIndices []string
@@ -116,6 +130,7 @@ func TestGetLatestIndices(t *testing.T) {
 		indexExist      bool
 	}{
 		{
+			name:            "with index",
 			indexDateLayout: "2006-01-02",
 			maxDuration:     24 * time.Hour,
 			expectedIndices: []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
@@ -123,12 +138,14 @@ func TestGetLatestIndices(t *testing.T) {
 			indexExist:      true,
 		},
 		{
+			name:            "without index",
 			indexDateLayout: "2006-01-02",
 			maxDuration:     72 * time.Hour,
 			expectedError:   "falied to find latest index",
 			indexExist:      false,
 		},
 		{
+			name:            "check index existence",
 			indexDateLayout: "2006-01-02",
 			maxDuration:     24 * time.Hour,
 			expectedError:   "failed to check index existence: fail",
@@ -137,110 +154,104 @@ func TestGetLatestIndices(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		withEsSampling("", testCase.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
-			indexService := &mocks.IndicesExistsService{}
-			w.client.On("IndexExists", mock.Anything).Return(indexService)
-			indexService.On("Do", mock.Anything).Return(testCase.indexExist, testCase.IndexExistError)
-			clientFnMock := w.storage.client()
-			actualIndices, err := getLatestIndices("", testCase.indexDateLayout, clientFnMock, -24*time.Hour, testCase.maxDuration)
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
-				assert.Nil(t, actualIndices)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, testCase.expectedIndices, actualIndices)
-			}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withEsSampling("", test.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
+				indexService := &mocks.IndicesExistsService{}
+				w.client.On("IndexExists", mock.Anything).Return(indexService)
+				indexService.On("Do", mock.Anything).Return(test.indexExist, test.IndexExistError)
+				clientFnMock := w.storage.client()
+				actualIndices, err := getLatestIndices("", test.indexDateLayout, clientFnMock, -24*time.Hour, test.maxDuration)
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+					assert.Nil(t, actualIndices)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, test.expectedIndices, actualIndices)
+				}
+			})
 		})
 	}
 }
 
 func TestInsertThroughput(t *testing.T) {
-	testCases := []struct {
-		writeError    error
+	tests := []struct {
+		name          string
 		expectedError string
 		esVersion     uint
 	}{
 		{
+			name:          "es v6",
 			expectedError: "",
 			esVersion:     6,
 		},
-		{
-			expectedError: "",
-			esVersion:     7,
-		},
 	}
-	for _, testCase := range testCases {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			throughputs := []*samplemodel.Throughput{
-				{Service: "my-svc", Operation: "op"},
-				{Service: "our-svc", Operation: "op2"},
-			}
-			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			w.client.On("GetVersion").Return(testCase.esVersion)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+				throughputs := []*samplemodel.Throughput{
+					{Service: "my-svc", Operation: "op"},
+					{Service: "our-svc", Operation: "op2"},
+				}
+				fixedTime := time.Now()
+				indexName := indexWithDate("", "2006-01-02", fixedTime)
+				writeService := &mocks.IndexService{}
+				w.client.On("Index").Return(writeService)
+				w.client.On("GetVersion").Return(test.esVersion)
 
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
-			err := w.storage.InsertThroughput(throughputs)
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
+				writeService.On("Index", stringMatcher(indexName)).Return(writeService)
+				writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
+				writeService.On("BodyJson", mock.Anything).Return(writeService)
+				writeService.On("Add", mock.Anything)
+				err := w.storage.InsertThroughput(throughputs)
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+				} else {
+					require.NoError(t, err)
+				}
+			})
 		})
 	}
 }
 
-func stringMatcher(q string) interface{} {
-	matchFunc := func(s string) bool {
-		return strings.Contains(s, q)
-	}
-	return mock.MatchedBy(matchFunc)
-}
-
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
+		name          string
 		writeError    error
 		expectedError string
 		esVersion     uint
 	}{
 		{
-			expectedError: "",
-			esVersion:     6,
-		},
-		{
+			name:          "es v7",
 			expectedError: "",
 			esVersion:     7,
 		},
 	}
-	for _, testCase := range testCases {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			pAQ := dbmodel.ProbabilitiesAndQPS{
-				Hostname:      "dell11eg843d",
-				Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
-				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
-			}
-			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			w.client.On("GetVersion").Return(testCase.esVersion)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+				pAQ := dbmodel.ProbabilitiesAndQPS{
+					Hostname:      "dell11eg843d",
+					Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+					QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+				}
+				fixedTime := time.Now()
+				indexName := indexWithDate("", "2006-01-02", fixedTime)
+				writeService := &mocks.IndexService{}
+				w.client.On("Index").Return(writeService)
+				w.client.On("GetVersion").Return(test.esVersion)
 
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
-			err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
+				writeService.On("Index", stringMatcher(indexName)).Return(writeService)
+				writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
+				writeService.On("BodyJson", mock.Anything).Return(writeService)
+				writeService.On("Add", mock.Anything)
+				err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+				} else {
+					require.NoError(t, err)
+				}
+			})
 		})
 	}
 }
@@ -263,16 +274,18 @@ func TestGetThroughput(t *testing.T) {
 		]
 	}`
 	badThroughputs := `badJson{hello}world`
-	testCases := []struct {
+	tests := []struct {
+		name           string
 		searchResult   *elastic.SearchResult
 		searchError    error
 		expectedError  string
 		expectedOutput []*samplemodel.Throughput
 		indexPrefix    string
 		maxDocCount    int
-		indices        []interface{}
+		index          string
 	}{
 		{
+			name:         "good throughputs without prefix",
 			searchResult: createSearchResult(goodThroughputs),
 			expectedOutput: []*samplemodel.Throughput{
 				{
@@ -286,52 +299,71 @@ func TestGetThroughput(t *testing.T) {
 					Count:     20,
 				},
 			},
-			indices:       []interface{}{mockIndex},
-			maxDocCount:   1000,
-			expectedError: "",
+			index:       mockIndex,
+			maxDocCount: 1000,
 		},
 		{
+			name:         "good throughputs with prefix",
+			searchResult: createSearchResult(goodThroughputs),
+			expectedOutput: []*samplemodel.Throughput{
+				{
+					Service:   "my-svc",
+					Operation: "op",
+					Count:     10,
+				},
+				{
+					Service:   "another-svc",
+					Operation: "another-op",
+					Count:     20,
+				},
+			},
+			index:       mockIndex,
+			indexPrefix: "foo",
+			maxDocCount: 1000,
+		},
+		{
+			name:          "bad throughputs",
 			searchResult:  createSearchResult(badThroughputs),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
-			indices:       []interface{}{mockIndex},
+			index:         mockIndex,
 		},
 		{
+			name:          "search fails",
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for throughputs: search failure",
-			indices:       []interface{}{mockIndex},
-		},
-		{
-			searchError:   errors.New("search failure"),
-			expectedError: "failed to search for throughputs: search failure",
-			indexPrefix:   "foo",
-			indices:       []interface{}{mockIndex},
+			index:         mockIndex,
 		},
 	}
-	for _, testCase := range testCases {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			searchService := &mocks.SearchService{}
-			w.client.On("Search", testCase.indices...).Return(searchService)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+				searchService := &mocks.SearchService{}
+				if test.indexPrefix != "" {
+					test.indexPrefix += "-"
+				}
+				index := test.indexPrefix + test.index
+				w.client.On("Search", index).Return(searchService)
+				searchService.On("Size", mock.Anything).Return(searchService)
+				searchService.On("Query", mock.Anything).Return(searchService)
+				searchService.On("IgnoreUnavailable", true).Return(searchService)
+				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
 
-			searchService.On("Size", mock.Anything).Return(searchService)
-			searchService.On("Query", mock.Anything).Return(searchService)
-			searchService.On("IgnoreUnavailable", true).Return(searchService)
-			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
-
-			actual, err := w.storage.GetThroughput(time.Now().Add(-time.Minute), time.Now())
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
-				assert.Nil(t, actual)
-			} else {
-				require.NoError(t, err)
-				assert.EqualValues(t, testCase.expectedOutput, actual)
-			}
+				actual, err := w.storage.GetThroughput(time.Now().Add(-time.Minute), time.Now())
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+					assert.Nil(t, actual)
+				} else {
+					require.NoError(t, err)
+					assert.EqualValues(t, test.expectedOutput, actual)
+				}
+			})
 		})
 	}
 }
 
 func TestGetLatestProbabilities(t *testing.T) {
 	mockIndex := "jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")
-	latestProbabilities := `{
+	goodProbabilities := `{
 		"timestamp": "2024-02-08T12:00:00Z",
 		"probabilitiesandqps": {
 			"Hostname": "dell11eg843d",
@@ -344,60 +376,90 @@ func TestGetLatestProbabilities(t *testing.T) {
 		}
 	}`
 	badProbabilities := `badJson{hello}world`
-	testCases := []struct {
+	tests := []struct {
+		name           string
 		searchResult   *elastic.SearchResult
 		searchError    error
 		expectedOutput samplemodel.ServiceOperationProbabilities
 		expectedError  string
 		maxDocCount    int
-		indices        []interface{}
+		index          string
 		indexPresent   bool
 		indexError     error
+		indexPrefix    string
 	}{
 		{
-			searchResult: createSearchResult(latestProbabilities),
+			name:         "good probabilities without prefix",
+			searchResult: createSearchResult(goodProbabilities),
 			expectedOutput: samplemodel.ServiceOperationProbabilities{
 				"new-srv": {
 					"op": 0.1,
 				},
 			},
-			indices:      []interface{}{mockIndex},
+			index:        mockIndex,
 			maxDocCount:  1000,
 			indexPresent: true,
 		},
 		{
+			name:         "good probabilities with prefix",
+			searchResult: createSearchResult(goodProbabilities),
+			expectedOutput: samplemodel.ServiceOperationProbabilities{
+				"new-srv": {
+					"op": 0.1,
+				},
+			},
+			index:        mockIndex,
+			maxDocCount:  1000,
+			indexPresent: true,
+			indexPrefix:  "foo",
+		},
+		{
+			name:          "bad probabilities",
 			searchResult:  createSearchResult(badProbabilities),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
-			indices:       []interface{}{mockIndex},
+			index:         mockIndex,
 			indexPresent:  true,
 		},
 		{
+			name:          "search fail",
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for Latest Probabilities: search failure",
-			indices:       []interface{}{mockIndex},
+			index:         mockIndex,
 			indexPresent:  true,
 		},
+		{
+			name:          "index check fail",
+			indexError:    errors.New("index check failure"),
+			expectedError: "failed to get latest indices: failed to check index existence: index check failure",
+			index:         mockIndex,
+		},
 	}
-	for _, testCase := range testCases {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			searchService := &mocks.SearchService{}
-			w.client.On("Search", testCase.indices...).Return(searchService)
-			searchService.On("Size", mock.Anything).Return(searchService)
-			searchService.On("IgnoreUnavailable", true).Return(searchService)
-			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+				searchService := &mocks.SearchService{}
+				if test.indexPrefix != "" {
+					test.indexPrefix += "-"
+				}
+				index := test.indexPrefix + test.index
+				w.client.On("Search", index).Return(searchService)
+				searchService.On("Size", mock.Anything).Return(searchService)
+				searchService.On("IgnoreUnavailable", true).Return(searchService)
+				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
 
-			indicesexistsservice := &mocks.IndicesExistsService{}
-			w.client.On("IndexExists", testCase.indices...).Return(indicesexistsservice)
-			indicesexistsservice.On("Do", mock.Anything).Return(testCase.indexPresent, testCase.indexError)
+				indicesexistsservice := &mocks.IndicesExistsService{}
+				w.client.On("IndexExists", index).Return(indicesexistsservice)
+				indicesexistsservice.On("Do", mock.Anything).Return(test.indexPresent, test.indexError)
 
-			actual, err := w.storage.GetLatestProbabilities()
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
-				assert.Nil(t, actual)
-			} else {
-				require.NoError(t, err)
-				assert.EqualValues(t, testCase.expectedOutput, actual)
-			}
+				actual, err := w.storage.GetLatestProbabilities()
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+					assert.Nil(t, actual)
+				} else {
+					require.NoError(t, err)
+					assert.EqualValues(t, test.expectedOutput, actual)
+				}
+			})
 		})
 	}
 }
@@ -410,6 +472,13 @@ func createSearchResult(rawJsonStr string) *elastic.SearchResult {
 	}
 	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
 	return searchResult
+}
+
+func stringMatcher(q string) interface{} {
+	matchFunc := func(s string) bool {
+		return strings.Contains(s, q)
+	}
+	return mock.MatchedBy(matchFunc)
 }
 
 func TestMain(m *testing.M) {

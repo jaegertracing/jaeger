@@ -36,13 +36,13 @@ const (
 )
 
 type SamplingStore struct {
-	client                         func() es.Client
-	logger                         *zap.Logger
-	samplingIndexPrefix            string
-	indexDateLayout                string
-	maxDocCount                    int
-	samplingIndexRolloverFrequency time.Duration
-	adaptiveSamplingLookback       time.Duration
+	client                 func() es.Client
+	logger                 *zap.Logger
+	samplingIndexPrefix    string
+	indexDateLayout        string
+	maxDocCount            int
+	indexRolloverFrequency time.Duration
+	lookback               time.Duration
 }
 
 type SamplingStoreParams struct {
@@ -57,13 +57,13 @@ type SamplingStoreParams struct {
 
 func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 	return &SamplingStore{
-		client:                         p.Client,
-		logger:                         p.Logger,
-		samplingIndexPrefix:            p.prefixIndexName(),
-		indexDateLayout:                p.IndexDateLayout,
-		maxDocCount:                    p.MaxDocCount,
-		samplingIndexRolloverFrequency: p.IndexRolloverFrequency,
-		adaptiveSamplingLookback:       p.Lookback,
+		client:                 p.Client,
+		logger:                 p.Logger,
+		samplingIndexPrefix:    p.prefixIndexName(),
+		indexDateLayout:        p.IndexDateLayout,
+		maxDocCount:            p.MaxDocCount,
+		indexRolloverFrequency: p.IndexRolloverFrequency,
+		lookback:               p.Lookback,
 	}
 }
 
@@ -76,7 +76,7 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
-	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.samplingIndexRolloverFrequency)
+	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
 	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(start, end)).
@@ -86,8 +86,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
 	}
 	var retSamples []dbmodel.Throughput
-	hits := searchResult.Hits.Hits
-	for _, hit := range hits {
+	for _, hit := range searchResult.Hits.Hits {
 		source := hit.Source
 		var tToD dbmodel.TimeThroughput
 		if err := json.Unmarshal(*source, &tToD); err != nil {
@@ -97,6 +96,29 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	}
 	return dbmodel.ToThroughputs(retSamples), nil
 }
+
+// func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+// 	ctx := context.Background()
+// 	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
+// 	searchResult, err := s.client().Search(indices...).
+// 		Size(s.maxDocCount).
+// 		Query(buildTSQuery(start, end)).
+// 		IgnoreUnavailable(true).
+// 		Do(ctx)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
+// 	}
+// 	retSamples := make([][]dbmodel.Throughput, len(searchResult.Hits.Hits))
+// 	for i, hit := range searchResult.Hits.Hits {
+// 		source := hit.Source
+// 		var tToD dbmodel.TimeThroughput
+// 		if err := json.Unmarshal(*source, &tToD); err != nil {
+// 			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
+// 		}
+// 		retSamples[i] = tToD.Throughput
+// 	}
+// 	return dbmodel.ToThroughputs(retSamples), nil
+// }
 
 func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
@@ -116,7 +138,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
 	clientFn := s.client()
-	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.samplingIndexRolloverFrequency, s.adaptiveSamplingLookback)
+	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.indexRolloverFrequency, s.lookback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest indices: %w", err)
 	}
@@ -165,17 +187,14 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 
 func (s *SamplingStore) CreateTemplates(samplingTemplate string) error {
 	_, err := s.client().CreateTemplate("jaeger-sampling").Body(samplingTemplate).Do(context.Background())
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()
-	end := now.Add(-maxDuration)
-	endIndex := indexWithDate(indexPrefix, indexDateLayout, end)
+	earliest := now.Add(-maxDuration)
+	earliestIndex := indexWithDate(indexPrefix, indexDateLayout, earliest)
 	for {
 		currentIndex := indexWithDate(indexPrefix, indexDateLayout, now)
 		exists, err := clientFn.IndexExists(currentIndex).Do(ctx)
@@ -185,10 +204,10 @@ func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, r
 		if exists {
 			return []string{currentIndex}, nil
 		}
-		if currentIndex == endIndex {
+		if currentIndex == earliestIndex {
 			return nil, fmt.Errorf("falied to find latest index")
 		}
-		now = now.Add(rollover)
+		now = now.Add(rollover) // rollover is negative
 	}
 }
 
@@ -198,7 +217,7 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
-		endTime = endTime.Add(rollover)
+		endTime = endTime.Add(rollover) // rollover is negative
 		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)

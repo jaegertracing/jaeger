@@ -33,7 +33,7 @@ type IndexOption struct {
 }
 
 // RolloverIndices return an array of indices to rollover
-func RolloverIndices(archive bool, skipDependencies bool, prefix string) []IndexOption {
+func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool, prefix string) []IndexOption {
 	if archive {
 		return []IndexOption{
 			{
@@ -65,11 +65,13 @@ func RolloverIndices(archive bool, skipDependencies bool, prefix string) []Index
 		})
 	}
 
-	indexOptions = append(indexOptions, IndexOption{
-		prefix:    prefix,
-		Mapping:   "jaeger-sampling",
-		indexType: "jaeger-sampling",
-	})
+	if adaptiveSampling {
+		indexOptions = append(indexOptions, IndexOption{
+			prefix:    prefix,
+			Mapping:   "jaeger-sampling",
+			indexType: "jaeger-sampling",
+		})
+	}
 
 	return indexOptions
 }
