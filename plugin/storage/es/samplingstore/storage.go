@@ -69,8 +69,14 @@ func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	ts := time.Now()
-	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
-	s.writeThroughput(writeIndexName, ts, throughput)
+	indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
+		s.client().Index().Index(indexName).Type(throughputType).
+			BodyJson(&dbmodel.TimeThroughput{
+				Timestamp:  ts,
+				Throughput: eachThroughput,
+			}).Add()
+	}
 	return nil
 }
 
@@ -85,16 +91,11 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
 	}
-	var retSamples []dbmodel.Throughput
-	for _, hit := range searchResult.Hits.Hits {
-		source := hit.Source
-		var tToD dbmodel.TimeThroughput
-		if err := json.Unmarshal(*source, &tToD); err != nil {
-			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
-		}
-		retSamples = append(retSamples, tToD.Throughput...)
+	output := make([]dbmodel.Throughput, len(searchResult.Hits.Hits))
+	for i, hit := range searchResult.Hits.Hits {
+		json.Unmarshal(*hit.Source, &output[i])
 	}
-	return dbmodel.ToThroughputs(retSamples), nil
+	return dbmodel.ToThroughputs(output), nil
 }
 
 func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
@@ -144,14 +145,6 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		}
 	}
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
-}
-
-func (s *SamplingStore) writeThroughput(indexName string, ts time.Time, throughputs []*model.Throughput) {
-	s.client().Index().Index(indexName).Type(throughputType).
-		BodyJson(&dbmodel.TimeThroughput{
-			Timestamp:  ts,
-			Throughput: dbmodel.FromThroughputs(throughputs),
-		}).Add()
 }
 
 func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {

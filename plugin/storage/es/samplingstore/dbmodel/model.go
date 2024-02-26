@@ -26,8 +26,8 @@ type Throughput struct {
 }
 
 type TimeThroughput struct {
-	Timestamp  time.Time    `json:"timestamp"`
-	Throughput []Throughput `json:"throughputs"`
+	Timestamp  time.Time  `json:"timestamp"`
+	Throughput Throughput `json:"throughputs"`
 }
 
 type ProbabilitiesAndQPS struct {
