@@ -74,7 +74,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.23.1
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/goleak v1.3.0
-	go.uber.org/zap v1.26.0
+	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.21.0
 	golang.org/x/sys v0.17.0
 	google.golang.org/grpc v1.61.1
