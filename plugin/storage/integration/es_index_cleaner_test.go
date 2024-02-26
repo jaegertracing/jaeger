@@ -74,7 +74,8 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 	for _, test := range tests {
 		_, err = client.DeleteIndex("*").Do(context.Background())
 		require.NoError(t, err)
-		err := createAllIndices(client, "")
+		// Create Indices with adaptive sampling disabled (set to false).
+		err := createAllIndices(client, "", false)
 		require.NoError(t, err)
 		err = runEsCleaner(1500, test.envs)
 		require.NoError(t, err)
@@ -88,9 +89,10 @@ func TestIndexCleaner(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name            string
-		envVars         []string
-		expectedIndices []string
+		name             string
+		envVars          []string
+		expectedIndices  []string
+		adaptiveSampling bool
 	}{
 		{
 			name:    "RemoveDailyIndices",
@@ -100,6 +102,7 @@ func TestIndexCleaner(t *testing.T) {
 				"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000001", "jaeger-span-archive-000002",
 			},
+			adaptiveSampling: false,
 		},
 		{
 			name:    "RemoveRolloverIndices",
@@ -109,6 +112,7 @@ func TestIndexCleaner(t *testing.T) {
 				"jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000001", "jaeger-span-archive-000002",
 			},
+			adaptiveSampling: false,
 		},
 		{
 			name:    "RemoveArchiveIndices",
@@ -118,24 +122,35 @@ func TestIndexCleaner(t *testing.T) {
 				"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
 				"jaeger-span-archive-000002",
 			},
+			adaptiveSampling: false,
+		},
+		{
+			name:    "RemoveDailyIndices with adaptiveSampling",
+			envVars: []string{},
+			expectedIndices: []string{
+				archiveIndexName,
+				"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001", "jaeger-span-000002", "jaeger-service-000002", "jaeger-dependencies-000002",
+				"jaeger-span-archive-000001", "jaeger-span-archive-000002", "jaeger-sampling-000001", "jaeger-sampling-000002",
+			},
+			adaptiveSampling: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, v8Client, "", test.expectedIndices, test.envVars)
+			runIndexCleanerTest(t, client, v8Client, "", test.expectedIndices, test.envVars, test.adaptiveSampling)
 		})
 		t.Run(fmt.Sprintf("%s_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, v8Client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix))
+			runIndexCleanerTest(t, client, v8Client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix), test.adaptiveSampling)
 		})
 	}
 }
 
-func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string, expectedIndices, envVars []string) {
+func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string, expectedIndices, envVars []string, adaptiveSampling bool) {
 	// make sure ES is clean
 	_, err := client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
 	defer cleanESIndexTemplates(t, client, v8Client, prefix)
-	err = createAllIndices(client, prefix)
+	err = createAllIndices(client, prefix, adaptiveSampling)
 	require.NoError(t, err)
 	err = runEsCleaner(0, envVars)
 	require.NoError(t, err)
@@ -151,7 +166,7 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
 }
 
-func createAllIndices(client *elastic.Client, prefix string) error {
+func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {
 	prefixWithSeparator := prefix
 	if prefix != "" {
 		prefixWithSeparator = prefixWithSeparator + "-"
@@ -168,20 +183,20 @@ func createAllIndices(client *elastic.Client, prefix string) error {
 		return err
 	}
 	// create rollover archive index and roll alias to the new index
-	err = runEsRollover("init", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix})
+	err = runEsRollover("init", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
-	err = runEsRollover("rollover", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar})
+	err = runEsRollover("rollover", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
 	// create rollover main indices and roll over to the new index
-	err = runEsRollover("init", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix})
+	err = runEsRollover("init", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
-	err = runEsRollover("rollover", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar})
+	err = runEsRollover("rollover", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
@@ -209,12 +224,12 @@ func runEsCleaner(days int, envs []string) error {
 	return err
 }
 
-func runEsRollover(action string, envs []string) error {
+func runEsRollover(action string, envs []string, adaptiveSampling bool) error {
 	var dockerEnv string
 	for _, e := range envs {
 		dockerEnv += fmt.Sprintf(" -e %s", e)
 	}
-	args := fmt.Sprintf("docker run %s --rm --net=host %s %s http://%s", dockerEnv, rolloverImage, action, queryHostPort)
+	args := fmt.Sprintf("docker run %s --rm --net=host %s %s --adaptive-sampling=%t http://%s", dockerEnv, rolloverImage, action, adaptiveSampling, queryHostPort)
 	cmd := exec.Command("/bin/sh", "-c", args)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
