@@ -277,6 +277,39 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 	defer factory.Close()
 }
 
+func TestConfigurationValidation(t *testing.T) {
+	testCases := []struct {
+		name    string
+		cfg     escfg.Configuration
+		wantErr bool
+	}{
+		{
+			name: "valid configuration",
+			cfg: escfg.Configuration{
+				Servers: []string{"http://localhost:9200"},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "missing servers",
+			cfg:     escfg.Configuration{},
+			wantErr: true,
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.cfg.Validate()
+			if test.wantErr {
+				assert.Error(t, err)
+				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+
+}
 func TestESStorageFactoryWithConfigError(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{"http://badurl"},

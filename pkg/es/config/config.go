@@ -62,7 +62,7 @@ type Configuration struct {
 	PrioritySpanTemplate           int64          `mapstructure:"priority_span_template"`
 	PriorityServiceTemplate        int64          `mapstructure:"priority_service_template"`
 	PriorityDependenciesTemplate   int64          `mapstructure:"priority_dependencies_template"`
-	Timeout                        time.Duration  `valid:"min=500" mapstructure:"-"`
+	Timeout                        time.Duration  `mapstructure:"-"`
 	BulkSize                       int            `mapstructure:"-"`
 	BulkWorkers                    int            `mapstructure:"-"`
 	BulkActions                    int            `mapstructure:"-"`
