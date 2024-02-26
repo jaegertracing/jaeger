@@ -91,8 +91,10 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 		streamWriter:  streamWriter,
 	}
 
+	handler := NewGRPCHandlerWithPlugins(impl, impl, impl)
+	defer handler.Close(context.Background(), &storage_v1.CloseWriterRequest{})
 	r := &grpcServerTest{
-		server: NewGRPCHandlerWithPlugins(impl, impl, impl),
+		server: handler,
 		impl:   impl,
 	}
 	fn(r)
