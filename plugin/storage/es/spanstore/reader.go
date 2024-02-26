@@ -302,7 +302,7 @@ func (s *SpanReader) GetOperations(
 	defer span.End()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
-	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query, s.maxDocCount)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,8 @@ func (s *SpanReader) GetOperations(
 	var result []spanstore.Operation
 	for _, operation := range operations {
 		result = append(result, spanstore.Operation{
-			Name: operation,
+			Name:     operation,
+			SpanKind: query.SpanKind,
 		})
 	}
 	return result, err
