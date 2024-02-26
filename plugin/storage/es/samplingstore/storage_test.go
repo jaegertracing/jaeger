@@ -240,19 +240,12 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 func TestGetThroughput(t *testing.T) {
 	mockIndex := "jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")
 	goodThroughputs := `{
-		"timestamp": "2024-02-08T12:00:00Z",
-		"throughputs": [
-			{
-				"Service": "my-svc",
-				"Operation": "op",
-				"Count": 10
-			},
-			{
-				"Service": "another-svc",
-				"Operation": "another-op",
-				"Count": 20
+			"timestamp": "2024-02-08T12:00:00Z",
+			"throughputs": {
+					"Service": "my-svc",
+					"Operation": "op",
+					"Count": 10
 			}
-		]
 	}`
 	tests := []struct {
 		name           string
@@ -273,10 +266,18 @@ func TestGetThroughput(t *testing.T) {
 					Operation: "op",
 					Count:     10,
 				},
+			},
+			index:       mockIndex,
+			maxDocCount: 1000,
+		},
+		{
+			name:         "good throughputs without prefix",
+			searchResult: createSearchResult(goodThroughputs),
+			expectedOutput: []*samplemodel.Throughput{
 				{
-					Service:   "another-svc",
-					Operation: "another-op",
-					Count:     20,
+					Service:   "my-svc",
+					Operation: "op",
+					Count:     10,
 				},
 			},
 			index:       mockIndex,
@@ -290,11 +291,6 @@ func TestGetThroughput(t *testing.T) {
 					Service:   "my-svc",
 					Operation: "op",
 					Count:     10,
-				},
-				{
-					Service:   "another-svc",
-					Operation: "another-op",
-					Count:     20,
 				},
 			},
 			index:       mockIndex,

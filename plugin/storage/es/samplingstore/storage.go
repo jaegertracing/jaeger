@@ -91,11 +91,17 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
 	}
-	output := make([]dbmodel.Throughput, len(searchResult.Hits.Hits))
+	output := make([]dbmodel.TimeThroughput, len(searchResult.Hits.Hits))
 	for i, hit := range searchResult.Hits.Hits {
-		json.Unmarshal(*hit.Source, &output[i])
+		if err := json.Unmarshal(*hit.Source, &output[i]); err != nil {
+			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
+		}
 	}
-	return dbmodel.ToThroughputs(output), nil
+	outThroughputs := make([]dbmodel.Throughput, len(output))
+	for i, out := range output {
+		outThroughputs[i] = out.Throughput
+	}
+	return dbmodel.ToThroughputs(outThroughputs), nil
 }
 
 func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
