@@ -300,11 +300,11 @@ func TestConfigurationValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.cfg.Validate()
 			if test.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
