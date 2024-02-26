@@ -308,8 +308,8 @@ func TestConfigurationValidation(t *testing.T) {
 			}
 		})
 	}
-
 }
+
 func TestESStorageFactoryWithConfigError(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{"http://badurl"},
