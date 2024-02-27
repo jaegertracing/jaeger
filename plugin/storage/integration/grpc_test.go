@@ -96,9 +96,10 @@ func (s *gRPCServer) Restart() error {
 
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	logger *zap.Logger
-	flags  []string
-	server *gRPCServer
+	logger  *zap.Logger
+	flags   []string
+	factory *grpc.Factory
+	server  *gRPCServer
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize() error {
@@ -120,6 +121,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return err
 	}
+	s.factory = f
 
 	if s.SpanWriter, err = f.CreateSpanWriter(); err != nil {
 		return err
@@ -140,6 +142,9 @@ func (s *GRPCStorageIntegrationTestSuite) refresh() error {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
+	if err := s.factory.Close(); err != nil {
+		return err
+	}
 	return s.initialize()
 }
 

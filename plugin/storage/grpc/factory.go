@@ -60,6 +60,21 @@ func NewFactory() *Factory {
 	return &Factory{}
 }
 
+// NewFactoryWithConfig is used from jaeger(v2).
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) (*Factory, error) {
+	f := NewFactory()
+	f.InitFromOptions(Options{Configuration: cfg})
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.options.AddFlags(flagSet)

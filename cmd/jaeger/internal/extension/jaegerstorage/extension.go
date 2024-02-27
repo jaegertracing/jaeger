@@ -19,6 +19,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -109,6 +111,12 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Badger,
 		builder:     badger.NewFactoryWithConfig,
 	}
+	grpcStarter := &starter[grpcCfg.Configuration, *grpc.Factory]{
+		ext:         s,
+		storageKind: "grpc",
+		cfg:         s.config.GRPC,
+		builder:     grpc.NewFactoryWithConfig,
+	}
 	esStarter := &starter[esCfg.Configuration, *es.Factory]{
 		ext:         s,
 		storageKind: "elasticsearch",
@@ -119,6 +127,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 	builders := []func(ctx context.Context, host component.Host) error{
 		memStarter.build,
 		badgerStarter.build,
+		grpcStarter.build,
 		esStarter.build,
 		// TODO add support for other backends
 	}

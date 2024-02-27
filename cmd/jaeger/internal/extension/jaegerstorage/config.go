@@ -10,12 +10,14 @@ import (
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 
 // Config has the configuration for jaeger-query,
 type Config struct {
 	Memory        map[string]memoryCfg.Configuration   `mapstructure:"memory"`
 	Badger        map[string]badgerCfg.NamespaceConfig `mapstructure:"badger"`
+	GRPC          map[string]grpcCfg.Configuration     `mapstructure:"grpc"`
 	Elasticsearch map[string]esCfg.Configuration       `mapstructure:"elasticsearch"`
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?
@@ -29,6 +31,7 @@ type MemoryStorage struct {
 
 func (cfg *Config) Validate() error {
 	emptyCfg := createDefaultConfig().(*Config)
+	//nolint:govet // The remoteRPCClient field in GRPC.Configuration contains error type
 	if reflect.DeepEqual(*cfg, *emptyCfg) {
 		return fmt.Errorf("%s: no storage type present in config", ID)
 	} else {
