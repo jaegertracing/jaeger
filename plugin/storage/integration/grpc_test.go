@@ -105,11 +105,6 @@ type GRPCStorageIntegrationTestSuite struct {
 func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	s.logger, _ = testutils.NewLogger()
 
-	if s.factory != nil {
-		if err := s.factory.Close(); err != nil {
-			return err
-		}
-	}
 	if s.server != nil {
 		if err := s.server.Restart(); err != nil {
 			return err
@@ -147,6 +142,9 @@ func (s *GRPCStorageIntegrationTestSuite) refresh() error {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
+	if err := s.factory.Close(); err != nil {
+		return err
+	}
 	return s.initialize()
 }
 
