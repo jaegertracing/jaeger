@@ -166,13 +166,8 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	cfg.RemoteServerAddr = lis.Addr().String()
 	cfg.RemoteConnectTimeout = 1 * time.Second
 	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	defer func() {
-		err := f.Close()
-		if err != nil {
-			log.Fatalf("Client exited with error: %v", err)
-		}
-	}()
 	require.NoError(t, err)
+	require.NoError(t, f.Close())
 }
 
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {
