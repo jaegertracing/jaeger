@@ -41,6 +41,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 )
 
@@ -100,13 +101,11 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields, archive bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
@@ -114,39 +113,65 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
 	})
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
-	if err := s.initSpanstore(allTagsAsFields, archive); err != nil {
-		return err
-	}
+	s.initSpanstore(t, allTagsAsFields, archive)
+	s.initSamplingStore(t)
+
 	s.CleanUp = func() error {
-		return s.esCleanUp(allTagsAsFields, archive)
+		s.esCleanUp(t, allTagsAsFields, archive)
+		return nil
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp(allTagsAsFields, archive)
+	s.esCleanUp(t, allTagsAsFields, archive)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.GetOperationsMissingSpanKind = true
 	return nil
 }
 
-func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields, archive bool) {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	if err != nil {
-		return err
-	}
-	return s.initSpanstore(allTagsAsFields, archive)
+	require.NoError(t, err)
+	s.initSpanstore(t, allTagsAsFields, archive)
 }
 
-func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
-	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
+func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
+	client := s.getEsClient(t)
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: estemplate.TextTemplateBuilder{},
+		Shards:          5,
+		Replicas:        1,
+		EsVersion:       client.GetVersion(),
+		IndexPrefix:     indexPrefix,
+		UseILM:          false,
+	}
+	clientFn := func() estemplate.Client { return client }
+	samplingstore := samplingstore.NewSamplingStore(
+		samplingstore.SamplingStoreParams{
+			Client:          clientFn,
+			Logger:          s.logger,
+			IndexPrefix:     indexPrefix,
+			IndexDateLayout: indexDateLayout,
+			MaxDocCount:     defaultMaxDocCount,
+		})
+	sampleMapping, err := mappingBuilder.GetSamplingMappings()
+	require.NoError(t, err)
+	err = samplingstore.CreateTemplates(sampleMapping)
+	require.NoError(t, err)
+	s.SamplingStore = samplingstore
+}
+
+func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper {
+	bp, err := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
+	require.NoError(t, err)
 	s.bulkProcessor = bp
 	esVersion, err := s.getVersion()
-	if err != nil {
-		return err
-	}
-	client := eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
+	require.NoError(t, err)
+	return eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
+}
+
+func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields, archive bool) error {
+	client := s.getEsClient(t)
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: estemplate.TextTemplateBuilder{},
 		Shards:          5,
@@ -156,10 +181,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		UseILM:          false,
 	}
 	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-	if err != nil {
-		return err
-	}
-
+	require.NoError(t, err)
 	clientFn := func() estemplate.Client { return client }
 
 	w := spanstore.NewSpanWriter(
@@ -173,9 +195,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 			Archive:           archive,
 		})
 	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	tracer, _, closer := s.tracerProvider()
 	defer closer()
 	s.SpanWriter = w
@@ -199,13 +219,9 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	})
 
 	depMapping, err := mappingBuilder.GetDependenciesMappings()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	err = dependencyStore.CreateTemplates(depMapping)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	s.DependencyReader = dependencyStore
 	s.DependencyWriter = dependencyStore
 	return nil
@@ -238,7 +254,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES(allTagsAsFields, archive))
+	s.initializeES(t, allTagsAsFields, archive)
 
 	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
@@ -269,7 +285,7 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES(true, false))
+	s.initializeES(t, true, false)
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
@@ -288,8 +304,7 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
 	}
-	err = s.cleanESIndexTemplates(t, indexPrefix)
-	require.NoError(t, err)
+	s.cleanESIndexTemplates(t, indexPrefix)
 }
 
 func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {

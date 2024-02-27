@@ -106,6 +106,10 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
+
+	_, err = f.CreateSamplingStore(1)
+	require.NoError(t, err)
+
 	require.NoError(t, f.Close())
 }
 

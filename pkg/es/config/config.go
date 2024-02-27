@@ -70,9 +70,12 @@ type Configuration struct {
 	IndexPrefix                    string         `mapstructure:"index_prefix"`
 	IndexDateLayoutSpans           string         `mapstructure:"-"`
 	IndexDateLayoutServices        string         `mapstructure:"-"`
+	IndexDateLayoutSampling        string         `mapstructure:"-"`
 	IndexDateLayoutDependencies    string         `mapstructure:"-"`
 	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
 	IndexRolloverFrequencyServices string         `mapstructure:"-"`
+	IndexRolloverFrequencySampling string         `mapstructure:"-"`
+	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
 	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
 	Enabled                        bool           `mapstructure:"-"`
 	TLS                            tlscfg.Options `mapstructure:"tls"`
@@ -231,6 +234,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
+	if c.AdaptiveSamplingLookback == 0 {
+		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
+	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
@@ -286,15 +292,22 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 // GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
-	if c.IndexRolloverFrequencySpans == "hour" {
-		return -1 * time.Hour
-	}
-	return -24 * time.Hour
+	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySpans)
 }
 
 // GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
-	if c.IndexRolloverFrequencyServices == "hour" {
+	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencyServices)
+}
+
+// GetIndexRolloverFrequencySamplingDuration returns jaeger-sampling index rollover frequency duration
+func (c *Configuration) GetIndexRolloverFrequencySamplingDuration() time.Duration {
+	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySampling)
+}
+
+// GetIndexRolloverFrequencyDuration returns the index rollover frequency duration for the given frequency string
+func getIndexRolloverFrequencyDuration(frequency string) time.Duration {
+	if frequency == "hour" {
 		return -1 * time.Hour
 	}
 	return -24 * time.Hour

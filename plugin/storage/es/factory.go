@@ -37,9 +37,11 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
+	esSampleStore "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -303,6 +305,19 @@ func createSpanWriter(
 		}
 	}
 	return writer, nil
+}
+
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	store := esSampleStore.NewSamplingStore(esSampleStore.SamplingStoreParams{
+		Client:                 f.getPrimaryClient,
+		Logger:                 f.logger,
+		IndexPrefix:            f.primaryConfig.IndexPrefix,
+		IndexDateLayout:        f.primaryConfig.IndexDateLayoutSampling,
+		IndexRolloverFrequency: f.primaryConfig.GetIndexRolloverFrequencySamplingDuration(),
+		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
+		MaxDocCount:            f.primaryConfig.MaxDocCount,
+	})
+	return store, nil
 }
 
 func createDependencyReader(

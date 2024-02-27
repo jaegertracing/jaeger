@@ -65,6 +65,16 @@ func testIndexFilter(t *testing.T, prefix string) {
 			Aliases:      map[string]bool{},
 		},
 		{
+			Index:        prefix + "jaeger-sampling-2020-08-06",
+			CreationTime: time.Date(2020, time.August, 0o6, 15, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			Index:        prefix + "jaeger-sampling-2020-08-05",
+			CreationTime: time.Date(2020, time.August, 0o5, 15, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
 			Index:        prefix + "jaeger-span-archive",
 			CreationTime: time.Date(2020, time.August, 0, 15, 0, 0, 0, time.UTC),
 			Aliases:      map[string]bool{},
@@ -186,6 +196,11 @@ func testIndexFilter(t *testing.T, prefix string) {
 					CreationTime: time.Date(2020, time.August, 0o5, 15, 0, 0, 0, time.UTC),
 					Aliases:      map[string]bool{},
 				},
+				{
+					Index:        prefix + "jaeger-sampling-2020-08-05",
+					CreationTime: time.Date(2020, time.August, 0o5, 15, 0, 0, 0, time.UTC),
+					Aliases:      map[string]bool{},
+				},
 			},
 		},
 		{
@@ -225,6 +240,16 @@ func testIndexFilter(t *testing.T, prefix string) {
 				},
 				{
 					Index:        prefix + "jaeger-dependencies-2020-08-05",
+					CreationTime: time.Date(2020, time.August, 0o5, 15, 0, 0, 0, time.UTC),
+					Aliases:      map[string]bool{},
+				},
+				{
+					Index:        prefix + "jaeger-sampling-2020-08-06",
+					CreationTime: time.Date(2020, time.August, 0o6, 15, 0, 0, 0, time.UTC),
+					Aliases:      map[string]bool{},
+				},
+				{
+					Index:        prefix + "jaeger-sampling-2020-08-05",
 					CreationTime: time.Date(2020, time.August, 0o5, 15, 0, 0, 0, time.UTC),
 					Aliases:      map[string]bool{},
 				},

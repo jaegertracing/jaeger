@@ -332,6 +332,19 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 	require.EqualError(t, err, "template load error")
 }
 
+func TestMappingBuilder_GetSamplingMappings(t *testing.T) {
+	tb := mocks.TemplateBuilder{}
+	ta := mocks.TemplateApplier{}
+	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+	tb.On("Parse", mock.Anything).Return(&ta, nil)
+
+	mappingBuilder := MappingBuilder{
+		TemplateBuilder: &tb,
+	}
+	_, err := mappingBuilder.GetSamplingMappings()
+	require.EqualError(t, err, "template load error")
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
