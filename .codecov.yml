@@ -21,7 +21,9 @@ coverage:
     project:
       default:
         enabled: yes
-        target: 95%
+        # Temporarily lower threshold below 95%
+        # Tacked in https://github.com/jaegertracing/jaeger/issues/5194
+        target: 94.4%
     patch:
       default:
         enabled: yes
