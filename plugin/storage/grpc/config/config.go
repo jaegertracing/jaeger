@@ -50,7 +50,7 @@ type Configuration struct {
 	pluginHealthCheck     *time.Ticker
 	pluginHealthCheckDone chan bool
 	pluginRPCClient       plugin.ClientProtocol
-	remoteRPCClient       *grpc.ClientConn
+	remoteConn            *grpc.ClientConn
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -79,8 +79,8 @@ func (c *Configuration) Close() error {
 		c.pluginHealthCheck.Stop()
 		c.pluginHealthCheckDone <- true
 	}
-	if c.remoteRPCClient != nil {
-		c.remoteRPCClient.Close()
+	if c.remoteConn != nil {
+		c.remoteConn.Close()
 	}
 
 	return c.RemoteTLS.Close()
@@ -111,12 +111,12 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 	var err error
-	c.remoteRPCClient, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
+	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
 	}
 
-	grpcClient := shared.NewGRPCClient(c.remoteRPCClient)
+	grpcClient := shared.NewGRPCClient(c.remoteConn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,

@@ -153,9 +153,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	require.ErrorContains(t, err, "grpc-plugin builder failed to create a store: error connecting to remote storage")
 
 	lis, err := net.Listen("tcp", ":0")
-	if err != nil {
-		t.Fatalf("failed to listen: %v", err)
-	}
+	require.NoError(t, err, "failed to listen")
 
 	s := grpc.NewServer()
 	go func() {
