@@ -13,10 +13,12 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
+	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -107,10 +109,17 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Badger,
 		builder:     badger.NewFactoryWithConfig,
 	}
+	esStarter := &starter[esCfg.Configuration, *es.Factory]{
+		ext:         s,
+		storageKind: "elasticsearch",
+		cfg:         s.config.Elasticsearch,
+		builder:     es.NewFactoryWithConfig,
+	}
 
 	builders := []func(ctx context.Context, host component.Host) error{
 		memStarter.build,
 		badgerStarter.build,
+		esStarter.build,
 		// TODO add support for other backends
 	}
 	for _, builder := range builders {

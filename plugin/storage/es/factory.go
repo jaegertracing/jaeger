@@ -85,6 +85,39 @@ func NewFactory() *Factory {
 	}
 }
 
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	cfg.MaxDocCount = defaultMaxDocCount
+	cfg.Enabled = true
+
+	archive := make(map[string]*namespaceConfig)
+	archive[archiveNamespace] = &namespaceConfig{
+		Configuration: cfg,
+		namespace:     archiveNamespace,
+	}
+
+	f := NewFactory()
+	f.InitFromOptions(Options{
+		Primary: namespaceConfig{
+			Configuration: cfg,
+			namespace:     primaryNamespace,
+		},
+		others: archive,
+	})
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
