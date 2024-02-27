@@ -263,6 +263,63 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
 }
 
+func TestESStorageFactoryWithConfig(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+	cfg := escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "error",
+	}
+	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	defer factory.Close()
+}
+
+func TestConfigurationValidation(t *testing.T) {
+	testCases := []struct {
+		name    string
+		cfg     escfg.Configuration
+		wantErr bool
+	}{
+		{
+			name: "valid configuration",
+			cfg: escfg.Configuration{
+				Servers: []string{"http://localhost:9200"},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "missing servers",
+			cfg:     escfg.Configuration{},
+			wantErr: true,
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.cfg.Validate()
+			if test.wantErr {
+				require.Error(t, err)
+				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestESStorageFactoryWithConfigError(t *testing.T) {
+	cfg := escfg.Configuration{
+		Servers:  []string{"http://badurl"},
+		LogLevel: "error",
+	}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
+}
+
 func TestPasswordFromFile(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
 	t.Run("primary client", func(t *testing.T) {
