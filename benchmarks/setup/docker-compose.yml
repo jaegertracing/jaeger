@@ -6,22 +6,21 @@ services:
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
+      - ELASTIC_PASSWORD=jaeger
+      - ELASTIC_USERNAME=jaeger
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.enabled=false
     ports:
       - 9200:9200
-    networks:
-      - monitoring
+      - 9300:9300
+
   tracegen:
     image: jaegertracing/jaeger-tracegen
     container_name: tracegen
     environment:
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger-collector:14250
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger-collector:4318/v1/traces
     command: [
       "-spans", "10",
-      "-traces", "15000000",
+      "-traces", "150000",
       "-services", "2",
-      "-trace-exporter", "otlp-grpc"
     ]
-    depends_on:
-      - jaeger-collector
-    networks:
-      - monitoring
