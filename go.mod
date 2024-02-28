@@ -30,7 +30,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.95.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.95.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.95.0
-	github.com/prometheus/client_golang v1.18.0
+	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.6.0
 	github.com/prometheus/common v0.48.0
 	github.com/soheilhy/cmux v0.1.5
