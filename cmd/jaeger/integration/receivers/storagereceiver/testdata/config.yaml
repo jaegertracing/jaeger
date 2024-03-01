@@ -1,0 +1,3 @@
+jaeger_storage_receiver:
+jaeger_storage_receiver/external-storage:
+  trace_storage: external-storage
