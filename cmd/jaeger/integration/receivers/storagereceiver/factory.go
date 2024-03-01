@@ -29,5 +29,5 @@ func createDefaultConfig() component.Config {
 func createTracesReceiver(ctx context.Context, set receiver.CreateSettings, config component.Config, nextConsumer consumer.Traces) (receiver.Traces, error) {
 	cfg := config.(*Config)
 
-	return newReceiver(cfg, set.TelemetrySettings, nextConsumer)
+	return newTracesReceiver(cfg, set, nextConsumer)
 }

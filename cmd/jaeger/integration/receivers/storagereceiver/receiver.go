@@ -10,6 +10,7 @@ import (
 	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -20,7 +21,7 @@ import (
 type storageReceiver struct {
 	cancelConsumeLoop context.CancelFunc
 	config            *Config
-	logger            *zap.Logger
+	settings          receiver.CreateSettings
 	consumedTraces    map[model.TraceID]*consumedTrace
 	nextConsumer      consumer.Traces
 	spanReader        spanstore.Reader
@@ -30,10 +31,10 @@ type consumedTrace struct {
 	spanIDs map[model.SpanID]struct{}
 }
 
-func newReceiver(config *Config, otel component.TelemetrySettings, nextConsumer consumer.Traces) (*storageReceiver, error) {
+func newTracesReceiver(config *Config, set receiver.CreateSettings, nextConsumer consumer.Traces) (*storageReceiver, error) {
 	return &storageReceiver{
 		config:         config,
-		logger:         otel.Logger,
+		settings:       set,
 		consumedTraces: make(map[model.TraceID]*consumedTrace),
 		nextConsumer:   nextConsumer,
 	}, nil
@@ -54,7 +55,7 @@ func (r *storageReceiver) Start(_ context.Context, host component.Host) error {
 
 	go func() {
 		if err := r.consumeLoop(ctx); err != nil {
-			host.ReportFatalError(err)
+			r.settings.ReportStatus(component.NewFatalErrorEvent(err))
 		}
 	}()
 
@@ -65,18 +66,19 @@ func (r *storageReceiver) consumeLoop(ctx context.Context) error {
 	for {
 		services, err := r.spanReader.GetServices(ctx)
 		if err != nil {
-			r.logger.Error("Failed to get services from consumer", zap.Error(err))
+			r.settings.Logger.Error("Failed to get services from consumer", zap.Error(err))
 			return err
 		}
 
 		for _, svc := range services {
 			if err := r.consumeTraces(ctx, svc); err != nil {
-				r.logger.Error("Failed to consume traces from consumer", zap.Error(err))
+				r.settings.Logger.Error("Failed to consume traces from consumer", zap.Error(err))
 			}
-			if ctx.Err() != nil {
-				r.logger.Error("Consumer stopped", zap.Error(ctx.Err()))
-				return ctx.Err()
-			}
+		}
+
+		if ctx.Err() != nil {
+			r.settings.Logger.Error("Consumer stopped", zap.Error(ctx.Err()))
+			return ctx.Err()
 		}
 	}
 }
