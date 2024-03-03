@@ -149,6 +149,7 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.2 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.95.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.95.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.95.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.95.0 // indirect

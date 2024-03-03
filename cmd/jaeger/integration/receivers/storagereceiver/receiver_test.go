@@ -6,51 +6,78 @@ package storagereceiver
 import (
 	"context"
 	"errors"
-	"log"
-	"net"
 	"testing"
-	"time"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
-	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver/receivertest"
-	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/model"
-	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	"github.com/jaegertracing/jaeger/storage"
+	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
-type storageHost struct {
-	t                *testing.T
-	storageExtension component.Component
+var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
+
+type mockStorageExt struct {
+	name    string
+	factory *factoryMocks.Factory
 }
 
-func (host storageHost) GetExtensions() map[component.ID]component.Component {
-	myMap := make(map[component.ID]component.Component)
-	myMap[jaegerstorage.ID] = host.storageExtension
-	return myMap
+func (m *mockStorageExt) Start(ctx context.Context, host component.Host) error {
+	panic("not implemented")
 }
 
-func (host storageHost) ReportFatalError(err error) {
-	host.t.Fatal(err)
+func (m *mockStorageExt) Shutdown(ctx context.Context) error {
+	panic("not implemented")
 }
 
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
-	return nil
+func (m *mockStorageExt) Factory(name string) (storage.Factory, bool) {
+	if m.name == name {
+		return m.factory, true
+	}
+	return nil, false
 }
 
-func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	return nil
+type receiverTest struct {
+	reader   *spanStoreMocks.Reader
+	factory  *factoryMocks.Factory
+	host     *storagetest.StorageHost
+	receiver *storageReceiver
+}
+
+func withReceiver(storageName, receiveName string, fn func(r *receiverTest)) {
+	reader := new(spanStoreMocks.Reader)
+	factory := new(factoryMocks.Factory)
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
+		name:    storageName,
+		factory: factory,
+	})
+	cfg := createDefaultConfig().(*Config)
+	cfg.TraceStorage = receiveName
+	receiver, _ := newTracesReceiver(
+		cfg,
+		receivertest.NewNopCreateSettings(),
+		consumertest.NewNop(),
+	)
+
+	r := &receiverTest{
+		reader:   reader,
+		factory:  factory,
+		host:     host,
+		receiver: receiver,
+	}
+	fn(r)
 }
 
 var (
@@ -87,40 +114,43 @@ var (
 	}
 )
 
-func TestReceiverNoStorageError(t *testing.T) {
-	cfg := createDefaultConfig().(*Config)
-	cfg.TraceStorage = "foo"
-
-	r, err := newTracesReceiver(
-		cfg,
-		receivertest.NewNopCreateSettings(),
-		consumertest.NewNop(),
-	)
-	require.NoError(t, err)
-
-	err = r.Start(context.Background(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "cannot find storage factory")
+func TestReceiver_NoStorageError(t *testing.T) {
+	withReceiver("", "foo", func(r *receiverTest) {
+		err := r.receiver.Start(context.Background(), r.host)
+		require.ErrorContains(t, err, "cannot find storage factory")
+	})
 }
 
-func TestReceiverStart(t *testing.T) {
-	ctx := context.Background()
-	host := newStorageHost(t, "external-storage")
+func TestReceiver_CreateSpanReaderError(t *testing.T) {
+	withReceiver("foo", "foo", func(r *receiverTest) {
+		r.factory.On("CreateSpanReader").Return(nil, errors.New("mocked error"))
 
-	cfg := createDefaultConfig().(*Config)
-	cfg.TraceStorage = "external-storage"
-
-	r, err := newTracesReceiver(
-		cfg,
-		receivertest.NewNopCreateSettings(),
-		consumertest.NewNop(),
-	)
-	require.NoError(t, err)
-
-	require.NoError(t, r.Start(ctx, host))
-	require.NoError(t, r.Shutdown(ctx))
+		err := r.receiver.Start(context.Background(), r.host)
+		require.ErrorContains(t, err, "cannot create span reader")
+	})
 }
 
-func TestReceiverStartConsume(t *testing.T) {
+func TestReceiver_Start(t *testing.T) {
+	withReceiver("external-storage", "external-storage", func(r *receiverTest) {
+		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return([]string{}, nil)
+		r.factory.On("CreateSpanReader").Return(r.reader, nil)
+
+		require.NoError(t, r.receiver.Start(context.Background(), r.host))
+		require.NoError(t, r.receiver.Shutdown(context.Background()))
+	})
+}
+
+func TestReceiver_consumeLoopGetServiceError(t *testing.T) {
+	withReceiver("external-storage", "external-storage", func(r *receiverTest) {
+		r.reader.On("GetServices", mock.AnythingOfType("context.backgroundCtx")).Return([]string{}, errors.New("mocked error"))
+		r.receiver.spanReader = r.reader
+
+		err := r.receiver.consumeLoop(context.Background())
+		require.ErrorContains(t, err, "mocked error")
+	})
+}
+
+func TestReceiver_StartConsume(t *testing.T) {
 	sink := &consumertest.TracesSink{}
 
 	cfg := createDefaultConfig().(*Config)
@@ -187,7 +217,7 @@ func TestReceiverStartConsume(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := new(mocks.Reader)
+			reader := new(spanStoreMocks.Reader)
 			reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return(test.services, nil)
 			for _, service := range test.services {
 				reader.On(
@@ -217,48 +247,4 @@ func TestReceiverStartConsume(t *testing.T) {
 			assert.Equal(t, expectedTraces, actualTraces)
 		})
 	}
-}
-
-func newStorageHost(t *testing.T, traceStorage string) *storageHost {
-	ctx := context.Background()
-
-	lis, err := net.Listen("tcp", ":0")
-	require.NoError(t, err, "failed to listen")
-
-	s := grpc.NewServer()
-	go func() {
-		if err := s.Serve(lis); err != nil {
-			log.Fatalf("Server exited with error: %v", err)
-		}
-	}()
-	t.Cleanup(s.Stop)
-
-	f := jaegerstorage.NewFactory()
-	cfg := &jaegerstorage.Config{
-		GRPC: map[string]grpcCfg.Configuration{
-			traceStorage: {
-				RemoteServerAddr:     lis.Addr().String(),
-				RemoteConnectTimeout: 1 * time.Second,
-			},
-		},
-	}
-	set := extension.CreateSettings{
-		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
-		BuildInfo:         component.NewDefaultBuildInfo(),
-	}
-	ext, err := f.CreateExtension(ctx, set, cfg)
-	require.NoError(t, err)
-
-	host := &storageHost{
-		t:                t,
-		storageExtension: ext,
-	}
-
-	err = host.storageExtension.Start(ctx, host)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, ext.Shutdown(ctx))
-	})
-	return host
 }
