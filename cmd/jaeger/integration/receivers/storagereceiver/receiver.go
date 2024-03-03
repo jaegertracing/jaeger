@@ -41,7 +41,7 @@ func newTracesReceiver(config *Config, set receiver.CreateSettings, nextConsumer
 	}, nil
 }
 
-func (r *storageReceiver) Start(_ context.Context, host component.Host) error {
+func (r *storageReceiver) Start(ctx context.Context, host component.Host) error {
 	f, err := jaegerstorage.GetStorageFactory(r.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
@@ -51,7 +51,7 @@ func (r *storageReceiver) Start(_ context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create span reader: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	r.cancelConsumeLoop = cancel
 
 	go func() {
@@ -77,12 +77,13 @@ func (r *storageReceiver) consumeLoop(ctx context.Context) error {
 			}
 		}
 
-		if ctx.Err() != nil {
-			r.settings.Logger.Error("Consumer stopped", zap.Error(ctx.Err()))
-			return ctx.Err()
+		select {
+		case <-ctx.Done():
+			r.settings.Logger.Info("Consumer stopped")
+			return nil
+		default:
+			time.Sleep(r.config.PullInterval)
 		}
-
-		time.Sleep(r.config.PullInterval)
 	}
 }
 
