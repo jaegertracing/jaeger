@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,9 +31,17 @@ func TestLoadConfig(t *testing.T) {
 			expectedErr: errors.New("non zero value required"),
 		},
 		{
-			id: component.NewIDWithName(componentType, "external-storage"),
+			id: component.NewIDWithName(componentType, "defaults"),
 			expected: &Config{
-				TraceStorage: "external-storage",
+				TraceStorage: "storage",
+				PullInterval: 0,
+			},
+		},
+		{
+			id: component.NewIDWithName(componentType, "filled"),
+			expected: &Config{
+				TraceStorage: "storage",
+				PullInterval: 2 * time.Second,
 			},
 		},
 	}

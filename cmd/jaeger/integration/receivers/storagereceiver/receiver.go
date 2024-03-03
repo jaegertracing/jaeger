@@ -6,6 +6,7 @@ package storagereceiver
 import (
 	"context"
 	"fmt"
+	"time"
 
 	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
@@ -80,6 +81,8 @@ func (r *storageReceiver) consumeLoop(ctx context.Context) error {
 			r.settings.Logger.Error("Consumer stopped", zap.Error(ctx.Err()))
 			return ctx.Err()
 		}
+
+		time.Sleep(r.config.PullInterval)
 	}
 }
 

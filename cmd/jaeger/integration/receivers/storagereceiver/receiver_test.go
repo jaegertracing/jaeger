@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
@@ -55,7 +56,7 @@ type receiverTest struct {
 	receiver *storageReceiver
 }
 
-func withReceiver(storageName, receiveName string, fn func(r *receiverTest)) {
+func withReceiver(storageName, receiveName string, receiveInterval time.Duration, fn func(r *receiverTest)) {
 	reader := new(spanStoreMocks.Reader)
 	factory := new(factoryMocks.Factory)
 	host := storagetest.NewStorageHost()
@@ -65,6 +66,7 @@ func withReceiver(storageName, receiveName string, fn func(r *receiverTest)) {
 	})
 	cfg := createDefaultConfig().(*Config)
 	cfg.TraceStorage = receiveName
+	cfg.PullInterval = receiveInterval
 	receiver, _ := newTracesReceiver(
 		cfg,
 		receivertest.NewNopCreateSettings(),
@@ -115,14 +117,14 @@ var (
 )
 
 func TestReceiver_NoStorageError(t *testing.T) {
-	withReceiver("", "foo", func(r *receiverTest) {
+	withReceiver("", "foo", 0, func(r *receiverTest) {
 		err := r.receiver.Start(context.Background(), r.host)
 		require.ErrorContains(t, err, "cannot find storage factory")
 	})
 }
 
 func TestReceiver_CreateSpanReaderError(t *testing.T) {
-	withReceiver("foo", "foo", func(r *receiverTest) {
+	withReceiver("foo", "foo", 0, func(r *receiverTest) {
 		r.factory.On("CreateSpanReader").Return(nil, errors.New("mocked error"))
 
 		err := r.receiver.Start(context.Background(), r.host)
@@ -131,17 +133,19 @@ func TestReceiver_CreateSpanReaderError(t *testing.T) {
 }
 
 func TestReceiver_Start(t *testing.T) {
-	withReceiver("external-storage", "external-storage", func(r *receiverTest) {
+	withReceiver("external-storage", "external-storage", 50*time.Millisecond, func(r *receiverTest) {
 		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return([]string{}, nil)
 		r.factory.On("CreateSpanReader").Return(r.reader, nil)
 
 		require.NoError(t, r.receiver.Start(context.Background(), r.host))
+		// let the consumeLoop to reach the end of iteration and sleep
+		time.Sleep(100 * time.Millisecond)
 		require.NoError(t, r.receiver.Shutdown(context.Background()))
 	})
 }
 
 func TestReceiver_consumeLoopGetServiceError(t *testing.T) {
-	withReceiver("external-storage", "external-storage", func(r *receiverTest) {
+	withReceiver("external-storage", "external-storage", 0, func(r *receiverTest) {
 		r.reader.On("GetServices", mock.AnythingOfType("context.backgroundCtx")).Return([]string{}, errors.New("mocked error"))
 		r.receiver.spanReader = r.reader
 
