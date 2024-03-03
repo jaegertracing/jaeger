@@ -132,6 +132,8 @@ func (r *storageReceiver) consumeSpans(ctx context.Context, tc *consumedTrace, s
 }
 
 func (r *storageReceiver) Shutdown(_ context.Context) error {
-	r.cancelConsumeLoop()
+	if r.cancelConsumeLoop != nil {
+		r.cancelConsumeLoop()
+	}
 	return nil
 }
