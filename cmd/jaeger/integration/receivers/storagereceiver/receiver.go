@@ -102,9 +102,7 @@ func (r *storageReceiver) consumeTraces(ctx context.Context, serviceName string)
 				spanIDs: make(map[model.SpanID]struct{}),
 			}
 		}
-		if len(trace.Spans) > len(r.consumedTraces[traceID].spanIDs) {
-			r.consumeSpans(ctx, r.consumedTraces[traceID], trace.Spans)
-		}
+		r.consumeSpans(ctx, r.consumedTraces[traceID], trace.Spans)
 	}
 
 	return nil
