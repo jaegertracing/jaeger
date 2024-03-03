@@ -50,35 +50,42 @@ func (m *mockStorageExt) Factory(name string) (storage.Factory, bool) {
 }
 
 type receiverTest struct {
+	storageName     string
+	receiveName     string
+	receiveInterval time.Duration
+	reportStatus    func(*component.StatusEvent)
+
 	reader   *spanStoreMocks.Reader
 	factory  *factoryMocks.Factory
 	host     *storagetest.StorageHost
 	receiver *storageReceiver
 }
 
-func withReceiver(storageName, receiveName string, receiveInterval time.Duration, fn func(r *receiverTest)) {
+func withReceiver(
+	r *receiverTest,
+	fn func(r *receiverTest),
+) {
 	reader := new(spanStoreMocks.Reader)
 	factory := new(factoryMocks.Factory)
 	host := storagetest.NewStorageHost()
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
-		name:    storageName,
+		name:    r.storageName,
 		factory: factory,
 	})
 	cfg := createDefaultConfig().(*Config)
-	cfg.TraceStorage = receiveName
-	cfg.PullInterval = receiveInterval
+	cfg.TraceStorage = r.receiveName
+	cfg.PullInterval = r.receiveInterval
 	receiver, _ := newTracesReceiver(
 		cfg,
 		receivertest.NewNopCreateSettings(),
 		consumertest.NewNop(),
 	)
+	receiver.settings.ReportStatus = func(se *component.StatusEvent) {}
 
-	r := &receiverTest{
-		reader:   reader,
-		factory:  factory,
-		host:     host,
-		receiver: receiver,
-	}
+	r.reader = reader
+	r.factory = factory
+	r.host = host
+	r.receiver = receiver
 	fn(r)
 }
 
@@ -117,14 +124,22 @@ var (
 )
 
 func TestReceiver_NoStorageError(t *testing.T) {
-	withReceiver("", "foo", 0, func(r *receiverTest) {
+	r := &receiverTest{
+		storageName: "",
+		receiveName: "foo",
+	}
+	withReceiver(r, func(r *receiverTest) {
 		err := r.receiver.Start(context.Background(), r.host)
 		require.ErrorContains(t, err, "cannot find storage factory")
 	})
 }
 
 func TestReceiver_CreateSpanReaderError(t *testing.T) {
-	withReceiver("foo", "foo", 0, func(r *receiverTest) {
+	r := &receiverTest{
+		storageName: "foo",
+		receiveName: "foo",
+	}
+	withReceiver(r, func(r *receiverTest) {
 		r.factory.On("CreateSpanReader").Return(nil, errors.New("mocked error"))
 
 		err := r.receiver.Start(context.Background(), r.host)
@@ -132,8 +147,36 @@ func TestReceiver_CreateSpanReaderError(t *testing.T) {
 	})
 }
 
+func TestReceiver_GetServiceError(t *testing.T) {
+	r := &receiverTest{
+		storageName: "external-storage",
+		receiveName: "external-storage",
+	}
+	withReceiver(r, func(r *receiverTest) {
+		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return([]string{}, errors.New("mocked error"))
+		r.factory.On("CreateSpanReader").Return(r.reader, nil)
+		r.receiver.spanReader = r.reader
+		r.reportStatus = func(se *component.StatusEvent) {
+			require.ErrorContains(t, se.Err(), "mocked error")
+		}
+
+		require.NoError(t, r.receiver.Start(context.Background(), r.host))
+	})
+}
+
+func TestReceiver_Shutdown(t *testing.T) {
+	withReceiver(&receiverTest{}, func(r *receiverTest) {
+		require.NoError(t, r.receiver.Shutdown(context.Background()))
+	})
+}
+
 func TestReceiver_Start(t *testing.T) {
-	withReceiver("external-storage", "external-storage", 50*time.Millisecond, func(r *receiverTest) {
+	r := &receiverTest{
+		storageName:     "external-storage",
+		receiveName:     "external-storage",
+		receiveInterval: 50 * time.Millisecond,
+	}
+	withReceiver(r, func(r *receiverTest) {
 		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return([]string{}, nil)
 		r.factory.On("CreateSpanReader").Return(r.reader, nil)
 
@@ -144,26 +187,7 @@ func TestReceiver_Start(t *testing.T) {
 	})
 }
 
-func TestReceiver_consumeLoopGetServiceError(t *testing.T) {
-	withReceiver("external-storage", "external-storage", 0, func(r *receiverTest) {
-		r.reader.On("GetServices", mock.AnythingOfType("context.backgroundCtx")).Return([]string{}, errors.New("mocked error"))
-		r.receiver.spanReader = r.reader
-
-		err := r.receiver.consumeLoop(context.Background())
-		require.ErrorContains(t, err, "mocked error")
-	})
-}
-
 func TestReceiver_StartConsume(t *testing.T) {
-	sink := &consumertest.TracesSink{}
-
-	cfg := createDefaultConfig().(*Config)
-	cfg.TraceStorage = "external-storage"
-
-	r, _ := newTracesReceiver(cfg, receivertest.NewNopCreateSettings(), sink)
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	r.cancelConsumeLoop = cancelFunc
-
 	tests := []struct {
 		name           string
 		services       []string
@@ -219,36 +243,43 @@ func TestReceiver_StartConsume(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			reader := new(spanStoreMocks.Reader)
-			reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return(test.services, nil)
-			for _, service := range test.services {
-				reader.On(
-					"FindTraces",
-					mock.AnythingOfType("*context.cancelCtx"),
-					&spanstore.TraceQueryParameters{ServiceName: service},
-				).Return(test.traces, test.tracesErr)
-			}
-			r.spanReader = reader
+	withReceiver(&receiverTest{}, func(r *receiverTest) {
+		sink := &consumertest.TracesSink{}
+		r.receiver.nextConsumer = sink
 
-			require.NoError(t, r.Shutdown(ctx))
-			err := r.consumeLoop(ctx)
-			require.EqualError(t, err, context.Canceled.Error())
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		r.receiver.cancelConsumeLoop = cancelFunc
 
-			expectedTraces := make([]ptrace.Traces, 0)
-			for _, trace := range test.expectedTraces {
-				td, err := jaeger2otlp.ProtoToTraces([]*model.Batch{
-					{
-						Spans:   []*model.Span{trace.Spans[0]},
-						Process: trace.Spans[0].Process,
-					},
-				})
-				require.NoError(t, err)
-				expectedTraces = append(expectedTraces, td)
-			}
-			actualTraces := sink.AllTraces()
-			assert.Equal(t, expectedTraces, actualTraces)
-		})
-	}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				reader := new(spanStoreMocks.Reader)
+				reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return(test.services, nil)
+				for _, service := range test.services {
+					reader.On(
+						"FindTraces",
+						mock.AnythingOfType("*context.cancelCtx"),
+						&spanstore.TraceQueryParameters{ServiceName: service},
+					).Return(test.traces, test.tracesErr)
+				}
+				r.receiver.spanReader = reader
+
+				require.NoError(t, r.receiver.Shutdown(ctx))
+				require.NoError(t, r.receiver.consumeLoop(ctx))
+
+				expectedTraces := make([]ptrace.Traces, 0)
+				for _, trace := range test.expectedTraces {
+					td, err := jaeger2otlp.ProtoToTraces([]*model.Batch{
+						{
+							Spans:   []*model.Span{trace.Spans[0]},
+							Process: trace.Spans[0].Process,
+						},
+					})
+					require.NoError(t, err)
+					expectedTraces = append(expectedTraces, td)
+				}
+				actualTraces := sink.AllTraces()
+				assert.Equal(t, expectedTraces, actualTraces)
+			})
+		}
+	})
 }
