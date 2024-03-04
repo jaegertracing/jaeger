@@ -25,7 +25,12 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 )
 
-var _ extension.Extension = (*storageExt)(nil)
+var _ Extension = (*storageExt)(nil)
+
+type Extension interface {
+	extension.Extension
+	Factory(name string) (storage.Factory, bool)
+}
 
 type storageExt struct {
 	config    *Config
@@ -48,7 +53,7 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 			componentType,
 		)
 	}
-	f, ok := comp.(*storageExt).factories[name]
+	f, ok := comp.(Extension).Factory(name)
 	if !ok {
 		return nil, fmt.Errorf(
 			"cannot find storage '%s' declared with '%s' extension",
@@ -150,4 +155,9 @@ func (s *storageExt) Shutdown(ctx context.Context) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func (s *storageExt) Factory(name string) (storage.Factory, bool) {
+	f, ok := s.factories[name]
+	return f, ok
 }

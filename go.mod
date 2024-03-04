@@ -45,6 +45,7 @@ require (
 	go.opentelemetry.io/collector/config/confighttp v0.95.0
 	go.opentelemetry.io/collector/config/configretry v0.95.0
 	go.opentelemetry.io/collector/config/configtls v0.95.0
+	go.opentelemetry.io/collector/confmap v0.95.0
 	go.opentelemetry.io/collector/connector v0.95.0
 	go.opentelemetry.io/collector/connector/forwardconnector v0.95.0
 	go.opentelemetry.io/collector/consumer v0.95.0
@@ -148,6 +149,7 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.2 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.95.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.95.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.95.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.95.0 // indirect
@@ -193,7 +195,6 @@ require (
 	go.opentelemetry.io/collector/config/configopaque v1.2.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.95.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.95.0 // indirect
-	go.opentelemetry.io/collector/confmap v0.95.0 // indirect
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.95.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.95.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.95.0 // indirect

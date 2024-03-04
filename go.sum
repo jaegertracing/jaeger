@@ -310,6 +310,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsc
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.95.0/go.mod h1:JA4OR3ejNiVrG1L+HsLXekHGkU4LHeD7ebXMe0zZSxA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.95.0 h1:wekNbHuqsHao7v0/6w0ty8wv6uBcTmPliiUzKcSfMc4=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.95.0/go.mod h1:7d0BqjL7V6jiKJHw2Z5mt5K8Da5q4xIgInTlmvzgQ5w=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.95.0 h1:kAKp9f7twLmxEnHnDteXeeuXn7+xhECQHaW2X0vhTOs=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.95.0/go.mod h1:+XVL5+bnrakE7W+zNPsUUaIsf6GiC6P/I14MBzxRXz0=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.95.0 h1:KZp0nW49QOTfUwYWRc7Hfuz2jlOxvDI/tjnfcLXmDAU=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.95.0/go.mod h1:Tr3WvLJcvvWd0Ci8W7zpUHBQ0ORwRRhK7WCe32XVzeU=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.95.0 h1:rvP/CsLCRB4YhwUonXBepCFKD1JmvJx15u6q9uohx/s=
