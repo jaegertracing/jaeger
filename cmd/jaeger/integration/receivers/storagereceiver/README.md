@@ -9,7 +9,7 @@
 
 The following settings are required:
 
-- `trace_storage` (no default): Jaeger's storage extension name
+- `trace_storage` (no default): name of a storage backend defined in `jaegerstorage` extension
 
 The following settings can be optionally configured:
 
