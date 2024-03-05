@@ -5,7 +5,7 @@ import (
 )
 
 func TestGetKey(t *testing.T) {
-	// Test case 1: Basic case with a single tag
+	// Case 1: Basic case with a single tag
 	name := "metricName"
 	tags := map[string]string{"tag1": "value1"}
 	expected := "metricName|tag1=value1"
@@ -14,7 +14,7 @@ func TestGetKey(t *testing.T) {
 		t.Errorf("Test case 1 failed. Expected: %s, Got: %s", expected, result)
 	}
 
-	// Test case 2: Multiple tags with sorting
+	// Case 2: Multiple tags with sorting
 	name = "metricName"
 	tags = map[string]string{"tag2": "value2", "tag1": "value1"}
 	expected = "metricName|tag1=value1|tag2=value2"
@@ -23,7 +23,7 @@ func TestGetKey(t *testing.T) {
 		t.Errorf("Test case 2 failed. Expected: %s, Got: %s", expected, result)
 	}
 
-	// Test case 3: Case with no tags
+	// Case 3: Case with no tags
 	name = "metricName"
 	tags = map[string]string{}
 	expected = "metricName"
@@ -32,7 +32,7 @@ func TestGetKey(t *testing.T) {
 		t.Errorf("Test case 3 failed. Expected: %s, Got: %s", expected, result)
 	}
 
-	// Test case 4: Case with multiple tags and special characters
+	// Case 4: Case with multiple tags and special characters
 	name = "metricName"
 	tags = map[string]string{"tag2": "value 2", "tag1": "value!@#1"}
 	expected = "metricName|tag1=value!@#1|tag2=value 2"

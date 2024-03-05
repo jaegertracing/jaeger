@@ -3,11 +3,15 @@
     "activeCommit": 0,
     "commits": [
         {
-            "activePatchIndex": 0,
+            "activePatchIndex": 1,
             "patches": [
                 {
                     "date": 1709648601451,
                     "content": "Index: \n===================================================================\n--- \n+++ \n"
+                },
+                {
+                    "date": 1709650531003,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n@@ -4,36 +4,36 @@\n \t\"testing\"\n )\n \n func TestGetKey(t *testing.T) {\n-\t// Test case 1: Basic case with a single tag\n+\t// Case 1: Basic case with a single tag\n \tname := \"metricName\"\n \ttags := map[string]string{\"tag1\": \"value1\"}\n \texpected := \"metricName|tag1=value1\"\n \tresult := GetKey(name, tags, \"|\", \"=\")\n \tif result != expected {\n \t\tt.Errorf(\"Test case 1 failed. Expected: %s, Got: %s\", expected, result)\n \t}\n \n-\t// Test case 2: Multiple tags with sorting\n+\t// Case 2: Multiple tags with sorting\n \tname = \"metricName\"\n \ttags = map[string]string{\"tag2\": \"value2\", \"tag1\": \"value1\"}\n \texpected = \"metricName|tag1=value1|tag2=value2\"\n \tresult = GetKey(name, tags, \"|\", \"=\")\n \tif result != expected {\n \t\tt.Errorf(\"Test case 2 failed. Expected: %s, Got: %s\", expected, result)\n \t}\n \n-\t// Test case 3: Case with no tags\n+\t// Case 3: Case with no tags\n \tname = \"metricName\"\n \ttags = map[string]string{}\n \texpected = \"metricName\"\n \tresult = GetKey(name, tags, \"|\", \"=\")\n \tif result != expected {\n \t\tt.Errorf(\"Test case 3 failed. Expected: %s, Got: %s\", expected, result)\n \t}\n \n-\t// Test case 4: Case with multiple tags and special characters\n+\t// Case 4: Case with multiple tags and special characters\n \tname = \"metricName\"\n \ttags = map[string]string{\"tag2\": \"value 2\", \"tag1\": \"value!@#1\"}\n \texpected = \"metricName|tag1=value!@#1|tag2=value 2\"\n \tresult = GetKey(name, tags, \"|\", \"=\")\n"
                 }
             ],
             "date": 1709648601451,
