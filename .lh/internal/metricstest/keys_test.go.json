@@ -1,0 +1,18 @@
+{
+    "sourceFile": "internal/metricstest/keys_test.go",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1709648601451,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1709648601451,
+            "name": "Commit-0",
+            "content": "package metricstest\n\nimport (\n\t\"testing\"\n)\n\nfunc TestGetKey(t *testing.T) {\n\t// Test case 1: Basic case with a single tag\n\tname := \"metricName\"\n\ttags := map[string]string{\"tag1\": \"value1\"}\n\texpected := \"metricName|tag1=value1\"\n\tresult := GetKey(name, tags, \"|\", \"=\")\n\tif result != expected {\n\t\tt.Errorf(\"Test case 1 failed. Expected: %s, Got: %s\", expected, result)\n\t}\n\n\t// Test case 2: Multiple tags with sorting\n\tname = \"metricName\"\n\ttags = map[string]string{\"tag2\": \"value2\", \"tag1\": \"value1\"}\n\texpected = \"metricName|tag1=value1|tag2=value2\"\n\tresult = GetKey(name, tags, \"|\", \"=\")\n\tif result != expected {\n\t\tt.Errorf(\"Test case 2 failed. Expected: %s, Got: %s\", expected, result)\n\t}\n\n\t// Test case 3: Case with no tags\n\tname = \"metricName\"\n\ttags = map[string]string{}\n\texpected = \"metricName\"\n\tresult = GetKey(name, tags, \"|\", \"=\")\n\tif result != expected {\n\t\tt.Errorf(\"Test case 3 failed. Expected: %s, Got: %s\", expected, result)\n\t}\n\n\t// Test case 4: Case with multiple tags and special characters\n\tname = \"metricName\"\n\ttags = map[string]string{\"tag2\": \"value 2\", \"tag1\": \"value!@#1\"}\n\texpected = \"metricName|tag1=value!@#1|tag2=value 2\"\n\tresult = GetKey(name, tags, \"|\", \"=\")\n\tif result != expected {\n\t\tt.Errorf(\"Test case 4 failed. Expected: %s, Got: %s\", expected, result)\n\t}\n}\n"
+        }
+    ]
+}
