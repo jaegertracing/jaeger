@@ -18,6 +18,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -191,6 +192,44 @@ func TestESStorageExtensionError(t *testing.T) {
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
+	require.ErrorContains(t, err, "badurl")
+}
+
+func TestCassandraExtension(t *testing.T) {
+	mockCassandraServerResponse := []byte(`
+	{
+		"Version": {
+			"Number": "4"
+		}
+	}
+	`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(mockCassandraServerResponse)
+	}))
+	defer server.Close()
+	storageExtension := makeStorageExtenion(t, &Config{
+		Cassandra: map[string]cassandraCfg.Configuration{
+			"foo": {
+				Servers: []string{server.URL},
+			},
+		},
+	})
+	ctx := context.Background()
+	err := storageExtension.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, storageExtension.Shutdown(ctx))
+}
+
+func TestCassandraExtensionError(t *testing.T) {
+	ext := makeStorageExtenion(t, &Config{
+		Cassandra: map[string]cassandraCfg.Configuration{
+			"foo": {
+				Servers: []string{"http://badurl"},
+			},
+		},
+	})
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "failed to initialize cassandra storage foo: gocql: unable to create session: strconv.Atoi: parsing \"//badurl\": invalid syntax")
 	require.ErrorContains(t, err, "badurl")
 }
 

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -76,6 +77,39 @@ func NewFactory() *Factory {
 		tracer:  otel.GetTracerProvider(),
 		Options: NewOptions(primaryStorageConfig, archiveStorageConfig),
 	}
+}
+
+// NewFactoryWithConfig initializes factory with Config.
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) (*Factory, error) {
+
+	archive := make(map[string]*namespaceConfig)
+	archive[archiveStorageConfig] = &namespaceConfig{
+		Configuration: cfg,
+		servers:       "127.0.0.1",
+		namespace:     archiveStorageConfig,
+		Enabled:       true,
+	}
+
+	f := NewFactory()
+	f.InitFromOptions(&Options{
+		Primary: namespaceConfig{
+			Configuration: cfg,
+			servers:       "127.0.0.1",
+			namespace:     primaryStorageConfig,
+			Enabled:       true,
+		},
+		others:                 archive,
+		SpanStoreWriteCacheTTL: time.Hour * 12,
+	})
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 // AddFlags implements plugin.Configurable
