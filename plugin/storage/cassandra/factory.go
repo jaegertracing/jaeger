@@ -85,7 +85,6 @@ func NewFactoryWithConfig(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
-
 	archive := make(map[string]*namespaceConfig)
 	archive[archiveStorageConfig] = &namespaceConfig{
 		Configuration: cfg,
