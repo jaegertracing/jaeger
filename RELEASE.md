@@ -23,6 +23,11 @@
        * Title "Release X.Y.Z"
        * Tag `vX.Y.Z` (note the `v` prefix) and choose appropriate branch
        * Copy the new CHANGELOG.md section into the release notes
+       * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
+         but it has a nice feature of explicitly listing first-time contributors.
+         Before doing the previous step, you can click that button and then remove everything
+         except the New Contributors section. Change the header to `### 👏 New Contributors`,
+         then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
 3. The release tag will trigger a build of the docker images. Since forks don't have jaegertracingbot dockerhub token, they can never publish images to jaegertracing organisation.
    1. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/).
    2. For monitoring and troubleshooting, refer to the [jaegertracing/jaeger GithubActions tab](https://github.com/jaegertracing/jaeger/actions).
