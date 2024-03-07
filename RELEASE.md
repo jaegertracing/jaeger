@@ -7,9 +7,11 @@
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
     * If the jaeger-ui submodule has changes cut a new release and also upgrade the submodule versions then commit, for example:
         ```
+        git submodule init
+        git submodule update
         cd jaeger-ui
-        git ls-remote --tags origin
-        git fetch
+        git checkout main
+        git pull
         git checkout {new_version} //e.g. v1.5.0
         ```
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
@@ -53,8 +55,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.55.0  | @jkowall        | 6 March 2024           |
 | 1.56.0  | @yurishkuro     | 3 April 2024           |
 | 1.57.0  | @albertteoh     | 1 May 2024             |
 | 1.58.0  | @pavolloffay    | 5 June 2024            |
 | 1.59.0  | @joe-elliott    | 3 July 2024            |
+| 1.55.0  | @jkowall        | 7 August 2024          |

@@ -21,6 +21,29 @@ run `make changelog` to generate content
 
 </details>
 
+1.55.0 (2024-03-04)
+-------------------
+#### ✨ New Features:
+
+* Support uploading traces to UI in OpenTelemetry format (OTLP/JSON) ([@NavinShrinivas](https://github.com/NavinShrinivas) in [#5155](https://github.com/jaegertracing/jaeger/pull/5155))
+* Add Elasticsearch storage support for adaptive sampling ([@Pushkarm029](https://github.com/Pushkarm029) in [#5158](https://github.com/jaegertracing/jaeger/pull/5158))
+
+#### 🐞 Bug fixes, Minor Improvements:
+
+* Add the `print-config` subcommand ([@gmafrac](https://github.com/gmafrac) in [#5200](https://github.com/jaegertracing/jaeger/pull/5200))
+* Return more detailed errors from ES storage ([@yurishkuro](https://github.com/yurishkuro) in [#5209](https://github.com/jaegertracing/jaeger/pull/5209))
+* Bump go version ([@yurishkuro](https://github.com/yurishkuro) in [#5180](https://github.com/jaegertracing/jaeger/pull/5180))
+
+#### 🚧 Experimental Features:
+
+* [jaeger-v2] Add support for gRPC storarge ([@james-ryans](https://github.com/james-ryans) in [#5228](https://github.com/jaegertracing/jaeger/pull/5228))
+* [jaeger-v2] Add support for Elasticsearch ([@akagami-harsh](https://github.com/akagami-harsh) in [#5152](https://github.com/jaegertracing/jaeger/pull/5152))
+
+### UI Changes
+
+* UI pinned to version [1.39.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1390-2024-03-04).
+
+
 1.54.0 (2024-02-06)
 -------------------
 
