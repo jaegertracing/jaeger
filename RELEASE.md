@@ -12,6 +12,13 @@
         git fetch
         git checkout {new_version} //e.g. v1.5.0
         ```
+or:
+        ```
+        git submodule init
+        cd jaeger-ui
+        git checkout main
+        git pull
+        ```
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
     * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
 2. After the PR is merged, create a release on Github:
@@ -53,8 +60,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.55.0  | @jkowall        | 6 March 2024           |
 | 1.56.0  | @yurishkuro     | 3 April 2024           |
 | 1.57.0  | @albertteoh     | 1 May 2024             |
 | 1.58.0  | @pavolloffay    | 5 June 2024            |
 | 1.59.0  | @joe-elliott    | 3 July 2024            |
+| 1.55.0  | @jkowall        | 7 August 2024          |
