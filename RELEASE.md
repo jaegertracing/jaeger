@@ -7,17 +7,12 @@
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
     * If the jaeger-ui submodule has changes cut a new release and also upgrade the submodule versions then commit, for example:
         ```
-        cd jaeger-ui
-        git ls-remote --tags origin
-        git fetch
-        git checkout {new_version} //e.g. v1.5.0
-        ```
-or:
-        ```
         git submodule init
+        git submodule update
         cd jaeger-ui
         git checkout main
         git pull
+        git checkout {new_version} //e.g. v1.5.0
         ```
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
     * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
