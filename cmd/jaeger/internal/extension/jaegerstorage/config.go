@@ -18,6 +18,7 @@ type Config struct {
 	Memory        map[string]memoryCfg.Configuration   `mapstructure:"memory"`
 	Badger        map[string]badgerCfg.NamespaceConfig `mapstructure:"badger"`
 	GRPC          map[string]grpcCfg.Configuration     `mapstructure:"grpc"`
+	Opensearch    map[string]esCfg.Configuration       `mapstructure:"opensearch"`
 	Elasticsearch map[string]esCfg.Configuration       `mapstructure:"elasticsearch"`
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?

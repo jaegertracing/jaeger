@@ -128,12 +128,19 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Elasticsearch,
 		builder:     es.NewFactoryWithConfig,
 	}
+	osStarter := &starter[esCfg.Configuration, *es.Factory]{
+		ext:         s,
+		storageKind: "opensearch",
+		cfg:         s.config.Opensearch,
+		builder:     es.NewFactoryWithConfig,
+	}
 
 	builders := []func(ctx context.Context, host component.Host) error{
 		memStarter.build,
 		badgerStarter.build,
 		grpcStarter.build,
 		esStarter.build,
+		osStarter.build,
 		// TODO add support for other backends
 	}
 	for _, builder := range builders {
