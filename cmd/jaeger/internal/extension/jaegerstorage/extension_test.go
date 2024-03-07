@@ -196,21 +196,10 @@ func TestESStorageExtensionError(t *testing.T) {
 }
 
 func TestCassandraExtension(t *testing.T) {
-	mockCassandraServerResponse := []byte(`
-	{
-		"Version": {
-			"Number": "4"
-		}
-	}
-	`)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(mockCassandraServerResponse)
-	}))
-	defer server.Close()
 	storageExtension := makeStorageExtenion(t, &Config{
 		Cassandra: map[string]cassandraCfg.Configuration{
 			"foo": {
-				Servers: []string{server.URL},
+				Servers: []string{"127.0.0.1"},
 			},
 		},
 	})

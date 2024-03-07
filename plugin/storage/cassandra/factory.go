@@ -18,6 +18,7 @@ package cassandra
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"time"
 
@@ -86,9 +87,13 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	archive := make(map[string]*namespaceConfig)
+	serverURL, err := getServers(cfg.Servers)
+	if err != nil {
+		return nil, err
+	}
 	archive[archiveStorageConfig] = &namespaceConfig{
 		Configuration: cfg,
-		servers:       "127.0.0.1",
+		servers:       serverURL,
 		namespace:     archiveStorageConfig,
 		Enabled:       true,
 	}
@@ -97,18 +102,32 @@ func NewFactoryWithConfig(
 	f.InitFromOptions(&Options{
 		Primary: namespaceConfig{
 			Configuration: cfg,
-			servers:       "127.0.0.1",
+			servers:       serverURL,
 			namespace:     primaryStorageConfig,
 			Enabled:       true,
 		},
 		others:                 archive,
 		SpanStoreWriteCacheTTL: time.Hour * 12,
 	})
-	err := f.Initialize(metricsFactory, logger)
+	err = f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
 	return f, nil
+}
+
+func getServers(servers []string) (string, error) {
+	if len(servers) == 0 {
+		return "", fmt.Errorf("servers not found")
+	}
+	serverURL := servers[0]
+	for i, server := range servers {
+		if i == 0 {
+			continue
+		}
+		serverURL = serverURL + ", " + server
+	}
+	return serverURL, nil
 }
 
 // AddFlags implements plugin.Configurable

@@ -18,9 +18,6 @@ package cassandra
 import (
 	"errors"
 	"net"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	mockcql "github.com/gocql/gocql"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
@@ -203,35 +201,69 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
 }
 
+// func TestCassandraStorageFactoryWithConfig(t *testing.T) {
+// 	mockServerResponse := []byte{}
+// 	listener, err := net.Listen("tcp", "127.0.0.1:0") // Use port 0 to get an available port
+// 	require.NoError(t, err)
+
+// 	var wg sync.WaitGroup
+// 	wg.Add(1)
+
+// 	go func() {
+// 		defer wg.Done()
+// 		conn, err := listener.Accept()
+// 		require.NoError(t, err)
+// 		defer conn.Close()
+
+// 		_, err = conn.Write(mockServerResponse)
+// 		require.NoError(t, err)
+// 	}()
+// 	serverURL := listener.Addr().String()
+// 	serverURL = serverURL[len("http://"):]
+// 	link, portStr, err := net.SplitHostPort(serverURL)
+// 	require.NoError(t, err)
+// 	port, err := strconv.Atoi(portStr)
+// 	require.NoError(t, err)
+// 	cfg := cassandraCfg.Configuration{
+// 		Servers:      []string{link},
+// 		Keyspace:     "test",
+// 		ProtoVersion: 3,
+// 		Port:         port,
+// 	}
+// 	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+// 	require.NoError(t, err)
+// 	defer factory.Close()
+// }
+
 func TestCassandraStorageFactoryWithConfig(t *testing.T) {
-	mockCassandraServerResponse := []byte(`
-{
-	"Version": {
-		"Number": "4"
+	cfg := cassandraCfg.Configuration{}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "servers not found")
+	cluster := mockcql.NewCluster("192.168.1.1")
+	session, err := cluster.CreateSession()
+	require.NoError(t, err)
+	defer session.Close()
+
+	lis, err := net.Listen("tcp", "192.168.1.1:0")
+	require.NoError(t, err, "failed to listen")
+
+	cfg = cassandraCfg.Configuration{
+		Servers: []string{lis.Addr().String()},
 	}
-}
-`)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(mockCassandraServerResponse)
-	}))
-	defer server.Close()
-	serverURL := server.URL[len("http://"):]
-	link, portStr, err := net.SplitHostPort(serverURL)
+	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	port, err := strconv.Atoi(portStr)
-	require.NoError(t, err)
-	cfg := cassandraCfg.Configuration{
-		Servers:      []string{link},
-		Keyspace:     "test",
-		ProtoVersion: 3,
-		Port:         port,
-	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	defer factory.Close()
+	require.NoError(t, f.Close())
+	// var (
+	// 	session = &mocks.Session{}
+	// 	query   = &mocks.Query{}
+	// )
+	// session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	// query.On("Exec").Return(nil)
+	// f.primaryConfig = newMockSessionBuilder(session, nil)
+
 }
 
-// gocql: unable to create session: failed to resolve any of the provided hostnames
 func TestConfigurationValidation(t *testing.T) {
 	testCases := []struct {
 		name    string
