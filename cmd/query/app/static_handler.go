@@ -49,7 +49,7 @@ var (
 func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
 		BasePath:            qOpts.BasePath,
-		UIBasePath:          qOpts.UIBasePath, // Added UIBasePath here
+		UIBasePath:          qOpts.UIBasePath,
 		UIConfigPath:        qOpts.UIConfig,
 		StorageCapabilities: qCapabilities,
 		Logger:              logger,
@@ -88,12 +88,9 @@ type loadedConfig struct {
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
 	assetsFS := ui.StaticFiles
+	// If a custom staticAssetsRoot is provided, update the assetsFS with the custom path
 	if staticAssetsRoot != "" {
-		uiBasePath := options.UIBasePath
-		if uiBasePath == "" {
-			uiBasePath = "/ui" // default value
-		}
-		assetsFS = http.Dir(filepath.Join(staticAssetsRoot, uiBasePath))
+		assetsFS = http.Dir(filepath.Join(staticAssetsRoot, options.UIBasePath))
 	}
 	if options.Logger == nil {
 		options.Logger = zap.NewNop()
@@ -144,10 +141,12 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	if sH.options.BasePath == "" {
 		sH.options.BasePath = "/"
 	}
+	// replace UI base path
 	if sH.options.UIBasePath == "" {
-		sH.options.UIBasePath = "/hub/jaeger" // default value
+		sH.options.UIBasePath = "/hub/jaeger" 
 	}
-	if sH.options.BasePath != "/" && sH.options.UIBasePath != "/ui" {
+	// Check if BasePath is different from the default ("/")	
+	if sH.options.BasePath != "/" {
 		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
 			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
 		}
