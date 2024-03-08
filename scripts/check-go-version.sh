@@ -70,6 +70,8 @@ function check() {
 
 check go.mod "^go\s\+$version_regex" "$go_previous_version"
 
+check model/go.mod "^go\s\+$version_regex" "$go_previous_version"
+
 check docker/Makefile "^.*golang:$version_regex" "$go_latest_version"
 
 IFS='|' read -r -a gha_workflows <<< "$(grep -rl go-version .github | tr '\n' '|')"
