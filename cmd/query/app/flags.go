@@ -71,6 +71,7 @@ type QueryOptionsStaticAssets struct {
 type QueryOptionsBase struct {
 	// BasePath is the base path for all HTTP routes
 	BasePath   string
+	// Base path for Jaeger UI
 	UIBasePath string
 
 	StaticAssets QueryOptionsStaticAssets `valid:"optional" mapstructure:"static_assets"`
