@@ -6,9 +6,13 @@ package jaegerstorage
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -196,15 +200,41 @@ func TestESStorageExtensionError(t *testing.T) {
 }
 
 func TestCassandraExtension(t *testing.T) {
+	mockServerResponse := []byte{}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		conn, err := listener.Accept()
+		require.NoError(t, err)
+		defer conn.Close()
+
+		_, err = conn.Write(mockServerResponse)
+		require.NoError(t, err)
+	}()
+	serverURL := listener.Addr().String()
+	link, portStr, err := net.SplitHostPort(serverURL)
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
+
 	storageExtension := makeStorageExtenion(t, &Config{
 		Cassandra: map[string]cassandraCfg.Configuration{
 			"foo": {
-				Servers: []string{"127.0.0.1"},
+				Servers:        []string{link},
+				Keyspace:       "test",
+				ConnectTimeout: 10 * time.Second,
+				ProtoVersion:   4,
+				Port:           port,
 			},
 		},
 	})
 	ctx := context.Background()
-	err := storageExtension.Start(ctx, componenttest.NewNopHost())
+	err = storageExtension.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
 	require.NoError(t, storageExtension.Shutdown(ctx))
 }

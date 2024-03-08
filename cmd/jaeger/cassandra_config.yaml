@@ -15,10 +15,13 @@ extensions:
   jaeger_storage:
     cassandra:
       cassandra_main:
-        servers: http://localhost:9042 
+        servers: http://127.0.0.1
+        port: 9042
+        proto_version: 4
       cassandra_archive:
-        servers: http://localhost:9042 
-
+        servers: http://127.0.0.1
+        port: 9042
+        proto_version: 4
 recievers:
   otlp:
     protocols:
