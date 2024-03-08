@@ -145,7 +145,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 		sH.options.BasePath = "/"
 	}
 	if sH.options.UIBasePath == "" {
-		sH.options.UIBasePath = "/ui" // default value
+		sH.options.UIBasePath = "/hub/jaeger" // default value
 	}
 	if sH.options.BasePath != "/" && sH.options.UIBasePath != "/ui" {
 		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
