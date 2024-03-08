@@ -329,10 +329,7 @@ func (s *Server) Close() error {
 	errs = append(errs, s.queryOptions.TLSHTTP.Close())
 	s.grpcServer.Stop()
 	errs = append(errs, s.httpServer.Close())
-	if s.separatePorts {
-		errs = append(errs, s.httpConn.Close())
-		errs = append(errs, s.grpcConn.Close())
-	} else {
+	if !s.separatePorts {
 		s.cmuxServer.Close()
 		errs = append(errs, s.conn.Close())
 	}

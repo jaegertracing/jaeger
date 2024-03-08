@@ -106,7 +106,7 @@ func startOTLPReceiver(
 	return otlpReceiver, nil
 }
 
-func applyGRPCSettings(cfg *configgrpc.GRPCServerSettings, opts *flags.GRPCOptions) {
+func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
 	if opts.HostPort != "" {
 		cfg.NetAddr.Endpoint = opts.HostPort
 	}
@@ -126,7 +126,7 @@ func applyGRPCSettings(cfg *configgrpc.GRPCServerSettings, opts *flags.GRPCOptio
 	}
 }
 
-func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptions) {
+func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *flags.HTTPOptions) {
 	if opts.HostPort != "" {
 		cfg.Endpoint = opts.HostPort
 	}
@@ -134,7 +134,7 @@ func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptio
 		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
 	}
 
-	cfg.CORS = &confighttp.CORSSettings{
+	cfg.CORS = &confighttp.CORSConfig{
 		AllowedOrigins: opts.CORS.AllowedOrigins,
 		AllowedHeaders: opts.CORS.AllowedHeaders,
 	}
