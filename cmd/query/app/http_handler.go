@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -128,6 +129,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.getOperations, "/operations").Methods(http.MethodGet)
 	// TODO - remove this when UI catches up
 	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.transformOTLP, "/transform").Methods(http.MethodPost)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.latencies, "/metrics/latencies").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
@@ -193,6 +195,22 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	aH.writeJSON(w, r, &structuredRes)
 }
 
+func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if aH.handleError(w, err, http.StatusBadRequest) {
+		return
+	}
+
+	traces, err := otlp2traces(body)
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	var uiErrors []structuredError
+	structuredRes := aH.tracesToResponse(traces, false, uiErrors)
+	aH.writeJSON(w, r, structuredRes)
+}
+
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	service := r.FormValue(serviceParam)
 	if service == "" {
@@ -243,20 +261,24 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	uiTraces := make([]*ui.Trace, len(tracesFromStorage))
-	for i, v := range tracesFromStorage {
-		uiTrace, uiErr := aH.convertModelToUI(v, true)
+	structuredRes := aH.tracesToResponse(tracesFromStorage, true, uiErrors)
+	aH.writeJSON(w, r, structuredRes)
+}
+
+func (aH *APIHandler) tracesToResponse(traces []*model.Trace, adjust bool, uiErrors []structuredError) *structuredResponse {
+	uiTraces := make([]*ui.Trace, len(traces))
+	for i, v := range traces {
+		uiTrace, uiErr := aH.convertModelToUI(v, adjust)
 		if uiErr != nil {
 			uiErrors = append(uiErrors, *uiErr)
 		}
 		uiTraces[i] = uiTrace
 	}
 
-	structuredRes := structuredResponse{
+	return &structuredResponse{
 		Data:   uiTraces,
 		Errors: uiErrors,
 	}
-	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID) ([]*model.Trace, []structuredError, error) {
@@ -436,18 +458,8 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	uiTrace, uiErr := aH.convertModelToUI(trace, shouldAdjust(r))
-	if uiErr != nil {
-		uiErrors = append(uiErrors, *uiErr)
-	}
-
-	structuredRes := structuredResponse{
-		Data: []*ui.Trace{
-			uiTrace,
-		},
-		Errors: uiErrors,
-	}
-	aH.writeJSON(w, r, &structuredRes)
+	structuredRes := aH.tracesToResponse([]*model.Trace{trace}, shouldAdjust(r), uiErrors)
+	aH.writeJSON(w, r, structuredRes)
 }
 
 func shouldAdjust(r *http.Request) bool {

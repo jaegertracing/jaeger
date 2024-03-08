@@ -7,9 +7,11 @@
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
     * If the jaeger-ui submodule has changes cut a new release and also upgrade the submodule versions then commit, for example:
         ```
+        git submodule init
+        git submodule update
         cd jaeger-ui
-        git ls-remote --tags origin
-        git fetch
+        git checkout main
+        git pull
         git checkout {new_version} //e.g. v1.5.0
         ```
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
@@ -21,6 +23,11 @@
        * Title "Release X.Y.Z"
        * Tag `vX.Y.Z` (note the `v` prefix) and choose appropriate branch
        * Copy the new CHANGELOG.md section into the release notes
+       * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
+         but it has a nice feature of explicitly listing first-time contributors.
+         Before doing the previous step, you can click that button and then remove everything
+         except the New Contributors section. Change the header to `### 👏 New Contributors`,
+         then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
 3. The release tag will trigger a build of the docker images. Since forks don't have jaegertracingbot dockerhub token, they can never publish images to jaegertracing organisation.
    1. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/).
    2. For monitoring and troubleshooting, refer to the [jaegertracing/jaeger GithubActions tab](https://github.com/jaegertracing/jaeger/actions).
@@ -53,8 +60,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.55.0  | @jkowall        | 6 March 2024           |
 | 1.56.0  | @yurishkuro     | 3 April 2024           |
 | 1.57.0  | @albertteoh     | 1 May 2024             |
 | 1.58.0  | @pavolloffay    | 5 June 2024            |
 | 1.59.0  | @joe-elliott    | 3 July 2024            |
+| 1.55.0  | @jkowall        | 7 August 2024          |

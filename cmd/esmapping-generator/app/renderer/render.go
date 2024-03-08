@@ -26,6 +26,7 @@ var supportedMappings = map[string]struct{}{
 	"jaeger-span":         {},
 	"jaeger-service":      {},
 	"jaeger-dependencies": {},
+	"jaeger-sampling":     {},
 }
 
 // GetMappingAsString returns rendered index templates as string

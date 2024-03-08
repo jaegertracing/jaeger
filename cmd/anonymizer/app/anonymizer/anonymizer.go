@@ -15,6 +15,7 @@
 package anonymizer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -57,6 +58,8 @@ type Anonymizer struct {
 	lock        sync.Mutex
 	mapping     mapping
 	options     Options
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 // Options represents the various options with which the anonymizer can be configured.
@@ -70,6 +73,7 @@ type Options struct {
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
 // obfuscated strings, in case later investigations require looking at the original traces.
 func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
+	ctx, cancel := context.WithCancel(context.Background())
 	a := &Anonymizer{
 		mappingFile: mappingFile,
 		logger:      logger,
@@ -78,6 +82,7 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 			Operations: make(map[string]string),
 		},
 		options: options,
+		cancel:  cancel,
 	}
 	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
 		dat, err := os.ReadFile(filepath.Clean(mappingFile))
@@ -88,12 +93,26 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 			logger.Fatal("Cannot unmarshal previous mapping", zap.Error(err))
 		}
 	}
+	a.wg.Add(1)
 	go func() {
-		for range time.NewTicker(10 * time.Second).C {
-			a.SaveMapping()
+		defer a.wg.Done()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				a.SaveMapping()
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 	return a
+}
+
+func (a *Anonymizer) Stop() {
+	a.cancel()
+	a.wg.Wait()
 }
 
 // SaveMapping writes the mapping from original to obfuscated strings to a file.
