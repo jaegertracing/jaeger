@@ -322,6 +322,8 @@ func TestServerGRPCTLS(t *testing.T) {
 				GRPCHostPort: ":0",
 				TLSGRPC:      test.TLS,
 			}
+			defer serverOptions.TLSGRPC.Close()
+			defer test.clientTLS.Close()
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
