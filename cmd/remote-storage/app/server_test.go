@@ -397,8 +397,21 @@ func TestServerHandlesPortZero(t *testing.T) {
 		flagsSvc.Logger,
 	)
 	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			flagsSvc.HC().Set(s)
+			if s == healthcheck.Unavailable {
+				once.Do(wg.Done)
+			}
+		}
+	}()
+
 	require.NoError(t, server.Start())
-	defer server.Close()
 
 	const line = "Starting GRPC server"
 	message := logs.FilterMessage(line)
@@ -407,6 +420,11 @@ func TestServerHandlesPortZero(t *testing.T) {
 	onlyEntry := message.All()[0]
 	hostPort := onlyEntry.ContextMap()["addr"].(string)
 	validateGRPCServer(t, hostPort, server.grpcServer)
+
+	server.Close()
+	wg.Wait()
+
+	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
 func validateGRPCServer(t *testing.T, hostPort string, server *grpc.Server) {
