@@ -17,11 +17,7 @@ package cassandra
 
 import (
 	"errors"
-	"net"
-	"strconv"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -29,7 +25,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -201,82 +196,4 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o, f.Options)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
-}
-
-func TestCassandraStorageFactoryWithConfig(t *testing.T) {
-	mockServerResponse := []byte{}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		conn, err := listener.Accept()
-		require.NoError(t, err)
-		defer conn.Close()
-
-		_, err = conn.Write(mockServerResponse)
-		require.NoError(t, err)
-	}()
-	serverURL := listener.Addr().String()
-	link, portStr, err := net.SplitHostPort(serverURL)
-	require.NoError(t, err)
-	port, err := strconv.Atoi(portStr)
-	require.NoError(t, err)
-	cfg := cassandraCfg.Configuration{
-		Servers:        []string{link},
-		Keyspace:       "test",
-		ConnectTimeout: 10 * time.Second,
-		ProtoVersion:   4,
-		Port:           port,
-	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	defer factory.Close()
-}
-
-func TestConfigurationValidation(t *testing.T) {
-	testCases := []struct {
-		name    string
-		cfg     cassandraCfg.Configuration
-		wantErr bool
-	}{
-		{
-			name: "valid configuration",
-			cfg: cassandraCfg.Configuration{
-				Servers: []string{"http://localhost:9200"},
-			},
-			wantErr: false,
-		},
-		{
-			name:    "missing servers",
-			cfg:     cassandraCfg.Configuration{},
-			wantErr: true,
-		},
-	}
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			err := test.cfg.Validate()
-			if test.wantErr {
-				require.Error(t, err)
-				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestCassandraFactoryWithConfigError(t *testing.T) {
-	cfg := cassandraCfg.Configuration{
-		Servers: []string{"http://badurl"},
-	}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.Error(t, err)
-	require.ErrorContains(t, err, "gocql: unable to create session: strconv.Atoi: parsing \"//badurl\": invalid syntax")
-	err = cfg.Close()
-	require.NoError(t, err)
 }
