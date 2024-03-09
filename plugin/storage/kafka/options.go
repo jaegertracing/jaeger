@@ -157,7 +157,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(
 		configPrefix+suffixMaxMessageBytes,
 		defaultMaxMessageBytes,
-		"(experimental) The maximum permitted size of a message (defaults to 1000000). Should be set equal to or smaller than the broker's `message.max.bytes`.",
+		"(experimental) The maximum permitted size of a message. Should be set equal to or smaller than the broker's `message.max.bytes`.",
 	)
 	flagSet.String(
 		configPrefix+suffixBrokers,
