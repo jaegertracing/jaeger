@@ -47,6 +47,7 @@ const (
 	suffixBatchSize        = ".batch-size"
 	suffixBatchMinMessages = ".batch-min-messages"
 	suffixBatchMaxMessages = ".batch-max-messages"
+	suffixMaxMessageBytes  = ".max-message-bytes"
 
 	defaultBroker           = "127.0.0.1:9092"
 	defaultTopic            = "jaeger-spans"
@@ -58,6 +59,7 @@ const (
 	defaultBatchSize        = 0
 	defaultBatchMinMessages = 0
 	defaultBatchMaxMessages = 0
+	defaultMaxMessageBytes  = 1000000 // https://github.com/IBM/sarama/blob/main/config.go#L177
 )
 
 var (
@@ -152,6 +154,11 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		defaultBatchMaxMessages,
 		"(experimental) Maximum number of message to batch before sending records to Kafka",
 	)
+	flagSet.Int(
+		configPrefix+suffixMaxMessageBytes,
+		defaultMaxMessageBytes,
+		"(experimental) The maximum permitted size of a message. Should be set equal to or smaller than the broker's `message.max.bytes`.",
+	)
 	flagSet.String(
 		configPrefix+suffixBrokers,
 		defaultBroker,
@@ -207,6 +214,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		BatchSize:            v.GetInt(configPrefix + suffixBatchSize),
 		BatchMinMessages:     v.GetInt(configPrefix + suffixBatchMinMessages),
 		BatchMaxMessages:     v.GetInt(configPrefix + suffixBatchMaxMessages),
+		MaxMessageBytes:      v.GetInt(configPrefix + suffixMaxMessageBytes),
 	}
 	opt.Topic = v.GetString(configPrefix + suffixTopic)
 	opt.Encoding = v.GetString(configPrefix + suffixEncoding)
