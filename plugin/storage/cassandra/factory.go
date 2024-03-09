@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -106,8 +105,7 @@ func NewFactoryWithConfig(
 			namespace:     primaryStorageConfig,
 			Enabled:       true,
 		},
-		others:                 archive,
-		SpanStoreWriteCacheTTL: time.Hour * 12,
+		others: archive,
 	})
 	err = f.Initialize(metricsFactory, logger)
 	if err != nil {
