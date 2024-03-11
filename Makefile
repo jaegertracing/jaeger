@@ -119,6 +119,11 @@ storage-integration-test:
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
 
+# A general integration tests for jaeger-v2 storage backends,
+# these tests placed at `./cmd/jaeger/integration/*_test.go`.
+# The integration tests are filtered by STORAGE env,
+# currently the available STORAGE variable is:
+#  - jaeger_grpc
 .PHONY: jaeger-storage-integration-test
 jaeger-storage-integration-test:
 	# Expire tests results for jaeger storage integration tests since the environment might change
