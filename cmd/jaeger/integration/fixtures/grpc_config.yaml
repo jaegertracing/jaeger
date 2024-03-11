@@ -8,7 +8,7 @@ service:
 extensions:
   jaeger_storage:
     grpc:
-      external-storage:
+      some-external-storage:
         server: localhost:17271
         connection-timeout: 5s
 
@@ -20,4 +20,4 @@ receivers:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: external-storage
+    trace_storage: some-external-storage

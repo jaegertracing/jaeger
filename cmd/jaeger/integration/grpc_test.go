@@ -29,20 +29,27 @@ func TestGRPCStorage(t *testing.T) {
 		"",
 	)
 	sender := testbed.NewOTLPTraceDataSender(testbed.DefaultHost, 4317)
-	receiver := datareceivers.NewJaegerStorageDataReceiver("external-storage", &jaegerstorage.Config{
-		GRPC: map[string]grpcCfg.Configuration{
-			"external-storage": {
-				RemoteServerAddr:     "127.0.0.1:17271",
-				RemoteConnectTimeout: 5 * time.Second,
+	receiver := datareceivers.NewJaegerStorageDataReceiver(
+		"some-external-storage",
+		&jaegerstorage.Config{
+			GRPC: map[string]grpcCfg.Configuration{
+				"some-external-storage": {
+					RemoteServerAddr:     "127.0.0.1:17271",
+					RemoteConnectTimeout: 5 * time.Second,
+				},
 			},
 		},
-	})
+	)
 
 	factories, err := internal.Components()
 	require.NoError(t, err)
 
 	runner := testbed.NewInProcessCollector(factories)
-	validator := testbed.NewCorrectTestValidator(sender.ProtocolName(), receiver.ProtocolName(), dataProvider)
+	validator := testbed.NewCorrectTestValidator(
+		sender.ProtocolName(),
+		receiver.ProtocolName(),
+		dataProvider,
+	)
 	correctnessResults := &testbed.CorrectnessResults{}
 
 	config, err := os.ReadFile("fixtures/grpc_config.yaml")
@@ -75,8 +82,9 @@ func TestGRPCStorage(t *testing.T) {
 	tc.Sleep(5 * time.Second)
 	tc.StopLoad()
 
-	tc.WaitForN(func() bool { return tc.LoadGenerator.DataItemsSent() == tc.MockBackend.DataItemsReceived() },
-		10*time.Second, "all data items received")
+	tc.WaitForN(func() bool {
+		return tc.LoadGenerator.DataItemsSent() == tc.MockBackend.DataItemsReceived()
+	}, 10*time.Second, "all data items received")
 
 	tc.StopBackend()
 
