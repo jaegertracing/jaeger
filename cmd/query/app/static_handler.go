@@ -89,11 +89,7 @@ type loadedConfig struct {
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
 	assetsFS := ui.StaticFiles
 	if staticAssetsRoot != "" {
-		uiBasePath := options.UIBasePath
-		if uiBasePath == "" {
-			uiBasePath = "/ui" // default value
-		}
-		assetsFS = http.Dir(filepath.Join(staticAssetsRoot, uiBasePath))
+		assetsFS = http.Dir(staticAssetsRoot)
 	}
 	if options.Logger == nil {
 		options.Logger = zap.NewNop()
