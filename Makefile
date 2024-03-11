@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
-JAEGER_STORAGE_PKGS = ./cmd/jaeger/integration
+JAEGER_STORAGE_PKGS = ./cmd/jaeger/internal/integration
 
 # These DOCKER_xxx vars are used when building Docker images.
 DOCKER_NAMESPACE?=jaegertracing
@@ -120,7 +120,7 @@ storage-integration-test:
 	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
 
 # A general integration tests for jaeger-v2 storage backends,
-# these tests placed at `./cmd/jaeger/integration/*_test.go`.
+# these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.
 # The integration tests are filtered by STORAGE env,
 # currently the available STORAGE variable is:
 #  - jaeger_grpc

@@ -11,7 +11,7 @@ ignore:
   - "thrift-gen/*/*"
   - "**/thrift-0.9.2/*"
   - "**/main.go"
-  - "cmd/jaeger/integration/datareceivers"
+  - "cmd/jaeger/internal/integration/datareceivers"
   - "examples/hotrod"
 
 coverage:

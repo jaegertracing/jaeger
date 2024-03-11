@@ -12,9 +12,9 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/integration/datareceivers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/datareceivers"
 	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 

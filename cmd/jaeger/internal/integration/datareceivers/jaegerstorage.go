@@ -16,8 +16,8 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/integration/receivers/storagereceiver"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/receivers/storagereceiver"
 )
 
 type jaegerStorageDataReceiver struct {
