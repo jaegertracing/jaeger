@@ -17,6 +17,7 @@ package app
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -40,6 +41,7 @@ type Server struct {
 	grpcConn           net.Listener
 	grpcServer         *grpc.Server
 	unavailableChannel chan healthcheck.Status // used to signal to admin server that gRPC server is unavailable
+	wg                 sync.WaitGroup
 }
 
 // NewServer creates and initializes Server.
@@ -95,7 +97,7 @@ func createGRPCHandler(f storage.Factory, logger *zap.Logger) (*shared.GRPCHandl
 }
 
 // HealthCheckStatus returns health check status channel a client can subscribe to
-func (s Server) HealthCheckStatus() chan healthcheck.Status {
+func (s *Server) HealthCheckStatus() chan healthcheck.Status {
 	return s.unavailableChannel
 }
 
@@ -132,7 +134,9 @@ func (s *Server) Start() error {
 	}
 	s.logger.Info("Starting GRPC server", zap.Stringer("addr", listener.Addr()))
 	s.grpcConn = listener
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.logger.Error("GRPC server exited", zap.Error(err))
 		}
@@ -147,5 +151,7 @@ func (s *Server) Close() error {
 	s.grpcServer.Stop()
 	s.grpcConn.Close()
 	s.opts.TLSGRPC.Close()
+	s.wg.Wait()
+	close(s.unavailableChannel)
 	return nil
 }
