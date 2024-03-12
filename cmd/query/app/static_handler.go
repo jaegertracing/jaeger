@@ -229,7 +229,7 @@ func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 	fileServer := http.FileServer(sH.assetsFS)
-	if sH.options.UIBasePath != "/" {
+	if sH.options.BasePath != "/" {
 		fileServer = http.StripPrefix(sH.options.BasePath+"/", fileServer)
 	}
 	router.PathPrefix("/static/").Handler(sH.loggingHandler(fileServer))
