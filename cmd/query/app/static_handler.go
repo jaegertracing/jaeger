@@ -230,7 +230,7 @@ func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 	fileServer := http.FileServer(sH.assetsFS)
 	if sH.options.UIBasePath != "/" {
-		fileServer = http.StripPrefix(sH.options.UIBasePath+"/", fileServer)
+		fileServer = http.StripPrefix(sH.options.BasePath+"/", fileServer)
 	}
 	router.PathPrefix("/static/").Handler(sH.loggingHandler(fileServer))
 	// index.html is served by notFound handler
