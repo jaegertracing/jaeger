@@ -184,14 +184,14 @@ func TestESStorageExtensionError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Elasticsearch: map[string]esCfg.Configuration{
 			"foo": {
-				Servers:  []string{"http://badurl"},
+				Servers:  []string{"http://127.0.0.1:65535"},
 				LogLevel: "error",
 			},
 		},
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
-	require.ErrorContains(t, err, "badurl")
+	require.ErrorContains(t, err, "http://127.0.0.1:65535")
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {
