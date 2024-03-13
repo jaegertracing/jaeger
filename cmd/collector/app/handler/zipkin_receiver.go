@@ -69,6 +69,9 @@ func startZipkinReceiver(
 	}
 
 	consumerAdapter := newConsumerDelegate(logger, spanProcessor, tm)
+	// reset Zipkin spanFormat
+	consumerAdapter.batchConsumer.spanOptions.SpanFormat = processor.ZipkinSpanFormat
+
 	nextConsumer, err := newTraces(consumerAdapter.consume)
 	if err != nil {
 		return nil, fmt.Errorf("could not create Zipkin consumer: %w", err)
