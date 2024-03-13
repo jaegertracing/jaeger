@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinthrift "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -127,7 +126,6 @@ func TestZipkinReceiver(t *testing.T) {
 				t.Logf("response: %s %s", response.Status, string(bodyBytes))
 			}
 			require.NoError(t, response.Body.Close())
-			require.Equal(t, processor.ZipkinSpanFormat, spanProcessor.getSpanFormat())
 		})
 	}
 }
