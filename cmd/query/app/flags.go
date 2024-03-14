@@ -111,7 +111,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the query's HTTP server")
 	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server")
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy. See https://github.com/jaegertracing/jaeger/blob/main/examples/reverse-proxy/README.md")
-	flagSet.String(queryUIBasePath, "/", "The external base path that comes from the UI")
+	flagSet.String(queryUIBasePath, "", "The external base path that comes from the UI")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.Bool(queryLogStaticAssetsAccess, false, "Log when static assets are accessed (for debugging)")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
