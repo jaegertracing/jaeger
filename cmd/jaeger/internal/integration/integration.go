@@ -5,7 +5,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"reflect"
@@ -27,7 +26,7 @@ type StorageIntegration struct {
 	ConfigFile string
 }
 
-func (s *StorageIntegration) newDataReceiver(factories otelcol.Factories) (testbed.DataReceiver, error) {
+func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Factories) testbed.DataReceiver {
 	fmp := fileprovider.New()
 	configProvider, err := otelcol.NewConfigProvider(
 		otelcol.ConfigProviderSettings{
@@ -37,19 +36,13 @@ func (s *StorageIntegration) newDataReceiver(factories otelcol.Factories) (testb
 			},
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 
 	cfg, err := configProvider.Get(context.Background(), factories)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 
 	config, ok := cfg.Extensions[jaegerstorage.ID].(*jaegerstorage.Config)
-	if !ok {
-		return nil, errors.New("no jaeger storage extension found in the config")
-	}
+	require.True(t, ok, "no jaeger storage extension found in the config")
 
 	// Hacky way to get the storage extension name.
 	// This way we don't need to modify this,
@@ -63,12 +56,10 @@ func (s *StorageIntegration) newDataReceiver(factories otelcol.Factories) (testb
 			break
 		}
 	}
-	if name == "" {
-		return nil, errors.New("failed to get jaeger storage extension name")
-	}
+	require.NotEmpty(t, name, "failed to get jaeger storage extension name")
 
 	receiver := datareceivers.NewJaegerStorageDataReceiver(name, config)
-	return receiver, nil
+	return receiver
 }
 
 func (s *StorageIntegration) Test(t *testing.T) {
@@ -81,10 +72,7 @@ func (s *StorageIntegration) Test(t *testing.T) {
 		"",
 	)
 	sender := testbed.NewOTLPTraceDataSender(testbed.DefaultHost, 4317)
-	receiver, err := s.newDataReceiver(factories)
-	if err != nil {
-		require.NoError(t, err)
-	}
+	receiver := s.newDataReceiver(t, factories)
 
 	runner := testbed.NewInProcessCollector(factories)
 	validator := testbed.NewCorrectTestValidator(
