@@ -1,0 +1,17 @@
+name: 'block-pr-not-on-main'
+description: 'Blocks PRs from main branch of forked repository'
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure PR is not on main branch
+      shell: bash
+      run: |
+        echo "Repo: ${{ github.repository }}"
+        echo "Head Repo: ${{ github.event.pull_request.head.repo.full_name }}"
+        echo "Forked: ${{ github.event.pull_request.head.repo.fork }}"
+        echo "Branch: ${{ github.event.pull_request.head.ref }}"
+
+        if [ "${{ github.event.pull_request.head.repo.fork }}" == "true" ] && [ "${{ github.event.pull_request.head.ref }}" == 'main' ]; then
+          echo "PRs from the main branch of forked repositories are not allowed."
+          exit 1
+        fi
