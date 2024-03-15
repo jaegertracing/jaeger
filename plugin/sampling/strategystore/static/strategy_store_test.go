@@ -470,12 +470,24 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 
 	s, err := store.GetSamplingStrategy(context.Background(), "ServiceA")
 	require.NoError(t, err)
-	assert.Equal(t, 1.0, s.OperationSampling.DefaultSamplingProbability)
+	require.NotNil(t, s.OperationSampling)
+	os := s.OperationSampling
+	assert.EqualValues(t, 1, os.DefaultSamplingProbability)
+	require.Len(t, os.PerOperationStrategies, 1)
+	assert.Equal(t, "/health", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.0, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 1.0)
+	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
 
 	s, err = store.GetSamplingStrategy(context.Background(), "ServiceB")
 	require.NoError(t, err)
-
-	expected := makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 3)
+	require.NotNil(t, s.OperationSampling)
+	os = s.OperationSampling
+	assert.EqualValues(t, 0.2, os.DefaultSamplingProbability)
+	require.Len(t, os.PerOperationStrategies, 1)
+	assert.Equal(t, "/health", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.0, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	expected = makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 3)
 	assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
 }
 
