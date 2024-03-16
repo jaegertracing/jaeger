@@ -1,0 +1,3 @@
+Resource: Empty, VMOnPrem, VMCloud, K8sOnPrem, K8sCloud, Faas, Exec
+InstrumentationLibrary: None, One, Two
+Spans: None, One, Several, All

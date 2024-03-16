@@ -1,0 +1,57 @@
+name: CIT gRPC
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  grpc:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [v1, v2]
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      with:
+        go-version: 1.22.x
+
+    - name: Run gRPC storage integration tests
+      run: |
+        case ${{ matrix.version }} in
+          v1)
+            make grpc-storage-integration-test
+            ;;
+          v2)
+            bash scripts/grpc-integration-test.sh latest
+            ;;
+        esac
+
+    - name: Setup CODECOV_TOKEN
+      uses: ./.github/actions/setup-codecov
+
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@54bcd8715eee62d40e33596ef5e8f0f48dbbccab # v4.1.0
+      with:
+        files: cover.out
+        verbose: true
+        flags: grpc
+        fail_ci_if_error: true
+        token: ${{ env.CODECOV_TOKEN }}
