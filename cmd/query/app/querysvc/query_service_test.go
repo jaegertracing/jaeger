@@ -305,50 +305,43 @@ func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
 	assert.Equal(t, expectedStorageCapabilities, tqs.queryService.GetCapabilities())
 }
 
-type fakeStorageFactory1 struct{}
-
-type fakeStorageFactory2 struct {
-	fakeStorageFactory1
+type fakeStorageFactory struct {
 	r    spanstore.Reader
 	w    spanstore.Writer
 	rErr error
 	wErr error
 }
 
-func (*fakeStorageFactory1) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (*fakeStorageFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	return nil
 }
-func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)             { return nil, nil }
-func (*fakeStorageFactory1) CreateSpanWriter() (spanstore.Writer, error)             { return nil, nil }
-func (*fakeStorageFactory1) CreateDependencyReader() (dependencystore.Reader, error) { return nil, nil }
+func (f *fakeStorageFactory) CreateSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
+func (f *fakeStorageFactory) CreateSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
+func (f *fakeStorageFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	return nil, nil
+}
 
-func (f *fakeStorageFactory2) CreateArchiveSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
-func (f *fakeStorageFactory2) CreateArchiveSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
-
-var (
-	_ storage.Factory        = new(fakeStorageFactory1)
-	_ storage.ArchiveFactory = new(fakeStorageFactory2)
-)
+var _ storage.Factory = new(fakeStorageFactory)
 
 func TestInitArchiveStorageErrors(t *testing.T) {
 	opts := &QueryServiceOptions{}
 	logger := zap.NewNop()
 
-	assert.False(t, opts.InitArchiveStorage(new(fakeStorageFactory1), logger))
+	// assert.False(t, opts.InitArchiveStorage(new(fakeStorageFactory), logger))
 	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotConfigured},
+		&fakeStorageFactory{rErr: storage.ErrArchiveStorageNotConfigured},
 		logger,
 	))
 	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{rErr: errors.New("error")},
+		&fakeStorageFactory{rErr: errors.New("error")},
 		logger,
 	))
 	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{wErr: storage.ErrArchiveStorageNotConfigured},
+		&fakeStorageFactory{wErr: storage.ErrArchiveStorageNotConfigured},
 		logger,
 	))
 	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{wErr: errors.New("error")},
+		&fakeStorageFactory{wErr: errors.New("error")},
 		logger,
 	))
 }
@@ -359,7 +352,7 @@ func TestInitArchiveStorage(t *testing.T) {
 	reader := &spanstoremocks.Reader{}
 	writer := &spanstoremocks.Writer{}
 	assert.True(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{r: reader, w: writer},
+		&fakeStorageFactory{r: reader, w: writer},
 		logger,
 	))
 	assert.Equal(t, reader, opts.ArchiveSpanReader)

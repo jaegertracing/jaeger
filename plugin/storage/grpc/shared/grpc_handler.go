@@ -279,6 +279,7 @@ func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stor
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
+
 	if err != nil {
 		return err
 	}

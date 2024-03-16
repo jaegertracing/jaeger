@@ -33,7 +33,6 @@ import (
 
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
-	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ plugin.Configurable          = (*Factory)(nil)
 )

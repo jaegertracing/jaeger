@@ -84,10 +84,9 @@ func AllSamplingStorageTypes() []string {
 }
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
-	_ storage.ArchiveFactory = (*Factory)(nil)
-	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Factory     = (*Factory)(nil)
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
@@ -299,11 +298,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
-	archive, ok := factory.(storage.ArchiveFactory)
-	if !ok {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	return archive.CreateArchiveSpanReader()
+	return factory.CreateSpanReader()
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -312,11 +307,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
-	archive, ok := factory.(storage.ArchiveFactory)
-	if !ok {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	return archive.CreateArchiveSpanWriter()
+	return factory.CreateSpanWriter()
 }
 
 var _ io.Closer = (*Factory)(nil)
