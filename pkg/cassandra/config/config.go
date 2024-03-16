@@ -30,15 +30,15 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
-	Servers              []string       `validate:"nonzero" mapstructure:"servers" valid:"required,url"`
-	Keyspace             string         `validate:"nonzero" mapstructure:"keyspace"`
+	Servers              []string       `valid:"required,url" mapstructure:"servers"`
+	Keyspace             string         `valid:"nonzero" mapstructure:"keyspace"`
 	LocalDC              string         `mapstructure:"local_dc"`
-	ConnectionsPerHost   int            `validate:"min=1" mapstructure:"connections_per_host"`
-	Timeout              time.Duration  `validate:"min=500" mapstructure:"-"`
+	ConnectionsPerHost   int            `valid:"min=1" mapstructure:"connections_per_host"`
+	Timeout              time.Duration  `valid:"min=500" mapstructure:"-"`
 	ConnectTimeout       time.Duration  `mapstructure:"connection_timeout"`
-	ReconnectInterval    time.Duration  `validate:"min=500" mapstructure:"reconnect_interval"`
-	SocketKeepAlive      time.Duration  `validate:"min=0" mapstructure:"socket_keep_alive"`
-	MaxRetryAttempts     int            `validate:"min=0" mapstructure:"max_retry_attempts"`
+	ReconnectInterval    time.Duration  `valid:"min=500" mapstructure:"reconnect_interval"`
+	SocketKeepAlive      time.Duration  `valid:"min=0" mapstructure:"socket_keep_alive"`
+	MaxRetryAttempts     int            `valid:"min=0" mapstructure:"max_retry_attempts"`
 	ProtoVersion         int            `mapstructure:"proto_version"`
 	Consistency          string         `mapstructure:"consistency"`
 	DisableCompression   bool           `mapstructure:"disable_compression"`

@@ -18,7 +18,6 @@ package cassandra
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 
 	"github.com/spf13/viper"
@@ -85,47 +84,13 @@ func NewFactoryWithConfig(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
-	archive := make(map[string]*namespaceConfig)
-	serverURL, err := getServers(cfg.Servers)
-	if err != nil {
-		return nil, err
-	}
-	archive[archiveStorageConfig] = &namespaceConfig{
-		Configuration: cfg,
-		servers:       serverURL,
-		namespace:     archiveStorageConfig,
-		Enabled:       true,
-	}
-
 	f := NewFactory()
-	f.InitFromOptions(&Options{
-		Primary: namespaceConfig{
-			Configuration: cfg,
-			servers:       serverURL,
-			namespace:     primaryStorageConfig,
-			Enabled:       true,
-		},
-		others: archive,
-	})
-	err = f.Initialize(metricsFactory, logger)
+	f.primaryConfig = &cfg
+	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
 	return f, nil
-}
-
-func getServers(servers []string) (string, error) {
-	if len(servers) == 0 {
-		return "", fmt.Errorf("servers not found")
-	}
-	serverURL := servers[0]
-	for i, server := range servers {
-		if i == 0 {
-			continue
-		}
-		serverURL = serverURL + ", " + server
-	}
-	return serverURL, nil
 }
 
 // AddFlags implements plugin.Configurable
