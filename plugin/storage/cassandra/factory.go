@@ -78,6 +78,24 @@ func NewFactory() *Factory {
 	}
 }
 
+// NewFactoryWithConfig initializes factory with Config.
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	f := NewFactory()
+	f.primaryConfig = &cfg
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
