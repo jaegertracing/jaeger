@@ -1,8 +1,6 @@
 # Hot R.O.D. - Rides on Demand
 
-This is a demo application that consists of several microservices and illustrates
-the use of the OpenTelemetry API & SDK. It can be run standalone, but requires Jaeger backend
-to view the traces. A tutorial / walkthrough is available:
+This is a demo application that consists of several microservices and illustrates the use of the OpenTelemetry API & SDK. It can be run standalone, but requires Jaeger backend to view the traces. A tutorial / walkthrough is available:
   * as a blog post [Take Jaeger for a HotROD ride][hotrod-tutorial],
   * as a video [OpenShift Commons Briefing: Distributed Tracing with Jaeger & Prometheus on Kubernetes][hotrod-openshift].
 
@@ -54,7 +52,7 @@ An all-in-one Jaeger backend is packaged as a Docker container with in-memory st
 docker run \
   --rm \
   --name jaeger \
-  -p6831:6831/udp \
+  -p4318:4318 \
   -p16686:16686 \
   -p14268:14268 \
   jaegertracing/all-in-one:latest
@@ -75,7 +73,7 @@ go run ./examples/hotrod/main.go all
 docker run \
   --rm \
   --link jaeger \
-  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces \
+  --env OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 \
   -p8080-8083:8080-8083 \
   jaegertracing/example-hotrod:latest \
   all
