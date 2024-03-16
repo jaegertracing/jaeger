@@ -35,3 +35,6 @@ jobs:
 
     - name: Lint
       run: make lint
+    
+    - name: Ensure PR is not on main branch
+      uses: ./.github/actions/block-pr-not-on-main
