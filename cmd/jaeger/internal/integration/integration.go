@@ -23,6 +23,7 @@ import (
 )
 
 type StorageIntegration struct {
+	Name       string
 	ConfigFile string
 }
 
@@ -63,6 +64,10 @@ func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Fac
 }
 
 func (s *StorageIntegration) Test(t *testing.T) {
+	if os.Getenv("STORAGE") != s.Name {
+		t.Skipf("Integration test against Jaeger-V2 %[1]s skipped; set STORAGE env var to %[1]s to run this", s.Name)
+	}
+
 	factories, err := internal.Components()
 	require.NoError(t, err)
 
