@@ -123,7 +123,7 @@ storage-integration-test:
 # these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.
 # The integration tests are filtered by STORAGE env,
 # currently the available STORAGE variable is:
-#  - jaeger_grpc
+#  - grpc
 .PHONY: jaeger-storage-integration-test
 jaeger-storage-integration-test:
 	# Expire tests results for jaeger storage integration tests since the environment might change
