@@ -7,7 +7,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/datareceivers"
 )
@@ -27,6 +27,11 @@ type StorageIntegration struct {
 	ConfigFile string
 }
 
+// The data receiver will utilize the artificial jaeger receiver to pull
+// the traces from the database which is through jaeger storage extension.
+// Because of that, we need to host another jaeger storage extension
+// that is a duplication from the collector's extension. And get
+// the exporter TraceStorage name to set it to receiver TraceStorage.
 func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Factories) testbed.DataReceiver {
 	fmp := fileprovider.New()
 	configProvider, err := otelcol.NewConfigProvider(
@@ -42,24 +47,13 @@ func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Fac
 	cfg, err := configProvider.Get(context.Background(), factories)
 	require.NoError(t, err)
 
-	config, ok := cfg.Extensions[jaegerstorage.ID].(*jaegerstorage.Config)
+	storageCfg, ok := cfg.Extensions[jaegerstorage.ID].(*jaegerstorage.Config)
 	require.True(t, ok, "no jaeger storage extension found in the config")
 
-	// Hacky way to get the storage extension name.
-	// This way we don't need to modify this,
-	// when a new storage backend is added.
-	name := ""
-	vConfig := reflect.ValueOf(*config)
-	for i := 0; i < vConfig.NumField(); i++ {
-		keys := vConfig.Field(i).MapKeys()
-		if len(keys) > 0 {
-			name = keys[0].String()
-			break
-		}
-	}
-	require.NotEmpty(t, name, "failed to get jaeger storage extension name")
+	exporterCfg, ok := cfg.Exporters[storageexporter.ID].(*storageexporter.Config)
+	require.True(t, ok, "no jaeger storage exporter found in the config")
 
-	receiver := datareceivers.NewJaegerStorageDataReceiver(name, config)
+	receiver := datareceivers.NewJaegerStorageDataReceiver(exporterCfg.TraceStorage, storageCfg)
 	return receiver
 }
 
