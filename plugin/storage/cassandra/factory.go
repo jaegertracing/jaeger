@@ -84,6 +84,9 @@ func NewFactoryWithConfig(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 	f := NewFactory()
 	f.primaryConfig = &cfg
 	err := f.Initialize(metricsFactory, logger)
