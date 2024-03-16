@@ -5,7 +5,6 @@ package integration
 
 import (
 	"context"
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -83,7 +82,7 @@ func (s *StorageIntegration) Test(t *testing.T) {
 
 	config, err := os.ReadFile(s.ConfigFile)
 	require.NoError(t, err)
-	log.Println(string(config))
+	t.Log(string(config))
 
 	configCleanup, err := runner.PrepareConfig(string(config))
 	require.NoError(t, err)
