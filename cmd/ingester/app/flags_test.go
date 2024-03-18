@@ -38,6 +38,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.consumer.group-id=group1",
 		"--kafka.consumer.client-id=client-id1",
 		"--kafka.consumer.rack-id=rack1",
+		"--kafka.consumer.fetch-max-message-bytes=10485760",
 		"--kafka.consumer.encoding=json",
 		"--kafka.consumer.protocol-version=1.0.0",
 		"--ingester.parallelism=5",
@@ -49,6 +50,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, o.Brokers)
 	assert.Equal(t, "group1", o.GroupID)
 	assert.Equal(t, "rack1", o.RackID)
+	assert.Equal(t, int32(10485760), o.FetchMaxMessageBytes)
 	assert.Equal(t, "client-id1", o.ClientID)
 	assert.Equal(t, "1.0.0", o.ProtocolVersion)
 	assert.Equal(t, 5, o.Parallelism)
@@ -108,6 +110,7 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, DefaultGroupID, o.GroupID)
 	assert.Equal(t, DefaultClientID, o.ClientID)
 	assert.Equal(t, DefaultParallelism, o.Parallelism)
+	assert.Equal(t, int32(DefaultFetchMaxMessageBytes), o.FetchMaxMessageBytes)
 	assert.Equal(t, DefaultEncoding, o.Encoding)
 	assert.Equal(t, DefaultDeadlockInterval, o.DeadlockInterval)
 }
