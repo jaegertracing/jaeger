@@ -131,7 +131,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.store.DependencyReader(), nil
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
+// CreateArchiveSpanReader implements storage.Factory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported
@@ -146,7 +146,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return f.archiveStore.ArchiveSpanReader(), nil
 }
 
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
+// CreateArchiveSpanWriter implements storage.Factory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if f.capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported

@@ -292,7 +292,7 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
+// CreateArchiveSpanReader implements storage.Factory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
@@ -301,7 +301,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return factory.CreateArchiveSpanReader()
 }
 
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
+// CreateArchiveSpanWriter implements storage.Factory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	factory, ok := f.factories[f.SpanWriterTypes[0]]
 	if !ok {

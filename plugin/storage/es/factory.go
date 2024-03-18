@@ -202,7 +202,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return createDependencyReader(f.getPrimaryClient, f.primaryConfig, f.logger)
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
+// CreateArchiveSpanReader implements storage.Factory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
@@ -210,7 +210,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
 }
 
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
+// CreateArchiveSpanWriter implements storage.Factory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
