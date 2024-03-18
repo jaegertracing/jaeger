@@ -138,7 +138,8 @@ func (qs QueryService) GetCapabilities() StorageCapabilities {
 
 // InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.
 func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Factory, logger *zap.Logger) bool {
-	reader, err := storageFactory.CreateSpanReader()
+	factory := storageFactory
+	reader, err := factory.CreateArchiveSpanReader()
 	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return false
@@ -147,7 +148,7 @@ func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Facto
 		logger.Error("Cannot init archive storage reader", zap.Error(err))
 		return false
 	}
-	writer, err := storageFactory.CreateSpanWriter()
+	writer, err := storageFactory.CreateArchiveSpanWriter()
 	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return false

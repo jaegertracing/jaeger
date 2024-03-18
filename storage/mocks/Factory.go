@@ -98,6 +98,52 @@ func (_m *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return r0, r1
 }
 
+// CreateArchiveSpanReader provides a mock function with given fields:
+func (_m *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	ret := _m.Called()
+
+	var r0 spanstore.Reader
+	if rf, ok := ret.Get(0).(func() spanstore.Reader); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(spanstore.Reader)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CreateArchiveSpanWriter provides a mock function with given fields:
+func (_m *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+	ret := _m.Called()
+
+	var r0 spanstore.Writer
+	if rf, ok := ret.Get(0).(func() spanstore.Writer); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(spanstore.Writer)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Initialize provides a mock function with given fields: metricsFactory, logger
 func (_m *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	ret := _m.Called(metricsFactory, logger)

@@ -298,7 +298,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
-	return factory.CreateSpanReader()
+	return factory.CreateArchiveSpanReader()
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -307,7 +307,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
-	return factory.CreateSpanWriter()
+	return factory.CreateArchiveSpanWriter()
 }
 
 var _ io.Closer = (*Factory)(nil)

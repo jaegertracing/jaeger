@@ -103,6 +103,16 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.metricsFactory, f.logger), nil
 }
 
+// CreateSpanReader implements storage.Factory
+func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	return nil, errors.New("kafka storage is write-only")
+}
+
+// CreateSpanWriter implements storage.Factory
+func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.metricsFactory, f.logger), nil
+}
+
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, errors.New("kafka storage is write-only")

@@ -320,6 +320,8 @@ func (f *fakeStorageFactory) CreateSpanWriter() (spanstore.Writer, error) { retu
 func (f *fakeStorageFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, nil
 }
+func (f *fakeStorageFactory) CreateArchiveSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
+func (f *fakeStorageFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
 
 var _ storage.Factory = new(fakeStorageFactory)
 

@@ -45,6 +45,12 @@ type Factory interface {
 	// CreateSpanWriter creates a spanstore.Writer.
 	CreateSpanWriter() (spanstore.Writer, error)
 
+	// CreateArchiveSpanReader creates a spanstore.Writer for archived spans.
+	CreateArchiveSpanReader() (spanstore.Reader, error)
+
+	// CreateArchiveSpanWriter creates a spanstore.Writer for archived spans.
+	CreateArchiveSpanWriter() (spanstore.Writer, error)
+
 	// CreateDependencyReader creates a dependencystore.Reader.
 	CreateDependencyReader() (dependencystore.Reader, error)
 }
