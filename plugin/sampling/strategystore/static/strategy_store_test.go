@@ -473,7 +473,7 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 
 	// expected response for ServiceA (which has probablistic service level sampling strategy)
 	// shall contain /health operation with default service level sampling strategy as well
-	expectedServiceAResponse, errServiceA := makeServiceStrategyResponseFromFile("fixtures/probablistic_with_default_operation_strategy.json")
+	expectedServiceAResponse, errServiceA := makeServiceStrategyResponseFromFile("fixtures/TestServiceNoPerOperationStrategies_response_for_ServiceA.json")
 	require.NoError(t, errServiceA)
 
 	strategy, err := store.GetSamplingStrategy(context.Background(), "ServiceA")
@@ -483,8 +483,8 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 	assert.Equal(t, expectedServiceAResponse, strategy)
 
 	// expected response for ServiceB (which has ratelimiting service level sampling strategy)
-	// shall contain /health operation with sampling probability taken from defaul operation level strategy
-	expectedServiceBResponse, errServiceB := makeServiceStrategyResponseFromFile("fixtures/ratelimiting_with_default_operation_strategy.json")
+	// shall contain /health operation with sampling probability taken from default operation level strategy
+	expectedServiceBResponse, errServiceB := makeServiceStrategyResponseFromFile("fixtures/TestServiceNoPerOperationStrategies_response_for_ServiceB.json")
 	require.NoError(t, errServiceB)
 
 	strategy, err = store.GetSamplingStrategy(context.Background(), "ServiceB")

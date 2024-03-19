@@ -8,7 +8,9 @@
         "perOperationStrategies": [
             {
                 "operation": "/health",
-                "probabilisticSampling": {}
+                "probabilisticSampling": {
+                    "samplingRate": 0.1
+                }
             }
         ]
     }
