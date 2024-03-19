@@ -1,0 +1,14 @@
+{
+    "probabilisticSampling": {
+        "samplingRate": 1
+    },
+    "operationSampling": {
+        "defaultSamplingProbability": 1,
+        "perOperationStrategies": [
+            {
+                "operation": "/health",
+                "probabilisticSampling": {}
+            }
+        ]
+    }
+}

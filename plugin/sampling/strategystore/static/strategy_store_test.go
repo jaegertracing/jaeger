@@ -16,10 +16,12 @@ package static
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -465,30 +467,44 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 }
 
 func TestServiceNoPerOperationStrategies(t *testing.T) {
+	// given setup of strategy store with no specific per operation sampling strategies
 	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/service_no_per_operation.json"}, zap.NewNop())
 	require.NoError(t, err)
 
-	s, err := store.GetSamplingStrategy(context.Background(), "ServiceA")
-	require.NoError(t, err)
-	require.NotNil(t, s.OperationSampling)
-	os := s.OperationSampling
-	assert.EqualValues(t, 1, os.DefaultSamplingProbability)
-	require.Len(t, os.PerOperationStrategies, 1)
-	assert.Equal(t, "/health", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.0, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 1.0)
-	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
+	// expected response for ServiceA (which has probablistic service level sampling strategy)
+	// shall contain /health operation with default service level sampling strategy as well
+	expectedServiceAResponse, errServiceA := makeServiceStrategyResponseFromFile("fixtures/probablistic_with_default_operation_strategy.json")
+	require.NoError(t, errServiceA)
 
-	s, err = store.GetSamplingStrategy(context.Background(), "ServiceB")
+	strategy, err := store.GetSamplingStrategy(context.Background(), "ServiceA")
 	require.NoError(t, err)
-	require.NotNil(t, s.OperationSampling)
-	os = s.OperationSampling
-	assert.EqualValues(t, 0.2, os.DefaultSamplingProbability)
-	require.Len(t, os.PerOperationStrategies, 1)
-	assert.Equal(t, "/health", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.0, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-	expected = makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 3)
-	assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
+	require.NotNil(t, strategy.OperationSampling)
+
+	assert.Equal(t, expectedServiceAResponse, strategy)
+
+	// expected response for ServiceB (which has ratelimiting service level sampling strategy)
+	// shall contain /health operation with sampling probability taken from defaul operation level strategy
+	expectedServiceBResponse, errServiceB := makeServiceStrategyResponseFromFile("fixtures/ratelimiting_with_default_operation_strategy.json")
+	require.NoError(t, errServiceB)
+
+	strategy, err = store.GetSamplingStrategy(context.Background(), "ServiceB")
+	require.NoError(t, err)
+	require.NotNil(t, strategy.OperationSampling)
+
+	assert.Equal(t, expectedServiceBResponse, strategy)
+}
+
+func makeServiceStrategyResponseFromFile(serviceStrategyFile string) (resp *api_v2.SamplingStrategyResponse, err error) {
+	strategyBytes, err := os.ReadFile(filepath.Clean(serviceStrategyFile))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read SamplingStrategyResponse file %s: %w", serviceStrategyFile, err)
+	}
+	err = json.Unmarshal(strategyBytes, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal SamplingStrategyResponse: %w", err)
+	} else {
+		return resp, nil
+	}
 }
 
 func TestSamplingStrategyLoader(t *testing.T) {
