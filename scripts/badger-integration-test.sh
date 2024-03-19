@@ -24,15 +24,10 @@ setup_remote_storage() {
   local params=(
     --rm
     --detach
-    -e COLLECTOR_ZIPKIN_HTTP_PORT=9411
-    --publish 5775:5775/udp
-    --publish 6831:6831/udp
-    --publish 6832:6832/udp
-    --publish 5778:5778
-    --publish 16686:16686
-    --publish 14268:14268
-    --publish 9411:9411
+    --publish 17271:17271
+    --publish 17270:17270
     --env SPAN_STORAGE_TYPE=badger
+    --env BADGER_EPHEMERAL=false
   )
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
@@ -72,7 +67,7 @@ wait_for_storage() {
 
 bring_up_storage() {
   local version=$1
-  local image="jaegertracing/all-in-one"
+  local image="jaegertracing/jaeger-remote-storage"
   local cid
 
   echo "starting ${image} ${version}"
@@ -81,7 +76,7 @@ bring_up_storage() {
     echo "attempt $retry"
     cid=$(setup_remote_storage "${image}" "${version}")
 
-    wait_for_storage "${image}" "http://localhost:16686" "${cid}"
+    wait_for_storage "${image}" "http://localhost:17270" "${cid}"
     if [ ${db_is_up} = "1" ]; then
       break
     fi
