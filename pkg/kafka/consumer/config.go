@@ -42,13 +42,14 @@ type Configuration struct {
 	auth.AuthenticationConfig `mapstructure:"authentication"`
 	Consumer
 
-	Brokers         []string `mapstructure:"brokers"`
-	Topic           string   `mapstructure:"topic"`
-	InitialOffset   int64
-	GroupID         string `mapstructure:"group_id"`
-	ClientID        string `mapstructure:"client_id"`
-	ProtocolVersion string `mapstructure:"protocol_version"`
-	RackID          string `mapstructure:"rack_id"`
+	Brokers              []string `mapstructure:"brokers"`
+	Topic                string   `mapstructure:"topic"`
+	InitialOffset        int64
+	GroupID              string `mapstructure:"group_id"`
+	ClientID             string `mapstructure:"client_id"`
+	ProtocolVersion      string `mapstructure:"protocol_version"`
+	RackID               string `mapstructure:"rack_id"`
+	FetchMaxMessageBytes int32  `mapstructure:"fetch_max_message_bytes"`
 }
 
 // NewConsumer creates a new kafka consumer
@@ -57,6 +58,7 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	saramaConfig.Group.Mode = cluster.ConsumerModePartitions
 	saramaConfig.ClientID = c.ClientID
 	saramaConfig.RackID = c.RackID
+	saramaConfig.Consumer.Fetch.Default = c.FetchMaxMessageBytes
 	if len(c.ProtocolVersion) > 0 {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
 		if err != nil {
