@@ -315,8 +315,10 @@ func TestConfigurationValidation(t *testing.T) {
 }
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
+
 	cfg := escfg.Configuration{
-		Servers:  []string{"http://badurl"},
+		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
 	}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())

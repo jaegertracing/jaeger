@@ -1,4 +1,4 @@
-name: Lint Checks
+name: CIT gRPC
 
 on:
   push:
@@ -14,15 +14,18 @@ concurrency:
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
-  
+
 jobs:
-  lint:
+  grpc:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [v1, v2]
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
       with:
-        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
@@ -30,11 +33,25 @@ jobs:
       with:
         go-version: 1.22.x
 
-    - name: Install tools
-      run: make install-test-tools
+    - name: Run gRPC storage integration tests
+      run: |
+        case ${{ matrix.version }} in
+          v1)
+            make grpc-storage-integration-test
+            ;;
+          v2)
+            bash scripts/grpc-integration-test.sh latest
+            ;;
+        esac
 
-    - name: Lint
-      run: make lint
-    
-    - name: Ensure PR is not on main branch
-      uses: ./.github/actions/block-pr-not-on-main
+    - name: Setup CODECOV_TOKEN
+      uses: ./.github/actions/setup-codecov
+
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@54bcd8715eee62d40e33596ef5e8f0f48dbbccab # v4.1.0
+      with:
+        files: cover.out
+        verbose: true
+        flags: grpc
+        fail_ci_if_error: true
+        token: ${{ env.CODECOV_TOKEN }}

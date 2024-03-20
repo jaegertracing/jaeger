@@ -58,6 +58,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 		ClientID:             options.ClientID,
 		ProtocolVersion:      options.ProtocolVersion,
 		AuthenticationConfig: options.AuthenticationConfig,
+		FetchMaxMessageBytes: options.FetchMaxMessageBytes,
 	}
 	saramaConsumer, err := consumerConfig.NewConsumer(logger)
 	if err != nil {

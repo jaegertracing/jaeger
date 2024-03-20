@@ -1,0 +1,14 @@
+Parent: Root, Child
+Tracestate: Empty, One, Four
+Kind: Unspecified, Internal, Server, Client, Producer, Consumer
+Attributes: Empty, DatabaseSQL, DatabaseNoSQL, FaaSDatasource, FaaSHTTP, FaaSPubSub, FaaSTimer, FaaSOther, HTTPClient, HTTPServer, MessagingProducer, MessagingConsumer, gRPCClient, gRPCServer, Internal, MaxCount
+Events: Empty, One, Two, Eight
+Links: Empty
+Status: Unset, Ok, Error
+
+IF [Parent] = "Root" THEN [Kind] in {"Server", "Producer"};
+IF [Kind] = "Internal" THEN [Attributes] in {"Nil", "Internal"};
+IF [Kind] = "Server" THEN [Attributes] in {"Nil", "FaaSHTTP", "FaaSTimer", "FaaSOther", "HTTPServer", "gRPCServer", "MaxCount"};
+IF [Kind] = "Client" THEN [Attributes] in {"Empty", "DatabaseSQL", "DatabaseNoSQL", "HTTPClient", "gRPCClient"};
+IF [Kind] = "Producer" THEN [Attributes] in {"Empty", "MessagingProducer", "FaaSPubSub"};
+IF [Kind] = "Consumer" THEN [Attributes] in {"Nil", "MessagingConsumer", "FaaSDatasource"};
