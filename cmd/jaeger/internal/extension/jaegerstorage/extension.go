@@ -135,7 +135,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		storageKind: "opensearch",
 		cfg:         s.config.Opensearch,
 		builder:     es.NewFactoryWithConfig,
-  }
+	}
 	cassandraStarter := &starter[cassandraCfg.Configuration, *cassandra.Factory]{
 		ext:         s,
 		storageKind: "cassandra",
