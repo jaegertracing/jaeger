@@ -13,15 +13,26 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
+	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
-var _ extension.Extension = (*storageExt)(nil)
+var _ Extension = (*storageExt)(nil)
+
+type Extension interface {
+	extension.Extension
+	Factory(name string) (storage.Factory, bool)
+}
 
 type storageExt struct {
 	config    *Config
@@ -44,7 +55,7 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 			componentType,
 		)
 	}
-	f, ok := comp.(*storageExt).factories[name]
+	f, ok := comp.(Extension).Factory(name)
 	if !ok {
 		return nil, fmt.Errorf(
 			"cannot find storage '%s' declared with '%s' extension",
@@ -107,10 +118,31 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Badger,
 		builder:     badger.NewFactoryWithConfig,
 	}
+	grpcStarter := &starter[grpcCfg.Configuration, *grpc.Factory]{
+		ext:         s,
+		storageKind: "grpc",
+		cfg:         s.config.GRPC,
+		builder:     grpc.NewFactoryWithConfig,
+	}
+	esStarter := &starter[esCfg.Configuration, *es.Factory]{
+		ext:         s,
+		storageKind: "elasticsearch",
+		cfg:         s.config.Elasticsearch,
+		builder:     es.NewFactoryWithConfig,
+	}
+	cassandraStarter := &starter[cassandraCfg.Configuration, *cassandra.Factory]{
+		ext:         s,
+		storageKind: "cassandra",
+		cfg:         s.config.Cassandra,
+		builder:     cassandra.NewFactoryWithConfig,
+	}
 
 	builders := []func(ctx context.Context, host component.Host) error{
 		memStarter.build,
 		badgerStarter.build,
+		grpcStarter.build,
+		esStarter.build,
+		cassandraStarter.build,
 		// TODO add support for other backends
 	}
 	for _, builder := range builders {
@@ -132,4 +164,9 @@ func (s *storageExt) Shutdown(ctx context.Context) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func (s *storageExt) Factory(name string) (storage.Factory, bool) {
+	f, ok := s.factories[name]
+	return f, ok
 }

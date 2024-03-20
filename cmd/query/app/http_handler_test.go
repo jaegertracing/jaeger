@@ -33,7 +33,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
-	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -197,7 +196,7 @@ func TestLogOnServerError(t *testing.T) {
 	}
 	h := NewAPIHandler(qs, &tenancy.Manager{}, apiHandlerOptions...)
 	e := errors.New("test error")
-	h.handleError(&testHttp.TestResponseWriter{}, e, http.StatusInternalServerError)
+	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)
 	require.Len(t, *l.logs, 1)
 	assert.Equal(t, "HTTP handler, Internal Server Error", (*l.logs)[0].e.Message)
 	assert.Len(t, (*l.logs)[0].f, 1)
