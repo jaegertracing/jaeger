@@ -28,6 +28,8 @@ setup_remote_storage() {
     --publish 17270:17270
     --env SPAN_STORAGE_TYPE=badger
     --env BADGER_EPHEMERAL=false
+    --env BADGER_DIRECTORY_VALUE=/badger/data/values
+    --env BADGER_DIRECTORY_KEY=/badger/data/keys
   )
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
@@ -70,6 +72,14 @@ bring_up_storage() {
   local image="jaegertracing/jaeger-remote-storage"
   local cid
 
+  # create a dir 
+  docker volume create test
+  docker run --rm -v test:/badger -it busybox sh -c '
+    mkdir -p /badger/data && \
+    touch /badger/data/.initialized && \
+    chown -R 10001:10001 /badger/data
+  '
+
   echo "starting ${image} ${version}"
   for retry in 1 2 3
   do
@@ -93,6 +103,7 @@ bring_up_storage() {
 teardown_storage() {
   local cid=$1
   docker kill "${cid}"
+  docker volume rm test
 }
 
 main() {
