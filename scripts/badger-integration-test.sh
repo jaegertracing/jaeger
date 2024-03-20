@@ -30,6 +30,7 @@ setup_remote_storage() {
     --env BADGER_EPHEMERAL=false
     --env BADGER_DIRECTORY_VALUE=/badger/data/values
     --env BADGER_DIRECTORY_KEY=/badger/data/keys
+    -v test:/badger
   )
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
