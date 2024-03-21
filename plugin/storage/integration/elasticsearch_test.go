@@ -257,11 +257,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 
 	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
-	if archive {
-		t.Run("ArchiveTrace", s.testArchiveTrace)
-	} else {
-		s.IntegrationTestAll(t)
-	}
+	s.IntegrationTestAll(t)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
