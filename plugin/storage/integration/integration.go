@@ -121,6 +121,29 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 	return predicate(t)
 }
 
+func (s *StorageIntegration) testGetServices(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
+	s.loadParseAndWriteExampleTrace(t)
+	s.refresh(t)
+
+	var actual []string
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.SpanReader.GetServices(context.Background())
+		require.NoError(t, err)
+		sort.Strings(actual)
+		return assert.ObjectsAreEqualValues(expected, actual)
+	})
+
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
+}
+
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
@@ -144,29 +167,6 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
-	}
-}
-
-func (s *StorageIntegration) testGetServices(t *testing.T) {
-	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
-
-	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
-	s.loadParseAndWriteExampleTrace(t)
-	s.refresh(t)
-
-	var actual []string
-	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
-		actual, err = s.SpanReader.GetServices(context.Background())
-		require.NoError(t, err)
-		sort.Strings(actual)
-		return assert.ObjectsAreEqualValues(expected, actual)
-	})
-
-	if !assert.True(t, found) {
-		t.Log("\t Expected:", expected)
-		t.Log("\t Actual  :", actual)
 	}
 }
 
@@ -506,8 +506,8 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 
 // IntegrationTestAll runs all integration tests
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
-	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetServices", s.testGetServices)
+	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
