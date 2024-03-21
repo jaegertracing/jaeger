@@ -34,7 +34,6 @@ import (
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -49,15 +48,13 @@ var fixtures embed.FS
 
 // StorageIntegration holds components for storage integration test
 type StorageIntegration struct {
-	SpanWriter        spanstore.Writer
-	SpanReader        spanstore.Reader
-	ArchiveSpanReader spanstore.Reader
-	ArchiveSpanWriter spanstore.Writer
-	DependencyWriter  dependencystore.Writer
-	DependencyReader  dependencystore.Reader
-	SamplingStore     samplingstore.Store
-	Fixtures          []*QueryFixtures
-	storageFactory    storage.Factory
+	SpanWriter       spanstore.Writer
+	SpanReader       spanstore.Reader
+	DependencyWriter dependencystore.Writer
+	DependencyReader dependencystore.Reader
+	SamplingStore    samplingstore.Store
+	Fixtures         []*QueryFixtures
+
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
 
@@ -125,21 +122,7 @@ func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *te
 }
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
-	defer s.CleanUp()
-
-	archiveFactory, ok := s.storageFactory.(storage.ArchiveFactory)
-	if !ok {
-		t.Skip("Skipping ArchiveTrace test because archive storage is not supported")
-		return
-	}
-
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	require.NoError(t, err)
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	require.NoError(t, err)
-	s.ArchiveSpanReader = reader
-	s.ArchiveSpanWriter = writer
-
+	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
@@ -150,13 +133,13 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
-	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
-	s.Refresh()
+	require.NoError(t, s.SpanWriter.WriteSpan(context.Background(), expected))
+	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
+		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
 	})
 	if !assert.True(t, found) {

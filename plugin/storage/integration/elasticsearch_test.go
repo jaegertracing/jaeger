@@ -34,7 +34,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
 	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -305,32 +304,6 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
 	}
 	s.cleanESIndexTemplates(t, indexPrefix)
-}
-
-func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
-	defer s.cleanUp(t)
-	tID := model.NewTraceID(uint64(11), uint64(22))
-	expected := &model.Span{
-		OperationName: "archive_span",
-		StartTime:     time.Now().Add(-maxSpanAge * 5),
-		TraceID:       tID,
-		SpanID:        model.NewSpanID(55),
-		References:    []model.SpanRef{},
-		Process:       model.NewProcess("archived_service", model.KeyValues{}),
-	}
-
-	require.NoError(t, s.SpanWriter.WriteSpan(context.Background(), expected))
-	s.refresh(t)
-
-	var actual *model.Trace
-	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
-		return err == nil && len(actual.Spans) == 1
-	})
-	if !assert.True(t, found) {
-		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
-	}
 }
 
 func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) error {
