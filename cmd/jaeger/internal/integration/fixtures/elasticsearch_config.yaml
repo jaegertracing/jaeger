@@ -1,0 +1,25 @@
+service:
+  extensions: [jaeger_storage]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  jaeger_storage:
+    elasticsearch:
+      es_main:
+        server_urls: http://localhost:9200
+        log_level: "error"
+        index_prefix: "jaeger-main"
+        use_aliases: true
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: es_main

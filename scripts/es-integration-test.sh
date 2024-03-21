@@ -12,8 +12,8 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image>"
+  if [ ! $# -eq 3 ]; then
+    echo "ERROR: need exactly three arguments, <elasticsearch|opensearch> <image> <jaeger version>"
     usage
   fi
 }
@@ -29,12 +29,12 @@ setup_es() {
     --env "xpack.security.enabled=false"
   )
   local major_version=${tag%%.*}
-  if (( major_version < 8 )); then
+  if ((major_version < 8)); then
     params+=(--env "xpack.monitoring.enabled=false")
   else
     params+=(--env "xpack.monitoring.collection.enabled=false")
   fi
-  if (( major_version > 7 )); then
+  if ((major_version > 7)); then
     params+=(
       --env "action.destructive_requires_name=false"
     )
@@ -77,7 +77,7 @@ wait_for_storage() {
     docker inspect "${cid}" | jq '.[].State'
     echo "waiting for ${url} to be up..."
     sleep 10
-    counter=$((counter+1))
+    counter=$((counter + 1))
   done
   # after the loop, do final verification and set status as global var
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
@@ -97,8 +97,7 @@ bring_up_storage() {
   local cid
 
   echo "starting ${distro} ${version}"
-  for retry in 1 2 3
-  do
+  for retry in 1 2 3; do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ]; then
       cid=$(setup_es "${version}")
@@ -114,7 +113,7 @@ bring_up_storage() {
     fi
   done
   if [ ${db_is_up} = "1" ]; then
-  # shellcheck disable=SC2064
+    # shellcheck disable=SC2064
     trap "teardown_storage ${cid}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
@@ -131,9 +130,18 @@ main() {
   check_arg "$@"
   local distro=$1
   local version=$2
+  local jaegerVersion=$3
 
-  bring_up_storage "${distro}" "${version}"
-  STORAGE=${distro} make storage-integration-test
+  if [ "${jaegerVersion}" = "v1" ]; then
+    bring_up_storage "${distro}" "${version}"
+    STORAGE=${distro} make storage-integration-test
+  elif [ "${jaegerVersion}" == "v2" ]; then
+    bring_up_storage "${distro}" "${version}"
+    STORAGE=${distro} make jaeger-storage-integration-test
+  else
+    echo "Unknown jaeger version $jaegerVersion. Valid options are v1 or v2"
+    exit 1
+  fi
   make index-cleaner-integration-test
   make index-rollover-integration-test
 }
