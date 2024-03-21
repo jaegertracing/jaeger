@@ -5,6 +5,7 @@ set -euxf -o pipefail
 
 # use global variables to reflect status of db
 db_is_up=
+badger_data=/badger
 
 usage() {
   echo $"Usage: $0 <image_version>"
@@ -28,9 +29,9 @@ setup_remote_storage() {
     --publish 17270:17270
     --env SPAN_STORAGE_TYPE=badger
     --env BADGER_EPHEMERAL=false
-    --env BADGER_DIRECTORY_VALUE=/badger/data/values
-    --env BADGER_DIRECTORY_KEY=/badger/data/keys
-    -v test:/badger
+    --env BADGER_DIRECTORY_VALUE="$badger_data/values"
+    --env BADGER_DIRECTORY_KEY="$badger_data/keys"
+    -v test:"$badger_data"
   )
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
@@ -75,10 +76,10 @@ bring_up_storage() {
 
   # create a dir 
   docker volume create test
-  docker run --rm -v test:/badger -it busybox sh -c '
-    mkdir -p /badger/data && \
-    touch /badger/data/.initialized && \
-    chown -R 10001:10001 /badger/data
+  docker run --rm -v test:"$badger_data" -it busybox sh -c '
+    mkdir -p '"$badger_data"' && \
+    touch '"$badger_data"'/.initialized && \
+    chown -R 10001:10001 '"$badger_data"'
   '
 
   echo "starting ${image} ${version}"
