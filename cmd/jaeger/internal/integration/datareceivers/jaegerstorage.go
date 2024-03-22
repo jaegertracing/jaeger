@@ -6,6 +6,7 @@ package datareceivers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
@@ -15,20 +16,27 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/receivers/storagereceiver"
 )
 
 type jaegerStorageDataReceiver struct {
+	Logger        *zap.Logger
 	TraceStorage  string
 	StorageConfig *jaegerstorage.Config
 	host          *storagetest.StorageHost
 	receiver      receiver.Traces
 }
 
-func NewJaegerStorageDataReceiver(traceStorage string, storageConfig *jaegerstorage.Config) testbed.DataReceiver {
+func NewJaegerStorageDataReceiver(
+	logger *zap.Logger,
+	traceStorage string,
+	storageConfig *jaegerstorage.Config,
+) testbed.DataReceiver {
 	return &jaegerStorageDataReceiver{
+		Logger:        logger,
 		TraceStorage:  traceStorage,
 		StorageConfig: storageConfig,
 	}
@@ -37,19 +45,24 @@ func NewJaegerStorageDataReceiver(traceStorage string, storageConfig *jaegerstor
 func (dr *jaegerStorageDataReceiver) Start(tc consumer.Traces, _ consumer.Metrics, _ consumer.Logs) error {
 	ctx := context.Background()
 
-	extFactory := jaegerstorage.NewFactory()
-	ext, err := extFactory.CreateExtension(ctx, extension.CreateSettings{
+	extSet := extension.CreateSettings{
+		ID:                jaegerstorage.ID,
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 		BuildInfo:         component.NewDefaultBuildInfo(),
-	}, dr.StorageConfig)
+	}
+	extSet.TelemetrySettings.Logger = dr.Logger
+	extFactory := jaegerstorage.NewFactory()
+	ext, err := extFactory.CreateExtension(ctx, extSet, dr.StorageConfig)
 	if err != nil {
 		return err
 	}
 
 	rcvSet := receivertest.NewNopCreateSettings()
+	rcvSet.TelemetrySettings.Logger = dr.Logger
 	rcvFactory := storagereceiver.NewFactory()
 	rcvCfg := rcvFactory.CreateDefaultConfig().(*storagereceiver.Config)
 	rcvCfg.TraceStorage = dr.TraceStorage
+	rcvCfg.PullInterval = 100 * time.Millisecond
 	rcv, err := rcvFactory.CreateTracesReceiver(ctx, rcvSet, rcvCfg, tc)
 	if err != nil {
 		return err
