@@ -61,6 +61,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	assert.NotNil(t, spanHandlers.JaegerBatchesHandler)
 	assert.NotNil(t, spanHandlers.GRPCHandler)
 	assert.NotNil(t, spanProcessor)
+	require.NoError(t, spanProcessor.Close())
 }
 
 func TestDefaultSpanFilter(t *testing.T) {

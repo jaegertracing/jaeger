@@ -29,6 +29,7 @@ import (
 
 func TestProcessorMetrics(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
+	defer baseMetrics.Backend.Stop()
 	serviceMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "service", Tags: nil})
 	hostMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "host", Tags: nil})
 	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []processor.SpanFormat{processor.SpanFormat("scruffy")})
@@ -63,6 +64,7 @@ func TestProcessorMetrics(t *testing.T) {
 
 func TestNewTraceCountsBySvc(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
+	defer baseMetrics.Backend.Stop()
 	metrics := newTraceCountsBySvc(baseMetrics, "not_on_my_level", 3)
 
 	metrics.countByServiceName("fry", false, model.SamplerTypeUnrecognized)
@@ -95,6 +97,7 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 
 func TestNewSpanCountsBySvc(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
+	defer baseMetrics.Backend.Stop()
 	metrics := newSpanCountsBySvc(baseMetrics, "not_on_my_level", 3)
 	metrics.countByServiceName("fry", false)
 	metrics.countByServiceName("leela", false)
