@@ -80,6 +80,7 @@ func (b builders) build() (otelcol.Factories, error) {
 
 	factories.Exporters, err = b.exporter(
 		// standard
+		// loggingexporter.NewFactory(), // deprecated, replaced with debugexporter
 		debugexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
