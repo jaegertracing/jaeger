@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/service/telemetry"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
@@ -51,6 +52,9 @@ func (s *StorageIntegration) newDataReceiver(
 	cfg, err := configProvider.Get(context.Background(), factories)
 	require.NoError(t, err)
 
+	tel, err := telemetry.New(context.Background(), telemetry.Settings{}, cfg.Service.Telemetry)
+	require.NoError(t, err)
+
 	storageCfg, ok := cfg.Extensions[jaegerstorage.ID].(*jaegerstorage.Config)
 	require.True(t, ok, "no jaeger storage extension found in the config")
 
@@ -58,7 +62,7 @@ func (s *StorageIntegration) newDataReceiver(
 	require.True(t, ok, "no jaeger storage exporter found in the config")
 
 	receiver := datareceivers.NewJaegerStorageDataReceiver(
-		logger,
+		tel.Logger(),
 		exporterCfg.TraceStorage,
 		storageCfg,
 	)
