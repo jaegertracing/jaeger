@@ -51,7 +51,6 @@ require (
 	go.opentelemetry.io/collector/connector/forwardconnector v0.96.0
 	go.opentelemetry.io/collector/consumer v0.96.0
 	go.opentelemetry.io/collector/exporter v0.96.0
-	go.opentelemetry.io/collector/exporter/loggingexporter v0.96.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.96.0
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.96.0
 	go.opentelemetry.io/collector/extension v0.96.0
@@ -217,7 +216,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.96.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.96.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.96.0 // indirect
-	go.opentelemetry.io/collector/exporter/debugexporter v0.96.0 // indirect
+	go.opentelemetry.io/collector/exporter/debugexporter v0.96.0
 	go.opentelemetry.io/collector/extension/auth v0.96.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.3.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.96.0 // indirect
