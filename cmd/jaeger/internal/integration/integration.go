@@ -11,6 +11,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/otelcol"
@@ -56,8 +57,11 @@ func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Fac
 	exporterCfg, ok := cfg.Exporters[storageexporter.ID].(*storageexporter.Config)
 	require.True(t, ok, "no jaeger storage exporter found in the config")
 
+	telemetrySettings := componenttest.NewNopTelemetrySettings()
+	telemetrySettings.Logger = tel.Logger()
+
 	receiver := datareceivers.NewJaegerStorageDataReceiver(
-		tel.Logger(),
+		telemetrySettings,
 		exporterCfg.TraceStorage,
 		storageCfg,
 	)

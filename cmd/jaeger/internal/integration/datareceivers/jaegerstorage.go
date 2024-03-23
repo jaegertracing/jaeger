@@ -11,34 +11,31 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/receiver"
-	"go.opentelemetry.io/collector/receiver/receivertest"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/receivers/storagereceiver"
 )
 
 type jaegerStorageDataReceiver struct {
-	Logger        *zap.Logger
-	TraceStorage  string
-	StorageConfig *jaegerstorage.Config
-	host          *storagetest.StorageHost
-	receiver      receiver.Traces
+	TelemetrySettings component.TelemetrySettings
+	TraceStorage      string
+	StorageConfig     *jaegerstorage.Config
+	host              *storagetest.StorageHost
+	receiver          receiver.Traces
 }
 
 func NewJaegerStorageDataReceiver(
-	logger *zap.Logger,
+	telemetrySettings component.TelemetrySettings,
 	traceStorage string,
 	storageConfig *jaegerstorage.Config,
 ) testbed.DataReceiver {
 	return &jaegerStorageDataReceiver{
-		Logger:        logger,
-		TraceStorage:  traceStorage,
-		StorageConfig: storageConfig,
+		TelemetrySettings: telemetrySettings,
+		TraceStorage:      traceStorage,
+		StorageConfig:     storageConfig,
 	}
 }
 
@@ -47,18 +44,18 @@ func (dr *jaegerStorageDataReceiver) Start(tc consumer.Traces, _ consumer.Metric
 
 	extSet := extension.CreateSettings{
 		ID:                jaegerstorage.ID,
-		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
-		BuildInfo:         component.NewDefaultBuildInfo(),
+		TelemetrySettings: dr.TelemetrySettings,
 	}
-	extSet.TelemetrySettings.Logger = dr.Logger
 	extFactory := jaegerstorage.NewFactory()
 	ext, err := extFactory.CreateExtension(ctx, extSet, dr.StorageConfig)
 	if err != nil {
 		return err
 	}
 
-	rcvSet := receivertest.NewNopCreateSettings()
-	rcvSet.TelemetrySettings.Logger = dr.Logger
+	rcvSet := receiver.CreateSettings{
+		ID:                storagereceiver.ID,
+		TelemetrySettings: dr.TelemetrySettings,
+	}
 	rcvFactory := storagereceiver.NewFactory()
 	rcvCfg := rcvFactory.CreateDefaultConfig().(*storagereceiver.Config)
 	rcvCfg.TraceStorage = dr.TraceStorage
