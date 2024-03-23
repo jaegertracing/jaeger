@@ -11,9 +11,11 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/service/telemetry"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
@@ -46,13 +48,23 @@ func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Fac
 	cfg, err := configProvider.Get(context.Background(), factories)
 	require.NoError(t, err)
 
+	tel, err := telemetry.New(context.Background(), telemetry.Settings{}, cfg.Service.Telemetry)
+	require.NoError(t, err)
+
 	storageCfg, ok := cfg.Extensions[jaegerstorage.ID].(*jaegerstorage.Config)
 	require.True(t, ok, "no jaeger storage extension found in the config")
 
 	exporterCfg, ok := cfg.Exporters[storageexporter.ID].(*storageexporter.Config)
 	require.True(t, ok, "no jaeger storage exporter found in the config")
 
-	receiver := datareceivers.NewJaegerStorageDataReceiver(exporterCfg.TraceStorage, storageCfg)
+	telemetrySettings := componenttest.NewNopTelemetrySettings()
+	telemetrySettings.Logger = tel.Logger()
+
+	receiver := datareceivers.NewJaegerStorageDataReceiver(
+		telemetrySettings,
+		exporterCfg.TraceStorage,
+		storageCfg,
+	)
 	return receiver
 }
 
