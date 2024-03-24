@@ -130,6 +130,12 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Elasticsearch,
 		builder:     es.NewFactoryWithConfig,
 	}
+	osStarter := &starter[esCfg.Configuration, *es.Factory]{
+		ext:         s,
+		storageKind: "opensearch",
+		cfg:         s.config.Opensearch,
+		builder:     es.NewFactoryWithConfig,
+	}
 	cassandraStarter := &starter[cassandraCfg.Configuration, *cassandra.Factory]{
 		ext:         s,
 		storageKind: "cassandra",
@@ -142,6 +148,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		badgerStarter.build,
 		grpcStarter.build,
 		esStarter.build,
+		osStarter.build,
 		cassandraStarter.build,
 		// TODO add support for other backends
 	}

@@ -6,50 +6,60 @@ package datareceivers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/receiver"
-	"go.opentelemetry.io/collector/receiver/receivertest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/receivers/storagereceiver"
 )
 
 type jaegerStorageDataReceiver struct {
-	TraceStorage  string
-	StorageConfig *jaegerstorage.Config
-	host          *storagetest.StorageHost
-	receiver      receiver.Traces
+	TelemetrySettings component.TelemetrySettings
+	TraceStorage      string
+	StorageConfig     *jaegerstorage.Config
+	host              *storagetest.StorageHost
+	receiver          receiver.Traces
 }
 
-func NewJaegerStorageDataReceiver(traceStorage string, storageConfig *jaegerstorage.Config) testbed.DataReceiver {
+func NewJaegerStorageDataReceiver(
+	telemetrySettings component.TelemetrySettings,
+	traceStorage string,
+	storageConfig *jaegerstorage.Config,
+) testbed.DataReceiver {
 	return &jaegerStorageDataReceiver{
-		TraceStorage:  traceStorage,
-		StorageConfig: storageConfig,
+		TelemetrySettings: telemetrySettings,
+		TraceStorage:      traceStorage,
+		StorageConfig:     storageConfig,
 	}
 }
 
 func (dr *jaegerStorageDataReceiver) Start(tc consumer.Traces, _ consumer.Metrics, _ consumer.Logs) error {
 	ctx := context.Background()
 
+	extSet := extension.CreateSettings{
+		ID:                jaegerstorage.ID,
+		TelemetrySettings: dr.TelemetrySettings,
+	}
 	extFactory := jaegerstorage.NewFactory()
-	ext, err := extFactory.CreateExtension(ctx, extension.CreateSettings{
-		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
-		BuildInfo:         component.NewDefaultBuildInfo(),
-	}, dr.StorageConfig)
+	ext, err := extFactory.CreateExtension(ctx, extSet, dr.StorageConfig)
 	if err != nil {
 		return err
 	}
 
-	rcvSet := receivertest.NewNopCreateSettings()
+	rcvSet := receiver.CreateSettings{
+		ID:                storagereceiver.ID,
+		TelemetrySettings: dr.TelemetrySettings,
+	}
 	rcvFactory := storagereceiver.NewFactory()
 	rcvCfg := rcvFactory.CreateDefaultConfig().(*storagereceiver.Config)
 	rcvCfg.TraceStorage = dr.TraceStorage
+	rcvCfg.PullInterval = 100 * time.Millisecond
 	rcv, err := rcvFactory.CreateTracesReceiver(ctx, rcvSet, rcvCfg, tc)
 	if err != nil {
 		return err

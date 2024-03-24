@@ -218,9 +218,15 @@ func (c *Collector) Close() error {
 	}
 
 	// watchers actually never return errors from Close
-	_ = c.tlsGRPCCertWatcherCloser.Close()
-	_ = c.tlsHTTPCertWatcherCloser.Close()
-	_ = c.tlsZipkinCertWatcherCloser.Close()
+	if c.tlsGRPCCertWatcherCloser != nil {
+		_ = c.tlsGRPCCertWatcherCloser.Close()
+	}
+	if c.tlsHTTPCertWatcherCloser != nil {
+		_ = c.tlsHTTPCertWatcherCloser.Close()
+	}
+	if c.tlsZipkinCertWatcherCloser != nil {
+		_ = c.tlsZipkinCertWatcherCloser.Close()
+	}
 
 	return nil
 }
