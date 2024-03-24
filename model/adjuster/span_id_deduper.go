@@ -17,6 +17,7 @@ package adjuster
 
 import (
 	"errors"
+	"math"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -42,7 +43,7 @@ const (
 	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
 )
 
-var maxSpanID = model.NewSpanID(0xffffffffffffffff)
+var maxSpanID = model.NewSpanID(math.MaxUint64)
 
 type spanIDDeduper struct {
 	trace     *model.Trace
