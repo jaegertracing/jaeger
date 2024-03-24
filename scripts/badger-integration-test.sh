@@ -76,7 +76,7 @@ bring_up_storage() {
 
   # create a dir 
   docker volume create test
-  docker run --rm -v test:"$badger_data" -it busybox sh -c '
+  docker run --rm -v test:"$badger_data" busybox sh -c '
     mkdir -p '"$badger_data"' && \
     touch '"$badger_data"'/.initialized && \
     chown -R 10001:10001 '"$badger_data"'
