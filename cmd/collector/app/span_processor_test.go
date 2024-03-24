@@ -83,6 +83,7 @@ func TestBySvcMetrics(t *testing.T) {
 
 	for _, test := range tests {
 		mb := metricstest.NewFactory(time.Hour)
+		defer mb.Backend.Stop()
 		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
@@ -258,6 +259,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 		err: fmt.Errorf("some-error"),
 	}
 	mb := metricstest.NewFactory(time.Hour)
+	defer mb.Backend.Stop()
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 	p := NewSpanProcessor(w,
 		nil,
@@ -342,6 +344,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 
 func TestSpanProcessorWithNilProcess(t *testing.T) {
 	mb := metricstest.NewFactory(time.Hour)
+	defer mb.Backend.Stop()
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 
 	w := &fakeSpanWriter{}
@@ -440,6 +443,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mb := metricstest.NewFactory(time.Hour)
+			defer mb.Backend.Stop()
 			m := mb.Namespace(metrics.NSOptions{})
 
 			w := &fakeSpanWriter{}
@@ -606,6 +610,7 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 	}
 
 	assert.EqualValues(t, 104857, p.queue.Capacity())
+	require.NoError(t, p.Close())
 }
 
 func TestAdditionalProcessors(t *testing.T) {
