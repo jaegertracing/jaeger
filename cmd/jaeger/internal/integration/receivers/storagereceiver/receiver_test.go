@@ -23,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -254,13 +253,11 @@ func TestReceiver_StartConsume(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				reader := new(spanStoreMocks.Reader)
 				reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return(test.services, nil)
-				for _, service := range test.services {
-					reader.On(
-						"FindTraces",
-						mock.AnythingOfType("*context.cancelCtx"),
-						&spanstore.TraceQueryParameters{ServiceName: service},
-					).Return(test.traces, test.tracesErr)
-				}
+				reader.On(
+					"FindTraces",
+					mock.AnythingOfType("*context.cancelCtx"),
+					mock.AnythingOfType("*spanstore.TraceQueryParameters"),
+				).Return(test.traces, test.tracesErr)
 				r.receiver.spanReader = reader
 
 				require.NoError(t, r.receiver.Shutdown(ctx))
