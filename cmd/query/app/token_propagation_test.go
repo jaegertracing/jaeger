@@ -137,6 +137,7 @@ func TestBearerTokenPropagation(t *testing.T) {
 			resp, err := client.Do(req)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
