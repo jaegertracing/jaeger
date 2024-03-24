@@ -40,7 +40,6 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	if err != nil {
 		return err
 	}
-
 	sw, err := s.factory.CreateSpanWriter()
 	if err != nil {
 		return err
@@ -49,6 +48,16 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	if err != nil {
 		return err
 	}
+
+	s.ArchiveSpanWriter, err = s.factory.CreateArchiveSpanWriter()
+	if err != nil {
+		return err
+	}
+	s.ArchiveSpanReader, err = s.factory.CreateArchiveSpanReader()
+	if err != nil {
+		return err
+	}
+
 	if s.SamplingStore, err = s.factory.CreateSamplingStore(0); err != nil {
 		return err
 	}
