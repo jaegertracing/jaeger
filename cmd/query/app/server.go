@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -299,6 +300,9 @@ func (s *Server) Start() error {
 		grpcPort = port
 	}
 
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		var err error
@@ -312,9 +316,11 @@ func (s *Server) Start() error {
 		}
 
 		s.unavailableChannel <- healthcheck.Unavailable
+		wg.Done()
 	}()
 
 	// Start GRPC server concurrently
+	wg.Add(1)
 	go func() {
 		s.logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
@@ -322,10 +328,12 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.unavailableChannel <- healthcheck.Unavailable
+		wg.Done()
 	}()
 
 	// Start cmux server concurrently.
 	if !s.separatePorts {
+		wg.Add(1)
 		go func() {
 			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
@@ -335,8 +343,14 @@ func (s *Server) Start() error {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
 			s.unavailableChannel <- healthcheck.Unavailable
+			wg.Done()
 		}()
 	}
+
+	go func() {
+		wg.Wait()
+		close(s.unavailableChannel)
+	}()
 
 	return nil
 }

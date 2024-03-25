@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/olivere/elastic"
@@ -30,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -122,10 +124,23 @@ func TestBearerTokenPropagation(t *testing.T) {
 	t.Logf("mock ES server started on %s", esSrv.URL)
 
 	querySrv := runQueryService(t, esSrv.URL)
-	defer querySrv.Close()
 	queryAddr := querySrv.httpConn.Addr().String()
 	// Will try to load service names, this should return 200.
 	url := fmt.Sprintf("http://%s/api/services", queryAddr)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
+	go func() {
+		for s := range querySrv.HealthCheckStatus() {
+			if s == healthcheck.Unavailable {
+				once.Do(func() {
+					wg.Done()
+				})
+			}
+		}
+	}()
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -142,4 +157,7 @@ func TestBearerTokenPropagation(t *testing.T) {
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
+
+	querySrv.Close()
+	wg.Wait()
 }

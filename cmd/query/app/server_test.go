@@ -666,7 +666,6 @@ func TestServerSinglePort(t *testing.T) {
 			}
 
 		}
-		wg.Done()
 	}()
 
 	client := newGRPCClient(t, hostPort)
@@ -730,7 +729,21 @@ func TestServerHandlesPortZero(t *testing.T) {
 		tracer)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
-	defer server.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			flagsSvc.HC().Set(s)
+			if s == healthcheck.Unavailable {
+				once.Do(func() {
+					wg.Done()
+				})
+			}
+		}
+	}()
 
 	message := logs.FilterMessage("Query server started")
 	assert.Equal(t, 1, message.Len(), "Expected 'Query server started' log message.")
@@ -749,6 +762,10 @@ func TestServerHandlesPortZero(t *testing.T) {
 			"grpc.health.v1.Health",
 		},
 	}.Execute(t)
+
+	server.Close()
+	wg.Wait()
+	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
 func TestServerHTTPTenancy(t *testing.T) {
@@ -791,6 +808,20 @@ func TestServerHTTPTenancy(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+	once := sync.Once{}
+
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			if s == healthcheck.Unavailable {
+				once.Do(func() {
+					wg.Done()
+				})
+			}
+		}
+	}()
+
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			conn, clientError := net.DialTimeout("tcp", "localhost:8080", 2*time.Second)
@@ -823,5 +854,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 			}
 		})
 	}
+
 	server.Close()
+	wg.Wait()
 }
