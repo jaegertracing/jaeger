@@ -241,8 +241,5 @@ func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) 
 }
 
 func (sH *StaticAssetsHandler) Close() error {
-	if sH.watcher != nil {
-		return sH.watcher.Close()
-	}
-	return nil
+	return sH.watcher.Close()
 }
