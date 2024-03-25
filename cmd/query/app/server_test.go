@@ -623,6 +623,8 @@ func TestServerInUseHostPort(t *testing.T) {
 			if server.httpConn != nil {
 				server.httpConn.Close()
 			}
+
+			server.Close()
 		})
 	}
 }
