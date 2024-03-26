@@ -130,10 +130,8 @@ func TestCreate(t *testing.T) {
 	depReader := new(depStoreMocks.Reader)
 
 	mock.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
-	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
+	mock.On("CreateSpanWriter").Twice().Return(spanWriter, errors.New("span-writer-error"))
 	mock.On("CreateDependencyReader").Return(depReader, errors.New("dep-reader-error"))
-	mock.On("CreateArchiveSpanReader").Return(spanReader, errors.New("span-reader-error"))
-	mock.On("CreateArchiveSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
 
 	r, err := f.CreateSpanReader()
 	assert.Equal(t, spanReader, r)
@@ -449,14 +447,6 @@ func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
 }
 
 func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
-	panic("implement me")
-}
-
-func (e errorFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	panic("implement me")
-}
-
-func (e errorFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	panic("implement me")
 }
 

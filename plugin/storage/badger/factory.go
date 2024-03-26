@@ -189,16 +189,6 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL), nil
 }
 
-// CreateSpanReader implements storage.Factory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	return badgerStore.NewTraceReader(f.store, f.cache), nil
-}
-
-// CreateSpanWriter implements storage.Factory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL), nil
-}
-
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	sr, _ := f.CreateSpanReader() // err is always nil

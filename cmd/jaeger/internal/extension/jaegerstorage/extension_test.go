@@ -67,14 +67,6 @@ func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	panic("not implemented")
 }
 
-func (e errorFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	panic("not implemented")
-}
-
-func (e errorFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	panic("not implemented")
-}
-
 func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("not implemented")
 }
