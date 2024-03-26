@@ -49,9 +49,13 @@ import (
 func main() {
 	svc := flags.NewService(ports.QueryAdminHTTP)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	primaryFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
-		log.Fatalf("Cannot initialize storage factory: %v", err)
+		log.Fatalf("Cannot initialize primary storage factory: %v", err)
+	}
+	archiveFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	if err != nil {
+		log.Fatalf("Cannot initialize archivestorage factory: %v", err)
 	}
 
 	fc := metricsPlugin.FactoryConfigFromEnv()
@@ -89,16 +93,16 @@ func main() {
 
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
-			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			primaryFactory.InitFromViper(v, logger)
+			if err := primaryFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
-			spanReader, err := storageFactory.CreateSpanReader()
+			spanReader, err := primaryFactory.CreateSpanReader()
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
 			spanReader = spanstoreMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
-			dependencyReader, err := storageFactory.CreateDependencyReader()
+			dependencyReader, err := primaryFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
@@ -107,7 +111,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create metrics query service", zap.Error(err))
 			}
-			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
+			queryServiceOptions := queryOpts.BuildQueryServiceOptions(archiveFactory, logger)
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
@@ -130,8 +134,11 @@ func main() {
 
 			svc.RunAndThen(func() {
 				server.Close()
-				if err := storageFactory.Close(); err != nil {
-					logger.Error("Failed to close storage factory", zap.Error(err))
+				if err := primaryFactory.Close(); err != nil {
+					logger.Error("Failed to close primary storage factory", zap.Error(err))
+				}
+				if err := archiveFactory.Close(); err != nil {
+					logger.Error("Failed to close archive storage factory", zap.Error(err))
 				}
 				if err = jt.Close(context.Background()); err != nil {
 					logger.Fatal("Error shutting down tracer provider", zap.Error(err))
@@ -151,7 +158,8 @@ func main() {
 		v,
 		command,
 		svc.AddFlags,
-		storageFactory.AddFlags,
+		primaryFactory.AddFlags,
+		archiveFactory.AddFlags,
 		app.AddFlags,
 		metricsReaderFactory.AddFlags,
 		// add tenancy flags here to avoid panic caused by double registration in all-in-one
