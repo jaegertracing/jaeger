@@ -60,7 +60,7 @@ type Server struct {
 	httpConn           net.Listener
 	cmuxServer         cmux.CMux
 	grpcServer         *grpc.Server
-	httpServer         httpServer
+	httpServer         *httpServer
 	separatePorts      bool
 	unavailableChannel chan healthcheck.Status
 }
@@ -153,7 +153,7 @@ type httpServer struct {
 	staticHandlerCloser io.Closer
 }
 
-var _ io.Closer = httpServer{}
+var _ io.Closer = (*httpServer)(nil)
 
 func createHTTPServer(
 	querySvc *querysvc.QueryService,
@@ -162,7 +162,7 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	tracer *jtracer.JTracer,
 	logger *zap.Logger,
-) (httpServer, error) {
+) (*httpServer, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
@@ -196,7 +196,7 @@ func createHTTPServer(
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
-	server := httpServer{
+	server := &httpServer{
 		Server: &http.Server{
 			Handler:           recoveryHandler(handler),
 			ErrorLog:          errorLog,
@@ -209,7 +209,7 @@ func createHTTPServer(
 		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
 		if err != nil {
 			staticHandlerCloser.Close()
-			return httpServer{}, err
+			return nil, err
 		}
 		server.TLSConfig = tlsCfg
 
