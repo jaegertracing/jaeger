@@ -620,13 +620,6 @@ func TestServerInUseHostPort(t *testing.T) {
 			err = server.Start()
 			require.Error(t, err)
 
-			if server.grpcConn != nil {
-				server.grpcConn.Close()
-			}
-			if server.httpConn != nil {
-				server.httpConn.Close()
-			}
-
 			server.Close()
 		})
 	}

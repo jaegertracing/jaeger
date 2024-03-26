@@ -366,5 +366,11 @@ func (s *Server) Close() error {
 		s.cmuxServer.Close()
 		errs = append(errs, s.conn.Close())
 	}
+	if s.httpConn != nil {
+		errs = append(errs, s.httpConn.Close())
+	}
+	if s.grpcConn != nil {
+		errs = append(errs, s.grpcConn.Close())
+	}
 	return errors.Join(errs...)
 }
