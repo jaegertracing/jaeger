@@ -186,7 +186,6 @@ func createHTTPServer(
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	staticHandlerCloser := RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
 	var handler http.Handler = r
 	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
@@ -202,18 +201,19 @@ func createHTTPServer(
 			ErrorLog:          errorLog,
 			ReadHeaderTimeout: 2 * time.Second,
 		},
-		staticHandlerCloser: staticHandlerCloser,
 	}
 
 	if queryOpts.TLSHTTP.Enabled {
 		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
 		if err != nil {
-			staticHandlerCloser.Close()
 			return nil, err
 		}
 		server.TLSConfig = tlsCfg
 
 	}
+
+	server.staticHandlerCloser = RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
+
 	return server, nil
 }
 
