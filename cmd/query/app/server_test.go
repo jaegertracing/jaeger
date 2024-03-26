@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
 	"testing"
 	"time"
 
@@ -346,18 +345,9 @@ func TestServerHTTPTLS(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
 
-			var wg sync.WaitGroup
-			wg.Add(1)
-			once := sync.Once{}
-
 			go func() {
 				for s := range server.HealthCheckStatus() {
 					flagsSvc.HC().Set(s)
-					if s == healthcheck.Unavailable {
-						once.Do(func() {
-							wg.Done()
-						})
-					}
 				}
 			}()
 
@@ -425,7 +415,6 @@ func TestServerHTTPTLS(t *testing.T) {
 				}
 			}
 			server.Close()
-			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
@@ -510,18 +499,9 @@ func TestServerGRPCTLS(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
 
-			var wg sync.WaitGroup
-			wg.Add(1)
-			once := sync.Once{}
-
 			go func() {
 				for s := range server.HealthCheckStatus() {
 					flagsSvc.HC().Set(s)
-					if s == healthcheck.Unavailable {
-						once.Do(func() {
-							wg.Done()
-						})
-					}
 				}
 			}()
 
@@ -552,7 +532,6 @@ func TestServerGRPCTLS(t *testing.T) {
 			}
 			require.NoError(t, client.conn.Close())
 			server.Close()
-			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
@@ -648,19 +627,9 @@ func TestServerSinglePort(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	once := sync.Once{}
-
 	go func() {
 		for s := range server.HealthCheckStatus() {
 			flagsSvc.HC().Set(s)
-			if s == healthcheck.Unavailable {
-				once.Do(func() {
-					wg.Done()
-				})
-			}
-
 		}
 	}()
 
@@ -675,7 +644,6 @@ func TestServerSinglePort(t *testing.T) {
 	assert.Equal(t, expectedServices, res.Services)
 
 	server.Close()
-	wg.Wait()
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
@@ -726,18 +694,9 @@ func TestServerHandlesPortZero(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	once := sync.Once{}
-
 	go func() {
 		for s := range server.HealthCheckStatus() {
 			flagsSvc.HC().Set(s)
-			if s == healthcheck.Unavailable {
-				once.Do(func() {
-					wg.Done()
-				})
-			}
 		}
 	}()
 
@@ -760,7 +719,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 	}.Execute(t)
 
 	server.Close()
-	wg.Wait()
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
@@ -803,18 +761,9 @@ func TestServerHTTPTenancy(t *testing.T) {
 		jtracer.NoOp())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	once := sync.Once{}
-
+	defer server.Close()
 	go func() {
-		for s := range server.HealthCheckStatus() {
-			if s == healthcheck.Unavailable {
-				once.Do(func() {
-					wg.Done()
-				})
-			}
+		for range server.HealthCheckStatus() {
 		}
 	}()
 
@@ -850,7 +799,4 @@ func TestServerHTTPTenancy(t *testing.T) {
 			}
 		})
 	}
-
-	server.Close()
-	wg.Wait()
 }

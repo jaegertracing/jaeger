@@ -95,6 +95,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 
+	go func() {
+		for range s.server.HealthCheckStatus() {
+		}
+	}()
+
 	return nil
 }
 
