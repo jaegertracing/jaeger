@@ -50,10 +50,6 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateSpanReader").Return(nil, nil)
 	factory.On("CreateSpanWriter").Return(nil, errors.New("no writer")).Once()
 	factory.On("CreateSpanWriter").Return(nil, nil)
-	factory.On("CreateArchiveSpanReader").Return(nil, errors.New("no reader")).Once()
-	factory.On("CreateArchiveSpanReader").Return(nil, nil)
-	factory.On("CreateArchiveSpanWriter").Return(nil, errors.New("no writer")).Once()
-	factory.On("CreateArchiveSpanWriter").Return(nil, nil)
 	factory.On("CreateDependencyReader").Return(nil, errors.New("no deps")).Once()
 	factory.On("CreateDependencyReader").Return(nil, nil)
 
@@ -109,8 +105,10 @@ func newStorageMocks() *storageMocks {
 	depReader := new(depStoreMocks.Reader)
 
 	factory := new(factoryMocks.Factory)
+	factory.On("CreateSpanReader").Return(reader, nil).Once()
 	factory.On("CreateSpanReader").Return(nil, nil)
-	factory.On("CreateSpanWriter").Return(writer, nil)
+	factory.On("CreateSpanWriter").Return(writer, nil).Once()
+	factory.On("CreateSpanWriter").Return(nil, nil)
 	factory.On("CreateDependencyReader").Return(depReader, nil)
 
 	return &storageMocks{
@@ -160,7 +158,7 @@ func TestCreateGRPCHandler(t *testing.T) {
 
 	_, err = h.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "writer error")
+	assert.Contains(t, err.Error(), "not implemented")
 
 	err = h.WriteSpanStream(nil)
 	require.Error(t, err)
