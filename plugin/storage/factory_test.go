@@ -240,8 +240,8 @@ func TestCreateArchive(t *testing.T) {
 	archiveSpanReader := new(spanStoreMocks.Reader)
 	archiveSpanWriter := new(spanStoreMocks.Writer)
 
-	mock.Factory.On("CreateArchiveSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
-	mock.Factory.On("CreateArchiveSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
+	mock.Factory.On("CreateSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
+	mock.Factory.On("CreateSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
 
 	ar, err := f.CreateArchiveSpanReader()
 	assert.Equal(t, archiveSpanReader, ar)

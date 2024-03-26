@@ -55,7 +55,7 @@ func main() {
 	}
 	archiveFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
-		log.Fatalf("Cannot initialize archivestorage factory: %v", err)
+		log.Fatalf("Cannot initialize archive storage factory: %v", err)
 	}
 
 	fc := metricsPlugin.FactoryConfigFromEnv()
