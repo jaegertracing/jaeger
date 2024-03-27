@@ -61,7 +61,11 @@ type StorageIntegration struct {
 	GetOperationsMissingSpanKind bool
 
 	// TODO: remove this after all storage backends return Source column from GetDependencies
+
 	GetDependenciesReturnsSource bool
+
+	// Skip Archive Test if not supported by the storage backend
+	SkipArchiveTest bool
 
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
@@ -157,21 +161,21 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		References:    []model.SpanRef{},
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
-	if s.ArchiveSpanReader == nil || s.ArchiveSpanWriter == nil {
+	if s.SkipArchiveTest {
 		t.Skip("Skipping ArchiveTrace test because archive reader or writer is nil")
 	}
 	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
 	s.Refresh()
 
 	var actual *model.Trace
-	s.waitForCondition(t, func(t *testing.T) bool {
+	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
 	})
-	// if !assert.True(t, found) {
-	// 	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
-	// }
+	if !assert.True(t, found) {
+		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
+	}
 }
 
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
