@@ -6,10 +6,9 @@ package testutils_test
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/cassandra/gocql/testutils"
-
 	"github.com/gocql/gocql"
-	//"go.uber.org/goleak"
+
+	"github.com/jaegertracing/jaeger/pkg/cassandra/gocql/testutils"
 	goleakTestutils "github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
