@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -35,6 +36,15 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
+
+const (
+	snapshotLocation = "./fixtures/"
+)
+
+// Snapshots can be regenerated via:
+//
+//	REGENERATE_SNAPSHOTS=true go test -v ./plugin/sampling/strategystore/static/strategy_store_test.go
+var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 
 // strategiesJSON returns the strategy with
 // a given probability.
@@ -466,45 +476,54 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
-func TestServiceNoPerOperationStrategies(t *testing.T) {
+func TestProbablisticServiceStrategyNoPerOperationStrategies(t *testing.T) {
 	// given setup of strategy store with no specific per operation sampling strategies
 	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/service_no_per_operation.json"}, zap.NewNop())
 	require.NoError(t, err)
 
-	// expected response for ServiceA (which has probablistic service level sampling strategy)
-	// shall contain /health operation with default service level sampling strategy as well
-	expectedServiceAResponse, errServiceA := makeServiceStrategyResponseFromFile("fixtures/TestServiceNoPerOperationStrategies_response_for_ServiceA.json")
-	require.NoError(t, errServiceA)
-
 	strategy, err := store.GetSamplingStrategy(context.Background(), "ServiceA")
 	require.NoError(t, err)
-	require.NotNil(t, strategy.OperationSampling)
+	strategyJson, err := json.MarshalIndent(strategy, "", "  ")
+	require.NoError(t, err)
 
-	assert.Equal(t, expectedServiceAResponse, strategy)
+	testName := path.Base(t.Name())
+	snapshotFile := filepath.Join(snapshotLocation, testName+".json")
+	if regenerateSnapshots {
+		os.WriteFile(snapshotFile, strategyJson, 0o644)
+	}
+
+	// expected response for ServiceA (which has probablistic service level sampling strategy)
+	// shall contain /health operation with default service level sampling strategy as well
+	expectedServiceResponse, err := os.ReadFile(snapshotFile)
+	require.NoError(t, err)
+
+	assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+		"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+}
+
+func TestRatelimitingServiceStrategyNoPerOperationStrategies(t *testing.T) {
+	// given setup of strategy store with no specific per operation sampling strategies
+	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/service_no_per_operation.json"}, zap.NewNop())
+	require.NoError(t, err)
+
+	strategy, err := store.GetSamplingStrategy(context.Background(), "ServiceB")
+	require.NoError(t, err)
+	strategyJson, err := json.MarshalIndent(strategy, "", "  ")
+	require.NoError(t, err)
+
+	testName := path.Base(t.Name())
+	snapshotFile := filepath.Join(snapshotLocation, testName+".json")
+	if regenerateSnapshots {
+		os.WriteFile(snapshotFile, strategyJson, 0o644)
+	}
 
 	// expected response for ServiceB (which has ratelimiting service level sampling strategy)
 	// shall contain /health operation with sampling probability taken from default operation level strategy
-	expectedServiceBResponse, errServiceB := makeServiceStrategyResponseFromFile("fixtures/TestServiceNoPerOperationStrategies_response_for_ServiceB.json")
-	require.NoError(t, errServiceB)
-
-	strategy, err = store.GetSamplingStrategy(context.Background(), "ServiceB")
+	expectedServiceResponse, err := os.ReadFile(snapshotFile)
 	require.NoError(t, err)
-	require.NotNil(t, strategy.OperationSampling)
 
-	assert.Equal(t, expectedServiceBResponse, strategy)
-}
-
-func makeServiceStrategyResponseFromFile(serviceStrategyFile string) (resp *api_v2.SamplingStrategyResponse, err error) {
-	strategyBytes, err := os.ReadFile(filepath.Clean(serviceStrategyFile))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read SamplingStrategyResponse file %s: %w", serviceStrategyFile, err)
-	}
-	err = json.Unmarshal(strategyBytes, &resp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal SamplingStrategyResponse: %w", err)
-	} else {
-		return resp, nil
-	}
+	assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+		"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 }
 
 func TestSamplingStrategyLoader(t *testing.T) {
