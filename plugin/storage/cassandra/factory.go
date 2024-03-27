@@ -49,7 +49,6 @@ const (
 
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
-	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
 	_ plugin.Configurable          = (*Factory)(nil)
@@ -163,7 +162,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
+// CreateArchiveSpanReader implements storage.Factory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
@@ -171,7 +170,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader")), nil
 }
 
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
+// CreateArchiveSpanWriter implements storage.Factory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured

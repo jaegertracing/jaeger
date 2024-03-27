@@ -130,7 +130,7 @@ func TestCreate(t *testing.T) {
 	depReader := new(depStoreMocks.Reader)
 
 	mock.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
-	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
+	mock.On("CreateSpanWriter").Twice().Return(spanWriter, errors.New("span-writer-error"))
 	mock.On("CreateDependencyReader").Return(depReader, errors.New("dep-reader-error"))
 
 	r, err := f.CreateSpanReader()
@@ -146,10 +146,10 @@ func TestCreate(t *testing.T) {
 	require.EqualError(t, err, "dep-reader-error")
 
 	_, err = f.CreateArchiveSpanReader()
-	require.EqualError(t, err, "archive storage not supported")
+	require.EqualError(t, err, "span-reader-error")
 
 	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "archive storage not supported")
+	require.EqualError(t, err, "span-writer-error")
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	m := metrics.NullFactory
@@ -234,15 +234,14 @@ func TestCreateArchive(t *testing.T) {
 
 	mock := &struct {
 		mocks.Factory
-		mocks.ArchiveFactory
 	}{}
 	f.factories[cassandraStorageType] = mock
 
 	archiveSpanReader := new(spanStoreMocks.Reader)
 	archiveSpanWriter := new(spanStoreMocks.Writer)
 
-	mock.ArchiveFactory.On("CreateArchiveSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
-	mock.ArchiveFactory.On("CreateArchiveSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
+	mock.Factory.On("CreateSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
+	mock.Factory.On("CreateSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
 
 	ar, err := f.CreateArchiveSpanReader()
 	assert.Equal(t, archiveSpanReader, ar)

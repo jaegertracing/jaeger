@@ -33,7 +33,6 @@ import (
 
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
-	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ plugin.Configurable          = (*Factory)(nil)
 )
@@ -98,12 +97,12 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return f.store, nil
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
+// CreateArchiveSpanReader implements storage.Factory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return f.store, nil
 }
 
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
+// CreateArchiveSpanWriter implements storage.Factory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	return f.store, nil
 }
