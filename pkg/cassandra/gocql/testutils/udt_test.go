@@ -9,6 +9,7 @@ import (
 	"github.com/gocql/gocql"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/gocql/testutils"
+	goleakTestutils "github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 // CustomUDT is a custom type that implements gocql.UDTMarshaler and gocql.UDTUnmarshaler interfaces.
@@ -78,4 +79,8 @@ func TestUDTTestCase(t *testing.T) {
 	}
 
 	testCase.Run(t)
+}
+
+func TestMain(m *testing.M) {
+	goleakTestutils.VerifyGoLeaks(m)
 }
