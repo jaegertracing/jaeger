@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gocql/gocql"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/gocql/testutils"
 )
@@ -78,4 +79,7 @@ func TestUDTTestCase(t *testing.T) {
 	}
 
 	testCase.Run(t)
+}
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
