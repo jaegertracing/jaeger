@@ -1,0 +1,17 @@
+{
+  "strategyType": 1,
+  "rateLimitingSampling": {
+    "maxTracesPerSecond": 3
+  },
+  "operationSampling": {
+    "defaultSamplingProbability": 0.2,
+    "perOperationStrategies": [
+      {
+        "operation": "/health",
+        "probabilisticSampling": {
+          "samplingRate": 0.1
+        }
+      }
+    ]
+  }
+}

@@ -18,7 +18,7 @@
            {
              "operation": "/health",
              "type": "probabilistic",
-             "param": 0.0
+             "param": 0.1
            }
          ]
        }

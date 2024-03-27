@@ -229,13 +229,16 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		// is not merged with and only used as a fallback).
 		opS := newStore.serviceStrategies[s.Service].OperationSampling
 		if opS == nil {
-			if newStore.defaultStrategy.OperationSampling == nil ||
-				newStore.serviceStrategies[s.Service].ProbabilisticSampling == nil {
+			// no default per-operation strategies - just move on
+			if newStore.defaultStrategy.OperationSampling == nil {
 				continue
 			}
-			// Service has no per-operation strategies, so just reference the default settings and change default samplingRate.
+			// Service has no per-operation strategies, so just reference the default settings
+			// and change default samplingRate to the value defined in service strategy if value is available.
 			newOpS := *newStore.defaultStrategy.OperationSampling
-			newOpS.DefaultSamplingProbability = newStore.serviceStrategies[s.Service].ProbabilisticSampling.SamplingRate
+			if newStore.serviceStrategies[s.Service].ProbabilisticSampling != nil {
+				newOpS.DefaultSamplingProbability = newStore.serviceStrategies[s.Service].ProbabilisticSampling.SamplingRate
+			}
 			newStore.serviceStrategies[s.Service].OperationSampling = &newOpS
 			continue
 		}
