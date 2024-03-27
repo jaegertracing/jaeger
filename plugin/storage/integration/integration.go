@@ -170,7 +170,11 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		return err == nil && len(actual.Spans) == 1
 	})
 	if !assert.True(t, found) {
-		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
+		if actual != nil {
+			CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
+		} else {
+			t.Error("Failed to retrieve trace from archive")
+		}
 	}
 }
 

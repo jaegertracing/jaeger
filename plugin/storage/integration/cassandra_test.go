@@ -36,6 +36,7 @@ var errInitializeCassandraDependencyWriter = errors.New("failed to initialize ca
 
 type CassandraStorageIntegration struct {
 	StorageIntegration
+
 	session dbsession.Session
 	logger  *zap.Logger
 }
