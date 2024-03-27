@@ -29,7 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
@@ -37,9 +36,8 @@ var errInitializeCassandraDependencyWriter = errors.New("failed to initialize ca
 
 type CassandraStorageIntegration struct {
 	StorageIntegration
-	archiveFactory storage.ArchiveFactory
-	session        dbsession.Session
-	logger         *zap.Logger
+	session dbsession.Session
+	logger  *zap.Logger
 }
 
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
@@ -96,14 +94,6 @@ func (s *CassandraStorageIntegration) initializeCassandra() error {
 	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
 		return err
 	}
-	if s.archiveFactory != nil {
-		if s.ArchiveSpanWriter, err = s.archiveFactory.CreateArchiveSpanWriter(); err != nil {
-			return err
-		}
-		if s.ArchiveSpanReader, err = s.archiveFactory.CreateArchiveSpanReader(); err != nil {
-			return err
-		}
-	}
 	if s.SamplingStore, err = f.CreateSamplingStore(0); err != nil {
 		return err
 	}
@@ -134,11 +124,6 @@ func TestCassandraStorage(t *testing.T) {
 		t.Skip("Integration test against Cassandra skipped; set STORAGE env var to cassandra to run this")
 	}
 	s := newCassandraStorageIntegration()
-	archiveFactory, ok := s.archiveFactory.(*cassandra.Factory)
-	if !ok {
-		t.Skip("Archive storage not supported by the factory")
-	}
-	s.archiveFactory = archiveFactory
 	require.NoError(t, s.initializeCassandra())
 	s.IntegrationTestAll(t)
 }
