@@ -14,6 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
@@ -81,6 +82,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	//nolint
 	s.server, err = queryApp.NewServer(
 		s.logger,
+		healthcheck.New(),
 		qs,
 		metricsQueryService,
 		s.makeQueryOptions(),

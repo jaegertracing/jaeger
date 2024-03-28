@@ -93,7 +93,7 @@ func TestStartErrors(t *testing.T) {
 			go s.RunAndThen(shutdown)
 
 			waitForEqual(t, healthcheck.Ready, func() interface{} { return s.HC().Get() })
-			s.SetHealthCheckStatus(healthcheck.Unavailable)
+			s.HC().Set(healthcheck.Unavailable)
 			waitForEqual(t, healthcheck.Unavailable, func() interface{} { return s.HC().Get() })
 
 			s.signalsChannel <- os.Interrupt
