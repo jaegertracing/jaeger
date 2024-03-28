@@ -49,7 +49,7 @@ func TestNotExistingUiConfig(t *testing.T) {
 func TestRegisterStaticHandlerPanic(t *testing.T) {
 	logger, buf := testutils.NewLogger()
 	assert.Panics(t, func() {
-		RegisterStaticHandler(
+		closer := RegisterStaticHandler(
 			mux.NewRouter(),
 			logger,
 			&QueryOptions{
@@ -61,6 +61,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 			},
 			querysvc.StorageCapabilities{ArchiveStorage: false},
 		)
+		defer closer.Close()
 	})
 	assert.Contains(t, buf.String(), "Could not create static assets handler")
 	assert.Contains(t, buf.String(), "no such file or directory")
@@ -118,7 +119,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			if testCase.subroute {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
-			RegisterStaticHandler(r, logger, &QueryOptions{
+			closer := RegisterStaticHandler(r, logger, &QueryOptions{
 				QueryOptionsBase: QueryOptionsBase{
 					StaticAssets: QueryOptionsStaticAssets{
 						Path:      "fixture",
@@ -130,6 +131,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			},
 				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage},
 			)
+			defer closer.Close()
 
 			server := httptest.NewServer(r)
 			defer server.Close()
@@ -199,6 +201,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 		Logger:       logger,
 	})
 	require.NoError(t, err)
+	defer h.Close()
 
 	c := string(h.indexHTML.Load().([]byte))
 	assert.Contains(t, c, "About Jaeger")

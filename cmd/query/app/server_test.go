@@ -354,6 +354,8 @@ func TestServerHTTPTLS(t *testing.T) {
 				var err0 error
 
 				clientTLSCfg, err0 = test.clientTLS.Config(zap.NewNop())
+				defer test.clientTLS.Close()
+
 				require.NoError(t, err0)
 				dialer := &net.Dialer{Timeout: 2 * time.Second}
 				conn, err1 := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
@@ -497,6 +499,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			if serverOptions.TLSGRPC.Enabled {
 				clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
 				require.NoError(t, err0)
+				defer test.clientTLS.Close()
 				creds := credentials.NewTLS(clientTLSCfg)
 				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), creds)
 
@@ -585,12 +588,7 @@ func TestServerInUseHostPort(t *testing.T) {
 			err = server.Start()
 			require.Error(t, err)
 
-			if server.grpcConn != nil {
-				server.grpcConn.Close()
-			}
-			if server.httpConn != nil {
-				server.httpConn.Close()
-			}
+			server.Close()
 		})
 	}
 }

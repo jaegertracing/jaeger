@@ -17,6 +17,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -59,7 +60,7 @@ type Server struct {
 	httpConn      net.Listener
 	cmuxServer    cmux.CMux
 	grpcServer    *grpc.Server
-	httpServer    *http.Server
+	httpServer    *httpServer
 	separatePorts bool
 }
 
@@ -141,6 +142,13 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	return server, nil
 }
 
+type httpServer struct {
+	*http.Server
+	staticHandlerCloser io.Closer
+}
+
+var _ io.Closer = (*httpServer)(nil)
+
 func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
@@ -148,7 +156,7 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	tracer *jtracer.JTracer,
 	logger *zap.Logger,
-) (*http.Server, error) {
+) (*httpServer, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
@@ -172,7 +180,6 @@ func createHTTPServer(
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
 	var handler http.Handler = r
 	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
@@ -182,10 +189,12 @@ func createHTTPServer(
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
-	server := &http.Server{
-		Handler:           recoveryHandler(handler),
-		ErrorLog:          errorLog,
-		ReadHeaderTimeout: 2 * time.Second,
+	server := &httpServer{
+		Server: &http.Server{
+			Handler:           recoveryHandler(handler),
+			ErrorLog:          errorLog,
+			ReadHeaderTimeout: 2 * time.Second,
+		},
 	}
 
 	if queryOpts.TLSHTTP.Enabled {
@@ -196,7 +205,17 @@ func createHTTPServer(
 		server.TLSConfig = tlsCfg
 
 	}
+
+	server.staticHandlerCloser = RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
+
 	return server, nil
+}
+
+func (hS httpServer) Close() error {
+	var errs []error
+	errs = append(errs, hS.Server.Close())
+	errs = append(errs, hS.staticHandlerCloser.Close())
+	return errors.Join(errs...)
 }
 
 // initListener initialises listeners of the server
@@ -327,6 +346,12 @@ func (s *Server) Close() error {
 	if !s.separatePorts {
 		s.cmuxServer.Close()
 		errs = append(errs, s.conn.Close())
+	}
+	if s.httpConn != nil {
+		errs = append(errs, s.httpConn.Close())
+	}
+	if s.grpcConn != nil {
+		errs = append(errs, s.grpcConn.Close())
 	}
 	return errors.Join(errs...)
 }
