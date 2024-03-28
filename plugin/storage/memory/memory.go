@@ -107,20 +107,12 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 		if traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
 				parentSpan := findSpan(trace, s.ParentSpanID())
-				if parentSpan != nil {
-					if parentSpan.Process.ServiceName == s.Process.ServiceName {
-						continue
-					}
-					depKey := parentSpan.Process.ServiceName + "&&&" + s.Process.ServiceName
-					if _, ok := deps[depKey]; !ok {
-						deps[depKey] = &model.DependencyLink{
-							Parent:    parentSpan.Process.ServiceName,
-							Child:     s.Process.ServiceName,
-							CallCount: 1,
-						}
-					} else {
-						deps[depKey].CallCount++
-					}
+				if parentSpan != nil && parentSpan.Process.ServiceName != s.Process.ServiceName {
+					updateServiceDependencyLinks(parentSpan.Process.ServiceName, s.Process.ServiceName, deps)
+				}
+				if isLeaf(s, trace.Spans) && (isClientSpan(s) || isProducerSpan(s)) {
+					childService := inferServiceName(s)
+					updateServiceDependencyLinks(s.Process.ServiceName, childService, deps)
 				}
 			}
 		}
@@ -338,4 +330,74 @@ func flattenTags(span *model.Span) model.KeyValues {
 		retMe = append(retMe, l.Fields...)
 	}
 	return retMe
+}
+
+func isLeaf(span *model.Span, spans []*model.Span) bool {
+	for _, s := range spans {
+		for _, ref := range s.References {
+			if ref.RefType == model.ChildOf && ref.SpanID == span.SpanID {
+				return false // Not a leaf if it's the parent of another span
+			}
+		}
+	}
+	return true
+}
+
+func isClientSpan(span *model.Span) bool {
+	kind, found := getTagValue(span, "span.kind")
+	return found && kind == "client"
+}
+
+func isProducerSpan(span *model.Span) bool {
+	kind, found := getTagValue(span, "span.kind")
+	return found && (kind == "producer" || kind == "messaging.producer")
+}
+
+func updateServiceDependencyLinks(parentService, childService string, deps map[string]*model.DependencyLink) {
+	if parentService != childService {
+		depKey := parentService + "&&&" + childService
+		if _, ok := deps[depKey]; !ok {
+			deps[depKey] = &model.DependencyLink{
+				Parent:    parentService,
+				Child:     childService,
+				CallCount: 1,
+			}
+		} else {
+			deps[depKey].CallCount++
+		}
+	}
+}
+
+func inferServiceName(span *model.Span) string {
+	if peerService, found := getTagValue(span, "peer.service"); found {
+		return peerService
+	}
+
+	// Check for RPC service name
+	if rpcService, found := getTagValue(span, "rpc.service"); found {
+		return "rpc-" + rpcService
+	}
+
+	// Check for HTTP service name via route or URL
+	if httpRoute, found := getTagValue(span, "http.route"); found {
+		return "http-" + httpRoute
+	}
+
+	// Check for Database service name via DB name or connection string
+	if dbSystem, found := getTagValue(span, "db.system"); found {
+		dbName := dbSystem
+		if dbName == "" {
+			dbName = "unknown"
+		}
+		return "db-" + dbName
+	}
+
+	return "inferred::" + span.OperationName
+}
+
+func getTagValue(span *model.Span, key string) (string, bool) {
+	if tag, ok := model.KeyValues(span.Tags).FindByKey(key); ok {
+		return tag.VStr, true
+	}
+	return "", false
 }
