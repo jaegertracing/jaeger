@@ -260,8 +260,10 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 	if archive {
 		s.ArchiveSpanReader = s.SpanReader
 		s.ArchiveSpanWriter = s.SpanWriter
+		s.SkipArchiveTest = false
 		t.Run("ArchiveTrace", s.testArchiveTrace)
 	} else {
+		s.SkipArchiveTest = true
 		s.IntegrationTestAll(t)
 	}
 }
