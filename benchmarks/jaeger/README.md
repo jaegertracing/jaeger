@@ -1,0 +1,1 @@
+The given `docker-compose.yml` file can be used to get benchmarks on a single machine. To avoid noisy neighbour effect, set the `docker-compose.yml` file in a separate machine and replace `elasticsearch` in line 60 in the given `docker-compose.yml` file with the IP address of the machine where the `elasticsearch` is running.

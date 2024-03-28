@@ -1,0 +1,1 @@
+Replace `jaeger-collector` in line 21 with the actual host IP of where Jaeger-collector is hosted. 

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=jaeger
+      - ELASTIC_USERNAME=jaeger
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.enabled=false
+    ports:
+      - 9200:9200
+      - 9300:9300
+
+  tracegen:
+    image: jaegertracing/jaeger-tracegen
+    container_name: tracegen
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger-collector:4318/v1/traces
+    command: [
+      "-spans", "10",
+      "-traces", "150000",
+      "-services", "2",
+    ]

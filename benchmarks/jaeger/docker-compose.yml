@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    expose:
+      - 9100
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    expose:
+      - 9090
+    ports:
+      - 9090:9090
+    
+    depends_on:
+      - node-exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    
+
+  jaeger-collector:
+    image: jaegertracing/jaeger-collector:latest
+    container_name: jaeger-collector
+    restart: unless-stopped
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+      - LOG_LEVEL=info
+    ports:
+      - 14268:14268
+      - 14269:14269
+      - 14250:14250
+      - 9411:9411
+    depends_on:
+      - elasticsearch
+    
+  # jaeger-v2:
+  #   image: jaegertracing/jaeger:latest
+  #   container_name: jaeger-v2
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./config-v2.yml:/etc/jaeger/config.yml
+  #   command: [
+  #     "--config=/etc/jaeger/config.yml",
+  #   ]
+  #   depends_on:
+  #     - elasticsearch
+  #   networks:
+  #     - monitoring
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=jaeger
+      - ELASTIC_USERNAME=jaeger
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.enabled=false
+    ports:
+      - 9200:9200
+      - 9300:9300
+
+  tracegen:
+    image: jaegertracing/jaeger-tracegen
+    container_name: tracegen
+    environment:
+      # - OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger-collector:14268/api/traces
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger-collector:4318/v1/traces
+    command: [
+      "-spans", "10",
+      "-traces", "150000",
+      "-services", "2",
+    ]
+    depends_on:
+      - jaeger-collector
+    
+volumes:
+  prometheus-data:
+  grafana-data:
