@@ -173,10 +173,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
 	})
-	if !found {
-		t.Fatalf("Expected trace not found in the archive")
-	}
-
+	require.True(t, found)
 	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
