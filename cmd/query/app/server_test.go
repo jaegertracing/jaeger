@@ -66,7 +66,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 	}
 
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(zap.NewNop(), healthcheck.New(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
 	require.Error(t, err)
@@ -80,7 +80,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 		ClientCAPath: "invalid/path",
 	}
 
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(zap.NewNop(), healthcheck.New(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
 	require.Error(t, err)
@@ -94,7 +94,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 		ClientCAPath: "invalid/path",
 	}
 
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(zap.NewNop(), healthcheck.New(), &querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
 	require.Error(t, err)
@@ -339,17 +339,11 @@ func TestServerHTTPTLS(t *testing.T) {
 			spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-				serverOptions, tenancy.NewManager(&tenancy.Options{}),
+			server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc,
+				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				jtracer.NoOp())
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
-
-			go func() {
-				for s := range server.HealthCheckStatus() {
-					flagsSvc.HC().Set(s)
-				}
-			}()
 
 			var clientError error
 			var clientClose func() error
@@ -493,17 +487,11 @@ func TestServerGRPCTLS(t *testing.T) {
 			spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-			server, err := NewServer(flagsSvc.Logger, querySvc, nil,
-				serverOptions, tenancy.NewManager(&tenancy.Options{}),
+			server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc,
+				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				jtracer.NoOp())
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
-
-			go func() {
-				for s := range server.HealthCheckStatus() {
-					flagsSvc.HC().Set(s)
-				}
-			}()
 
 			var clientError error
 			var client *grpcClient
@@ -538,7 +526,7 @@ func TestServerGRPCTLS(t *testing.T) {
 }
 
 func TestServerBadHostPort(t *testing.T) {
-	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(zap.NewNop(), healthcheck.New(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTPHostPort: "8080",
 			GRPCHostPort: "127.0.0.1:8081",
@@ -550,7 +538,7 @@ func TestServerBadHostPort(t *testing.T) {
 		jtracer.NoOp())
 
 	require.Error(t, err)
-	_, err = NewServer(zap.NewNop(), &querysvc.QueryService{}, nil,
+	_, err = NewServer(zap.NewNop(), healthcheck.New(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTPHostPort: "127.0.0.1:8081",
 			GRPCHostPort: "9123",
@@ -582,6 +570,7 @@ func TestServerInUseHostPort(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			server, err := NewServer(
 				zap.NewNop(),
+				healthcheck.New(),
 				&querysvc.QueryService{},
 				nil,
 				&QueryOptions{
@@ -614,7 +603,7 @@ func TestServerSinglePort(t *testing.T) {
 	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
+	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{
 			GRPCHostPort: hostPort,
 			HTTPHostPort: hostPort,
@@ -626,12 +615,6 @@ func TestServerSinglePort(t *testing.T) {
 		jtracer.NoOp())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
-
-	go func() {
-		for s := range server.HealthCheckStatus() {
-			flagsSvc.HC().Set(s)
-		}
-	}()
 
 	client := newGRPCClient(t, hostPort)
 	defer client.conn.Close()
@@ -659,15 +642,11 @@ func TestServerGracefulExit(t *testing.T) {
 	querySvc := &querysvc.QueryService{}
 	tracer := jtracer.NoOp()
 
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil, &QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
+	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
+		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
 		tenancy.NewManager(&tenancy.Options{}), tracer)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
-	go func() {
-		for s := range server.HealthCheckStatus() {
-			flagsSvc.HC().Set(s)
-		}
-	}()
 
 	// Wait for servers to come up before we can call .Close()
 	// TODO Find a way to wait only as long as necessary. Unconditional sleep slows down the tests.
@@ -687,18 +666,13 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := jtracer.NoOp()
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
+	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"},
 		tenancy.NewManager(&tenancy.Options{}),
 		tracer)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
-
-	go func() {
-		for s := range server.HealthCheckStatus() {
-			flagsSvc.HC().Set(s)
-		}
-	}()
+	defer server.Close()
 
 	message := logs.FilterMessage("Query server started")
 	assert.Equal(t, 1, message.Len(), "Expected 'Query server started' log message.")
@@ -717,9 +691,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 			"grpc.health.v1.Health",
 		},
 	}.Execute(t)
-
-	server.Close()
-	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
 func TestServerHTTPTenancy(t *testing.T) {
@@ -756,16 +727,10 @@ func TestServerHTTPTenancy(t *testing.T) {
 	dependencyReader := &depsmocks.Reader{}
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-	server, err := NewServer(zap.NewNop(), querySvc, nil,
-		serverOptions, tenancyMgr,
-		jtracer.NoOp())
+	server, err := NewServer(zap.NewNop(), healthcheck.New(), querySvc,
+		nil, serverOptions, tenancyMgr, jtracer.NoOp())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
-	defer server.Close()
-	go func() {
-		for range server.HealthCheckStatus() {
-		}
-	}()
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
@@ -799,4 +764,5 @@ func TestServerHTTPTenancy(t *testing.T) {
 			}
 		})
 	}
+	server.Close()
 }

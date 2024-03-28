@@ -21,7 +21,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -50,24 +49,23 @@ import (
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
 	logger       *zap.Logger
+	healthCheck  *healthcheck.HealthCheck
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
 	tracer *jtracer.JTracer // TODO make part of flags.Service
 
-	conn               net.Listener
-	grpcConn           net.Listener
-	httpConn           net.Listener
-	cmuxServer         cmux.CMux
-	grpcServer         *grpc.Server
-	httpServer         *httpServer
-	separatePorts      bool
-	unavailableChannel chan healthcheck.Status
-	waitGroup          sync.WaitGroup
+	conn          net.Listener
+	grpcConn      net.Listener
+	httpConn      net.Listener
+	cmuxServer    cmux.CMux
+	grpcServer    *grpc.Server
+	httpServer    *httpServer
+	separatePorts bool
 }
 
 // NewServer creates and initializes Server
-func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, tracer *jtracer.JTracer) (*Server, error) {
+func NewServer(logger *zap.Logger, healthCheck *healthcheck.HealthCheck, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, tracer *jtracer.JTracer) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
 		return nil, fmt.Errorf("invalid HTTP server host:port: %w", err)
@@ -92,21 +90,15 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 	}
 
 	return &Server{
-		logger:             logger,
-		querySvc:           querySvc,
-		queryOptions:       options,
-		tracer:             tracer,
-		grpcServer:         grpcServer,
-		httpServer:         httpServer,
-		separatePorts:      grpcPort != httpPort,
-		unavailableChannel: make(chan healthcheck.Status),
+		logger:        logger,
+		healthCheck:   healthCheck,
+		querySvc:      querySvc,
+		queryOptions:  options,
+		tracer:        tracer,
+		grpcServer:    grpcServer,
+		httpServer:    httpServer,
+		separatePorts: grpcPort != httpPort,
 	}, nil
-}
-
-// HealthCheckStatus returns health check status channel a client can subscribe to.
-// The Stop method will block until this channel has been fully consumed.
-func (s *Server) HealthCheckStatus() chan healthcheck.Status {
-	return s.unavailableChannel
 }
 
 func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, logger *zap.Logger, tracer *jtracer.JTracer) (*grpc.Server, error) {
@@ -302,7 +294,6 @@ func (s *Server) Start() error {
 		grpcPort = port
 	}
 
-	s.waitGroup.Add(1)
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		var err error
@@ -315,25 +306,21 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
 
-		s.unavailableChannel <- healthcheck.Unavailable
-		s.waitGroup.Done()
+		s.healthCheck.Set(healthcheck.Unavailable)
 	}()
 
 	// Start GRPC server concurrently
-	s.waitGroup.Add(1)
 	go func() {
 		s.logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
-		s.unavailableChannel <- healthcheck.Unavailable
-		s.waitGroup.Done()
+		s.healthCheck.Set(healthcheck.Unavailable)
 	}()
 
 	// Start cmux server concurrently.
 	if !s.separatePorts {
-		s.waitGroup.Add(1)
 		go func() {
 			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
@@ -342,16 +329,14 @@ func (s *Server) Start() error {
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
-			s.unavailableChannel <- healthcheck.Unavailable
-			s.waitGroup.Done()
+			s.healthCheck.Set(healthcheck.Unavailable)
 		}()
 	}
 
 	return nil
 }
 
-// Close stops http, GRPC servers and closes the port listener. This will block
-// until all all values of the HealthCheckStatus channel have been received.
+// Close stops http, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
 	var errs []error
 	errs = append(errs, s.queryOptions.TLSGRPC.Close())
@@ -368,9 +353,5 @@ func (s *Server) Close() error {
 	if s.grpcConn != nil {
 		errs = append(errs, s.grpcConn.Close())
 	}
-	// Wait for all servers to return, and then close the unavailableChannel to
-	// unblock any goroutines reading from HealthCheckStatus
-	s.waitGroup.Wait()
-	close(s.unavailableChannel)
 	return errors.Join(errs...)
 }

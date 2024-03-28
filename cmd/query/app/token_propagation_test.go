@@ -91,7 +91,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	require.NoError(t, err)
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
+	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{
 			GRPCHostPort: ":0",
 			HTTPHostPort: ":0",
@@ -124,11 +124,6 @@ func TestBearerTokenPropagation(t *testing.T) {
 
 	querySrv := runQueryService(t, esSrv.URL)
 	defer querySrv.Close()
-	go func() {
-		for range querySrv.HealthCheckStatus() {
-		}
-	}()
-
 	queryAddr := querySrv.httpConn.Addr().String()
 	// Will try to load service names, this should return 200.
 	url := fmt.Sprintf("http://%s/api/services", queryAddr)
