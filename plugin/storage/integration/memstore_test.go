@@ -36,9 +36,12 @@ func (s *MemStorageIntegrationTestSuite) initialize() error {
 	s.logger, _ = testutils.NewLogger()
 
 	store := memory.NewStore()
+	archiveStore := memory.NewStore()
 	s.SamplingStore = memory.NewSamplingStore(2)
 	s.SpanReader = store
 	s.SpanWriter = store
+	s.ArchiveSpanReader = archiveStore
+	s.ArchiveSpanWriter = archiveStore
 
 	// TODO DependencyWriter is not implemented in memory store
 

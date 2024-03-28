@@ -64,6 +64,7 @@ func (s *BadgerIntegrationStorage) initialize() error {
 
 	// TODO: remove this badger supports returning spanKind from GetOperations
 	s.GetOperationsMissingSpanKind = true
+	s.SkipArchiveTest = true
 	return nil
 }
 
