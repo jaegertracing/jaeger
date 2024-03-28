@@ -82,6 +82,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	//nolint
 	s.server, err = queryApp.NewServer(
 		s.logger,
+		// TODO propagate healthcheck updates up to the collector's runtime
 		healthcheck.New(),
 		qs,
 		metricsQueryService,
