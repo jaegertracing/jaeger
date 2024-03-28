@@ -173,9 +173,8 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
 	})
-	if !assert.True(t, found) {
-		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
-	}
+	require.True(t, found)
+	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
