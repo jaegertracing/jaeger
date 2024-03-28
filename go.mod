@@ -10,7 +10,7 @@ require (
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger/v3 v3.2103.5
-	github.com/elastic/go-elasticsearch/v8 v8.12.1
+	github.com/elastic/go-elasticsearch/v8 v8.13.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-kit/kit v0.13.0
 	github.com/go-logr/zapr v1.3.0
@@ -99,7 +99,7 @@ require (
 	github.com/eapache/go-resiliency v1.6.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/elastic/elastic-transport-go/v8 v8.4.0 // indirect
+	github.com/elastic/elastic-transport-go/v8 v8.5.0 // indirect
 	github.com/expr-lang/expr v1.16.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -220,7 +220,7 @@ require (
 	go.opentelemetry.io/collector/extension/auth v0.96.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.3.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.96.0 // indirect
-	go.opentelemetry.io/collector/service v0.96.0 // indirect
+	go.opentelemetry.io/collector/service v0.96.0
 	go.opentelemetry.io/contrib/config v0.4.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.24.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.49.0 // indirect
