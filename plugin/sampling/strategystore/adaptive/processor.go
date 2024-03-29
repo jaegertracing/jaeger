@@ -110,7 +110,8 @@ type Processor struct {
 
 	serviceCache []SamplingCache
 
-	shutdown chan struct{}
+	shutdown   chan struct{}
+	bgFinished sync.WaitGroup
 
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
@@ -170,19 +171,28 @@ func (p *Processor) Start() error {
 	p.shutdown = make(chan struct{})
 	p.loadProbabilities()
 	p.generateStrategyResponses()
-	go p.runCalculationLoop()
-	go p.runUpdateProbabilitiesLoop()
+	p.runBackground(p.runCalculationLoop)
+	p.runBackground(p.runUpdateProbabilitiesLoop)
 	return nil
+}
+
+func (p *Processor) runBackground(f func()) {
+	p.bgFinished.Add(1)
+	go func() {
+		f()
+		p.bgFinished.Done()
+	}()
 }
 
 // Close stops the processor from calculating probabilities.
 func (p *Processor) Close() error {
 	p.logger.Info("stopping adaptive sampling processor")
-	if err := p.electionParticipant.Close(); err != nil {
-		return err
+	err := p.electionParticipant.Close()
+	if p.shutdown != nil {
+		close(p.shutdown)
 	}
-	close(p.shutdown)
-	return nil
+	p.bgFinished.Wait()
+	return err
 }
 
 func (p *Processor) loadProbabilities() {
@@ -272,7 +282,7 @@ func (p *Processor) runCalculationLoop() {
 				// be way longer than the time to run the calculations.
 				p.generateStrategyResponses()
 				p.calculateProbabilitiesLatency.Record(time.Since(startTime))
-				go p.saveProbabilitiesAndQPS()
+				p.runBackground(p.saveProbabilitiesAndQPS)
 			}
 		case <-p.shutdown:
 			return

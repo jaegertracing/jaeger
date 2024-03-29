@@ -359,6 +359,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	}
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
+	p.followerRefreshInterval = time.Millisecond
 	p.Start()
 
 	for i := 0; i < 1000; i++ {
@@ -392,9 +393,17 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	}
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
+	p.followerRefreshInterval = time.Millisecond
 	p.shutdown = make(chan struct{})
-	defer close(p.shutdown)
-	go p.runCalculationLoop()
+	done := make(chan struct{})
+	go func() {
+		p.runCalculationLoop()
+		close(done)
+	}()
+	defer func() {
+		close(p.shutdown)
+		<-done
+	}()
 
 	for i := 0; i < 1000; i++ {
 		// match logs specific to getThroughputErrMsg. We expect to see more than 2, once during
@@ -432,10 +441,17 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 		followerRefreshInterval: time.Millisecond,
 		electionParticipant:     mockEP,
 	}
-	defer close(p.shutdown)
 	require.Nil(t, p.probabilities)
 	require.Nil(t, p.strategyResponses)
-	go p.runUpdateProbabilitiesLoop()
+	done := make(chan struct{})
+	go func() {
+		p.runUpdateProbabilitiesLoop()
+		close(done)
+	}()
+	defer func() {
+		close(p.shutdown)
+		<-done
+	}()
 
 	for i := 0; i < 1000; i++ {
 		p.RLock()
@@ -449,6 +465,7 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 	p.RLock()
 	assert.NotNil(t, p.probabilities)
 	assert.NotNil(t, p.strategyResponses)
+	p.RUnlock()
 }
 
 func TestRealisticRunCalculationLoop(t *testing.T) {
@@ -481,6 +498,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	}
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
+	p.followerRefreshInterval = time.Millisecond
 	p.Start()
 
 	for i := 0; i < 100; i++ {
@@ -879,7 +897,9 @@ func TestErrors(t *testing.T) {
 
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
+	p.followerRefreshInterval = time.Millisecond
 	require.Error(t, p.Start())
+	require.Error(t, p.Close())
 
 	// close errors
 	mockEP = &epmocks.ElectionParticipant{}
@@ -889,6 +909,7 @@ func TestErrors(t *testing.T) {
 
 	p, err = newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
+	p.followerRefreshInterval = time.Millisecond
 	require.NoError(t, p.Start())
 	require.Error(t, p.Close())
 }
