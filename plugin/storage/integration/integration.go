@@ -151,7 +151,8 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 }
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
-	defer s.CleanUp()
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
