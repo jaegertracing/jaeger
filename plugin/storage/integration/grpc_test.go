@@ -102,55 +102,42 @@ type GRPCStorageIntegrationTestSuite struct {
 	server  *gRPCServer
 }
 
-func (s *GRPCStorageIntegrationTestSuite) initialize() error {
+func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.logger, _ = testutils.NewLogger()
 
 	if s.server != nil {
-		if err := s.server.Restart(); err != nil {
-			return err
-		}
+		err := s.server.Restart()
+		require.NoError(t, err)
 	}
 
 	f := grpc.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags(s.flags)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
-		return err
-	}
+	err = f.Initialize(metrics.NullFactory, s.logger)
+	require.NoError(t, err)
 	s.factory = f
 
-	if s.SpanWriter, err = f.CreateSpanWriter(); err != nil {
-		return err
-	}
-	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
-		return err
-	}
-	if s.ArchiveSpanReader, err = f.CreateArchiveSpanReader(); err != nil {
-		return err
-	}
-	if s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter(); err != nil {
-		return err
-	}
+	s.SpanWriter, err = f.CreateSpanWriter()
+	require.NoError(t, err)
+	s.SpanReader, err = f.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	require.NoError(t, err)
+
 	// TODO DependencyWriter is not implemented in grpc store
 
-	s.Refresh = s.refresh
+	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
-	return nil
 }
 
-func (s *GRPCStorageIntegrationTestSuite) refresh() error {
-	return nil
-}
-
-func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
-	if err := s.factory.Close(); err != nil {
-		return err
-	}
-	return s.initialize()
+func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
+	err := s.factory.Close()
+	require.NoError(t, err)
+	s.initialize(t)
 }
 
 func getPluginFlags(t *testing.T) []string {
@@ -177,8 +164,8 @@ func TestGRPCStorage(t *testing.T) {
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,
 	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 }
 
 func TestGRPCStreamingWriter(t *testing.T) {
@@ -192,8 +179,8 @@ func TestGRPCStreamingWriter(t *testing.T) {
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,
 	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
@@ -208,6 +195,6 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		flags:  flags,
 		server: server,
 	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 }

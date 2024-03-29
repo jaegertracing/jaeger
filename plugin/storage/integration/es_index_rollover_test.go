@@ -58,12 +58,12 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
-	t.Run(fmt.Sprintf("DefaultPolicyName"), func(t *testing.T) {
+	t.Run("DefaultPolicyName", func(t *testing.T) {
 		runCreateIndicesWithILM(t, defaultILMPolicyName)
 	})
 
 	// Test using a configured ILM Policy Name, i.e. pass the ES_ILM_POLICY_NAME env var to the rollover script.
-	t.Run(fmt.Sprintf("SetPolicyName"), func(t *testing.T) {
+	t.Run("SetPolicyName", func(t *testing.T) {
 		runCreateIndicesWithILM(t, "jaeger-test-policy")
 	})
 }
@@ -94,13 +94,13 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 
 	} else {
 		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001"}
-		t.Run(fmt.Sprintf("NoPrefix"), func(t *testing.T) {
+		t.Run("NoPrefix", func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName, false)
 		})
-		t.Run(fmt.Sprintf("WithPrefix"), func(t *testing.T) {
+		t.Run("WithPrefix", func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, false)
 		})
-		t.Run(fmt.Sprintf("WithAdaptiveSampling"), func(t *testing.T) {
+		t.Run("WithAdaptiveSampling", func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, true)
 		})
 	}

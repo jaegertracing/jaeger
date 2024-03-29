@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //go:build badger_storage_integration
 // +build badger_storage_integration
 
@@ -33,60 +34,44 @@ type BadgerIntegrationStorage struct {
 	factory *badger.Factory
 }
 
-func (s *BadgerIntegrationStorage) initialize() error {
+func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
 
 	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
-	sw, err := s.factory.CreateSpanWriter()
-	if err != nil {
-		return err
-	}
-	sr, err := s.factory.CreateSpanReader()
-	if err != nil {
-		return err
-	}
-	if s.SamplingStore, err = s.factory.CreateSamplingStore(0); err != nil {
-		return err
-	}
+	s.SpanWriter, err = s.factory.CreateSpanWriter()
+	require.NoError(t, err)
 
-	s.SpanReader = sr
-	s.SpanWriter = sw
+	s.SpanReader, err = s.factory.CreateSpanReader()
+	require.NoError(t, err)
+
+	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
+	require.NoError(t, err)
 
 	s.Refresh = s.refresh
 	s.CleanUp = s.cleanUp
 
-	logger, _ := testutils.NewLogger()
-	s.logger = logger
+	s.logger, _ = testutils.NewLogger()
 
 	// TODO: remove this badger supports returning spanKind from GetOperations
 	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = true
-	return nil
 }
 
 func (s *BadgerIntegrationStorage) clear() error {
 	return s.factory.Close()
 }
 
-func (s *BadgerIntegrationStorage) cleanUp() error {
+func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 	err := s.clear()
-	if err != nil {
-		return err
-	}
-	return s.initialize()
-}
-
-func (s *BadgerIntegrationStorage) refresh() error {
-	return nil
+	require.NoError(t, err)
+	s.initialize(t)
 }
 
 func TestBadgerStorage(t *testing.T) {
 	s := &BadgerIntegrationStorage{}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 	defer s.clear()
 }

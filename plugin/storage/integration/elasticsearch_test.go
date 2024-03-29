@@ -117,9 +117,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.initSpanstore(t, allTagsAsFields)
 	s.initSamplingStore(t)
 
-	s.CleanUp = func() error {
+	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
-		return nil
 	}
 	s.Refresh = s.esRefresh
 	s.esCleanUp(t, allTagsAsFields)
@@ -252,13 +251,11 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	return nil
 }
 
-func (s *ESStorageIntegration) esRefresh() error {
+func (s *ESStorageIntegration) esRefresh(t *testing.T) {
 	err := s.bulkProcessor.Flush()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	_, err = s.client.Refresh().Do(context.Background())
-	return err
+	require.NoError(t, err)
 }
 
 func healthCheck() error {
@@ -283,7 +280,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 
 	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
-	s.IntegrationTestAll(t)
+	s.RunAll(t)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
