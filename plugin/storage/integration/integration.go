@@ -40,8 +40,7 @@ import (
 )
 
 const (
-	iterations  = 100
-	maxSpanTime = 72 * time.Hour
+	iterations = 100
 )
 
 //go:embed fixtures
@@ -160,7 +159,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
-		StartTime:     time.Now().Add(-maxSpanTime * 5),
+		StartTime:     time.Now().Add(-time.Hour * 72 * 5).Truncate(time.Microsecond),
 		TraceID:       tID,
 		SpanID:        model.NewSpanID(55),
 		References:    []model.SpanRef{},
