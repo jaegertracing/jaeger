@@ -124,6 +124,7 @@ func skipUnlessEnv(t *testing.T, storage ...string) {
 	}
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
 }
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
 		escapedPat := regexp.QuoteMeta(pat)

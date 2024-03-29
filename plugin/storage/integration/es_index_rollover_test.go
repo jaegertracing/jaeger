@@ -30,6 +30,7 @@ const (
 )
 
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
+	skipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
@@ -49,6 +50,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 }
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
+	skipUnlessEnv(t, "elasticsearch", "opensearch")
 	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
 	t.Run("DefaultPolicyName", func(t *testing.T) {
 		runCreateIndicesWithILM(t, defaultILMPolicyName)
@@ -115,7 +117,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	require.NoError(t, err)
 
 	if prefix != "" {
-		prefix = prefix + "-"
+		prefix += "-"
 	}
 	var expected, expectedWriteAliases, actualWriteAliases []string
 	for _, index := range expectedIndices {
