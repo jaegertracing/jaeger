@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -62,6 +63,7 @@ type Server struct {
 	grpcServer    *grpc.Server
 	httpServer    *httpServer
 	separatePorts bool
+	bgFinished    sync.WaitGroup
 }
 
 // NewServer creates and initializes Server
@@ -294,6 +296,7 @@ func (s *Server) Start() error {
 		grpcPort = port
 	}
 
+	s.bgFinished.Add(1)
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		var err error
@@ -307,9 +310,11 @@ func (s *Server) Start() error {
 		}
 
 		s.healthCheck.Set(healthcheck.Unavailable)
+		s.bgFinished.Done()
 	}()
 
 	// Start GRPC server concurrently
+	s.bgFinished.Add(1)
 	go func() {
 		s.logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
@@ -317,10 +322,12 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.healthCheck.Set(healthcheck.Unavailable)
+		s.bgFinished.Done()
 	}()
 
 	// Start cmux server concurrently.
 	if !s.separatePorts {
+		s.bgFinished.Add(1)
 		go func() {
 			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
@@ -330,6 +337,7 @@ func (s *Server) Start() error {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
 			s.healthCheck.Set(healthcheck.Unavailable)
+			s.bgFinished.Done()
 		}()
 	}
 
@@ -346,5 +354,6 @@ func (s *Server) Close() error {
 	if !s.separatePorts {
 		s.cmuxServer.Close()
 	}
+	s.bgFinished.Wait()
 	return errors.Join(errs...)
 }
