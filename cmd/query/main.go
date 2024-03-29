@@ -113,16 +113,10 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(svc.Logger, queryService, metricsQueryService, queryOpts, tm, jt)
+			server, err := app.NewServer(svc.Logger, svc.HC(), queryService, metricsQueryService, queryOpts, tm, jt)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
-
-			go func() {
-				for s := range server.HealthCheckStatus() {
-					svc.SetHealthCheckStatus(s)
-				}
-			}()
 
 			if err := server.Start(); err != nil {
 				logger.Fatal("Could not start servers", zap.Error(err))

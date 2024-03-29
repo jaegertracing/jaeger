@@ -90,7 +90,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	require.NoError(t, err)
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
+	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{
 			GRPCHostPort: ":0",
 			HTTPHostPort: ":0",
