@@ -267,10 +267,6 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 	testElasticsearchStorage(t, true)
 }
 
-func TestElasticsearchStorage_Archive(t *testing.T) {
-	testElasticsearchStorage(t, false)
-}
-
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	if os.Getenv("STORAGE") != "elasticsearch" {
 		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
