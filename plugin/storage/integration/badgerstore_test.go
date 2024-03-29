@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build badger_storage_integration
-// +build badger_storage_integration
-
 package integration
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,7 +47,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)
 
-	s.Refresh = s.refresh
+	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 
 	s.logger, _ = testutils.NewLogger()
@@ -70,6 +68,9 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 }
 
 func TestBadgerStorage(t *testing.T) {
+	if os.Getenv("STORAGE") != "badger" {
+		t.Skip("Integration test against Badger skipped; set STORAGE=badger env var to run this")
+	}
 	s := &BadgerIntegrationStorage{}
 	s.initialize(t)
 	s.RunAll(t)

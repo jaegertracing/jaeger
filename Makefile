@@ -133,7 +133,7 @@ jaeger-storage-integration-test:
 
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; STORAGE=badger $(GOTEST) -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
 
 .PHONY: grpc-storage-integration-test
 grpc-storage-integration-test:

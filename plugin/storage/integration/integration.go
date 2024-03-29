@@ -48,7 +48,7 @@ var fixtures embed.FS
 
 // StorageIntegration holds components for storage integration test.
 // The intended usage is as follows:
-// - a specific storage implementaion declares its own test functions
+// - a specific storage implementation declares its own test functions
 // - in those functions it instantiates and populates this struct
 // - it then calls RunAll.
 //
@@ -331,7 +331,6 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
 		err := s.SpanWriter.WriteSpan(context.Background(), span)
 		require.NoError(t, err, "Not expecting error when writing trace to storage")
 	}
-	return
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
