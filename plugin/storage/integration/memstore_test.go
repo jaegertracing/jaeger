@@ -13,9 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build memory_storage_integration
-// +build memory_storage_integration
-
 package integration
 
 import (
@@ -54,6 +51,7 @@ func (s *MemStorageIntegrationTestSuite) cleanUp(t *testing.T) {
 }
 
 func TestMemoryStorage(t *testing.T) {
+	skipUnlessEnv(t, "memory")
 	s := &MemStorageIntegrationTestSuite{}
 	s.initialize(t)
 	s.RunAll(t)

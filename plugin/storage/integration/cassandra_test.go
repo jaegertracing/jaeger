@@ -16,7 +16,6 @@
 package integration
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -110,9 +109,7 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "cassandra" {
-		t.Skip("Integration test against Cassandra skipped; set STORAGE env var to cassandra to run this")
-	}
+	skipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)
 	s.RunAll(t)

@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build index_cleaner
-// +build index_cleaner
-
 package integration
 
 import (

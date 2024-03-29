@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -269,9 +268,7 @@ func healthCheck() error {
 }
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
-	if os.Getenv("STORAGE") != "elasticsearch" && os.Getenv("STORAGE") != "opensearch" {
-		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
-	}
+	skipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
@@ -292,9 +289,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
-	if os.Getenv("STORAGE") != "elasticsearch" {
-		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
-	}
+	skipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}

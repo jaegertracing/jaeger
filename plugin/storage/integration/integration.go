@@ -21,6 +21,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -111,6 +112,18 @@ func (s *StorageIntegration) refresh(t *testing.T) {
 	s.Refresh(t)
 }
 
+func skipUnlessEnv(t *testing.T, storage ...string) {
+	env := os.Getenv("STORAGE")
+	for _, s := range storage {
+		if env == s {
+			return
+		}
+	}
+	if len(storage) == 1 {
+		t.Skipf("This test requires environment variable STORAGE=%s", storage[0])
+	}
+	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
+}
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
 		escapedPat := regexp.QuoteMeta(pat)

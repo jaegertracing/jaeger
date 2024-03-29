@@ -13,9 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build grpc_storage_integration
-// +build grpc_storage_integration
-
 package integration
 
 import (
@@ -154,6 +151,7 @@ func getPluginFlags(t *testing.T) []string {
 }
 
 func TestGRPCStorage(t *testing.T) {
+	skipUnlessEnv(t, "grpc")
 	flags := getPluginFlags(t)
 	if configPath := os.Getenv("PLUGIN_CONFIG_PATH"); configPath == "" {
 		t.Log("PLUGIN_CONFIG_PATH env var not set")
@@ -169,6 +167,7 @@ func TestGRPCStorage(t *testing.T) {
 }
 
 func TestGRPCStreamingWriter(t *testing.T) {
+	skipUnlessEnv(t, "grpc")
 	flags := getPluginFlags(t)
 	wd, err := os.Getwd()
 	require.NoError(t, err)
@@ -184,6 +183,7 @@ func TestGRPCStreamingWriter(t *testing.T) {
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
+	skipUnlessEnv(t, "grpc")
 	flags := []string{
 		"--grpc-storage.server=localhost:2001",
 		"--grpc-storage.tls.enabled=false",

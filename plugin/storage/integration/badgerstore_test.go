@@ -15,7 +15,6 @@
 package integration
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -68,9 +67,7 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 }
 
 func TestBadgerStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "badger" {
-		t.Skip("Integration test against Badger skipped; set STORAGE=badger env var to run this")
-	}
+	skipUnlessEnv(t, "badger")
 	s := &BadgerIntegrationStorage{}
 	s.initialize(t)
 	s.RunAll(t)
