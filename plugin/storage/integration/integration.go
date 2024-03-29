@@ -168,7 +168,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	}
 
 	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
-	s.Refresh()
+	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
