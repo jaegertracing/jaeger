@@ -141,12 +141,12 @@ grpc-storage-integration-test:
 	(cd examples/memstore-plugin/ && go build .)
 	STORAGE=grpc $(MAKE) storage-integration-test
 
-# this tests assums STORAGE environment variable is set to elasticsearch|opensearch
+# this test assumes STORAGE environment variable is set to elasticsearch|opensearch
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
 	$(MAKE) storage-integration-test COVEROUT=cover-index-cleaner.out
 
-# this tests assums STORAGE environment variable is set to elasticsearch|opensearch
+# this test assumes STORAGE environment variable is set to elasticsearch|opensearch
 .PHONY: index-rollover-integration-test
 index-rollover-integration-test: docker-images-elastic
 	$(MAKE) storage-integration-test COVEROUT=cover-index-rollover.out

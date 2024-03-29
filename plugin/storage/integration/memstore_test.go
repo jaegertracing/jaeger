@@ -43,11 +43,7 @@ func (s *MemStorageIntegrationTestSuite) initialize(_ *testing.T) {
 	// TODO DependencyWriter is not implemented in memory store
 
 	s.Refresh = func(t *testing.T) {}
-	s.CleanUp = s.cleanUp
-}
-
-func (s *MemStorageIntegrationTestSuite) cleanUp(t *testing.T) {
-	s.initialize(t)
+	s.CleanUp = s.initialize
 }
 
 func TestMemoryStorage(t *testing.T) {

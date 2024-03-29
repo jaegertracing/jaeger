@@ -119,9 +119,6 @@ func skipUnlessEnv(t *testing.T, storage ...string) {
 			return
 		}
 	}
-	if len(storage) == 1 {
-		t.Skipf("This test requires environment variable STORAGE=%s", storage[0])
-	}
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
 }
 
