@@ -986,12 +986,14 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	// We don't set tenant header
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 	tm := tenancy.NewManager(&tenancyOptions)
 	req.Header.Set(tm.Header, "acme")
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	// Skip unmarshal of response; it is enough that it succeeded
 }
