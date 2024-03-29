@@ -125,6 +125,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.esCleanUp(t, allTagsAsFields)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.GetOperationsMissingSpanKind = true
+	s.SkipArchiveTest = false
 	return nil
 }
 
@@ -255,7 +256,6 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 
 	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
-	s.SkipArchiveTest = false
 	s.IntegrationTestAll(t)
 }
 
