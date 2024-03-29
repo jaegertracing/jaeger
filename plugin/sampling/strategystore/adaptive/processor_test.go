@@ -393,15 +393,8 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
 	p.shutdown = make(chan struct{})
-	done := make(chan struct{})
-	go func() {
-		p.runCalculationLoop()
-		close(done)
-	}()
-	defer func() {
-		close(p.shutdown)
-		<-done
-	}()
+	defer close(p.shutdown)
+	go p.runCalculationLoop()
 
 	for i := 0; i < 1000; i++ {
 		// match logs specific to getThroughputErrMsg. We expect to see more than 2, once during
@@ -439,17 +432,10 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 		followerRefreshInterval: time.Millisecond,
 		electionParticipant:     mockEP,
 	}
+	defer close(p.shutdown)
 	require.Nil(t, p.probabilities)
 	require.Nil(t, p.strategyResponses)
-	done := make(chan struct{})
-	go func() {
-		p.runUpdateProbabilitiesLoop()
-		close(done)
-	}()
-	defer func() {
-		close(p.shutdown)
-		<-done
-	}()
+	go p.runUpdateProbabilitiesLoop()
 
 	for i := 0; i < 1000; i++ {
 		p.RLock()
