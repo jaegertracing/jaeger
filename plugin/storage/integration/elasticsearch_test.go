@@ -100,7 +100,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
@@ -114,24 +114,24 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields, archi
 	})
 	require.NoError(t, err)
 
-	s.initSpanstore(t, allTagsAsFields, archive)
+	s.initSpanstore(t, allTagsAsFields)
 	s.initSamplingStore(t)
 
 	s.CleanUp = func() error {
-		s.esCleanUp(t, allTagsAsFields, archive)
+		s.esCleanUp(t, allTagsAsFields)
 		return nil
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp(t, allTagsAsFields, archive)
+	s.esCleanUp(t, allTagsAsFields)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.GetOperationsMissingSpanKind = true
 	return nil
 }
 
-func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields, archive bool) {
+func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
-	s.initSpanstore(t, allTagsAsFields, archive)
+	s.initSpanstore(t, allTagsAsFields)
 }
 
 func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
@@ -169,7 +169,7 @@ func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper
 	return eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 }
 
-func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) error {
 	client := s.getEsClient(t)
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: estemplate.TextTemplateBuilder{},
@@ -191,7 +191,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields, arch
 			IndexPrefix:       indexPrefix,
 			AllTagsAsFields:   allTagsAsFields,
 			TagDotReplacement: tagKeyDeDotChar,
-			Archive:           archive,
 		})
 	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
 	require.NoError(t, err)
@@ -205,7 +204,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields, arch
 		IndexPrefix:       indexPrefix,
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
-		Archive:           archive,
 		MaxDocCount:       defaultMaxDocCount,
 		Tracer:            tracer.Tracer("test"),
 	})
@@ -245,7 +243,7 @@ func healthCheck() error {
 	return errors.New("elastic search is not ready")
 }
 
-func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
+func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	if os.Getenv("STORAGE") != "elasticsearch" && os.Getenv("STORAGE") != "opensearch" {
 		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
 	}
@@ -253,31 +251,24 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	s.initializeES(t, allTagsAsFields, archive)
+	s.initializeES(t, allTagsAsFields)
 
 	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
-	if archive {
-		s.ArchiveSpanReader = s.SpanReader
-		s.ArchiveSpanWriter = s.SpanWriter
-		s.SkipArchiveTest = false
-		t.Run("ArchiveTrace", s.testArchiveTrace)
-	} else {
-		s.SkipArchiveTest = true
-		s.IntegrationTestAll(t)
-	}
+	s.SkipArchiveTest = false
+	s.IntegrationTestAll(t)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
-	testElasticsearchStorage(t, false, false)
+	testElasticsearchStorage(t, false)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
-	testElasticsearchStorage(t, true, false)
+	testElasticsearchStorage(t, true)
 }
 
 func TestElasticsearchStorage_Archive(t *testing.T) {
-	testElasticsearchStorage(t, false, true)
+	testElasticsearchStorage(t, false)
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
@@ -288,7 +279,7 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	s.initializeES(t, true, false)
+	s.initializeES(t, true)
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI

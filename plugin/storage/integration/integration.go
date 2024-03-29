@@ -152,6 +152,9 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
+	if s.SkipArchiveTest {
+		t.Skip("Skipping ArchiveTrace test because archive reader or writer is nil")
+	}
 	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
@@ -162,9 +165,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		References:    []model.SpanRef{},
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
-	if s.SkipArchiveTest {
-		t.Skip("Skipping ArchiveTrace test because archive reader or writer is nil")
-	}
+
 	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
 	s.Refresh()
 
