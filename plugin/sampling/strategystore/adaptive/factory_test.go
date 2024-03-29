@@ -72,7 +72,6 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
 	require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
-	f.followerRefreshInterval = time.Millisecond
 	store, aggregator, err := f.CreateStrategyStore()
 	require.NoError(t, err)
 	require.NoError(t, store.Close())

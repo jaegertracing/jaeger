@@ -17,7 +17,6 @@ package adaptive
 import (
 	"errors"
 	"flag"
-	"time"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -34,25 +33,21 @@ var _ plugin.Configurable = (*Factory)(nil)
 
 // Factory implements strategystore.Factory for an adaptive strategy store.
 type Factory struct {
-	options *Options
-	// This is passed to any new Processors created by this Factory.
-	// It exists here so  that test code can override the default.
-	followerRefreshInterval time.Duration
-	logger                  *zap.Logger
-	metricsFactory          metrics.Factory
-	lock                    distributedlock.Lock
-	store                   samplingstore.Store
+	options        *Options
+	logger         *zap.Logger
+	metricsFactory metrics.Factory
+	lock           distributedlock.Lock
+	store          samplingstore.Store
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		options:                 &Options{},
-		followerRefreshInterval: defaultFollowerProbabilityInterval,
-		logger:                  zap.NewNop(),
-		metricsFactory:          metrics.NullFactory,
-		lock:                    nil,
-		store:                   nil,
+		options:        &Options{},
+		logger:         zap.NewNop(),
+		metricsFactory: metrics.NullFactory,
+		lock:           nil,
+		store:          nil,
 	}
 }
 
@@ -92,7 +87,6 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategyst
 	if err != nil {
 		return nil, nil, err
 	}
-	p.followerRefreshInterval = f.followerRefreshInterval
 	p.Start()
 	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store)
 	a.Start()

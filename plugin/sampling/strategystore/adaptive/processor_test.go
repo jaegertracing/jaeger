@@ -359,7 +359,6 @@ func TestRunCalculationLoop(t *testing.T) {
 	}
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p.followerRefreshInterval = time.Millisecond
 	p.Start()
 
 	for i := 0; i < 1000; i++ {
@@ -393,7 +392,6 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	}
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p.followerRefreshInterval = time.Millisecond
 	p.shutdown = make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -498,7 +496,6 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	}
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p.followerRefreshInterval = time.Millisecond
 	p.Start()
 
 	for i := 0; i < 100; i++ {
@@ -897,7 +894,6 @@ func TestErrors(t *testing.T) {
 
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	p.followerRefreshInterval = time.Millisecond
 	require.Error(t, p.Start())
 	require.Error(t, p.Close())
 
@@ -909,7 +905,6 @@ func TestErrors(t *testing.T) {
 
 	p, err = newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	p.followerRefreshInterval = time.Millisecond
 	require.NoError(t, p.Start())
 	require.Error(t, p.Close())
 }
