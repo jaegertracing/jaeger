@@ -184,6 +184,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	require.NoError(t, err)
 	clientFn := func() estemplate.Client { return client }
 
+	// Initializing Span Reader and Writer
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            clientFn,
@@ -192,6 +193,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 			IndexPrefix:       indexPrefix,
 			AllTagsAsFields:   allTagsAsFields,
 			TagDotReplacement: tagKeyDeDotChar,
+			Archive:           false,
 		})
 	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
 	require.NoError(t, err)
@@ -207,7 +209,32 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		TagDotReplacement: tagKeyDeDotChar,
 		MaxDocCount:       defaultMaxDocCount,
 		Tracer:            tracer.Tracer("test"),
+		Archive:           false,
 	})
+
+	// Initializing Archive Span Reader and Writer
+	s.ArchiveSpanWriter = spanstore.NewSpanWriter(
+		spanstore.SpanWriterParams{
+			Client:            clientFn,
+			Logger:            s.logger,
+			MetricsFactory:    metrics.NullFactory,
+			IndexPrefix:       indexPrefix,
+			AllTagsAsFields:   allTagsAsFields,
+			TagDotReplacement: tagKeyDeDotChar,
+			Archive:           true,
+		})
+	s.ArchiveSpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
+		Client:            clientFn,
+		Logger:            s.logger,
+		MetricsFactory:    metrics.NullFactory,
+		IndexPrefix:       indexPrefix,
+		MaxSpanAge:        maxSpanAge,
+		TagDotReplacement: tagKeyDeDotChar,
+		MaxDocCount:       defaultMaxDocCount,
+		Tracer:            tracer.Tracer("test"),
+		Archive:           true,
+	})
+
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          clientFn,
 		Logger:          s.logger,
