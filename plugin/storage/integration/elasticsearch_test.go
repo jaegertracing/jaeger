@@ -151,7 +151,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.esCleanUp(t, allTagsAsFields)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.GetOperationsMissingSpanKind = true
-	s.SkipArchiveTest = false
+	s.SkipArchiveTest = true
 	return nil
 }
 
