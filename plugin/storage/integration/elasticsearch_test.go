@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -100,29 +101,32 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) error {
-	// Intialize ES Factory
-	s.factory = es.NewFactory()
-	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
+	// Initialize ES Factory
+	f := es.NewFactory()
+	v, _ := config.Viperize(f.AddFlags)
+	f.InitFromViper(v, zap.NewNop())
+	err := f.Initialize(metrics.NullFactory, s.logger)
 	if err != nil {
 		return err
 	}
+	s.factory = f
 
 	// Create Span Writer and Reader
-	s.SpanWriter, err = s.factory.CreateSpanWriter()
+	s.SpanWriter, err = f.CreateSpanWriter()
 	if err != nil {
 		return err
 	}
-	s.SpanReader, err = s.factory.CreateSpanReader()
+	s.SpanReader, err = f.CreateSpanReader()
 	if err != nil {
 		return err
 	}
 
 	// Create Archive Span Writer and Reader
-	s.ArchiveSpanWriter, err = s.factory.CreateArchiveSpanWriter()
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
 	if err != nil {
 		return err
 	}
-	s.ArchiveSpanReader, err = s.factory.CreateArchiveSpanReader()
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
 	if err != nil {
 		return err
 	}
@@ -260,7 +264,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	// 	Tracer:            tracer.Tracer("test"),
 	// 	Archive:           true,
 	// })
-
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          clientFn,
 		Logger:          s.logger,
