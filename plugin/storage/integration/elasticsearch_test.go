@@ -65,7 +65,6 @@ type ESStorageIntegration struct {
 	v8Client      *elasticsearch8.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
-	factory       *es.Factory
 }
 
 // func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
@@ -101,16 +100,26 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) error {
+	rawClient, err := elastic.NewClient(
+		elastic.SetURL(queryURL),
+		elastic.SetSniff(false))
+	require.NoError(t, err)
+	s.logger, _ = testutils.NewLogger()
+	s.client = rawClient
+	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
+		Addresses:            []string{queryURL},
+		DiscoverNodesOnStart: false,
+	})
+	require.NoError(t, err)
+
 	// Initialize ES Factory
 	f := es.NewFactory()
 	v, _ := config.Viperize(f.AddFlags)
 	f.InitFromViper(v, zap.NewNop())
-	err := f.Initialize(metrics.NullFactory, s.logger)
+	err = f.Initialize(metrics.NullFactory, s.logger)
 	if err != nil {
 		return err
 	}
-	s.factory = f
-
 	// Create Span Writer and Reader
 	s.SpanWriter, err = f.CreateSpanWriter()
 	if err != nil {
@@ -130,18 +139,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	if err != nil {
 		return err
 	}
-
-	rawClient, err := elastic.NewClient(
-		elastic.SetURL(queryURL),
-		elastic.SetSniff(false))
-	require.NoError(t, err)
-	s.logger, _ = testutils.NewLogger()
-	s.client = rawClient
-	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
-		Addresses:            []string{queryURL},
-		DiscoverNodesOnStart: false,
-	})
-	require.NoError(t, err)
 
 	s.initSpanstore(t, allTagsAsFields)
 	s.initSamplingStore(t)
