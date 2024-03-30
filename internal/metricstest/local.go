@@ -392,3 +392,7 @@ func (l *Factory) Namespace(scope metrics.NSOptions) metrics.Factory {
 		Backend:   l.Backend,
 	}
 }
+
+func (l *Factory) Stop() {
+	l.Backend.Stop()
+}

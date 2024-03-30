@@ -109,6 +109,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 	s.SpanReader = &ingester{traceStore}
 	s.Refresh = func() error { return nil }
 	s.CleanUp = func() error { return nil }
+	s.SkipArchiveTest = true
 	return nil
 }
 

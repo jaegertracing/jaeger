@@ -88,8 +88,11 @@ func (r *storageReceiver) consumeLoop(ctx context.Context) error {
 }
 
 func (r *storageReceiver) consumeTraces(ctx context.Context, serviceName string) error {
+	endTime := time.Now()
 	traces, err := r.spanReader.FindTraces(ctx, &spanstore.TraceQueryParameters{
-		ServiceName: serviceName,
+		ServiceName:  serviceName,
+		StartTimeMin: endTime.Add(-1 * time.Hour),
+		StartTimeMax: endTime,
 	})
 	if err != nil {
 		return err

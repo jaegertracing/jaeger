@@ -85,12 +85,13 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
 	f.Options.Primary.AllowTokenFromContext = true
 	require.NoError(t, f.Initialize(metrics.NullFactory, flagsSvc.Logger))
+	defer f.Close()
 
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
-	server, err := NewServer(flagsSvc.Logger, querySvc, nil,
+	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{
 			GRPCHostPort: ":0",
 			HTTPHostPort: ":0",
@@ -137,6 +138,7 @@ func TestBearerTokenPropagation(t *testing.T) {
 			resp, err := client.Do(req)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})

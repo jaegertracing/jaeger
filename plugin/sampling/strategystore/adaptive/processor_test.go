@@ -449,6 +449,7 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 	p.RLock()
 	assert.NotNil(t, p.probabilities)
 	assert.NotNil(t, p.strategyResponses)
+	p.RUnlock()
 }
 
 func TestRealisticRunCalculationLoop(t *testing.T) {
@@ -880,6 +881,7 @@ func TestErrors(t *testing.T) {
 	p, err := newProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.Error(t, p.Start())
+	require.Error(t, p.Close())
 
 	// close errors
 	mockEP = &epmocks.ElectionParticipant{}
