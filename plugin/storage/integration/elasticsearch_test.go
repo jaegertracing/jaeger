@@ -130,16 +130,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 		return err
 	}
 
-	// Create Archive Span Writer and Reader
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
-	if err != nil {
-		return err
-	}
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
-	if err != nil {
-		return err
-	}
-
 	s.initSpanstore(t, allTagsAsFields)
 	s.initSamplingStore(t)
 
@@ -151,7 +141,17 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.esCleanUp(t, allTagsAsFields)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.GetOperationsMissingSpanKind = true
-	s.SkipArchiveTest = true
+	s.SkipArchiveTest = false
+	// Create Archive Span Writer and Reader
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	if err != nil {
+		return err
+	}
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
