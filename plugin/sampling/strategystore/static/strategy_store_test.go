@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -476,54 +475,31 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
-func TestProbablisticServiceStrategyNoPerOperationStrategies(t *testing.T) {
+func TestServiceNoPerOperationStrategies(t *testing.T) {
 	// given setup of strategy store with no specific per operation sampling strategies
 	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/service_no_per_operation.json"}, zap.NewNop())
 	require.NoError(t, err)
 
-	strategy, err := store.GetSamplingStrategy(context.Background(), "ServiceA")
-	require.NoError(t, err)
-	strategyJson, err := json.MarshalIndent(strategy, "", "  ")
-	require.NoError(t, err)
+	for _, service := range []string{"ServiceA", "ServiceB"} {
+		t.Run(service, func(t *testing.T) {
+			strategy, err := store.GetSamplingStrategy(context.Background(), service)
+			require.NoError(t, err)
+			strategyJson, err := json.MarshalIndent(strategy, "", "  ")
+			require.NoError(t, err)
 
-	testName := path.Base(t.Name())
-	snapshotFile := filepath.Join(snapshotLocation, testName+".json")
-	if regenerateSnapshots {
-		os.WriteFile(snapshotFile, strategyJson, 0o644)
+			testName := strings.ReplaceAll(t.Name(), "/", "_")
+			snapshotFile := filepath.Join(snapshotLocation, testName+".json")
+			expectedServiceResponse, err := os.ReadFile(snapshotFile)
+			require.NoError(t, err)
+
+			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+
+			if regenerateSnapshots {
+				os.WriteFile(snapshotFile, strategyJson, 0o644)
+			}
+		})
 	}
-
-	// expected response for ServiceA (which has probablistic service level sampling strategy)
-	// shall contain /health operation with default service level sampling strategy as well
-	expectedServiceResponse, err := os.ReadFile(snapshotFile)
-	require.NoError(t, err)
-
-	assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
-		"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
-}
-
-func TestRatelimitingServiceStrategyNoPerOperationStrategies(t *testing.T) {
-	// given setup of strategy store with no specific per operation sampling strategies
-	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/service_no_per_operation.json"}, zap.NewNop())
-	require.NoError(t, err)
-
-	strategy, err := store.GetSamplingStrategy(context.Background(), "ServiceB")
-	require.NoError(t, err)
-	strategyJson, err := json.MarshalIndent(strategy, "", "  ")
-	require.NoError(t, err)
-
-	testName := path.Base(t.Name())
-	snapshotFile := filepath.Join(snapshotLocation, testName+".json")
-	if regenerateSnapshots {
-		os.WriteFile(snapshotFile, strategyJson, 0o644)
-	}
-
-	// expected response for ServiceB (which has ratelimiting service level sampling strategy)
-	// shall contain /health operation with sampling probability taken from default operation level strategy
-	expectedServiceResponse, err := os.ReadFile(snapshotFile)
-	require.NoError(t, err)
-
-	assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
-		"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 }
 
 func TestSamplingStrategyLoader(t *testing.T) {
