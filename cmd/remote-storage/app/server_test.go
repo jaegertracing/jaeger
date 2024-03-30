@@ -17,7 +17,6 @@ package app
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -59,6 +58,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 			factory,
 			tenancy.NewManager(&tenancy.Options{}),
 			zap.NewNop(),
+			healthcheck.New(),
 		)
 	}
 	_, err := f()
@@ -80,7 +80,6 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	validateGRPCServer(t, s.grpcConn.Addr().String(), s.grpcServer)
 
 	s.grpcConn.Close() // causes logged error
-	<-s.HealthCheckStatus()
 }
 
 func TestServerStart_BadPortErrors(t *testing.T) {
@@ -130,6 +129,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		zap.NewNop(),
+		healthcheck.New(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid TLS config")
@@ -337,22 +337,10 @@ func TestServerGRPCTLS(t *testing.T) {
 				storageMocks.factory,
 				tm,
 				flagsSvc.Logger,
+				flagsSvc.HC(),
 			)
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
-
-			var wg sync.WaitGroup
-			wg.Add(1)
-			once := sync.Once{}
-
-			go func() {
-				for s := range server.HealthCheckStatus() {
-					flagsSvc.HC().Set(s)
-					if s == healthcheck.Unavailable {
-						once.Do(wg.Done)
-					}
-				}
-			}()
 
 			var clientError error
 			var client *grpcClient
@@ -380,7 +368,6 @@ func TestServerGRPCTLS(t *testing.T) {
 			}
 			require.NoError(t, client.conn.Close())
 			server.Close()
-			wg.Wait()
 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
@@ -397,21 +384,9 @@ func TestServerHandlesPortZero(t *testing.T) {
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		flagsSvc.Logger,
+		flagsSvc.HC(),
 	)
 	require.NoError(t, err)
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	once := sync.Once{}
-
-	go func() {
-		for s := range server.HealthCheckStatus() {
-			flagsSvc.HC().Set(s)
-			if s == healthcheck.Unavailable {
-				once.Do(wg.Done)
-			}
-		}
-	}()
 
 	require.NoError(t, server.Start())
 
@@ -424,7 +399,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 	validateGRPCServer(t, hostPort, server.grpcServer)
 
 	server.Close()
-	wg.Wait()
 
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }

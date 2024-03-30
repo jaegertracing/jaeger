@@ -45,6 +45,7 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 	s := &CassandraStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
+			SkipArchiveTest:              true,
 
 			Refresh: func() error { return nil },
 			SkipList: []string{

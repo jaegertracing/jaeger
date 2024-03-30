@@ -129,7 +129,12 @@ func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
 		return err
 	}
-
+	if s.ArchiveSpanReader, err = f.CreateArchiveSpanReader(); err != nil {
+		return err
+	}
+	if s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter(); err != nil {
+		return err
+	}
 	// TODO DependencyWriter is not implemented in grpc store
 
 	s.Refresh = s.refresh

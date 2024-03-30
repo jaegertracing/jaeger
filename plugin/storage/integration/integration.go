@@ -48,18 +48,24 @@ var fixtures embed.FS
 
 // StorageIntegration holds components for storage integration test
 type StorageIntegration struct {
-	SpanWriter       spanstore.Writer
-	SpanReader       spanstore.Reader
-	DependencyWriter dependencystore.Writer
-	DependencyReader dependencystore.Reader
-	SamplingStore    samplingstore.Store
-	Fixtures         []*QueryFixtures
+	SpanWriter        spanstore.Writer
+	SpanReader        spanstore.Reader
+	ArchiveSpanReader spanstore.Reader
+	ArchiveSpanWriter spanstore.Writer
+	DependencyWriter  dependencystore.Writer
+	DependencyReader  dependencystore.Reader
+	SamplingStore     samplingstore.Store
+	Fixtures          []*QueryFixtures
 
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
 
 	// TODO: remove this after all storage backends return Source column from GetDependencies
+
 	GetDependenciesReturnsSource bool
+
+	// Skip Archive Test if not supported by the storage backend
+	SkipArchiveTest bool
 
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
@@ -142,6 +148,35 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 		t.Log("\t Expected:", expected)
 		t.Log("\t Actual  :", actual)
 	}
+}
+
+func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
+	s.skipIfNeeded(t)
+	if s.SkipArchiveTest {
+		t.Skip("Skipping ArchiveTrace test because archive reader or writer is nil")
+	}
+	defer s.cleanUp(t)
+	tID := model.NewTraceID(uint64(11), uint64(22))
+	expected := &model.Span{
+		OperationName: "archive_span",
+		StartTime:     time.Now().Add(-time.Hour * 72 * 5).Truncate(time.Microsecond),
+		TraceID:       tID,
+		SpanID:        model.NewSpanID(55),
+		References:    []model.SpanRef{},
+		Process:       model.NewProcess("archived_service", model.KeyValues{}),
+	}
+
+	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
+	s.refresh(t)
+
+	var actual *model.Trace
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
+		return err == nil && len(actual.Spans) == 1
+	})
+	require.True(t, found)
+	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
@@ -481,6 +516,7 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 // IntegrationTestAll runs all integration tests
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
+	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
