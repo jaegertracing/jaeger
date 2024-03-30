@@ -216,38 +216,40 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
 	}
 
-	merge := true
-	if newStore.defaultStrategy.OperationSampling == nil ||
-		newStore.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
-		merge = false
-	}
+	// merge := true
+	// if newStore.defaultStrategy.OperationSampling == nil ||
+	// 	newStore.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
+	// 	merge = false
+	// }
 
 	for _, s := range strategies.ServiceStrategies {
 		newStore.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
 
-		// Merge with the default operation strategies, because only merging with
-		// the default strategy has no effect on service strategies (the default strategy
-		// is not merged with and only used as a fallback).
+		// Config for this service may not have per-operation strategies,
+		// but if the default strategy has them they should still apply.
+
+		if newStore.defaultStrategy.OperationSampling == nil {
+			// Default strategy doens't have them either, nothing to do.
+			continue
+		}
+
 		opS := newStore.serviceStrategies[s.Service].OperationSampling
 		if opS == nil {
-			// no default per-operation strategies - just move on
-			if newStore.defaultStrategy.OperationSampling == nil {
-				continue
-			}
-			// Service has no per-operation strategies, so just reference the default settings
-			// and change default samplingRate to the value defined in service strategy if value is available.
+			// Service does not have its own per-operation rules, so copy (by value) from the default strategy.
 			newOpS := *newStore.defaultStrategy.OperationSampling
+
+			// If the service's own default is probabilistic, then its sampling rate should take precedence.
 			if newStore.serviceStrategies[s.Service].ProbabilisticSampling != nil {
 				newOpS.DefaultSamplingProbability = newStore.serviceStrategies[s.Service].ProbabilisticSampling.SamplingRate
 			}
 			newStore.serviceStrategies[s.Service].OperationSampling = &newOpS
 			continue
 		}
-		if merge {
-			opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
-				opS.PerOperationStrategies,
-				newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
-		}
+
+		// If the service did have its own per-operation strategies, then merge them with the default ones.
+		opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
+			opS.PerOperationStrategies,
+			newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
 	}
 	h.storedStrategies.Store(newStore)
 }
