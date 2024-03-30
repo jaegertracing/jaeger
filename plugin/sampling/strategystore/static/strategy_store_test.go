@@ -36,9 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-const (
-	snapshotLocation = "./fixtures/"
-)
+const snapshotLocation = "./fixtures/"
 
 // Snapshots can be regenerated via:
 //
@@ -51,20 +49,20 @@ func strategiesJSON(probability float32) string {
 	strategy := fmt.Sprintf(`
 		{
 			"default_strategy": {
-			"type": "probabilistic",
-			"param": 0.5
+				"type": "probabilistic",
+				"param": 0.5
 			},
 			"service_strategies": [
-			{
-				"service": "foo",
-				"type": "probabilistic",
-				"param": %.1f
-			},
-			{
-				"service": "bar",
-				"type": "ratelimiting",
-				"param": 5
-			}
+				{
+					"service": "foo",
+					"type": "probabilistic",
+					"param": %.1f
+				},
+				{
+					"service": "bar",
+					"type": "ratelimiting",
+					"param": 5
+				}
 			]
 		}
 		`,

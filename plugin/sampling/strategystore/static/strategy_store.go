@@ -216,12 +216,6 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
 	}
 
-	// merge := true
-	// if newStore.defaultStrategy.OperationSampling == nil ||
-	// 	newStore.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
-	// 	merge = false
-	// }
-
 	for _, s := range strategies.ServiceStrategies {
 		newStore.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
 
