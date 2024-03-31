@@ -91,8 +91,9 @@ func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName strin
 }
 
 // Close stops updating the strategies
-func (h *strategyStore) Close() {
+func (h *strategyStore) Close() error {
 	h.cancelFunc()
+	return nil
 }
 
 func (h *strategyStore) downloadSamplingStrategies(url string) ([]byte, error) {

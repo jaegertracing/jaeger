@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package testutils
+package testutils_test
 
 import (
 	"testing"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestVerifyGoLeaksOnce(t *testing.T) {
-	defer VerifyGoLeaksOnce(t)
+	defer testutils.VerifyGoLeaksOnce(t)
 }
 
 func TestMain(m *testing.M) {
-	VerifyGoLeaks(m)
+	testutils.VerifyGoLeaks(m)
 }

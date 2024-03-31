@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const (
@@ -125,4 +126,8 @@ func TestPrintConfigCommand(t *testing.T) {
 	v := setConfig(t)
 	actual := runPrintConfigCommand(v, t, false)
 	assert.Equal(t, expected, actual)
+}
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }
