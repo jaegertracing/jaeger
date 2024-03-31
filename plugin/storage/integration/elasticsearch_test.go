@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -133,9 +132,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.initSpanstore(t, allTagsAsFields)
 	s.initSamplingStore(t)
 
-	s.CleanUp = func() error {
+	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
-		return nil
 	}
 	s.Refresh = s.esRefresh
 	s.esCleanUp(t, allTagsAsFields)
@@ -278,13 +276,11 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	return nil
 }
 
-func (s *ESStorageIntegration) esRefresh() error {
+func (s *ESStorageIntegration) esRefresh(t *testing.T) {
 	err := s.bulkProcessor.Flush()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	_, err = s.client.Refresh().Do(context.Background())
-	return err
+	require.NoError(t, err)
 }
 
 func healthCheck() error {
@@ -298,9 +294,7 @@ func healthCheck() error {
 }
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
-	if os.Getenv("STORAGE") != "elasticsearch" && os.Getenv("STORAGE") != "opensearch" {
-		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
-	}
+	skipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +303,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 
 	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
-	s.IntegrationTestAll(t)
+	s.RunAll(t)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
@@ -321,9 +315,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
-	if os.Getenv("STORAGE") != "elasticsearch" {
-		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
-	}
+	skipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
