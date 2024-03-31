@@ -34,9 +34,10 @@ import (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Factory        = (*Factory)(nil)
+	_ storage.ArchiveFactory = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ plugin.Configurable    = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
@@ -131,7 +132,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.store.DependencyReader(), nil
 }
 
-// CreateArchiveSpanReader implements storage.Factory
+// CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported
@@ -146,7 +147,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return f.archiveStore.ArchiveSpanReader(), nil
 }
 
-// CreateArchiveSpanWriter implements storage.Factory
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if f.capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported

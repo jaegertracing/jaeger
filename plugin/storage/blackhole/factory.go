@@ -24,8 +24,10 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// interface comformance checks
-var _ storage.Factory = (*Factory)(nil)
+var ( // interface comformance checks
+	_ storage.Factory        = (*Factory)(nil)
+	_ storage.ArchiveFactory = (*Factory)(nil)
+)
 
 // Factory implements storage.Factory and creates blackhole storage components.
 type Factory struct {
@@ -57,12 +59,12 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return f.store, nil
 }
 
-// CreateArchiveSpanReader implements storage.Factory
+// CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return f.store, nil
 }
 
-// CreateArchiveSpanWriter implements storage.Factory
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	return f.store, nil
 }

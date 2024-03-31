@@ -84,9 +84,10 @@ func AllSamplingStorageTypes() []string {
 }
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Factory        = (*Factory)(nil)
+	_ storage.ArchiveFactory = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ plugin.Configurable    = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
@@ -292,22 +293,30 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
-// CreateArchiveSpanReader implements storage.Factory
+// CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
-	return factory.CreateSpanReader()
+	archive, ok := factory.(storage.ArchiveFactory)
+	if !ok {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return archive.CreateArchiveSpanReader()
 }
 
-// CreateArchiveSpanWriter implements storage.Factory
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	factory, ok := f.factories[f.SpanWriterTypes[0]]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
-	return factory.CreateSpanWriter()
+	archive, ok := factory.(storage.ArchiveFactory)
+	if !ok {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return archive.CreateArchiveSpanWriter()
 }
 
 var _ io.Closer = (*Factory)(nil)
