@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package unittest
 
 import (
@@ -5,10 +8,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -17,6 +16,11 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/service/telemetry"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
 type storageHost struct {
@@ -29,32 +33,11 @@ type StorageTest struct {
 	ConfigFile string
 }
 
-func (host storageHost) GetExtensions() map[component.ID]component.Component {
-	myMap := make(map[component.ID]component.Component)
-	myMap[jaegerstorage.ID] = host.storageExtension
-	return myMap
-}
-
-func (host storageHost) ReportFatalError(err error) {
-	host.t.Fatal(err)
-}
-
-func (host storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
-	host.t.Log("Calling Factory")
-	return nil
-}
-
-func (host storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	host.t.Log("Calling Exporters")
-	return nil
-}
-
 func (s *StorageTest) Test(t *testing.T) {
 	if os.Getenv("STORAGE") != s.Name {
 		t.Skipf("Integration test against Jaeger-V2 %[1]s skipped; set STORAGE env var to %[1]s to run this", s.Name)
 	}
 	var v integration.StorageIntegration
-	// v.
 	factories, err := internal.Components()
 	require.NoError(t, err)
 	fmp := fileprovider.New()
@@ -106,15 +89,27 @@ func (s *StorageTest) Test(t *testing.T) {
 	require.NoError(t, err)
 	v.SpanReader = spanReader
 	v.SpanWriter = spanWriter
-	v.Refresh = s.refresh
-	v.CleanUp = s.cleanUp
+	v.Refresh = func(_ *testing.T) {}
+	v.CleanUp = func(_ *testing.T) {}
 	v.TestGetLargeSpan(t)
 }
 
-func (s *StorageTest) refresh() error {
+func (host storageHost) GetExtensions() map[component.ID]component.Component {
+	myMap := make(map[component.ID]component.Component)
+	myMap[jaegerstorage.ID] = host.storageExtension
+	return myMap
+}
+
+func (host storageHost) ReportFatalError(err error) {
+	host.t.Fatal(err)
+}
+
+func (host storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
+	host.t.Log("Calling Factory")
 	return nil
 }
 
-func (s *StorageTest) cleanUp() error {
+func (host storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
+	host.t.Log("Calling Exporters")
 	return nil
 }
