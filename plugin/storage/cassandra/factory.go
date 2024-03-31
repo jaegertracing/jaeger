@@ -232,6 +232,13 @@ var _ io.Closer = (*Factory)(nil)
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
+	if f.primarySession != nil {
+		f.primarySession.Close()
+	}
+	if f.archiveSession != nil {
+		f.archiveSession.Close()
+	}
+
 	f.Options.Get(archiveStorageConfig)
 	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
 		cfg.TLS.Close()

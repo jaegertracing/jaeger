@@ -18,6 +18,7 @@ package integration
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -81,28 +82,28 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(flags []string)
 	return f, nil
 }
 
-func (s *CassandraStorageIntegration) initializeCassandra() error {
+func (s *CassandraStorageIntegration) initializeCassandra() (io.Closer, error) {
 	f, err := s.initializeCassandraFactory([]string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.session = f.PrimarySession()
 	if s.SpanWriter, err = f.CreateSpanWriter(); err != nil {
-		return err
+		return nil, err
 	}
 	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
-		return err
+		return nil, err
 	}
 	if s.SamplingStore, err = f.CreateSamplingStore(0); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err = s.initializeDependencyReaderAndWriter(f); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return f, nil
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(f *cassandra.Factory) error {
@@ -125,6 +126,8 @@ func TestCassandraStorage(t *testing.T) {
 		t.Skip("Integration test against Cassandra skipped; set STORAGE env var to cassandra to run this")
 	}
 	s := newCassandraStorageIntegration()
-	require.NoError(t, s.initializeCassandra())
+	closer, err := s.initializeCassandra()
+	require.NoError(t, err)
 	s.IntegrationTestAll(t)
+	require.NoError(t, closer.Close())
 }
