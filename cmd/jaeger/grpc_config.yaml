@@ -17,9 +17,9 @@ extensions:
       external-storage:
         server: localhost:17271
         connection-timeout: 5s
-      # external-storage-archive:
-      #   server: localhost:17281
-      #   connection-timeout: 5s
+      external-storage-archive:
+        server: localhost:17271
+        connection-timeout: 5s
 
 receivers:
   otlp:
