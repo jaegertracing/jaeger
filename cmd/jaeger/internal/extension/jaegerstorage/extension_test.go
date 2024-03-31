@@ -101,7 +101,7 @@ func TestStorageFactoryBadHostError(t *testing.T) {
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
-	host := storageHost{t: t, storageExtension: startStorageExtension(t, "foo")}
+	host := storageHost{t: t, storageExtension: StartStorageExtension(t, "foo")}
 	_, err := GetStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find storage 'bar'")
 }
@@ -119,7 +119,7 @@ func TestStorageFactoryBadShutdownError(t *testing.T) {
 
 func TestStorageExtension(t *testing.T) {
 	const name = "foo"
-	host := storageHost{t: t, storageExtension: startStorageExtension(t, name)}
+	host := storageHost{t: t, storageExtension: StartStorageExtension(t, name)}
 	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
@@ -220,7 +220,7 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	return storageExtension
 }
 
-func startStorageExtension(t *testing.T, memstoreName string) component.Component {
+func StartStorageExtension(t *testing.T, memstoreName string) component.Component {
 	config := &Config{
 		Memory: map[string]memoryCfg.Configuration{
 			memstoreName: {MaxTraces: 10000},

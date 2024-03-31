@@ -99,7 +99,7 @@ main() {
   local version=$1
 
   bring_up_storage "${version}"
-  STORAGE="grpc" make grpc-unit-test
+  STORAGE="grpc" make jaeger-storage-unit-test
 }
 
 main "$@"
