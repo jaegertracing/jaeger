@@ -39,7 +39,7 @@ func TestComponents(t *testing.T) {
 	assert.NotNil(t, factories.Processors)
 	assert.NotNil(t, factories.Connectors)
 
-	_, jaegerReceiverFactoryExists := factories.Receivers["jaeger"]
+	_, jaegerReceiverFactoryExists := factories.Receivers[component.MustNewType("jaeger")]
 	assert.True(t, jaegerReceiverFactoryExists)
 }
 
