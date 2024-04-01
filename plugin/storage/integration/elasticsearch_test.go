@@ -38,7 +38,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 )
 
 const (
@@ -111,7 +110,12 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	require.NoError(t, err)
 
 	// Initialize ES Factory
-	f, err := es.NewFactoryWithConfig(es.NewFactory().Options.Primary.Configuration, metrics.NullFactory, s.logger)
+	cfg := es.NewFactory().Options.Primary.Configuration
+	cfg.MaxSpanAge = maxSpanAge
+	cfg.Tags.AllAsFields = allTagsAsFields
+	cfg.Tags.DotReplacement = tagKeyDeDotChar
+	cfg.IndexPrefix = indexPrefix
+	f, err := es.NewFactoryWithConfig(cfg, metrics.NullFactory, s.logger)
 	if err != nil {
 		return err
 	}
@@ -143,7 +147,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = false
-	// Create Archive Span Writer and Reader
 
 	return nil
 }
@@ -199,24 +202,24 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		IndexPrefix:     indexPrefix,
 		UseILM:          false,
 	}
-	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-	require.NoError(t, err)
+	// spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+	// require.NoError(t, err)
 	clientFn := func() estemplate.Client { return client }
 
 	// Initializing Span Reader and Writer
 
-	w := spanstore.NewSpanWriter(
-		spanstore.SpanWriterParams{
-			Client:            clientFn,
-			Logger:            s.logger,
-			MetricsFactory:    metrics.NullFactory,
-			IndexPrefix:       indexPrefix,
-			AllTagsAsFields:   allTagsAsFields,
-			TagDotReplacement: tagKeyDeDotChar,
-			Archive:           false,
-		})
-	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
-	require.NoError(t, err)
+	// w := spanstore.NewSpanWriter(
+	// 	spanstore.SpanWriterParams{
+	// 		Client:            clientFn,
+	// 		Logger:            s.logger,
+	// 		MetricsFactory:    metrics.NullFactory,
+	// 		IndexPrefix:       indexPrefix,
+	// 		AllTagsAsFields:   allTagsAsFields,
+	// 		TagDotReplacement: tagKeyDeDotChar,
+	// 		Archive:           false,
+	// 	})
+	// err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
+	// require.NoError(t, err)
 	// tracer, _, closer := s.tracerProvider()
 	// defer closer()
 	// s.SpanWriter = w
