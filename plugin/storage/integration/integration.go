@@ -243,7 +243,6 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		var err error
 		actual, err = s.SpanReader.GetOperations(context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
-		t.Log("Actual:", actual)
 		require.NoError(t, err)
 		sort.Slice(actual, func(i, j int) bool {
 			return actual[i].Name < actual[j].Name
