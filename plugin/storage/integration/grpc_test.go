@@ -13,9 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build grpc_storage_integration
-// +build grpc_storage_integration
-
 package integration
 
 import (
@@ -102,50 +99,42 @@ type GRPCStorageIntegrationTestSuite struct {
 	server  *gRPCServer
 }
 
-func (s *GRPCStorageIntegrationTestSuite) initialize() error {
+func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.logger, _ = testutils.NewLogger()
 
 	if s.server != nil {
-		if err := s.server.Restart(); err != nil {
-			return err
-		}
+		err := s.server.Restart()
+		require.NoError(t, err)
 	}
 
 	f := grpc.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags(s.flags)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
-		return err
-	}
+	err = f.Initialize(metrics.NullFactory, s.logger)
+	require.NoError(t, err)
 	s.factory = f
 
-	if s.SpanWriter, err = f.CreateSpanWriter(); err != nil {
-		return err
-	}
-	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
-		return err
-	}
+	s.SpanWriter, err = f.CreateSpanWriter()
+	require.NoError(t, err)
+	s.SpanReader, err = f.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	require.NoError(t, err)
 
 	// TODO DependencyWriter is not implemented in grpc store
 
-	s.Refresh = s.refresh
+	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
-	return nil
 }
 
-func (s *GRPCStorageIntegrationTestSuite) refresh() error {
-	return nil
-}
-
-func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
-	if err := s.factory.Close(); err != nil {
-		return err
-	}
-	return s.initialize()
+func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
+	err := s.factory.Close()
+	require.NoError(t, err)
+	s.initialize(t)
 }
 
 func getPluginFlags(t *testing.T) []string {
@@ -162,6 +151,7 @@ func getPluginFlags(t *testing.T) []string {
 }
 
 func TestGRPCStorage(t *testing.T) {
+	skipUnlessEnv(t, "grpc")
 	flags := getPluginFlags(t)
 	if configPath := os.Getenv("PLUGIN_CONFIG_PATH"); configPath == "" {
 		t.Log("PLUGIN_CONFIG_PATH env var not set")
@@ -172,11 +162,12 @@ func TestGRPCStorage(t *testing.T) {
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,
 	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 }
 
 func TestGRPCStreamingWriter(t *testing.T) {
+	skipUnlessEnv(t, "grpc")
 	flags := getPluginFlags(t)
 	wd, err := os.Getwd()
 	require.NoError(t, err)
@@ -187,11 +178,12 @@ func TestGRPCStreamingWriter(t *testing.T) {
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: flags,
 	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
+	skipUnlessEnv(t, "grpc")
 	flags := []string{
 		"--grpc-storage.server=localhost:2001",
 		"--grpc-storage.tls.enabled=false",
@@ -203,6 +195,6 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		flags:  flags,
 		server: server,
 	}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 }

@@ -21,6 +21,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -46,31 +47,44 @@ const (
 //go:embed fixtures
 var fixtures embed.FS
 
-// StorageIntegration holds components for storage integration test
+// StorageIntegration holds components for storage integration test.
+// The intended usage is as follows:
+// - a specific storage implementation declares its own test functions
+// - in those functions it instantiates and populates this struct
+// - it then calls RunAll.
+//
+// Some implementations may declate multuple tests, with different settings,
+// and RunAll() under different conditions.
 type StorageIntegration struct {
-	SpanWriter       spanstore.Writer
-	SpanReader       spanstore.Reader
-	DependencyWriter dependencystore.Writer
-	DependencyReader dependencystore.Reader
-	SamplingStore    samplingstore.Store
-	Fixtures         []*QueryFixtures
+	SpanWriter        spanstore.Writer
+	SpanReader        spanstore.Reader
+	ArchiveSpanReader spanstore.Reader
+	ArchiveSpanWriter spanstore.Writer
+	DependencyWriter  dependencystore.Writer
+	DependencyReader  dependencystore.Reader
+	SamplingStore     samplingstore.Store
+	Fixtures          []*QueryFixtures
 
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
 
 	// TODO: remove this after all storage backends return Source column from GetDependencies
+
 	GetDependenciesReturnsSource bool
+
+	// Skip Archive Test if not supported by the storage backend
+	SkipArchiveTest bool
 
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
 
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
-	CleanUp func() error
+	CleanUp func(t *testing.T)
 
 	// Refresh() should ensure that the storage backend is up to date before being queried.
 	// called between set-up and queries in each test
-	Refresh func() error
+	Refresh func(t *testing.T)
 }
 
 // === SpanStore Integration Tests ===
@@ -90,12 +104,22 @@ type QueryFixtures struct {
 
 func (s *StorageIntegration) cleanUp(t *testing.T) {
 	require.NotNil(t, s.CleanUp, "CleanUp function must be provided")
-	require.NoError(t, s.CleanUp())
+	s.CleanUp(t)
 }
 
 func (s *StorageIntegration) refresh(t *testing.T) {
 	require.NotNil(t, s.Refresh, "Refresh function must be provided")
-	require.NoError(t, s.Refresh())
+	s.Refresh(t)
+}
+
+func skipUnlessEnv(t *testing.T, storage ...string) {
+	env := os.Getenv("STORAGE")
+	for _, s := range storage {
+		if env == s {
+			return
+		}
+	}
+	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
 }
 
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
@@ -142,6 +166,35 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 		t.Log("\t Expected:", expected)
 		t.Log("\t Actual  :", actual)
 	}
+}
+
+func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
+	s.skipIfNeeded(t)
+	if s.SkipArchiveTest {
+		t.Skip("Skipping ArchiveTrace test because archive reader or writer is nil")
+	}
+	defer s.cleanUp(t)
+	tID := model.NewTraceID(uint64(11), uint64(22))
+	expected := &model.Span{
+		OperationName: "archive_span",
+		StartTime:     time.Now().Add(-time.Hour * 72 * 5).Truncate(time.Microsecond),
+		TraceID:       tID,
+		SpanID:        model.NewSpanID(55),
+		References:    []model.SpanRef{},
+		Process:       model.NewProcess("archived_service", model.KeyValues{}),
+	}
+
+	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
+	s.refresh(t)
+
+	var actual *model.Trace
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
+		return err == nil && len(actual.Spans) == 1
+	})
+	require.True(t, found)
+	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
@@ -249,8 +302,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
 				trace = s.getTraceFixture(t, traceFixture)
-				err := s.writeTrace(t, trace)
-				require.NoError(t, err, "Unexpected error when writing trace %s to storage", traceFixture)
+				s.writeTrace(t, trace)
 				allTraceFixtures[traceFixture] = trace
 			}
 			expected = append(expected, trace)
@@ -285,19 +337,16 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 	return traces
 }
 
-func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) error {
+func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
 	for _, span := range trace.Spans {
-		if err := s.SpanWriter.WriteSpan(context.Background(), span); err != nil {
-			return err
-		}
+		err := s.SpanWriter.WriteSpan(context.Background(), span)
+		require.NoError(t, err, "Not expecting error when writing trace to storage")
 	}
-	return nil
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
-	err := s.writeTrace(t, trace)
-	require.NoError(t, err, "Not expecting error when writing example_trace to storage")
+	s.writeTrace(t, trace)
 	return trace
 }
 
@@ -314,8 +363,7 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans = append(trace.Spans, s)
 	}
-	err := s.writeTrace(t, trace)
-	require.NoError(t, err, "Not expecting error when writing example_trace to storage")
+	s.writeTrace(t, trace)
 	return trace
 }
 
@@ -478,9 +526,10 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// IntegrationTestAll runs all integration tests
-func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
+// RunAll runs all integration tests
+func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
+	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)

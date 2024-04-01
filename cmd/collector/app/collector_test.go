@@ -129,6 +129,10 @@ func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName s
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
+func (m *mockStrategyStore) Close() error {
+	return nil
+}
+
 func TestCollector_PublishOpts(t *testing.T) {
 	// prepare
 	hc := healthcheck.New()
