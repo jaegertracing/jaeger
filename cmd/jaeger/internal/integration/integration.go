@@ -11,9 +11,11 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/service/telemetry"
 
@@ -21,19 +23,10 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/datareceivers"
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-type StorageIntegration struct {
-	Name       string
-	ConfigFile string
-}
-
-// The data receiver will utilize the artificial jaeger receiver to pull
-// the traces from the database which is through jaeger storage extension.
-// Because of that, we need to host another jaeger storage extension
-// that is a duplication from the collector's extension. And get
-// the exporter TraceStorage name to set it to receiver TraceStorage.
-func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Factories) testbed.DataReceiver {
+func (s *StorageIntegration) initTelemetry(t *testing.T, factories otelcol.Factories) (*jaegerstorage.Config, *storageexporter.Config, component.TelemetrySettings) {
 	fmp := fileprovider.New()
 	configProvider, err := otelcol.NewConfigProvider(
 		otelcol.ConfigProviderSettings{
@@ -60,12 +53,7 @@ func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Fac
 	telemetrySettings := componenttest.NewNopTelemetrySettings()
 	telemetrySettings.Logger = tel.Logger()
 
-	receiver := datareceivers.NewJaegerStorageDataReceiver(
-		telemetrySettings,
-		exporterCfg.TraceStorage,
-		storageCfg,
-	)
-	return receiver
+	return storageCfg, exporterCfg, telemetrySettings
 }
 
 func (s *StorageIntegration) Test(t *testing.T) {
@@ -82,7 +70,18 @@ func (s *StorageIntegration) Test(t *testing.T) {
 		"",
 	)
 	sender := testbed.NewOTLPTraceDataSender(testbed.DefaultHost, 4317)
-	receiver := s.newDataReceiver(t, factories)
+	storageCfg, exporterCfg, telemetrySettings := s.initTelemetry(t, factories)
+
+	// The data receiver will utilize the artificial jaeger receiver to pull
+	// the traces from the database which is through jaeger storage extension.
+	// Because of that, we need to host another jaeger storage extension
+	// that is a duplication from the collector's extension. And get
+	// the exporter TraceStorage name to set it to receiver TraceStorage.
+	receiver := datareceivers.NewJaegerStorageDataReceiver(
+		telemetrySettings,
+		exporterCfg.TraceStorage,
+		storageCfg,
+	)
 
 	runner := testbed.NewInProcessCollector(factories)
 	validator := testbed.NewCorrectTestValidator(
@@ -129,4 +128,50 @@ func (s *StorageIntegration) Test(t *testing.T) {
 	tc.StopBackend()
 
 	tc.ValidateData()
+}
+
+func (s *StorageIntegration) UnitTest(t *testing.T) {
+	if os.Getenv("STORAGE") != s.Name {
+		t.Skipf("Integration test against Jaeger-V2 %[1]s skipped; set STORAGE env var to %[1]s to run this", s.Name)
+	}
+	factories, err := internal.Components()
+	require.NoError(t, err)
+
+	storageCfg, exporterCfg, telemetrySettings := s.initTelemetry(t, factories)
+
+	extensionFactory := jaegerstorage.NewFactory()
+	storageExtension, err := extensionFactory.CreateExtension(
+		context.Background(),
+		extension.CreateSettings{
+			ID:                jaegerstorage.ID,
+			TelemetrySettings: telemetrySettings,
+		},
+		storageCfg,
+	)
+
+	require.NoError(t, err)
+	host := storageHost{t: t, storageExtension: storageExtension}
+
+	err = storageExtension.Start(context.Background(), host)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(context.Background())) })
+	storageFactory, err := jaegerstorage.GetStorageFactory(exporterCfg.TraceStorage, host)
+	require.NoError(t, err)
+	spanReader, err := storageFactory.CreateSpanReader()
+	require.NoError(t, err)
+	spanWriter, err := storageFactory.CreateSpanWriter()
+	require.NoError(t, err)
+	archiveSpanReader, err := storageFactory.CreateSpanReader()
+	require.NoError(t, err)
+	archiveSpanWriter, err := storageFactory.CreateSpanWriter()
+	require.NoError(t, err)
+	v := &integration.StorageIntegration{
+		SpanReader:        spanReader,
+		SpanWriter:        spanWriter,
+		ArchiveSpanReader: archiveSpanReader,
+		ArchiveSpanWriter: archiveSpanWriter,
+		Refresh:           func(_ *testing.T) {},
+		CleanUp:           func(_ *testing.T) {},
+	}
+	v.RunAll(t)
 }

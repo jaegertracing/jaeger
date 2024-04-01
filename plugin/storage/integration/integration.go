@@ -197,7 +197,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
-func (s *StorageIntegration) TestGetLargeSpan(t *testing.T) {
+func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
@@ -532,7 +532,7 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("ArchiveTrace", s.testArchiveTrace)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
-	t.Run("GetLargeSpans", s.TestGetLargeSpan)
+	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("GetDependencies", s.testGetDependencies)
 	t.Run("GetThroughput", s.testGetThroughput)

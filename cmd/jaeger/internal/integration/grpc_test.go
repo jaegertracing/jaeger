@@ -14,3 +14,11 @@ func TestGRPCStorage(t *testing.T) {
 	}
 	s.Test(t)
 }
+
+func TestUnitGRPCStorage(t *testing.T) {
+	s := &StorageIntegration{
+		Name:       "grpc",
+		ConfigFile: "../../grpc_config.yaml",
+	}
+	s.UnitTest(t)
+}
