@@ -14,7 +14,7 @@ import (
 )
 
 // componentType is the name of this extension in configuration.
-const componentType = component.Type("jaeger_query")
+var componentType = component.MustNewType("jaeger_query")
 
 // ID is the identifier of this extension.
 var ID = component.NewID(componentType)

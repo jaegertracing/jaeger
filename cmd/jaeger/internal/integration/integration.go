@@ -34,7 +34,7 @@ type StorageIntegration struct {
 // that is a duplication from the collector's extension. And get
 // the exporter TraceStorage name to set it to receiver TraceStorage.
 func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Factories) testbed.DataReceiver {
-	fmp := fileprovider.New()
+	fmp := fileprovider.NewWithSettings(confmap.ProviderSettings{})
 	configProvider, err := otelcol.NewConfigProvider(
 		otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
