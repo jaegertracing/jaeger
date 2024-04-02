@@ -111,7 +111,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	})
 	require.NoError(t, err)
 
-	//Initialize ES Factory
+	// Initialize ES Factory
 	opts := es.NewOptions(primaryNamespace, archiveNamespace)
 	cfg := opts.Primary.Configuration
 
