@@ -8,12 +8,22 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type StorageIntegration struct {
-	Name       string
-	ConfigFile string
+	Name              string
+	ConfigFile        string
+	SpanWriter        spanstore.Writer
+	SpanReader        spanstore.Reader
+	ArchiveSpanWriter spanstore.Writer
+	ArchiveSpanReader spanstore.Reader
+	storageExtension  component.Component
+	exporterCfg       *storageexporter.Config
+	tests             *integration.StorageIntegration
 }
 
 type storageHost struct {
@@ -32,11 +42,9 @@ func (host storageHost) ReportFatalError(err error) {
 }
 
 func (host storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
-	host.t.Log("Calling Factory")
 	return nil
 }
 
 func (host storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	host.t.Log("Calling Exporters")
 	return nil
 }

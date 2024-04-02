@@ -148,30 +148,44 @@ func (s *StorageIntegration) UnitTest(t *testing.T) {
 		},
 		storageCfg,
 	)
-
 	require.NoError(t, err)
-	host := storageHost{t: t, storageExtension: storageExtension}
 
-	err = storageExtension.Start(context.Background(), host)
+	s.storageExtension = storageExtension
+	s.exporterCfg = exporterCfg
+
+	s.tests = &integration.StorageIntegration{}
+
+	s.initComponents(t)
+	s.tests.RunAll(t)
+}
+
+func (s *StorageIntegration) initComponents(t *testing.T) {
+	host := storageHost{t: t, storageExtension: s.storageExtension}
+	err := s.storageExtension.Start(context.Background(), host)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(context.Background())) })
-	storageFactory, err := jaegerstorage.GetStorageFactory(exporterCfg.TraceStorage, host)
+	t.Cleanup(func() { require.NoError(t, s.storageExtension.Shutdown(context.Background())) })
+	storageFactory, err := jaegerstorage.GetStorageFactory(s.exporterCfg.TraceStorage, host)
 	require.NoError(t, err)
 	spanReader, err := storageFactory.CreateSpanReader()
 	require.NoError(t, err)
+	s.tests.SpanReader = spanReader
 	spanWriter, err := storageFactory.CreateSpanWriter()
 	require.NoError(t, err)
+	s.tests.SpanWriter = spanWriter
 	archiveSpanReader, err := storageFactory.CreateSpanReader()
 	require.NoError(t, err)
+	s.tests.ArchiveSpanReader = archiveSpanReader
 	archiveSpanWriter, err := storageFactory.CreateSpanWriter()
 	require.NoError(t, err)
-	v := &integration.StorageIntegration{
-		SpanReader:        spanReader,
-		SpanWriter:        spanWriter,
-		ArchiveSpanReader: archiveSpanReader,
-		ArchiveSpanWriter: archiveSpanWriter,
-		Refresh:           func(_ *testing.T) {},
-		CleanUp:           func(_ *testing.T) {},
-	}
-	v.RunAll(t)
+	s.tests.ArchiveSpanWriter = archiveSpanWriter
+
+	s.tests.Refresh = func(_ *testing.T) {}
+	s.tests.CleanUp = s.cleanUp
+}
+
+func (s *StorageIntegration) cleanUp(t *testing.T) {
+	require.NoError(t, s.storageExtension.Shutdown(context.Background()))
+
+	time.Sleep(20 * time.Second)
+	s.initComponents(t)
 }
