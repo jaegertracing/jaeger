@@ -53,6 +53,8 @@ const (
 	spanTemplateName         = "jaeger-span"
 	serviceTemplateName      = "jaeger-service"
 	dependenciesTemplateName = "jaeger-dependencies"
+	primaryNamespace         = "es"
+	archiveNamespace         = "es-archive"
 )
 
 type ESStorageIntegration struct {
@@ -109,9 +111,12 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	})
 	require.NoError(t, err)
 
-	// Initialize ES Factory
-	cfg := es.NewFactory().Options.Primary.Configuration
+	//Initialize ES Factory
+	opts := es.NewOptions(primaryNamespace, archiveNamespace)
+	cfg := opts.Primary.Configuration
+
 	cfg.MaxSpanAge = maxSpanAge
+	cfg.MaxDocCount = defaultMaxDocCount
 	cfg.Tags.AllAsFields = allTagsAsFields
 	cfg.Tags.DotReplacement = tagKeyDeDotChar
 	cfg.IndexPrefix = indexPrefix
