@@ -115,11 +115,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	opts := es.NewOptions(primaryNamespace, archiveNamespace)
 	cfg := opts.Primary.Configuration
 
-	cfg.MaxSpanAge = maxSpanAge
-	cfg.MaxDocCount = defaultMaxDocCount
-	cfg.Tags.AllAsFields = allTagsAsFields
-	cfg.Tags.DotReplacement = tagKeyDeDotChar
-	cfg.IndexPrefix = indexPrefix
 	f, err := es.NewFactoryWithConfig(cfg, metrics.NullFactory, s.logger)
 	if err != nil {
 		return err
