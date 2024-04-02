@@ -2,7 +2,7 @@
 
 This example combines the Hot R.O.D. demo application ([examples/hotrod/](../hotrod/)) with Grafana, Loki and Prometheus integration, to demonstrate logs, metrics and traces correlation.
 
-## Running via `docker-compose`
+## Running via `docker compose`
 
 ### Prerequisites
 
@@ -20,7 +20,7 @@ grafana/loki-docker-driver:latest \
 
 ### Run the services
 
-`docker-compose up`
+`docker compose up`
 
 ### Access the services
 * HotROD application at http://localhost:8080
@@ -52,4 +52,4 @@ Additionally, there are graphs for each service, visualizing the rate of the req
 
 ### Clean up
 
-`docker-compose down`
+`docker compose down`
