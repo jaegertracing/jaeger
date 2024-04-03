@@ -76,5 +76,5 @@ func TestGRPCStorage(t *testing.T) {
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
-	s.RunTestSpanstore(t)
+	s.RunSpanStoreTests(t)
 }
