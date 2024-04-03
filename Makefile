@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
-JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration
+JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration/e2e
 
 # These DOCKER_xxx vars are used when building Docker images.
 DOCKER_NAMESPACE?=jaegertracing

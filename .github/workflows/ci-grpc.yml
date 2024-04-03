@@ -40,7 +40,9 @@ jobs:
             make grpc-storage-integration-test
             ;;
           v2)
-            bash scripts/grpc-integration-test.sh latest
+            STORAGE=grpc \
+              SPAN_STORAGE_TYPE=memory \
+              make jaeger-storage-integration-test
             ;;
         esac
 

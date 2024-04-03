@@ -278,7 +278,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := model.TraceID{High: 0, Low: 0}
+		fakeTraceID := model.TraceID{High: 0, Low: 1}
 		trace, err := s.SpanReader.GetTrace(context.Background(), fakeTraceID)
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, trace)
@@ -537,4 +537,12 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("GetDependencies", s.testGetDependencies)
 	t.Run("GetThroughput", s.testGetThroughput)
 	t.Run("GetLatestProbability", s.testGetLatestProbability)
+}
+
+func (s *StorageIntegration) IntegrationTestSpanstore(t *testing.T) {
+	t.Run("GetServices", s.testGetServices)
+	t.Run("GetOperations", s.testGetOperations)
+	t.Run("GetTrace", s.testGetTrace)
+	t.Run("GetLargeSpans", s.testGetLargeSpan)
+	t.Run("FindTraces", s.testFindTraces)
 }
