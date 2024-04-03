@@ -30,6 +30,13 @@ var (
 	_ spanstore.Reader = (*spanReader)(nil)
 )
 
+// E2EStorageIntegration holds components for e2e mode of Jaeger-v2
+// storage integration test. The intended usage is as follows:
+//   - A specific storage implementation declares its own test functions
+//     (e.g. starts remote-storage).
+//   - In those functions, instantiates with e2eInitialize()
+//     and clean up with e2eCleanUp().
+//   - Then calls RunTestSpanstore.
 type E2EStorageIntegration struct {
 	integration.StorageIntegration
 
@@ -37,6 +44,8 @@ type E2EStorageIntegration struct {
 	configCleanup func()
 }
 
+// e2eInitialize starts the Jaeger-v2 collector with the provided config file,
+// it also initialize the SpanWriter and SpanReader below.
 func (s *E2EStorageIntegration) e2eInitialize() error {
 	factories, err := internal.Components()
 	if err != nil {
@@ -58,10 +67,10 @@ func (s *E2EStorageIntegration) e2eInitialize() error {
 		return err
 	}
 
-	if s.SpanWriter, err = CreateSpanWriter(); err != nil {
+	if s.SpanWriter, err = createSpanWriter(); err != nil {
 		return err
 	}
-	if s.SpanReader, err = CreateSpanReader(); err != nil {
+	if s.SpanReader, err = createSpanReader(); err != nil {
 		return err
 	}
 	return nil
@@ -73,11 +82,12 @@ func (s *E2EStorageIntegration) e2eCleanUp() error {
 	return err
 }
 
+// SpanWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
 type spanWriter struct {
 	testbed.TraceDataSender
 }
 
-func CreateSpanWriter() (*spanWriter, error) {
+func createSpanWriter() (*spanWriter, error) {
 	sender := testbed.NewOTLPTraceDataSender(testbed.DefaultHost, testbed.DefaultOTLPPort)
 	err := sender.Start()
 	if err != nil {
@@ -103,11 +113,12 @@ func (w *spanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	return w.ConsumeTraces(ctx, td)
 }
 
+// SpanReader retrieve span data from Jaeger-v2 query with api_v2.QueryServiceClient.
 type spanReader struct {
 	client api_v2.QueryServiceClient
 }
 
-func CreateSpanReader() (*spanReader, error) {
+func createSpanReader() (*spanReader, error) {
 	opts := []grpc.DialOption{
 		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
