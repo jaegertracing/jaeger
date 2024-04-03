@@ -6,7 +6,9 @@ package e2e
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -199,6 +201,10 @@ func (r *spanReader) GetOperations(ctx context.Context, query spanstore.Operatio
 
 func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	var traces []*model.Trace
+
+	if query.NumTraces > math.MaxInt32 {
+		return traces, fmt.Errorf("NumTraces must not greater than %d", math.MaxInt32)
+	}
 	stream, err := r.client.FindTraces(ctx, &api_v2.FindTracesRequest{
 		Query: &api_v2.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
