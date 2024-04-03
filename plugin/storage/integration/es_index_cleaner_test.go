@@ -40,7 +40,7 @@ const (
 )
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	_, err = client.DeleteIndex("*").Do(context.Background())
@@ -60,7 +60,7 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 }
 
 func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	tests := []struct {
@@ -82,7 +82,7 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 }
 
 func TestIndexCleaner(t *testing.T) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	v8Client, err := createESV8Client()

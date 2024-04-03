@@ -112,7 +112,7 @@ func (s *StorageIntegration) refresh(t *testing.T) {
 	s.Refresh(t)
 }
 
-func skipUnlessEnv(t *testing.T, storage ...string) {
+func SkipUnlessEnv(t *testing.T, storage ...string) {
 	env := os.Getenv("STORAGE")
 	for _, s := range storage {
 		if env == s {
@@ -539,7 +539,8 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
 
-func (s *StorageIntegration) IntegrationTestSpanstore(t *testing.T) {
+// RunTestSpanstore runs only span related integration tests
+func (s *StorageIntegration) RunTestSpanstore(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)

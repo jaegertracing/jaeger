@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -33,7 +34,6 @@ func (s *GRPCStorageIntegration) initialize() error {
 		return err
 	}
 
-	s.Refresh = s.refresh
 	s.CleanUp = s.cleanUp
 	return nil
 }
@@ -69,24 +69,14 @@ func (s *GRPCStorageIntegration) startServer() error {
 	return nil
 }
 
-func (s *GRPCStorageIntegration) refresh() error {
-	return nil
-}
-
-func (s *GRPCStorageIntegration) cleanUp() error {
-	if err := s.server.Close(); err != nil {
-		return err
-	}
-	if err := s.storageFactory.Close(); err != nil {
-		return err
-	}
-	return s.initialize()
+func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
+	require.NoError(t, s.server.Close())
+	require.NoError(t, s.storageFactory.Close())
+	require.NoError(t, s.initialize())
 }
 
 func TestGRPCStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "grpc" {
-		t.Skip("Integration test against gRPC skipped; set STORAGE env var to grpc to run this")
-	}
+	integration.SkipUnlessEnv(t, "grpc")
 
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
@@ -99,5 +89,5 @@ func TestGRPCStorage(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, s.e2eCleanUp())
 	})
-	s.IntegrationTestSpanstore(t)
+	s.RunTestSpanstore(t)
 }

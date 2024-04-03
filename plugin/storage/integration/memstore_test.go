@@ -47,7 +47,7 @@ func (s *MemStorageIntegrationTestSuite) initialize(_ *testing.T) {
 }
 
 func TestMemoryStorage(t *testing.T) {
-	skipUnlessEnv(t, "memory")
+	SkipUnlessEnv(t, "memory")
 	s := &MemStorageIntegrationTestSuite{}
 	s.initialize(t)
 	s.RunAll(t)

@@ -67,7 +67,7 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 }
 
 func TestBadgerStorage(t *testing.T) {
-	skipUnlessEnv(t, "badger")
+	SkipUnlessEnv(t, "badger")
 	s := &BadgerIntegrationStorage{}
 	s.initialize(t)
 	s.RunAll(t)
