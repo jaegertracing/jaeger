@@ -85,6 +85,7 @@ func TestGRPCStorage(t *testing.T) {
 	s := &GRPCStorageIntegration{
 		logger: logger,
 	}
+	s.ConfigFile = "../../../grpc_config.yaml"
 	require.NoError(t, s.initialize())
 	require.NoError(t, s.e2eInitialize())
 	t.Cleanup(func() {

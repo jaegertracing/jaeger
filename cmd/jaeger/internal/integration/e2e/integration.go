@@ -39,6 +39,7 @@ var (
 //   - Then calls RunTestSpanstore.
 type E2EStorageIntegration struct {
 	integration.StorageIntegration
+	ConfigFile string
 
 	runner        testbed.OtelcolRunner
 	configCleanup func()
@@ -52,7 +53,7 @@ func (s *E2EStorageIntegration) e2eInitialize() error {
 		return err
 	}
 
-	config, err := os.ReadFile("../../../grpc_config.yaml")
+	config, err := os.ReadFile(s.ConfigFile)
 	if err != nil {
 		return err
 	}
