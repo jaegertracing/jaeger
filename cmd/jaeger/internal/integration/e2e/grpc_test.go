@@ -34,6 +34,7 @@ func (s *GRPCStorageIntegration) initialize() error {
 		return err
 	}
 
+	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 	return nil
 }
