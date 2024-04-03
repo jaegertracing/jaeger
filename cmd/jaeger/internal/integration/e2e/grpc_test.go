@@ -28,18 +28,14 @@ type GRPCStorageIntegration struct {
 	storageFactory *storage.Factory
 }
 
-func (s *GRPCStorageIntegration) initialize() error {
-	err := s.startServer()
-	if err != nil {
-		return err
-	}
+func (s *GRPCStorageIntegration) initialize(t *testing.T) {
+	s.startServer(t)
 
 	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
-	return nil
 }
 
-func (s *GRPCStorageIntegration) startServer() error {
+func (s *GRPCStorageIntegration) startServer(t *testing.T) {
 	opts := &app.Options{
 		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
 		Tenancy: tenancy.Options{
@@ -49,31 +45,20 @@ func (s *GRPCStorageIntegration) startServer() error {
 	tm := tenancy.NewManager(&opts.Tenancy)
 	var err error
 	s.storageFactory, err = storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	v, _ := config.Viperize(s.storageFactory.AddFlags)
 	s.storageFactory.InitFromViper(v, s.logger)
-	err = s.storageFactory.Initialize(metrics.NullFactory, s.logger)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, s.storageFactory.Initialize(metrics.NullFactory, s.logger))
 
 	s.server, err = app.NewServer(opts, s.storageFactory, tm, s.logger, healthcheck.New())
-	if err != nil {
-		return err
-	}
-	err = s.server.Start()
-	if err != nil {
-		return err
-	}
-	return nil
+	require.NoError(t, err)
+	require.NoError(t, s.server.Start())
 }
 
 func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.server.Close())
 	require.NoError(t, s.storageFactory.Close())
-	require.NoError(t, s.initialize())
+	s.initialize(t)
 }
 
 func TestGRPCStorage(t *testing.T) {
@@ -86,10 +71,10 @@ func TestGRPCStorage(t *testing.T) {
 		logger: logger,
 	}
 	s.ConfigFile = "../../../grpc_config.yaml"
-	require.NoError(t, s.initialize())
-	require.NoError(t, s.e2eInitialize())
+	s.initialize(t)
+	s.e2eInitialize(t)
 	t.Cleanup(func() {
-		require.NoError(t, s.e2eCleanUp())
+		s.e2eCleanUp(t)
 	})
 	s.RunTestSpanstore(t)
 }

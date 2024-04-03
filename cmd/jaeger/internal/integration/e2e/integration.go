@@ -11,10 +11,12 @@ import (
 	"math"
 	"os"
 	"strings"
+	"testing"
 	"time"
 
 	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
@@ -49,40 +51,29 @@ type E2EStorageIntegration struct {
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
 // it also initialize the SpanWriter and SpanReader below.
-func (s *E2EStorageIntegration) e2eInitialize() error {
+func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	factories, err := internal.Components()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
 	config, err := os.ReadFile(s.ConfigFile)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	config = []byte(strings.Replace(string(config), "./cmd/jaeger/", "../../../", 1))
 
 	s.runner = testbed.NewInProcessCollector(factories)
 	s.configCleanup, err = s.runner.PrepareConfig(string(config))
-	if err != nil {
-		return err
-	}
-	if err = s.runner.Start(testbed.StartParams{}); err != nil {
-		return err
-	}
+	require.NoError(t, err)
+	require.NoError(t, s.runner.Start(testbed.StartParams{}))
 
-	if s.SpanWriter, err = createSpanWriter(); err != nil {
-		return err
-	}
-	if s.SpanReader, err = createSpanReader(); err != nil {
-		return err
-	}
-	return nil
+	s.SpanWriter, err = createSpanWriter()
+	require.NoError(t, err)
+	s.SpanReader, err = createSpanReader()
+	require.NoError(t, err)
 }
 
-func (s *E2EStorageIntegration) e2eCleanUp() error {
+func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	s.configCleanup()
 	_, err := s.runner.Stop()
-	return err
+	require.NoError(t, err)
 }
 
 // SpanWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
