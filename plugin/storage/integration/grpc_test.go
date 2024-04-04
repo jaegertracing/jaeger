@@ -16,23 +16,17 @@
 package integration
 
 import (
-	"net"
 	"os"
 	"path"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 const (
@@ -40,70 +34,19 @@ const (
 	streamingPluginConfigPath = "fixtures/grpc_plugin_conf.yaml"
 )
 
-type gRPCServer struct {
-	errChan chan error
-	server  *googleGRPC.Server
-	wg      sync.WaitGroup
-}
-
-func newgRPCServer() (*gRPCServer, error) {
-	return &gRPCServer{errChan: make(chan error, 1)}, nil
-}
-
-func (s *gRPCServer) Restart() error {
-	// stop the server if one already exists
-	if s.server != nil {
-		s.server.GracefulStop()
-		s.wg.Wait()
-		select {
-		case err := <-s.errChan:
-			return err
-		default:
-		}
-	}
-
-	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
-
-	s.server = googleGRPC.NewServer()
-	queryPlugin := shared.StorageGRPCPlugin{
-		Impl:        memStorePlugin,
-		ArchiveImpl: memStorePlugin,
-	}
-
-	if err := queryPlugin.RegisterHandlers(s.server); err != nil {
-		return err
-	}
-
-	listener, err := net.Listen("tcp", "localhost:2001")
-	if err != nil {
-		return err
-	}
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		if err = s.server.Serve(listener); err != nil {
-			select {
-			case s.errChan <- err:
-			default:
-			}
-		}
-	}()
-	return nil
-}
-
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
 	logger  *zap.Logger
 	flags   []string
 	factory *grpc.Factory
-	server  *gRPCServer
+	server  *GRPCServer
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.logger, _ = testutils.NewLogger()
 
 	if s.server != nil {
-		err := s.server.Restart()
+		err := s.server.Start()
 		require.NoError(t, err)
 	}
 
@@ -132,8 +75,10 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
-	err := s.factory.Close()
-	require.NoError(t, err)
+	require.NoError(t, s.factory.Close())
+	if s.server != nil {
+		require.NoError(t, s.server.Close())
+	}
 	s.initialize(t)
 }
 
@@ -185,10 +130,10 @@ func TestGRPCStreamingWriter(t *testing.T) {
 func TestGRPCRemoteStorage(t *testing.T) {
 	SkipUnlessEnv(t, "grpc")
 	flags := []string{
-		"--grpc-storage.server=localhost:2001",
+		"--grpc-storage.server=localhost:17271",
 		"--grpc-storage.tls.enabled=false",
 	}
-	server, err := newgRPCServer()
+	server, err := NewGRPCServer()
 	require.NoError(t, err)
 
 	s := &GRPCStorageIntegrationTestSuite{
