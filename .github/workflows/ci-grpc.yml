@@ -42,7 +42,7 @@ jobs:
           v2)
             STORAGE=grpc \
               SPAN_STORAGE_TYPE=memory \
-              make jaeger-storage-integration-test
+              make jaeger-v2-storage-integration-test
             ;;
         esac
 
