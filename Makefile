@@ -120,6 +120,7 @@ all-in-one-integration-test:
 #  - grpc
 .PHONY: jaeger-v2-storage-integration-test
 jaeger-v2-storage-integration-test:
+	(cd cmd/jaeger/ && go build .)
 	# Expire tests results for jaeger storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache

@@ -40,7 +40,7 @@ func TestGRPCStorage(t *testing.T) {
 	s := &GRPCStorageIntegration{
 		server: server,
 	}
-	s.ConfigFile = "../../grpc_config.yaml"
+	s.ConfigFile = "cmd/jaeger/grpc_config.yaml"
 	s.initialize(t)
 	s.e2eInitialize(t)
 	t.Cleanup(func() {
