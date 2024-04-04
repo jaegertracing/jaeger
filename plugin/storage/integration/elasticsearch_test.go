@@ -28,6 +28,9 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	estemplate "github.com/jaegertracing/jaeger/pkg/es"
@@ -66,19 +69,19 @@ type ESStorageIntegration struct {
 	logger        *zap.Logger
 }
 
-// func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
-// 	exporter := tracetest.NewInMemoryExporter()
-// 	tp := sdktrace.NewTracerProvider(
-// 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-// 		sdktrace.WithSyncer(exporter),
-// 	)
-// 	closer := func() {
-// 		if err := tp.Shutdown(context.Background()); err != nil {
-// 			s.logger.Error("failed to close tracer", zap.Error(err))
-// 		}
-// 	}
-// 	return tp, exporter, closer
-// }
+func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),
+	)
+	closer := func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			s.logger.Error("failed to close tracer", zap.Error(err))
+		}
+	}
+	return tp, exporter, closer
+}
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
 	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
@@ -98,12 +101,13 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) error {
+func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
 	require.NoError(t, err)
 	s.logger, _ = testutils.NewLogger()
+
 	s.client = rawClient
 	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses:            []string{queryURL},
@@ -111,31 +115,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	})
 	require.NoError(t, err)
 
-	// Initialize ES Factory
-	opts := es.NewOptions(primaryNamespace, archiveNamespace)
-	cfg := opts.Primary.Configuration
-
-	f, err := es.NewFactoryWithConfig(cfg, metrics.NullFactory, s.logger)
-	if err != nil {
-		return err
-	}
-	// Create Span Writer and Reader
-	s.SpanWriter, err = f.CreateSpanWriter()
-	if err != nil {
-		return err
-	}
-	s.SpanReader, err = f.CreateSpanReader()
-	if err != nil {
-		return err
-	}
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
-	if err != nil {
-		return err
-	}
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
-	if err != nil {
-		return err
-	}
 	s.initSpanstore(t, allTagsAsFields)
 	s.initSamplingStore(t)
 
@@ -147,8 +126,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = false
-
-	return nil
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
@@ -206,8 +183,32 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	// require.NoError(t, err)
 	clientFn := func() estemplate.Client { return client }
 
-	// Initializing Span Reader and Writer
+	opts := es.NewOptions(primaryNamespace, archiveNamespace)
+	cfg := opts.Primary.Configuration
 
+	f, err := es.NewFactoryWithConfigTest(cfg, metrics.NullFactory, s.logger, client)
+	if err != nil {
+		return err
+	}
+	// Create Span Writer and Reader
+	s.SpanWriter, err = f.CreateSpanWriter()
+	if err != nil {
+		return err
+	}
+	s.SpanReader, err = f.CreateSpanReader()
+	if err != nil {
+		return err
+	}
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	if err != nil {
+		return err
+	}
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	if err != nil {
+		return err
+	}
+
+	// Initializing Span Reader and Writer
 	// w := spanstore.NewSpanWriter(
 	// 	spanstore.SpanWriterParams{
 	// 		Client:            clientFn,
@@ -257,6 +258,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	// 	Tracer:            tracer.Tracer("test"),
 	// 	Archive:           true,
 	// })
+
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          clientFn,
 		Logger:          s.logger,

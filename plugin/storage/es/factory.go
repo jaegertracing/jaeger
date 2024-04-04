@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -83,6 +84,41 @@ func NewFactory() *Factory {
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
+}
+
+func NewFactoryWithConfigTest(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger, client estemplate.Client,
+) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	cfg.MaxDocCount = defaultMaxDocCount
+	cfg.Enabled = true
+
+	archive := make(map[string]*namespaceConfig)
+	archive[archiveNamespace] = &namespaceConfig{
+		Configuration: cfg,
+		namespace:     archiveNamespace,
+	}
+
+	f := NewFactory()
+	f.InitFromOptions(Options{
+		Primary: namespaceConfig{
+			Configuration: cfg,
+			namespace:     primaryNamespace,
+		},
+		others: archive,
+	})
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	f.primaryClient.Store(&client)
+	return f, nil
 }
 
 func NewFactoryWithConfig(
