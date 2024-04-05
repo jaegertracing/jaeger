@@ -182,7 +182,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 
 	opts := es.NewOptions(primaryNamespace, archiveNamespace)
 	cfg := opts.Primary.Configuration
-
+	cfg.IndexPrefix = indexPrefix
 	f, err := es.NewFactoryWithConfigTest(cfg, metrics.NullFactory, s.logger, client)
 	if err != nil {
 		return err
