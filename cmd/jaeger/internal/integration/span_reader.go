@@ -21,14 +21,26 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var _ spanstore.Reader = (*spanReader)(nil)
+var (
+	_ spanstore.Reader = (*spanReader)(nil)
+	_ io.Closer        = (*spanReader)(nil)
+)
 
 // SpanReader retrieve span data from Jaeger-v2 query with api_v2.QueryServiceClient.
 type spanReader struct {
-	client api_v2.QueryServiceClient
+	Port int
+
+	clientConn *grpc.ClientConn
+	client     api_v2.QueryServiceClient
 }
 
-func createSpanReader() (*spanReader, error) {
+func createSpanReader(port int) *spanReader {
+	return &spanReader{
+		Port: port,
+	}
+}
+
+func (r *spanReader) Start() error {
 	opts := []grpc.DialOption{
 		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -39,12 +51,16 @@ func createSpanReader() (*spanReader, error) {
 
 	cc, err := grpc.DialContext(ctx, ports.PortToHostPort(ports.QueryGRPC), opts...)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &spanReader{
-		client: api_v2.NewQueryServiceClient(cc),
-	}, nil
+	r.clientConn = cc
+	r.client = api_v2.NewQueryServiceClient(cc)
+	return nil
+}
+
+func (r *spanReader) Close() error {
+	return r.clientConn.Close()
 }
 
 func unwrapNotFoundErr(err error) error {

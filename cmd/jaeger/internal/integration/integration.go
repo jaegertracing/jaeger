@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"testing"
@@ -11,7 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/ports"
 )
+
+const otlpPort = 4317
 
 // E2EStorageIntegration holds components for e2e mode of Jaeger-v2
 // storage integration test. The intended usage is as follows:
@@ -43,13 +47,18 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	require.NoError(t, cmd.Start())
 	s.binaryProcess = cmd.Process
 
-	var err error
-	s.SpanWriter, err = createSpanWriter()
-	require.NoError(t, err)
-	s.SpanReader, err = createSpanReader()
-	require.NoError(t, err)
+	spanWriter := createSpanWriter(otlpPort)
+	require.NoError(t, spanWriter.Start())
+	s.SpanWriter = spanWriter
+
+	spanReader := createSpanReader(ports.QueryGRPC)
+	require.NoError(t, spanReader.Start())
+	s.SpanReader = spanReader
 }
 
-func (s *E2EStorageIntegration) e2eCleanUp(_ *testing.T) {
+func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
+	require.NoError(t, s.SpanReader.(io.Closer).Close())
+	require.NoError(t, s.SpanWriter.(io.Closer).Close())
+
 	s.binaryProcess.Kill()
 }
