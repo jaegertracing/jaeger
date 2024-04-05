@@ -62,13 +62,17 @@ func (s *GRPCServer) Start() error {
 }
 
 func (s *GRPCServer) Close() error {
+	if s.server == nil {
+		return nil
+	}
+
 	s.server.GracefulStop()
+	s.server = nil
 	s.wg.Wait()
 	select {
 	case err := <-s.errChan:
 		return err
 	default:
 	}
-	s.server = nil
 	return nil
 }
