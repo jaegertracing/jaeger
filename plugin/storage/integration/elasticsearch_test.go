@@ -66,19 +66,6 @@ type ESStorageIntegration struct {
 	logger        *zap.Logger
 }
 
-// func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
-// 	exporter := tracetest.NewInMemoryExporter()
-// 	tp := sdktrace.NewTracerProvider(
-// 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-// 		sdktrace.WithSyncer(exporter),
-// 	)
-// 	closer := func() {
-// 		if err := tp.Shutdown(context.Background()); err != nil {
-// 			s.logger.Error("failed to close tracer", zap.Error(err))
-// 		}
-// 	}
-// 	return tp, exporter, closer
-// }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
 	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
@@ -176,8 +163,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		IndexPrefix:     indexPrefix,
 		UseILM:          false,
 	}
-	// spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-	// require.NoError(t, err)
+
 	clientFn := func() estemplate.Client { return client }
 
 	opts := es.NewOptions(primaryNamespace, archiveNamespace)
@@ -205,57 +191,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	if err != nil {
 		return err
 	}
-
-	// Initializing Span Reader and Writer
-	// w := spanstore.NewSpanWriter(
-	// 	spanstore.SpanWriterParams{
-	// 		Client:            clientFn,
-	// 		Logger:            s.logger,
-	// 		MetricsFactory:    metrics.NullFactory,
-	// 		IndexPrefix:       indexPrefix,
-	// 		AllTagsAsFields:   allTagsAsFields,
-	// 		TagDotReplacement: tagKeyDeDotChar,
-	// 		Archive:           false,
-	// 	})
-	// err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
-	// require.NoError(t, err)
-	// tracer, _, closer := s.tracerProvider()
-	// defer closer()
-	// s.SpanWriter = w
-	// s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-	// 	Client:            clientFn,
-	// 	Logger:            s.logger,
-	// 	MetricsFactory:    metrics.NullFactory,
-	// 	IndexPrefix:       indexPrefix,
-	// 	MaxSpanAge:        maxSpanAge,
-	// 	TagDotReplacement: tagKeyDeDotChar,
-	// 	MaxDocCount:       defaultMaxDocCount,
-	// 	Tracer:            tracer.Tracer("test"),
-	// 	Archive:           false,
-	// })
-
-	// Initializing Archive Span Reader and Writer
-	// s.ArchiveSpanWriter = spanstore.NewSpanWriter(
-	// 	spanstore.SpanWriterParams{
-	// 		Client:            clientFn,
-	// 		Logger:            s.logger,
-	// 		MetricsFactory:    metrics.NullFactory,
-	// 		IndexPrefix:       indexPrefix,
-	// 		AllTagsAsFields:   allTagsAsFields,
-	// 		TagDotReplacement: tagKeyDeDotChar,
-	// 		Archive:           true,
-	// 	})
-	// s.ArchiveSpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-	// 	Client:            clientFn,
-	// 	Logger:            s.logger,
-	// 	MetricsFactory:    metrics.NullFactory,
-	// 	IndexPrefix:       indexPrefix,
-	// 	MaxSpanAge:        maxSpanAge,
-	// 	TagDotReplacement: tagKeyDeDotChar,
-	// 	MaxDocCount:       defaultMaxDocCount,
-	// 	Tracer:            tracer.Tracer("test"),
-	// 	Archive:           true,
-	// })
 
 	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
 		Client:          clientFn,
