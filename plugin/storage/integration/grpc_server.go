@@ -26,6 +26,12 @@ func NewGRPCServer() (*GRPCServer, error) {
 }
 
 func (s *GRPCServer) Start() error {
+	if s.server != nil {
+		if err := s.Close(); err != nil {
+			return err
+		}
+	}
+
 	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
 
 	s.server = googleGRPC.NewServer()
@@ -63,5 +69,6 @@ func (s *GRPCServer) Close() error {
 		return err
 	default:
 	}
+	s.server = nil
 	return nil
 }
