@@ -27,8 +27,6 @@ const otlpPort = 4317
 type E2EStorageIntegration struct {
 	integration.StorageIntegration
 	ConfigFile string
-
-	binaryProcess *os.Process
 }
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
@@ -45,7 +43,9 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 		Stderr: os.Stderr,
 	}
 	require.NoError(t, cmd.Start())
-	s.binaryProcess = cmd.Process
+	t.Cleanup(func() {
+		require.NoError(t, cmd.Process.Kill())
+	})
 
 	spanWriter := createSpanWriter(otlpPort)
 	require.NoError(t, spanWriter.Start())
@@ -59,6 +59,4 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
-
-	s.binaryProcess.Kill()
 }
