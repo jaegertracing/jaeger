@@ -45,6 +45,7 @@ func TestGRPCStorage(t *testing.T) {
 	s.e2eInitialize(t)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
+		s.server.Close()
 	})
 	s.RunSpanStoreTests(t)
 }
