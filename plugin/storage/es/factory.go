@@ -91,9 +91,7 @@ func NewFactoryWithConfigTest(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger, client estemplate.Client,
 ) (*Factory, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
+	cfg.Validate()
 
 	cfg.MaxDocCount = defaultMaxDocCount
 	cfg.Enabled = true
@@ -112,10 +110,7 @@ func NewFactoryWithConfigTest(
 		},
 		others: archive,
 	})
-	err := f.Initialize(metricsFactory, logger)
-	if err != nil {
-		return nil, err
-	}
+	f.Initialize(metricsFactory, logger)
 
 	f.primaryClient.Store(&client)
 	return f, nil
