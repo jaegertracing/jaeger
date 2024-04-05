@@ -35,11 +35,7 @@ func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
 func TestGRPCStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "grpc")
 
-	server, err := integration.NewGRPCServer()
-	require.NoError(t, err)
-	s := &GRPCStorageIntegration{
-		server: server,
-	}
+	s := &GRPCStorageIntegration{}
 	s.ConfigFile = "cmd/jaeger/grpc_config.yaml"
 	s.initialize(t)
 	s.e2eInitialize(t)
