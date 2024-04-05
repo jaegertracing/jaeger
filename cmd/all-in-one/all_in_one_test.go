@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -85,22 +86,29 @@ func healthCheck(t *testing.T) {
 }
 
 func checkWebUI(t *testing.T) {
-	t.Run("logo", func(t *testing.T) {
-		resp, err := http.Get(queryAddr + "/static/jaeger-logo-jWbKFHZJ.svg")
+	resp, err := http.Get(queryAddr + "/")
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	body := string(bodyBytes)
+	t.Run("Static_files", func(t *testing.T) {
+		pattern := regexp.MustCompile(`<link rel="shortcut icon"[^<]+href="(.*?)"`)
+		match := pattern.FindStringSubmatch(body)
+		require.Len(t, match, 2)
+		url := match[1]
+		t.Logf("Found favicon reference at %s", url)
+
+		resp, err := http.Get(queryAddr + "/" + url)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
-	t.Run("React app", func(t *testing.T) {
-		resp, err := http.Get(queryAddr + "/")
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Contains(t, string(body), `<div id="jaeger-ui-root"></div>`)
+	t.Run("React_app", func(t *testing.T) {
+		assert.Contains(t, body, `<div id="jaeger-ui-root"></div>`)
 	})
 }
 

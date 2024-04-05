@@ -10,7 +10,7 @@ require (
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger/v3 v3.2103.5
-	github.com/elastic/go-elasticsearch/v8 v8.12.1
+	github.com/elastic/go-elasticsearch/v8 v8.13.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-kit/kit v0.13.0
 	github.com/go-logr/zapr v1.3.0
@@ -20,7 +20,7 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
-	github.com/hashicorp/go-hclog v1.6.2
+	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
@@ -33,7 +33,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/testbed v0.97.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.6.0
-	github.com/prometheus/common v0.51.0
+	github.com/prometheus/common v0.52.2
 	github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
@@ -76,8 +76,8 @@ require (
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.22.0
-	golang.org/x/sys v0.18.0
+	golang.org/x/net v0.24.0
+	golang.org/x/sys v0.19.0
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -99,7 +99,7 @@ require (
 	github.com/eapache/go-resiliency v1.6.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/elastic/elastic-transport-go/v8 v8.4.0 // indirect
+	github.com/elastic/elastic-transport-go/v8 v8.5.0 // indirect
 	github.com/expr-lang/expr v1.16.2 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -233,7 +233,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a // indirect
 	golang.org/x/text v0.14.0 // indirect
 	gonum.org/v1/gonum v0.15.0 // indirect
