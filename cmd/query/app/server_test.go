@@ -421,8 +421,10 @@ func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.Transport
 	var err error
 
 	if creds != nil {
+		// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
 		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(creds))
 	} else {
+		// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
 		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
