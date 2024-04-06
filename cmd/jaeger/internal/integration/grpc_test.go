@@ -18,9 +18,7 @@ type GRPCStorageIntegration struct {
 }
 
 func (s *GRPCStorageIntegration) initialize(t *testing.T) {
-	var err error
-	s.server, err = integration.NewGRPCServer()
-	require.NoError(t, err)
+	s.server = integration.NewGRPCServer()
 	require.NoError(t, s.server.Start())
 
 	s.Refresh = func(_ *testing.T) {}

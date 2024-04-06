@@ -16,13 +16,13 @@ import (
 )
 
 type GRPCServer struct {
-	errChan chan error
-	server  *googleGRPC.Server
-	wg      sync.WaitGroup
+	server   *googleGRPC.Server
+	serveErr error
+	wg       sync.WaitGroup
 }
 
-func NewGRPCServer() (*GRPCServer, error) {
-	return &GRPCServer{errChan: make(chan error, 1)}, nil
+func NewGRPCServer() *GRPCServer {
+	return &GRPCServer{}
 }
 
 func (s *GRPCServer) Start() error {
@@ -51,12 +51,7 @@ func (s *GRPCServer) Start() error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		if err = s.server.Serve(listener); err != nil {
-			select {
-			case s.errChan <- err:
-			default:
-			}
-		}
+		s.serveErr = s.server.Serve(listener)
 	}()
 	return nil
 }
@@ -69,10 +64,6 @@ func (s *GRPCServer) Close() error {
 	s.server.GracefulStop()
 	s.server = nil
 	s.wg.Wait()
-	select {
-	case err := <-s.errChan:
-		return err
-	default:
-	}
-	return nil
+
+	return s.serveErr
 }

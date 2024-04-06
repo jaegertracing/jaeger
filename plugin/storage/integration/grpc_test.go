@@ -133,8 +133,7 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		"--grpc-storage.server=localhost:17271",
 		"--grpc-storage.tls.enabled=false",
 	}
-	server, err := NewGRPCServer()
-	require.NoError(t, err)
+	server := NewGRPCServer()
 
 	s := &GRPCStorageIntegrationTestSuite{
 		flags:  flags,
