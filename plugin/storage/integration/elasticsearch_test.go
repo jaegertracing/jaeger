@@ -18,6 +18,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,15 +30,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
 const (
@@ -65,7 +68,6 @@ type ESStorageIntegration struct {
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
 }
-
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
 	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
@@ -153,60 +155,44 @@ func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper
 	return eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 }
 
-func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) error {
-	client := s.getEsClient(t)
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: estemplate.TextTemplateBuilder{},
-		Shards:          5,
-		Replicas:        1,
-		EsVersion:       client.GetVersion(),
-		IndexPrefix:     indexPrefix,
-		UseILM:          false,
+func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
+	s.logger = zaptest.NewLogger(t)
+	f := es.NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	args := []string{
+		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
+		"--es-archive.enabled=true",
+		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
 	}
+	require.NoError(t, command.ParseFlags(args))
+	f.InitFromViper(v, s.logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, s.logger))
 
-	clientFn := func() estemplate.Client { return client }
+	// TODO ideally we need to close the factory once the test is finished
+	// but because esCleanup calls initialize() we get a panic later
+	// t.Cleanup(func() {
+	// 	require.NoError(t, f.Close())
+	// })
+	return f
+}
 
-	opts := es.NewOptions(primaryNamespace, archiveNamespace)
-	cfg := opts.Primary.Configuration
-	cfg.IndexPrefix = indexPrefix
-	cfg.Tags.AllAsFields = allTagsAsFields
-	f, err := es.NewFactoryWithConfigTest(cfg, metrics.NullFactory, s.logger, client)
-	if err != nil {
-		return err
-	}
-	// Create Span Writer and Reader
+func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
+	f := s.initializeESFactory(t, allTagsAsFields)
+	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	s.SpanReader, err = f.CreateSpanReader()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
-	if err != nil {
-		return err
-	}
-
-	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
-		Client:          clientFn,
-		Logger:          s.logger,
-		IndexPrefix:     indexPrefix,
-		IndexDateLayout: indexDateLayout,
-		MaxDocCount:     defaultMaxDocCount,
-	})
-
-	depMapping, err := mappingBuilder.GetDependenciesMappings()
 	require.NoError(t, err)
-	err = dependencyStore.CreateTemplates(depMapping)
+
+	s.DependencyReader, err = f.CreateDependencyReader()
 	require.NoError(t, err)
-	s.DependencyReader = dependencyStore
-	s.DependencyWriter = dependencyStore
-	return nil
+	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
 }
 
 func (s *ESStorageIntegration) esRefresh(t *testing.T) {
