@@ -43,6 +43,8 @@ type strategyStore struct {
 	storedStrategies atomic.Value // holds *storedStrategies
 
 	cancelFunc context.CancelFunc
+
+	options Options
 }
 
 type storedStrategies struct {
@@ -58,6 +60,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	h := &strategyStore{
 		logger:     logger,
 		cancelFunc: cancelFunc,
+		options:    options,
 	}
 	h.storedStrategies.Store(defaultStrategies())
 
@@ -229,6 +232,14 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 
 		opS := newStore.serviceStrategies[s.Service].OperationSampling
 		if opS == nil {
+
+			if !h.options.IncludeDefaultOpStrategies &&
+				newStore.serviceStrategies[s.Service].ProbabilisticSampling == nil {
+				h.logger.Warn("Default operations level strategies will not be included for this Ratelimiting service strategy." +
+					"This behavior will be deprecated in release 1.57.0 . See https://github.com/jaegertracing/jaeger/issues/5270 for more information.")
+				continue
+			}
+
 			// Service does not have its own per-operation rules, so copy (by value) from the default strategy.
 			newOpS := *newStore.defaultStrategy.OperationSampling
 

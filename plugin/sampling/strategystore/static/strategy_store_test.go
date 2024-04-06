@@ -473,9 +473,42 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
-func TestServiceNoPerOperationStrategies(t *testing.T) {
+func TestServiceNoPerOperationStrategies5720ToggleOn(t *testing.T) {
 	// given setup of strategy store with no specific per operation sampling strategies
-	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/service_no_per_operation.json"}, zap.NewNop())
+	// and option "sampling.strategies.bugfix-5270=true"
+	store, err := NewStrategyStore(Options{
+		StrategiesFile:             "fixtures/service_no_per_operation.json",
+		IncludeDefaultOpStrategies: true,
+	}, zap.NewNop())
+	require.NoError(t, err)
+
+	for _, service := range []string{"ServiceA", "ServiceB"} {
+		t.Run(service, func(t *testing.T) {
+			strategy, err := store.GetSamplingStrategy(context.Background(), service)
+			require.NoError(t, err)
+			strategyJson, err := json.MarshalIndent(strategy, "", "  ")
+			require.NoError(t, err)
+
+			testName := strings.ReplaceAll(t.Name(), "/", "_")
+			snapshotFile := filepath.Join(snapshotLocation, testName+".json")
+			expectedServiceResponse, err := os.ReadFile(snapshotFile)
+			require.NoError(t, err)
+
+			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+
+			if regenerateSnapshots {
+				os.WriteFile(snapshotFile, strategyJson, 0o644)
+			}
+		})
+	}
+}
+
+func TestServiceNoPerOperationStrategiesDefaultBehavior(t *testing.T) {
+	// given setup of strategy store with no specific per operation sampling strategies
+	store, err := NewStrategyStore(Options{
+		StrategiesFile: "fixtures/service_no_per_operation.json",
+	}, zap.NewNop())
 	require.NoError(t, err)
 
 	for _, service := range []string{"ServiceA", "ServiceB"} {
