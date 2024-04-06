@@ -102,7 +102,7 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
 	dialOptions = append(dialOptions, b.AdditionalDialOptions...)
 
-	conn, err := grpc.Dial(dialTarget, dialOptions...)
+	conn, err := grpc.NewClient(dialTarget, dialOptions...)
 	if err != nil {
 		return nil, err
 	}

@@ -149,8 +149,8 @@ func TestGRPCStorageFactory(t *testing.T) {
 
 func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	cfg := grpcConfig.Configuration{}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.ErrorContains(t, err, "grpc-plugin builder failed to create a store: error connecting to remote storage")
+	f, _ := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	defer f.Close()
 
 	lis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err, "failed to listen")
@@ -165,7 +165,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 
 	cfg.RemoteServerAddr = lis.Addr().String()
 	cfg.RemoteConnectTimeout = 1 * time.Second
-	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	f, err = NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }

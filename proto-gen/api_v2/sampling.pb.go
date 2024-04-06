@@ -507,7 +507,7 @@ func (c *samplingManagerClient) GetSamplingStrategy(ctx context.Context, in *Sam
 	out := new(SamplingStrategyResponse)
 	err := c.cc.Invoke(ctx, "/jaeger.api_v2.SamplingManager/GetSamplingStrategy", in, out, opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error while dialing: %w",err)
 	}
 	return out, nil
 }

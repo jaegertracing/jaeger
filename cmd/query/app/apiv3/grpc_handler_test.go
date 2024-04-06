@@ -77,11 +77,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 	}
 	tsc.server, tsc.address = newGrpcServer(t, h)
 
-	conn, err := grpc.DialContext(
-		context.Background(),
-		tsc.address.String(),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	conn, err := grpc.NewClient(tsc.address.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 	tsc.client = api_v3.NewQueryServiceClient(conn)
