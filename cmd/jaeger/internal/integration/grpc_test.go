@@ -8,25 +8,29 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
 type GRPCStorageIntegration struct {
 	E2EStorageIntegration
 
-	server *integration.GRPCServer
+	remoteStorage *integration.RemoteMemoryStorage
 }
 
 func (s *GRPCStorageIntegration) initialize(t *testing.T) {
-	s.server = integration.NewGRPCServer()
-	require.NoError(t, s.server.Start())
+	logger, _ := testutils.NewLogger()
+
+	var err error
+	s.remoteStorage, err = integration.StartNewRemoteMemoryStorage(logger)
+	require.NoError(t, err)
 
 	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 }
 
 func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
-	require.NoError(t, s.server.Close())
+	require.NoError(t, s.remoteStorage.Close())
 	s.initialize(t)
 }
 
@@ -39,7 +43,7 @@ func TestGRPCStorage(t *testing.T) {
 	s.e2eInitialize(t)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
-		require.NoError(t, s.server.Close())
+		require.NoError(t, s.remoteStorage.Close())
 	})
 	s.RunSpanStoreTests(t)
 }
