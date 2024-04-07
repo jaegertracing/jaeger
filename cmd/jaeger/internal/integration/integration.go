@@ -19,11 +19,14 @@ const otlpPort = 4317
 
 // E2EStorageIntegration holds components for e2e mode of Jaeger-v2
 // storage integration test. The intended usage is as follows:
-//   - A specific storage implementation declares its own test functions
+//   - Initialize a specific storage implementation declares its own test functions
 //     (e.g. starts remote-storage).
-//   - In those functions, instantiates with e2eInitialize()
-//     and clean up with e2eCleanUp().
-//   - Then calls RunTestSpanstore.
+//   - Then, instantiates with e2eInitialize() to run the Jaeger-v2 collector
+//     and also the SpanWriter and SpanReader.
+//   - After that, calls RunSpanStoreTests().
+//   - Clean up with e2eCleanup() to close the SpanReader and SpanWriter connections.
+//   - At last, clean up anything declared in its own test functions.
+//     (e.g. close remote-storage)
 type E2EStorageIntegration struct {
 	integration.StorageIntegration
 	ConfigFile string
@@ -31,6 +34,7 @@ type E2EStorageIntegration struct {
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
 // it also initialize the SpanWriter and SpanReader below.
+// This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
@@ -56,6 +60,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	s.SpanReader = spanReader
 }
 
+// e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
+// This function should be called after all the tests are finished.
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
