@@ -29,16 +29,28 @@ var (
 
 // SpanReader retrieve span data from Jaeger-v2 query with api_v2.QueryServiceClient.
 type spanReader struct {
-	Port int
-
 	clientConn *grpc.ClientConn
 	client     api_v2.QueryServiceClient
 }
 
-func createSpanReader(port int) *spanReader {
-	return &spanReader{
-		Port: port,
+func createSpanReader(port int) (*spanReader, error) {
+	opts := []grpc.DialOption{
+		grpc.WithBlock(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cc, err := grpc.DialContext(ctx, ports.PortToHostPort(port), opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &spanReader{
+		clientConn: cc,
+		client:     api_v2.NewQueryServiceClient(cc),
+	}, nil
 }
 
 func (r *spanReader) Start() error {

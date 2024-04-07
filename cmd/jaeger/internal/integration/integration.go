@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -36,6 +37,8 @@ type E2EStorageIntegration struct {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", s.ConfigFile},
@@ -51,13 +54,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 		require.NoError(t, cmd.Process.Kill())
 	})
 
-	spanWriter := createSpanWriter(otlpPort)
-	require.NoError(t, spanWriter.Start())
-	s.SpanWriter = spanWriter
-
-	spanReader := createSpanReader(ports.QueryGRPC)
-	require.NoError(t, spanReader.Start())
-	s.SpanReader = spanReader
+	var err error
+	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
+	require.NoError(t, err)
+	s.SpanReader, err = createSpanReader(ports.QueryGRPC)
+	require.NoError(t, err)
 }
 
 // e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.

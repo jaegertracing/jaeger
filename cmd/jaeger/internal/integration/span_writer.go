@@ -27,21 +27,13 @@ var (
 
 // SpanWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
 type spanWriter struct {
-	Port int
-
 	exporter exporter.Traces
 }
 
-func createSpanWriter(port int) *spanWriter {
-	return &spanWriter{
-		Port: port,
-	}
-}
-
-func (w *spanWriter) Start() error {
+func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 	factory := otlpexporter.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
-	cfg.Endpoint = fmt.Sprintf("localhost:%d", w.Port)
+	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
 	cfg.RetryConfig.Enabled = false
 	cfg.QueueConfig.Enabled = false
 	cfg.TLSSetting = configtls.ClientConfig{
@@ -49,15 +41,19 @@ func (w *spanWriter) Start() error {
 	}
 
 	set := exportertest.NewNopCreateSettings()
-	set.Logger = zap.L()
+	set.Logger = logger
 
-	var err error
-	w.exporter, err = factory.CreateTracesExporter(context.Background(), set, cfg)
+	exporter, err := factory.CreateTracesExporter(context.Background(), set, cfg)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if err := exporter.Start(context.Background(), componenttest.NewNopHost()); err != nil {
+		return nil, err
 	}
 
-	return w.exporter.Start(context.Background(), componenttest.NewNopHost())
+	return &spanWriter{
+		exporter: exporter,
+	}, nil
 }
 
 func (w *spanWriter) Close() error {
