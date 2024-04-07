@@ -37,7 +37,8 @@ jobs:
       run: |
         case ${{ matrix.version }} in
           v1)
-            make grpc-storage-integration-test
+            SPAN_STORAGE_TYPE=memory \
+              make grpc-storage-integration-test
             ;;
           v2)
             STORAGE=grpc \
