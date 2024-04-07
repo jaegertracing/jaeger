@@ -17,7 +17,6 @@ extensions:
       external-storage:
         server: localhost:17271
         connection-timeout: 5s
-        compression: gzip
       external-storage-archive:
         server: localhost:17281
         connection-timeout: 5s
