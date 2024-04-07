@@ -55,7 +55,7 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.Nil(t, resp)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Error while dialing: dial tcp: address foo: missing port in address")
+	assert.Contains(t, err.Error(), "failed to get sampling strategy")
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
