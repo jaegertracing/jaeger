@@ -9,7 +9,7 @@ service:
 extensions:
   jaeger_query:
     trace_storage: external-storage
-    trace_storage_archive: external-storage-archive
+    # trace_storage_archive: external-storage-archive
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
@@ -17,9 +17,10 @@ extensions:
       external-storage:
         server: localhost:17271
         connection-timeout: 5s
-      external-storage-archive:
-        server: localhost:17281
-        connection-timeout: 5s
+        compression: gzip
+      # external-storage-archive:
+      #   server: localhost:17281
+      #   connection-timeout: 5s
 
 receivers:
   otlp:

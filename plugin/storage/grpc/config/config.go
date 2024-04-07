@@ -23,16 +23,15 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/mostynb/go-grpc-compression/nonclobbering/snappy"
-	"github.com/mostynb/go-grpc-compression/nonclobbering/zstd"
-	"go.opentelemetry.io/collector/config/configcompression"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/encoding/gzip"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -51,16 +50,11 @@ type Configuration struct {
 	RemoteConnectTimeout    time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 	TenancyOpts             tenancy.Options
 
-	pluginHealthCheck     *time.Ticker
-	pluginHealthCheckDone chan bool
-	pluginRPCClient       plugin.ClientProtocol
-	remoteConn            *grpc.ClientConn
-
-	Compression     configcompression.Type `yaml:"compression" mapstructure:"compression"`
-	ReadBufferSize  int                    `yaml:"read_buffer_size" mapstructure:"read_buffer_size"`
-	WriteBufferSize int                    `yaml:"write_buffer_size" mapstructure:"write_buffer_size"`
-	Authority       string                 `yaml:"authority" mapstructure:"authority"`
-	WaitForReady    bool                   `yaml:"wait_for_ready" mapstructure:"wait_for_ready"`
+	pluginHealthCheck       *time.Ticker
+	pluginHealthCheckDone   chan bool
+	pluginRPCClient         plugin.ClientProtocol
+	remoteConn              *grpc.ClientConn
+	configgrpc.ClientConfig `mapstructure:",squash"`
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -102,26 +96,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.WaitForReady(c.WaitForReady)),
 	}
-
-	if c.Compression.IsCompressed() {
-		compressionType, err := getGRPCCompressionName(c.Compression)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(compressionType)))
-	}
-
-	if c.ReadBufferSize > 0 {
-		opts = append(opts, grpc.WithReadBufferSize(c.ReadBufferSize))
-	}
-	if c.WriteBufferSize > 0 {
-		opts = append(opts, grpc.WithWriteBufferSize(c.WriteBufferSize))
-	}
-
-	if c.Authority != "" {
-		opts = append(opts, grpc.WithAuthority(c.Authority))
-	}
-
+	c.ClientConfig.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
 	if c.RemoteTLS.Enabled {
 		tlsCfg, err := c.RemoteTLS.Config(logger)
 		if err != nil {
@@ -253,17 +228,4 @@ func (c *Configuration) startPluginHealthCheck(rpcClient plugin.ClientProtocol, 
 	}()
 
 	return c.pluginRPCClient.Ping()
-}
-
-func getGRPCCompressionName(compressionType configcompression.Type) (string, error) {
-	switch compressionType {
-	case configcompression.TypeGzip:
-		return gzip.Name, nil
-	case configcompression.TypeSnappy:
-		return snappy.Name, nil
-	case configcompression.TypeZstd:
-		return zstd.Name, nil
-	default:
-		return "", fmt.Errorf("unsupported compression type %q", compressionType)
-	}
 }
