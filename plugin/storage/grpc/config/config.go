@@ -97,7 +97,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		grpc.WithDefaultCallOptions(grpc.WaitForReady(c.WaitForReady)),
 	}
 
-	if c.ClientConfig.Auth.AuthenticatorID.String() != "" {
+	if c.ClientConfig.Auth != nil {
 		return nil, fmt.Errorf("authenticator is not supported")
 	}
 
