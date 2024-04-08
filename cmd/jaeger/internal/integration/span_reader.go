@@ -53,25 +53,6 @@ func createSpanReader(port int) (*spanReader, error) {
 	}, nil
 }
 
-func (r *spanReader) Start() error {
-	opts := []grpc.DialOption{
-		grpc.WithBlock(),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cc, err := grpc.DialContext(ctx, ports.PortToHostPort(ports.QueryGRPC), opts...)
-	if err != nil {
-		return err
-	}
-
-	r.clientConn = cc
-	r.client = api_v2.NewQueryServiceClient(cc)
-	return nil
-}
-
 func (r *spanReader) Close() error {
 	return r.clientConn.Close()
 }
