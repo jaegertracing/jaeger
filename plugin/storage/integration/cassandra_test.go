@@ -16,7 +16,6 @@
 package integration
 
 import (
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -80,7 +79,7 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, f
 	return f
 }
 
-func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) io.Closer {
+func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
 	})
@@ -93,7 +92,9 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) io.Close
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
 	s.initializeDependencyReaderAndWriter(t, f)
-	return f
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
@@ -111,9 +112,8 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
-	skipUnlessEnv(t, "cassandra")
+	// skipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
-	closer := s.initializeCassandra(t)
+	s.initializeCassandra(t)
 	s.RunAll(t)
-	require.NoError(t, closer.Close())
 }
