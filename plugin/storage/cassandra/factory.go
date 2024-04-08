@@ -239,10 +239,12 @@ func (f *Factory) Close() error {
 		f.archiveSession.Close()
 	}
 
+	var errs []error
 	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		cfg.TLS.Close()
+		errs = append(errs, cfg.TLS.Close())
 	}
-	return f.Options.GetPrimary().TLS.Close()
+	errs = append(errs, f.Options.GetPrimary().TLS.Close())
+	return errors.Join(errs...)
 }
 
 // PrimarySession is used from integration tests to clean database between tests
