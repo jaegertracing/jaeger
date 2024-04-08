@@ -53,8 +53,7 @@ func newgRPCServer() (*gRPCServer, error) {
 func (s *gRPCServer) Restart() error {
 	// stop the server if one already exists
 	if s.server != nil {
-		s.server.GracefulStop()
-		s.wg.Wait()
+		s.close()
 		select {
 		case err := <-s.errChan:
 			return err
@@ -89,6 +88,13 @@ func (s *gRPCServer) Restart() error {
 		}
 	}()
 	return nil
+}
+
+func (s *gRPCServer) close() {
+	if s.server != nil {
+		s.server.GracefulStop()
+		s.wg.Wait()
+	}
 }
 
 type GRPCStorageIntegrationTestSuite struct {
@@ -131,9 +137,16 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.CleanUp = s.cleanUp
 }
 
-func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
+func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
+	if s.server != nil {
+		s.server.close()
+	}
 	err := s.factory.Close()
 	require.NoError(t, err)
+}
+
+func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
+	s.close(t)
 	s.initialize(t)
 }
 
@@ -164,6 +177,7 @@ func TestGRPCStorage(t *testing.T) {
 	}
 	s.initialize(t)
 	s.RunAll(t)
+	s.close(t)
 }
 
 func TestGRPCStreamingWriter(t *testing.T) {
@@ -180,6 +194,7 @@ func TestGRPCStreamingWriter(t *testing.T) {
 	}
 	s.initialize(t)
 	s.RunAll(t)
+	s.close(t)
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
@@ -197,4 +212,5 @@ func TestGRPCRemoteStorage(t *testing.T) {
 	}
 	s.initialize(t)
 	s.RunAll(t)
+	s.close(t)
 }
