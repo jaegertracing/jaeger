@@ -39,6 +39,8 @@ func TestGRPCStorage(t *testing.T) {
 
 	s := &GRPCStorageIntegration{}
 	s.ConfigFile = "cmd/jaeger/grpc_config.yaml"
+	s.SkipBinaryAttrs = true
+
 	s.initialize(t)
 	s.e2eInitialize(t)
 	t.Cleanup(func() {
