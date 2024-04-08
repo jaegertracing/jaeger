@@ -232,11 +232,19 @@ var _ io.Closer = (*Factory)(nil)
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	f.Options.Get(archiveStorageConfig)
-	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		cfg.TLS.Close()
+	if f.primarySession != nil {
+		f.primarySession.Close()
 	}
-	return f.Options.GetPrimary().TLS.Close()
+	if f.archiveSession != nil {
+		f.archiveSession.Close()
+	}
+
+	var errs []error
+	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
+		errs = append(errs, cfg.TLS.Close())
+	}
+	errs = append(errs, f.Options.GetPrimary().TLS.Close())
+	return errors.Join(errs...)
 }
 
 // PrimarySession is used from integration tests to clean database between tests
