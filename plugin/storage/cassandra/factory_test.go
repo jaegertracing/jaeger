@@ -65,6 +65,7 @@ func TestCassandraFactory(t *testing.T) {
 		query   = &mocks.Query{}
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	session.On("Close").Return()
 	query.On("Exec").Return(nil)
 	f.primaryConfig = newMockSessionBuilder(session, nil)
 	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
