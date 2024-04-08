@@ -96,6 +96,11 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.WaitForReady(c.WaitForReady)),
 	}
+
+	if c.ClientConfig.Auth.AuthenticatorID.String() != "" {
+		return nil, fmt.Errorf("authenticator is not supported")
+	}
+
 	c.ClientConfig.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
 	if c.RemoteTLS.Enabled {
 		tlsCfg, err := c.RemoteTLS.Config(logger)
