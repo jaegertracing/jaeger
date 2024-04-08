@@ -239,7 +239,6 @@ func (f *Factory) Close() error {
 		f.archiveSession.Close()
 	}
 
-	f.Options.Get(archiveStorageConfig)
 	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
 		cfg.TLS.Close()
 	}
