@@ -112,7 +112,7 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
-	// skipUnlessEnv(t, "cassandra")
+	skipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)
 	s.RunAll(t)
