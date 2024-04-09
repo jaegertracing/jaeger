@@ -59,7 +59,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer s.Stop()
-	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	//nolint:staticcheck // don't care about errors
 	require.NoError(t, err)
 	defer conn.Close()
@@ -102,7 +102,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer s.Stop()
-	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	//nolint:staticcheck // don't care about errors
 	require.NoError(t, err)
 	defer conn.Close()
@@ -131,7 +131,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 }
 
 func TestReporter_SendFailure(t *testing.T) {
-	conn, err := grpc.Dial("invalid-host-name-blah:12345", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient("invalid-host-name-blah:12345", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 	rep := NewReporter(conn, nil, zap.NewNop())
@@ -207,7 +207,7 @@ func TestReporter_MultitenantEmitBatch(t *testing.T) {
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer s.Stop()
-	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, conn.Close()) }()
 	rep := NewReporter(conn, nil, zap.NewNop())
