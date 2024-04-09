@@ -496,12 +496,22 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
-	actual, err := s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
-	require.NoError(t, err)
-	sort.Slice(actual, func(i, j int) bool {
-		return actual[i].Parent < actual[j].Parent
+
+	var actual []model.DependencyLink
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
+		require.NoError(t, err)
+		sort.Slice(actual, func(i, j int) bool {
+			return actual[i].Parent < actual[j].Parent
+		})
+		return assert.ObjectsAreEqualValues(expected, actual)
 	})
-	assert.EqualValues(t, expected, actual)
+
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
 }
 
 // === Sampling Store Integration Tests ===
