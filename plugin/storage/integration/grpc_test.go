@@ -47,9 +47,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.logger, _ = testutils.NewLogger()
 
 	if s.useRemoteStorage {
-		var err error
-		s.remoteStorage, err = StartNewRemoteMemoryStorage(s.logger)
-		require.NoError(t, err)
+		s.remoteStorage = StartNewRemoteMemoryStorage(t, s.logger)
 	}
 
 	f := grpc.NewFactory()
@@ -79,7 +77,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Close())
 	if s.useRemoteStorage {
-		require.NoError(t, s.remoteStorage.Close())
+		s.remoteStorage.Close(t)
 	}
 	s.initialize(t)
 }

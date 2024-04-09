@@ -5,7 +5,9 @@ package integration
 
 import (
 	"os"
+	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
@@ -22,7 +24,7 @@ type RemoteMemoryStorage struct {
 	storageFactory *storage.Factory
 }
 
-func StartNewRemoteMemoryStorage(logger *zap.Logger) (*RemoteMemoryStorage, error) {
+func StartNewRemoteMemoryStorage(t *testing.T, logger *zap.Logger) *RemoteMemoryStorage {
 	opts := &app.Options{
 		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
 		Tenancy: tenancy.Options{
@@ -31,33 +33,23 @@ func StartNewRemoteMemoryStorage(logger *zap.Logger) (*RemoteMemoryStorage, erro
 	}
 	tm := tenancy.NewManager(&opts.Tenancy)
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
+
 	v, _ := config.Viperize(storageFactory.AddFlags)
 	storageFactory.InitFromViper(v, logger)
-	err = storageFactory.Initialize(metrics.NullFactory, logger)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
 	server, err := app.NewServer(opts, storageFactory, tm, logger, healthcheck.New())
-	if err != nil {
-		return nil, err
-	}
-	if err := server.Start(); err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
+	require.NoError(t, server.Start())
 
 	return &RemoteMemoryStorage{
 		server:         server,
 		storageFactory: storageFactory,
-	}, nil
+	}
 }
 
-func (s *RemoteMemoryStorage) Close() error {
-	if err := s.server.Close(); err != nil {
-		return err
-	}
-	return s.storageFactory.Close()
+func (s *RemoteMemoryStorage) Close(t *testing.T) {
+	require.NoError(t, s.server.Close())
+	require.NoError(t, s.storageFactory.Close())
 }
