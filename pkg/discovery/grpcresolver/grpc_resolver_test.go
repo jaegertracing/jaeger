@@ -148,7 +148,7 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
 			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
 
-			cc, err := grpc.Dial(res.Scheme()+":///round_robin", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(GRPCServiceConfig))
+			cc, err := grpc.NewClient(res.Scheme()+":///round_robin", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(GRPCServiceConfig))
 			require.NoError(t, err, "could not dial using resolver's scheme")
 			defer cc.Close()
 

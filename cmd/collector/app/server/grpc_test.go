@@ -84,7 +84,7 @@ func TestSpanCollector(t *testing.T) {
 	require.NoError(t, err)
 	defer server.Stop()
 
-	conn, err := grpc.Dial(
+	conn, err := grpc.NewClient(
 		params.HostPortActual,
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)

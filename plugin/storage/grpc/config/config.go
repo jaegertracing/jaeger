@@ -111,6 +111,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 	var err error
+	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
 	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
