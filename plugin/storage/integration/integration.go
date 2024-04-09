@@ -75,6 +75,10 @@ type StorageIntegration struct {
 	// Skip Archive Test if not supported by the storage backend
 	SkipArchiveTest bool
 
+	// TODO: remove this after upstream issue in OTEL jaeger translator is fixed
+	// Skip testing trace binary tags, logs, and process
+	SkipBinaryAttrs bool
+
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
 
@@ -112,7 +116,7 @@ func (s *StorageIntegration) refresh(t *testing.T) {
 	s.Refresh(t)
 }
 
-func skipUnlessEnv(t *testing.T, storage ...string) {
+func SkipUnlessEnv(t *testing.T, storage ...string) {
 	env := os.Getenv("STORAGE")
 	for _, s := range storage {
 		if env == s {
@@ -278,7 +282,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := model.TraceID{High: 0, Low: 0}
+		fakeTraceID := model.TraceID{High: 0, Low: 1}
 		trace, err := s.SpanReader.GetTrace(context.Background(), fakeTraceID)
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, trace)
@@ -369,7 +373,39 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 
 func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	return getTraceFixtureExact(t, fileName)
+	trace := getTraceFixtureExact(t, fileName)
+
+	if s.SkipBinaryAttrs {
+		t.Logf("Dropped binary type attributes from trace ID: %s", trace.Spans[0].TraceID.String())
+		trace = s.dropBinaryAttrs(t, trace)
+	}
+
+	return trace
+}
+
+func (s *StorageIntegration) dropBinaryAttrs(t *testing.T, trace *model.Trace) *model.Trace {
+	for _, span := range trace.Spans {
+		span.Tags = s.dropBinaryTags(t, span.Tags)
+		span.Process.Tags = s.dropBinaryTags(t, span.Process.Tags)
+
+		for i := range span.Logs {
+			span.Logs[i].Fields = s.dropBinaryTags(t, span.Logs[i].Fields)
+		}
+	}
+
+	return trace
+}
+
+func (s *StorageIntegration) dropBinaryTags(_ *testing.T, tags []model.KeyValue) []model.KeyValue {
+	newTags := make([]model.KeyValue, 0)
+	for _, tag := range tags {
+		if tag.VType == model.ValueType_BINARY {
+			continue
+		}
+		newTags = append(newTags, tag)
+	}
+
+	return newTags
 }
 
 func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
@@ -538,13 +574,18 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 
 // RunAll runs all integration tests
 func (s *StorageIntegration) RunAll(t *testing.T) {
-	t.Run("GetServices", s.testGetServices)
+	s.RunSpanStoreTests(t)
 	t.Run("ArchiveTrace", s.testArchiveTrace)
+	t.Run("GetDependencies", s.testGetDependencies)
+	t.Run("GetThroughput", s.testGetThroughput)
+	t.Run("GetLatestProbability", s.testGetLatestProbability)
+}
+
+// RunTestSpanstore runs only span related integration tests
+func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
+	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
-	t.Run("GetDependencies", s.testGetDependencies)
-	t.Run("GetThroughput", s.testGetThroughput)
-	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
