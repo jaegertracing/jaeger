@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -38,10 +37,7 @@ type Query struct {
 
 // New creates a Query object
 func New(addr string) (*Query, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect with the jaeger-query service: %w", err)
 	}

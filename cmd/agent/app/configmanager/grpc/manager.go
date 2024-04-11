@@ -17,6 +17,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"google.golang.org/grpc"
 
@@ -38,7 +39,11 @@ func NewConfigManager(conn *grpc.ClientConn) *ConfigManagerProxy {
 
 // GetSamplingStrategy returns sampling strategies from collector.
 func (s *ConfigManagerProxy) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
-	return s.client.GetSamplingStrategy(ctx, &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
+	resp, err := s.client.GetSamplingStrategy(ctx, &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sampling strategy: %w", err)
+	}
+	return resp, nil
 }
 
 // GetBaggageRestrictions returns baggage restrictions from collector.

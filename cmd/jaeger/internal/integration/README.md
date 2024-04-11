@@ -1,27 +1,42 @@
 # Integration
 
-Jaeger v2 integration tests are built on top of [OTEL Testbed module](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/testbed). OTEL Testbed provide comprehensive tools for conducting end-to-end tests for the OTEL Collector, such as reproducible short-term benchmarks, correctness tests, long-running stability tests and maximum load stress tests. However, we only utilize the correctness tests from testbed, it generates and sends every combinatorial trace attributes and matches every single of them with the received traces from another end. To learn more about OTEL Testbed, please refer to the their [README](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/testbed/README.md).
+The Jaeger v2 integration test is an extension of the existing `integration.StorageIntegration` designed to test the Jaeger-v2 OtelCol binary; currently, it only tests the span store. The existing tests at `plugin/storage/integration` (also called "unit mode") test by writing and reading span data directly to the storage API. In contrast, these tests (or "e2e mode") read and write span data through the RPC client to the Jaeger-v2 OtelCol binary. E2E mode tests read from the jaeger_query extension and write to the receiver in OTLP formats. For details, see the [Architecture](#architecture) section below.
 
 ## Architecture
 
-Here's the architecture to test the OpenTelemetry Collector pipeline from end-to-end with the designated storage backends.
-![integration diagram](integration-diagram.png)
+```mermaid
+flowchart LR
+    Test -->|writeSpan| SpanWriter
+    SpanWriter --> RPCW[RPC_client]
+    RPCW --> Receiver
+    Receiver --> Exporter
+    Exporter --> B(StorageBackend)
+    Test -->|readSpan| SpanReader
+    SpanReader --> RPCR[RPC_client]
+    RPCR --> jaeger_query
+    jaeger_query --> B
 
-Testbed components:
-| Component | Description |
-|-----------|-------------|
-| **LoadGenerator** | Encapsulates DataProvider and DataSender in order to generate and send data. |
-| Golden DataProvider | Generates traces from the "Golden" dataset generated using pairwise combinatorial testing techniques. Testbed example uses [PICT](https://github.com/microsoft/pict/) to generate the test data, e.g. [testdata](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/goldendataset/testdata). |
-| OTLP Trace DataSender | With the generated traces from DataProvider, the DataSender sends traces to OTLP receiver in the collector instance. |
-| **Mockbackend** | Encapsulates DataReceiver and provides consume functionality. |
-| DataReceiver | A custom DataReceiver that will host a Jaeger storage extension to retrieve traces from the database by pulling them using our artificial Jaeger storage receiver. |
-| Consumer | Consumer does not actually a thing in MockBackend but only to make the diagram intuitive, the traces received from our artificial receiver will be stored inside MockBackend. |
-| **Correctness Test Validator** | Checks if the traces received from MockBackend are all matches with the generated traces from DataProvider. |
+    subgraph Integration Test Executable
+        Test
+        SpanWriter
+        SpanReader
+        RPCW
+        RPCR
+    end
+
+    subgraph jaeger-v2
+        Receiver
+        Exporter
+        jaeger_query
+    end
+```
 
 ## gRPC Integration Test
 
 To conduct the tests, run the following command:
 
 ```
-scripts/grpc-integration-test.sh <remote_storage_image_version>
+STORAGE=grpc \
+  SPAN_STORAGE_TYPE=memory \
+  make jaeger-v2-storage-integration-test
 ```

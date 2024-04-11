@@ -213,7 +213,7 @@ func healthCheck() error {
 }
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}

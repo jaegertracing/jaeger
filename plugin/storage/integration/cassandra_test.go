@@ -92,6 +92,9 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
 	s.initializeDependencyReaderAndWriter(t, f)
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
@@ -109,7 +112,7 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
-	skipUnlessEnv(t, "cassandra")
+	SkipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)
 	s.RunAll(t)
