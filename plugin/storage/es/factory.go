@@ -266,23 +266,6 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder:              es.TextTemplateBuilder{},
-		Shards:                       cfg.NumShards,
-		Replicas:                     cfg.NumReplicas,
-		EsVersion:                    cfg.Version,
-		IndexPrefix:                  cfg.IndexPrefix,
-		UseILM:                       cfg.UseILM,
-		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
-		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
-		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
-	}
-
-	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-	if err != nil {
-		return nil, err
-	}
-
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
@@ -299,7 +282,12 @@ func createSpanWriter(
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.CreateIndexTemplates && !cfg.UseILM {
-		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix)
+		mappingBuilder := mappingBuilderFromConfig(cfg)
+		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+		if err != nil {
+			return nil, err
+		}
+		err = writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -319,29 +307,31 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 	})
 
 	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
-		mappingBuilder := mappings.MappingBuilder{
-			TemplateBuilder:              es.TextTemplateBuilder{},
-			Shards:                       f.primaryConfig.NumShards,
-			Replicas:                     f.primaryConfig.NumReplicas,
-			EsVersion:                    f.primaryConfig.Version,
-			IndexPrefix:                  f.primaryConfig.IndexPrefix,
-			UseILM:                       f.primaryConfig.UseILM,
-			PrioritySpanTemplate:         f.primaryConfig.PrioritySpanTemplate,
-			PriorityServiceTemplate:      f.primaryConfig.PriorityServiceTemplate,
-			PriorityDependenciesTemplate: f.primaryConfig.PriorityDependenciesTemplate,
-		}
-
+		mappingBuilder := mappingBuilderFromConfig(f.primaryConfig)
 		sampleMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
 			return nil, err
 		}
-
 		if err := store.CreateTemplates(sampleMapping); err != nil {
 			return nil, err
 		}
 	}
 
 	return store, nil
+}
+
+func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+	return mappings.MappingBuilder{
+		TemplateBuilder:              es.TextTemplateBuilder{},
+		Shards:                       cfg.NumShards,
+		Replicas:                     cfg.NumReplicas,
+		EsVersion:                    cfg.Version,
+		IndexPrefix:                  cfg.IndexPrefix,
+		UseILM:                       cfg.UseILM,
+		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
+		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
+		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+	}
 }
 
 func createDependencyReader(
