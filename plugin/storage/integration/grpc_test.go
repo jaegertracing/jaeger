@@ -112,8 +112,8 @@ func TestGRPCStorage(t *testing.T) {
 		flags: flags,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
-	s.close(t)
 }
 
 func TestGRPCStreamingWriter(t *testing.T) {
@@ -129,8 +129,8 @@ func TestGRPCStreamingWriter(t *testing.T) {
 		flags: flags,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
-	s.close(t)
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
@@ -145,6 +145,6 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		useRemoteStorage: true,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
-	s.close(t)
 }
