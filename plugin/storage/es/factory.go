@@ -317,6 +317,30 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
 		MaxDocCount:            f.primaryConfig.MaxDocCount,
 	})
+
+	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
+		mappingBuilder := mappings.MappingBuilder{
+			TemplateBuilder:              es.TextTemplateBuilder{},
+			Shards:                       f.primaryConfig.NumShards,
+			Replicas:                     f.primaryConfig.NumReplicas,
+			EsVersion:                    f.primaryConfig.Version,
+			IndexPrefix:                  f.primaryConfig.IndexPrefix,
+			UseILM:                       f.primaryConfig.UseILM,
+			PrioritySpanTemplate:         f.primaryConfig.PrioritySpanTemplate,
+			PriorityServiceTemplate:      f.primaryConfig.PriorityServiceTemplate,
+			PriorityDependenciesTemplate: f.primaryConfig.PriorityDependenciesTemplate,
+		}
+
+		sampleMapping, err := mappingBuilder.GetSamplingMappings()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := store.CreateTemplates(sampleMapping); err != nil {
+			return nil, err
+		}
+	}
+
 	return store, nil
 }
 
