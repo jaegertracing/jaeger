@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,11 +61,9 @@ const (
 
 type ESStorageIntegration struct {
 	StorageIntegration
-
-	client        *elastic.Client
-	v8Client      *elasticsearch8.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
+	*EsClient
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -88,18 +85,8 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
-	rawClient, err := elastic.NewClient(
-		elastic.SetURL(queryURL),
-		elastic.SetSniff(false))
-	require.NoError(t, err)
+	s.EsClient = StartEsClient(t, queryURL)
 	s.logger, _ = testutils.NewLogger()
-
-	s.client = rawClient
-	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
-		Addresses:            []string{queryURL},
-		DiscoverNodesOnStart: false,
-	})
-	require.NoError(t, err)
 
 	s.initSpanstore(t, allTagsAsFields)
 	s.initSamplingStore(t)
@@ -115,8 +102,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
-	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
+	s.EsClientCleanup(t)
 	s.initSpanstore(t, allTagsAsFields)
 }
 
@@ -198,8 +184,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 func (s *ESStorageIntegration) esRefresh(t *testing.T) {
 	err := s.bulkProcessor.Flush()
 	require.NoError(t, err)
-	_, err = s.client.Refresh().Do(context.Background())
-	require.NoError(t, err)
+	s.EsClientRefresh(t)
 }
 
 func healthCheck() error {
