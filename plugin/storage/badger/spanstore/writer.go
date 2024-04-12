@@ -158,6 +158,10 @@ func (w *SpanWriter) createTraceEntry(span *model.Span, startTime, expireTime ui
 	return e, nil
 }
 
+func (w *SpanWriter) Close() error {
+	return nil
+}
+
 func createTraceKV(span *model.Span, encodingType byte, startTime uint64) ([]byte, []byte, error) {
 	// TODO Add Hash for Zipkin compatibility?
 

@@ -565,6 +565,10 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) (
 	return indexResults, err
 }
 
+func (s *TraceReader) Close() error {
+	return nil
+}
+
 // scanFunction compares the index name as well as the time range in the index key
 func scanFunction(it *badger.Iterator, indexPrefix []byte, timeBytesEnd []byte) bool {
 	if it.Valid() {
