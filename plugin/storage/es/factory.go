@@ -48,9 +48,9 @@ import (
 )
 
 const (
-	primaryNamespace    = "es"
-	archiveNamespace    = "es-archive"
-	indexTemplatePrefix = "jaeger-sampling-"
+	primaryNamespace       = "es"
+	archiveNamespace       = "es-archive"
+	samplingTemplatePrefix = "jaeger-sampling-"
 )
 
 var ( // interface comformance checks
@@ -319,9 +319,9 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		if primaryClient == nil {
 			return nil, errors.New("primary client is nil")
 		}
-		templateId := indexTemplatePrefix + time.Now().UTC().Format(f.primaryConfig.IndexDateLayoutSampling)
+		templateId := samplingTemplatePrefix + time.Now().UTC().Format(f.primaryConfig.IndexDateLayoutSampling)
 		if _, err := primaryClient.CreateTemplate(templateId).Body(samplingMapping).Do(context.Background()); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
 
