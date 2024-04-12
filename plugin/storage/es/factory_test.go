@@ -204,6 +204,30 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
+func TestMappingBuilderError(t *testing.T) {
+	f := NewFactory()
+	f.primaryConfig = &escfg.Configuration{CreateIndexTemplates: true}
+	f.archiveConfig = &escfg.Configuration{}
+	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	defer f.Close()
+
+	tb := mocks.TemplateBuilder{}
+	ta := mocks.TemplateApplier{}
+	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+	tb.On("Parse", mock.Anything).Return(&ta, nil)
+	f.templateBuilder = &tb
+
+	w, err := f.CreateSpanWriter()
+	assert.Nil(t, w)
+	require.Error(t, err, "mapping-builder-error")
+
+	s, err := f.CreateSamplingStore(1)
+	assert.Nil(t, s)
+	require.Error(t, err, "mapping-builder-error")
+}
+
 func TestCreateTemplateError(t *testing.T) {
 	f := NewFactory()
 	f.primaryConfig = &escfg.Configuration{CreateIndexTemplates: true}
