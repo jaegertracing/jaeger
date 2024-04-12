@@ -76,17 +76,14 @@ type Factory struct {
 	archiveClient atomic.Pointer[es.Client]
 
 	watchers []*fswatcher.FSWatcher
-
-	templateBuilder es.TemplateBuilder
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options:         NewOptions(primaryNamespace, archiveNamespace),
-		newClientFn:     config.NewClient,
-		tracer:          otel.GetTracerProvider(),
-		templateBuilder: es.TextTemplateBuilder{},
+		Options:     NewOptions(primaryNamespace, archiveNamespace),
+		newClientFn: config.NewClient,
+		tracer:      otel.GetTracerProvider(),
 	}
 }
 
@@ -200,7 +197,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.templateBuilder)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -221,7 +218,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.templateBuilder)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
 }
 
 func createSpanReader(
@@ -260,7 +257,6 @@ func createSpanWriter(
 	archive bool,
 	mFactory metrics.Factory,
 	logger *zap.Logger,
-	templateBuilder es.TemplateBuilder,
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
@@ -288,7 +284,7 @@ func createSpanWriter(
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.CreateIndexTemplates && !cfg.UseILM {
-		mappingBuilder := getMappingBuilder(cfg, templateBuilder)
+		mappingBuilder := mappingBuilderFromConfig(cfg)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
 			return nil, err
@@ -313,7 +309,7 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 	})
 
 	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
-		mappingBuilder := getMappingBuilder(f.primaryConfig, f.templateBuilder)
+		mappingBuilder := mappingBuilderFromConfig(f.primaryConfig)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
 			return nil, err
@@ -330,9 +326,9 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 	return store, nil
 }
 
-func getMappingBuilder(cfg *config.Configuration, templateBuilder es.TemplateBuilder) mappings.MappingBuilder {
+func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
-		TemplateBuilder:              templateBuilder,
+		TemplateBuilder:              es.TextTemplateBuilder{},
 		Shards:                       cfg.NumShards,
 		Replicas:                     cfg.NumReplicas,
 		EsVersion:                    cfg.Version,
