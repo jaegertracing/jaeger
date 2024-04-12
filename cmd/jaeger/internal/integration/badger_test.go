@@ -1,14 +1,18 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package integration
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type BadgerStorageIntegration struct {
@@ -64,7 +68,6 @@ func TestBadgerStorage(t *testing.T) {
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 		s.Close()
-
 	})
 	s.RunAll(t)
 }
