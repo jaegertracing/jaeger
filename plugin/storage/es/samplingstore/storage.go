@@ -161,11 +161,6 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func (s *SamplingStore) CreateTemplates(samplingTemplate string) error {
-	_, err := s.client().CreateTemplate("jaeger-sampling").Body(samplingTemplate).Do(context.Background())
-	return err
-}
-
 func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()

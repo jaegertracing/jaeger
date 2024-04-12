@@ -16,6 +16,7 @@
 package es
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -48,6 +49,7 @@ import (
 const (
 	primaryNamespace = "es"
 	archiveNamespace = "es-archive"
+	indexTemplateId  = "jaeger-sampling"
 )
 
 var ( // interface comformance checks
@@ -81,9 +83,10 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options:     NewOptions(primaryNamespace, archiveNamespace),
-		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
+		Options:         NewOptions(primaryNamespace, archiveNamespace),
+		newClientFn:     config.NewClient,
+		tracer:          otel.GetTracerProvider(),
+		templateBuilder: es.TextTemplateBuilder{},
 	}
 }
 
@@ -172,8 +175,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			f.watchers = append(f.watchers, archiveWatcher)
 		}
 	}
-
-	f.templateBuilder = es.TextTemplateBuilder{}
 
 	return nil
 }
@@ -313,11 +314,15 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 
 	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
 		mappingBuilder := getMappingBuilder(f.primaryConfig, f.templateBuilder)
-		sampleMapping, err := mappingBuilder.GetSamplingMappings()
+		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
 			return nil, err
 		}
-		if err := store.CreateTemplates(sampleMapping); err != nil {
+		primaryClient := f.getPrimaryClient()
+		if primaryClient == nil {
+			return nil, errors.New("primary client is nil")
+		}
+		if _, err := primaryClient.CreateTemplate(indexTemplateId).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, err
 		}
 	}
