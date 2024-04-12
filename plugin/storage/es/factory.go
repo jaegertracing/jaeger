@@ -315,12 +315,8 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		if err != nil {
 			return nil, err
 		}
-		primaryClient := f.getPrimaryClient()
-		if primaryClient == nil {
-			return nil, errors.New("primary client is nil")
-		}
 		templateId := samplingTemplatePrefix + time.Now().UTC().Format(f.primaryConfig.IndexDateLayoutSampling)
-		if _, err := primaryClient.CreateTemplate(templateId).Body(samplingMapping).Do(context.Background()); err != nil {
+		if _, err := f.getPrimaryClient().CreateTemplate(templateId).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
