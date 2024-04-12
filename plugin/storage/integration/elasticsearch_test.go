@@ -96,6 +96,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 		DiscoverNodesOnStart: false,
 	})
 	require.NoError(t, err)
+	s.bulkProcessor, err = s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
+	require.NoError(t, err)
 
 	s.initSpanstore(t, allTagsAsFields)
 
@@ -119,9 +121,17 @@ func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields
 	s.logger = zaptest.NewLogger(t)
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
+	esVersion, err := s.getVersion()
+	require.NoError(t, err)
 	args := []string{
-		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.num-shards=%v", 5),
+		fmt.Sprintf("--es.num-replicas=%v", 1),
+		fmt.Sprintf("--es.version=%v", esVersion),
 		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
+		fmt.Sprintf("--es.use-ilm=%v", false),
+		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.bulk.actions=%v", 1),
+		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
 		"--es-archive.enabled=true",
 		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
 		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
