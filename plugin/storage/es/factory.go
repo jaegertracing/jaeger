@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -47,9 +48,9 @@ import (
 )
 
 const (
-	primaryNamespace = "es"
-	archiveNamespace = "es-archive"
-	indexTemplateId  = "jaeger-sampling"
+	primaryNamespace    = "es"
+	archiveNamespace    = "es-archive"
+	indexTemplatePrefix = "jaeger-sampling-"
 )
 
 var ( // interface comformance checks
@@ -318,7 +319,8 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		if primaryClient == nil {
 			return nil, errors.New("primary client is nil")
 		}
-		if _, err := primaryClient.CreateTemplate(indexTemplateId).Body(samplingMapping).Do(context.Background()); err != nil {
+		templateId := indexTemplatePrefix + time.Now().UTC().Format(f.primaryConfig.IndexDateLayoutSampling)
+		if _, err := primaryClient.CreateTemplate(templateId).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, err
 		}
 	}
