@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -48,9 +47,9 @@ import (
 )
 
 const (
-	primaryNamespace       = "es"
-	archiveNamespace       = "es-archive"
-	samplingTemplatePrefix = "jaeger-sampling-"
+	primaryNamespace   = "es"
+	archiveNamespace   = "es-archive"
+	samplingTemplateId = "jaeger-sampling"
 )
 
 var ( // interface comformance checks
@@ -290,9 +289,8 @@ func createSpanWriter(
 		if err != nil {
 			return nil, err
 		}
-		err = writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix)
-		if err != nil {
-			return nil, err
+		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix); err != nil {
+			return nil, fmt.Errorf("failed to create templates: %w", err)
 		}
 	}
 	return writer, nil
@@ -315,8 +313,7 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		if err != nil {
 			return nil, err
 		}
-		templateId := samplingTemplatePrefix + time.Now().UTC().Format(f.primaryConfig.IndexDateLayoutSampling)
-		if _, err := f.getPrimaryClient().CreateTemplate(templateId).Body(samplingMapping).Do(context.Background()); err != nil {
+		if _, err := f.getPrimaryClient().CreateTemplate(samplingTemplateId).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
