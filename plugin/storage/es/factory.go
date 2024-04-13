@@ -290,7 +290,7 @@ func createSpanWriter(
 			return nil, err
 		}
 		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix); err != nil {
-			return nil, fmt.Errorf("failed to create templates: %w", err)
+			return nil, err
 		}
 	}
 	return writer, nil
@@ -313,7 +313,11 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.getPrimaryClient().CreateTemplate(samplingTemplateId).Body(samplingMapping).Do(context.Background()); err != nil {
+		normalizedPrefix := f.primaryConfig.IndexPrefix
+		if normalizedPrefix != "" && !strings.HasSuffix(normalizedPrefix, "-") {
+			normalizedPrefix += "-"
+		}
+		if _, err := f.getPrimaryClient().CreateTemplate(normalizedPrefix + samplingTemplateId).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
