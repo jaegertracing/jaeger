@@ -43,9 +43,13 @@ jobs:
     - name: Install tools
       run: make install-ci
 
-    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+    # Conditionally setup QEMU only for arm64 Linux architecture
+    - name: Setup QEMU for arm64 Linux
+      if: runner.os == 'Linux' && runner.arch == 'arm64'
+      uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Build, test, and publish crossdock image
+    # Build, test, and publish crossdock image
+    - name: Build, test, and publish crossdock image for arm64 Linux
       run: bash scripts/build-crossdock.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
