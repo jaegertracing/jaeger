@@ -20,37 +20,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
-        with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+    - name: Harden Runner
+      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
-        with:
-          submodules: true
+    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+      with:
+        submodules: true
 
-      - name: Fetch git tags
-        run: |
-          git fetch --prune --unshallow --tags
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
-        with:
-          go-version: 1.22.x
+    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      with:
+        go-version: 1.22.x
 
-      - name: Export BRANCH variable
-        uses: ./.github/actions/setup-branch
+    - name: Export BRANCH variable
+      uses: ./.github/actions/setup-branch
 
-      - name: Install tools
-        run: make install-ci
+    - name: Install tools
+      run: make install-ci
 
-      - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-      - name: Build, test, and publish crossdock image
-        run: bash scripts/build-crossdock.sh
-        env:
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+    - name: Build, test, and publish crossdock image
+      run: bash scripts/build-crossdock.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-      - name: Output crossdock logs
-        run: make crossdock-logs
-        if: ${{ failure() }}
+    - name: Output crossdock logs
+      run: make crossdock-logs
+      if: ${{ failure() }}

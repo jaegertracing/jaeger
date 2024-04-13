@@ -12,8 +12,6 @@ if [[ "$BRANCH" == "main" ]]; then
   echo 'upload images to dockerhub/quay.io'
   REPO=jaegertracing/test-driver
 
-  BASE_IMAGE_TAGS="$(bash scripts/compute-tags.sh ${REPO})"
-
   TARGET_ARCH="linux/arm64"
 
   IMAGE_TAGS=("--tag" "docker.io/${REPO}:${COMMIT}-${TARGET_ARCH}" "--tag" "quay.io/${REPO}:${COMMIT}-${TARGET_ARCH}")
