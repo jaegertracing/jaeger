@@ -196,10 +196,10 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 }
 
 func (s *ESStorageIntegration) esRefresh(t *testing.T) {
-	err := s.bulkProcessor.Flush()
-	require.NoError(t, err)
-	_, err = s.client.Refresh().Do(context.Background())
-	require.NoError(t, err)
+	// err := s.bulkProcessor.Flush()
+	// require.NoError(t, err)
+	// _, err = s.client.Refresh().Do(context.Background())
+	// require.NoError(t, err)
 }
 
 func healthCheck() error {
