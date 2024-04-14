@@ -313,7 +313,7 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.getPrimaryClient().CreateTemplate(params.PrefixIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+		if _, err := f.getPrimaryClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
