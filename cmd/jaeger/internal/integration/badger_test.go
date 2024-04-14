@@ -19,9 +19,7 @@ type BadgerStorageIntegration struct {
 func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 	s.e2eInitialize(t)
 
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
-
 	s.logger = zap.NewNop()
 }
 
