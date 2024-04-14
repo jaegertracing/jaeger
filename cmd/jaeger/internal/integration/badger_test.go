@@ -27,15 +27,6 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 
-	s.SpanWriter, err = s.factory.CreateSpanWriter()
-	require.NoError(t, err)
-
-	s.SpanReader, err = s.factory.CreateSpanReader()
-	require.NoError(t, err)
-
-	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
-	require.NoError(t, err)
-
 	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 
