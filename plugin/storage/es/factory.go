@@ -47,9 +47,8 @@ import (
 )
 
 const (
-	primaryNamespace   = "es"
-	archiveNamespace   = "es-archive"
-	samplingTemplateId = "jaeger-sampling"
+	primaryNamespace = "es"
+	archiveNamespace = "es-archive"
 )
 
 var ( // interface comformance checks
@@ -297,7 +296,7 @@ func createSpanWriter(
 }
 
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	store := esSampleStore.NewSamplingStore(esSampleStore.SamplingStoreParams{
+	params := esSampleStore.SamplingStoreParams{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
 		IndexPrefix:            f.primaryConfig.IndexPrefix,
@@ -305,7 +304,8 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		IndexRolloverFrequency: f.primaryConfig.GetIndexRolloverFrequencySamplingDuration(),
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
 		MaxDocCount:            f.primaryConfig.MaxDocCount,
-	})
+	}
+	store := esSampleStore.NewSamplingStore(params)
 
 	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
 		mappingBuilder := mappingBuilderFromConfig(f.primaryConfig)
@@ -313,11 +313,7 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		if err != nil {
 			return nil, err
 		}
-		normalizedPrefix := f.primaryConfig.IndexPrefix
-		if normalizedPrefix != "" && !strings.HasSuffix(normalizedPrefix, "-") {
-			normalizedPrefix += "-"
-		}
-		if _, err := f.getPrimaryClient().CreateTemplate(normalizedPrefix + samplingTemplateId).Body(samplingMapping).Do(context.Background()); err != nil {
+		if _, err := f.getPrimaryClient().CreateTemplate(params.PrefixIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}

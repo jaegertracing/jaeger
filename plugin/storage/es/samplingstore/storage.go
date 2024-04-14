@@ -59,7 +59,7 @@ func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 	return &SamplingStore{
 		client:                 p.Client,
 		logger:                 p.Logger,
-		samplingIndexPrefix:    p.prefixIndexName(),
+		samplingIndexPrefix:    p.PrefixIndexName(),
 		indexDateLayout:        p.IndexDateLayout,
 		maxDocCount:            p.MaxDocCount,
 		indexRolloverFrequency: p.IndexRolloverFrequency,
@@ -195,7 +195,7 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 	return indices
 }
 
-func (p *SamplingStoreParams) prefixIndexName() string {
+func (p *SamplingStoreParams) PrefixIndexName() string {
 	if p.IndexPrefix != "" {
 		return p.IndexPrefix + indexPrefixSeparator + samplingIndex
 	}
