@@ -70,7 +70,6 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 	// TODO DependencyWriter is not implemented in grpc store
 
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 }
 
