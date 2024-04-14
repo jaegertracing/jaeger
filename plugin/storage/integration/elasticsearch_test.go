@@ -59,10 +59,9 @@ const (
 type ESStorageIntegration struct {
 	StorageIntegration
 
-	client        *elastic.Client
-	v8Client      *elasticsearch8.Client
-	bulkProcessor *elastic.BulkProcessor
-	logger        *zap.Logger
+	client   *elastic.Client
+	v8Client *elasticsearch8.Client
+	logger   *zap.Logger
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -96,13 +95,15 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 		DiscoverNodesOnStart: false,
 	})
 	require.NoError(t, err)
-	s.bulkProcessor, err = s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	require.NoError(t, err)
 
 	s.initSpanstore(t, allTagsAsFields)
 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
+	}
+	s.Refresh = func(t *testing.T) {
+		_, err = s.client.Refresh().Do(context.Background())
+		require.NoError(t, err)
 	}
 	s.esCleanUp(t, allTagsAsFields)
 	s.SkipArchiveTest = false
