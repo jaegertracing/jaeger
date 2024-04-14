@@ -122,12 +122,9 @@ func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields
 	s.logger = zaptest.NewLogger(t)
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	esVersion, err := s.getVersion()
-	require.NoError(t, err)
 	args := []string{
 		fmt.Sprintf("--es.num-shards=%v", 5),
 		fmt.Sprintf("--es.num-replicas=%v", 1),
-		fmt.Sprintf("--es.version=%v", esVersion),
 		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
 		fmt.Sprintf("--es.use-ilm=%v", false),
 		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
