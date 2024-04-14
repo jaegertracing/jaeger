@@ -21,7 +21,6 @@ func (s *GRPCStorageIntegration) initialize(t *testing.T) {
 
 	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t, logger)
 
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 }
 

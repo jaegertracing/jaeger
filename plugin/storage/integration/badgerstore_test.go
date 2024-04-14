@@ -46,7 +46,6 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)
 
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 
 	s.logger, _ = testutils.NewLogger()
