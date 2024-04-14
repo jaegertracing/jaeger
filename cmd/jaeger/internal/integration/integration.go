@@ -66,5 +66,4 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 	require.NoError(t, s.jaegerBinary.Process.Kill())
-
 }
