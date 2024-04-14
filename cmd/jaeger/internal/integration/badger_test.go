@@ -38,10 +38,10 @@ func TestBadgerStorage(t *testing.T) {
 			ConfigFile: "cmd/jaeger/badger_config.yaml",
 			StorageIntegration: integration.StorageIntegration{
 				SkipBinaryAttrs: true,
+				SkipArchiveTest: true,
 
 				// TODO: remove this once badger supports returning spanKind from GetOperations
 				// Cf https://github.com/jaegertracing/jaeger/issues/1922
-				SkipArchiveTest:              true,
 				GetOperationsMissingSpanKind: true,
 			},
 		},
