@@ -23,10 +23,6 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 	s.CleanUp = s.cleanUp
 
 	s.logger = zap.NewNop()
-
-	// TODO: remove this once badger supports returning spanKind from GetOperations
-	s.GetOperationsMissingSpanKind = true
-	s.SkipArchiveTest = true
 }
 
 func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
@@ -37,9 +33,19 @@ func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
 func TestBadgerStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "badger")
 
-	s := &BadgerStorageIntegration{}
-	s.ConfigFile = "cmd/jaeger/badger_config.yaml"
-	s.SkipBinaryAttrs = true
+	s := &BadgerStorageIntegration{
+		E2EStorageIntegration: E2EStorageIntegration{
+			ConfigFile: "cmd/jaeger/badger_config.yaml",
+			StorageIntegration: integration.StorageIntegration{
+				SkipBinaryAttrs: true,
+
+				// TODO: remove this once badger supports returning spanKind from GetOperations
+				// Cf https://github.com/jaegertracing/jaeger/issues/1922
+				SkipArchiveTest:              true,
+				GetOperationsMissingSpanKind: true,
+			},
+		},
+	}
 
 	s.initialize(t)
 	t.Cleanup(func() {
