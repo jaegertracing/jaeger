@@ -32,7 +32,7 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 
 	s.logger, _ = testutils.NewLogger()
 
-	// TODO: remove this badger supports returning spanKind from GetOperations
+	// TODO: remove this once badger supports returning spanKind from GetOperations
 	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = true
 }
