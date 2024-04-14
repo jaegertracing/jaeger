@@ -176,6 +176,7 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQu
 func newGRPCClient(t *testing.T, addr string) *grpcClient {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
+	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
 	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 

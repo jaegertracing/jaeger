@@ -18,6 +18,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,19 +29,18 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	estemplate "github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
 const (
@@ -56,6 +56,8 @@ const (
 	spanTemplateName         = "jaeger-span"
 	serviceTemplateName      = "jaeger-service"
 	dependenciesTemplateName = "jaeger-dependencies"
+	primaryNamespace         = "es"
+	archiveNamespace         = "es-archive"
 )
 
 type ESStorageIntegration struct {
@@ -65,20 +67,6 @@ type ESStorageIntegration struct {
 	v8Client      *elasticsearch8.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
-}
-
-func (s *ESStorageIntegration) tracerProvider() (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
-	exporter := tracetest.NewInMemoryExporter()
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithSyncer(exporter),
-	)
-	closer := func() {
-		if err := tp.Shutdown(context.Background()); err != nil {
-			s.logger.Error("failed to close tracer", zap.Error(err))
-		}
-	}
-	return tp, exporter, closer
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -99,7 +87,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) error {
+func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
@@ -119,12 +107,11 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
 	}
-	s.Refresh = s.esRefresh
 	s.esCleanUp(t, allTagsAsFields)
-	// TODO: remove this flag after ES support returning spanKind when get operations
-	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = false
-	return nil
+	// TODO: remove this flag after ES supports returning spanKind
+	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
+	s.GetOperationsMissingSpanKind = true
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
@@ -168,93 +155,44 @@ func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper
 	return eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
 }
 
-func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) error {
-	client := s.getEsClient(t)
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: estemplate.TextTemplateBuilder{},
-		Shards:          5,
-		Replicas:        1,
-		EsVersion:       client.GetVersion(),
-		IndexPrefix:     indexPrefix,
-		UseILM:          false,
+func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
+	s.logger = zaptest.NewLogger(t)
+	f := es.NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	args := []string{
+		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
+		"--es-archive.enabled=true",
+		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
 	}
-	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-	require.NoError(t, err)
-	clientFn := func() estemplate.Client { return client }
+	require.NoError(t, command.ParseFlags(args))
+	f.InitFromViper(v, s.logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, s.logger))
 
-	// Initializing Span Reader and Writer
-	w := spanstore.NewSpanWriter(
-		spanstore.SpanWriterParams{
-			Client:            clientFn,
-			Logger:            s.logger,
-			MetricsFactory:    metrics.NullFactory,
-			IndexPrefix:       indexPrefix,
-			AllTagsAsFields:   allTagsAsFields,
-			TagDotReplacement: tagKeyDeDotChar,
-			Archive:           false,
-		})
-	err = w.CreateTemplates(spanMapping, serviceMapping, indexPrefix)
-	require.NoError(t, err)
-	tracer, _, closer := s.tracerProvider()
-	defer closer()
-	s.SpanWriter = w
-	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-		Client:            clientFn,
-		Logger:            s.logger,
-		MetricsFactory:    metrics.NullFactory,
-		IndexPrefix:       indexPrefix,
-		MaxSpanAge:        maxSpanAge,
-		TagDotReplacement: tagKeyDeDotChar,
-		MaxDocCount:       defaultMaxDocCount,
-		Tracer:            tracer.Tracer("test"),
-		Archive:           false,
-	})
-
-	// Initializing Archive Span Reader and Writer
-	s.ArchiveSpanWriter = spanstore.NewSpanWriter(
-		spanstore.SpanWriterParams{
-			Client:            clientFn,
-			Logger:            s.logger,
-			MetricsFactory:    metrics.NullFactory,
-			IndexPrefix:       indexPrefix,
-			AllTagsAsFields:   allTagsAsFields,
-			TagDotReplacement: tagKeyDeDotChar,
-			Archive:           true,
-		})
-	s.ArchiveSpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-		Client:            clientFn,
-		Logger:            s.logger,
-		MetricsFactory:    metrics.NullFactory,
-		IndexPrefix:       indexPrefix,
-		MaxSpanAge:        maxSpanAge,
-		TagDotReplacement: tagKeyDeDotChar,
-		MaxDocCount:       defaultMaxDocCount,
-		Tracer:            tracer.Tracer("test"),
-		Archive:           true,
-	})
-
-	dependencyStore := dependencystore.NewDependencyStore(dependencystore.DependencyStoreParams{
-		Client:          clientFn,
-		Logger:          s.logger,
-		IndexPrefix:     indexPrefix,
-		IndexDateLayout: indexDateLayout,
-		MaxDocCount:     defaultMaxDocCount,
-	})
-
-	depMapping, err := mappingBuilder.GetDependenciesMappings()
-	require.NoError(t, err)
-	err = dependencyStore.CreateTemplates(depMapping)
-	require.NoError(t, err)
-	s.DependencyReader = dependencyStore
-	s.DependencyWriter = dependencyStore
-	return nil
+	// TODO ideally we need to close the factory once the test is finished
+	// but because esCleanup calls initialize() we get a panic later
+	// t.Cleanup(func() {
+	// 	require.NoError(t, f.Close())
+	// })
+	return f
 }
 
-func (s *ESStorageIntegration) esRefresh(t *testing.T) {
-	err := s.bulkProcessor.Flush()
+func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
+	f := s.initializeESFactory(t, allTagsAsFields)
+	var err error
+	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
-	_, err = s.client.Refresh().Do(context.Background())
+	s.SpanReader, err = f.CreateSpanReader()
 	require.NoError(t, err)
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	require.NoError(t, err)
+
+	s.DependencyReader, err = f.CreateDependencyReader()
+	require.NoError(t, err)
+	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
 }
 
 func healthCheck() error {
@@ -268,7 +206,7 @@ func healthCheck() error {
 }
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +227,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}

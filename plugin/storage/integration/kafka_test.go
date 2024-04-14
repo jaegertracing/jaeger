@@ -98,7 +98,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 
 	s.SpanWriter = spanWriter
 	s.SpanReader = &ingester{traceStore}
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = func(_ *testing.T) {}
 	s.SkipArchiveTest = true
 }
@@ -132,7 +131,7 @@ func (r *ingester) FindTraceIDs(ctx context.Context, query *spanstore.TraceQuery
 }
 
 func TestKafkaStorage(t *testing.T) {
-	skipUnlessEnv(t, "kafka")
+	SkipUnlessEnv(t, "kafka")
 	s := &KafkaIntegrationTestSuite{}
 	s.initialize(t)
 	t.Run("GetTrace", s.testGetTrace)
