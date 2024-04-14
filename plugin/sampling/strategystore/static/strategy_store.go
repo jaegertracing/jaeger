@@ -65,15 +65,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	h.storedStrategies.Store(defaultStrategies())
 
 	if options.StrategiesFile == "" {
-
-		if !h.options.IncludeDefaultOpStrategies {
-			h.logger.Warn("Default operations level strategies will not be included for Ratelimiting service strategies." +
-				"This behavior will be deprecated in release 1.57.0 . See https://github.com/jaegertracing/jaeger/issues/5270 for more information.")
-			h.parseStrategies_deprecated(nil)
-		} else {
-			h.parseStrategies(nil)
-		}
-
+		h.logger.Info("No sampling strategies source provided, using defaults")
 		return h, nil
 	}
 
@@ -81,10 +73,15 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	strategies, err := loadStrategies(loadFn)
 	if err != nil {
 		return nil, err
+	} else if strategies == nil {
+		h.logger.Info("No sampling strategies found or URL is unavailable, using defaults")
+		return h, nil
 	}
+
 	if !h.options.IncludeDefaultOpStrategies {
 		h.logger.Warn("Default operations level strategies will not be included for Ratelimiting service strategies." +
-			"This behavior will be deprecated in release 1.57.0 . See https://github.com/jaegertracing/jaeger/issues/5270 for more information.")
+			"This behavior will be changed in future releases. " +
+			"Cf. https://github.com/jaegertracing/jaeger/issues/5270")
 		h.parseStrategies_deprecated(strategies)
 	} else {
 		h.parseStrategies(strategies)
@@ -223,54 +220,7 @@ func loadStrategies(loadFn strategyLoader) (*strategies, error) {
 	return strategies, nil
 }
 
-func (h *strategyStore) parseStrategies(strategies *strategies) {
-	if strategies == nil {
-		h.logger.Info("No sampling strategies provided or URL is unavailable, using defaults")
-		return
-	}
-	newStore := defaultStrategies()
-	if strategies.DefaultStrategy != nil {
-		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
-	}
-
-	for _, s := range strategies.ServiceStrategies {
-		newStore.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
-
-		// Config for this service may not have per-operation strategies,
-		// but if the default strategy has them they should still apply.
-
-		if newStore.defaultStrategy.OperationSampling == nil {
-			// Default strategy doens't have them either, nothing to do.
-			continue
-		}
-
-		opS := newStore.serviceStrategies[s.Service].OperationSampling
-		if opS == nil {
-
-			// Service does not have its own per-operation rules, so copy (by value) from the default strategy.
-			newOpS := *newStore.defaultStrategy.OperationSampling
-
-			// If the service's own default is probabilistic, then its sampling rate should take precedence.
-			if newStore.serviceStrategies[s.Service].ProbabilisticSampling != nil {
-				newOpS.DefaultSamplingProbability = newStore.serviceStrategies[s.Service].ProbabilisticSampling.SamplingRate
-			}
-			newStore.serviceStrategies[s.Service].OperationSampling = &newOpS
-			continue
-		}
-
-		// If the service did have its own per-operation strategies, then merge them with the default ones.
-		opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
-			opS.PerOperationStrategies,
-			newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
-	}
-	h.storedStrategies.Store(newStore)
-}
-
 func (h *strategyStore) parseStrategies_deprecated(strategies *strategies) {
-	if strategies == nil {
-		h.logger.Info("No sampling strategies provided or URL is unavailable, using defaults")
-		return
-	}
 	newStore := defaultStrategies()
 	if strategies.DefaultStrategy != nil {
 		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
@@ -305,6 +255,45 @@ func (h *strategyStore) parseStrategies_deprecated(strategies *strategies) {
 				opS.PerOperationStrategies,
 				newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
 		}
+	}
+	h.storedStrategies.Store(newStore)
+}
+
+func (h *strategyStore) parseStrategies(strategies *strategies) {
+	newStore := defaultStrategies()
+	if strategies.DefaultStrategy != nil {
+		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
+	}
+
+	for _, s := range strategies.ServiceStrategies {
+		newStore.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
+
+		// Config for this service may not have per-operation strategies,
+		// but if the default strategy has them they should still apply.
+
+		if newStore.defaultStrategy.OperationSampling == nil {
+			// Default strategy doens't have them either, nothing to do.
+			continue
+		}
+
+		opS := newStore.serviceStrategies[s.Service].OperationSampling
+		if opS == nil {
+
+			// Service does not have its own per-operation rules, so copy (by value) from the default strategy.
+			newOpS := *newStore.defaultStrategy.OperationSampling
+
+			// If the service's own default is probabilistic, then its sampling rate should take precedence.
+			if newStore.serviceStrategies[s.Service].ProbabilisticSampling != nil {
+				newOpS.DefaultSamplingProbability = newStore.serviceStrategies[s.Service].ProbabilisticSampling.SamplingRate
+			}
+			newStore.serviceStrategies[s.Service].OperationSampling = &newOpS
+			continue
+		}
+
+		// If the service did have its own per-operation strategies, then merge them with the default ones.
+		opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
+			opS.PerOperationStrategies,
+			newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
 	}
 	h.storedStrategies.Store(newStore)
 }
