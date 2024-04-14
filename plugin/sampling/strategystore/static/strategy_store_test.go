@@ -473,7 +473,7 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
-func TestServiceNoPerOperationStrategies5720ToggleOn(t *testing.T) {
+func TestServiceNoPerOperationStrategies(t *testing.T) {
 	// given setup of strategy store with no specific per operation sampling strategies
 	// and option "sampling.strategies.bugfix-5270=true"
 	store, err := NewStrategyStore(Options{
@@ -504,7 +504,10 @@ func TestServiceNoPerOperationStrategies5720ToggleOn(t *testing.T) {
 	}
 }
 
-func TestServiceNoPerOperationStrategiesDefaultBehavior(t *testing.T) {
+func TestServiceNoPerOperationStrategiesDeprecatedBehavior(t *testing.T) {
+	// test case to be removed along with removal of strategy_store.parseStrategies_deprecated,
+	// see https://github.com/jaegertracing/jaeger/issues/5270 for more details
+
 	// given setup of strategy store with no specific per operation sampling strategies
 	store, err := NewStrategyStore(Options{
 		StrategiesFile: "fixtures/service_no_per_operation.json",
