@@ -50,9 +50,10 @@ func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
 func TestBadgerStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "badger")
 
-	s := &BadgerStorageIntegration{}
-	s.ConfigFile = "cmd/jaeger/badger_config.yaml"
-	s.SkipBinaryAttrs = true
+	s := &BadgerStorageIntegration{
+	    ConfigFile: "cmd/jaeger/badger_config.yaml"
+	    SkipBinaryAttrs: true,
+   }
 
 	s.initialize(t)
 	s.e2eInitialize(t)
