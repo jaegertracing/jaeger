@@ -42,7 +42,6 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 			GetDependenciesReturnsSource: true,
 			SkipArchiveTest:              true,
 
-			Refresh: func(_ *testing.T) {},
 			SkipList: []string{
 				"Tags_+_Operation_name_+_Duration_range",
 				"Tags_+_Duration_range",

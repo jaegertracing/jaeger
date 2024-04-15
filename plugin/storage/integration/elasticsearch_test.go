@@ -94,11 +94,11 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
 	}
-	s.Refresh = s.esRefresh
 	s.esCleanUp(t, allTagsAsFields)
-	// TODO: remove this flag after ES support returning spanKind when get operations
-	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = false
+	// TODO: remove this flag after ES supports returning spanKind
+	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
+	s.GetOperationsMissingSpanKind = true
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
@@ -179,12 +179,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	s.DependencyReader, err = f.CreateDependencyReader()
 	require.NoError(t, err)
 	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
-}
-
-func (s *ESStorageIntegration) esRefresh(t *testing.T) {
-	err := s.bulkProcessor.Flush()
-	require.NoError(t, err)
-	s.EsClientRefresh(t)
 }
 
 func healthCheck() error {
