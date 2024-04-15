@@ -75,16 +75,16 @@ type StorageIntegration struct {
 	// Skip Archive Test if not supported by the storage backend
 	SkipArchiveTest bool
 
+	// TODO: remove this after upstream issue in OTEL jaeger translator is fixed
+	// Skip testing trace binary tags, logs, and process
+	SkipBinaryAttrs bool
+
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
 
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func(t *testing.T)
-
-	// Refresh() should ensure that the storage backend is up to date before being queried.
-	// called between set-up and queries in each test
-	Refresh func(t *testing.T)
 }
 
 // === SpanStore Integration Tests ===
@@ -107,12 +107,7 @@ func (s *StorageIntegration) cleanUp(t *testing.T) {
 	s.CleanUp(t)
 }
 
-func (s *StorageIntegration) refresh(t *testing.T) {
-	require.NotNil(t, s.Refresh, "Refresh function must be provided")
-	s.Refresh(t)
-}
-
-func skipUnlessEnv(t *testing.T, storage ...string) {
+func SkipUnlessEnv(t *testing.T, storage ...string) {
 	env := os.Getenv("STORAGE")
 	for _, s := range storage {
 		if env == s {
@@ -151,7 +146,6 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
 	s.loadParseAndWriteExampleTrace(t)
-	s.refresh(t)
 
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -185,7 +179,6 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	}
 
 	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
-	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -204,7 +197,6 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	t.Log("Testing Large Trace over 10K ...")
 	expected := s.loadParseAndWriteLargeTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
-	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -236,7 +228,6 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		}
 	}
 	s.loadParseAndWriteExampleTrace(t)
-	s.refresh(t)
 
 	var actual []spanstore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -262,7 +253,6 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
-	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -278,7 +268,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := model.TraceID{High: 0, Low: 0}
+		fakeTraceID := model.TraceID{High: 0, Low: 1}
 		trace, err := s.SpanReader.GetTrace(context.Background(), fakeTraceID)
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, trace)
@@ -309,7 +299,6 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		}
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
-	s.refresh(t)
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
@@ -369,7 +358,39 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 
 func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	return getTraceFixtureExact(t, fileName)
+	trace := getTraceFixtureExact(t, fileName)
+
+	if s.SkipBinaryAttrs {
+		t.Logf("Dropped binary type attributes from trace ID: %s", trace.Spans[0].TraceID.String())
+		trace = s.dropBinaryAttrs(t, trace)
+	}
+
+	return trace
+}
+
+func (s *StorageIntegration) dropBinaryAttrs(t *testing.T, trace *model.Trace) *model.Trace {
+	for _, span := range trace.Spans {
+		span.Tags = s.dropBinaryTags(t, span.Tags)
+		span.Process.Tags = s.dropBinaryTags(t, span.Process.Tags)
+
+		for i := range span.Logs {
+			span.Logs[i].Fields = s.dropBinaryTags(t, span.Logs[i].Fields)
+		}
+	}
+
+	return trace
+}
+
+func (s *StorageIntegration) dropBinaryTags(_ *testing.T, tags []model.KeyValue) []model.KeyValue {
+	newTags := make([]model.KeyValue, 0)
+	for _, tag := range tags {
+		if tag.VType == model.ValueType_BINARY {
+			continue
+		}
+		newTags = append(newTags, tag)
+	}
+
+	return newTags
 }
 
 func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
@@ -459,7 +480,6 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	}
 
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
-	s.refresh(t)
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -538,13 +558,18 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 
 // RunAll runs all integration tests
 func (s *StorageIntegration) RunAll(t *testing.T) {
-	t.Run("GetServices", s.testGetServices)
+	s.RunSpanStoreTests(t)
 	t.Run("ArchiveTrace", s.testArchiveTrace)
+	t.Run("GetDependencies", s.testGetDependencies)
+	t.Run("GetThroughput", s.testGetThroughput)
+	t.Run("GetLatestProbability", s.testGetLatestProbability)
+}
+
+// RunTestSpanstore runs only span related integration tests
+func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
+	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
-	t.Run("GetDependencies", s.testGetDependencies)
-	t.Run("GetThroughput", s.testGetThroughput)
-	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }

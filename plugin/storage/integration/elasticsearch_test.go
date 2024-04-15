@@ -107,11 +107,11 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
 	}
-	s.Refresh = s.esRefresh
 	s.esCleanUp(t, allTagsAsFields)
-	// TODO: remove this flag after ES support returning spanKind when get operations
-	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = false
+	// TODO: remove this flag after ES supports returning spanKind
+	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
+	s.GetOperationsMissingSpanKind = true
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
@@ -195,13 +195,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
 }
 
-func (s *ESStorageIntegration) esRefresh(t *testing.T) {
-	err := s.bulkProcessor.Flush()
-	require.NoError(t, err)
-	_, err = s.client.Refresh().Do(context.Background())
-	require.NoError(t, err)
-}
-
 func healthCheck() error {
 	for i := 0; i < 200; i++ {
 		if _, err := http.Get(queryURL); err == nil {
@@ -213,7 +206,7 @@ func healthCheck() error {
 }
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +227,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
-	skipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}

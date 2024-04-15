@@ -46,7 +46,6 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)
 
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 
 	s.logger, _ = testutils.NewLogger()
@@ -67,7 +66,7 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 }
 
 func TestBadgerStorage(t *testing.T) {
-	skipUnlessEnv(t, "badger")
+	SkipUnlessEnv(t, "badger")
 	s := &BadgerIntegrationStorage{}
 	s.initialize(t)
 	s.RunAll(t)

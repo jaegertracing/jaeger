@@ -16,23 +16,17 @@
 package integration
 
 import (
-	"net"
 	"os"
 	"path"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	grpcMemory "github.com/jaegertracing/jaeger/plugin/storage/grpc/memory"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 const (
@@ -40,71 +34,20 @@ const (
 	streamingPluginConfigPath = "fixtures/grpc_plugin_conf.yaml"
 )
 
-type gRPCServer struct {
-	errChan chan error
-	server  *googleGRPC.Server
-	wg      sync.WaitGroup
-}
-
-func newgRPCServer() (*gRPCServer, error) {
-	return &gRPCServer{errChan: make(chan error, 1)}, nil
-}
-
-func (s *gRPCServer) Restart() error {
-	// stop the server if one already exists
-	if s.server != nil {
-		s.server.GracefulStop()
-		s.wg.Wait()
-		select {
-		case err := <-s.errChan:
-			return err
-		default:
-		}
-	}
-
-	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
-
-	s.server = googleGRPC.NewServer()
-	queryPlugin := shared.StorageGRPCPlugin{
-		Impl:        memStorePlugin,
-		ArchiveImpl: memStorePlugin,
-	}
-
-	if err := queryPlugin.RegisterHandlers(s.server); err != nil {
-		return err
-	}
-
-	listener, err := net.Listen("tcp", "localhost:2001")
-	if err != nil {
-		return err
-	}
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		if err = s.server.Serve(listener); err != nil {
-			select {
-			case s.errChan <- err:
-			default:
-			}
-		}
-	}()
-	return nil
-}
-
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	logger  *zap.Logger
-	flags   []string
-	factory *grpc.Factory
-	server  *gRPCServer
+	logger           *zap.Logger
+	flags            []string
+	factory          *grpc.Factory
+	useRemoteStorage bool
+	remoteStorage    *RemoteMemoryStorage
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.logger, _ = testutils.NewLogger()
 
-	if s.server != nil {
-		err := s.server.Restart()
-		require.NoError(t, err)
+	if s.useRemoteStorage {
+		s.remoteStorage = StartNewRemoteMemoryStorage(t, s.logger)
 	}
 
 	f := grpc.NewFactory()
@@ -127,13 +70,18 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 	// TODO DependencyWriter is not implemented in grpc store
 
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 }
 
+func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
+	require.NoError(t, s.factory.Close())
+	if s.useRemoteStorage {
+		s.remoteStorage.Close(t)
+	}
+}
+
 func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
-	err := s.factory.Close()
-	require.NoError(t, err)
+	s.close(t)
 	s.initialize(t)
 }
 
@@ -151,7 +99,7 @@ func getPluginFlags(t *testing.T) []string {
 }
 
 func TestGRPCStorage(t *testing.T) {
-	skipUnlessEnv(t, "grpc")
+	SkipUnlessEnv(t, "grpc")
 	flags := getPluginFlags(t)
 	if configPath := os.Getenv("PLUGIN_CONFIG_PATH"); configPath == "" {
 		t.Log("PLUGIN_CONFIG_PATH env var not set")
@@ -163,11 +111,12 @@ func TestGRPCStorage(t *testing.T) {
 		flags: flags,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
 }
 
 func TestGRPCStreamingWriter(t *testing.T) {
-	skipUnlessEnv(t, "grpc")
+	SkipUnlessEnv(t, "grpc")
 	flags := getPluginFlags(t)
 	wd, err := os.Getwd()
 	require.NoError(t, err)
@@ -179,22 +128,22 @@ func TestGRPCStreamingWriter(t *testing.T) {
 		flags: flags,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
-	skipUnlessEnv(t, "grpc")
+	SkipUnlessEnv(t, "grpc")
 	flags := []string{
-		"--grpc-storage.server=localhost:2001",
+		"--grpc-storage.server=localhost:17271",
 		"--grpc-storage.tls.enabled=false",
 	}
-	server, err := newgRPCServer()
-	require.NoError(t, err)
 
 	s := &GRPCStorageIntegrationTestSuite{
-		flags:  flags,
-		server: server,
+		flags:            flags,
+		useRemoteStorage: true,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
 }

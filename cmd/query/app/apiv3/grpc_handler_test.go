@@ -77,8 +77,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 	}
 	tsc.server, tsc.address = newGrpcServer(t, h)
 
-	conn, err := grpc.DialContext(
-		context.Background(),
+	conn, err := grpc.NewClient(
 		tsc.address.String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

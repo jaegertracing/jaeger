@@ -4,129 +4,66 @@
 package integration
 
 import (
-	"context"
+	"io"
 	"os"
+	"os/exec"
 	"testing"
-	"time"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/testbed/testbed"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
-	"go.opentelemetry.io/collector/otelcol"
-	"go.opentelemetry.io/collector/service/telemetry"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/datareceivers"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
-type StorageIntegration struct {
-	Name       string
+const otlpPort = 4317
+
+// E2EStorageIntegration holds components for e2e mode of Jaeger-v2
+// storage integration test. The intended usage is as follows:
+//   - Initialize a specific storage implementation declares its own test functions
+//     (e.g. starts remote-storage).
+//   - Then, instantiates with e2eInitialize() to run the Jaeger-v2 collector
+//     and also the SpanWriter and SpanReader.
+//   - After that, calls RunSpanStoreTests().
+//   - Clean up with e2eCleanup() to close the SpanReader and SpanWriter connections.
+//   - At last, clean up anything declared in its own test functions.
+//     (e.g. close remote-storage)
+type E2EStorageIntegration struct {
+	integration.StorageIntegration
 	ConfigFile string
 }
 
-// The data receiver will utilize the artificial jaeger receiver to pull
-// the traces from the database which is through jaeger storage extension.
-// Because of that, we need to host another jaeger storage extension
-// that is a duplication from the collector's extension. And get
-// the exporter TraceStorage name to set it to receiver TraceStorage.
-func (s *StorageIntegration) newDataReceiver(t *testing.T, factories otelcol.Factories) testbed.DataReceiver {
-	fmp := fileprovider.NewWithSettings(confmap.ProviderSettings{})
-	configProvider, err := otelcol.NewConfigProvider(
-		otelcol.ConfigProviderSettings{
-			ResolverSettings: confmap.ResolverSettings{
-				URIs:      []string{s.ConfigFile},
-				Providers: map[string]confmap.Provider{fmp.Scheme(): fmp},
-			},
-		},
-	)
+// e2eInitialize starts the Jaeger-v2 collector with the provided config file,
+// it also initialize the SpanWriter and SpanReader below.
+// This function should be called before any of the tests start.
+func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+
+	cmd := exec.Cmd{
+		Path: "./cmd/jaeger/jaeger",
+		Args: []string{"jaeger", "--config", s.ConfigFile},
+		// Change the working directory to the root of this project
+		// since the binary config file jaeger_query's ui_config points to
+		// "./cmd/jaeger/config-ui.json"
+		Dir:    "../../../..",
+		Stdout: os.Stderr,
+		Stderr: os.Stderr,
+	}
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		require.NoError(t, cmd.Process.Kill())
+	})
+
+	var err error
+	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
-
-	cfg, err := configProvider.Get(context.Background(), factories)
+	s.SpanReader, err = createSpanReader(ports.QueryGRPC)
 	require.NoError(t, err)
-
-	tel, err := telemetry.New(context.Background(), telemetry.Settings{}, cfg.Service.Telemetry)
-	require.NoError(t, err)
-
-	storageCfg, ok := cfg.Extensions[jaegerstorage.ID].(*jaegerstorage.Config)
-	require.True(t, ok, "no jaeger storage extension found in the config")
-
-	exporterCfg, ok := cfg.Exporters[storageexporter.ID].(*storageexporter.Config)
-	require.True(t, ok, "no jaeger storage exporter found in the config")
-
-	telemetrySettings := componenttest.NewNopTelemetrySettings()
-	telemetrySettings.Logger = tel.Logger()
-
-	receiver := datareceivers.NewJaegerStorageDataReceiver(
-		telemetrySettings,
-		exporterCfg.TraceStorage,
-		storageCfg,
-	)
-	return receiver
 }
 
-func (s *StorageIntegration) Test(t *testing.T) {
-	if os.Getenv("STORAGE") != s.Name {
-		t.Skipf("Integration test against Jaeger-V2 %[1]s skipped; set STORAGE env var to %[1]s to run this", s.Name)
-	}
-
-	factories, err := internal.Components()
-	require.NoError(t, err)
-
-	dataProvider := testbed.NewGoldenDataProvider(
-		"fixtures/generated_pict_pairs_traces.txt",
-		"fixtures/generated_pict_pairs_spans.txt",
-		"",
-	)
-	sender := testbed.NewOTLPTraceDataSender(testbed.DefaultHost, 4317)
-	receiver := s.newDataReceiver(t, factories)
-
-	runner := testbed.NewInProcessCollector(factories)
-	validator := testbed.NewCorrectTestValidator(
-		sender.ProtocolName(),
-		receiver.ProtocolName(),
-		dataProvider,
-	)
-	correctnessResults := &testbed.CorrectnessResults{}
-
-	config, err := os.ReadFile(s.ConfigFile)
-	require.NoError(t, err)
-	t.Log(string(config))
-
-	configCleanup, err := runner.PrepareConfig(string(config))
-	require.NoError(t, err)
-	defer configCleanup()
-
-	tc := testbed.NewTestCase(
-		t,
-		dataProvider,
-		sender,
-		receiver,
-		runner,
-		validator,
-		correctnessResults,
-	)
-	defer tc.Stop()
-
-	tc.EnableRecording()
-	tc.StartBackend()
-	tc.StartAgent()
-
-	tc.StartLoad(testbed.LoadOptions{
-		DataItemsPerSecond: 1024,
-		ItemsPerBatch:      1,
-	})
-	tc.Sleep(5 * time.Second)
-	tc.StopLoad()
-
-	tc.WaitForN(func() bool {
-		return tc.LoadGenerator.DataItemsSent() == tc.MockBackend.DataItemsReceived()
-	}, 10*time.Second, "all data items received")
-
-	tc.StopBackend()
-
-	tc.ValidateData()
+// e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
+// This function should be called after all the tests are finished.
+func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
+	require.NoError(t, s.SpanReader.(io.Closer).Close())
+	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
