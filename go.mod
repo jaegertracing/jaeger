@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger
 
-go 1.21
+go 1.21.0
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
