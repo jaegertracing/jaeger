@@ -33,13 +33,13 @@ type BadgerIntegrationStorage struct {
 
 func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
-	t.Cleanup(func() {
-		s.factory.Close()
-	})
 	s.factory.Options.Primary.Ephemeral = false
 
 	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		s.factory.Close()
+	})
 
 	s.SpanWriter, err = s.factory.CreateSpanWriter()
 	require.NoError(t, err)
@@ -49,10 +49,6 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)
-
-	s.CleanUp = s.cleanUp
-
-	s.logger, _ = testutils.NewLogger()
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
@@ -69,6 +65,8 @@ func TestBadgerStorage(t *testing.T) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
+	s.CleanUp = s.cleanUp
+	s.logger, _ = testutils.NewLogger()
 	s.initialize(t)
 	s.RunAll(t)
 }
