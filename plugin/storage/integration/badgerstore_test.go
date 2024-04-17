@@ -61,7 +61,7 @@ func (s *BadgerIntegrationStorage) clear() error {
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
-	s.factory.CleanUp()
+	s.factory.Purge()
 }
 
 func TestBadgerStorage(t *testing.T) {
