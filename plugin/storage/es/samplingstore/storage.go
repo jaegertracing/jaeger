@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	samplingIndex        = "jaeger-sampling-"
+	samplingIndex        = "jaeger-sampling"
 	throughputType       = "throughput-sampling"
 	probabilitiesType    = "probabilities-sampling"
 	indexPrefixSeparator = "-"
