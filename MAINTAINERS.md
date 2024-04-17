@@ -2,7 +2,7 @@ The current Maintainers Group for the Jaeger Project consists of:
 
 | Name | Employer | Responsibilities |
 | ---- | -------- | ---------------- |
-| [@albertteoh](https://github.com/albertteoh) | PackSmith | All | 
+| [@albertteoh](https://github.com/albertteoh) | PackSmith | ALL | 
 | [@jkowall](https://github.com/jkowall) | Aiven | ALL |
 | [@joe-elliott](https://github.com/joe-elliott) | Grafana Labs | ALL |
 | [@pavolloffay](https://github.com/pavolloffay) | RedHat | ALL |
