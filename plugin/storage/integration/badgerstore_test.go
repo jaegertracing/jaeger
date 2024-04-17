@@ -33,6 +33,7 @@ type BadgerIntegrationStorage struct {
 
 func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
+	s.factory.Options.Primary.Ephemeral = false
 
 	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
@@ -61,9 +62,7 @@ func (s *BadgerIntegrationStorage) clear() error {
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
-	err := s.clear()
-	require.NoError(t, err)
-	s.initialize(t)
+	s.factory.CleanUp()
 }
 
 func TestBadgerStorage(t *testing.T) {

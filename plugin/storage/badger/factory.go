@@ -303,3 +303,9 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 		}
 	})
 }
+
+func (f *Factory) CleanUp() error {
+	return f.store.Update(func(txn *badger.Txn) error {
+		return f.store.DropAll()
+	})
+}
