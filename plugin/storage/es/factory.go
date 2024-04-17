@@ -94,6 +94,7 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 
+	defaultConfig := getDefaultConfig()
 	cfg.ApplyDefaults(&defaultConfig)
 
 	archive := make(map[string]*namespaceConfig)

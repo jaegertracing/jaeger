@@ -251,7 +251,7 @@ func createESV8Client() (*elasticsearch8.Client, error) {
 
 func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
 	s := &ESStorageIntegration{
-		EsClient: &EsClient{
+		client: &EsClient{
 			client:   client,
 			v8Client: v8Client,
 		},

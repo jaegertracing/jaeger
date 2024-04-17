@@ -34,12 +34,7 @@ func StartEsClient(t *testing.T, queryURL string) *EsClient {
 	}
 }
 
-func (s *EsClient) EsClientCleanup(t *testing.T) {
+func (s *EsClient) DeleteAllIndixes(t *testing.T) {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
-}
-
-func (s *EsClient) EsClientRefresh(t *testing.T) {
-	_, err := s.client.Refresh().Do(context.Background())
 	require.NoError(t, err)
 }

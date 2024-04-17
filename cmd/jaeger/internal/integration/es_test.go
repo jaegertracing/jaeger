@@ -24,11 +24,11 @@ type ESStorageIntegration struct {
 func (s *ESStorageIntegration) initializeES(t *testing.T) {
 	s.esClient = integration.StartEsClient(t, queryURL)
 	s.CleanUp = func(t *testing.T) {
-		s.esClient.EsClientCleanup(t)
+		s.esClient.DeleteAllIndixes(t)
 	}
-	s.Refresh = s.esClient.EsClientRefresh
-	s.esClient.EsClientCleanup(t)
-	// TODO: remove this flag after ES support returning spanKind when get operations
+	s.esClient.DeleteAllIndixes(t)
+	// TODO: remove this flag after ES supports returning spanKind
+	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 	s.GetOperationsMissingSpanKind = true
 }
 

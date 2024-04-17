@@ -63,11 +63,11 @@ type ESStorageIntegration struct {
 	StorageIntegration
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
-	*EsClient
+	client        *EsClient
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
-	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
+	pingResult, _, err := s.client.client.Ping(queryURL).Do(context.Background())
 	if err != nil {
 		return 0, err
 	}
@@ -85,7 +85,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
-	s.EsClient = StartEsClient(t, queryURL)
+	s.client = StartEsClient(t, queryURL)
 	s.logger, _ = testutils.NewLogger()
 
 	s.initSpanstore(t, allTagsAsFields)
@@ -102,7 +102,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
-	s.EsClientCleanup(t)
+	s.client.DeleteAllIndixes(t)
 	s.initSpanstore(t, allTagsAsFields)
 }
 
@@ -133,12 +133,12 @@ func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
 }
 
 func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper {
-	bp, err := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
+	bp, err := s.client.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	require.NoError(t, err)
 	s.bulkProcessor = bp
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
-	return eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
+	return eswrapper.WrapESClient(s.client.client, bp, esVersion, s.client.v8Client)
 }
 
 func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
@@ -223,17 +223,17 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
 	if esVersion <= 7 {
-		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
+		serviceTemplateExists, err := s.client.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, serviceTemplateExists)
-		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
+		spanTemplateExists, err := s.client.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, spanTemplateExists)
 	} else {
-		serviceTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
+		serviceTemplateExistsResponse, err := s.client.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
 		require.NoError(t, err)
 		assert.Equal(t, 200, serviceTemplateExistsResponse.StatusCode)
-		spanTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
+		spanTemplateExistsResponse, err := s.client.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
 		require.NoError(t, err)
 		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
 	}
@@ -248,14 +248,14 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		if prefix != "" {
 			prefixWithSeparator += "-"
 		}
-		_, err := s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
+		_, err := s.client.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
+		_, err = s.client.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
+		_, err = s.client.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
 		require.NoError(t, err)
 	} else {
-		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())
+		_, err := s.client.client.IndexDeleteTemplate("*").Do(context.Background())
 		require.NoError(t, err)
 	}
 	return nil

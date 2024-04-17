@@ -79,36 +79,6 @@ const (
 	defaultSendGetBodyAs          = ""
 )
 
-var defaultConfig = config.Configuration{
-	Username:                     "",
-	Password:                     "",
-	Sniffer:                      false,
-	MaxSpanAge:                   72 * time.Hour,
-	AdaptiveSamplingLookback:     72 * time.Hour,
-	NumShards:                    5,
-	NumReplicas:                  1,
-	PrioritySpanTemplate:         0,
-	PriorityServiceTemplate:      0,
-	PriorityDependenciesTemplate: 0,
-	BulkSize:                     5 * 1000 * 1000,
-	BulkWorkers:                  1,
-	BulkActions:                  1000,
-	BulkFlushInterval:            time.Millisecond * 200,
-	Tags: config.TagsAsFields{
-		DotReplacement: "@",
-	},
-	Enabled:              true,
-	CreateIndexTemplates: true,
-	Version:              0,
-	UseReadWriteAliases:  false,
-	UseILM:               false,
-	Servers:              []string{defaultServerURL},
-	RemoteReadClusters:   []string{},
-	MaxDocCount:          defaultMaxDocCount,
-	LogLevel:             "error",
-	SendGetBodyAs:        defaultSendGetBodyAs,
-}
-
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
 
 // Options contains various type of Elasticsearch configs and provides the ability
@@ -128,6 +98,7 @@ type namespaceConfig struct {
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
+	defaultConfig := getDefaultConfig()
 	options := &Options{
 		Primary: namespaceConfig{
 			Configuration: defaultConfig,
@@ -428,4 +399,36 @@ func initDateLayout(rolloverFreq, sep string) string {
 		indexLayout = indexLayout + sep + "15"
 	}
 	return indexLayout
+}
+
+func getDefaultConfig() config.Configuration {
+	return config.Configuration{
+		Username:                     "",
+		Password:                     "",
+		Sniffer:                      false,
+		MaxSpanAge:                   72 * time.Hour,
+		AdaptiveSamplingLookback:     72 * time.Hour,
+		NumShards:                    5,
+		NumReplicas:                  1,
+		PrioritySpanTemplate:         0,
+		PriorityServiceTemplate:      0,
+		PriorityDependenciesTemplate: 0,
+		BulkSize:                     5 * 1000 * 1000,
+		BulkWorkers:                  1,
+		BulkActions:                  1000,
+		BulkFlushInterval:            time.Millisecond * 200,
+		Tags: config.TagsAsFields{
+			DotReplacement: "@",
+		},
+		Enabled:              true,
+		CreateIndexTemplates: true,
+		Version:              0,
+		UseReadWriteAliases:  false,
+		UseILM:               false,
+		Servers:              []string{defaultServerURL},
+		RemoteReadClusters:   []string{},
+		MaxDocCount:          defaultMaxDocCount,
+		LogLevel:             "error",
+		SendGetBodyAs:        defaultSendGetBodyAs,
+	}
 }
