@@ -140,9 +140,9 @@ func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *flags.HTTPOptions) {
 	}
 }
 
-func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
-	return &configtls.TLSServerSetting{
-		TLSSetting: configtls.TLSSetting{
+func applyTLSSettings(opts *tlscfg.Options) *configtls.ServerConfig {
+	return &configtls.ServerConfig{
+		Config: configtls.Config{
 			CAFile:         opts.CAPath,
 			CertFile:       opts.CertPath,
 			KeyFile:        opts.KeyPath,

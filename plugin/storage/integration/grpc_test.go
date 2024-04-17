@@ -70,15 +70,18 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 	// TODO DependencyWriter is not implemented in grpc store
 
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = s.cleanUp
 }
 
-func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
+func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
 	require.NoError(t, s.factory.Close())
 	if s.useRemoteStorage {
 		s.remoteStorage.Close(t)
 	}
+}
+
+func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
+	s.close(t)
 	s.initialize(t)
 }
 
@@ -108,6 +111,7 @@ func TestGRPCStorage(t *testing.T) {
 		flags: flags,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
 }
 
@@ -124,6 +128,7 @@ func TestGRPCStreamingWriter(t *testing.T) {
 		flags: flags,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
 }
 
@@ -139,5 +144,6 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		useRemoteStorage: true,
 	}
 	s.initialize(t)
+	defer s.close(t)
 	s.RunAll(t)
 }

@@ -98,7 +98,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 
 	s.SpanWriter = spanWriter
 	s.SpanReader = &ingester{traceStore}
-	s.Refresh = func(_ *testing.T) {}
 	s.CleanUp = func(_ *testing.T) {}
 	s.SkipArchiveTest = true
 }
