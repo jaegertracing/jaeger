@@ -101,10 +101,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
 	}
-	s.Refresh = func(t *testing.T) {
-		_, err = s.client.Refresh().Do(context.Background())
-		require.NoError(t, err)
-	}
 	s.esCleanUp(t, allTagsAsFields)
 	s.SkipArchiveTest = false
 	// TODO: remove this flag after ES supports returning spanKind
