@@ -53,8 +53,6 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.CleanUp = s.cleanUp
 
 	s.logger, _ = testutils.NewLogger()
-
-	s.SkipArchiveTest = true
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
