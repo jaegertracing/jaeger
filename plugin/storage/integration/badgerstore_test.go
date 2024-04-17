@@ -56,10 +56,6 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.SkipArchiveTest = true
 }
 
-func (s *BadgerIntegrationStorage) clear() error {
-	return s.factory.Close()
-}
-
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 	s.factory.Purge()
 }
@@ -69,5 +65,5 @@ func TestBadgerStorage(t *testing.T) {
 	s := &BadgerIntegrationStorage{}
 	s.initialize(t)
 	s.RunAll(t)
-	defer s.clear()
+	defer s.factory.Close()
 }
