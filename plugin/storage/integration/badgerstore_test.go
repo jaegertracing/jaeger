@@ -33,6 +33,9 @@ type BadgerIntegrationStorage struct {
 
 func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
+	t.Cleanup(func() {
+		s.factory.Close()
+	})
 	s.factory.Options.Primary.Ephemeral = false
 
 	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
@@ -51,8 +54,6 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 
 	s.logger, _ = testutils.NewLogger()
 
-	// TODO: remove this badger supports returning spanKind from GetOperations
-	s.GetOperationsMissingSpanKind = true
 	s.SkipArchiveTest = true
 }
 
@@ -62,8 +63,14 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 
 func TestBadgerStorage(t *testing.T) {
 	SkipUnlessEnv(t, "badger")
-	s := &BadgerIntegrationStorage{}
+	s := &BadgerIntegrationStorage{
+		StorageIntegration: StorageIntegration{
+			SkipArchiveTest: true,
+
+			// TODO: remove this badger supports returning spanKind from GetOperations
+			GetOperationsMissingSpanKind: true,
+		},
+	}
 	s.initialize(t)
 	s.RunAll(t)
-	defer s.factory.Close()
 }
