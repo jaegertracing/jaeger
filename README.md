@@ -8,6 +8,7 @@
 [![Coverage Status][cov-img]][cov]
 [![FOSSA Status][fossa-img]](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jaegertracing/jaeger/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jaegertracing/jaeger)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/1273/badge)](https://www.bestpractices.dev/projects/1273)
 
 <img src="https://raw.githubusercontent.com/cncf/artwork/main/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
 
