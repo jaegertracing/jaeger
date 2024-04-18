@@ -303,3 +303,12 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 		}
 	})
 }
+
+// Purge removes all data from the Factory's underlying Badger store.
+// This function is intended for testing purposes only and should not be used in production environments.
+// Calling Purge in production will result in permanent data loss.
+func (f *Factory) Purge() error {
+	return f.store.Update(func(txn *badger.Txn) error {
+		return f.store.DropAll()
+	})
+}

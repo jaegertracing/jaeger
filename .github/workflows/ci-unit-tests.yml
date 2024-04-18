@@ -11,13 +11,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions:
   contents: read
-  checks: write
 
 jobs:
   unit-tests:
+    permissions:
+      checks: write    
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
