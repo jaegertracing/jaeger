@@ -8,13 +8,14 @@ on:
   workflow_dispatch:
 
 # See https://github.com/jaegertracing/jaeger/issues/4017
-# and https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
-  deployments: write
-  contents: write
+  contents: read
 
 jobs:
   publish-release:
+    permissions:
+      contents: write
+      deployments: write
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: ubuntu-latest
 
