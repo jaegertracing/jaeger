@@ -1,0 +1,224 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax="proto3";
+
+package jaeger.storage_v2;
+
+import "opentelemetry/proto/collector/trace/v1/trace_service.proto";
+import "opentelemetry/proto/trace/v1/trace.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+import "model.proto";
+
+option go_package = "storage_v2";
+option java_package = "io.jaegertracing.storage_v2";
+
+message CloseWriterRequest {
+}
+
+message CloseWriterResponse {
+}
+
+// Request object to get a trace.
+message GetTraceRequest {
+  // Hex encoded 64 or 128 bit trace ID.
+  string trace_id = 1;
+  // Optional. The start time to search trace ID.
+  google.protobuf.Timestamp start_time = 2 [
+    (gogoproto.stdtime) = true
+  ];
+  // Optional. The end time to search trace ID.
+  google.protobuf.Timestamp end_time = 3 [
+    (gogoproto.stdtime) = true
+  ];
+}
+
+// Query parameters to find traces. Except for num_traces, all fields should be treated
+// as forming a conjunction, e.g., "service_name='X' AND operation_name='Y' AND ...".
+// All fields are matched against individual spans, not at the trace level.
+// The returned results contain traces where at least one span matches the conditions.
+// When num_traces results in fewer traces returned, there is no required ordering.
+//
+// Note: num_traces should restrict the number of traces returned, but not all backends
+// interpret it this way. For instance, in Cassandra this limits the number of _spans_
+// that match the conditions, and the resulting number of traces can be less.
+//
+// Note: some storage implementations do not guarantee the correct implementation of all parameters.
+//
+message TraceQueryParameters {
+  string service_name = 1;
+  string operation_name = 2;
+  // Attributes are matched against Span and Resource attributes.
+  // At least one span in a trace must match all specified attributes.
+  map<string, string> attributes = 3;
+  // Span min start time in. REST API uses RFC-3339ns format. Required.
+  google.protobuf.Timestamp start_time_min = 4;
+  // Span max start time. REST API uses RFC-3339ns format. Required.
+  google.protobuf.Timestamp start_time_max = 5;
+  // Span min duration. REST API uses Golang's time format e.g. 10s.
+  google.protobuf.Duration duration_min = 6;
+  // Span max duration. REST API uses Golang's time format e.g. 10s.
+  google.protobuf.Duration duration_max = 7;
+
+  // Maximum number of traces in the response.
+  int32 num_traces = 8;
+}
+
+// Request object to search traces.
+message FindTracesRequest {
+  TraceQueryParameters query = 1;
+}
+
+// Response object to search trace IDs.
+message FindTraceIDsResponse {
+  // Hex encoded 64 or 128 bit trace ID.
+  repeated string trace_ids = 1;
+}
+
+// Request object to get service names.
+message GetServicesRequest {}
+
+// Response object to get service names.
+message GetServicesResponse {
+  repeated string services = 1;
+}
+
+// Request object to get operation names.
+message GetOperationsRequest {
+  // Required service name.
+  string service = 1;
+  // Optional span kind.
+  string span_kind = 2;
+}
+
+// Operation encapsulates information about operation.
+message Operation {
+  string name = 1;
+  string span_kind = 2;
+}
+
+// Response object to get operation names.
+message GetOperationsResponse {
+  repeated Operation operations = 1;
+}
+
+// Request object to archive a trace.
+message ArchiveTraceRequest {
+    // Hex encoded 64 or 128 bit trace ID.
+    string trace_id = 1;
+}
+
+// Response object to archive a trace.
+message ArchiveTraceResponse {
+}
+
+// Request object to get dependencies.
+message GetDependenciesRequest {
+  google.protobuf.Timestamp start_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp end_time = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+// Response object to get dependencies.
+message GetDependenciesResponse {
+  repeated jaeger.api_v2.DependencyLink dependencies = 1 [
+    (gogoproto.nullable) = false
+  ];
+}
+
+// Request object get to capabilities.
+message CapabilitiesRequest {
+}
+
+// Response object get to capabilities.
+message CapabilitiesResponse {
+    bool archiveSpanWriter = 1;
+}
+
+// spanstore/Writer
+service SpanWriterPlugin {
+  // Export is a batched version of WriteSpan that handles OTLP exporter.
+  rpc Export(opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest) returns (opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse) {}
+
+  // Close supports graceful shutdown for Writer
+  rpc Close(CloseWriterRequest) returns (CloseWriterResponse) {}
+}
+
+// spanstore/Reader
+service SpanReaderPlugin {
+  // GetTrace returns a single trace.
+  // Note that the JSON response over HTTP is wrapped into result envelope "{"result": ...}"
+  // It means that the JSON response cannot be directly unmarshalled using JSONPb.
+  // This can be fixed by first parsing into user-defined envelope with standard JSON library
+  // or string manipulation to remove the envelope. Alternatively generate objects using OpenAPI.
+  rpc GetTrace(GetTraceRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+
+  // FindTraces searches for traces.
+  // See GetTrace for JSON unmarshalling.
+  rpc FindTraces(FindTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+
+  // FindTraceIDs searches for traces and returns the traceID.
+  rpc FindTraceIDs(FindTracesRequest) returns (FindTraceIDsResponse) {}
+
+  // GetServices returns service names.
+  rpc GetServices(GetServicesRequest) returns (GetServicesResponse) {}
+
+  // GetOperations returns operation names.
+  rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse) {}
+}
+
+// querysvc/QueryService
+service QueryService {
+  // ArchiveTrace finds a trace from primary storage and write it to archive storage.
+  rpc ArchiveTrace(ArchiveTraceRequest) returns (ArchiveTraceResponse) {}
+}
+
+// dependencystore/Reader
+service DependenciesReaderPlugin {
+  // GetDependencies 
+  rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+}
+
+service PluginCapabilities {
+  // Capabilities returns the supported features of the server.
+  // Currently, it only has an archiveSpanWriter capability.
+  rpc Capabilities(CapabilitiesRequest) returns (CapabilitiesResponse);
+}
+
+// Below are some helper types when using APIv3 via HTTP endpoints.
+
+// GRPCGatewayError is the type returned when GRPC server returns an error.
+// Example: {"error":{"grpcCode":2,"httpCode":500,"message":"...","httpStatus":"text..."}}.
+message GRPCGatewayError {
+  message GRPCGatewayErrorDetails {
+    int32 grpcCode = 1;
+    int32 httpCode = 2;
+    string message = 3;
+    string httpStatus = 4;
+  }
+
+  GRPCGatewayErrorDetails error = 1;
+}
+
+// GRPCGatewayWrapper wraps streaming responses from GetTrace/FindTraces for HTTP.
+// Today there is always only one response because internally the HTTP server gets
+// data from QueryService that does not support multiple responses. But in the
+// future the server may return multiple responeses using Transfer-Encoding: chunked.
+// In case of errors, GRPCGatewayError above is used.
+//
+// Example:
+//     {"result": {"resourceSpans": ...}}
+//
+// See https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
+//
+message GRPCGatewayWrapper {
+  opentelemetry.proto.trace.v1.TracesData result = 1;
+}
