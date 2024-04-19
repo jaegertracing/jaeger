@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -56,7 +55,15 @@ type Configuration struct {
 // ClientPluginServices defines services plugin can expose and its capabilities
 type ClientPluginServices struct {
 	shared.PluginServices
-	Capabilities shared.PluginCapabilities
+	Capabilities     shared.PluginCapabilities
+	killPluginClient func()
+}
+
+func (c *ClientPluginServices) Close() error {
+	if c.killPluginClient != nil {
+		c.killPluginClient()
+	}
+	return nil
 }
 
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
@@ -111,6 +118,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 	var err error
+	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
 	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
@@ -151,10 +159,6 @@ func (c *Configuration) buildPlugin(logger *zap.Logger, tracerProvider trace.Tra
 			Level: hclog.LevelFromString(c.PluginLogLevel),
 		}),
 		GRPCDialOptions: opts,
-	})
-
-	runtime.SetFinalizer(client, func(c *plugin.Client) {
-		c.Kill()
 	})
 
 	rpcClient, err := client.Client()
@@ -199,7 +203,8 @@ func (c *Configuration) buildPlugin(logger *zap.Logger, tracerProvider trace.Tra
 			ArchiveStore:        archiveStoragePlugin,
 			StreamingSpanWriter: streamingSpanWriterPlugin,
 		},
-		Capabilities: capabilities,
+		Capabilities:     capabilities,
+		killPluginClient: client.Kill,
 	}, nil
 }
 

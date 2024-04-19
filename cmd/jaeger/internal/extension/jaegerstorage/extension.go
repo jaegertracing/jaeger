@@ -13,11 +13,13 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
+	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
@@ -128,12 +130,26 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Elasticsearch,
 		builder:     es.NewFactoryWithConfig,
 	}
+	osStarter := &starter[esCfg.Configuration, *es.Factory]{
+		ext:         s,
+		storageKind: "opensearch",
+		cfg:         s.config.Opensearch,
+		builder:     es.NewFactoryWithConfig,
+	}
+	cassandraStarter := &starter[cassandraCfg.Configuration, *cassandra.Factory]{
+		ext:         s,
+		storageKind: "cassandra",
+		cfg:         s.config.Cassandra,
+		builder:     cassandra.NewFactoryWithConfig,
+	}
 
 	builders := []func(ctx context.Context, host component.Host) error{
 		memStarter.build,
 		badgerStarter.build,
 		grpcStarter.build,
 		esStarter.build,
+		osStarter.build,
+		cassandraStarter.build,
 		// TODO add support for other backends
 	}
 	for _, builder := range builders {

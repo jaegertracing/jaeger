@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/forwardconnector"
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/exporter/loggingexporter"
+	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
@@ -80,7 +80,7 @@ func (b builders) build() (otelcol.Factories, error) {
 
 	factories.Exporters, err = b.exporter(
 		// standard
-		loggingexporter.NewFactory(),
+		debugexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
 		// add-ons
@@ -116,6 +116,6 @@ func (b builders) build() (otelcol.Factories, error) {
 	return factories, nil
 }
 
-func components() (otelcol.Factories, error) {
+func Components() (otelcol.Factories, error) {
 	return defaultBuilders().build()
 }

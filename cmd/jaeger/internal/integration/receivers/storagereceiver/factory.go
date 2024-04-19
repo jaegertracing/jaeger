@@ -12,7 +12,10 @@ import (
 )
 
 // componentType is the name of this extension in configuration.
-const componentType = component.Type("jaeger_storage_receiver")
+var componentType = component.MustNewType("jaeger_storage_receiver")
+
+// ID is the identifier of this extension.
+var ID = component.NewID(componentType)
 
 func NewFactory() receiver.Factory {
 	return receiver.NewFactory(

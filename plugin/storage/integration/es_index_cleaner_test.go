@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build index_cleaner
-// +build index_cleaner
-
 package integration
 
 import (
@@ -43,6 +40,7 @@ const (
 )
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	_, err = client.DeleteIndex("*").Do(context.Background())
@@ -62,6 +60,7 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 }
 
 func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	tests := []struct {
@@ -83,6 +82,7 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 }
 
 func TestIndexCleaner(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	v8Client, err := createESV8Client()
@@ -157,7 +157,7 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	indices, err := client.IndexNames()
 	require.NoError(t, err)
 	if prefix != "" {
-		prefix = prefix + "-"
+		prefix += "-"
 	}
 	var expected []string
 	for _, index := range expectedIndices {
@@ -169,7 +169,7 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {
 	prefixWithSeparator := prefix
 	if prefix != "" {
-		prefixWithSeparator = prefixWithSeparator + "-"
+		prefixWithSeparator += "-"
 	}
 	// create daily indices and archive index
 	err := createEsIndices(client, []string{

@@ -12,32 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build index_rollover
-// +build index_rollover
-
 package integration
 
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"testing"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const (
 	defaultILMPolicyName = "jaeger-ilm-policy"
-	rolloverImage        = "jaegertracing/jaeger-es-rollover:latest"
 )
 
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
@@ -57,13 +50,14 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 }
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
-	t.Run(fmt.Sprintf("DefaultPolicyName"), func(t *testing.T) {
+	t.Run("DefaultPolicyName", func(t *testing.T) {
 		runCreateIndicesWithILM(t, defaultILMPolicyName)
 	})
 
 	// Test using a configured ILM Policy Name, i.e. pass the ES_ILM_POLICY_NAME env var to the rollover script.
-	t.Run(fmt.Sprintf("SetPolicyName"), func(t *testing.T) {
+	t.Run("SetPolicyName", func(t *testing.T) {
 		runCreateIndicesWithILM(t, "jaeger-test-policy")
 	})
 }
@@ -94,13 +88,13 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 
 	} else {
 		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001"}
-		t.Run(fmt.Sprintf("NoPrefix"), func(t *testing.T) {
+		t.Run("NoPrefix", func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName, false)
 		})
-		t.Run(fmt.Sprintf("WithPrefix"), func(t *testing.T) {
+		t.Run("WithPrefix", func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, false)
 		})
-		t.Run(fmt.Sprintf("WithAdaptiveSampling"), func(t *testing.T) {
+		t.Run("WithAdaptiveSampling", func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, true)
 		})
 	}
@@ -123,7 +117,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	require.NoError(t, err)
 
 	if prefix != "" {
-		prefix = prefix + "-"
+		prefix += "-"
 	}
 	var expected, expectedWriteAliases, actualWriteAliases []string
 	for _, index := range expectedIndices {
@@ -152,31 +146,6 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
 	// Check rollover alias is write alias
 	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases, fmt.Sprintf("aliases found: %v, expected: %v", actualWriteAliases, expectedWriteAliases))
-}
-
-func createESClient() (*elastic.Client, error) {
-	return elastic.NewClient(
-		elastic.SetURL(queryURL),
-		elastic.SetSniff(false))
-}
-
-func createESV8Client() (*elasticsearch8.Client, error) {
-	return elasticsearch8.NewClient(elasticsearch8.Config{
-		Addresses:            []string{queryURL},
-		DiscoverNodesOnStart: false,
-	})
-}
-
-func runEsRollover(action string, envs []string, adaptiveSampling bool) error {
-	var dockerEnv string
-	for _, e := range envs {
-		dockerEnv += fmt.Sprintf(" -e %s", e)
-	}
-	args := fmt.Sprintf("docker run %s --rm --net=host %s %s --adaptive-sampling=%t http://%s", dockerEnv, rolloverImage, action, adaptiveSampling, queryHostPort)
-	cmd := exec.Command("/bin/sh", "-c", args)
-	out, err := cmd.CombinedOutput()
-	fmt.Println(string(out))
-	return err
 }
 
 func getVersion(client *elastic.Client) (uint, error) {
@@ -209,13 +178,4 @@ func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 	}
 	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
 	require.NoError(t, err)
-}
-
-func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
-	s := &ESStorageIntegration{
-		client:   client,
-		v8Client: v8Client,
-	}
-	s.logger, _ = testutils.NewLogger()
-	s.cleanESIndexTemplates(t, prefix)
 }

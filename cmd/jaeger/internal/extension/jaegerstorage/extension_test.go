@@ -21,6 +21,7 @@ import (
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -181,17 +182,19 @@ func TestESStorageExtension(t *testing.T) {
 }
 
 func TestESStorageExtensionError(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
+
 	ext := makeStorageExtenion(t, &Config{
 		Elasticsearch: map[string]esCfg.Configuration{
 			"foo": {
-				Servers:  []string{"http://badurl"},
+				Servers:  []string{"http://127.0.0.1:65535"},
 				LogLevel: "error",
 			},
 		},
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
-	require.ErrorContains(t, err, "badurl")
+	require.ErrorContains(t, err, "http://127.0.0.1:65535")
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {

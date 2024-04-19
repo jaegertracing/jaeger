@@ -77,16 +77,10 @@ func main() {
 			}
 
 			tm := tenancy.NewManager(&opts.Tenancy)
-			server, err := app.NewServer(opts, storageFactory, tm, svc.Logger)
+			server, err := app.NewServer(opts, storageFactory, tm, svc.Logger, svc.HC())
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
-
-			go func() {
-				for s := range server.HealthCheckStatus() {
-					svc.SetHealthCheckStatus(s)
-				}
-			}()
 
 			if err := server.Start(); err != nil {
 				logger.Fatal("Could not start servers", zap.Error(err))

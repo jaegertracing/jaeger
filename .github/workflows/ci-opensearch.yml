@@ -34,7 +34,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
       with:
         submodules: true
 
@@ -58,7 +58,7 @@ jobs:
       uses: ./.github/actions/setup-codecov
 
     - name: Upload coverage to codecov
-      uses: codecov/codecov-action@54bcd8715eee62d40e33596ef5e8f0f48dbbccab # v4.1.0
+      uses: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
         verbose: true

@@ -27,6 +27,7 @@ cmd/collector/collector
 cmd/collector/collector-*
 cmd/ingester/ingester
 cmd/ingester/ingester-*
+cmd/jaeger/internal/integration/results
 cmd/remote-storage/remote-storage
 cmd/remote-storage/remote-storage-*
 cmd/es-index-cleaner/es-index-cleaner-*
