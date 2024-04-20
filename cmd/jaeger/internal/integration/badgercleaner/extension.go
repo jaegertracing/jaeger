@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/component"
@@ -63,8 +64,9 @@ func (c *cleaner) Start(ctx context.Context, host component.Host) error {
 	r := mux.NewRouter()
 	r.HandleFunc(cleanerURL, cleanerHandler).Methods(http.MethodPost)
 	c.server = &http.Server{
-		Addr:    ":" + cleanerPort,
-		Handler: r,
+		Addr:              ":" + cleanerPort,
+		Handler:           r,
+		ReadHeaderTimeout: 3 * time.Second,
 	}
 	go func() {
 		if err := c.server.ListenAndServe(); err != nil {
