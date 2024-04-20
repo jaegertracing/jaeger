@@ -30,8 +30,7 @@ const otlpPort = 4317
 //     (e.g. close remote-storage)
 type E2EStorageIntegration struct {
 	integration.StorageIntegration
-	ConfigFile   string
-	jaegerBinary *exec.Cmd
+	ConfigFile string
 }
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
@@ -40,7 +39,7 @@ type E2EStorageIntegration struct {
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 
-	s.jaegerBinary = &exec.Cmd{
+	cmd := &exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", s.ConfigFile},
 		// Change the working directory to the root of this project
@@ -50,8 +49,10 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 		Stdout: os.Stderr,
 		Stderr: os.Stderr,
 	}
-
-	require.NoError(t, s.jaegerBinary.Start())
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		require.NoError(t, cmd.Process.Kill())
+	})
 
 	var err error
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
@@ -65,5 +66,4 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
-	require.NoError(t, s.jaegerBinary.Process.Kill())
 }
