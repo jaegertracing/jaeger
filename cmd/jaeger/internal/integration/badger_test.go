@@ -4,11 +4,21 @@
 package integration
 
 import (
+	"net/http"
+	"os/exec"
 	"testing"
 
 	"go.uber.org/zap"
 
+	"github.com/crossdock/crossdock-go/require"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+)
+
+const (
+	host        = "0.0.0.0"
+	cleanerPort = "9231"
+	cleanerURL  = "/purge"
+	cleanerAddr = "http://" + host + ":" + cleanerPort
 )
 
 type BadgerStorageIntegration struct {
@@ -24,8 +34,14 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 }
 
 func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
-	s.e2eCleanUp(t)
-	s.initialize(t)
+	r, err := http.NewRequest(http.MethodPost, cleanerAddr+cleanerURL, nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+
+	resp, err := client.Do(r)
+	require.NoError(t, err)
+	defer resp.Body.Close()
 }
 
 func TestBadgerStorage(t *testing.T) {
@@ -44,10 +60,16 @@ func TestBadgerStorage(t *testing.T) {
 			},
 		},
 	}
-
+	s.addBadgerCleanerConfig(t)
 	s.initialize(t)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
 	s.RunAll(t)
+}
+
+func (s *BadgerStorageIntegration) addBadgerCleanerConfig(t *testing.T) {
+	cmd := exec.Command("../../../../scripts/prepare-badger-integration-tests.py")
+	err := cmd.Run()
+	require.NoError(t, err)
 }

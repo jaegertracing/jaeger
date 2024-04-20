@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/badgercleaner"
 )
 
 type builders struct {
@@ -60,6 +61,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		// add-ons
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
+		badgercleaner.NewFactory(),
 		// TODO add adaptive sampling
 	)
 	if err != nil {
