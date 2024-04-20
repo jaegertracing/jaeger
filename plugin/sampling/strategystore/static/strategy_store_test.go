@@ -162,84 +162,96 @@ func TestStrategyStoreWithURL(t *testing.T) {
 }
 
 func TestPerOperationSamplingStrategies(t *testing.T) {
-	logger, buf := testutils.NewLogger()
-	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/operation_strategies.json"}, logger)
-	assert.Contains(t, buf.String(), "Operation strategies only supports probabilistic sampling at the moment,"+
-		"'op2' defaulting to probabilistic sampling with probability 0.8")
-	assert.Contains(t, buf.String(), "Operation strategies only supports probabilistic sampling at the moment,"+
-		"'op4' defaulting to probabilistic sampling with probability 0.001")
-	require.NoError(t, err)
-
-	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8)
-
-	s, err := store.GetSamplingStrategy(context.Background(), "foo")
-	require.NoError(t, err)
-	assert.Equal(t, api_v2.SamplingStrategyType_PROBABILISTIC, s.StrategyType)
-	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
-
-	require.NotNil(t, s.OperationSampling)
-	os := s.OperationSampling
-	assert.EqualValues(t, 0.8, os.DefaultSamplingProbability)
-	require.Len(t, os.PerOperationStrategies, 4)
-
-	assert.Equal(t, "op6", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.5, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op1", os.PerOperationStrategies[1].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op7", os.PerOperationStrategies[3].Operation)
-	assert.EqualValues(t, 1, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
-
-	expected = makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5)
-
-	s, err = store.GetSamplingStrategy(context.Background(), "bar")
-	require.NoError(t, err)
-	assert.Equal(t, api_v2.SamplingStrategyType_RATE_LIMITING, s.StrategyType)
-	assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
-
-	require.NotNil(t, s.OperationSampling)
-	os = s.OperationSampling
-	assert.EqualValues(t, 0.001, os.DefaultSamplingProbability)
-	require.Len(t, os.PerOperationStrategies, 5)
-	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
-	assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op6", os.PerOperationStrategies[3].Operation)
-	assert.EqualValues(t, 0, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op7", os.PerOperationStrategies[4].Operation)
-	assert.EqualValues(t, 1, os.PerOperationStrategies[4].ProbabilisticSampling.SamplingRate)
-
-	s, err = store.GetSamplingStrategy(context.Background(), "default")
-	require.NoError(t, err)
-	expectedRsp := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.5)
-	expectedRsp.OperationSampling = &api_v2.PerOperationSamplingStrategies{
-		DefaultSamplingProbability: 0.5,
-		PerOperationStrategies: []*api_v2.OperationSamplingStrategy{
-			{
-				Operation: "op0",
-				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-					SamplingRate: 0.2,
-				},
-			},
-			{
-				Operation: "op6",
-				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-					SamplingRate: 0,
-				},
-			},
-			{
-				Operation: "op7",
-				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-					SamplingRate: 1,
-				},
-			},
-		},
+	tests := []struct {
+		options Options
+	}{
+		{Options{StrategiesFile: "fixtures/operation_strategies.json"}},
+		{Options{
+			StrategiesFile:             "fixtures/operation_strategies.json",
+			IncludeDefaultOpStrategies: true,
+		}},
 	}
-	assert.EqualValues(t, expectedRsp, *s)
+
+	for _, tc := range tests {
+		logger, buf := testutils.NewLogger()
+		store, err := NewStrategyStore(tc.options, logger)
+		assert.Contains(t, buf.String(), "Operation strategies only supports probabilistic sampling at the moment,"+
+			"'op2' defaulting to probabilistic sampling with probability 0.8")
+		assert.Contains(t, buf.String(), "Operation strategies only supports probabilistic sampling at the moment,"+
+			"'op4' defaulting to probabilistic sampling with probability 0.001")
+		require.NoError(t, err)
+
+		expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8)
+
+		s, err := store.GetSamplingStrategy(context.Background(), "foo")
+		require.NoError(t, err)
+		assert.Equal(t, api_v2.SamplingStrategyType_PROBABILISTIC, s.StrategyType)
+		assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
+
+		require.NotNil(t, s.OperationSampling)
+		os := s.OperationSampling
+		assert.EqualValues(t, 0.8, os.DefaultSamplingProbability)
+		require.Len(t, os.PerOperationStrategies, 4)
+
+		assert.Equal(t, "op6", os.PerOperationStrategies[0].Operation)
+		assert.EqualValues(t, 0.5, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op1", os.PerOperationStrategies[1].Operation)
+		assert.EqualValues(t, 0.2, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
+		assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op7", os.PerOperationStrategies[3].Operation)
+		assert.EqualValues(t, 1, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
+
+		expected = makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5)
+
+		s, err = store.GetSamplingStrategy(context.Background(), "bar")
+		require.NoError(t, err)
+		assert.Equal(t, api_v2.SamplingStrategyType_RATE_LIMITING, s.StrategyType)
+		assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
+
+		require.NotNil(t, s.OperationSampling)
+		os = s.OperationSampling
+		assert.EqualValues(t, 0.001, os.DefaultSamplingProbability)
+		require.Len(t, os.PerOperationStrategies, 5)
+		assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
+		assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
+		assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
+		assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op6", os.PerOperationStrategies[3].Operation)
+		assert.EqualValues(t, 0, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op7", os.PerOperationStrategies[4].Operation)
+		assert.EqualValues(t, 1, os.PerOperationStrategies[4].ProbabilisticSampling.SamplingRate)
+
+		s, err = store.GetSamplingStrategy(context.Background(), "default")
+		require.NoError(t, err)
+		expectedRsp := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.5)
+		expectedRsp.OperationSampling = &api_v2.PerOperationSamplingStrategies{
+			DefaultSamplingProbability: 0.5,
+			PerOperationStrategies: []*api_v2.OperationSamplingStrategy{
+				{
+					Operation: "op0",
+					ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
+						SamplingRate: 0.2,
+					},
+				},
+				{
+					Operation: "op6",
+					ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
+						SamplingRate: 0,
+					},
+				},
+				{
+					Operation: "op7",
+					ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
+						SamplingRate: 1,
+					},
+				},
+			},
+		}
+		assert.EqualValues(t, expectedRsp, *s)
+	}
 }
 
 func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
