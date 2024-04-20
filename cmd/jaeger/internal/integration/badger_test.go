@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/crossdock/crossdock-go/require"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 

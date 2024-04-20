@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package badgercleaner
 
 import (
@@ -6,10 +9,11 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
 
 var (
