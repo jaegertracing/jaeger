@@ -39,7 +39,7 @@ type E2EStorageIntegration struct {
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 
-	cmd := &exec.Cmd{
+	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", s.ConfigFile},
 		// Change the working directory to the root of this project
