@@ -299,7 +299,6 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		}
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
-	time.Sleep(time.Second)
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
@@ -317,13 +316,16 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
 		require.NoError(t, err)
 		if len(expected) != len(traces) {
-			t.Logf("FindTraces: expected: %d, actual: %d", len(expected), len(traces))
+			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
+			return false
+		}
+		if spanCount(expected) != spanCount(traces) {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
 		return true
 	})
 	require.True(t, found)
-	tracesMatch(t, traces, expected)
 	return traces
 }
 
@@ -432,13 +434,6 @@ func correctTime(json []byte) []byte {
 	retString := strings.ReplaceAll(jsonString, "2017-01-26", yesterday)
 	retString = strings.ReplaceAll(retString, "2017-01-25", twoDaysAgo)
 	return []byte(retString)
-}
-
-func tracesMatch(t *testing.T, actual []*model.Trace, expected []*model.Trace) bool {
-	if !assert.Equal(t, len(expected), len(actual), "Expecting certain number of traces") {
-		return false
-	}
-	return assert.Equal(t, spanCount(expected), spanCount(actual), "Expecting certain number of spans")
 }
 
 func spanCount(traces []*model.Trace) int {
