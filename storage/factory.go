@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	metricsstore "github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )

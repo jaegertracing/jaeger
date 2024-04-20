@@ -212,8 +212,13 @@ func TestCreateTemplateError(t *testing.T) {
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer f.Close()
+
 	w, err := f.CreateSpanWriter()
 	assert.Nil(t, w)
+	require.Error(t, err, "template-error")
+
+	s, err := f.CreateSamplingStore(1)
+	assert.Nil(t, s)
 	require.Error(t, err, "template-error")
 }
 
