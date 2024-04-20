@@ -28,6 +28,7 @@ const (
 
 type cleaner struct {
 	config *Config
+	server *http.Server
 }
 
 func newBadgerCleaner(config *Config) *cleaner {
@@ -36,8 +37,8 @@ func newBadgerCleaner(config *Config) *cleaner {
 	}
 }
 
-func (e *cleaner) Start(ctx context.Context, host component.Host) error {
-	storageFactory, err := jaegerstorage.GetStorageFactory(e.config.TraceStorage, host)
+func (c *cleaner) Start(ctx context.Context, host component.Host) error {
+	storageFactory, err := jaegerstorage.GetStorageFactory(c.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory for Badger: %w", err)
 	}
@@ -61,8 +62,12 @@ func (e *cleaner) Start(ctx context.Context, host component.Host) error {
 
 	r := mux.NewRouter()
 	r.HandleFunc(cleanerURL, cleanerHandler).Methods(http.MethodPost)
+	c.server = &http.Server{
+		Addr:    ":" + cleanerPort,
+		Handler: r,
+	}
 	go func() {
-		if err := http.ListenAndServe(":"+cleanerPort, r); err != nil {
+		if err := c.server.ListenAndServe(); err != nil {
 			fmt.Printf("Error starting cleaner server: %v\n", err)
 		}
 	}()
@@ -70,10 +75,16 @@ func (e *cleaner) Start(ctx context.Context, host component.Host) error {
 	return nil
 }
 
-func (r *cleaner) Shutdown(ctx context.Context) error {
+func (c *cleaner) Shutdown(ctx context.Context) error {
+	if c.server != nil {
+		err := c.server.Shutdown(ctx)
+		if err != nil {
+			return fmt.Errorf("error shutting down cleaner server: %w", err)
+		}
+	}
 	return nil
 }
 
-func (s *cleaner) Dependencies() []component.ID {
+func (c *cleaner) Dependencies() []component.ID {
 	return []component.ID{jaegerstorage.ID}
 }
