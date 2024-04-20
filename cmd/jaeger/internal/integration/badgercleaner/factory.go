@@ -29,6 +29,10 @@ func createDefaultConfig() component.Config {
 	return &Config{}
 }
 
-func createExtension(_ context.Context, set extension.CreateSettings, cfg component.Config) (extension.Extension, error) {
+func createExtension(
+	_ context.Context,
+	set extension.CreateSettings,
+	cfg component.Config,
+) (extension.Extension, error) {
 	return newBadgerCleaner(cfg.(*Config)), nil
 }
