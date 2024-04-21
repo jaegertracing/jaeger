@@ -42,6 +42,8 @@ func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
 	resp, err := client.Do(r)
 	require.NoError(t, err)
 	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestBadgerStorage(t *testing.T) {
