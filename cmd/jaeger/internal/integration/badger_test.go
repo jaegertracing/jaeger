@@ -5,7 +5,9 @@ package integration
 
 import (
 	"net/http"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,7 +53,7 @@ func TestBadgerStorage(t *testing.T) {
 
 	s := &BadgerStorageIntegration{
 		E2EStorageIntegration: E2EStorageIntegration{
-			ConfigFile: "cmd/jaeger/badger_config.yaml",
+			ConfigFile: createBadgerCleanerConfig(t),
 			StorageIntegration: integration.StorageIntegration{
 				SkipBinaryAttrs: true,
 				SkipArchiveTest: true,
@@ -62,7 +64,7 @@ func TestBadgerStorage(t *testing.T) {
 			},
 		},
 	}
-	s.addBadgerCleanerConfig(t)
+	defer s.rmBadgerCeanerConfig(t)
 	s.initialize(t)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
@@ -70,8 +72,16 @@ func TestBadgerStorage(t *testing.T) {
 	s.RunAll(t)
 }
 
-func (s *BadgerStorageIntegration) addBadgerCleanerConfig(t *testing.T) {
+func createBadgerCleanerConfig(t *testing.T) string {
 	cmd := exec.Command("../../../../scripts/prepare-badger-integration-tests.py")
-	err := cmd.Run()
+	data, err := cmd.Output()
+	require.NoError(t, err)
+	tempFile := string(data)
+	tempFile = strings.ReplaceAll(tempFile, "\n", "")
+	return tempFile
+}
+
+func (s *BadgerStorageIntegration) rmBadgerCeanerConfig(t *testing.T) {
+	err := os.Remove(s.ConfigFile)
 	require.NoError(t, err)
 }
