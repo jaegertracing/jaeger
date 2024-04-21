@@ -57,14 +57,17 @@ func (c *cleaner) Start(ctx context.Context, host component.Host) error {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Purge request processed successfully"))
 	}
 
 	r := mux.NewRouter()
 	r.HandleFunc(cleanerURL, cleanerHandler).Methods(http.MethodPost)
+	if c.config.cleanerPort == "" {
+		c.config.cleanerPort = cleanerPort
+	}
 	c.server = &http.Server{
-		Addr:              ":" + cleanerPort,
+		Addr:              ":" + c.config.cleanerPort,
 		Handler:           r,
 		ReadHeaderTimeout: 3 * time.Second,
 	}

@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	TraceStorage string `valid:"required" mapstructure:"trace_storage"`
+	cleanerPort  string `mapstructure:"cleaner_port"`
 }
 
 func (cfg *Config) Validate() error {
