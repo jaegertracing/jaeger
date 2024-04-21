@@ -10,10 +10,10 @@ with open(config_file, 'r') as f:
     config = yaml.safe_load(f)
 temp_config = config.copy()
 
-if 'badger_cleaner' not in temp_config['service']['extensions'] :
-    config['service']['extensions'].insert(1, 'badger_cleaner') 
+if 'storage_cleaner' not in temp_config['service']['extensions'] :
+    config['service']['extensions'].insert(1, 'storage_cleaner') 
 
-temp_config['extensions']['badger_cleaner'] = {
+temp_config['extensions']['storage_cleaner'] = {
     'trace_storage': 'badger_main'
 }
 

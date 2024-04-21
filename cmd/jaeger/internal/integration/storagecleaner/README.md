@@ -1,8 +1,8 @@
-# badger_cleaner
+# storage_cleaner
 
-This module implements an extension that allows purging the Badger storage by exposing a HTTP endpoint for making POST requests. 
+This module implements an extension that allows purging the backend storage by exposing a HTTP endpoint for making POST requests. 
 
-The badger_cleaner extension is intended to be used only in tests, providing a way to clear the Badger storage between test runs. Making a POST request to the exposed endpoint will delete all data in the Badger key-value store.
+The storage_cleaner extension is intended to be used only in tests, providing a way to clear the storage between test runs. Making a POST request to the exposed endpoint will delete all data in storage.
 
 
 ```mermaid
@@ -41,7 +41,7 @@ The following settings are required:
 
 ```yaml
 extensions:
-  badger_cleaner:
+  storage_cleaner:
     trace_storage: external-storage
 ```
 

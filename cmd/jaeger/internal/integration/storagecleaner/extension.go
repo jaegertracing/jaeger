@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package badgercleaner
+package storagecleaner
 
 import (
 	"context"
@@ -23,8 +23,7 @@ var (
 )
 
 const (
-	cleanerPort = "9231"
-	cleanerURL  = "/purge"
+	URL = "/purge"
 )
 
 type cleaner struct {
@@ -32,7 +31,7 @@ type cleaner struct {
 	server *http.Server
 }
 
-func newBadgerCleaner(config *Config) *cleaner {
+func newStorageCleaner(config *Config) *cleaner {
 	return &cleaner{
 		config: config,
 	}
@@ -52,7 +51,7 @@ func (c *cleaner) Start(ctx context.Context, host component.Host) error {
 		return nil
 	}
 
-	cleanerHandler := func(w http.ResponseWriter, r *http.Request) {
+	purgeHandler := func(w http.ResponseWriter, r *http.Request) {
 		if err := purgeBadger(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -62,12 +61,9 @@ func (c *cleaner) Start(ctx context.Context, host component.Host) error {
 	}
 
 	r := mux.NewRouter()
-	r.HandleFunc(cleanerURL, cleanerHandler).Methods(http.MethodPost)
-	if c.config.cleanerPort == "" {
-		c.config.cleanerPort = cleanerPort
-	}
+	r.HandleFunc(URL, purgeHandler).Methods(http.MethodPost)
 	c.server = &http.Server{
-		Addr:              ":" + c.config.cleanerPort,
+		Addr:              ":" + c.config.Port,
 		Handler:           r,
 		ReadHeaderTimeout: 3 * time.Second,
 	}
@@ -82,8 +78,7 @@ func (c *cleaner) Start(ctx context.Context, host component.Host) error {
 
 func (c *cleaner) Shutdown(ctx context.Context) error {
 	if c.server != nil {
-		err := c.server.Shutdown(ctx)
-		if err != nil {
+		if err := c.server.Shutdown(ctx); err != nil {
 			return fmt.Errorf("error shutting down cleaner server: %w", err)
 		}
 	}

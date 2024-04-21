@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package badgercleaner
+package storagecleaner
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 )
 
 // componentType is the name of this extension in configuration.
-var componentType = component.MustNewType("badger_cleaner")
+var componentType = component.MustNewType("storage_cleaner")
 
 // ID is the identifier of this extension.
 var ID = component.NewID(componentType)
@@ -26,7 +26,9 @@ func NewFactory() extension.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	return &Config{}
+	return &Config{
+		Port: "9231",
+	}
 }
 
 func createExtension(
@@ -34,5 +36,5 @@ func createExtension(
 	set extension.CreateSettings,
 	cfg component.Config,
 ) (extension.Extension, error) {
-	return newBadgerCleaner(cfg.(*Config)), nil
+	return newStorageCleaner(cfg.(*Config)), nil
 }

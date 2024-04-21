@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package badgercleaner
+package storagecleaner
 
 import (
 	"github.com/asaskevich/govalidator"
@@ -9,7 +9,7 @@ import (
 
 type Config struct {
 	TraceStorage string `valid:"required" mapstructure:"trace_storage"`
-	cleanerPort  string `mapstructure:"cleaner_port"`
+	Port         string `mapstructure:"port"`
 }
 
 func (cfg *Config) Validate() error {

@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	host        = "0.0.0.0"
-	cleanerPort = "9231"
-	cleanerURL  = "/purge"
-	cleanerAddr = "http://" + host + ":" + cleanerPort
+	host = "0.0.0.0"
+	Port = "9231"
+	URL  = "/purge"
+	Addr = "http://" + host + ":" + Port
 )
 
 type BadgerStorageIntegration struct {
@@ -36,7 +36,7 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 }
 
 func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
-	r, err := http.NewRequest(http.MethodPost, cleanerAddr+cleanerURL, nil)
+	r, err := http.NewRequest(http.MethodPost, Addr+URL, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}
@@ -64,7 +64,7 @@ func TestBadgerStorage(t *testing.T) {
 			},
 		},
 	}
-	defer s.rmBadgerCeanerConfig(t)
+	defer s.rmBadgerCleanerConfig(t)
 	s.initialize(t)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
@@ -81,7 +81,7 @@ func createBadgerCleanerConfig(t *testing.T) string {
 	return tempFile
 }
 
-func (s *BadgerStorageIntegration) rmBadgerCeanerConfig(t *testing.T) {
+func (s *BadgerStorageIntegration) rmBadgerCleanerConfig(t *testing.T) {
 	err := os.Remove(s.ConfigFile)
 	require.NoError(t, err)
 }
