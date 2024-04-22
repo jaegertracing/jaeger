@@ -27,7 +27,7 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Port: "9231",
+		Port: Port,
 	}
 }
 
