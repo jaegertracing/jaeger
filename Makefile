@@ -4,6 +4,7 @@
 SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
+JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration
 
 # These DOCKER_xxx vars are used when building Docker images.
 DOCKER_NAMESPACE?=jaegertracing
@@ -56,6 +57,7 @@ GOARCH ?= $(shell $(GO) env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
 GOTEST_QUIET=$(GO) test $(RACE)
 GOTEST=$(GOTEST_QUIET) -v
+COVEROUT=cover.out
 GOFMT=gofmt
 GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
@@ -111,39 +113,48 @@ test:
 all-in-one-integration-test:
 	TEST_MODE=integration $(GOTEST) ./cmd/all-in-one/
 
+# A general integration tests for jaeger-v2 storage backends,
+# these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.
+# The integration tests are filtered by STORAGE env,
+# currently the available STORAGE variable is:
+#  - grpc
+.PHONY: jaeger-v2-storage-integration-test
+jaeger-v2-storage-integration-test:
+	(cd cmd/jaeger/ && go build .)
+	# Expire tests results for jaeger storage integration tests since the environment might change
+	# even though the code remains the same.
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS) $(COLORIZE)"
+
 .PHONY: storage-integration-test
 storage-integration-test:
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile $(COVEROUT) $(STORAGE_PKGS) $(COLORIZE)"
 
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=badger_storage_integration -coverpkg=./... -coverprofile cover-badger.out $(STORAGE_PKGS) $(COLORIZE)"
+	STORAGE=badger $(MAKE) storage-integration-test
 
 .PHONY: grpc-storage-integration-test
 grpc-storage-integration-test:
 	(cd examples/memstore-plugin/ && go build .)
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=grpc_storage_integration -coverpkg=./... -coverprofile cover.out $(STORAGE_PKGS) $(COLORIZE)"
+	STORAGE=grpc $(MAKE) storage-integration-test
 
+# this test assumes STORAGE environment variable is set to elasticsearch|opensearch
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
-	# Expire test results for storage integration tests since the environment might change
-	# even though the code remains the same.
-	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner -coverpkg=./... -coverprofile cover-index-cleaner.out $(STORAGE_PKGS) $(COLORIZE)"
+	$(MAKE) storage-integration-test COVEROUT=cover-index-cleaner.out
 
+# this test assumes STORAGE environment variable is set to elasticsearch|opensearch
 .PHONY: index-rollover-integration-test
 index-rollover-integration-test: docker-images-elastic
-	# Expire test results for storage integration tests since the environment might change
-	# even though the code remains the same.
-	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_rollover -coverpkg=./... -coverprofile cover-index-rollover.out $(STORAGE_PKGS) $(COLORIZE)"
+	$(MAKE) storage-integration-test COVEROUT=cover-index-rollover.out
 
 .PHONY: cover
 cover: nocover
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration -timeout 5m -coverprofile cover.out ./... | tee test-results.json"
+	bash -c "set -e; set -o pipefail; STORAGE=memory $(GOTEST) -timeout 5m -coverprofile $(COVEROUT) ./... | tee test-results.json"
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover

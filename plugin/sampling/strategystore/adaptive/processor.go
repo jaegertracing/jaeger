@@ -110,7 +110,8 @@ type Processor struct {
 
 	serviceCache []SamplingCache
 
-	shutdown chan struct{}
+	shutdown   chan struct{}
+	bgFinished sync.WaitGroup
 
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
@@ -170,19 +171,28 @@ func (p *Processor) Start() error {
 	p.shutdown = make(chan struct{})
 	p.loadProbabilities()
 	p.generateStrategyResponses()
-	go p.runCalculationLoop()
-	go p.runUpdateProbabilitiesLoop()
+	p.runBackground(p.runCalculationLoop)
+	p.runBackground(p.runUpdateProbabilitiesLoop)
 	return nil
+}
+
+func (p *Processor) runBackground(f func()) {
+	p.bgFinished.Add(1)
+	go func() {
+		f()
+		p.bgFinished.Done()
+	}()
 }
 
 // Close stops the processor from calculating probabilities.
 func (p *Processor) Close() error {
 	p.logger.Info("stopping adaptive sampling processor")
-	if err := p.electionParticipant.Close(); err != nil {
-		return err
+	err := p.electionParticipant.Close()
+	if p.shutdown != nil {
+		close(p.shutdown)
 	}
-	close(p.shutdown)
-	return nil
+	p.bgFinished.Wait()
+	return err
 }
 
 func (p *Processor) loadProbabilities() {
@@ -200,7 +210,12 @@ func (p *Processor) loadProbabilities() {
 // runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
 // The follower updates its local cache with the latest probabilities and serves them.
 func (p *Processor) runUpdateProbabilitiesLoop() {
-	addJitter(p.followerRefreshInterval)
+	select {
+	case <-time.After(addJitter(p.followerRefreshInterval)):
+	case <-p.shutdown:
+		return
+	}
+
 	ticker := time.NewTicker(p.followerRefreshInterval)
 	defer ticker.Stop()
 	for {
@@ -221,13 +236,12 @@ func (p *Processor) isLeader() bool {
 	return p.electionParticipant.IsLeader()
 }
 
-// addJitter sleeps for a random amount of time. Without jitter, if the host holding the leader
+// addJitter adds a random amount of time. Without jitter, if the host holding the leader
 // lock were to die, then all other collectors can potentially wait for a full cycle before
 // trying to acquire the lock. With jitter, we can reduce the average amount of time before a
 // new leader is elected. Furthermore, jitter can be used to spread out read load on storage.
-func addJitter(jitterAmount time.Duration) {
-	delay := (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
-	time.Sleep(delay)
+func addJitter(jitterAmount time.Duration) time.Duration {
+	return (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
 }
 
 func (p *Processor) runCalculationLoop() {
@@ -272,7 +286,7 @@ func (p *Processor) runCalculationLoop() {
 				// be way longer than the time to run the calculations.
 				p.generateStrategyResponses()
 				p.calculateProbabilitiesLatency.Record(time.Since(startTime))
-				go p.saveProbabilitiesAndQPS()
+				p.runBackground(p.saveProbabilitiesAndQPS)
 			}
 		case <-p.shutdown:
 			return

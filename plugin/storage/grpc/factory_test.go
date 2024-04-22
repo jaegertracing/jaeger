@@ -16,13 +16,17 @@ package grpc
 
 import (
 	"errors"
+	"log"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -141,6 +145,29 @@ func TestGRPCStorageFactory(t *testing.T) {
 	depReader, err := f.CreateDependencyReader()
 	require.NoError(t, err)
 	assert.Equal(t, f.store.DependencyReader(), depReader)
+}
+
+func TestGRPCStorageFactoryWithConfig(t *testing.T) {
+	cfg := grpcConfig.Configuration{}
+	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.ErrorContains(t, err, "grpc-plugin builder failed to create a store: error connecting to remote storage")
+
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err, "failed to listen")
+
+	s := grpc.NewServer()
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("Server exited with error: %v", err)
+		}
+	}()
+	defer s.Stop()
+
+	cfg.RemoteServerAddr = lis.Addr().String()
+	cfg.RemoteConnectTimeout = 1 * time.Second
+	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
 }
 
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {

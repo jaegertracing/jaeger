@@ -16,7 +16,6 @@ package integration
 
 import (
 	"context"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -44,7 +43,7 @@ type KafkaIntegrationTestSuite struct {
 	logger *zap.Logger
 }
 
-func (s *KafkaIntegrationTestSuite) initialize() error {
+func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	s.logger, _ = testutils.NewLogger()
 	const encoding = "json"
 	const groupID = "kafka-integration-test"
@@ -62,17 +61,13 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		"--kafka.producer.encoding",
 		encoding,
 	})
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
-		return err
-	}
+	err = f.Initialize(metrics.NullFactory, s.logger)
+	require.NoError(t, err)
+
 	spanWriter, err := f.CreateSpanWriter()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
 	v, command = config.Viperize(app.AddFlags)
 	err = command.ParseFlags([]string{
@@ -89,9 +84,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		"--ingester.parallelism",
 		"1000",
 	})
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	options := app.Options{
 		Configuration: consumer.Configuration{
 			InitialOffset: sarama.OffsetOldest,
@@ -100,16 +93,13 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
 	spanConsumer, err := builder.CreateConsumer(s.logger, metrics.NullFactory, traceStore, options)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	spanConsumer.Start()
 
 	s.SpanWriter = spanWriter
 	s.SpanReader = &ingester{traceStore}
-	s.Refresh = func() error { return nil }
-	s.CleanUp = func() error { return nil }
-	return nil
+	s.CleanUp = func(_ *testing.T) {}
+	s.SkipArchiveTest = true
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore
@@ -141,10 +131,8 @@ func (r *ingester) FindTraceIDs(ctx context.Context, query *spanstore.TraceQuery
 }
 
 func TestKafkaStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "kafka" {
-		t.Skip("Integration test against kafka skipped; set STORAGE env var to kafka to run this")
-	}
+	SkipUnlessEnv(t, "kafka")
 	s := &KafkaIntegrationTestSuite{}
-	require.NoError(t, s.initialize())
+	s.initialize(t)
 	t.Run("GetTrace", s.testGetTrace)
 }

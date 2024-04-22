@@ -156,12 +156,19 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     # Print categorized pull requests
     print()
+    print('### Backend Changes')
+    print()
     for category, results in category_results.items():
         if results and category:
-            print(f'{category}:\n')
+            print(f'{category}\n')
             for result in results:
                 print(result)
             print()
+
+    print()
+    print('### 📊 UI Changes')
+    print()
+    print('* UI pinned to version [x.y.z](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#---ANCHOR---).')
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
@@ -180,7 +187,7 @@ def main(token, repo, num_commits, exclude_dependabot):
         print()
 
     if skipped_dependabot:
-        print(f"(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
+        print(f"(Skipped dependabot commits: {skipped_dependabot})")
 
 
 def get_pull_request_labels(token, repo, pull_number):

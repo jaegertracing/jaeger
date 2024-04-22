@@ -1,0 +1,31 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  jaeger_query:
+    trace_storage: external-storage
+    ui_config: ./cmd/jaeger/config-ui.json
+
+  jaeger_storage:
+    grpc:
+      external-storage:
+        server: localhost:17271
+        connection-timeout: 5s
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: external-storage

@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -53,11 +54,28 @@ type Factory struct {
 	archiveStore        shared.ArchiveStoragePlugin
 	streamingSpanWriter shared.StreamingSpanWriterPlugin
 	capabilities        shared.PluginCapabilities
+
+	servicesCloser io.Closer
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{}
+}
+
+// NewFactoryWithConfig is used from jaeger(v2).
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) (*Factory, error) {
+	f := NewFactory()
+	f.InitFromOptions(Options{Configuration: cfg})
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 // AddFlags implements plugin.Configurable
@@ -93,6 +111,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.archiveStore = services.ArchiveStore
 	f.capabilities = services.Capabilities
 	f.streamingSpanWriter = services.StreamingSpanWriter
+	f.servicesCloser = services
 	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
@@ -149,5 +168,10 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	return f.builder.Close()
+	errs := []error{}
+	if f.servicesCloser != nil {
+		errs = append(errs, f.servicesCloser.Close())
+	}
+	errs = append(errs, f.builder.Close())
+	return errors.Join(errs...)
 }

@@ -12,15 +12,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//go:build memory_storage_integration
-// +build memory_storage_integration
 
 package integration
 
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -32,31 +29,25 @@ type MemStorageIntegrationTestSuite struct {
 	logger *zap.Logger
 }
 
-func (s *MemStorageIntegrationTestSuite) initialize() error {
+func (s *MemStorageIntegrationTestSuite) initialize(_ *testing.T) {
 	s.logger, _ = testutils.NewLogger()
 
 	store := memory.NewStore()
+	archiveStore := memory.NewStore()
 	s.SamplingStore = memory.NewSamplingStore(2)
 	s.SpanReader = store
 	s.SpanWriter = store
+	s.ArchiveSpanReader = archiveStore
+	s.ArchiveSpanWriter = archiveStore
 
 	// TODO DependencyWriter is not implemented in memory store
 
-	s.Refresh = s.refresh
-	s.CleanUp = s.cleanUp
-	return nil
-}
-
-func (s *MemStorageIntegrationTestSuite) refresh() error {
-	return nil
-}
-
-func (s *MemStorageIntegrationTestSuite) cleanUp() error {
-	return s.initialize()
+	s.CleanUp = s.initialize
 }
 
 func TestMemoryStorage(t *testing.T) {
+	SkipUnlessEnv(t, "memory")
 	s := &MemStorageIntegrationTestSuite{}
-	require.NoError(t, s.initialize())
-	s.IntegrationTestAll(t)
+	s.initialize(t)
+	s.RunAll(t)
 }

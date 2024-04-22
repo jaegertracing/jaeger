@@ -25,6 +25,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
-	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -55,6 +55,15 @@ import (
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
+
+type IoReaderMock struct {
+	mock.Mock
+}
+
+func (m *IoReaderMock) Read(b []byte) (int, error) {
+	args := m.Called(b)
+	return args.Int(0), args.Error(1)
+}
 
 var (
 	errStorageMsg = "storage error"
@@ -187,7 +196,7 @@ func TestLogOnServerError(t *testing.T) {
 	}
 	h := NewAPIHandler(qs, &tenancy.Manager{}, apiHandlerOptions...)
 	e := errors.New("test error")
-	h.handleError(&testHttp.TestResponseWriter{}, e, http.StatusInternalServerError)
+	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)
 	require.Len(t, *l.logs, 1)
 	assert.Equal(t, "HTTP handler, Internal Server Error", (*l.logs)[0].e.Message)
 	assert.Len(t, (*l.logs)[0].f, 1)
@@ -623,6 +632,52 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestTransformOTLPSuccess(t *testing.T) {
+	reformat := func(in []byte) []byte {
+		obj := new(interface{})
+		require.NoError(t, json.Unmarshal(in, obj))
+		// format json similar to `jq .`
+		out, err := json.MarshalIndent(obj, "", "  ")
+		require.NoError(t, err)
+		return out
+	}
+	withTestServer(func(ts *testServer) {
+		inFile, err := os.Open("./fixture/otlp2jaeger-in.json")
+		require.NoError(t, err)
+
+		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", inFile)
+		require.NoError(t, err)
+
+		responseBytes, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		responseBytes = reformat(responseBytes)
+
+		expectedBytes, err := os.ReadFile("./fixture/otlp2jaeger-out.json")
+		require.NoError(t, err)
+		expectedBytes = reformat(expectedBytes)
+
+		assert.Equal(t, string(expectedBytes), string(responseBytes))
+	}, querysvc.QueryServiceOptions{})
+}
+
+func TestTransformOTLPReadError(t *testing.T) {
+	withTestServer(func(ts *testServer) {
+		bytesReader := &IoReaderMock{}
+		bytesReader.On("Read", mock.AnythingOfType("[]uint8")).Return(0, errors.New("Mocked error"))
+		_, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", bytesReader)
+		require.Error(t, err)
+	}, querysvc.QueryServiceOptions{})
+}
+
+func TestTransformOTLPBadPayload(t *testing.T) {
+	withTestServer(func(ts *testServer) {
+		response := new(interface{})
+		request := "Bad Payload"
+		err := postJSON(ts.server.URL+"/api/transform", request, response)
+		require.ErrorContains(t, err, "cannot unmarshal OTLP")
+	}, querysvc.QueryServiceOptions{})
+}
+
 func TestGetMetricsSuccess(t *testing.T) {
 	mr := &metricsmocks.Reader{}
 	apiHandlerOptions := []HandlerOption{
@@ -931,12 +986,14 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	// We don't set tenant header
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 	tm := tenancy.NewManager(&tenancyOptions)
 	req.Header.Set(tm.Header, "acme")
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	// Skip unmarshal of response; it is enough that it succeeded
 }

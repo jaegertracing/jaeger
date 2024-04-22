@@ -54,7 +54,7 @@ func startZipkinReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	applyHTTPSettings(&receiverConfig.HTTPServerSettings, &flags.HTTPOptions{
+	applyHTTPSettings(&receiverConfig.ServerConfig, &flags.HTTPOptions{
 		HostPort: options.Zipkin.HTTPHostPort,
 		TLS:      options.Zipkin.TLS,
 		CORS:     options.HTTP.CORS,
@@ -69,6 +69,9 @@ func startZipkinReceiver(
 	}
 
 	consumerAdapter := newConsumerDelegate(logger, spanProcessor, tm)
+	// reset Zipkin spanFormat
+	consumerAdapter.batchConsumer.spanOptions.SpanFormat = processor.ZipkinSpanFormat
+
 	nextConsumer, err := newTraces(consumerAdapter.consume)
 	if err != nil {
 		return nil, fmt.Errorf("could not create Zipkin consumer: %w", err)

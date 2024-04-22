@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -50,12 +49,21 @@ type Configuration struct {
 	pluginHealthCheck     *time.Ticker
 	pluginHealthCheckDone chan bool
 	pluginRPCClient       plugin.ClientProtocol
+	remoteConn            *grpc.ClientConn
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
 type ClientPluginServices struct {
 	shared.PluginServices
-	Capabilities shared.PluginCapabilities
+	Capabilities     shared.PluginCapabilities
+	killPluginClient func()
+}
+
+func (c *ClientPluginServices) Close() error {
+	if c.killPluginClient != nil {
+		c.killPluginClient()
+	}
+	return nil
 }
 
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
@@ -77,6 +85,9 @@ func (c *Configuration) Close() error {
 	if c.pluginHealthCheck != nil {
 		c.pluginHealthCheck.Stop()
 		c.pluginHealthCheckDone <- true
+	}
+	if c.remoteConn != nil {
+		c.remoteConn.Close()
 	}
 
 	return c.RemoteTLS.Close()
@@ -106,12 +117,14 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
-	conn, err := grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
+	var err error
+	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
+	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
 	}
 
-	grpcClient := shared.NewGRPCClient(conn)
+	grpcClient := shared.NewGRPCClient(c.remoteConn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
@@ -146,10 +159,6 @@ func (c *Configuration) buildPlugin(logger *zap.Logger, tracerProvider trace.Tra
 			Level: hclog.LevelFromString(c.PluginLogLevel),
 		}),
 		GRPCDialOptions: opts,
-	})
-
-	runtime.SetFinalizer(client, func(c *plugin.Client) {
-		c.Kill()
 	})
 
 	rpcClient, err := client.Client()
@@ -194,7 +203,8 @@ func (c *Configuration) buildPlugin(logger *zap.Logger, tracerProvider trace.Tra
 			ArchiveStore:        archiveStoragePlugin,
 			StreamingSpanWriter: streamingSpanWriterPlugin,
 		},
-		Capabilities: capabilities,
+		Capabilities:     capabilities,
+		killPluginClient: client.Kill,
 	}, nil
 }
 

@@ -17,6 +17,7 @@ package writer
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -27,6 +28,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/anonymizer"
 	"github.com/jaegertracing/jaeger/model"
 )
+
+var ErrMaxSpansCountReached = errors.New("max spans count reached")
 
 // Config contains parameters to NewWriter.
 type Config struct {
@@ -130,7 +133,7 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 	if w.config.MaxSpansCount > 0 && w.spanCount >= w.config.MaxSpansCount {
 		w.logger.Info("Saved enough spans, exiting...")
 		w.Close()
-		os.Exit(0)
+		return ErrMaxSpansCountReached
 	}
 
 	return nil
@@ -142,5 +145,6 @@ func (w *Writer) Close() {
 	w.capturedFile.Close()
 	w.anonymizedFile.WriteString("\n]\n")
 	w.anonymizedFile.Close()
+	w.anonymizer.Stop()
 	w.anonymizer.SaveMapping()
 }

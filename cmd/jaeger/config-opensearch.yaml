@@ -1,0 +1,54 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  jaeger_query:
+    trace_storage: os_main
+    trace_storage_archive: os_archive
+    ui_config: ./cmd/jaeger/config-ui.json
+
+  jaeger_storage:
+    opensearch:
+      os_main:
+        server_urls: https://localhost:9200
+        log_level: "error"
+        index_prefix: "jaeger-main"
+        use_aliases: true
+        username: "admin"
+        password: "admin"
+        tls:
+          enabled: true
+          skip_host_verify: true
+        tags_as_fields:
+          all: true
+
+      os_archive:
+        server_urls: https://localhost:9200
+        log_level: "error"
+        index_prefix: "jaeger-archive"
+        use_aliases: true
+        username: "admin"
+        password: "admin"
+        tls:
+          enabled: true
+          skip_host_verify: true
+        tags_as_fields:
+          all: true
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: os_main

@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -64,6 +65,7 @@ func TestCassandraFactory(t *testing.T) {
 		query   = &mocks.Query{}
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	session.On("Close").Return()
 	query.On("Exec").Return(nil)
 	f.primaryConfig = newMockSessionBuilder(session, nil)
 	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
@@ -196,4 +198,37 @@ func TestInitFromOptions(t *testing.T) {
 	assert.Equal(t, o, f.Options)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
+}
+
+func TestConfigurationValidation(t *testing.T) {
+	testCases := []struct {
+		name    string
+		cfg     cassandraCfg.Configuration
+		wantErr bool
+	}{
+		{
+			name: "valid configuration",
+			cfg: cassandraCfg.Configuration{
+				Servers: []string{"http://localhost:9200"},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "missing servers",
+			cfg:     cassandraCfg.Configuration{},
+			wantErr: true,
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.cfg.Validate()
+			if test.wantErr {
+				require.Error(t, err)
+				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

@@ -39,6 +39,8 @@ const (
 	SuffixTopic = ".topic"
 	// SuffixRackID is a suffix for the consumer rack-id flag
 	SuffixRackID = ".rack-id"
+	// SuffixFetchMaxMessageBytes is a suffix for the consumer fetch-max-message-bytes flag
+	SuffixFetchMaxMessageBytes = ".fetch-max-message-bytes"
 	// SuffixGroupID is a suffix for the group-id flag
 	SuffixGroupID = ".group-id"
 	// SuffixClientID is a suffix for the client-id flag
@@ -67,6 +69,8 @@ const (
 	DefaultEncoding = kafka.EncodingProto
 	// DefaultDeadlockInterval is the default deadlock interval
 	DefaultDeadlockInterval = time.Duration(0)
+	// DefaultFetchMaxMessageBytes is the default for kafka.consumer.fetch-max-message-bytes flag
+	DefaultFetchMaxMessageBytes = 1024 * 1024 // 1MB
 )
 
 // Options stores the configuration options for the Ingester
@@ -117,6 +121,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		KafkaConsumerConfigPrefix+SuffixRackID,
 		"",
 		"Rack identifier for this client. This can be any string value which indicates where this client is located. It corresponds with the broker config `broker.rack`")
+	flagSet.Int(
+		KafkaConsumerConfigPrefix+SuffixFetchMaxMessageBytes,
+		DefaultFetchMaxMessageBytes,
+		"The maximum number of message bytes to fetch from the broker in a single request. So you must be sure this is at least as large as your largest message.")
 
 	auth.AddFlags(KafkaConsumerConfigPrefix, flagSet)
 }
@@ -130,6 +138,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.ProtocolVersion = v.GetString(KafkaConsumerConfigPrefix + SuffixProtocolVersion)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 	o.RackID = v.GetString(KafkaConsumerConfigPrefix + SuffixRackID)
+	o.FetchMaxMessageBytes = v.GetInt32(KafkaConsumerConfigPrefix + SuffixFetchMaxMessageBytes)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)

@@ -34,6 +34,7 @@ func TestRolloverIndices(t *testing.T) {
 		archive          bool
 		prefix           string
 		skipDependencies bool
+		adaptiveSampling bool
 		expected         []expectedValues
 	}{
 		{
@@ -74,13 +75,6 @@ func TestRolloverIndices(t *testing.T) {
 					writeAliasName:       "mytenant-jaeger-span-archive-write",
 					initialRolloverIndex: "mytenant-jaeger-span-archive-000001",
 				},
-				{
-					mapping:              "jaeger-dependencies",
-					templateName:         "mytenant-jaeger-dependencies",
-					readAliasName:        "mytenant-jaeger-dependencies-read",
-					writeAliasName:       "mytenant-jaeger-dependencies-write",
-					initialRolloverIndex: "mytenant-jaeger-dependencies-000001",
-				},
 			},
 		},
 		{
@@ -97,8 +91,9 @@ func TestRolloverIndices(t *testing.T) {
 			},
 		},
 		{
-			name:   "with prefix",
-			prefix: "mytenant",
+			name:             "with prefix",
+			prefix:           "mytenant",
+			adaptiveSampling: true,
 			expected: []expectedValues{
 				{
 					mapping:              "jaeger-span",
@@ -121,10 +116,17 @@ func TestRolloverIndices(t *testing.T) {
 					writeAliasName:       "mytenant-jaeger-dependencies-write",
 					initialRolloverIndex: "mytenant-jaeger-dependencies-000001",
 				},
+				{
+					mapping:              "jaeger-sampling",
+					templateName:         "mytenant-jaeger-sampling",
+					readAliasName:        "mytenant-jaeger-sampling-read",
+					writeAliasName:       "mytenant-jaeger-sampling-write",
+					initialRolloverIndex: "mytenant-jaeger-sampling-000001",
+				},
 			},
 		},
 		{
-			name:             "dependency enable",
+			name:             "skip-dependency enable",
 			prefix:           "mytenant",
 			skipDependencies: true,
 			expected: []expectedValues{
@@ -144,6 +146,35 @@ func TestRolloverIndices(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:             "adaptive sampling enable",
+			prefix:           "mytenant",
+			skipDependencies: true,
+			adaptiveSampling: true,
+			expected: []expectedValues{
+				{
+					mapping:              "jaeger-span",
+					templateName:         "mytenant-jaeger-span",
+					readAliasName:        "mytenant-jaeger-span-read",
+					writeAliasName:       "mytenant-jaeger-span-write",
+					initialRolloverIndex: "mytenant-jaeger-span-000001",
+				},
+				{
+					mapping:              "jaeger-service",
+					templateName:         "mytenant-jaeger-service",
+					readAliasName:        "mytenant-jaeger-service-read",
+					writeAliasName:       "mytenant-jaeger-service-write",
+					initialRolloverIndex: "mytenant-jaeger-service-000001",
+				},
+				{
+					mapping:              "jaeger-sampling",
+					templateName:         "mytenant-jaeger-sampling",
+					readAliasName:        "mytenant-jaeger-sampling-read",
+					writeAliasName:       "mytenant-jaeger-sampling-write",
+					initialRolloverIndex: "mytenant-jaeger-sampling-000001",
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -151,7 +182,8 @@ func TestRolloverIndices(t *testing.T) {
 			if test.prefix != "" {
 				test.prefix += "-"
 			}
-			result := RolloverIndices(test.archive, test.skipDependencies, test.prefix)
+			result := RolloverIndices(test.archive, test.skipDependencies, test.adaptiveSampling, test.prefix)
+			assert.Equal(t, len(test.expected), len(result))
 			for i, r := range result {
 				assert.Equal(t, test.expected[i].templateName, r.TemplateName())
 				assert.Equal(t, test.expected[i].mapping, r.Mapping)
