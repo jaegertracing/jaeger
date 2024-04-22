@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,11 +16,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
-)
-
-const (
-	host = "0.0.0.0"
-	Addr = "http://" + host + ":" + storagecleaner.Port + storagecleaner.URL
 )
 
 type BadgerStorageIntegration struct {
@@ -35,6 +31,7 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 }
 
 func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
+	Addr := fmt.Sprintf("http://%s:%s%s", "0.0.0.0", storagecleaner.Port, storagecleaner.URL)
 	r, err := http.NewRequest(http.MethodPost, Addr, nil)
 	require.NoError(t, err)
 
@@ -63,7 +60,6 @@ func TestBadgerStorage(t *testing.T) {
 			},
 		},
 	}
-	defer s.rmBadgerCleanerConfig(t)
 	s.initialize(t)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
@@ -77,10 +73,8 @@ func createBadgerCleanerConfig(t *testing.T) string {
 	require.NoError(t, err)
 	tempFile := string(data)
 	tempFile = strings.ReplaceAll(tempFile, "\n", "")
+	t.Cleanup(func() {
+		os.Remove(tempFile)
+	})
 	return tempFile
-}
-
-func (s *BadgerStorageIntegration) rmBadgerCleanerConfig(t *testing.T) {
-	err := os.Remove(s.ConfigFile)
-	require.NoError(t, err)
 }
