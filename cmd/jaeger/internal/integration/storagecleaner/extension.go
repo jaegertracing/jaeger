@@ -45,7 +45,10 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 	}
 
 	purgeStorage := func() error {
-		purger := storageFactory.(storage.Purger)
+		purger, ok := storageFactory.(storage.Purger)
+		if !ok {
+		  return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
+		}
 		if err := purger.Purge(); err != nil {
 			return fmt.Errorf("error purging Badger storage: %w", err)
 		}
