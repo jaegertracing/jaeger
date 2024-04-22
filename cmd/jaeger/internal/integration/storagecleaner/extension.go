@@ -23,7 +23,8 @@ var (
 )
 
 const (
-	URL = "/purge"
+	Port = "9231"
+	URL  = "/purge"
 )
 
 type cleaner struct {

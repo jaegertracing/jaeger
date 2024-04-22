@@ -13,14 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
 const (
 	host = "0.0.0.0"
-	Port = "9231"
-	URL  = "/purge"
-	Addr = "http://" + host + ":" + Port
+	Addr = "http://" + host + ":" + storagecleaner.Port + storagecleaner.URL
 )
 
 type BadgerStorageIntegration struct {
@@ -36,7 +35,7 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 }
 
 func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
-	r, err := http.NewRequest(http.MethodPost, Addr+URL, nil)
+	r, err := http.NewRequest(http.MethodPost, Addr, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}
