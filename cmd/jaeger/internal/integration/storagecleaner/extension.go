@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	_ extension.Extension = (*cleaner)(nil)
-	_ extension.Dependent = (*cleaner)(nil)
+	_ extension.Extension = (*storageCleaner)(nil)
+	_ extension.Dependent = (*storageCleaner)(nil)
 )
 
 const (
@@ -27,18 +27,18 @@ const (
 	URL  = "/purge"
 )
 
-type cleaner struct {
+type storageCleaner struct {
 	config *Config
 	server *http.Server
 }
 
-func newStorageCleaner(config *Config) *cleaner {
-	return &cleaner{
+func newStorageCleaner(config *Config) *storageCleaner {
+	return &storageCleaner{
 		config: config,
 	}
 }
 
-func (c *cleaner) Start(ctx context.Context, host component.Host) error {
+func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 	storageFactory, err := jaegerstorage.GetStorageFactory(c.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory for Badger: %w", err)
@@ -68,16 +68,17 @@ func (c *cleaner) Start(ctx context.Context, host component.Host) error {
 		Handler:           r,
 		ReadHeaderTimeout: 3 * time.Second,
 	}
-	go func() {
+	go func() error {
 		if err := c.server.ListenAndServe(); err != nil {
-			fmt.Printf("Error starting cleaner server: %v\n", err)
+			return fmt.Errorf("error starting storage cleaner server: %w", err)
 		}
+		return nil
 	}()
 
 	return nil
 }
 
-func (c *cleaner) Shutdown(ctx context.Context) error {
+func (c *storageCleaner) Shutdown(ctx context.Context) error {
 	if c.server != nil {
 		if err := c.server.Shutdown(ctx); err != nil {
 			return fmt.Errorf("error shutting down cleaner server: %w", err)
@@ -86,6 +87,6 @@ func (c *cleaner) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (c *cleaner) Dependencies() []component.ID {
+func (c *storageCleaner) Dependencies() []component.ID {
 	return []component.ID{jaegerstorage.ID}
 }
