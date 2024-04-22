@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 var (
@@ -44,16 +44,16 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot find storage factory for Badger: %w", err)
 	}
 
-	purgeBadger := func() error {
-		badgerFactory := storageFactory.(*badger.Factory)
-		if err := badgerFactory.Purge(); err != nil {
+	purgeStorage := func() error {
+		purger := storageFactory.(storage.Purger)
+		if err := purger.Purge(); err != nil {
 			return fmt.Errorf("error purging Badger storage: %w", err)
 		}
 		return nil
 	}
 
 	purgeHandler := func(w http.ResponseWriter, r *http.Request) {
-		if err := purgeBadger(); err != nil {
+		if err := purgeStorage(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
