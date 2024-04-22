@@ -31,7 +31,7 @@ func (s *BadgerStorageIntegration) initialize(t *testing.T) {
 }
 
 func (s *BadgerStorageIntegration) cleanUp(t *testing.T) {
-	Addr := fmt.Sprintf("http://%s:%s%s", "0.0.0.0", storagecleaner.Port, storagecleaner.URL)
+	addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
 	r, err := http.NewRequest(http.MethodPost, Addr, nil)
 	require.NoError(t, err)
 
