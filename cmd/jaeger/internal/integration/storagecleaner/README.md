@@ -14,7 +14,7 @@ flowchart LR
 
     Badger_e2e_test -->|"(1) POST /purge"| HTTP_endpoint
     JaegerStorageExension -->|"(2) getStorage()"| HTTP_endpoint
-    HTTP_endpoint -.->|"(3) storage.(*Badger).Purge()"| Badger
+    HTTP_endpoint -.->|"(3) storage.(*storage.Purger).Purge()"| Storage
 
     subgraph Jaeger Collector
         Receiver
