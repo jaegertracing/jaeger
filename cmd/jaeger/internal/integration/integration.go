@@ -90,9 +90,8 @@ func createStorageCleanerConfig(t *testing.T, configFile string) string {
 
 	newData, err := yaml.Marshal(config)
 	require.NoError(t, err)
-	tempFile, err := os.Create("storageCleaner_config.yaml")
-	require.NoError(t, err)
-	err = os.WriteFile(tempFile.Name(), newData, 0o600)
+	tempFile := filepath.Join(t.TempDir(), "storageCleaner_config.yaml")
+	err = os.WriteFile(tempFile, newData, 0o600)
 	require.NoError(t, err)
 
 	return tempFile
