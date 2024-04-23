@@ -92,7 +92,7 @@ func createStorageCleanerConfig(t *testing.T, configFile string) string {
 	require.NoError(t, err)
 	tempFile, err := os.Create("storageCleaner_config.yaml")
 	require.NoError(t, err)
-	err = os.WriteFile(tempFile.Name(), newData, 0o644)
+	err = os.WriteFile(tempFile.Name(), newData, 0o600)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
