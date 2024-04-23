@@ -40,7 +40,7 @@ type E2EStorageIntegration struct {
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
-	s.ConfigFile = "./cmd/jaeger/internal/integration/" + createStorageCleanerConfig(t, s.ConfigFile)
+	s.ConfigFile = createStorageCleanerConfig(t, s.ConfigFile)
 
 	fmt.Println(s.ConfigFile)
 	cmd := exec.Cmd{
