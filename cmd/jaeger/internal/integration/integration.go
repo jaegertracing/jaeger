@@ -4,7 +4,6 @@
 package integration
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -41,12 +40,11 @@ type E2EStorageIntegration struct {
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
-	s.ConfigFile = createStorageCleanerConfig(t, s.ConfigFile)
+	ConfigFile := createStorageCleanerConfig(t, s.ConfigFile)
 
-	fmt.Println(s.ConfigFile)
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
-		Args: []string{"jaeger", "--config", s.ConfigFile},
+		Args: []string{"jaeger", "--config", ConfigFile},
 		// Change the working directory to the root of this project
 		// since the binary config file jaeger_query's ui_config points to
 		// "./cmd/jaeger/config-ui.json"
@@ -76,17 +74,17 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 func createStorageCleanerConfig(t *testing.T, configFile string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
-	var config map[interface{}]interface{}
+	var config map[string]interface{}
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
 
-	service, ok := config["service"].(map[interface{}]interface{})
+	service, ok := config["service"].(map[string]interface{})
 	require.True(t, ok)
 	service["extensions"] = append(service["extensions"].([]interface{}), "storage_cleaner")
 
-	extensions, ok := config["extensions"].(map[interface{}]interface{})
+	extensions, ok := config["extensions"].(map[string]interface{})
 	require.True(t, ok)
-	query, ok := extensions["jaeger_query"].(map[interface{}]interface{})
+	query, ok := extensions["jaeger_query"].(map[string]interface{})
 	require.True(t, ok)
 	trace_storage := query["trace_storage"].(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
