@@ -4,12 +4,14 @@
 package integration
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
@@ -38,7 +40,9 @@ type E2EStorageIntegration struct {
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
+	s.ConfigFile = "./cmd/jaeger/internal/integration/" + createStorageCleanerConfig(t, s.ConfigFile)
 
+	fmt.Println(s.ConfigFile)
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", s.ConfigFile},
@@ -66,4 +70,41 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
+}
+
+func createStorageCleanerConfig(t *testing.T, configFile string) string {
+	data, err := os.ReadFile(configFile)
+	require.NoError(t, err)
+	var config map[interface{}]interface{}
+	err = yaml.Unmarshal(data, &config)
+	require.NoError(t, err)
+
+	service, ok := config["service"].(map[interface{}]interface{})
+	require.True(t, ok)
+	service["extensions"] = []string{"jaeger_storage", "jaeger_query", "storage_cleaner"}
+
+	extensions, ok := config["extensions"].(map[interface{}]interface{})
+	require.True(t, ok)
+	trace_storage := getTraceStorage(extensions)
+	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
+
+	newData, err := yaml.Marshal(config)
+	require.NoError(t, err)
+	tempFile, err := os.Create("storageCleaner_config.yaml")
+	require.NoError(t, err)
+	os.WriteFile(tempFile.Name(), newData, 0644)
+
+	t.Cleanup(func() {
+		os.Remove(tempFile.Name())
+	})
+	return tempFile.Name()
+}
+
+func getTraceStorage(extensions map[interface{}]interface{}) string {
+	for k := range extensions["jaeger_query"].(map[interface{}]interface{}) {
+		if k == "trace_storage" {
+			return extensions["jaeger_query"].(map[interface{}]interface{})[k].(string)
+		}
+	}
+	return ""
 }
