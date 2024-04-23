@@ -10,9 +10,9 @@ flowchart LR
     Receiver --> Processor
     Processor --> Exporter
     JaegerStorageExension -->|"(1) get storage"| Exporter
-    Exporter -->|"(2) write trace"| Badger
+    Exporter -->|"(2) write trace"| Storage
 
-    Badger_e2e_test -->|"(1) POST /purge"| HTTP_endpoint
+    E2E_test -->|"(1) POST /purge"| HTTP_endpoint
     JaegerStorageExension -->|"(2) getStorage()"| HTTP_endpoint
     HTTP_endpoint -.->|"(3) storage.(*storage.Purger).Purge()"| Storage
 
@@ -21,13 +21,13 @@ flowchart LR
         Processor
         Exporter
         
-        Badger
+        Storage
         StorageCleanerExtension
         HTTP_endpoint
         subgraph JaegerStorageExension
-            Badger
+            Storage
         end
-        subgraph BadgerCleanerExtension
+        subgraph StorageCleanerExtension
             HTTP_endpoint
         end
     end
