@@ -42,6 +42,6 @@ The following settings are required:
 ```yaml
 extensions:
   storage_cleaner:
-    trace_storage: external-storage
+    trace_storage: storage_name
 ```
 
