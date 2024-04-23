@@ -22,7 +22,7 @@ flowchart LR
         Exporter
         
         Badger
-        BadgerCleanerExtension
+        StorageCleanerExtension
         HTTP_endpoint
         subgraph JaegerStorageExension
             Badger
