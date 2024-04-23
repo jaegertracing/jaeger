@@ -95,10 +95,7 @@ func createStorageCleanerConfig(t *testing.T, configFile string) string {
 	err = os.WriteFile(tempFile.Name(), newData, 0o600)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		os.Remove(tempFile.Name())
-	})
-	return tempFile.Name()
+	return tempFile
 }
 
 func getTraceStorage(extensions map[interface{}]interface{}) string {
