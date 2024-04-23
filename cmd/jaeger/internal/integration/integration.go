@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -81,11 +82,13 @@ func createStorageCleanerConfig(t *testing.T, configFile string) string {
 
 	service, ok := config["service"].(map[interface{}]interface{})
 	require.True(t, ok)
-	service["extensions"] = []string{"jaeger_storage", "jaeger_query", "storage_cleaner"}
+	service["extensions"] = append(service["extensions"].([]interface{}), "storage_cleaner")
 
 	extensions, ok := config["extensions"].(map[interface{}]interface{})
 	require.True(t, ok)
-	trace_storage := getTraceStorage(extensions)
+	query, ok := extensions["jaeger_query"].(map[interface{}]interface{})
+	require.True(t, ok)
+	trace_storage := query["trace_storage"].(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
 
 	newData, err := yaml.Marshal(config)
@@ -95,13 +98,4 @@ func createStorageCleanerConfig(t *testing.T, configFile string) string {
 	require.NoError(t, err)
 
 	return tempFile
-}
-
-func getTraceStorage(extensions map[interface{}]interface{}) string {
-	for k := range extensions["jaeger_query"].(map[interface{}]interface{}) {
-		if k == "trace_storage" {
-			return extensions["jaeger_query"].(map[interface{}]interface{})[k].(string)
-		}
-	}
-	return ""
 }
