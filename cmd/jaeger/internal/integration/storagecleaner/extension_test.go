@@ -74,7 +74,7 @@ func TestStorageCleanerExtension(t *testing.T) {
 	s.Shutdown(context.Background())
 }
 
-func TestStorageGetStorageFactoryError(t *testing.T) {
+func TestGetStorageFactoryError(t *testing.T) {
 	config := &Config{}
 	s := newStorageCleaner(config)
 	host := storagetest.NewStorageHost()
