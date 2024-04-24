@@ -73,7 +73,7 @@ func TestStorageCleanerExtension(t *testing.T) {
 	}
 	require.True(t, ok, "could not reach storage cleaner server")
 	defer resp.Body.Close()
-	require.Equal(t, resp.StatusCode, http.StatusOK)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	s.Dependencies()
 	s.Shutdown(context.Background())
 }
