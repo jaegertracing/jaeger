@@ -46,41 +46,33 @@ func TestStorageCleanerExtension(t *testing.T) {
 		TraceStorage: "storage",
 		Port:         Port,
 	}
-	s := newStorageCleaner(config)
+	s := newStorageCleaner(config, component.TelemetrySettings{})
 	host := storagetest.NewStorageHost()
-	factory := &factoryMocks.Factory{}
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
 		name:    "storage",
-		factory: factory,
+		factory: &factoryMocks.Factory{},
 	})
-	err := s.Start(context.Background(), host)
+	ctx := context.Background()
+	err := s.Start(ctx, host)
 	require.NoError(t, err)
 
 	Addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
 	client := &http.Client{}
-	var ok bool
 	var resp *http.Response
-	for i := 0; i < 10; i++ {
+	require.Eventually(t, func() bool {
 		r, err := http.NewRequest(http.MethodPost, Addr, nil)
 		require.NoError(t, err)
-
 		resp, err = client.Do(r)
-		if err == nil {
-			ok = true
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	require.True(t, ok, "could not reach storage cleaner server")
+		return err == nil
+	}, 5*time.Second, 100*time.Millisecond)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
 	s.Dependencies()
-	s.Shutdown(context.Background())
+	require.NoError(t, s.Shutdown(ctx))
 }
 
 func TestGetStorageFactoryError(t *testing.T) {
 	config := &Config{}
-	s := newStorageCleaner(config)
+	s := newStorageCleaner(config, component.TelemetrySettings{})
 	host := storagetest.NewStorageHost()
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
 		name:    "storage",

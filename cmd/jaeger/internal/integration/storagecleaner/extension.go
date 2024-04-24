@@ -28,13 +28,15 @@ const (
 )
 
 type storageCleaner struct {
-	config *Config
-	server *http.Server
+	config   *Config
+	server   *http.Server
+	settings component.TelemetrySettings
 }
 
-func newStorageCleaner(config *Config) *storageCleaner {
+func newStorageCleaner(config *Config, telemetrySettings component.TelemetrySettings) *storageCleaner {
 	return &storageCleaner{
-		config: config,
+		config:   config,
+		settings: telemetrySettings,
 	}
 }
 
@@ -71,11 +73,10 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 		Handler:           r,
 		ReadHeaderTimeout: 3 * time.Second,
 	}
-	go func() error {
-		if err := c.server.ListenAndServe(); err != nil {
-			return fmt.Errorf("error starting storage cleaner server: %w", err)
+	go func() {
+		if err := c.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			c.settings.ReportStatus(component.NewFatalErrorEvent(err))
 		}
-		return nil
 	}()
 
 	return nil

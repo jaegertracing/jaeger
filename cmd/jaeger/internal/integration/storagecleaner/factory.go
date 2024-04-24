@@ -36,5 +36,5 @@ func createExtension(
 	set extension.CreateSettings,
 	cfg component.Config,
 ) (extension.Extension, error) {
-	return newStorageCleaner(cfg.(*Config)), nil
+	return newStorageCleaner(cfg.(*Config), set.TelemetrySettings), nil
 }
