@@ -40,11 +40,11 @@ type E2EStorageIntegration struct {
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
-	ConfigFile := createStorageCleanerConfig(t, s.ConfigFile)
+	configFile := createStorageCleanerConfig(t, s.ConfigFile)
 
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
-		Args: []string{"jaeger", "--config", ConfigFile},
+		Args: []string{"jaeger", "--config", configFile},
 		// Change the working directory to the root of this project
 		// since the binary config file jaeger_query's ui_config points to
 		// "./cmd/jaeger/config-ui.json"

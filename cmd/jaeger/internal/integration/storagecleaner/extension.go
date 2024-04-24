@@ -41,7 +41,7 @@ func newStorageCleaner(config *Config) *storageCleaner {
 func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 	storageFactory, err := jaegerstorage.GetStorageFactory(c.config.TraceStorage, host)
 	if err != nil {
-		return fmt.Errorf("cannot find storage factory for Badger: %w", err)
+		return fmt.Errorf("cannot find storage factory: %w", err)
 	}
 
 	purgeStorage := func() error {
@@ -50,7 +50,7 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 			return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
 		}
 		if err := purger.Purge(); err != nil {
-			return fmt.Errorf("error purging Badger storage: %w", err)
+			return fmt.Errorf("error purging storage: %w", err)
 		}
 		return nil
 	}
