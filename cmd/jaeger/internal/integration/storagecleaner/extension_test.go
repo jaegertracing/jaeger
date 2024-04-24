@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package storagecleaner
 
 import (
@@ -7,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/storage"
-	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/storage"
+	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 )
 
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
@@ -85,5 +89,4 @@ func TestGetStorageFactoryError(t *testing.T) {
 	err := s.Start(context.Background(), host)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cannot find storage factory")
-
 }
