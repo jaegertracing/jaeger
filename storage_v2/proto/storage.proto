@@ -144,7 +144,7 @@ message CapabilitiesResponse {
 }
 
 // spanstore/Writer
-service SpanWriterPlugin {
+service TraceWriter {
   // Export is a batched version of WriteSpan that handles OTLP exporter.
   rpc Export(opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest) returns (opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse) {}
 
@@ -153,7 +153,7 @@ service SpanWriterPlugin {
 }
 
 // spanstore/Reader
-service SpanReaderPlugin {
+service TraceReader {
   // GetTrace returns a single trace.
   // Note that the JSON response over HTTP is wrapped into result envelope "{"result": ...}"
   // It means that the JSON response cannot be directly unmarshalled using JSONPb.
@@ -176,13 +176,13 @@ service SpanReaderPlugin {
 }
 
 // querysvc/QueryService
-service QueryService {
+service TraceArchiver {
   // ArchiveTrace finds a trace from primary storage and write it to archive storage.
   rpc ArchiveTrace(ArchiveTraceRequest) returns (ArchiveTraceResponse) {}
 }
 
 // dependencystore/Reader
-service DependenciesReaderPlugin {
+service DependenciesReader {
   // GetDependencies 
   rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
 }
