@@ -14,33 +14,28 @@
 
 package grpc
 
-import (
-	"github.com/hashicorp/go-plugin"
-	"google.golang.org/grpc"
+// // Serve creates a plugin configuration using the implementation of StoragePlugin and then serves it.
+// func Serve(services *shared.PluginServices) {
+// 	ServeWithGRPCServer(services, plugin.DefaultGRPCServer)
+// }
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-)
+// // ServeWithGRPCServer creates a plugin configuration using the implementation of StoragePlugin and
+// // function to create grpcServer, and then serves it.
 
-// Serve creates a plugin configuration using the implementation of StoragePlugin and then serves it.
-func Serve(services *shared.PluginServices) {
-	ServeWithGRPCServer(services, plugin.DefaultGRPCServer)
-}
-
-// ServeWithGRPCServer creates a plugin configuration using the implementation of StoragePlugin and
-// function to create grpcServer, and then serves it.
-func ServeWithGRPCServer(services *shared.PluginServices, grpcServer func([]grpc.ServerOption) *grpc.Server,
-) {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: shared.Handshake,
-		VersionedPlugins: map[int]plugin.PluginSet{
-			1: map[string]plugin.Plugin{
-				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
-					Impl:        services.Store,
-					ArchiveImpl: services.ArchiveStore,
-					StreamImpl:  services.StreamingSpanWriter,
-				},
-			},
-		},
-		GRPCServer: grpcServer,
-	})
-}
+// // Hashkat: This is the code that is using hashicorp go-plugin to serve the plugin.
+// func ServeWithGRPCServer(services *shared.PluginServices, grpcServer func([]grpc.ServerOption) *grpc.Server,
+// ) {
+// 	plugin.Serve(&plugin.ServeConfig{
+// 		HandshakeConfig: shared.Handshake,
+// 		VersionedPlugins: map[int]plugin.PluginSet{
+// 			1: map[string]plugin.Plugin{
+// 				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
+// 					Impl:        services.Store,
+// 					ArchiveImpl: services.ArchiveStore,
+// 					StreamImpl:  services.StreamingSpanWriter,
+// 				},
+// 			},
+// 		},
+// 		GRPCServer: grpcServer,
+// 	})
+// }
