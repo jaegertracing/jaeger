@@ -20,10 +20,20 @@ import (
 )
 
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
+var _ storage.Factory = (*PurgerFactory)(nil)
+
+type PurgerFactory struct {
+	factoryMocks.Factory
+	err error
+}
+
+func (f *PurgerFactory) Purge() error {
+	return f.err
+}
 
 type mockStorageExt struct {
 	name    string
-	factory *factoryMocks.Factory
+	factory storage.Factory
 }
 
 func (m *mockStorageExt) Start(ctx context.Context, host component.Host) error {
@@ -42,32 +52,49 @@ func (m *mockStorageExt) Factory(name string) (storage.Factory, bool) {
 }
 
 func TestStorageCleanerExtension(t *testing.T) {
-	config := &Config{
-		TraceStorage: "storage",
-		Port:         Port,
+	tests := []struct {
+		name    string
+		factory storage.Factory
+		status  int
+	}{
+		{"good storage", &PurgerFactory{}, http.StatusOK},
+		{"good storage with error", &PurgerFactory{err: fmt.Errorf("error")}, http.StatusInternalServerError},
+		{"bad storage", &factoryMocks.Factory{}, http.StatusInternalServerError},
 	}
-	s := newStorageCleaner(config, component.TelemetrySettings{})
-	host := storagetest.NewStorageHost()
-	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
-		name:    "storage",
-		factory: &factoryMocks.Factory{},
-	})
-	ctx := context.Background()
-	err := s.Start(ctx, host)
-	require.NoError(t, err)
 
-	Addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
-	client := &http.Client{}
-	var resp *http.Response
-	require.Eventually(t, func() bool {
-		r, err := http.NewRequest(http.MethodPost, Addr, nil)
-		require.NoError(t, err)
-		resp, err = client.Do(r)
-		return err == nil
-	}, 5*time.Second, 100*time.Millisecond)
-	defer resp.Body.Close()
-	s.Dependencies()
-	require.NoError(t, s.Shutdown(ctx))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := &Config{
+				TraceStorage: "storage",
+				Port:         Port,
+			}
+			s := newStorageCleaner(config, component.TelemetrySettings{})
+			host := storagetest.NewStorageHost()
+			host.WithExtension(jaegerstorage.ID, &mockStorageExt{
+				name:    "storage",
+				factory: test.factory,
+			})
+			ctx := context.Background()
+			err := s.Start(ctx, host)
+			defer s.Shutdown(ctx)
+			require.NoError(t, err)
+
+			addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
+			client := &http.Client{}
+			var resp *http.Response
+			require.Eventually(t, func() bool {
+				r, err := http.NewRequest(http.MethodPost, addr, nil)
+				require.NoError(t, err)
+				resp, err = client.Do(r)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				return err == nil
+			}, 5*time.Second, 100*time.Millisecond)
+			require.Equal(t, test.status, resp.StatusCode)
+			s.Dependencies()
+		})
+	}
+
 }
 
 func TestGetStorageFactoryError(t *testing.T) {

@@ -111,9 +111,5 @@ func (_m *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger
 
 	return r0
 }
-func (_m *Factory) Purge() error {
-	return nil
-}
 
 var _ storage.Factory = (*Factory)(nil)
-var _ storage.Purger = (*Factory)(nil)
