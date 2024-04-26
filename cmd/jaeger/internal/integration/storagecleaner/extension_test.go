@@ -19,8 +19,10 @@ import (
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 )
 
-var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
-var _ storage.Factory = (*PurgerFactory)(nil)
+var (
+	_ jaegerstorage.Extension = (*mockStorageExt)(nil)
+	_ storage.Factory         = (*PurgerFactory)(nil)
+)
 
 type PurgerFactory struct {
 	factoryMocks.Factory
@@ -94,7 +96,6 @@ func TestStorageCleanerExtension(t *testing.T) {
 			s.Dependencies()
 		})
 	}
-
 }
 
 func TestGetStorageFactoryError(t *testing.T) {
