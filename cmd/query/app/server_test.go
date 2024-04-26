@@ -415,17 +415,13 @@ func TestServerHTTPTLS(t *testing.T) {
 }
 
 func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.TransportCredentials) *grpcClient {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
 	var conn *grpc.ClientConn
 	var err error
 
 	if creds != nil {
-		// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
-		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(creds))
+		conn, err = grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
 	} else {
-		// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
-		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err = grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	require.NoError(t, err)
