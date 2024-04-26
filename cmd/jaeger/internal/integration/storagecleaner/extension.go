@@ -27,9 +27,15 @@ const (
 	URL  = "/purge"
 )
 
+// allow mocking the server in tests
+type httpServer interface {
+	ListenAndServe() error
+	Shutdown(ctx context.Context) error
+}
+
 type storageCleaner struct {
 	config   *Config
-	server   *http.Server
+	server   httpServer
 	settings component.TelemetrySettings
 }
 
@@ -43,7 +49,7 @@ func newStorageCleaner(config *Config, telemetrySettings component.TelemetrySett
 func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 	storageFactory, err := jaegerstorage.GetStorageFactory(c.config.TraceStorage, host)
 	if err != nil {
-		return fmt.Errorf("cannot find storage factory: %w", err)
+		return fmt.Errorf("cannot find storage factory '%s': %w", c.config.TraceStorage, err)
 	}
 
 	purgeStorage := func() error {
@@ -75,6 +81,7 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 	}
 	go func() {
 		if err := c.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			err = fmt.Errorf("error starting cleaner server: %w", err)
 			c.settings.ReportStatus(component.NewFatalErrorEvent(err))
 		}
 	}()

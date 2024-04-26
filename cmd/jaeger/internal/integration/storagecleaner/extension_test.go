@@ -5,12 +5,14 @@ package storagecleaner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 
@@ -117,4 +119,54 @@ func TestGetStorageFactoryError(t *testing.T) {
 	err := s.Start(context.Background(), host)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cannot find storage factory")
+}
+
+func TestStorageExtensionStartError(t *testing.T) {
+	config := &Config{
+		TraceStorage: "storage",
+		Port:         "invalid-port",
+	}
+	var startErr error
+	s := newStorageCleaner(config, component.TelemetrySettings{
+		ReportStatus: func(status *component.StatusEvent) {
+			startErr = status.Err()
+		},
+	})
+	host := storagetest.NewStorageHost().WithExtension(
+		jaegerstorage.ID,
+		&mockStorageExt{
+			name:    "storage",
+			factory: &PurgerFactory{},
+		})
+	require.NoError(t, s.Start(context.Background(), host))
+	assert.Eventually(t, func() bool {
+		return startErr != nil
+	}, 5*time.Second, 100*time.Millisecond)
+	require.Contains(t, startErr.Error(), "error starting cleaner server")
+}
+
+type mockServer struct{}
+
+func (*mockServer) ListenAndServe() error              { return nil }
+func (*mockServer) Shutdown(ctx context.Context) error { return errors.New("shutdown error") }
+
+func TestStorageExtensionShutdownError(t *testing.T) {
+	config := &Config{
+		TraceStorage: "storage",
+		Port:         ":0",
+	}
+	s := newStorageCleaner(config, component.TelemetrySettings{})
+	host := storagetest.NewStorageHost().WithExtension(
+		jaegerstorage.ID,
+		&mockStorageExt{
+			name:    "storage",
+			factory: &PurgerFactory{},
+		})
+	require.NoError(t, s.Start(context.Background(), host))
+	require.NoError(t, s.Shutdown(context.Background()))
+
+	s.server = &mockServer{}
+	err := s.Shutdown(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "shutdown error")
 }
