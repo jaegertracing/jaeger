@@ -28,15 +28,9 @@ const (
 	URL  = "/purge"
 )
 
-// allow mocking the server in tests
-type httpServer interface {
-	ListenAndServe() error
-	Shutdown(ctx context.Context) error
-}
-
 type storageCleaner struct {
 	config   *Config
-	server   httpServer
+	server   *http.Server
 	settings component.TelemetrySettings
 }
 

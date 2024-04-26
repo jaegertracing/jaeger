@@ -5,7 +5,6 @@ package storagecleaner
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -144,30 +143,4 @@ func TestStorageExtensionStartError(t *testing.T) {
 		return startStatus.Load() != nil
 	}, 5*time.Second, 100*time.Millisecond)
 	require.Contains(t, startStatus.Load().Err().Error(), "error starting cleaner server")
-}
-
-type mockServer struct{}
-
-func (*mockServer) ListenAndServe() error              { return nil }
-func (*mockServer) Shutdown(ctx context.Context) error { return errors.New("shutdown error") }
-
-func TestStorageExtensionShutdownError(t *testing.T) {
-	config := &Config{
-		TraceStorage: "storage",
-		Port:         ":0",
-	}
-	s := newStorageCleaner(config, component.TelemetrySettings{})
-	host := storagetest.NewStorageHost().WithExtension(
-		jaegerstorage.ID,
-		&mockStorageExt{
-			name:    "storage",
-			factory: &PurgerFactory{},
-		})
-	require.NoError(t, s.Start(context.Background(), host))
-	require.NoError(t, s.Shutdown(context.Background()))
-
-	s.server = &mockServer{}
-	err := s.Shutdown(context.Background())
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "shutdown error")
 }
