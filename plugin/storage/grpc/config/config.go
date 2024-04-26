@@ -31,8 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
-var pluginHealthCheckInterval = time.Second * 60
-
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
 	PluginLogLevel       string `yaml:"log-level" mapstructure:"log_level"`
