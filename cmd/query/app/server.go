@@ -17,9 +17,11 @@ package app
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -48,23 +50,24 @@ import (
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
 	logger       *zap.Logger
+	healthCheck  *healthcheck.HealthCheck
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
 	tracer *jtracer.JTracer // TODO make part of flags.Service
 
-	conn               net.Listener
-	grpcConn           net.Listener
-	httpConn           net.Listener
-	cmuxServer         cmux.CMux
-	grpcServer         *grpc.Server
-	httpServer         *http.Server
-	separatePorts      bool
-	unavailableChannel chan healthcheck.Status
+	conn          net.Listener
+	grpcConn      net.Listener
+	httpConn      net.Listener
+	cmuxServer    cmux.CMux
+	grpcServer    *grpc.Server
+	httpServer    *httpServer
+	separatePorts bool
+	bgFinished    sync.WaitGroup
 }
 
 // NewServer creates and initializes Server
-func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, tracer *jtracer.JTracer) (*Server, error) {
+func NewServer(logger *zap.Logger, healthCheck *healthcheck.HealthCheck, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, tracer *jtracer.JTracer) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
 		return nil, fmt.Errorf("invalid HTTP server host:port: %w", err)
@@ -89,20 +92,15 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, metricsQuery
 	}
 
 	return &Server{
-		logger:             logger,
-		querySvc:           querySvc,
-		queryOptions:       options,
-		tracer:             tracer,
-		grpcServer:         grpcServer,
-		httpServer:         httpServer,
-		separatePorts:      grpcPort != httpPort,
-		unavailableChannel: make(chan healthcheck.Status),
+		logger:        logger,
+		healthCheck:   healthCheck,
+		querySvc:      querySvc,
+		queryOptions:  options,
+		tracer:        tracer,
+		grpcServer:    grpcServer,
+		httpServer:    httpServer,
+		separatePorts: grpcPort != httpPort,
 	}, nil
-}
-
-// HealthCheckStatus returns health check status channel a client can subscribe to
-func (s Server) HealthCheckStatus() chan healthcheck.Status {
-	return s.unavailableChannel
 }
 
 func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, logger *zap.Logger, tracer *jtracer.JTracer) (*grpc.Server, error) {
@@ -146,6 +144,13 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	return server, nil
 }
 
+type httpServer struct {
+	*http.Server
+	staticHandlerCloser io.Closer
+}
+
+var _ io.Closer = (*httpServer)(nil)
+
 func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
@@ -153,7 +158,7 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	tracer *jtracer.JTracer,
 	logger *zap.Logger,
-) (*http.Server, error) {
+) (*httpServer, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
@@ -177,7 +182,6 @@ func createHTTPServer(
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
 	var handler http.Handler = r
 	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
@@ -187,10 +191,12 @@ func createHTTPServer(
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
-	server := &http.Server{
-		Handler:           recoveryHandler(handler),
-		ErrorLog:          errorLog,
-		ReadHeaderTimeout: 2 * time.Second,
+	server := &httpServer{
+		Server: &http.Server{
+			Handler:           recoveryHandler(handler),
+			ErrorLog:          errorLog,
+			ReadHeaderTimeout: 2 * time.Second,
+		},
 	}
 
 	if queryOpts.TLSHTTP.Enabled {
@@ -201,7 +207,17 @@ func createHTTPServer(
 		server.TLSConfig = tlsCfg
 
 	}
+
+	server.staticHandlerCloser = RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
+
 	return server, nil
+}
+
+func (hS httpServer) Close() error {
+	var errs []error
+	errs = append(errs, hS.Server.Close())
+	errs = append(errs, hS.staticHandlerCloser.Close())
+	return errors.Join(errs...)
 }
 
 // initListener initialises listeners of the server
@@ -280,6 +296,7 @@ func (s *Server) Start() error {
 		grpcPort = port
 	}
 
+	s.bgFinished.Add(1)
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		var err error
@@ -292,21 +309,25 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
 
-		s.unavailableChannel <- healthcheck.Unavailable
+		s.healthCheck.Set(healthcheck.Unavailable)
+		s.bgFinished.Done()
 	}()
 
 	// Start GRPC server concurrently
+	s.bgFinished.Add(1)
 	go func() {
 		s.logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
-		s.unavailableChannel <- healthcheck.Unavailable
+		s.healthCheck.Set(healthcheck.Unavailable)
+		s.bgFinished.Done()
 	}()
 
 	// Start cmux server concurrently.
 	if !s.separatePorts {
+		s.bgFinished.Add(1)
 		go func() {
 			s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
@@ -315,7 +336,8 @@ func (s *Server) Start() error {
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
-			s.unavailableChannel <- healthcheck.Unavailable
+			s.healthCheck.Set(healthcheck.Unavailable)
+			s.bgFinished.Done()
 		}()
 	}
 
@@ -329,12 +351,9 @@ func (s *Server) Close() error {
 	errs = append(errs, s.queryOptions.TLSHTTP.Close())
 	s.grpcServer.Stop()
 	errs = append(errs, s.httpServer.Close())
-	if s.separatePorts {
-		errs = append(errs, s.httpConn.Close())
-		errs = append(errs, s.grpcConn.Close())
-	} else {
+	if !s.separatePorts {
 		s.cmuxServer.Close()
-		errs = append(errs, s.conn.Close())
 	}
+	s.bgFinished.Wait()
 	return errors.Join(errs...)
 }

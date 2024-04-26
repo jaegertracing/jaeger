@@ -116,7 +116,7 @@ type Options struct {
 // AddFlags adds flags for Options
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Float64(targetSamplesPerSecond, defaultTargetSamplesPerSecond,
-		"The the global target rate of samples per operation.",
+		"The global target rate of samples per operation.",
 	)
 	flagSet.Float64(deltaTolerance, defaultDeltaTolerance,
 		"The acceptable amount of deviation between the observed samples-per-second and the desired (target) samples-per-second, expressed as a ratio.",

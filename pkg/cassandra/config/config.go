@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/gocql/gocql"
 	"go.uber.org/zap"
 
@@ -29,21 +30,21 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
-	Servers              []string       `validate:"nonzero" mapstructure:"servers"`
-	Keyspace             string         `validate:"nonzero" mapstructure:"keyspace"`
-	LocalDC              string         `yaml:"local_dc" mapstructure:"local_dc"`
-	ConnectionsPerHost   int            `validate:"min=1" yaml:"connections_per_host" mapstructure:"connections_per_host"`
-	Timeout              time.Duration  `validate:"min=500" mapstructure:"-"`
-	ConnectTimeout       time.Duration  `yaml:"connect_timeout" mapstructure:"connection_timeout"`
-	ReconnectInterval    time.Duration  `validate:"min=500" yaml:"reconnect_interval" mapstructure:"reconnect_interval"`
-	SocketKeepAlive      time.Duration  `validate:"min=0" yaml:"socket_keep_alive" mapstructure:"socket_keep_alive"`
-	MaxRetryAttempts     int            `validate:"min=0" yaml:"max_retry_attempt" mapstructure:"max_retry_attempts"`
-	ProtoVersion         int            `yaml:"proto_version" mapstructure:"proto_version"`
-	Consistency          string         `yaml:"consistency" mapstructure:"consistency"`
-	DisableCompression   bool           `yaml:"disable-compression" mapstructure:"disable_compression"`
-	Port                 int            `yaml:"port" mapstructure:"port"`
-	Authenticator        Authenticator  `yaml:"authenticator" mapstructure:",squash"`
-	DisableAutoDiscovery bool           `yaml:"disable_auto_discovery" mapstructure:"-"`
+	Servers              []string       `valid:"required,url" mapstructure:"servers"`
+	Keyspace             string         `valid:"nonzero" mapstructure:"keyspace"`
+	LocalDC              string         `mapstructure:"local_dc"`
+	ConnectionsPerHost   int            `valid:"min=1" mapstructure:"connections_per_host"`
+	Timeout              time.Duration  `valid:"min=500" mapstructure:"-"`
+	ConnectTimeout       time.Duration  `mapstructure:"connection_timeout"`
+	ReconnectInterval    time.Duration  `valid:"min=500" mapstructure:"reconnect_interval"`
+	SocketKeepAlive      time.Duration  `valid:"min=0" mapstructure:"socket_keep_alive"`
+	MaxRetryAttempts     int            `valid:"min=0" mapstructure:"max_retry_attempts"`
+	ProtoVersion         int            `mapstructure:"proto_version"`
+	Consistency          string         `mapstructure:"consistency"`
+	DisableCompression   bool           `mapstructure:"disable_compression"`
+	Port                 int            `mapstructure:"port"`
+	Authenticator        Authenticator  `mapstructure:",squash"`
+	DisableAutoDiscovery bool           `mapstructure:"-"`
 	TLS                  tlscfg.Options `mapstructure:"tls"`
 }
 
@@ -169,4 +170,9 @@ func (c *Configuration) Close() error {
 
 func (c *Configuration) String() string {
 	return fmt.Sprintf("%+v", *c)
+}
+
+func (c *Configuration) Validate() error {
+	_, err := govalidator.ValidateStruct(c)
+	return err
 }

@@ -35,7 +35,7 @@ type Action struct {
 
 // Do the lookback action
 func (a *Action) Do() error {
-	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := a.lookback(indexName); err != nil {
 			return err

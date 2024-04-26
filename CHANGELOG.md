@@ -1,4 +1,4 @@
-### A message to people of Russia 🇷🇺
+### 🇷🇺 A message to people of Russia
 
 If you currently live in Russia, please read [this message](./_To_People_of_Russia.md).
 
@@ -15,11 +15,71 @@ next release (yyyy-mm-dd)
 
 run `make changelog` to generate content
 
-### UI Changes
+### 📊 UI Changes
 
 ...
 
 </details>
+
+1.56.0 (2024-04-02)
+-------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Fix hotrod instructions ([@yurishkuro](https://github.com/yurishkuro) in [#5273](https://github.com/jaegertracing/jaeger/pull/5273))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Refactor healthcheck signalling between server and service ([@WillSewell](https://github.com/WillSewell) in [#5308](https://github.com/jaegertracing/jaeger/pull/5308))
+* Docs: badger file permission as non-root service ([@tico88612](https://github.com/tico88612) in [#5282](https://github.com/jaegertracing/jaeger/pull/5282))
+* [kafka-consumer] add support for setting fetch message max bytes ([@sappusaketh](https://github.com/sappusaketh) in [#5283](https://github.com/jaegertracing/jaeger/pull/5283))
+* [chore] remove repetitive words ([@tgolang](https://github.com/tgolang) in [#5265](https://github.com/jaegertracing/jaeger/pull/5265))
+* Fix zipkin spanformat ([@fyuan1316](https://github.com/fyuan1316) in [#5261](https://github.com/jaegertracing/jaeger/pull/5261))
+* [kafka-producer] support setting max message size ([@sappusaketh](https://github.com/sappusaketh) in [#5263](https://github.com/jaegertracing/jaeger/pull/5263))
+
+#### 🚧 Experimental Features
+
+* [jaeger-v2] add support for opensearch ([@akagami-harsh](https://github.com/akagami-harsh) in [#5257](https://github.com/jaegertracing/jaeger/pull/5257))
+* [jaeger-v2] add support for cassandra ([@Pushkarm029](https://github.com/Pushkarm029) in [#5253](https://github.com/jaegertracing/jaeger/pull/5253))
+
+#### 👷 CI Improvements
+
+* Allow go-leak linter to fail ci ([@yurishkuro](https://github.com/yurishkuro) in [#5316](https://github.com/jaegertracing/jaeger/pull/5316))
+* [jaeger-v2] add grpc storage backend integration test ([@james-ryans](https://github.com/james-ryans) in [#5259](https://github.com/jaegertracing/jaeger/pull/5259))
+* Github actions added to block prs from fork/main branch ([@varshith257](https://github.com/varshith257) in [#5272](https://github.com/jaegertracing/jaeger/pull/5272))
+
+
+### 📊 UI Changes
+
+* UI pinned to version [1.40.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1400-2024-04-02).
+
+
+1.55.0 (2024-03-04)
+-------------------
+### Backend Changes
+
+#### ✨ New Features:
+
+* Support uploading traces to UI in OpenTelemetry format (OTLP/JSON) ([@NavinShrinivas](https://github.com/NavinShrinivas) in [#5155](https://github.com/jaegertracing/jaeger/pull/5155))
+* Add Elasticsearch storage support for adaptive sampling ([@Pushkarm029](https://github.com/Pushkarm029) in [#5158](https://github.com/jaegertracing/jaeger/pull/5158))
+
+#### 🐞 Bug fixes, Minor Improvements:
+
+* Add the `print-config` subcommand ([@gmafrac](https://github.com/gmafrac) in [#5200](https://github.com/jaegertracing/jaeger/pull/5200))
+* Return more detailed errors from ES storage ([@yurishkuro](https://github.com/yurishkuro) in [#5209](https://github.com/jaegertracing/jaeger/pull/5209))
+* Bump go version ([@yurishkuro](https://github.com/yurishkuro) in [#5180](https://github.com/jaegertracing/jaeger/pull/5180))
+
+#### 🚧 Experimental Features:
+
+* [jaeger-v2] Add support for gRPC storarge ([@james-ryans](https://github.com/james-ryans) in [#5228](https://github.com/jaegertracing/jaeger/pull/5228))
+* [jaeger-v2] Add support for Elasticsearch ([@akagami-harsh](https://github.com/akagami-harsh) in [#5152](https://github.com/jaegertracing/jaeger/pull/5152))
+
+### 📊 UI Changes
+
+* UI pinned to version [1.39.0](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#v1390-2024-03-04).
+
 
 1.54.0 (2024-02-06)
 -------------------

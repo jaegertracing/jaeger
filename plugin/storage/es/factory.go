@@ -16,6 +16,7 @@
 package es
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -37,9 +38,11 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
+	esSampleStore "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -81,6 +84,39 @@ func NewFactory() *Factory {
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
+}
+
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	cfg.MaxDocCount = defaultMaxDocCount
+	cfg.Enabled = true
+
+	archive := make(map[string]*namespaceConfig)
+	archive[archiveNamespace] = &namespaceConfig{
+		Configuration: cfg,
+		namespace:     archiveNamespace,
+	}
+
+	f := NewFactory()
+	f.InitFromOptions(Options{
+		Primary: namespaceConfig{
+			Configuration: cfg,
+			namespace:     primaryNamespace,
+		},
+		others: archive,
+	})
+	err := f.Initialize(metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 // AddFlags implements plugin.Configurable
@@ -231,23 +267,6 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder:              es.TextTemplateBuilder{},
-		Shards:                       cfg.NumShards,
-		Replicas:                     cfg.NumReplicas,
-		EsVersion:                    cfg.Version,
-		IndexPrefix:                  cfg.IndexPrefix,
-		UseILM:                       cfg.UseILM,
-		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
-		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
-		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
-	}
-
-	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-	if err != nil {
-		return nil, err
-	}
-
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
@@ -264,12 +283,56 @@ func createSpanWriter(
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.CreateIndexTemplates && !cfg.UseILM {
-		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix)
+		mappingBuilder := mappingBuilderFromConfig(cfg)
+		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
+			return nil, err
+		}
+		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix); err != nil {
 			return nil, err
 		}
 	}
 	return writer, nil
+}
+
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	params := esSampleStore.SamplingStoreParams{
+		Client:                 f.getPrimaryClient,
+		Logger:                 f.logger,
+		IndexPrefix:            f.primaryConfig.IndexPrefix,
+		IndexDateLayout:        f.primaryConfig.IndexDateLayoutSampling,
+		IndexRolloverFrequency: f.primaryConfig.GetIndexRolloverFrequencySamplingDuration(),
+		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
+		MaxDocCount:            f.primaryConfig.MaxDocCount,
+	}
+	store := esSampleStore.NewSamplingStore(params)
+
+	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
+		mappingBuilder := mappingBuilderFromConfig(f.primaryConfig)
+		samplingMapping, err := mappingBuilder.GetSamplingMappings()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := f.getPrimaryClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+			return nil, fmt.Errorf("failed to create template: %w", err)
+		}
+	}
+
+	return store, nil
+}
+
+func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+	return mappings.MappingBuilder{
+		TemplateBuilder:              es.TextTemplateBuilder{},
+		Shards:                       cfg.NumShards,
+		Replicas:                     cfg.NumReplicas,
+		EsVersion:                    cfg.Version,
+		IndexPrefix:                  cfg.IndexPrefix,
+		UseILM:                       cfg.UseILM,
+		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
+		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
+		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+	}
 }
 
 func createDependencyReader(
