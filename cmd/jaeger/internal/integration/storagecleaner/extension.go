@@ -5,6 +5,7 @@ package storagecleaner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -80,7 +81,7 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 		ReadHeaderTimeout: 3 * time.Second,
 	}
 	go func() {
-		if err := c.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := c.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error starting cleaner server: %w", err)
 			c.settings.ReportStatus(component.NewFatalErrorEvent(err))
 		}

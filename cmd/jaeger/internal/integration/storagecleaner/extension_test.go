@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,10 +127,10 @@ func TestStorageExtensionStartError(t *testing.T) {
 		TraceStorage: "storage",
 		Port:         "invalid-port",
 	}
-	var startErr error
+	var startStatus atomic.Pointer[component.StatusEvent]
 	s := newStorageCleaner(config, component.TelemetrySettings{
 		ReportStatus: func(status *component.StatusEvent) {
-			startErr = status.Err()
+			startStatus.Store(status)
 		},
 	})
 	host := storagetest.NewStorageHost().WithExtension(
@@ -140,9 +141,9 @@ func TestStorageExtensionStartError(t *testing.T) {
 		})
 	require.NoError(t, s.Start(context.Background(), host))
 	assert.Eventually(t, func() bool {
-		return startErr != nil
+		return startStatus.Load() != nil
 	}, 5*time.Second, 100*time.Millisecond)
-	require.Contains(t, startErr.Error(), "error starting cleaner server")
+	require.Contains(t, startStatus.Load().Err().Error(), "error starting cleaner server")
 }
 
 type mockServer struct{}
