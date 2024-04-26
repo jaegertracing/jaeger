@@ -15,7 +15,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"time"
@@ -109,17 +108,13 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.RemoteConnectTimeout)
-	defer cancel()
-
 	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
 	if tenancyMgr.Enabled {
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 	var err error
-	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
-	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
+	c.remoteConn, err = grpc.NewClient(c.RemoteServerAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
 	}
