@@ -49,6 +49,13 @@ type Factory interface {
 	CreateDependencyReader() (dependencystore.Reader, error)
 }
 
+// Purger defines an interface that is capable of purging the storage.
+// Only meant to be used from integration tests.
+type Purger interface {
+	// Purge removes all data from the storage.
+	Purge() error
+}
+
 // SamplingStoreFactory defines an interface that is capable of returning the necessary backends for
 // adaptive sampling.
 type SamplingStoreFactory interface {

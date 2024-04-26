@@ -20,12 +20,14 @@ extensions:
         ephemeral: false
         maintenance_interval: 5
         metrics_update_interval: 10
+        span_store_ttl: 72h
       badger_archive:
         directory_key: "/tmp/jaeger_archive/"
         directory_value: "/tmp/jaeger_archive/"
         ephemeral: false
         maintenance_interval: 5
         metrics_update_interval: 10
+        span_store_ttl: 720h
 
 receivers:
   otlp:
