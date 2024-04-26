@@ -32,13 +32,9 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	estemplate "github.com/jaegertracing/jaeger/pkg/es"
-	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
@@ -61,7 +57,6 @@ const (
 
 type ESStorageIntegration struct {
 	StorageIntegration
-	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
 	client        *EsClient
 }
@@ -89,7 +84,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.logger, _ = testutils.NewLogger()
 
 	s.initSpanstore(t, allTagsAsFields)
-	s.initSamplingStore(t)
 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t, allTagsAsFields)
@@ -106,48 +100,18 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
 	s.initSpanstore(t, allTagsAsFields)
 }
 
-func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
-	client := s.getEsClient(t)
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: estemplate.TextTemplateBuilder{},
-		Shards:          5,
-		Replicas:        1,
-		EsVersion:       client.GetVersion(),
-		IndexPrefix:     indexPrefix,
-		UseILM:          false,
-	}
-	clientFn := func() estemplate.Client { return client }
-	samplingstore := samplingstore.NewSamplingStore(
-		samplingstore.SamplingStoreParams{
-			Client:          clientFn,
-			Logger:          s.logger,
-			IndexPrefix:     indexPrefix,
-			IndexDateLayout: indexDateLayout,
-			MaxDocCount:     defaultMaxDocCount,
-		})
-	sampleMapping, err := mappingBuilder.GetSamplingMappings()
-	require.NoError(t, err)
-	err = samplingstore.CreateTemplates(sampleMapping)
-	require.NoError(t, err)
-	s.SamplingStore = samplingstore
-}
-
-func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper {
-	bp, err := s.client.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	require.NoError(t, err)
-	s.bulkProcessor = bp
-	esVersion, err := s.getVersion()
-	require.NoError(t, err)
-	return eswrapper.WrapESClient(s.client.client, bp, esVersion, s.client.v8Client)
-}
-
 func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
 	s.logger = zaptest.NewLogger(t)
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	args := []string{
-		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.num-shards=%v", 5),
+		fmt.Sprintf("--es.num-replicas=%v", 1),
 		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
+		fmt.Sprintf("--es.use-ilm=%v", false),
+		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.bulk.actions=%v", 1),
+		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
 		"--es-archive.enabled=true",
 		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
 		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
@@ -179,6 +143,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	s.DependencyReader, err = f.CreateDependencyReader()
 	require.NoError(t, err)
 	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
+
+	s.SamplingStore, err = f.CreateSamplingStore(1)
+	require.NoError(t, err)
 }
 
 func healthCheck() error {

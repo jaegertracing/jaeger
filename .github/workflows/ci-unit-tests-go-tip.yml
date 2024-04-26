@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions:
   contents: read
-  checks: write
 
 jobs:
   unit-tests-go-tip:
+    permissions:
+      checks: write
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner

@@ -78,11 +78,10 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		}
 	}
 
-	// #nosec G402
 	tlsCfg := &tls.Config{
 		RootCAs:            certPool,
 		ServerName:         p.ServerName,
-		InsecureSkipVerify: p.SkipHostVerify,
+		InsecureSkipVerify: p.SkipHostVerify, /* #nosec G402*/
 		CipherSuites:       cipherSuiteIds,
 		MinVersion:         minVersionId,
 		MaxVersion:         maxVersionId,
