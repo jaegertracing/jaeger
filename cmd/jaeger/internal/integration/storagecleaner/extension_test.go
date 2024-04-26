@@ -62,7 +62,8 @@ func TestStorageCleanerExtension(t *testing.T) {
 		{
 			name:    "good storage",
 			factory: &PurgerFactory{},
-			status:  http.StatusOK},
+			status:  http.StatusOK,
+		},
 		{
 			name:    "good storage with error",
 			factory: &PurgerFactory{err: fmt.Errorf("error")},
