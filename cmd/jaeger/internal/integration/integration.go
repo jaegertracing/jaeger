@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,8 +60,16 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	require.Eventually(t, func() bool {
 		url := fmt.Sprintf("http://localhost:%d/", ports.QueryHTTP)
 		t.Logf("Checking if Jaeger-v2 is available on %s", url)
-		resp, err := http.Get(url)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
+			t.Log(err)
+			return false
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Log(err)
 			return false
 		}
 		defer resp.Body.Close()
