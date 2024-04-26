@@ -45,7 +45,7 @@ type E2EStorageIntegration struct {
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	configFile := createStorageCleanerConfig(t, s.ConfigFile)
-
+	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", configFile},
@@ -75,7 +75,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 		defer resp.Body.Close()
 		return resp.StatusCode == http.StatusOK
 	}, 30*time.Second, 500*time.Millisecond, "Jaeger-v2 did not start")
-	t.Logf("Started Jaeger-v2 with config file %s", configFile)
+	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		require.NoError(t, cmd.Process.Kill())
 	})
