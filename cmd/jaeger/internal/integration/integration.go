@@ -4,11 +4,14 @@
 package integration
 
 import (
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -53,6 +56,17 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 		Stderr: os.Stderr,
 	}
 	require.NoError(t, cmd.Start())
+	require.Eventually(t, func() bool {
+		url := fmt.Sprintf("http://localhost:%d/", ports.QueryHTTP)
+		t.Logf("Checking if Jaeger-v2 is available on %s", url)
+		resp, err := http.Get(url)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 30*time.Second, 500*time.Millisecond, "Jaeger-v2 did not start")
+	t.Logf("Started Jaeger-v2 with config file %s", configFile)
 	t.Cleanup(func() {
 		require.NoError(t, cmd.Process.Kill())
 	})
