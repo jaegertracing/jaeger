@@ -63,6 +63,7 @@ func main() {
 	defer tracer.Close(context.Background())
 
 	memStorePlugin := grpcMemory.NewStoragePlugin(memory.NewStore(), memory.NewStore())
+	memStoreServer := createGRPCServer(v, tracer, memStorePlugin)
 	service := &shared.PluginServices{
 		Store:        memStorePlugin,
 		ArchiveStore: memStorePlugin,

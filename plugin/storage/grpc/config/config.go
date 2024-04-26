@@ -1,7 +1,7 @@
 // Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
+// you may not use this file ex	cept in compliance with the License.
 // You may obtain a copy of the License at
 //
 // http://www.apache.org/licenses/LICENSE-2.0
@@ -35,8 +35,6 @@ var pluginHealthCheckInterval = time.Second * 60
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	// PluginBinary            string `yaml:"binary" mapstructure:"binary"`
-	// PluginConfigurationFile string `yaml:"configuration-file" mapstructure:"configuration_file"`
 	PluginLogLevel       string `yaml:"log-level" mapstructure:"log_level"`
 	RemoteServerAddr     string `yaml:"server" mapstructure:"server"`
 	RemoteTLS            tlscfg.Options
@@ -45,8 +43,7 @@ type Configuration struct {
 
 	pluginHealthCheck     *time.Ticker
 	pluginHealthCheckDone chan bool
-	// pluginRPCClient       plugin.ClientProtocol
-	remoteConn *grpc.ClientConn
+	remoteConn            *grpc.ClientConn
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
