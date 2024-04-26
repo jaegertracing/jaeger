@@ -33,7 +33,7 @@ func TestGRPCStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "grpc")
 
 	s := &GRPCStorageIntegration{}
-	s.ConfigFile = "cmd/jaeger/grpc_config.yaml"
+	s.ConfigFile = "../../grpc_config.yaml"
 	s.SkipBinaryAttrs = true
 
 	s.initialize(t)
