@@ -59,9 +59,20 @@ func TestStorageCleanerExtension(t *testing.T) {
 		factory storage.Factory
 		status  int
 	}{
-		{"good storage", &PurgerFactory{}, http.StatusOK},
-		{"good storage with error", &PurgerFactory{err: fmt.Errorf("error")}, http.StatusInternalServerError},
-		{"bad storage", &factoryMocks.Factory{}, http.StatusInternalServerError},
+		{
+			name:    "good storage",
+			factory: &PurgerFactory{},
+			status:  http.StatusOK},
+		{
+			name:    "good storage with error",
+			factory: &PurgerFactory{err: fmt.Errorf("error")},
+			status:  http.StatusInternalServerError,
+		},
+		{
+			name:    "bad storage",
+			factory: &factoryMocks.Factory{},
+			status:  http.StatusInternalServerError,
+		},
 	}
 
 	for _, test := range tests {
@@ -71,6 +82,7 @@ func TestStorageCleanerExtension(t *testing.T) {
 				Port:         Port,
 			}
 			s := newStorageCleaner(config, component.TelemetrySettings{})
+			require.NotEmpty(t, s.Dependencies())
 			host := storagetest.NewStorageHost()
 			host.WithExtension(jaegerstorage.ID, &mockStorageExt{
 				name:    "storage",
@@ -83,17 +95,14 @@ func TestStorageCleanerExtension(t *testing.T) {
 
 			addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
 			client := &http.Client{}
-			var resp *http.Response
 			require.Eventually(t, func() bool {
 				r, err := http.NewRequest(http.MethodPost, addr, nil)
 				require.NoError(t, err)
-				resp, err = client.Do(r)
+				resp, err := client.Do(r)
 				require.NoError(t, err)
 				defer resp.Body.Close()
-				return err == nil
+				return test.status == resp.StatusCode
 			}, 5*time.Second, 100*time.Millisecond)
-			require.Equal(t, test.status, resp.StatusCode)
-			s.Dependencies()
 		})
 	}
 }
