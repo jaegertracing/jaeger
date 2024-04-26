@@ -89,10 +89,8 @@ func TestStorageCleanerExtension(t *testing.T) {
 				name:    "storage",
 				factory: test.factory,
 			})
-			ctx := context.Background()
-			err := s.Start(ctx, host)
-			defer s.Shutdown(ctx)
-			require.NoError(t, err)
+			require.NoError(t, s.Start(context.Background(), host))
+			defer s.Shutdown(context.Background())
 
 			addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
 			client := &http.Client{}
