@@ -76,7 +76,7 @@ func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerPro
 	if c.PluginBinary != "" {
 		return c.buildPlugin(logger, tracerProvider)
 	} else {
-		return c.buildRemote(logger, tracerProvider)
+		return c.buildRemote(logger, tracerProvider, grpc.NewClient)
 	}
 }
 
@@ -92,7 +92,9 @@ func (c *Configuration) Close() error {
 	return c.RemoteTLS.Close()
 }
 
-func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+type newClientFn func(target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error)
+
+func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider, newClient newClientFn) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
@@ -114,9 +116,9 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 	var err error
-	c.remoteConn, err = grpc.NewClient(c.RemoteServerAddr, opts...)
+	c.remoteConn, err = newClient(c.RemoteServerAddr, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
+		return nil, fmt.Errorf("error creating remote storage client: %w", err)
 	}
 
 	grpcClient := shared.NewGRPCClient(c.remoteConn)
