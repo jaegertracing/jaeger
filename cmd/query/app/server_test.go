@@ -344,7 +344,6 @@ func TestServerHTTPTLS(t *testing.T) {
 				jtracer.NoOp())
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
-			defer server.Close()
 
 			var clientError error
 			var clientClose func() error
@@ -409,20 +408,24 @@ func TestServerHTTPTLS(t *testing.T) {
 					require.NoError(t, err2)
 				}
 			}
-			// server.Close()
-			// assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
+			server.Close()
+			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
 }
 
 func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.TransportCredentials) *grpcClient {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	var conn *grpc.ClientConn
 	var err error
 
 	if creds != nil {
-		conn, err = grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
+		// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
+		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(creds))
 	} else {
-		conn, err = grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
+		conn, err = grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	require.NoError(t, err)
@@ -491,7 +494,6 @@ func TestServerGRPCTLS(t *testing.T) {
 				jtracer.NoOp())
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
-			defer server.Close()
 
 			var clientError error
 			var client *grpcClient
@@ -502,11 +504,12 @@ func TestServerGRPCTLS(t *testing.T) {
 				defer test.clientTLS.Close()
 				creds := credentials.NewTLS(clientTLSCfg)
 				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), creds)
+
 			} else {
 				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), nil)
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
 			res, clientError := client.GetServices(ctx, &api_v2.GetServicesRequest{})
@@ -518,8 +521,8 @@ func TestServerGRPCTLS(t *testing.T) {
 				assert.Equal(t, expectedServices, res.Services)
 			}
 			require.NoError(t, client.conn.Close())
-			// server.Close()
-			// assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
+			server.Close()
+			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
 }
