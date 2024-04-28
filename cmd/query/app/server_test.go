@@ -510,7 +510,9 @@ func TestServerGRPCTLS(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
+			flagsSvc.Logger.Info("calling client.GetServices()")
 			res, clientError := client.GetServices(ctx, &api_v2.GetServicesRequest{})
+			flagsSvc.Logger.Info("returned from GetServices()")
 
 			if test.expectClientError {
 				require.Error(t, clientError)
