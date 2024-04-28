@@ -529,7 +529,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				flagsSvc.Logger.Info("sleep 5sec to server to start")
 				time.Sleep(5 * time.Second)
 				cmd := exec.Cmd{
-					Path: "/usr/sbin/lsof",
+					Path: "lsof",
 					Args: []string{"lsof", "-iTCP", "-sTCP:LISTEN", "-P", "+c0"},
 					// Change the working directory to the root of this project
 					// since the binary config file jaeger_query's ui_config points to
