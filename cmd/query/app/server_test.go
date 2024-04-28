@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -478,7 +479,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-			flagsSvc.Logger = zap.NewNop()
+			flagsSvc.Logger = zaptest.NewLogger(t)
 
 			spanReader := &spanstoremocks.Reader{}
 			dependencyReader := &depsmocks.Reader{}
