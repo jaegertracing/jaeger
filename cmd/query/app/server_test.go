@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -465,6 +467,19 @@ func TestServerGRPCTLS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			{ // TODO remove me
+				cmd := exec.Cmd{
+					Path: "/usr/sbin/lsof",
+					Args: []string{"lsof", "-iTCP", "-sTCP:LISTEN", "-P", "+c0"},
+					// Change the working directory to the root of this project
+					// since the binary config file jaeger_query's ui_config points to
+					// "./cmd/jaeger/config-ui.json"
+					Dir:    "../../../..",
+					Stdout: os.Stderr,
+					Stderr: os.Stderr,
+				}
+				require.NoError(t, cmd.Start())
+			}
 			TLSHTTP := disabledTLSCfg
 			if test.HTTPTLSEnabled {
 				TLSHTTP = enabledTLSCfg
@@ -510,6 +525,23 @@ func TestServerGRPCTLS(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
+			{ // TODO remove me
+				flagsSvc.Logger.Info("sleep 5sec to server to start")
+				time.Sleep(5 * time.Second)
+				cmd := exec.Cmd{
+					Path: "/usr/sbin/lsof",
+					Args: []string{"lsof", "-iTCP", "-sTCP:LISTEN", "-P", "+c0"},
+					// Change the working directory to the root of this project
+					// since the binary config file jaeger_query's ui_config points to
+					// "./cmd/jaeger/config-ui.json"
+					Dir:    "../../../..",
+					Stdout: os.Stderr,
+					Stderr: os.Stderr,
+				}
+				require.NoError(t, cmd.Start())
+			}
+
+			// TODO temporary ^
 			flagsSvc.Logger.Info("calling client.GetServices()")
 			res, clientError := client.GetServices(ctx, &api_v2.GetServicesRequest{})
 			flagsSvc.Logger.Info("returned from GetServices()")
