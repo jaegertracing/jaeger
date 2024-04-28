@@ -15,6 +15,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"time"
@@ -76,7 +77,7 @@ func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerPro
 	if c.PluginBinary != "" {
 		return c.buildPlugin(logger, tracerProvider)
 	} else {
-		return c.buildRemote(logger, tracerProvider, grpc.NewClient)
+		return c.buildRemote(logger, tracerProvider)
 	}
 }
 
@@ -92,9 +93,7 @@ func (c *Configuration) Close() error {
 	return c.RemoteTLS.Close()
 }
 
-type newClientFn func(target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error)
-
-func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider, newClient newClientFn) (*ClientPluginServices, error) {
+func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
@@ -110,15 +109,19 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), c.RemoteConnectTimeout)
+	defer cancel()
+
 	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
 	if tenancyMgr.Enabled {
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 	var err error
-	c.remoteConn, err = newClient(c.RemoteServerAddr, opts...)
+	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
+	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error creating remote storage client: %w", err)
+		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
 	}
 
 	grpcClient := shared.NewGRPCClient(c.remoteConn)
