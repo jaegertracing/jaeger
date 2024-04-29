@@ -469,8 +469,8 @@ func TestServerGRPCTLS(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			{ // TODO remove me
 				cmd := exec.Cmd{
-					Path:   "lsof",
-					Args:   []string{"lsof", "-iTCP", "-sTCP:LISTEN", "-P", "+c0"},
+					Path:   "/bin/bash",
+					Args:   []string{"bash", "-c", "sudo lsof -iTCP -sTCP:LISTEN -P +c0"},
 					Stdout: os.Stderr,
 					Stderr: os.Stderr,
 				}
@@ -525,8 +525,8 @@ func TestServerGRPCTLS(t *testing.T) {
 				flagsSvc.Logger.Info("sleep 5sec to server to start")
 				time.Sleep(5 * time.Second)
 				cmd := exec.Cmd{
-					Path:   "lsof",
-					Args:   []string{"lsof", "-iTCP", "-sTCP:LISTEN", "-P", "+c0"},
+					Path:   "/bin/bash",
+					Args:   []string{"bash", "-c", "sudo lsof -iTCP -sTCP:LISTEN -P +c0"},
 					Stdout: os.Stderr,
 					Stderr: os.Stderr,
 				}
