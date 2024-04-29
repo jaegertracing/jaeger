@@ -160,6 +160,15 @@ func (c *LRU) Delete(key string) {
 	}
 }
 
+// Purge clears the entire cache.
+func (c *LRU) Purge() {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	for key := range c.byKey {
+		c.Delete(key)
+	}
+}
+
 // Size returns the number of entries currently in the lru, useful if cache is not full
 func (c *LRU) Size() int {
 	c.mux.Lock()

@@ -56,6 +56,7 @@ var ( // interface comformance checks
 	_ storage.ArchiveFactory = (*Factory)(nil)
 	_ io.Closer              = (*Factory)(nil)
 	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Purger         = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -75,6 +76,9 @@ type Factory struct {
 	archiveClient atomic.Pointer[es.Client]
 
 	watchers []*fswatcher.FSWatcher
+
+	// for testing
+	spanWriter *esSpanStore.SpanWriter
 }
 
 // NewFactory creates a new Factory.
@@ -196,7 +200,12 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	spanWriter, err := createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	if err != nil {
+		return nil, err
+	}
+	f.spanWriter = spanWriter.(*esSpanStore.SpanWriter)
+	return spanWriter, nil
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -409,4 +418,18 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+// Purge removes all data from the Factory's underlying Elasticsearch store.
+// This function is intended for testing purposes only and should not be used in production environments.
+// Calling Purge in production will result in permanent data loss.
+func (f *Factory) Purge() error {
+	ctx := context.Background()
+	f.spanWriter.ClearServiceCache()
+	esClient := f.getPrimaryClient()
+	_, err := esClient.DeleteIndex("*").Do(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
 }

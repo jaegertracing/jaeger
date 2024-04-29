@@ -32,6 +32,9 @@ type Cache interface {
 	// Delete deletes an element in the cache
 	Delete(key string)
 
+	// Purge deletes all elements present in the cache
+	Purge()
+
 	// Size returns the number of entries currently stored in the Cache
 	Size() int
 

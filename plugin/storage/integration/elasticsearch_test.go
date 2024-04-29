@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -57,8 +56,8 @@ const (
 
 type ESStorageIntegration struct {
 	StorageIntegration
-	logger        *zap.Logger
-	client        *EsClient
+	logger *zap.Logger
+	client *EsClient
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -96,7 +95,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
-	s.client.DeleteAllIndixes(t)
+	_, err := s.client.client.DeleteIndex("*").Do(context.Background())
+	require.NoError(t, err)
 	s.initSpanstore(t, allTagsAsFields)
 }
 

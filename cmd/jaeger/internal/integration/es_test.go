@@ -23,23 +23,23 @@ type ESStorageIntegration struct {
 
 func (s *ESStorageIntegration) initializeES(t *testing.T) {
 	s.esClient = integration.StartEsClient(t, queryURL)
-	s.CleanUp = func(t *testing.T) {
-		s.esClient.DeleteAllIndixes(t)
-	}
-	s.esClient.DeleteAllIndixes(t)
-	// TODO: remove this flag after ES supports returning spanKind
-	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
-	s.GetOperationsMissingSpanKind = true
+	s.CleanUp = cleanUp
 }
 
 func TestESStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "elasticsearch", "opensearch")
 
-	s := &ESStorageIntegration{}
+	s := &ESStorageIntegration{
+		E2EStorageIntegration: E2EStorageIntegration{
+			ConfigFile: "cmd/jaeger/config-elasticsearch.yaml",
+			StorageIntegration: integration.StorageIntegration{
+				Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+				SkipBinaryAttrs:              true,
+				GetOperationsMissingSpanKind: true,
+			},
+		},
+	}
 	s.initializeES(t)
-	s.Fixtures = integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
-	s.ConfigFile = "cmd/jaeger/config-elasticsearch.yaml"
-	s.SkipBinaryAttrs = true
 	s.e2eInitialize(t)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)

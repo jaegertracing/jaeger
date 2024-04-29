@@ -4,7 +4,6 @@
 package integration
 
 import (
-	"context"
 	"testing"
 
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
@@ -32,9 +31,4 @@ func StartEsClient(t *testing.T, queryURL string) *EsClient {
 		client:   rawClient,
 		v8Client: rawV8Client,
 	}
-}
-
-func (s *EsClient) DeleteAllIndixes(t *testing.T) {
-	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
 }

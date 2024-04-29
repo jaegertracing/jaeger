@@ -62,6 +62,10 @@ func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
 	return WrapESIndicesCreateService(c.client.CreateIndex(index))
 }
 
+func (c ClientWrapper) DeleteIndex(index string) es.IndicesDeleteService {
+	return WrapESIndicesDeleteService(c.client.DeleteIndex(index))
+}
+
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 	if c.esVersion >= 8 {
@@ -140,6 +144,19 @@ func (c IndicesCreateServiceWrapper) Body(mapping string) es.IndicesCreateServic
 // Do calls this function to internal service.
 func (c IndicesCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesCreateResult, error) {
 	return c.indicesCreateService.Do(ctx)
+}
+
+type IndicesDeleteServiceWrapper struct {
+	indicesDeleteService *elastic.IndicesDeleteService
+}
+
+func WrapESIndicesDeleteService(indicesDeleteService *elastic.IndicesDeleteService) IndicesDeleteServiceWrapper {
+	return IndicesDeleteServiceWrapper{indicesDeleteService: indicesDeleteService}
+}
+
+// Do calls this function to internal service.
+func (e IndicesDeleteServiceWrapper) Do(ctx context.Context) (*elastic.IndicesDeleteResponse, error) {
+	return e.indicesDeleteService.Do(ctx)
 }
 
 // TemplateCreateServiceWrapper is a wrapper around elastic.IndicesPutTemplateService.
