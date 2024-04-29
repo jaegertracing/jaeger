@@ -474,7 +474,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			Stdout: os.Stdout,
 			Stderr: os.Stdout,
 		}
-		require.NoError(t, cmd.Start())
+		require.NoError(t, cmd.Run())
 	}
 
 	for _, test := range tests {
