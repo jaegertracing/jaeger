@@ -37,11 +37,10 @@ jobs:
       run: |
         case ${{ matrix.version }} in
           v1)
-              make badger-storage-integration-test
+            make badger-storage-integration-test
             ;;
           v2)
-            STORAGE=badger \
-              make jaeger-v2-storage-integration-test
+            STORAGE=badger make jaeger-v2-storage-integration-test
             ;;
         esac
 
@@ -53,6 +52,6 @@ jobs:
       with:
         files: cover.out
         verbose: true
-        flags: badger
+        flags: badger_${{ matrix.version }}
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
