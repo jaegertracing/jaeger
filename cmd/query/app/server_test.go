@@ -471,8 +471,8 @@ func TestServerGRPCTLS(t *testing.T) {
 		cmd := exec.Cmd{
 			Path:   "/bin/bash",
 			Args:   []string{"bash", "-c", "sudo lsof -iTCP -sTCP:LISTEN -P +c0"},
-			Stdout: os.Stderr,
-			Stderr: os.Stderr,
+			Stdout: os.Stdout,
+			Stderr: os.Stdout,
 		}
 		require.NoError(t, cmd.Start())
 	}
