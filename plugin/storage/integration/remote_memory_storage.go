@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -24,7 +25,8 @@ type RemoteMemoryStorage struct {
 	storageFactory *storage.Factory
 }
 
-func StartNewRemoteMemoryStorage(t *testing.T, logger *zap.Logger) *RemoteMemoryStorage {
+func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	opts := &app.Options{
 		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
 		Tenancy: tenancy.Options{
@@ -39,6 +41,7 @@ func StartNewRemoteMemoryStorage(t *testing.T, logger *zap.Logger) *RemoteMemory
 	storageFactory.InitFromViper(v, logger)
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
+	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
 	server, err := app.NewServer(opts, storageFactory, tm, logger, healthcheck.New())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())

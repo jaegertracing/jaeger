@@ -102,7 +102,7 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	}
 	trace, err := g.queryService.GetTrace(stream.Context(), r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		g.logger.Error(msgTraceNotFound, zap.Error(err))
+		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
 		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
 	}
 	if err != nil {
@@ -122,7 +122,7 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	}
 	err := g.queryService.ArchiveTrace(ctx, r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		g.logger.Error("trace not found", zap.Error(err))
+		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
 		return nil, status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
 	}
 	if err != nil {

@@ -40,10 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const (
-	iterations = 100
-)
-
 //go:embed fixtures
 var fixtures embed.FS
 
@@ -130,12 +126,13 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 }
 
 func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+	const iterations = 100 // Will wait at most 100 seconds.
 	for i := 0; i < iterations; i++ {
-		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(time.Second) // Will wait at most 100 seconds.
+		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
+		time.Sleep(time.Second)
 	}
 	return predicate(t)
 }

@@ -4,11 +4,15 @@
 package integration
 
 import (
+	"context"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -41,7 +45,7 @@ type E2EStorageIntegration struct {
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	configFile := createStorageCleanerConfig(t, s.ConfigFile)
-
+	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", configFile},
@@ -53,6 +57,22 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 		Stderr: os.Stderr,
 	}
 	require.NoError(t, cmd.Start())
+	require.Eventually(t, func() bool {
+		url := fmt.Sprintf("http://localhost:%d/", ports.QueryHTTP)
+		t.Logf("Checking if Jaeger-v2 is available on %s", url)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 30*time.Second, 500*time.Millisecond, "Jaeger-v2 did not start")
+	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		require.NoError(t, cmd.Process.Kill())
 	})
