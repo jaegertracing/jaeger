@@ -44,7 +44,7 @@ jobs:
         go-version: 1.22.x
 
     - name: Run cassandra integration tests
-      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }} {{ matrix.jaeger-version }}
+      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
 
     - name: Setup CODECOV_TOKEN
       uses: ./.github/actions/setup-codecov
