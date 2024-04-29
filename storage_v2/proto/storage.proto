@@ -16,12 +16,6 @@ import "model.proto";
 option go_package = "storage_v2";
 option java_package = "io.jaegertracing.storage_v2";
 
-message CloseWriterRequest {
-}
-
-message CloseWriterResponse {
-}
-
 // Request object to get a trace.
 message GetTraceRequest {
   // Hex encoded 64 or 128 bit trace ID.
@@ -147,9 +141,6 @@ message CapabilitiesResponse {
 service TraceWriter {
   // Export is a batched version of WriteSpan that handles OTLP exporter.
   rpc Export(opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest) returns (opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse) {}
-
-  // Close supports graceful shutdown for Writer
-  rpc Close(CloseWriterRequest) returns (CloseWriterResponse) {}
 }
 
 // spanstore/Reader
