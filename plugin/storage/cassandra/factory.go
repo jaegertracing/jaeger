@@ -49,6 +49,7 @@ const (
 
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
+	_ storage.Purger               = (*Factory)(nil)
 	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
@@ -250,4 +251,8 @@ func (f *Factory) Close() error {
 // PrimarySession is used from integration tests to clean database between tests
 func (f *Factory) PrimarySession() cassandra.Session {
 	return f.primarySession
+}
+
+func (f *Factory) Purge() error {
+	return f.primarySession.Query("TRUNCATE traces").Exec()
 }

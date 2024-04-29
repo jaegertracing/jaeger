@@ -17,9 +17,13 @@ extensions:
       cassandra_main:
         servers: 127.0.0.1
         port: 9042
+        keyspace: "jaeger_v1_dc1"
+        connections_per_host: 2
       cassandra_archive:
         servers: 127.0.0.1
         port: 9042
+        keyspace: "jaeger_v1_dc1"
+        connections_per_host: 2
 receivers:
   otlp:
     protocols:
