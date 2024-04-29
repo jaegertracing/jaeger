@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        jaeger-version: [v2, v1]
+        jaeger-version: [v1, v2]
         version:
         - distribution: cassandra
           major: 3.x
@@ -30,7 +30,7 @@ jobs:
           major: 4.x
           image: 4.0
           schema: v004
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
