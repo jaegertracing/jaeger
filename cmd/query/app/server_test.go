@@ -465,16 +465,22 @@ func TestServerGRPCTLS(t *testing.T) {
 		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 	}
 
+	lsof := func(name string) {
+		println("::group::running lsof", name)
+		println("::endgroup::")
+		cmd := exec.Cmd{
+			Path:   "/bin/bash",
+			Args:   []string{"bash", "-c", "sudo lsof -iTCP -sTCP:LISTEN -P +c0"},
+			Stdout: os.Stderr,
+			Stderr: os.Stderr,
+		}
+		require.NoError(t, cmd.Start())
+	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			{ // TODO remove me
-				cmd := exec.Cmd{
-					Path:   "/bin/bash",
-					Args:   []string{"bash", "-c", "sudo lsof -iTCP -sTCP:LISTEN -P +c0"},
-					Stdout: os.Stderr,
-					Stderr: os.Stderr,
-				}
-				require.NoError(t, cmd.Start())
+				lsof("at the start of the test")
 			}
 			TLSHTTP := disabledTLSCfg
 			if test.HTTPTLSEnabled {
@@ -523,14 +529,7 @@ func TestServerGRPCTLS(t *testing.T) {
 
 			{ // TODO remove me
 				flagsSvc.Logger.Info("sleep 5sec to server to start")
-				time.Sleep(5 * time.Second)
-				cmd := exec.Cmd{
-					Path:   "/bin/bash",
-					Args:   []string{"bash", "-c", "sudo lsof -iTCP -sTCP:LISTEN -P +c0"},
-					Stdout: os.Stderr,
-					Stderr: os.Stderr,
-				}
-				require.NoError(t, cmd.Start())
+				lsof("before client call")
 			}
 
 			// TODO temporary ^
