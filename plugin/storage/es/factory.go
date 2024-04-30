@@ -276,6 +276,7 @@ func createSpanWriter(
 		return nil, err
 	}
 
+	logger.Info("TTL", zap.Any("cfg.ServiceCacheTTL", cfg.ServiceCacheTTL))
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
@@ -288,6 +289,7 @@ func createSpanWriter(
 		UseReadWriteAliases:    cfg.UseReadWriteAliases,
 		Logger:                 logger,
 		MetricsFactory:         mFactory,
+		ServiceCacheTTL:        cfg.ServiceCacheTTL,
 	})
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
@@ -425,7 +427,8 @@ func loadTokenFromFile(path string) (string, error) {
 // Calling Purge in production will result in permanent data loss.
 func (f *Factory) Purge() error {
 	ctx := context.Background()
-	f.spanWriter.ClearServiceCache()
+	// f.logger.Info("Purging all data from Elasticsearch")
+	// f.spanWriter.ClearServiceCache()
 	esClient := f.getPrimaryClient()
 	_, err := esClient.DeleteIndex("*").Do(ctx)
 	if err != nil {

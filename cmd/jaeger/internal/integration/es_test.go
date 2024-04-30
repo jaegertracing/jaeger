@@ -27,11 +27,11 @@ func (s *ESStorageIntegration) initializeES(t *testing.T) {
 }
 
 func TestESStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	integration.SkipUnlessEnv(t, "elasticsearch")
 
 	s := &ESStorageIntegration{
 		E2EStorageIntegration: E2EStorageIntegration{
-			ConfigFile: "cmd/jaeger/config-elasticsearch.yaml",
+			ConfigFile: "../../config-elasticsearch.yaml",
 			StorageIntegration: integration.StorageIntegration{
 				Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 				SkipBinaryAttrs:              true,
@@ -40,7 +40,28 @@ func TestESStorage(t *testing.T) {
 		},
 	}
 	s.initializeES(t)
-	s.e2eInitialize(t)
+	s.e2eInitialize(t, "elasticsearch")
+	t.Cleanup(func() {
+		s.e2eCleanUp(t)
+	})
+	s.RunSpanStoreTests(t)
+}
+
+func TestOSStorage(t *testing.T) {
+	integration.SkipUnlessEnv(t, "opensearch")
+
+	s := &ESStorageIntegration{
+		E2EStorageIntegration: E2EStorageIntegration{
+			ConfigFile: "../../config-opensearch.yaml",
+			StorageIntegration: integration.StorageIntegration{
+				Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+				SkipBinaryAttrs:              true,
+				GetOperationsMissingSpanKind: true,
+			},
+		},
+	}
+	s.initializeES(t)
+	s.e2eInitialize(t, "opensearch")
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
