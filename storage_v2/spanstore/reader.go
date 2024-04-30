@@ -7,10 +7,10 @@ import (
 	"context"
 	"time"
 
-	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
-
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
