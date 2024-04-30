@@ -29,7 +29,7 @@ receivers:
     protocols:
       grpc:
       http:
-  
+
   jaeger:
     protocols:
       grpc:
