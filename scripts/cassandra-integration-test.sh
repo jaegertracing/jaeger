@@ -54,14 +54,12 @@ run_integration_test() {
   local schema_version=$2
   local jaegerVersion=$3
   local cid
+  cid=$(setup_cassandra "${version}")
+  apply_schema "$2"
   if [ "${jaegerVersion}" = "v1" ]; then
-    cid=$(setup_cassandra "${version}")
-    apply_schema "$2"
     STORAGE=cassandra make storage-integration-test
     exit_status=$?
   elif [ "${jaegerVersion}" == "v2" ]; then
-    cid=$(setup_cassandra "${version}")
-    apply_schema "$2"
     STORAGE=cassandra make jaeger-v2-storage-integration-test
     exit_status=$?
   else

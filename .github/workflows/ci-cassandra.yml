@@ -54,6 +54,6 @@ jobs:
       with:
         file: cover.out
         verbose: true
-        flags: cassandra-${{ matrix.version.major }}
+        flags: cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
