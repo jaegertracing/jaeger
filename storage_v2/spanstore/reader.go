@@ -21,7 +21,7 @@ type Reader interface {
 	// GetTrace retrieves the trace with a given id.
 	//
 	// If no spans are stored for this trace, it returns ErrTraceNotFound.
-	GetTrace(ctx context.Context, traceID pcommon.TraceID) ([]*ptrace.Traces, error)
+	GetTrace(ctx context.Context, traceID pcommon.TraceID) (*ptrace.Traces, error)
 
 	// GetServices returns all service names known to the backend from spans
 	// within its retention period.
