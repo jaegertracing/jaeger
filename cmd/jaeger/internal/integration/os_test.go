@@ -9,11 +9,10 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-func TestESStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "elasticsearch")
-
+func TestOSStorage(t *testing.T) {
+	integration.SkipUnlessEnv(t, "opensearch")
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-elasticsearch.yaml",
+		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:                      cleanUp,
 			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -21,7 +20,7 @@ func TestESStorage(t *testing.T) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.e2eInitialize(t, "elasticsearch")
+	s.e2eInitialize(t, "opensearch")
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})

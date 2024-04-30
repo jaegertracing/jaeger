@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
+	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -56,12 +58,14 @@ const (
 
 type ESStorageIntegration struct {
 	StorageIntegration
-	logger *zap.Logger
-	client *EsClient
+
+	client   *elastic.Client
+	v8Client *elasticsearch8.Client
+	logger   *zap.Logger
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
-	pingResult, _, err := s.client.client.Ping(queryURL).Do(context.Background())
+	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
 	if err != nil {
 		return 0, err
 	}
@@ -79,8 +83,18 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
-	s.client = StartEsClient(t, queryURL)
+	rawClient, err := elastic.NewClient(
+		elastic.SetURL(queryURL),
+		elastic.SetSniff(false))
+	require.NoError(t, err)
 	s.logger, _ = testutils.NewLogger()
+
+	s.client = rawClient
+	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
+		Addresses:            []string{queryURL},
+		DiscoverNodesOnStart: false,
+	})
+	require.NoError(t, err)
 
 	s.initSpanstore(t, allTagsAsFields)
 
@@ -95,7 +109,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
-	_, err := s.client.client.DeleteIndex("*").Do(context.Background())
+	_, err := s.client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
 	s.initSpanstore(t, allTagsAsFields)
 }
@@ -190,17 +204,17 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
 	if esVersion <= 7 {
-		serviceTemplateExists, err := s.client.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
+		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, serviceTemplateExists)
-		spanTemplateExists, err := s.client.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
+		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, spanTemplateExists)
 	} else {
-		serviceTemplateExistsResponse, err := s.client.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
+		serviceTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
 		require.NoError(t, err)
 		assert.Equal(t, 200, serviceTemplateExistsResponse.StatusCode)
-		spanTemplateExistsResponse, err := s.client.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
+		spanTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
 		require.NoError(t, err)
 		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
 	}
@@ -215,14 +229,14 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		if prefix != "" {
 			prefixWithSeparator += "-"
 		}
-		_, err := s.client.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
+		_, err := s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
 		require.NoError(t, err)
-		_, err = s.client.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
+		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
 		require.NoError(t, err)
-		_, err = s.client.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
+		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
 		require.NoError(t, err)
 	} else {
-		_, err := s.client.client.IndexDeleteTemplate("*").Do(context.Background())
+		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())
 		require.NoError(t, err)
 	}
 	return nil
