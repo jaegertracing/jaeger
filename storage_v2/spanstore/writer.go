@@ -11,7 +11,9 @@ import (
 
 // Writer writes spans to storage.
 type Writer interface {
-	// WriteTrace writes batches of spans at once and
-	// compatible with OTLP Exporter API.
+	// WriteTrace writes a batch of spans to storage. Idempotent.
+	// Implementations are not required to support atomic transactions,
+	// so if any of the spans fail to be written an error is returned.
+	// Compatible with OTLP Exporter API.
 	WriteTraces(ctx context.Context, td ptrace.Traces) error
 }
