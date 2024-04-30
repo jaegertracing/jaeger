@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	samplingIndex        = "jaeger-sampling-"
+	samplingIndex        = "jaeger-sampling"
 	throughputType       = "throughput-sampling"
 	probabilitiesType    = "probabilities-sampling"
 	indexPrefixSeparator = "-"
@@ -59,7 +59,7 @@ func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
 	return &SamplingStore{
 		client:                 p.Client,
 		logger:                 p.Logger,
-		samplingIndexPrefix:    p.prefixIndexName(),
+		samplingIndexPrefix:    p.PrefixedIndexName() + indexPrefixSeparator,
 		indexDateLayout:        p.IndexDateLayout,
 		maxDocCount:            p.MaxDocCount,
 		indexRolloverFrequency: p.IndexRolloverFrequency,
@@ -161,11 +161,6 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func (s *SamplingStore) CreateTemplates(samplingTemplate string) error {
-	_, err := s.client().CreateTemplate("jaeger-sampling").Body(samplingTemplate).Do(context.Background())
-	return err
-}
-
 func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -200,7 +195,7 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 	return indices
 }
 
-func (p *SamplingStoreParams) prefixIndexName() string {
+func (p *SamplingStoreParams) PrefixedIndexName() string {
 	if p.IndexPrefix != "" {
 		return p.IndexPrefix + indexPrefixSeparator + samplingIndex
 	}

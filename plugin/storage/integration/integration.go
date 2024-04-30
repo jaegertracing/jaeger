@@ -40,10 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const (
-	iterations = 100
-)
-
 //go:embed fixtures
 var fixtures embed.FS
 
@@ -130,12 +126,13 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 }
 
 func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+	const iterations = 100 // Will wait at most 100 seconds.
 	for i := 0; i < iterations; i++ {
-		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(time.Second) // Will wait at most 100 seconds.
+		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
+		time.Sleep(time.Second)
 	}
 	return predicate(t)
 }
@@ -316,13 +313,16 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
 		require.NoError(t, err)
 		if len(expected) != len(traces) {
-			t.Logf("FindTraces: expected: %d, actual: %d", len(expected), len(traces))
+			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
+			return false
+		}
+		if spanCount(expected) != spanCount(traces) {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
 		return true
 	})
 	require.True(t, found)
-	tracesMatch(t, traces, expected)
 	return traces
 }
 
@@ -431,13 +431,6 @@ func correctTime(json []byte) []byte {
 	retString := strings.ReplaceAll(jsonString, "2017-01-26", yesterday)
 	retString = strings.ReplaceAll(retString, "2017-01-25", twoDaysAgo)
 	return []byte(retString)
-}
-
-func tracesMatch(t *testing.T, actual []*model.Trace, expected []*model.Trace) bool {
-	if !assert.Equal(t, len(expected), len(actual), "Expecting certain number of traces") {
-		return false
-	}
-	return assert.Equal(t, spanCount(expected), spanCount(actual), "Expecting certain number of spans")
 }
 
 func spanCount(traces []*model.Trace) int {
