@@ -7,7 +7,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // Reader finds and loads traces and other data from storage.
@@ -15,7 +16,7 @@ type Reader interface {
 	// GetTrace retrieves the trace with a given id.
 	//
 	// If no spans are stored for this trace, it returns ErrTraceNotFound.
-	GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
+	GetTrace(ctx context.Context, traceID pcommon.TraceID) ([]*ptrace.Traces, error)
 
 	// GetServices returns all service names known to the backend from spans
 	// within its retention period.
@@ -31,13 +32,13 @@ type Reader interface {
 	// by different spans.
 	//
 	// If no matching traces are found, the function returns (nil, nil).
-	FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error)
+	FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*ptrace.Traces, error)
 
 	// FindTraceIDs does the same search as FindTraces, but returns only the list
 	// of matching trace IDs.
 	//
 	// If no matching traces are found, the function returns (nil, nil).
-	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
+	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]pcommon.TraceID, error)
 }
 
 // TraceQueryParameters contains parameters of a trace query.
