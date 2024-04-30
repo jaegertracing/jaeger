@@ -32,7 +32,7 @@ type Reader interface {
 	GetOperations(ctx context.Context, query OperationQueryParameters) ([]Operation, error)
 
 	// FindTraces returns all traces matching query parameters. There's currently
-	// an implementation-dependent abiguity whether all query filters (such as
+	// an implementation-dependent ambiguity whether all query filters (such as
 	// multiple tags) must apply to the same span within a trace, or can be satisfied
 	// by different spans.
 	//
