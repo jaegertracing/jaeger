@@ -11,7 +11,7 @@ import (
 // It lives within the OTEL collector extension component's lifecycle.
 // The Initialize and Close functions supposed to be called from the
 // OTEL component's Start and Shutdown functions.
-type Factory interface {
+type FactoryBase interface {
 	// Initialize performs internal initialization of the factory,
 	// such as opening connections to the backend store.
 	Initialize(ctx context.Context) error
