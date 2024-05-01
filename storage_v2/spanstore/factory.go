@@ -3,16 +3,18 @@
 
 package spanstore
 
-// Factory defines an interface for a factory that can create implementations of different storage components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
-type Factory interface {
-	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
-	// It is called after all configuration of the factory itself has been done.
-	Initialize() error
+import (
+	"github.com/jaegertracing/jaeger/storage_v2"
+)
 
-	// CreateSpanReader creates a spanstore.Reader.
+// Factory defines an interface for a factory that can create implementations of
+// different span storage components.
+type Factory interface {
+	storage_v2.Factory
+
+	// CreateTraceReader creates a spanstore.Reader.
 	CreateTraceReader() (Reader, error)
 
-	// CreateSpanWriter creates a spanstore.Writer.
+	// CreateTraceWriter creates a spanstore.Writer.
 	CreateTraceWriter() (Writer, error)
 }
