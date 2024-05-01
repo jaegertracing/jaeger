@@ -43,23 +43,6 @@ def num_commits_since_prev_tag(token, base_url):
     print(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
 
-UNCATTEGORIZED = 'Uncategorized'
-categories = [
-    {'title': '#### ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
-    {'title': '#### ✨ New Features', 'label': 'changelog:new-feature'},
-    {'title': '#### 🐞 Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
-    {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
-    {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
-    {'title': None, 'label': 'changelog:test'},
-    {'title': None, 'label': 'changelog:skip'},
-    {'title': None, 'label': 'changelog:dependencies'},
-]
-
-def categorize_pull_request(label):
-    for category, prefix in categories.items():
-        if label.startswith(prefix):
-            return category
-    return UNCATTEGORIZED  # Default category if no matching prefix is found
 
 def updateProgress(iteration, total_iterations):
     progress = (iteration + 1) / total_iterations
@@ -70,7 +53,22 @@ def updateProgress(iteration, total_iterations):
         print()
     return iteration + 1
 
+
 def main(token, repo, num_commits, exclude_dependabot):
+    UNCATTEGORIZED = 'Uncategorized'
+    # Jaeger UI does not have the additional component headers such as "Backend", etc.
+    header_prefix = '###' if repo == 'jaeger-ui' else '####'
+    categories = [
+        {'title': f'{header_prefix} ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
+        {'title': f'{header_prefix} ✨ New Features', 'label': 'changelog:new-feature'},
+        {'title': f'{header_prefix} 🐞 Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
+        {'title': f'{header_prefix} 🚧 Experimental Features', 'label': 'changelog:exprimental'},
+        {'title': f'{header_prefix} 👷 CI Improvements', 'label': 'changelog:ci'},
+        {'title': None, 'label': 'changelog:test'},
+        {'title': None, 'label': 'changelog:skip'},
+        {'title': None, 'label': 'changelog:dependencies'},
+    ]
+
     accept_header = "application/vnd.github.groot-preview+json"
     base_url = f"https://api.github.com/repos/jaegertracing/{repo}"
     commits_url = f"{base_url}/commits"
