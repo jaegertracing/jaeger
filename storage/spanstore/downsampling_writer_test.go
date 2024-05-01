@@ -70,6 +70,7 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	h := c.sampler.hasherPool.Get().(*hasher)
+	//nolint:testifylint
 	assert.Equal(t, h.hashBytes(), h.hashBytes())
 	c.sampler.hasherPool.Put(h)
 	trace := model.TraceID{
@@ -81,6 +82,7 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	}
 	_, _ = span.TraceID.MarshalTo(h.buffer)
 	// Same traceID should always be hashed to same uint64 in DownSamplingWriter.
+	//nolint:testifylint
 	assert.Equal(t, h.hashBytes(), h.hashBytes())
 }
 

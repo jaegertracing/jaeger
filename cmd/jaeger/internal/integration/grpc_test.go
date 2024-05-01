@@ -6,7 +6,6 @@ package integration
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
@@ -17,12 +16,7 @@ type GRPCStorageIntegration struct {
 }
 
 func (s *GRPCStorageIntegration) initialize(t *testing.T) {
-	logger, _ := testutils.NewLogger()
-
-	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t, logger)
-
-	s.Refresh = func(_ *testing.T) {}
-	s.CleanUp = s.cleanUp
+	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t)
 }
 
 func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
@@ -33,10 +27,15 @@ func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
 func TestGRPCStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "grpc")
 
-	s := &GRPCStorageIntegration{}
-	s.ConfigFile = "cmd/jaeger/grpc_config.yaml"
-	s.SkipBinaryAttrs = true
-
+	s := &GRPCStorageIntegration{
+		E2EStorageIntegration: E2EStorageIntegration{
+			ConfigFile: "../../config-remote-storage.yaml",
+			StorageIntegration: integration.StorageIntegration{
+				SkipBinaryAttrs: true,
+			},
+		},
+	}
+	s.CleanUp = s.cleanUp
 	s.initialize(t)
 	s.e2eInitialize(t)
 	t.Cleanup(func() {

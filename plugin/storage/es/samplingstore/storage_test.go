@@ -88,7 +88,7 @@ func TestNewIndexPrefix(t *testing.T) {
 				IndexDateLayout: "2006-01-02",
 				MaxDocCount:     defaultMaxDocCount,
 			})
-			assert.Equal(t, test.expected+samplingIndex, r.samplingIndexPrefix)
+			assert.Equal(t, test.expected+samplingIndex+indexPrefixSeparator, r.samplingIndexPrefix)
 		})
 	}
 }

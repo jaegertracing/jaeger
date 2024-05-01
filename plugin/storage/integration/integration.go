@@ -40,10 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const (
-	iterations = 100
-)
-
 //go:embed fixtures
 var fixtures embed.FS
 
@@ -85,10 +81,6 @@ type StorageIntegration struct {
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func(t *testing.T)
-
-	// Refresh() should ensure that the storage backend is up to date before being queried.
-	// called between set-up and queries in each test
-	Refresh func(t *testing.T)
 }
 
 // === SpanStore Integration Tests ===
@@ -109,11 +101,6 @@ type QueryFixtures struct {
 func (s *StorageIntegration) cleanUp(t *testing.T) {
 	require.NotNil(t, s.CleanUp, "CleanUp function must be provided")
 	s.CleanUp(t)
-}
-
-func (s *StorageIntegration) refresh(t *testing.T) {
-	require.NotNil(t, s.Refresh, "Refresh function must be provided")
-	s.Refresh(t)
 }
 
 func SkipUnlessEnv(t *testing.T, storage ...string) {
@@ -139,12 +126,13 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 }
 
 func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+	const iterations = 100 // Will wait at most 100 seconds.
 	for i := 0; i < iterations; i++ {
-		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(time.Second) // Will wait at most 100 seconds.
+		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
+		time.Sleep(time.Second)
 	}
 	return predicate(t)
 }
@@ -155,7 +143,6 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
 	s.loadParseAndWriteExampleTrace(t)
-	s.refresh(t)
 
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -189,7 +176,6 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	}
 
 	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
-	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -208,7 +194,6 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	t.Log("Testing Large Trace over 10K ...")
 	expected := s.loadParseAndWriteLargeTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
-	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -240,7 +225,6 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		}
 	}
 	s.loadParseAndWriteExampleTrace(t)
-	s.refresh(t)
 
 	var actual []spanstore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -266,7 +250,6 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
-	s.refresh(t)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -313,7 +296,6 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		}
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
-	s.refresh(t)
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
@@ -331,13 +313,16 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
 		require.NoError(t, err)
 		if len(expected) != len(traces) {
-			t.Logf("FindTraces: expected: %d, actual: %d", len(expected), len(traces))
+			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
+			return false
+		}
+		if spanCount(expected) != spanCount(traces) {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
 		return true
 	})
 	require.True(t, found)
-	tracesMatch(t, traces, expected)
 	return traces
 }
 
@@ -448,13 +433,6 @@ func correctTime(json []byte) []byte {
 	return []byte(retString)
 }
 
-func tracesMatch(t *testing.T, actual []*model.Trace, expected []*model.Trace) bool {
-	if !assert.Equal(t, len(expected), len(actual), "Expecting certain number of traces") {
-		return false
-	}
-	return assert.Equal(t, spanCount(expected), spanCount(actual), "Expecting certain number of spans")
-}
-
 func spanCount(traces []*model.Trace) int {
 	var count int
 	for _, trace := range traces {
@@ -495,7 +473,6 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	}
 
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
-	s.refresh(t)
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {
