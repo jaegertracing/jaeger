@@ -56,8 +56,9 @@ def updateProgress(iteration, total_iterations):
 
 def main(token, repo, num_commits, exclude_dependabot):
     UNCATTEGORIZED = 'Uncategorized'
-    # Jaeger UI does not have the additional component headers such as "Backend", etc.
-    header_prefix = '###' if repo == 'jaeger-ui' else '####'
+    # Only jaeger releases have the additional component headers such as "Backend Changes" and "UI Changes",
+    # and hence, require the additional level of headers.
+    header_prefix = '####' if repo == 'jaeger' else '###'
     categories = [
         {'title': f'{header_prefix} ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
         {'title': f'{header_prefix} ✨ New Features', 'label': 'changelog:new-feature'},
@@ -153,9 +154,10 @@ def main(token, repo, num_commits, exclude_dependabot):
             category_results[category].append(result)
 
     # Print categorized pull requests
-    print()
-    print('### Backend Changes')
-    print()
+    if repo == 'jaeger':
+        print()
+        print('### Backend Changes')
+        print()
     for category, results in category_results.items():
         if results and category:
             print(f'{category}\n')
@@ -163,14 +165,15 @@ def main(token, repo, num_commits, exclude_dependabot):
                 print(result)
             print()
 
-    print()
-    print('### 📊 UI Changes')
-    print()
-    print('* UI pinned to version [x.y.z](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#---ANCHOR---).')
+    if repo == 'jaeger':
+        print()
+        print('### 📊 UI Changes')
+        print()
+        print('* UI pinned to version [x.y.z](https://github.com/jaegertracing/jaeger-ui/blob/main/CHANGELOG.md#---ANCHOR---).')
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
-        print(f'#### 💩💩💩 The following commits cannot be categorized (missing changeglog labels):\n')
+        print(f'{header_prefix} 💩💩💩 The following commits cannot be categorized (missing changeglog labels):\n')
         for result in other_results:
             print(result)
         print()
