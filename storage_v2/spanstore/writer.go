@@ -15,5 +15,5 @@ type Writer interface {
 	// Implementations are not required to support atomic transactions,
 	// so if any of the spans fail to be written an error is returned.
 	// Compatible with OTLP Exporter API.
-	WriteTraces(ctx context.Context, td ptrace.Traces) error
+	WriteTraces(ctx context.Context, td *ptrace.Traces) error
 }
