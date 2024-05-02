@@ -110,8 +110,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
-	ctx := context.Background()
-	require.NoError(t, s.factory.Purge(ctx))
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {

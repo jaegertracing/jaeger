@@ -53,8 +53,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
-	ctx := context.Background()
-	s.factory.Purge(ctx)
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func TestBadgerStorage(t *testing.T) {
