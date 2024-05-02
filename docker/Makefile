@@ -20,7 +20,7 @@ create-baseimg: prepare-docker-buildx
 create-debugimg: prepare-docker-buildx
 	docker buildx build -t $(DEBUG_IMAGE) --push \
 		--build-arg golang_image=$(GOLANG_IMAGE) \
-		--platform=$(PLATFORMS) \
+		--platform=linux/amd64 \
 		docker/debug
 
 .PHONY: prepare-docker-buildx
