@@ -70,6 +70,26 @@ func (_m *Client) CreateTemplate(id string) es.TemplateCreateService {
 	return r0
 }
 
+// DeleteIndex provides a mock function with given fields: index
+func (_m *Client) DeleteIndex(index string) es.IndicesDeleteService {
+	ret := _m.Called(index)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteIndex")
+	}
+
+	var r0 es.IndicesDeleteService
+	if rf, ok := ret.Get(0).(func(string) es.IndicesDeleteService); ok {
+		r0 = rf(index)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.IndicesDeleteService)
+		}
+	}
+
+	return r0
+}
+
 // GetVersion provides a mock function with given fields:
 func (_m *Client) GetVersion() uint {
 	ret := _m.Called()

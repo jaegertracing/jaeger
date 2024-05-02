@@ -56,6 +56,7 @@ var ( // interface comformance checks
 	_ storage.ArchiveFactory = (*Factory)(nil)
 	_ io.Closer              = (*Factory)(nil)
 	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Purger         = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -279,6 +280,7 @@ func createSpanWriter(
 		UseReadWriteAliases:    cfg.UseReadWriteAliases,
 		Logger:                 logger,
 		MetricsFactory:         mFactory,
+		ServiceCacheTTL:        cfg.ServiceCacheTTL,
 	})
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
@@ -401,6 +403,12 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
 		}
 	}
+}
+
+func (f *Factory) Purge(ctx context.Context) error {
+	esClient := f.getPrimaryClient()
+	_, err := esClient.DeleteIndex("*").Do(ctx)
+	return err
 }
 
 func loadTokenFromFile(path string) (string, error) {

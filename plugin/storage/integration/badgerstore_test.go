@@ -15,6 +15,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -52,7 +53,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
-	s.factory.Purge()
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func TestBadgerStorage(t *testing.T) {
