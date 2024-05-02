@@ -4,6 +4,7 @@ set -euxf -o pipefail
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 COMMIT=${GITHUB_SHA::8}
+TARGET_ARCH="${1:-all}"
 
 make build-and-run-crossdock
 
@@ -16,7 +17,7 @@ if [[ "$BRANCH" == "main" ]]; then
   bash scripts/docker-login.sh
   docker buildx build --push \
     --progress=plain \
-    --platform=linux/amd64 \
+    --platform="${TARGET_ARCH}" \
     "${IMAGE_TAGS[@]}" \
     crossdock/
 else

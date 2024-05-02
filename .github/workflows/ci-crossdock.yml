@@ -44,14 +44,18 @@ jobs:
       run: make install-ci
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-      with:
-        platforms: linux/amd64,linux/arm64
-    
-    - name: Build, test, and publish crossdock image
+
+    - name: Build crossdock image (main branch only)
+      if: github.ref_name == 'main'
       run: bash scripts/build-crossdock.sh
+
+    - name: Build crossdock image for pull requests (linux/amd64 only)
+      if: github.ref_name != 'main'
+      run: bash scripts/build-crossdock.sh linux/amd64
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
 
     - name: Output crossdock logs
       run: make crossdock-logs
