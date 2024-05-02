@@ -14,7 +14,7 @@ create-baseimg: prepare-docker-buildx
 	docker buildx build -t $(BASE_IMAGE) --push \
 		--build-arg root_image=$(ROOT_IMAGE) \
 		--build-arg cert_image=$(CERT_IMAGE) \
-		--platform=$(PLATFORMS) \
+		--platform=linux/arm64 \
 		docker/base
 
 create-debugimg: prepare-docker-buildx

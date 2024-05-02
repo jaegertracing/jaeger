@@ -50,8 +50,7 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-        TARGETARCH: linux/arm64 
-
+        
     - name: Output crossdock logs
       run: make crossdock-logs
       if: ${{ failure() }}
