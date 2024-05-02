@@ -52,7 +52,7 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 		if !ok {
 			return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
 		}
-		if err := purger.Purge(); err != nil {
+		if err := purger.Purge(ctx); err != nil {
 			return fmt.Errorf("error purging storage: %w", err)
 		}
 		return nil
