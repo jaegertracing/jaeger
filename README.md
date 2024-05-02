@@ -6,8 +6,11 @@
 [![Project+Community stats][community-badge]][community-stats]
 [![Unit Tests][ci-img]][ci]
 [![Coverage Status][cov-img]][cov]
-[![FOSSA Status][fossa-img]](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jaegertracing/jaeger/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jaegertracing/jaeger)
+[![FOSSA Status][fossa-img]][fossa]
+[![OpenSSF Scorecard][openssf-img]][openssf]
+[![OpenSSF Best Practices][openssf-bp-img]][openssf-bp] 
+[![CLOMonitor][clomonitor-img]][clomonitor]
+[![Artifact Hub][artifacthub-img]][artifacthub]
 
 <img src="https://raw.githubusercontent.com/cncf/artwork/main/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
 
@@ -240,6 +243,17 @@ Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).
 [cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/graph/badge.svg
 [cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/main/
 [fossa-img]: https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield
+[fossa]: https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield
+[openssf-img]: https://api.securityscorecards.dev/projects/github.com/jaegertracing/jaeger/badge
+[openssf]: https://securityscorecards.dev/viewer/?uri=github.com/jaegertracing/jaeger
+[openssf-bp-img]: https://www.bestpractices.dev/projects/1273/badge
+[openssf-bp]: https://www.bestpractices.dev/projects/1273
+[clomonitor-img]: https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/jaeger/badge
+[clomonitor]: https://clomonitor.io/projects/cncf/jaeger
+[artifacthub-img]: https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/jaegertracing
+[artifacthub]: https://artifacthub.io/packages/search?repo=jaegertracing
+
+
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: https://uber.github.io
 [community-badge]: https://img.shields.io/badge/Project+Community-stats-blue.svg
