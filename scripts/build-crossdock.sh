@@ -16,7 +16,7 @@ if [[ "$BRANCH" == "main" ]]; then
   bash scripts/docker-login.sh
   docker buildx build --push \
     --progress=plain \
-    --platform=linux/arm64 \
+    --platform=linux/amd64 \
     "${IMAGE_TAGS[@]}" \
     crossdock/
 else
