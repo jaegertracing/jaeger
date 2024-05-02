@@ -62,6 +62,7 @@ type ESStorageIntegration struct {
 	client   *elastic.Client
 	v8Client *elasticsearch8.Client
 	logger   *zap.Logger
+	factory  *es.Factory
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -99,19 +100,18 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.initSpanstore(t, allTagsAsFields)
 
 	s.CleanUp = func(t *testing.T) {
-		s.esCleanUp(t, allTagsAsFields)
+		s.esCleanUp(t)
 	}
-	s.esCleanUp(t, allTagsAsFields)
+	s.esCleanUp(t)
 	s.SkipArchiveTest = false
 	// TODO: remove this flag after ES supports returning spanKind
 	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 	s.GetOperationsMissingSpanKind = true
 }
 
-func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
-	_, err := s.client.DeleteIndex("*").Do(context.Background())
+func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
+	err := s.factory.Purge()
 	require.NoError(t, err)
-	s.initSpanstore(t, allTagsAsFields)
 }
 
 func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
@@ -123,6 +123,7 @@ func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields
 		fmt.Sprintf("--es.num-replicas=%v", 1),
 		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
 		fmt.Sprintf("--es.use-ilm=%v", false),
+		fmt.Sprintf("--es.service-cache-ttl=%v", 1*time.Second),
 		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
 		fmt.Sprintf("--es.bulk.actions=%v", 1),
 		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
@@ -134,16 +135,15 @@ func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields
 	f.InitFromViper(v, s.logger)
 	require.NoError(t, f.Initialize(metrics.NullFactory, s.logger))
 
-	// TODO ideally we need to close the factory once the test is finished
-	// but because esCleanup calls initialize() we get a panic later
-	// t.Cleanup(func() {
-	// 	require.NoError(t, f.Close())
-	// })
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 	return f
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
 	f := s.initializeESFactory(t, allTagsAsFields)
+	s.factory = f
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)

@@ -54,6 +54,7 @@ const (
 	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
 	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
 	suffixIndexRolloverFrequencySampling = ".index-rollover-frequency-adaptive-sampling"
+	suffixServiceCacheTTL                = ".service-cache-ttl"
 	suffixTagsAsFields                   = ".tags-as-fields"
 	suffixTagsAsFieldsAll                = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
@@ -197,6 +198,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
 		"The number of shards per index in Elasticsearch")
+	flagSet.Duration(
+		nsConfig.namespace+suffixServiceCacheTTL,
+		nsConfig.ServiceCacheTTL,
+		"The TTL for the service cache",
+	)
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.NumReplicas,
@@ -352,6 +358,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)

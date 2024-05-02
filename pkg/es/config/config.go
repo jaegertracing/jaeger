@@ -75,6 +75,7 @@ type Configuration struct {
 	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
 	IndexRolloverFrequencyServices string         `mapstructure:"-"`
 	IndexRolloverFrequencySampling string         `mapstructure:"-"`
+	ServiceCacheTTL                time.Duration  `mapstructure:"service_cache_ttl"`
 	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
 	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
 	Enabled                        bool           `mapstructure:"-"`
