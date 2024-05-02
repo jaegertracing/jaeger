@@ -23,6 +23,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
@@ -30,7 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -40,11 +40,10 @@ const defaultLocalKafkaBroker = "127.0.0.1:9092"
 
 type KafkaIntegrationTestSuite struct {
 	StorageIntegration
-	logger *zap.Logger
 }
 
 func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
-	s.logger, _ = testutils.NewLogger()
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	const encoding = "json"
 	const groupID = "kafka-integration-test"
 	const clientID = "kafka-integration-test"
@@ -62,8 +61,8 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 		encoding,
 	})
 	require.NoError(t, err)
-	f.InitFromViper(v, zap.NewNop())
-	err = f.Initialize(metrics.NullFactory, s.logger)
+	f.InitFromViper(v, logger)
+	err = f.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
 
 	spanWriter, err := f.CreateSpanWriter()
@@ -92,7 +91,7 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	}
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
-	spanConsumer, err := builder.CreateConsumer(s.logger, metrics.NullFactory, traceStore, options)
+	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
 	require.NoError(t, err)
 	spanConsumer.Start()
 

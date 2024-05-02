@@ -20,11 +20,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	dbsession "github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -33,7 +33,6 @@ type CassandraStorageIntegration struct {
 	StorageIntegration
 
 	session dbsession.Session
-	logger  *zap.Logger
 }
 
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
@@ -63,18 +62,12 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 }
 
 func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
-	s.logger, _ = testutils.NewLogger()
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	{
-		err := command.ParseFlags(flags)
-		require.NoError(t, err)
-	}
-	f.InitFromViper(v, zap.NewNop())
-	{
-		err := f.Initialize(metrics.NullFactory, s.logger)
-		require.NoError(t, err)
-	}
+	require.NoError(t, command.ParseFlags(flags))
+	f.InitFromViper(v, logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	return f
 }
 
