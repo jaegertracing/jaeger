@@ -76,9 +76,6 @@ type Factory struct {
 	archiveClient atomic.Pointer[es.Client]
 
 	watchers []*fswatcher.FSWatcher
-
-	// for testing
-	spanWriter *esSpanStore.SpanWriter
 }
 
 // NewFactory creates a new Factory.
@@ -200,12 +197,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	spanWriter, err := createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
-	if err != nil {
-		return nil, err
-	}
-	f.spanWriter = spanWriter.(*esSpanStore.SpanWriter)
-	return spanWriter, nil
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -276,7 +268,6 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	logger.Info("TTL", zap.Any("cfg.ServiceCacheTTL", cfg.ServiceCacheTTL))
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
@@ -427,8 +418,6 @@ func loadTokenFromFile(path string) (string, error) {
 // Calling Purge in production will result in permanent data loss.
 func (f *Factory) Purge() error {
 	ctx := context.Background()
-	// f.logger.Info("Purging all data from Elasticsearch")
-	// f.spanWriter.ClearServiceCache()
 	esClient := f.getPrimaryClient()
 	_, err := esClient.DeleteIndex("*").Do(ctx)
 	if err != nil {

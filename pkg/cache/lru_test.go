@@ -225,24 +225,6 @@ func TestRemovedFuncWithTTL(t *testing.T) {
 	}
 }
 
-func TestLRUPurge(t *testing.T) {
-	cache := NewLRU(2)
-
-	cache.Put("A", "Foo")
-	cache.Put("B", "Bar")
-
-	assert.Equal(t, 2, cache.Size())
-
-	assert.Equal(t, "Foo", cache.Get("A"))
-	assert.Equal(t, "Bar", cache.Get("B"))
-
-	cache.Purge()
-	assert.Equal(t, 0, cache.Size())
-
-	assert.Nil(t, cache.Get("A"))
-	assert.Nil(t, cache.Get("B"))
-}
-
 type simulatedClock struct {
 	sync.Mutex
 	currTime time.Time

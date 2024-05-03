@@ -158,11 +158,6 @@ func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	return nil
 }
 
-// ClearServiceCache clears the service cache.
-func (s *SpanWriter) ClearServiceCache() {
-	s.indexCache.Purge()
-}
-
 // Close closes SpanWriter
 func (s *SpanWriter) Close() error {
 	return s.client().Close()
