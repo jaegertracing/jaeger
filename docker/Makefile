@@ -7,7 +7,6 @@ DOCKER_REGISTRY ?= localhost:5000
 BASE_IMAGE ?= $(DOCKER_REGISTRY)/baseimg_alpine:latest
 DEBUG_IMAGE ?= $(DOCKER_REGISTRY)/debugimg_alpine:latest
 PLATFORMS ?= linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
-CROSSDOCK_PLATFORM ?=  linux/arm64
 
 create-baseimg-debugimg: create-baseimg create-debugimg
 
@@ -22,19 +21,6 @@ create-debugimg: prepare-docker-buildx
 	docker buildx build -t $(DEBUG_IMAGE) --push \
 		--build-arg golang_image=$(GOLANG_IMAGE) \
 		--platform=$(PLATFORMS) \
-		docker/debug
-
-crossdock-create-baseimg: prepare-docker-buildx
-	docker buildx build -t $(BASE_IMAGE) --push \
-		--build-arg root_image=$(ROOT_IMAGE) \
-		--build-arg cert_image=$(CERT_IMAGE) \
-		--platform=$(CROSSDOCK_PLATFORM) \
-		docker/base
-
-crossdock-create-debugimg: prepare-docker-buildx
-	docker buildx build -t $(DEBUG_IMAGE) --push \
-		--build-arg golang_image=$(GOLANG_IMAGE) \
-		--platform=$(CROSSDOCK_PLATFORM) \
 		docker/debug
 
 .PHONY: prepare-docker-buildx
