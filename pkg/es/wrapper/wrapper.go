@@ -147,19 +147,6 @@ func (c IndicesCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesCr
 	return c.indicesCreateService.Do(ctx)
 }
 
-type IndicesDeleteServiceWrapper struct {
-	indicesDeleteService *elastic.IndicesDeleteService
-}
-
-func WrapESIndicesDeleteService(indicesDeleteService *elastic.IndicesDeleteService) IndicesDeleteServiceWrapper {
-	return IndicesDeleteServiceWrapper{indicesDeleteService: indicesDeleteService}
-}
-
-// Do calls this function to internal service.
-func (e IndicesDeleteServiceWrapper) Do(ctx context.Context) (*elastic.IndicesDeleteResponse, error) {
-	return e.indicesDeleteService.Do(ctx)
-}
-
 // TemplateCreateServiceWrapper is a wrapper around elastic.IndicesPutTemplateService.
 type TemplateCreateServiceWrapper struct {
 	mappingCreateService *elastic.IndicesPutTemplateService

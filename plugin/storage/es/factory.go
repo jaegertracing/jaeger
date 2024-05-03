@@ -418,16 +418,3 @@ func loadTokenFromFile(path string) (string, error) {
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
-
-// Purge removes all data from the Factory's underlying Elasticsearch store.
-// This function is intended for testing purposes only and should not be used in production environments.
-// Calling Purge in production will result in permanent data loss.
-func (f *Factory) Purge() error {
-	ctx := context.Background()
-	esClient := f.getPrimaryClient()
-	_, err := esClient.DeleteIndex("*").Do(ctx)
-	if err != nil {
-		return err
-	}
-	return nil
-}

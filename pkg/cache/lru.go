@@ -149,6 +149,7 @@ func (c *LRU) putWithMutexHold(key string, value interface{}, elt *list.Element)
 func (c *LRU) Delete(key string) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
+
 	elt := c.byKey[key]
 	if elt != nil {
 		entry := c.byAccess.Remove(elt).(*cacheEntry)
