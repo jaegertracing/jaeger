@@ -96,8 +96,8 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 
-	cfg.MaxDocCount = defaultMaxDocCount
-	cfg.Enabled = true
+	defaultConfig := getDefaultConfig()
+	cfg.ApplyDefaults(&defaultConfig)
 
 	archive := make(map[string]*namespaceConfig)
 	archive[archiveNamespace] = &namespaceConfig{
