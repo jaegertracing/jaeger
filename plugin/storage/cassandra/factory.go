@@ -16,6 +16,7 @@
 package cassandra
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"io"
@@ -253,6 +254,6 @@ func (f *Factory) PrimarySession() cassandra.Session {
 	return f.primarySession
 }
 
-func (f *Factory) Purge() error {
+func (f *Factory) Purge(_ context.Context) error {
 	return f.primarySession.Query("TRUNCATE traces").Exec()
 }
