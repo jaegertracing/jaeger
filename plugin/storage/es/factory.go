@@ -405,6 +405,12 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 	}
 }
 
+func (f *Factory) Purge(ctx context.Context) error {
+	esClient := f.getPrimaryClient()
+	_, err := esClient.DeleteIndex("*").Do(ctx)
+	return err
+}
+
 func loadTokenFromFile(path string) (string, error) {
 	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {

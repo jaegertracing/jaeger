@@ -36,7 +36,6 @@ const (
 
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	logger           *zap.Logger
 	flags            []string
 	factory          *grpc.Factory
 	useRemoteStorage bool
@@ -44,7 +43,7 @@ type GRPCStorageIntegrationTestSuite struct {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
-	s.logger = zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 
 	if s.useRemoteStorage {
 		s.remoteStorage = StartNewRemoteMemoryStorage(t)
@@ -54,8 +53,8 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags(s.flags)
 	require.NoError(t, err)
-	f.InitFromViper(v, zap.NewNop())
-	require.NoError(t, f.Initialize(metrics.NullFactory, s.logger))
+	f.InitFromViper(v, logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	s.factory = f
 
 	s.SpanWriter, err = f.CreateSpanWriter()

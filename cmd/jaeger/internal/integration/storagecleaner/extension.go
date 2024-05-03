@@ -47,19 +47,19 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot find storage factory '%s': %w", c.config.TraceStorage, err)
 	}
 
-	purgeStorage := func() error {
+	purgeStorage := func(httpContext context.Context) error {
 		purger, ok := storageFactory.(storage.Purger)
 		if !ok {
 			return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
 		}
-		if err := purger.Purge(); err != nil {
+		if err := purger.Purge(httpContext); err != nil {
 			return fmt.Errorf("error purging storage: %w", err)
 		}
 		return nil
 	}
 
 	purgeHandler := func(w http.ResponseWriter, r *http.Request) {
-		if err := purgeStorage(); err != nil {
+		if err := purgeStorage(r.Context()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

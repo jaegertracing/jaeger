@@ -32,7 +32,7 @@ func TestBadgerStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "badger")
 
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../badger_config.yaml",
+		ConfigFile: "../../config-badger.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			SkipBinaryAttrs: true,
 			SkipArchiveTest: true,

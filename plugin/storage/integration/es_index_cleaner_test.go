@@ -24,8 +24,6 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const (
@@ -254,6 +252,5 @@ func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elast
 		client:   client,
 		v8Client: v8Client,
 	}
-	s.logger, _ = testutils.NewLogger()
 	s.cleanESIndexTemplates(t, prefix)
 }

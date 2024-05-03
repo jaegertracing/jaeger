@@ -62,6 +62,7 @@ func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
 	return WrapESIndicesCreateService(c.client.CreateIndex(index))
 }
 
+// DeleteIndex calls this function to internal client.
 func (c ClientWrapper) DeleteIndex(index string) es.IndicesDeleteService {
 	return WrapESIndicesDeleteService(c.client.DeleteIndex(index))
 }
@@ -162,6 +163,21 @@ func (e IndicesDeleteServiceWrapper) Do(ctx context.Context) (*elastic.IndicesDe
 // TemplateCreateServiceWrapper is a wrapper around elastic.IndicesPutTemplateService.
 type TemplateCreateServiceWrapper struct {
 	mappingCreateService *elastic.IndicesPutTemplateService
+}
+
+// IndicesDeleteServiceWrapper is a wrapper around elastic.IndicesDeleteService
+type IndicesDeleteServiceWrapper struct {
+	indicesDeleteService *elastic.IndicesDeleteService
+}
+
+// WrapESIndicesDeleteService creates an ESIndicesDeleteService out of *elastic.IndicesDeleteService.
+func WrapESIndicesDeleteService(indicesDeleteService *elastic.IndicesDeleteService) IndicesDeleteServiceWrapper {
+	return IndicesDeleteServiceWrapper{indicesDeleteService: indicesDeleteService}
+}
+
+// Do calls this function to internal service.
+func (e IndicesDeleteServiceWrapper) Do(ctx context.Context) (*elastic.IndicesDeleteResponse, error) {
+	return e.indicesDeleteService.Do(ctx)
 }
 
 // WrapESTemplateCreateService creates an TemplateCreateService out of *elastic.IndicesPutTemplateService.
