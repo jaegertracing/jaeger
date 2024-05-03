@@ -45,14 +45,8 @@ jobs:
     - name: Run cassandra integration tests
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }}
 
-    - name: Setup CODECOV_TOKEN
-      uses: ./.github/actions/setup-codecov
-
     - name: Upload coverage to codecov
-      uses: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
+      uses: ./.github/actions/upload-codecov
       with:
         file: cover.out
-        verbose: true
         flags: cassandra-${{ matrix.version.major }}
-        fail_ci_if_error: true
-        token: ${{ env.CODECOV_TOKEN }}
