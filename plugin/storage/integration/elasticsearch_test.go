@@ -34,7 +34,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -61,8 +60,8 @@ type ESStorageIntegration struct {
 
 	client   *elastic.Client
 	v8Client *elasticsearch8.Client
-	logger   *zap.Logger
-	factory  *es.Factory
+
+	factory *es.Factory
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -88,7 +87,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
 	require.NoError(t, err)
-	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
 	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
@@ -103,10 +101,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 		s.esCleanUp(t)
 	}
 	s.esCleanUp(t)
-	s.SkipArchiveTest = false
-	// TODO: remove this flag after ES supports returning spanKind
-	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
-	s.GetOperationsMissingSpanKind = true
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
@@ -114,7 +108,7 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 }
 
 func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
-	s.logger = zaptest.NewLogger(t)
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	args := []string{
@@ -131,8 +125,8 @@ func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields
 		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
 	}
 	require.NoError(t, command.ParseFlags(args))
-	f.InitFromViper(v, s.logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, s.logger))
+	f.InitFromViper(v, logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
@@ -176,11 +170,16 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
-	s := &ESStorageIntegration{}
+	s := &ESStorageIntegration{
+		StorageIntegration: StorageIntegration{
+			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			SkipArchiveTest: false,
+			// TODO: remove this flag after ES supports returning spanKind
+			//  Issue https://github.com/jaegertracing/jaeger/issues/1923
+			GetOperationsMissingSpanKind: true,
+		},
+	}
 	s.initializeES(t, allTagsAsFields)
-
-	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
-
 	s.RunAll(t)
 }
 
