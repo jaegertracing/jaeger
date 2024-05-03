@@ -14,7 +14,7 @@ func TestCassandraStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-cassandra.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:                      cleanUp,
+			CleanUp:                      purge,
 			GetDependenciesReturnsSource: true,
 			SkipArchiveTest:              true,
 
@@ -30,7 +30,7 @@ func TestCassandraStorage(t *testing.T) {
 			},
 		},
 	}
-	s.e2eInitialize(t)
+	s.e2eInitialize(t, "cassandra")
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
