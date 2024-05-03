@@ -16,6 +16,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,7 @@ type CassandraStorageIntegration struct {
 	StorageIntegration
 
 	session dbsession.Session
+	factory *cassandra.Factory
 }
 
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
@@ -58,7 +60,7 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 }
 
 func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
-	require.NoError(t, s.session.Query("TRUNCATE traces").Exec())
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
@@ -75,6 +77,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
 	})
+	s.factory = f
 	s.session = f.PrimarySession()
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
