@@ -1,0 +1,33 @@
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Codecov upload often fails on rate limits if used without a token.
+# See https://github.com/codecov/codecov-action/issues/837
+# This action embeds a token directly.
+# We cannot define it as "secret" as we need it accessible from forks.
+
+name: 'Upload coverage to codecov'
+description: 'Uploads coverage to codecov with retries'
+inputs:
+  files:
+    description: 'Coverage files to upload'
+    required: true
+  flags:
+    description: 'Flags for codecov'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Retry upload
+      uses: Wandalen/wretry.action@v3.4.0
+      with:
+        attempt_limit: 6
+        # sleep 10 seconds between retries
+        attempt_delay: 10000
+        action: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
+        with: |
+          files: ${{ inputs.files }}
+          flags: ${{ inputs.flags }}
+          verbose: true
+          fail_ci_if_error: true
+          token: f457b710-93af-4191-8678-bcf51281f98c

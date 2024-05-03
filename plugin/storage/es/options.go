@@ -54,6 +54,7 @@ const (
 	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
 	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
 	suffixIndexRolloverFrequencySampling = ".index-rollover-frequency-adaptive-sampling"
+	suffixServiceCacheTTL                = ".service-cache-ttl"
 	suffixTagsAsFields                   = ".tags-as-fields"
 	suffixTagsAsFieldsAll                = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
@@ -98,33 +99,7 @@ type namespaceConfig struct {
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
-	defaultConfig := config.Configuration{
-		Username:                     "",
-		Password:                     "",
-		Sniffer:                      false,
-		MaxSpanAge:                   72 * time.Hour,
-		AdaptiveSamplingLookback:     72 * time.Hour,
-		NumShards:                    5,
-		NumReplicas:                  1,
-		PrioritySpanTemplate:         0,
-		PriorityServiceTemplate:      0,
-		PriorityDependenciesTemplate: 0,
-		BulkSize:                     5 * 1000 * 1000,
-		BulkWorkers:                  1,
-		BulkActions:                  1000,
-		BulkFlushInterval:            time.Millisecond * 200,
-		Tags: config.TagsAsFields{
-			DotReplacement: "@",
-		},
-		Enabled:              true,
-		CreateIndexTemplates: true,
-		Version:              0,
-		Servers:              []string{defaultServerURL},
-		RemoteReadClusters:   []string{},
-		MaxDocCount:          defaultMaxDocCount,
-		LogLevel:             "error",
-		SendGetBodyAs:        defaultSendGetBodyAs,
-	}
+	defaultConfig := getDefaultConfig()
 	options := &Options{
 		Primary: namespaceConfig{
 			Configuration: defaultConfig,
@@ -197,6 +172,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
 		"The number of shards per index in Elasticsearch")
+	flagSet.Duration(
+		nsConfig.namespace+suffixServiceCacheTTL,
+		nsConfig.ServiceCacheTTL,
+		"The TTL for the cache of known service names",
+	)
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.NumReplicas,
@@ -352,6 +332,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
@@ -425,4 +406,36 @@ func initDateLayout(rolloverFreq, sep string) string {
 		indexLayout = indexLayout + sep + "15"
 	}
 	return indexLayout
+}
+
+func getDefaultConfig() config.Configuration {
+	return config.Configuration{
+		Username:                     "",
+		Password:                     "",
+		Sniffer:                      false,
+		MaxSpanAge:                   72 * time.Hour,
+		AdaptiveSamplingLookback:     72 * time.Hour,
+		NumShards:                    5,
+		NumReplicas:                  1,
+		PrioritySpanTemplate:         0,
+		PriorityServiceTemplate:      0,
+		PriorityDependenciesTemplate: 0,
+		BulkSize:                     5 * 1000 * 1000,
+		BulkWorkers:                  1,
+		BulkActions:                  1000,
+		BulkFlushInterval:            time.Millisecond * 200,
+		Tags: config.TagsAsFields{
+			DotReplacement: "@",
+		},
+		Enabled:              true,
+		CreateIndexTemplates: true,
+		Version:              0,
+		UseReadWriteAliases:  false,
+		UseILM:               false,
+		Servers:              []string{defaultServerURL},
+		RemoteReadClusters:   []string{},
+		MaxDocCount:          defaultMaxDocCount,
+		LogLevel:             "error",
+		SendGetBodyAs:        defaultSendGetBodyAs,
+	}
 }
