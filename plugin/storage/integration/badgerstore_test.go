@@ -15,19 +15,19 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
 
 type BadgerIntegrationStorage struct {
 	StorageIntegration
-	logger  *zap.Logger
 	factory *badger.Factory
 }
 
@@ -35,7 +35,8 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
 	s.factory.Options.Primary.Ephemeral = false
 
-	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	err := s.factory.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		s.factory.Close()
@@ -52,7 +53,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
-	s.factory.Purge()
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func TestBadgerStorage(t *testing.T) {
@@ -66,7 +67,6 @@ func TestBadgerStorage(t *testing.T) {
 		},
 	}
 	s.CleanUp = s.cleanUp
-	s.logger, _ = testutils.NewLogger()
 	s.initialize(t)
 	s.RunAll(t)
 }

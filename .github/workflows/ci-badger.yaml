@@ -18,6 +18,9 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   badger:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [v1, v2]
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
@@ -31,7 +34,15 @@ jobs:
         go-version: 1.22.x
 
     - name: Run Badger storage integration tests
-      run: make badger-storage-integration-test
+      run: |
+        case ${{ matrix.version }} in
+          v1)
+            make badger-storage-integration-test
+            ;;
+          v2)
+            STORAGE=badger make jaeger-v2-storage-integration-test
+            ;;
+        esac
 
     - name: Setup CODECOV_TOKEN
       uses: ./.github/actions/setup-codecov
@@ -41,6 +52,6 @@ jobs:
       with:
         files: cover.out
         verbose: true
-        flags: badger
+        flags: badger_${{ matrix.version }}
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}

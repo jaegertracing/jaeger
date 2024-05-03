@@ -15,6 +15,7 @@
 package badger
 
 import (
+	"context"
 	"errors"
 	"expvar"
 	"flag"
@@ -50,6 +51,7 @@ var ( // interface comformance checks
 	_ storage.Factory     = (*Factory)(nil)
 	_ io.Closer           = (*Factory)(nil)
 	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Purger      = (*Factory)(nil)
 
 	// TODO badger could implement archive storage
 	// _ storage.ArchiveFactory       = (*Factory)(nil)
@@ -307,7 +309,7 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 // Purge removes all data from the Factory's underlying Badger store.
 // This function is intended for testing purposes only and should not be used in production environments.
 // Calling Purge in production will result in permanent data loss.
-func (f *Factory) Purge() error {
+func (f *Factory) Purge(_ context.Context) error {
 	return f.store.Update(func(txn *badger.Txn) error {
 		return f.store.DropAll()
 	})
