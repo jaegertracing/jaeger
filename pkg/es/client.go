@@ -30,6 +30,7 @@ type Client interface {
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
+	DeleteIndex(index string) IndicesDeleteService
 	io.Closer
 	GetVersion() uint
 }
@@ -43,6 +44,11 @@ type IndicesExistsService interface {
 type IndicesCreateService interface {
 	Body(mapping string) IndicesCreateService
 	Do(ctx context.Context) (*elastic.IndicesCreateResult, error)
+}
+
+// IndicesDeleteService is an abstraction for elastic.IndicesDeleteService
+type IndicesDeleteService interface {
+	Do(ctx context.Context) (*elastic.IndicesDeleteResponse, error)
 }
 
 // TemplateCreateService is an abstraction for creating a mapping

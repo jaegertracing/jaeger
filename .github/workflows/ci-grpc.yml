@@ -37,13 +37,10 @@ jobs:
       run: |
         case ${{ matrix.version }} in
           v1)
-            SPAN_STORAGE_TYPE=memory \
-              make grpc-storage-integration-test
+            SPAN_STORAGE_TYPE=memory make grpc-storage-integration-test
             ;;
           v2)
-            STORAGE=grpc \
-              SPAN_STORAGE_TYPE=memory \
-              make jaeger-v2-storage-integration-test
+            STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
             ;;
         esac
 
@@ -55,6 +52,6 @@ jobs:
       with:
         files: cover.out
         verbose: true
-        flags: grpc
+        flags: grpc_${{ matrix.version }}
         fail_ci_if_error: true
         token: ${{ env.CODECOV_TOKEN }}
