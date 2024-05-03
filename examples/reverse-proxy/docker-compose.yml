@@ -8,7 +8,8 @@ services:
       - "4317:4317"    # Collector, OpenTelemetry gRPC
       - "4318:4318"    # Collector, OpenTelemetry gRPC
     environment:
-      # This tells Jaeger that it should run the UI with a given prefix.
+      # This tells Jaeger that it should run the UI with UI_Base_Path as prefix and the backend URLs still use QUERY_BASE_PATH as prefix.
+	  QUERY_UI_BASE_PATH: /hub/jaeger/prefix
       QUERY_BASE_PATH: /jaeger/prefix
     networks:
       - proxy-net
