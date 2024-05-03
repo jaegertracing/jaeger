@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
@@ -138,4 +139,18 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	require.NoError(t, err)
 
 	return tempFile
+}
+
+func purge(t *testing.T) {
+	Addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, Addr, nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+
+	resp, err := client.Do(r)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

@@ -14,7 +14,7 @@ func TestOSStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:                      cleanUp,
+			CleanUp:                      purge,
 			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 			SkipBinaryAttrs:              true,
 			GetOperationsMissingSpanKind: true,
