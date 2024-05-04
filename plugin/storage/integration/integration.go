@@ -339,11 +339,6 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
 	for _, span := range trace.Spans {
-		for _, tag := range span.Tags {
-			if tag.Key == "jerry" {
-				fmt.Println("form integration write trace ----------------", tag.VType)
-			}
-		}
 		err := s.SpanWriter.WriteSpan(context.Background(), span)
 		require.NoError(t, err, "Not expecting error when writing trace to storage")
 	}
