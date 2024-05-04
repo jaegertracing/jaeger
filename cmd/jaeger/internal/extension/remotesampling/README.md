@@ -2,6 +2,7 @@
 
 Placeholder
 
+```mermaid
 flowchart LR
     Receiver --> AdaptiveSamplingProcessor --> BatchProcessor --> Exporter
     Exporter -->|"(1) get storage"| JaegerStorageExension
@@ -62,3 +63,4 @@ flowchart LR
             style SamplingStorage fill:blue,color:white
         end
     end
+```
