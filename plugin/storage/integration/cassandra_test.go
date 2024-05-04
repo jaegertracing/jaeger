@@ -23,7 +23,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	dbsession "github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -32,8 +31,6 @@ import (
 
 type CassandraStorageIntegration struct {
 	StorageIntegration
-
-	session dbsession.Session
 	factory *cassandra.Factory
 }
 
@@ -78,7 +75,6 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		"--cassandra.keyspace=jaeger_v1_dc1",
 	})
 	s.factory = f
-	s.session = f.PrimarySession()
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
