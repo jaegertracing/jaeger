@@ -16,6 +16,7 @@
 package cassandra
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"io"
@@ -250,4 +251,8 @@ func (f *Factory) Close() error {
 // PrimarySession is used from integration tests to clean database between tests
 func (f *Factory) PrimarySession() cassandra.Session {
 	return f.primarySession
+}
+
+func (f *Factory) Purge(_ context.Context) error {
+	return f.primarySession.Query("TRUNCATE traces").Exec()
 }

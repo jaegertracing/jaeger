@@ -439,7 +439,7 @@ docker-images-anonymizer:
 
 .PHONY: changelog
 changelog:
-	./scripts/release-notes.py --exclude-dependabot
+	./scripts/release-notes.py --exclude-dependabot --verbose
 
 .PHONY: draft-release
 draft-release:
@@ -456,7 +456,7 @@ install-build-tools:
 
 .PHONY: install-tools
 install-tools: install-test-tools install-build-tools
-	$(GO) install github.com/vektra/mockery/v2@v2.14.0
+	$(GO) install github.com/vektra/mockery/v2@v2.42.3
 
 .PHONY: install-ci
 install-ci: install-test-tools install-build-tools

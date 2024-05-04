@@ -31,7 +31,7 @@ type PurgerFactory struct {
 	err error
 }
 
-func (f *PurgerFactory) Purge() error {
+func (f *PurgerFactory) Purge(_ context.Context) error {
 	return f.err
 }
 

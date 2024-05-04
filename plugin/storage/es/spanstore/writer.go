@@ -46,10 +46,10 @@ type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	client           func() es.Client
-	logger           *zap.Logger
-	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
-	indexCache       cache.Cache
+	client        func() es.Client
+	logger        *zap.Logger
+	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
+	// indexCache       cache.Cache
 	serviceWriter    serviceWriter
 	spanConverter    dbmodel.FromDomain
 	spanServiceIndex spanAndServiceIndexFn
@@ -69,7 +69,6 @@ type SpanWriterParams struct {
 	Archive                bool
 	UseReadWriteAliases    bool
 	ServiceCacheTTL        time.Duration
-	IndexCacheTTL          time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -79,11 +78,6 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		serviceCacheTTL = serviceCacheTTLDefault
 	}
 
-	indexCacheTTL := p.IndexCacheTTL
-	if p.ServiceCacheTTL == 0 {
-		indexCacheTTL = indexCacheTTLDefault
-	}
-
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client: p.Client,
@@ -91,13 +85,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		writerMetrics: spanWriterMetrics{
 			indexCreate: storageMetrics.NewWriteMetrics(p.MetricsFactory, "index_create"),
 		},
-		serviceWriter: serviceOperationStorage.Write,
-		indexCache: cache.NewLRUWithOptions(
-			5,
-			&cache.Options{
-				TTL: indexCacheTTL,
-			},
-		),
+		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.SpanIndexDateLayout, p.ServiceIndexDateLayout),
 	}
