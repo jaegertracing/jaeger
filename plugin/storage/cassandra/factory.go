@@ -91,6 +91,9 @@ func NewFactoryWithConfig(
 	}
 	f := NewFactory()
 	f.primaryConfig = &cfg
+	f.Options.Index.Tags = true
+	f.Options.Index.Logs = true
+	f.Options.Index.ProcessTags = true
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
