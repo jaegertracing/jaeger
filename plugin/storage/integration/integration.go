@@ -568,17 +568,17 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 // RunAll runs all integration tests
 func (s *StorageIntegration) RunAll(t *testing.T) {
 	s.RunSpanStoreTests(t)
-	// t.Run("ArchiveTrace", s.testArchiveTrace)
-	// t.Run("GetDependencies", s.testGetDependencies)
-	// t.Run("GetThroughput", s.testGetThroughput)
-	// t.Run("GetLatestProbability", s.testGetLatestProbability)
+	t.Run("ArchiveTrace", s.testArchiveTrace)
+	t.Run("GetDependencies", s.testGetDependencies)
+	t.Run("GetThroughput", s.testGetThroughput)
+	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
 
 // RunTestSpanstore runs only span related integration tests
 func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
-	// t.Run("GetServices", s.testGetServices)
-	// t.Run("GetOperations", s.testGetOperations)
-	// t.Run("GetTrace", s.testGetTrace)
-	// t.Run("GetLargeSpans", s.testGetLargeSpan)
+	t.Run("GetServices", s.testGetServices)
+	t.Run("GetOperations", s.testGetOperations)
+	t.Run("GetTrace", s.testGetTrace)
+	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
 }
