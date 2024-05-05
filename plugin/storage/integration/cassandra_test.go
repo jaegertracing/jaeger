@@ -38,7 +38,7 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 	s := &CassandraStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
-			SkipArchiveTest:              true,
+			SkipArchiveTest:              false,
 
 			SkipList: CassandraSkippedTests,
 		},
@@ -70,6 +70,10 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	s.SpanReader, err = f.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
