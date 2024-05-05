@@ -40,16 +40,7 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 			GetDependenciesReturnsSource: true,
 			SkipArchiveTest:              true,
 
-			SkipList: []string{
-				"Tags_+_Operation_name_+_Duration_range",
-				"Tags_+_Duration_range",
-				"Tags_+_Operation_name_+_max_Duration",
-				"Tags_+_max_Duration",
-				"Operation_name_+_Duration_range",
-				"Duration_range",
-				"max_Duration",
-				"Multiple_Traces",
-			},
+			SkipList: CassandraSkippedTests,
 		},
 	}
 	s.CleanUp = s.cleanUp

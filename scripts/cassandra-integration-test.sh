@@ -8,8 +8,8 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments, <cassandra_version> <schema_version>"
+  if [ ! $# -eq 3 ]; then
+    echo "ERROR: need exactly three arguments, <cassandra_version> <schema_version> <jaeger_version>"
     usage
   fi
 }
@@ -52,11 +52,20 @@ apply_schema() {
 run_integration_test() {
   local version=$1
   local schema_version=$2
+  local jaegerVersion=$3
   local cid
   cid=$(setup_cassandra "${version}")
   apply_schema "$2"
-  STORAGE=cassandra make storage-integration-test
-  exit_status=$?
+  if [ "${jaegerVersion}" = "v1" ]; then
+    STORAGE=cassandra make storage-integration-test
+    exit_status=$?
+  elif [ "${jaegerVersion}" == "v2" ]; then
+    STORAGE=cassandra make jaeger-v2-storage-integration-test
+    exit_status=$?
+  else
+    echo "Unknown jaeger version $jaegerVersion. Valid options are v1 or v2"
+    exit 1
+  fi
   # shellcheck disable=SC2064
   trap "teardown_cassandra ${cid}" EXIT
 }
@@ -65,7 +74,7 @@ main() {
   check_arg "$@"
 
   echo "Executing integration test for $1 with schema $2.cql.tmpl"
-  run_integration_test "$1" "$2"
+  run_integration_test "$1" "$2" "$3"
 }
 
 main "$@"
