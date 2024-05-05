@@ -16,6 +16,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 
 	"go.uber.org/zap"
@@ -53,7 +54,7 @@ type Factory interface {
 // Only meant to be used from integration tests.
 type Purger interface {
 	// Purge removes all data from the storage.
-	Purge() error
+	Purge(context.Context) error
 }
 
 // SamplingStoreFactory defines an interface that is capable of returning the necessary backends for

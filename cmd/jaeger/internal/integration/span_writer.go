@@ -34,7 +34,6 @@ func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 	factory := otlpexporter.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
 	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
-	cfg.RetryConfig.Enabled = false
 	cfg.QueueConfig.Enabled = false
 	cfg.TLSSetting = configtls.ClientConfig{
 		Insecure: true,

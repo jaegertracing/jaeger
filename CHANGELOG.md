@@ -21,6 +21,34 @@ run `make changelog` to generate content
 
 </details>
 
+1.57.0 (2024-05-01)
+-------------------
+
+### Backend Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* [jaeger-v2] define an internal interface of storage v2 spanstore ([@james-ryans](https://github.com/james-ryans) in [#5399](https://github.com/jaegertracing/jaeger/pull/5399))
+* Combine jaeger ui release notes with jaeger backend ([@albertteoh](https://github.com/albertteoh) in [#5405](https://github.com/jaegertracing/jaeger/pull/5405))
+* [agent] use grpc.newclient ([@yurishkuro](https://github.com/yurishkuro) in [#5392](https://github.com/jaegertracing/jaeger/pull/5392))
+* [sampling] fix merging of per-operation strategies into service strategies without them ([@kuujis](https://github.com/kuujis) in [#5277](https://github.com/jaegertracing/jaeger/pull/5277))
+* Create sampling templates when creating sampling store ([@JaeguKim](https://github.com/JaeguKim) in [#5349](https://github.com/jaegertracing/jaeger/pull/5349))
+* [kafka-consumer] set the rackid in consumer config ([@sappusaketh](https://github.com/sappusaketh) in [#5374](https://github.com/jaegertracing/jaeger/pull/5374))
+* Adding best practices badge to readme.md ([@jkowall](https://github.com/jkowall) in [#5369](https://github.com/jaegertracing/jaeger/pull/5369))
+
+#### 👷 CI Improvements
+
+* Moving global write permissions down into the ci jobs ([@jkowall](https://github.com/jkowall) in [#5370](https://github.com/jaegertracing/jaeger/pull/5370))
+
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Improve trace page title with data and unique emoji (fixes #2256) ([@nox](https://github.com/nox) in [#2275](https://github.com/jaegertracing/jaeger-ui/pull/2275))
+* Require node version 20+ ([@Baalekshan](https://github.com/Baalekshan) in [#2274](https://github.com/jaegertracing/jaeger-ui/pull/2274))
+
+
 1.56.0 (2024-04-02)
 -------------------
 
