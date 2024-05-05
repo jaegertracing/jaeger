@@ -61,10 +61,10 @@ func TestWithConfiguration(t *testing.T) {
 	assert.Equal(t, 100, f.options.Configuration.MaxTraces)
 }
 
-func TestInitFromOptions(t *testing.T) {
+func TestConfigureFromOptions(t *testing.T) {
 	o := Options{}
 	f := Factory{}
-	f.InitFromOptions(o)
+	f.configureFromOptions(o)
 	assert.Equal(t, o, f.options)
 }
 

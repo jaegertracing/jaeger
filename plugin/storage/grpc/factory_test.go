@@ -315,14 +315,14 @@ func TestWithConfiguration(t *testing.T) {
 	require.NoError(t, f.Close())
 }
 
-func TestInitFromOptions(t *testing.T) {
+func TestConfigureFromOptions(t *testing.T) {
 	f := Factory{}
 	o := Options{
 		Configuration: grpcConfig.Configuration{
 			PluginLogLevel: "info",
 		},
 	}
-	f.InitFromOptions(o)
+	f.configureFromOptions(o)
 	assert.Equal(t, o, f.options)
 	assert.Equal(t, &o.Configuration, f.builder)
 }
