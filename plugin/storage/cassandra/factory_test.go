@@ -191,11 +191,11 @@ func TestWriterOptions(t *testing.T) {
 	assert.Empty(t, options)
 }
 
-func TestInitFromOptions(t *testing.T) {
+func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
 	o := NewOptions("foo", archiveStorageConfig)
 	o.others[archiveStorageConfig].Enabled = true
-	f.InitFromOptions(o)
+	f.configureFromOptions(o)
 	assert.Equal(t, o, f.Options)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
@@ -203,7 +203,7 @@ func TestInitFromOptions(t *testing.T) {
 
 func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
-		cfg := Options{
+		opts := &Options{
 			Primary: namespaceConfig{
 				Configuration: cassandraCfg.Configuration{
 					Servers: []string{"localhost:9200"},
@@ -213,7 +213,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		f := NewFactory()
 		b := &withConfigBuilder{
 			f:              f,
-			cfg:            &cfg,
+			opts:           opts,
 			metricsFactory: metrics.NullFactory,
 			logger:         zap.NewNop(),
 			initializer:    func(metricsFactory metrics.Factory, logger *zap.Logger) error { return nil },
@@ -223,7 +223,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	})
 	t.Run("connection error", func(t *testing.T) {
 		expErr := errors.New("made-up error")
-		cfg := Options{
+		opts := &Options{
 			Primary: namespaceConfig{
 				Configuration: cassandraCfg.Configuration{
 					Servers: []string{"localhost:9200"},
@@ -233,7 +233,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		f := NewFactory()
 		b := &withConfigBuilder{
 			f:              f,
-			cfg:            &cfg,
+			opts:           opts,
 			metricsFactory: metrics.NullFactory,
 			logger:         zap.NewNop(),
 			initializer:    func(metricsFactory metrics.Factory, logger *zap.Logger) error { return expErr },
