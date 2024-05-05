@@ -82,18 +82,16 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig initializes factory with Config.
 func NewFactoryWithConfig(
-	cfg config.Configuration,
+	cfg Options,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.Primary.Validate(); err != nil {
 		return nil, err
 	}
 	f := NewFactory()
-	f.primaryConfig = &cfg
-	f.Options.Index.Tags = true
-	f.Options.Index.Logs = true
-	f.Options.Index.ProcessTags = true
+	f.primaryConfig = &cfg.Primary
+	f.Options.Index = cfg.Index
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err

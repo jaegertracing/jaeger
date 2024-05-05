@@ -203,25 +203,33 @@ func TestInitFromOptions(t *testing.T) {
 func TestConfigurationValidation(t *testing.T) {
 	testCases := []struct {
 		name    string
-		cfg     cassandraCfg.Configuration
+		cfg     Options
 		wantErr bool
 	}{
 		{
 			name: "valid configuration",
-			cfg: cassandraCfg.Configuration{
-				Servers: []string{"http://localhost:9200"},
+			cfg: Options{
+				Primary: namespaceConfig{
+					Configuration: cassandraCfg.Configuration{
+						Servers: []string{"http://localhost:9200"},
+					},
+				},
 			},
 			wantErr: false,
 		},
 		{
-			name:    "missing servers",
-			cfg:     cassandraCfg.Configuration{},
+			name: "missing servers",
+			cfg: Options{
+				Primary: namespaceConfig{
+					Configuration: cassandraCfg.Configuration{},
+				},
+			},
 			wantErr: true,
 		},
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.cfg.Validate()
+			err := test.cfg.Primary.Validate()
 			if test.wantErr {
 				require.Error(t, err)
 				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
