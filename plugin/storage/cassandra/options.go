@@ -96,6 +96,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				ProtoVersion:       4,
 				ConnectionsPerHost: 2,
 				ReconnectInterval:  60 * time.Second,
+				Servers:            []string{"127.0.0.1"},
 			},
 			servers:   "127.0.0.1",
 			namespace: primaryNamespace,
@@ -246,6 +247,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
 	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
 	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
+	cfg.Servers = strings.Split(cfg.servers, ",")
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
 	cfg.LocalDC = v.GetString(cfg.namespace + suffixDC)
@@ -265,7 +267,6 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
-	opt.Primary.Servers = strings.Split(opt.Primary.servers, ",")
 	return &opt.Primary.Configuration
 }
 
@@ -280,10 +281,9 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		return nil
 	}
 	nsCfg.Configuration.ApplyDefaults(&opt.Primary.Configuration)
-	if nsCfg.servers == "" {
-		nsCfg.servers = opt.Primary.servers
+	if len(nsCfg.Servers) == 0 {
+		nsCfg.Servers = opt.Primary.Servers
 	}
-	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
 }
 
