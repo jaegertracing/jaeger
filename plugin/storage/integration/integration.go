@@ -113,6 +113,17 @@ func SkipUnlessEnv(t *testing.T, storage ...string) {
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
 }
 
+var CassandraSkippedTests = []string{
+	"Tags_+_Operation_name_+_Duration_range",
+	"Tags_+_Duration_range",
+	"Tags_+_Operation_name_+_max_Duration",
+	"Tags_+_max_Duration",
+	"Operation_name_+_Duration_range",
+	"Duration_range",
+	"max_Duration",
+	"Multiple_Traces",
+}
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
 		escapedPat := regexp.QuoteMeta(pat)

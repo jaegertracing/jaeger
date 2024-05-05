@@ -44,14 +44,8 @@ jobs:
             ;;
         esac
 
-    - name: Setup CODECOV_TOKEN
-      uses: ./.github/actions/setup-codecov
-
     - name: Upload coverage to codecov
-      uses: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
+      uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        verbose: true
         flags: badger_${{ matrix.version }}
-        fail_ci_if_error: true
-        token: ${{ env.CODECOV_TOKEN }}
