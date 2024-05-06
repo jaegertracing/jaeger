@@ -153,7 +153,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return err
 	}
 	f.primarySession = primarySession
-	
 	if f.archiveConfig != nil {
 		if archiveSession, err := f.archiveConfig.NewSession(logger); err == nil {
 			f.archiveSession = archiveSession
