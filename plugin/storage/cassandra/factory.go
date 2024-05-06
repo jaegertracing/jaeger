@@ -127,7 +127,9 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.primaryConfig = f.Options.GetPrimary()
-	f.archiveConfig = f.Options.GetPrimary()
+	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
+		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
+	}
 }
 
 // InitFromOptions initializes factory from options.
@@ -154,7 +156,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return err
 	}
 	f.primarySession = primarySession
-	// f.archiveSession, _ = f.primaryConfig.NewSession(logger)
 	if f.archiveConfig != nil {
 		if archiveSession, err := f.archiveConfig.NewSession(logger); err == nil {
 			f.archiveSession = archiveSession
