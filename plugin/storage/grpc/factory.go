@@ -70,7 +70,7 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.InitFromOptions(Options{Configuration: cfg})
+	f.configureFromOptions(Options{Configuration: cfg})
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
@@ -91,8 +91,8 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.builder = &f.options.Configuration
 }
 
-// InitFromOptions initializes factory from options
-func (f *Factory) InitFromOptions(opts Options) {
+// configureFromOptions initializes factory from options
+func (f *Factory) configureFromOptions(opts Options) {
 	f.options = opts
 	f.builder = &f.options.Configuration
 }

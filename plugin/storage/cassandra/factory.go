@@ -82,7 +82,7 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig initializes factory with Config.
 func NewFactoryWithConfig(
-	cfg Options,
+	opts Options,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
@@ -90,7 +90,7 @@ func NewFactoryWithConfig(
 	// use this to help with testing
 	b := &withConfigBuilder{
 		f:              f,
-		cfg:            &cfg,
+		opts:           &opts,
 		metricsFactory: metricsFactory,
 		logger:         logger,
 		initializer:    f.Initialize, // this can be mocked in tests
@@ -100,15 +100,15 @@ func NewFactoryWithConfig(
 
 type withConfigBuilder struct {
 	f              *Factory
-	cfg            *Options
+	opts           *Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	initializer    func(metricsFactory metrics.Factory, logger *zap.Logger) error
 }
 
 func (b *withConfigBuilder) build() (*Factory, error) {
-	b.f.InitFromOptions(b.cfg)
-	if err := b.cfg.Primary.Validate(); err != nil {
+	b.f.configureFromOptions(b.opts)
+	if err := b.opts.Primary.Validate(); err != nil {
 		return nil, err
 	}
 	err := b.initializer(b.metricsFactory, b.logger)
@@ -126,14 +126,11 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.primaryConfig = f.Options.GetPrimary()
-	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
-	}
+	f.configureFromOptions(f.Options)
 }
 
 // InitFromOptions initializes factory from options.
-func (f *Factory) InitFromOptions(o *Options) {
+func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
 	// TODO this is a hack because we do not define defaults in Options
 	if o.others == nil {
