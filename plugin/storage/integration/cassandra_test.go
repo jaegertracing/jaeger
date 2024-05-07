@@ -38,7 +38,6 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 	s := &CassandraStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
-			SkipArchiveTest:              false,
 
 			SkipList: CassandraSkippedTests,
 		},
