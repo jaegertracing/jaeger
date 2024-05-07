@@ -63,7 +63,7 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, f
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
-		"--cassandra-archive.keyspace=jaeger_v1_dc1",
+		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
 		"--cassandra-archive.enabled=true",
 		"--cassandra-archive.servers=127.0.0.1",
 	})
