@@ -48,6 +48,12 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
+
+	logFile := filepath.Join(t.TempDir(), "jaeger_logs.txt")
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	require.NoError(t, err)
+	t.Logf("Writing the Jaeger-v2 logs into %s", logFile)
+
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", configFile},
@@ -55,8 +61,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		// since the binary config file jaeger_query's ui_config points to
 		// "./cmd/jaeger/config-ui.json"
 		Dir:    "../../../..",
-		Stdout: os.Stderr,
-		Stderr: os.Stderr,
+		Stdout: file,
+		Stderr: file,
 	}
 	require.NoError(t, cmd.Start())
 	require.Eventually(t, func() bool {
@@ -76,10 +82,14 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	}, 30*time.Second, 500*time.Millisecond, "Jaeger-v2 did not start")
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
+		if t.Failed() {
+			logs, err := os.ReadFile(logFile)
+			require.NoError(t, err)
+			t.Logf("Jaeger-v2 logs:\n%s", logs)
+		}
 		require.NoError(t, cmd.Process.Kill())
 	})
 
-	var err error
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
 	s.SpanReader, err = createSpanReader(ports.QueryGRPC)
