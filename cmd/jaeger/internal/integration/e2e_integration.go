@@ -101,11 +101,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			fmt.Println("::group::Jaeger-v2 binary logs")
 			outLogs, err := os.ReadFile(outFile.Name())
 			require.NoError(t, err)
-			t.Logf("Jaeger-v2 output logs:\n%s", outLogs)
+			fmt.Printf("Jaeger-v2 output logs:\n%s", outLogs)
 
 			errLogs, err := os.ReadFile(errFile.Name())
 			require.NoError(t, err)
-			t.Logf("Jaeger-v2 error logs:\n%s", errLogs)
+			fmt.Printf("Jaeger-v2 error logs:\n%s", errLogs)
 			// End of Github Actions foldable section annotation.
 			fmt.Println("::endgroup::")
 		}
