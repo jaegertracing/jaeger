@@ -95,6 +95,10 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	t.Cleanup(func() {
 		require.NoError(t, cmd.Process.Kill())
 		if t.Failed() {
+			// A Github Actions special annotation to create a foldable section
+			// in the Github runner output.
+			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
+			fmt.Println("::group::Jaeger-v2 binary logs")
 			outLogs, err := os.ReadFile(outFile.Name())
 			require.NoError(t, err)
 			t.Logf("Jaeger-v2 output logs:\n%s", outLogs)
@@ -102,6 +106,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			errLogs, err := os.ReadFile(errFile.Name())
 			require.NoError(t, err)
 			t.Logf("Jaeger-v2 error logs:\n%s", errLogs)
+			// End of Github Actions foldable section annotation.
+			fmt.Println("::endgroup::")
 		}
 	})
 
