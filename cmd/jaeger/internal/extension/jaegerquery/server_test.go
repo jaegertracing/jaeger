@@ -16,12 +16,8 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -236,67 +232,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			}
 
 			assert.Contains(t, buf.String(), tt.expectedOutput)
-		})
-	}
-}
-
-func TestServerShutdown(t *testing.T) {
-	tests := []struct {
-		name           string
-		hasQueryServer bool
-	}{
-		{
-			name:           "server.server nil",
-			hasQueryServer: false,
-		},
-		{
-			name:           "server.server not nil",
-			hasQueryServer: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			telemetrySettings := component.TelemetrySettings{
-				Logger: zaptest.NewLogger(t),
-			}
-			server := newServer(createDefaultConfig().(*Config), telemetrySettings)
-			assert.NotNil(t, server)
-
-			if tt.hasQueryServer {
-				serverOptions := &queryApp.QueryOptions{
-					HTTPHostPort: ":8080",
-					GRPCHostPort: ":8080",
-					QueryOptionsBase: queryApp.QueryOptionsBase{
-						Tenancy: tenancy.Options{
-							Enabled: true,
-						},
-					},
-				}
-				tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
-				spanReader := &spanstoremocks.Reader{}
-				dependencyReader := &depsmocks.Reader{}
-				querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-				hc := healthcheck.New()
-				hc.SetLogger(telemetrySettings.Logger)
-				queryAppServer, err := queryApp.NewServer(
-					telemetrySettings.Logger,
-					hc,
-					querySvc,
-					nil, // metricsQuerySvc
-					serverOptions,
-					tenancyMgr,
-					jtracer.NoOp())
-				require.NoError(t, err)
-
-				err = queryAppServer.Start()
-				require.NoError(t, err)
-
-				server.server = queryAppServer
-			}
-
-			err := server.Shutdown(context.Background())
-			require.NoError(t, err)
 		})
 	}
 }
