@@ -13,10 +13,12 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -62,12 +64,13 @@ func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 
 type fakeStorageExt struct{}
 
-func (fse fakeStorageExt) Factory(name string) (storage.Factory, error) {
-	fmt.Println("Name: ", name)
+var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
+
+func (fse fakeStorageExt) Factory(name string) (storage.Factory, bool) {
 	if name == "need-factory-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, false
 	}
-	return fakeFactory{name: name}, nil
+	return fakeFactory{name: name}, true
 }
 
 func (fse fakeStorageExt) Start(ctx context.Context, host component.Host) error {
@@ -290,8 +293,15 @@ func TestServerShutdown(t *testing.T) {
 				spanReader := &spanstoremocks.Reader{}
 				dependencyReader := &depsmocks.Reader{}
 				querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
-				queryAppServer, err := queryApp.NewServer(zap.NewNop(), querySvc, nil,
-					serverOptions, tenancyMgr,
+				hc := healthcheck.New()
+				hc.SetLogger(zaptest.NewLogger(t))
+				queryAppServer, err := queryApp.NewServer(
+					zap.NewNop(),
+					hc,
+					querySvc,
+					nil, // metricsQuerySvc
+					serverOptions,
+					tenancyMgr,
 					jtracer.NoOp())
 				require.NoError(t, err)
 
