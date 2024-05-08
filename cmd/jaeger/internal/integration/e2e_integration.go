@@ -49,10 +49,21 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
-	logFile := filepath.Join(t.TempDir(), "jaeger_logs.txt")
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	outFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "jaeger_output_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
 	require.NoError(t, err)
-	t.Logf("Writing the Jaeger-v2 logs into %s", logFile)
+	t.Logf("Writing the Jaeger-v2 output logs into %s", outFile.Name())
+
+	errFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "jaeger_error_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
+	require.NoError(t, err)
+	t.Logf("Writing the Jaeger-v2 error logs into %s", errFile.Name())
 
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
@@ -61,8 +72,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		// since the binary config file jaeger_query's ui_config points to
 		// "./cmd/jaeger/config-ui.json"
 		Dir:    "../../../..",
-		Stdout: file,
-		Stderr: file,
+		Stdout: outFile,
+		Stderr: errFile,
 	}
 	require.NoError(t, cmd.Start())
 	require.Eventually(t, func() bool {
@@ -83,9 +94,13 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		if t.Failed() {
-			logs, err := os.ReadFile(logFile)
+			outLogs, err := os.ReadFile(outFile.Name())
 			require.NoError(t, err)
-			t.Logf("Jaeger-v2 logs:\n%s", logs)
+			t.Logf("Jaeger-v2 output logs:\n%s", outLogs)
+
+			errLogs, err := os.ReadFile(errFile.Name())
+			require.NoError(t, err)
+			t.Logf("Jaeger-v2 error logs:\n%s", errLogs)
 		}
 		require.NoError(t, cmd.Process.Kill())
 	})
