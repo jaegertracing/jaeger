@@ -18,14 +18,13 @@ setup_cassandra() {
   local tag=$1
   local image=cassandra
   local params=(
-    --rm
     --detach
     --publish 9042:9042
     --publish 9160:9160
   )
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
-  echo "${cid}"
+  echo "${cid}" >> "$GITHUB_OUTPUT"
 }
 
 teardown_cassandra() {
