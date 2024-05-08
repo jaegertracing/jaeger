@@ -38,11 +38,13 @@ apply_schema() {
   local image=cassandra-schema
   local schema_dir=plugin/storage/cassandra/
   local schema_version=$1
+  local keyspace=$2
   local params=(
     --rm
     --env CQLSH_HOST=localhost
     --env CQLSH_PORT=9042
     --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
+    --env "KEYSPACE=${keyspace}"
     --network host
   )
   docker build -t ${image} ${schema_dir}
@@ -53,9 +55,15 @@ run_integration_test() {
   local version=$1
   local schema_version=$2
   local jaegerVersion=$3
+  local primaryKeyspace="jaeger_v1_dc1"
+  local archiveKeyspace="jaeger_v1_dc1_archive"
+
   local cid
   cid=$(setup_cassandra "${version}")
-  apply_schema "$2"
+
+  apply_schema "$schema_version" "$primaryKeyspace"
+  apply_schema "$schema_version" "$archiveKeyspace"
+
   if [ "${jaegerVersion}" = "v1" ]; then
     STORAGE=cassandra make storage-integration-test
     exit_status=$?
@@ -66,9 +74,11 @@ run_integration_test() {
     echo "Unknown jaeger version $jaegerVersion. Valid options are v1 or v2"
     exit 1
   fi
+
   # shellcheck disable=SC2064
   trap "teardown_cassandra ${cid}" EXIT
 }
+
 
 main() {
   check_arg "$@"
