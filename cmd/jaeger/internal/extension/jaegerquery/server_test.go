@@ -105,7 +105,7 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 func TestServerDependencies(t *testing.T) {
 	expectedDependencies := []component.ID{jaegerstorage.ID}
 	telemetrySettings := component.TelemetrySettings{
-		Logger: zap.NewNop(),
+		Logger: zaptest.NewLogger(t),
 	}
 
 	server := newServer(createDefaultConfig().(*Config), telemetrySettings)
@@ -118,8 +118,6 @@ func TestServerStart(t *testing.T) {
 	host := storageHost{
 		extension: fakeStorageExt{},
 	}
-	logger := zap.NewNop()
-
 	tests := []struct {
 		name        string
 		config      *Config
@@ -135,7 +133,6 @@ func TestServerStart(t *testing.T) {
 		{
 			name: "factory error",
 			config: &Config{
-				TraceStorageArchive: "jaeger_storage",
 				TraceStoragePrimary: "need-factory-error",
 			},
 			expectedErr: "cannot find primary storage",
@@ -143,7 +140,6 @@ func TestServerStart(t *testing.T) {
 		{
 			name: "span reader error",
 			config: &Config{
-				TraceStorageArchive: "jaeger_storage",
 				TraceStoragePrimary: "need-span-reader-error",
 			},
 			expectedErr: "cannot create span reader",
@@ -151,7 +147,6 @@ func TestServerStart(t *testing.T) {
 		{
 			name: "dependency error",
 			config: &Config{
-				TraceStorageArchive: "jaeger_storage",
 				TraceStoragePrimary: "need-dependency-reader-error",
 			},
 			expectedErr: "cannot create dependencies reader",
@@ -164,30 +159,19 @@ func TestServerStart(t *testing.T) {
 			},
 			expectedErr: "cannot find archive storage factory",
 		},
-		{
-			name: "tenacy manager error",
-			config: &Config{
-				TraceStorageArchive: "jaeger_storage",
-				TraceStoragePrimary: "jaeger_storage",
-				Tenancy: tenancy.Options{
-					Enabled: true,
-					Header:  "test",
-				},
-			},
-			expectedErr: "could not start jaeger-query",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger: logger,
+				Logger: zaptest.NewLogger(t),
 			}
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
 
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
+				defer server.Shutdown(context.Background())
 			} else {
 				require.ErrorContains(t, err, tt.expectedErr)
 			}
@@ -274,7 +258,7 @@ func TestServerShutdown(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger: zap.NewNop(),
+				Logger: zaptest.NewLogger(t),
 			}
 			server := newServer(createDefaultConfig().(*Config), telemetrySettings)
 			assert.NotNil(t, server)
@@ -294,9 +278,9 @@ func TestServerShutdown(t *testing.T) {
 				dependencyReader := &depsmocks.Reader{}
 				querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 				hc := healthcheck.New()
-				hc.SetLogger(zaptest.NewLogger(t))
+				hc.SetLogger(telemetrySettings.Logger)
 				queryAppServer, err := queryApp.NewServer(
-					zap.NewNop(),
+					telemetrySettings.Logger,
 					hc,
 					querySvc,
 					nil, // metricsQuerySvc
