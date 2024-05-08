@@ -106,7 +106,7 @@ func startOTLPReceiver(
 	return otlpReceiver, nil
 }
 
-func applyGRPCSettings(cfg *configgrpc.GRPCServerSettings, opts *flags.GRPCOptions) {
+func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
 	if opts.HostPort != "" {
 		cfg.NetAddr.Endpoint = opts.HostPort
 	}
@@ -126,7 +126,7 @@ func applyGRPCSettings(cfg *configgrpc.GRPCServerSettings, opts *flags.GRPCOptio
 	}
 }
 
-func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptions) {
+func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *flags.HTTPOptions) {
 	if opts.HostPort != "" {
 		cfg.Endpoint = opts.HostPort
 	}
@@ -134,15 +134,15 @@ func applyHTTPSettings(cfg *confighttp.HTTPServerSettings, opts *flags.HTTPOptio
 		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
 	}
 
-	cfg.CORS = &confighttp.CORSSettings{
+	cfg.CORS = &confighttp.CORSConfig{
 		AllowedOrigins: opts.CORS.AllowedOrigins,
 		AllowedHeaders: opts.CORS.AllowedHeaders,
 	}
 }
 
-func applyTLSSettings(opts *tlscfg.Options) *configtls.TLSServerSetting {
-	return &configtls.TLSServerSetting{
-		TLSSetting: configtls.TLSSetting{
+func applyTLSSettings(opts *tlscfg.Options) *configtls.ServerConfig {
+	return &configtls.ServerConfig{
+		Config: configtls.Config{
 			CAFile:         opts.CAPath,
 			CertFile:       opts.CertPath,
 			KeyFile:        opts.KeyPath,

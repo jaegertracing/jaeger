@@ -16,6 +16,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 
 	"go.uber.org/zap"
@@ -23,7 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	metricsstore "github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -47,6 +48,13 @@ type Factory interface {
 
 	// CreateDependencyReader creates a dependencystore.Reader.
 	CreateDependencyReader() (dependencystore.Reader, error)
+}
+
+// Purger defines an interface that is capable of purging the storage.
+// Only meant to be used from integration tests.
+type Purger interface {
+	// Purge removes all data from the storage.
+	Purge(context.Context) error
 }
 
 // SamplingStoreFactory defines an interface that is capable of returning the necessary backends for

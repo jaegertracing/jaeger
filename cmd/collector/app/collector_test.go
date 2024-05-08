@@ -52,6 +52,7 @@ func TestNewCollector(t *testing.T) {
 	hc := healthcheck.New()
 	logger := zap.NewNop()
 	baseMetrics := metricstest.NewFactory(time.Hour)
+	defer baseMetrics.Backend.Stop()
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 	tm := &tenancy.Manager{}
@@ -78,6 +79,7 @@ func TestCollector_StartErrors(t *testing.T) {
 			hc := healthcheck.New()
 			logger := zap.NewNop()
 			baseMetrics := metricstest.NewFactory(time.Hour)
+			defer baseMetrics.Backend.Stop()
 			spanWriter := &fakeSpanWriter{}
 			strategyStore := &mockStrategyStore{}
 			tm := &tenancy.Manager{}
@@ -94,6 +96,7 @@ func TestCollector_StartErrors(t *testing.T) {
 			err := c.Start(options)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), expErr)
+			require.NoError(t, c.Close())
 		})
 	}
 
@@ -126,12 +129,18 @@ func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName s
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
+func (m *mockStrategyStore) Close() error {
+	return nil
+}
+
 func TestCollector_PublishOpts(t *testing.T) {
 	// prepare
 	hc := healthcheck.New()
 	logger := zap.NewNop()
 	baseMetrics := metricstest.NewFactory(time.Second)
+	defer baseMetrics.Backend.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
+	defer forkFactory.Backend.Stop()
 	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
@@ -168,6 +177,7 @@ func TestAggregator(t *testing.T) {
 	hc := healthcheck.New()
 	logger := zap.NewNop()
 	baseMetrics := metricstest.NewFactory(time.Hour)
+	defer baseMetrics.Backend.Stop()
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 	agg := &mockAggregator{}

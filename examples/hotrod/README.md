@@ -1,8 +1,6 @@
 # Hot R.O.D. - Rides on Demand
 
-This is a demo application that consists of several microservices and illustrates
-the use of the OpenTelemetry API & SDK. It can be run standalone, but requires Jaeger backend
-to view the traces. A tutorial / walkthrough is available:
+This is a demo application that consists of several microservices and illustrates the use of the OpenTelemetry API & SDK. It can be run standalone, but requires Jaeger backend to view the traces. A tutorial / walkthrough is available:
   * as a blog post [Take Jaeger for a HotROD ride][hotrod-tutorial],
   * as a video [OpenShift Commons Briefing: Distributed Tracing with Jaeger & Prometheus on Kubernetes][hotrod-openshift].
 
@@ -21,14 +19,14 @@ As of Jaeger v1.42.0 this application was upgraded to use the OpenTelemetry SDK 
 
 ## Running
 
-### Run everything via `docker-compose`
+### Run everything via `docker compose`
 
 * Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/main/examples/hotrod/docker-compose.yml
 * Optional: find the latest Jaeger version (see https://www.jaegertracing.io/download/) and pass it via environment variable `JAEGER_VERSION`. Otherwise `docker compose` will use the `latest` tag, which is fine for the first time you download the images, but once they are in your local registry the `latest` tag is never updated and you may be running stale (and possibly incompatible) verions of Jaeger and the HotROD app.
 * Run Jaeger backend and HotROD demo, e.g.:
-  * `JAEGER_VERSION=1.52 docker-compose -f path-to-yml-file up`
+  * `JAEGER_VERSION=1.52 docker compose -f path-to-yml-file up`
 * Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
-* Shutdown / cleanup with `docker-compose -f path-to-yml-file down`
+* Shutdown / cleanup with `docker compose -f path-to-yml-file down`
 
 Alternatively, you can run each component separately as described below.
 
@@ -54,7 +52,7 @@ An all-in-one Jaeger backend is packaged as a Docker container with in-memory st
 docker run \
   --rm \
   --name jaeger \
-  -p6831:6831/udp \
+  -p4318:4318 \
   -p16686:16686 \
   -p14268:14268 \
   jaegertracing/all-in-one:latest
@@ -75,7 +73,7 @@ go run ./examples/hotrod/main.go all
 docker run \
   --rm \
   --link jaeger \
-  --env OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces \
+  --env OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 \
   -p8080-8083:8080-8083 \
   jaegertracing/example-hotrod:latest \
   all

@@ -14,7 +14,7 @@ import (
 )
 
 // componentType is the name of this extension in configuration.
-const componentType = component.Type("jaeger_storage_exporter")
+var componentType = component.MustNewType("jaeger_storage_exporter")
 
 // ID is the identifier of this extension.
 var ID = component.NewID(componentType)
@@ -40,7 +40,7 @@ func createTracesExporter(ctx context.Context, set exporter.CreateSettings, conf
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		// Disable Timeout/RetryOnFailure and SendingQueue
 		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
-		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
+		exporterhelper.WithRetry(configretry.NewDefaultBackOffConfig()),
 		exporterhelper.WithQueue(exporterhelper.QueueSettings{Enabled: false}),
 		exporterhelper.WithStart(ex.start),
 		exporterhelper.WithShutdown(ex.close),

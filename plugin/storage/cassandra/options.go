@@ -53,6 +53,8 @@ const (
 	suffixIndexLogs              = ".index.logs"
 	suffixIndexTags              = ".index.tags"
 	suffixIndexProcessTags       = ".index.process-tags"
+
+	defaultHost = "127.0.0.1"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
@@ -80,7 +82,6 @@ type IndexConfig struct {
 // preparing the actual config.Configuration.
 type namespaceConfig struct {
 	config.Configuration `mapstructure:",squash"`
-	servers              string
 	namespace            string
 	Enabled              bool `mapstructure:"-"`
 }
@@ -96,8 +97,8 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				ProtoVersion:       4,
 				ConnectionsPerHost: 2,
 				ReconnectInterval:  60 * time.Second,
+				Servers:            []string{defaultHost},
 			},
-			servers:   "127.0.0.1",
 			namespace: primaryNamespace,
 			Enabled:   true,
 		},
@@ -175,7 +176,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 		"Reconnect interval to retry connecting to downed hosts")
 	flagSet.String(
 		nsConfig.namespace+suffixServers,
-		nsConfig.servers,
+		strings.Join(nsConfig.Servers, ","),
 		"The comma-separated list of Cassandra servers")
 	flagSet.Int(
 		nsConfig.namespace+suffixPort,
@@ -245,7 +246,8 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
 	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
-	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
+	servers := stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
+	cfg.Servers = strings.Split(servers, ",")
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
 	cfg.LocalDC = v.GetString(cfg.namespace + suffixDC)
@@ -265,7 +267,6 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
-	opt.Primary.Servers = strings.Split(opt.Primary.servers, ",")
 	return &opt.Primary.Configuration
 }
 
@@ -280,10 +281,9 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		return nil
 	}
 	nsCfg.Configuration.ApplyDefaults(&opt.Primary.Configuration)
-	if nsCfg.servers == "" {
-		nsCfg.servers = opt.Primary.servers
+	if len(nsCfg.Servers) == 0 {
+		nsCfg.Servers = opt.Primary.Servers
 	}
-	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
 }
 

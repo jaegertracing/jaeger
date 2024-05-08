@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	esV8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
@@ -45,7 +46,7 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                        []string       `mapstructure:"server_urls"`
+	Servers                        []string       `mapstructure:"server_urls" valid:"required,url"`
 	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
 	Username                       string         `mapstructure:"username"`
 	Password                       string         `mapstructure:"password" json:"-"`
@@ -54,14 +55,14 @@ type Configuration struct {
 	AllowTokenFromContext          bool           `mapstructure:"-"`
 	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
 	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount                    int            `mapstructure:"-"`                     // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge                     time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards                      int64          `yaml:"shards" mapstructure:"num_shards"`
-	NumReplicas                    int64          `yaml:"replicas" mapstructure:"num_replicas"`
-	PrioritySpanTemplate           int64          `yaml:"priority_span_template" mapstructure:"priority_span_template"`
-	PriorityServiceTemplate        int64          `yaml:"priority_service_template" mapstructure:"priority_service_template"`
-	PriorityDependenciesTemplate   int64          `yaml:"priority_dependencies_template" mapstructure:"priority_dependencies_template"`
-	Timeout                        time.Duration  `validate:"min=500" mapstructure:"-"`
+	MaxDocCount                    int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge                     time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards                      int64          `mapstructure:"num_shards"`
+	NumReplicas                    int64          `mapstructure:"num_replicas"`
+	PrioritySpanTemplate           int64          `mapstructure:"priority_span_template"`
+	PriorityServiceTemplate        int64          `mapstructure:"priority_service_template"`
+	PriorityDependenciesTemplate   int64          `mapstructure:"priority_dependencies_template"`
+	Timeout                        time.Duration  `mapstructure:"-"`
 	BulkSize                       int            `mapstructure:"-"`
 	BulkWorkers                    int            `mapstructure:"-"`
 	BulkActions                    int            `mapstructure:"-"`
@@ -69,9 +70,13 @@ type Configuration struct {
 	IndexPrefix                    string         `mapstructure:"index_prefix"`
 	IndexDateLayoutSpans           string         `mapstructure:"-"`
 	IndexDateLayoutServices        string         `mapstructure:"-"`
+	IndexDateLayoutSampling        string         `mapstructure:"-"`
 	IndexDateLayoutDependencies    string         `mapstructure:"-"`
 	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
 	IndexRolloverFrequencyServices string         `mapstructure:"-"`
+	IndexRolloverFrequencySampling string         `mapstructure:"-"`
+	ServiceCacheTTL                time.Duration  `mapstructure:"service_cache_ttl"`
+	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
 	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
 	Enabled                        bool           `mapstructure:"-"`
 	TLS                            tlscfg.Options `mapstructure:"tls"`
@@ -230,6 +235,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
+	if c.AdaptiveSamplingLookback == 0 {
+		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
+	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
@@ -285,15 +293,22 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 // GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
-	if c.IndexRolloverFrequencySpans == "hour" {
-		return -1 * time.Hour
-	}
-	return -24 * time.Hour
+	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySpans)
 }
 
 // GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
-	if c.IndexRolloverFrequencyServices == "hour" {
+	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencyServices)
+}
+
+// GetIndexRolloverFrequencySamplingDuration returns jaeger-sampling index rollover frequency duration
+func (c *Configuration) GetIndexRolloverFrequencySamplingDuration() time.Duration {
+	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySampling)
+}
+
+// GetIndexRolloverFrequencyDuration returns the index rollover frequency duration for the given frequency string
+func getIndexRolloverFrequencyDuration(frequency string) time.Duration {
+	if frequency == "hour" {
 		return -1 * time.Hour
 	}
 	return -24 * time.Hour
@@ -466,4 +481,9 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+func (c *Configuration) Validate() error {
+	_, err := govalidator.ValidateStruct(c)
+	return err
 }

@@ -1,0 +1,98 @@
+{
+  "data": [
+    {
+      "traceID": "83a9efd15c1c98a977e0711cc93ee28b",
+      "spans": [
+        {
+          "traceID": "83a9efd15c1c98a977e0711cc93ee28b",
+          "spanID": "e127af99e3b3e074",
+          "operationName": "okey-dokey-0",
+          "references": [
+            {
+              "refType": "CHILD_OF",
+              "traceID": "83a9efd15c1c98a977e0711cc93ee28b",
+              "spanID": "909541b92cf05311"
+            }
+          ],
+          "startTime": 1706678909209712,
+          "duration": 123,
+          "tags": [
+            {
+              "key": "otel.library.name",
+              "type": "string",
+              "value": "telemetrygen"
+            },
+            {
+              "key": "net.peer.ip",
+              "type": "string",
+              "value": "1.2.3.4"
+            },
+            {
+              "key": "peer.service",
+              "type": "string",
+              "value": "telemetrygen-client"
+            },
+            {
+              "key": "span.kind",
+              "type": "string",
+              "value": "server"
+            }
+          ],
+          "logs": [],
+          "processID": "p1",
+          "warnings": null
+        },
+        {
+          "traceID": "83a9efd15c1c98a977e0711cc93ee28b",
+          "spanID": "e127af99e3b3e074",
+          "operationName": "okey-dokey-0",
+          "references": [
+            {
+              "refType": "CHILD_OF",
+              "traceID": "83a9efd15c1c98a977e0711cc93ee28b",
+              "spanID": "909541b92cf05311"
+            }
+          ],
+          "startTime": 1706678909209712,
+          "duration": 123,
+          "tags": [
+            {
+              "key": "otel.library.name",
+              "type": "string",
+              "value": "telemetrygen"
+            },
+            {
+              "key": "net.peer.ip",
+              "type": "string",
+              "value": "1.2.3.4"
+            },
+            {
+              "key": "peer.service",
+              "type": "string",
+              "value": "telemetrygen-client"
+            },
+            {
+              "key": "span.kind",
+              "type": "string",
+              "value": "server"
+            }
+          ],
+          "logs": [],
+          "processID": "p1",
+          "warnings": null
+        }
+      ],
+      "processes": {
+        "p1": {
+          "serviceName": "telemetrygen",
+          "tags": []
+        }
+      },
+      "warnings": null
+    }
+  ],
+  "total": 0,
+  "limit": 0,
+  "offset": 0,
+  "errors": null
+}

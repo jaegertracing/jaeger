@@ -26,7 +26,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def num_commits_since_prev_tag(token, base_url):
+def num_commits_since_prev_tag(token, base_url, verbose):
     tags_url = f"{base_url}/tags"
     trunk = "main"
 
@@ -40,7 +40,8 @@ def num_commits_since_prev_tag(token, base_url):
     compare_results = json.loads(urlopen(req).read())
     num_commits = compare_results['behind_by']
 
-    print(f"There are {num_commits} new commits since {prev_release_tag}")
+    if verbose:
+        print(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
 
 UNCATTEGORIZED = 'Uncategorized'
@@ -55,11 +56,6 @@ categories = [
     {'title': None, 'label': 'changelog:dependencies'},
 ]
 
-def categorize_pull_request(label):
-    for category, prefix in categories.items():
-        if label.startswith(prefix):
-            return category
-    return UNCATTEGORIZED  # Default category if no matching prefix is found
 
 def updateProgress(iteration, total_iterations):
     progress = (iteration + 1) / total_iterations
@@ -70,7 +66,7 @@ def updateProgress(iteration, total_iterations):
         print()
     return iteration + 1
 
-def main(token, repo, num_commits, exclude_dependabot):
+def main(token, repo, num_commits, exclude_dependabot, verbose):
     accept_header = "application/vnd.github.groot-preview+json"
     base_url = f"https://api.github.com/repos/jaegertracing/{repo}"
     commits_url = f"{base_url}/commits"
@@ -78,7 +74,7 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     # If num_commits isn't set, get the number of commits made since the previous release tag.
     if not num_commits:
-        num_commits = num_commits_since_prev_tag(token, base_url)
+        num_commits = num_commits_since_prev_tag(token, base_url, verbose)
 
     if not num_commits:
         return
@@ -86,10 +82,12 @@ def main(token, repo, num_commits, exclude_dependabot):
     # Load commits
     data = urllib.parse.urlencode({'per_page': num_commits})
     req = Request(commits_url + '?' + data)
-    print(req.full_url)
     req.add_header('Authorization', f'token {token}')
     commits = json.loads(urlopen(req).read())
-    print('Retrieved', len(commits), 'commits')
+
+    if verbose:
+        print(req.full_url)
+        print('Retrieved', len(commits), 'commits')
 
     # Load PR for each commit and print summary
     category_results = {category['title']: [] for category in categories}
@@ -98,8 +96,9 @@ def main(token, repo, num_commits, exclude_dependabot):
 
     progress_iterator = 0
     for commit in commits:
-        # Update the progress bar
-        progress_iterator = updateProgress(progress_iterator, num_commits)
+        if verbose:
+            # Update the progress bar
+            progress_iterator = updateProgress(progress_iterator, num_commits)
 
         sha = commit['sha']
         author = commit['author']['login']
@@ -133,7 +132,7 @@ def main(token, repo, num_commits, exclude_dependabot):
         msg = msg.replace(f'(#{pull_id})', '').strip()
 
         # Check if the pull request has changelog label
-        pull_labels = get_pull_request_labels(token, args.repo, pull_id)
+        pull_labels = get_pull_request_labels(token, repo, pull_id)
         changelog_labels = [label for label in pull_labels if label.startswith('changelog:')]
 
         # Handle multiple changelog labels
@@ -155,17 +154,27 @@ def main(token, repo, num_commits, exclude_dependabot):
             category_results[category].append(result)
 
     # Print categorized pull requests
-    print()
+    if repo == 'jaeger':
+        print()
+        print('### Backend Changes')
+        print()
+
     for category, results in category_results.items():
         if results and category:
-            print(f'{category}:\n')
+            print(f'{category}\n')
             for result in results:
                 print(result)
             print()
 
+    if repo == 'jaeger':
+        print()
+        print('### 📊 UI Changes')
+        print()
+        main(token, 'jaeger-ui', None, exclude_dependabot, False)
+
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
-        print(f'#### 💩💩💩 The following commits cannot be categorized (missing changeglog labels):\n')
+        print(f'### 💩💩💩 The following commits cannot be categorized (missing changeglog labels):\n')
         for result in other_results:
             print(result)
         print()
@@ -180,7 +189,7 @@ def main(token, repo, num_commits, exclude_dependabot):
         print()
 
     if skipped_dependabot:
-        print(f"(Skipped {skipped_dependabot} dependabot commit{'' if skipped_dependabot == 1 else 's'})")
+        print(f"(Skipped dependabot commits: {skipped_dependabot})")
 
 
 def get_pull_request_labels(token, repo, pull_number):
@@ -204,6 +213,8 @@ if __name__ == "__main__":
     parser.add_argument('--num-commits', type=int,
                         help='Print this number of commits from git log. ' +
                              '(default: number of commits before the previous tag)')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Whether output debug logs. (default: false)')
 
     args = parser.parse_args()
     generate_token_url = "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
@@ -223,4 +234,4 @@ if __name__ == "__main__":
         eprint(f"{token_file} is missing your personal github token.\n{generate_err_msg}")
         sys.exit(1)
 
-    main(token, args.repo, args.num_commits, args.exclude_dependabot)
+    main(token, args.repo, args.num_commits, args.exclude_dependabot, args.verbose)

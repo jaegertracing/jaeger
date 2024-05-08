@@ -77,7 +77,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
 	opt.Configuration.TenancyOpts = tenancy.InitFromViper(v)
 	if opt.Configuration.PluginBinary != "" {
-		log.Printf(deprecatedSidecar + "using sidecar model of grpc-plugin storage, please upgrade to 'reomte' gRPC storage. https://github.com/jaegertracing/jaeger/issues/4647")
+		log.Printf(deprecatedSidecar + "using sidecar model of grpc-plugin storage, please upgrade to 'remote' gRPC storage. https://github.com/jaegertracing/jaeger/issues/4647")
 	}
 	return nil
 }

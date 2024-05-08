@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
@@ -753,13 +754,15 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
-			rt, err := getHTTPRoundTripper(&config.Configuration{
+			config := &config.Configuration{
 				ConnectTimeout: 9 * time.Millisecond,
 				TLS: tlscfg.Options{
 					Enabled: tc.tlsEnabled,
 				},
 				TokenOverrideFromContext: true,
-			}, logger)
+			}
+			defer config.TLS.Close()
+			rt, err := getHTTPRoundTripper(config, logger)
 			require.NoError(t, err)
 
 			server := newFakePromServer(t)
@@ -964,4 +967,8 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
 	assert.Equal(t, float64(9223372036854), actualVal)
+}
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }

@@ -46,7 +46,7 @@ var (
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
-func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) {
+func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
 		BasePath:            qOpts.BasePath,
 		UIConfigPath:        qOpts.UIConfig,
@@ -59,6 +59,8 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 	}
 
 	staticHandler.RegisterRoutes(r)
+
+	return staticHandler
 }
 
 // StaticAssetsHandler handles static assets
@@ -236,4 +238,8 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(sH.indexHTML.Load().([]byte))
+}
+
+func (sH *StaticAssetsHandler) Close() error {
+	return sH.watcher.Close()
 }

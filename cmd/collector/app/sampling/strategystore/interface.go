@@ -24,6 +24,9 @@ import (
 
 // StrategyStore keeps track of service specific sampling strategies.
 type StrategyStore interface {
+	// Close() from io.Closer  stops the processor from calculating probabilities.
+	io.Closer
+
 	// GetSamplingStrategy retrieves the sampling strategy for the specified service.
 	GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error)
 }

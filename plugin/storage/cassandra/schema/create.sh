@@ -12,7 +12,7 @@ function usage {
     >&2 echo "  DEPENDENCIES_TTL   - time to live for dependencies data, in seconds (default: 0, no TTL)"
     >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_{datacenter})"
     >&2 echo "  REPLICATION_FACTOR - replication factor for prod (default: 2 for prod, 1 for test)"
-    >&2 echo "  VERSION            - Cassandra backend version, 3 or 4 (default: 4). Ignored if template is is provided."
+    >&2 echo "  VERSION            - Cassandra backend version, 3 or 4 (default: 4). Ignored if template is provided."
     >&2 echo ""
     >&2 echo "The template-file argument must be fully qualified path to a v00#.cql.tmpl template file."
     >&2 echo "If omitted, the template file with the highest available version will be used."

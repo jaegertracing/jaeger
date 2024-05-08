@@ -1,0 +1,41 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  jaeger_query:
+    trace_storage: es_main
+    trace_storage_archive: es_archive
+    ui_config: ./cmd/jaeger/config-ui.json
+
+  jaeger_storage:
+    elasticsearch:
+      es_main:
+        server_urls: http://localhost:9200
+        log_level: "error"
+        index_prefix: "jaeger-main"
+        use_aliases: false
+        create_mappings: true
+      es_archive:
+        server_urls: http://localhost:9200
+        log_level: "error"
+        index_prefix: "jaeger-archive"
+        use_aliases: false
+        create_mappings: true
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: es_main

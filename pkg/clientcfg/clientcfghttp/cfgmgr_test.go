@@ -37,6 +37,10 @@ func (m *mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName s
 	return m.samplingResponse, nil
 }
 
+func (m *mockSamplingStore) Close() error {
+	return nil
+}
+
 type mockBaggageMgr struct {
 	baggageResponse []*baggage.BaggageRestriction
 }

@@ -19,7 +19,6 @@ func main() {
 	command := internal.Command()
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
-
 	config.AddFlags(
 		v,
 		command,

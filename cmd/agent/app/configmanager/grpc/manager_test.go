@@ -37,7 +37,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
 	})
-	conn, err := grpc.Dial(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	defer close(t, conn)
 	require.NoError(t, err)
 	defer s.GracefulStop()
@@ -48,14 +48,14 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 }
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
-	conn, err := grpc.Dial("foo", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient("foo", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	defer close(t, conn)
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.Nil(t, resp)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Error while dialing: dial tcp: address foo: missing port in address")
+	assert.Contains(t, err.Error(), "failed to get sampling strategy")
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {

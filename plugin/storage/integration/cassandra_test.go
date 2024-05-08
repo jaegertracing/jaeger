@@ -16,29 +16,22 @@
 package integration
 
 import (
-	"errors"
-	"fmt"
-	"os"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
-	dbsession "github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
-var errInitializeCassandraDependencyWriter = errors.New("failed to initialize cassandra dependency writer")
-
 type CassandraStorageIntegration struct {
 	StorageIntegration
-
-	session dbsession.Session
-	logger  *zap.Logger
+	factory *cassandra.Factory
 }
 
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
@@ -46,85 +39,69 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
 
-			Refresh: func() error { return nil },
-			SkipList: []string{
-				"Tags_+_Operation_name_+_Duration_range",
-				"Tags_+_Duration_range",
-				"Tags_+_Operation_name_+_max_Duration",
-				"Tags_+_max_Duration",
-				"Operation_name_+_Duration_range",
-				"Duration_range",
-				"max_Duration",
-				"Multiple_Traces",
-			},
+			SkipList: CassandraSkippedTests,
 		},
 	}
 	s.CleanUp = s.cleanUp
 	return s
 }
 
-func (s *CassandraStorageIntegration) cleanUp() error {
-	return s.session.Query("TRUNCATE traces").Exec()
+func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (s *CassandraStorageIntegration) initializeCassandraFactory(flags []string) (*cassandra.Factory, error) {
-	s.logger, _ = testutils.NewLogger()
+func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	if err := command.ParseFlags(flags); err != nil {
-		return nil, fmt.Errorf("unable to parse flags: %w", err)
-	}
-	f.InitFromViper(v, zap.NewNop())
-	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
-		return nil, err
-	}
-	return f, nil
+	require.NoError(t, command.ParseFlags(flags))
+	f.InitFromViper(v, logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	return f
 }
 
-func (s *CassandraStorageIntegration) initializeCassandra() error {
-	f, err := s.initializeCassandraFactory([]string{
+func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
+	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
+		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
+		"--cassandra-archive.enabled=true",
+		"--cassandra-archive.servers=127.0.0.1",
 	})
-	if err != nil {
-		return err
-	}
-	s.session = f.PrimarySession()
-	if s.SpanWriter, err = f.CreateSpanWriter(); err != nil {
-		return err
-	}
-	if s.SpanReader, err = f.CreateSpanReader(); err != nil {
-		return err
-	}
-	if s.SamplingStore, err = f.CreateSamplingStore(0); err != nil {
-		return err
-	}
-
-	if err = s.initializeDependencyReaderAndWriter(f); err != nil {
-		return err
-	}
-	return nil
+	s.factory = f
+	var err error
+	s.SpanWriter, err = f.CreateSpanWriter()
+	require.NoError(t, err)
+	s.SpanReader, err = f.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	require.NoError(t, err)
+	s.SamplingStore, err = f.CreateSamplingStore(0)
+	require.NoError(t, err)
+	s.initializeDependencyReaderAndWriter(t, f)
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 }
 
-func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(f *cassandra.Factory) error {
+func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
 	var (
 		err error
 		ok  bool
 	)
-	if s.DependencyReader, err = f.CreateDependencyReader(); err != nil {
-		return err
-	}
+	s.DependencyReader, err = f.CreateDependencyReader()
+	require.NoError(t, err)
+
 	// TODO: Update this when the factory interface has CreateDependencyWriter
 	if s.DependencyWriter, ok = s.DependencyReader.(dependencystore.Writer); !ok {
-		return errInitializeCassandraDependencyWriter
+		t.Log("DependencyWriter not implemented ")
 	}
-	return nil
 }
 
 func TestCassandraStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "cassandra" {
-		t.Skip("Integration test against Cassandra skipped; set STORAGE env var to cassandra to run this")
-	}
+	SkipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
-	require.NoError(t, s.initializeCassandra())
-	s.IntegrationTestAll(t)
+	s.initializeCassandra(t)
+	s.RunAll(t)
 }

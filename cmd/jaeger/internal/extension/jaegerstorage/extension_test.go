@@ -6,6 +6,8 @@ package jaegerstorage
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,8 +18,10 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -149,6 +153,48 @@ func TestBadgerStorageExtensionError(t *testing.T) {
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize badger storage")
 	require.ErrorContains(t, err, "/bad/path")
+}
+
+func TestESStorageExtension(t *testing.T) {
+	mockEsServerResponse := []byte(`
+	{
+		"Version": {
+			"Number": "6"
+		}
+	}
+	`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+	storageExtension := makeStorageExtenion(t, &Config{
+		Elasticsearch: map[string]esCfg.Configuration{
+			"foo": {
+				Servers:  []string{server.URL},
+				LogLevel: "error",
+			},
+		},
+	})
+	ctx := context.Background()
+	err := storageExtension.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, storageExtension.Shutdown(ctx))
+}
+
+func TestESStorageExtensionError(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
+
+	ext := makeStorageExtenion(t, &Config{
+		Elasticsearch: map[string]esCfg.Configuration{
+			"foo": {
+				Servers:  []string{"http://127.0.0.1:65535"},
+				LogLevel: "error",
+			},
+		},
+	})
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
+	require.ErrorContains(t, err, "http://127.0.0.1:65535")
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {

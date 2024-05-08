@@ -35,6 +35,7 @@ type MappingBuilder struct {
 	PrioritySpanTemplate         int64
 	PriorityServiceTemplate      int64
 	PriorityDependenciesTemplate int64
+	PrioritySamplingTemplate     int64
 	EsVersion                    uint
 	IndexPrefix                  string
 	UseILM                       bool
@@ -67,6 +68,11 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (string, string, error) {
 // GetDependenciesMappings returns dependencies mappings
 func (mb *MappingBuilder) GetDependenciesMappings() (string, error) {
 	return mb.GetMapping("jaeger-dependencies")
+}
+
+// GetSamplingMappings returns sampling mappings
+func (mb *MappingBuilder) GetSamplingMappings() (string, error) {
+	return mb.GetMapping("jaeger-sampling")
 }
 
 func loadMapping(name string) string {

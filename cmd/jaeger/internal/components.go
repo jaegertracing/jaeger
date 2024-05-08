@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/forwardconnector"
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/exporter/loggingexporter"
+	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 )
 
 type builders struct {
@@ -60,6 +61,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		// add-ons
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
+		storagecleaner.NewFactory(),
 		// TODO add adaptive sampling
 	)
 	if err != nil {
@@ -80,7 +82,7 @@ func (b builders) build() (otelcol.Factories, error) {
 
 	factories.Exporters, err = b.exporter(
 		// standard
-		loggingexporter.NewFactory(),
+		debugexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
 		// add-ons
@@ -116,6 +118,6 @@ func (b builders) build() (otelcol.Factories, error) {
 	return factories, nil
 }
 
-func components() (otelcol.Factories, error) {
+func Components() (otelcol.Factories, error) {
 	return defaultBuilders().build()
 }

@@ -38,6 +38,7 @@ const (
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
 	suffixMaxSpanAge                     = ".max-span-age"
+	suffixAdaptiveSamplingLookback       = ".adaptive-sampling.lookback"
 	suffixNumShards                      = ".num-shards"
 	suffixNumReplicas                    = ".num-replicas"
 	suffixPrioritySpanTemplate           = ".prioirity-span-template"
@@ -52,6 +53,8 @@ const (
 	suffixIndexDateSeparator             = ".index-date-separator"
 	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
 	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
+	suffixIndexRolloverFrequencySampling = ".index-rollover-frequency-adaptive-sampling"
+	suffixServiceCacheTTL                = ".service-cache-ttl"
 	suffixTagsAsFields                   = ".tags-as-fields"
 	suffixTagsAsFieldsAll                = suffixTagsAsFields + ".all"
 	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
@@ -96,32 +99,7 @@ type namespaceConfig struct {
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
-	defaultConfig := config.Configuration{
-		Username:                     "",
-		Password:                     "",
-		Sniffer:                      false,
-		MaxSpanAge:                   72 * time.Hour,
-		NumShards:                    5,
-		NumReplicas:                  1,
-		PrioritySpanTemplate:         0,
-		PriorityServiceTemplate:      0,
-		PriorityDependenciesTemplate: 0,
-		BulkSize:                     5 * 1000 * 1000,
-		BulkWorkers:                  1,
-		BulkActions:                  1000,
-		BulkFlushInterval:            time.Millisecond * 200,
-		Tags: config.TagsAsFields{
-			DotReplacement: "@",
-		},
-		Enabled:              true,
-		CreateIndexTemplates: true,
-		Version:              0,
-		Servers:              []string{defaultServerURL},
-		RemoteReadClusters:   []string{},
-		MaxDocCount:          defaultMaxDocCount,
-		LogLevel:             "error",
-		SendGetBodyAs:        defaultSendGetBodyAs,
-	}
+	defaultConfig := getDefaultConfig()
 	options := &Options{
 		Primary: namespaceConfig{
 			Configuration: defaultConfig,
@@ -194,6 +172,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
 		"The number of shards per index in Elasticsearch")
+	flagSet.Duration(
+		nsConfig.namespace+suffixServiceCacheTTL,
+		nsConfig.ServiceCacheTTL,
+		"The TTL for the cache of known service names",
+	)
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.NumReplicas,
@@ -243,6 +226,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexRolloverFrequencyServices,
 		defaultIndexRolloverFrequency,
 		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexRolloverFrequencySampling,
+		defaultIndexRolloverFrequency,
+		"Rotates jaeger-sampling indices over the given period. For example \"day\" creates \"jaeger-sampling-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
@@ -296,7 +284,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSendGetBodyAs,
 		nsConfig.SendGetBodyAs,
 		"HTTP verb for requests that contain a body [GET, POST].")
-
+	flagSet.Duration(
+		nsConfig.namespace+suffixAdaptiveSamplingLookback,
+		nsConfig.AdaptiveSamplingLookback,
+		"How far back to look for the latest adaptive sampling probabilities")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -330,6 +321,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
+	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
 	cfg.PrioritySpanTemplate = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
@@ -340,6 +332,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
@@ -365,14 +358,15 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
 	cfg.IndexRolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
+	cfg.IndexRolloverFrequencySampling = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
 
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
 	cfg.IndexDateLayoutSpans = initDateLayout(cfg.IndexRolloverFrequencySpans, separator)
 	cfg.IndexDateLayoutServices = initDateLayout(cfg.IndexRolloverFrequencyServices, separator)
+	cfg.IndexDateLayoutSampling = initDateLayout(cfg.IndexRolloverFrequencySampling, separator)
 
 	// Dependencies calculation should be daily, and this index size is very small
 	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
-
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {
@@ -412,4 +406,36 @@ func initDateLayout(rolloverFreq, sep string) string {
 		indexLayout = indexLayout + sep + "15"
 	}
 	return indexLayout
+}
+
+func getDefaultConfig() config.Configuration {
+	return config.Configuration{
+		Username:                     "",
+		Password:                     "",
+		Sniffer:                      false,
+		MaxSpanAge:                   72 * time.Hour,
+		AdaptiveSamplingLookback:     72 * time.Hour,
+		NumShards:                    5,
+		NumReplicas:                  1,
+		PrioritySpanTemplate:         0,
+		PriorityServiceTemplate:      0,
+		PriorityDependenciesTemplate: 0,
+		BulkSize:                     5 * 1000 * 1000,
+		BulkWorkers:                  1,
+		BulkActions:                  1000,
+		BulkFlushInterval:            time.Millisecond * 200,
+		Tags: config.TagsAsFields{
+			DotReplacement: "@",
+		},
+		Enabled:              true,
+		CreateIndexTemplates: true,
+		Version:              0,
+		UseReadWriteAliases:  false,
+		UseILM:               false,
+		Servers:              []string{defaultServerURL},
+		RemoteReadClusters:   []string{},
+		MaxDocCount:          defaultMaxDocCount,
+		LogLevel:             "error",
+		SendGetBodyAs:        defaultSendGetBodyAs,
+	}
 }

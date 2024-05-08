@@ -17,6 +17,7 @@ package app
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -34,16 +35,17 @@ import (
 
 // Server runs a gRPC server
 type Server struct {
-	logger *zap.Logger
-	opts   *Options
+	logger      *zap.Logger
+	healthcheck *healthcheck.HealthCheck
+	opts        *Options
 
-	grpcConn           net.Listener
-	grpcServer         *grpc.Server
-	unavailableChannel chan healthcheck.Status // used to signal to admin server that gRPC server is unavailable
+	grpcConn   net.Listener
+	grpcServer *grpc.Server
+	wg         sync.WaitGroup
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Manager, logger *zap.Logger) (*Server, error) {
+func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Manager, logger *zap.Logger, healthcheck *healthcheck.HealthCheck) (*Server, error) {
 	handler, err := createGRPCHandler(storageFactory, logger)
 	if err != nil {
 		return nil, err
@@ -55,10 +57,10 @@ func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Man
 	}
 
 	return &Server{
-		logger:             logger,
-		opts:               options,
-		grpcServer:         grpcServer,
-		unavailableChannel: make(chan healthcheck.Status),
+		logger:      logger,
+		healthcheck: healthcheck,
+		opts:        options,
+		grpcServer:  grpcServer,
 	}, nil
 }
 
@@ -94,11 +96,6 @@ func createGRPCHandler(f storage.Factory, logger *zap.Logger) (*shared.GRPCHandl
 	return handler, nil
 }
 
-// HealthCheckStatus returns health check status channel a client can subscribe to
-func (s Server) HealthCheckStatus() chan healthcheck.Status {
-	return s.unavailableChannel
-}
-
 func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHandler, logger *zap.Logger) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
@@ -132,11 +129,13 @@ func (s *Server) Start() error {
 	}
 	s.logger.Info("Starting GRPC server", zap.Stringer("addr", listener.Addr()))
 	s.grpcConn = listener
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.logger.Error("GRPC server exited", zap.Error(err))
 		}
-		s.unavailableChannel <- healthcheck.Unavailable
+		s.healthcheck.Set(healthcheck.Unavailable)
 	}()
 
 	return nil
@@ -147,5 +146,6 @@ func (s *Server) Close() error {
 	s.grpcServer.Stop()
 	s.grpcConn.Close()
 	s.opts.TLSGRPC.Close()
+	s.wg.Wait()
 	return nil
 }
