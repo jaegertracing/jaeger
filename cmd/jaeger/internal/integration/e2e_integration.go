@@ -93,6 +93,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	}, 30*time.Second, 500*time.Millisecond, "Jaeger-v2 did not start")
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
+		require.NoError(t, cmd.Process.Kill())
 		if t.Failed() {
 			outLogs, err := os.ReadFile(outFile.Name())
 			require.NoError(t, err)
@@ -102,7 +103,6 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			require.NoError(t, err)
 			t.Logf("Jaeger-v2 error logs:\n%s", errLogs)
 		}
-		require.NoError(t, cmd.Process.Kill())
 	})
 
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
