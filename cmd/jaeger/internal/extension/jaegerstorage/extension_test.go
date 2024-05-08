@@ -43,10 +43,7 @@ func (host storageHost) ReportFatalError(err error) {
 	host.t.Fatal(err)
 }
 
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
-	return nil
-}
-
+func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory { return nil }
 func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
 }
