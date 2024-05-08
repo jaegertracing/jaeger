@@ -44,7 +44,12 @@ jobs:
         go-version: 1.22.x
 
     - name: Run cassandra integration tests
+      id: test-execution
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
+
+    - name: Output Cassandra logs
+      run: docker logs ${{ steps.test-execution.outputs.cid }}
+      if: ${{ failure() }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

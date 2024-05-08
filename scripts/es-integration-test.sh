@@ -42,6 +42,7 @@ setup_es() {
 
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
+  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
   echo "${cid}"
 }
 
@@ -57,6 +58,7 @@ setup_opensearch() {
   )
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
+  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
   echo "${cid}"
 }
 
