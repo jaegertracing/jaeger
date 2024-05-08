@@ -25,6 +25,7 @@ setup_cassandra() {
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
   echo "cid=${cid}" >> "$GITHUB_OUTPUT"
+  echo "${cid}"
 }
 
 teardown_cassandra() {
