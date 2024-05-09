@@ -15,27 +15,32 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
 
 type BadgerIntegrationStorage struct {
 	StorageIntegration
-	logger  *zap.Logger
 	factory *badger.Factory
 }
 
 func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
+	s.factory.Options.Primary.Ephemeral = false
 
-	err := s.factory.Initialize(metrics.NullFactory, zap.NewNop())
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	err := s.factory.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		s.factory.Close()
+	})
 
 	s.SpanWriter, err = s.factory.CreateSpanWriter()
 	require.NoError(t, err)
@@ -45,30 +50,23 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)
-
-	s.CleanUp = s.cleanUp
-
-	s.logger, _ = testutils.NewLogger()
-
-	// TODO: remove this badger supports returning spanKind from GetOperations
-	s.GetOperationsMissingSpanKind = true
-	s.SkipArchiveTest = true
-}
-
-func (s *BadgerIntegrationStorage) clear() error {
-	return s.factory.Close()
 }
 
 func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
-	err := s.clear()
-	require.NoError(t, err)
-	s.initialize(t)
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func TestBadgerStorage(t *testing.T) {
 	SkipUnlessEnv(t, "badger")
-	s := &BadgerIntegrationStorage{}
+	s := &BadgerIntegrationStorage{
+		StorageIntegration: StorageIntegration{
+			SkipArchiveTest: true,
+
+			// TODO: remove this badger supports returning spanKind from GetOperations
+			GetOperationsMissingSpanKind: true,
+		},
+	}
+	s.CleanUp = s.cleanUp
 	s.initialize(t)
 	s.RunAll(t)
-	defer s.clear()
 }

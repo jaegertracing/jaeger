@@ -11,13 +11,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions:
   contents: read
-  checks: write
 
 jobs:
   unit-tests:
+    permissions:
+      checks: write
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
@@ -39,14 +39,8 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
-    - name: Setup CODECOV_TOKEN
-      uses: ./.github/actions/setup-codecov
-
     - name: Upload coverage to codecov
-      uses: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
+      uses: ./.github/actions/upload-codecov
       with:
-        file: cover.out
-        verbose: true
+        files: cover.out
         flags: unittests
-        fail_ci_if_error: true
-        token: ${{ env.CODECOV_TOKEN }}

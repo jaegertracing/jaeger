@@ -424,19 +424,16 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	testCases := []struct {
-		indexTTL         time.Duration
 		serviceTTL       time.Duration
 		name             string
 		expectedAddCalls int
 	}{
 		{
-			indexTTL:         0,
 			serviceTTL:       0,
 			name:             "uses defaults",
 			expectedAddCalls: 1,
 		},
 		{
-			indexTTL:         1 * time.Nanosecond,
 			serviceTTL:       1 * time.Nanosecond,
 			name:             "uses provided values",
 			expectedAddCalls: 3,
@@ -451,7 +448,6 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 				Logger:          logger,
 				MetricsFactory:  metricsFactory,
 				ServiceCacheTTL: test.serviceTTL,
-				IndexCacheTTL:   test.indexTTL,
 			}
 			w := NewSpanWriter(params)
 

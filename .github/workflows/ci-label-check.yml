@@ -10,6 +10,9 @@ on:
       - labeled
       - unlabeled
 
+permissions:  
+  contents: read
+
 jobs:
   check-label:
     runs-on: ubuntu-latest

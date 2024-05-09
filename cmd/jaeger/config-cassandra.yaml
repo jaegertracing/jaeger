@@ -17,15 +17,27 @@ extensions:
       cassandra_main:
         servers: 127.0.0.1
         port: 9042
+        keyspace: "jaeger_v1_dc1"
+        connections_per_host: 2
+        index:
+          tags: true
+          logs: true
+          process_tags: true
       cassandra_archive:
         servers: 127.0.0.1
         port: 9042
+        keyspace: "jaeger_v1_dc1"
+        connections_per_host: 2
+        index:
+          tags: true
+          logs: true
+          process_tags: true
 receivers:
   otlp:
     protocols:
       grpc:
       http:
-  
+
   jaeger:
     protocols:
       grpc:
