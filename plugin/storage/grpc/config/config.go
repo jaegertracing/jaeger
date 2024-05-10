@@ -25,6 +25,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -49,11 +51,47 @@ type Configuration struct {
 	RemoteConnectTimeout    time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 	TenancyOpts             tenancy.Options
 
-	pluginHealthCheck       *time.Ticker
-	pluginHealthCheckDone   chan bool
-	pluginRPCClient         plugin.ClientProtocol
-	remoteConn              *grpc.ClientConn
-	configgrpc.ClientConfig `mapstructure:",squash"`
+	pluginHealthCheck     *time.Ticker
+	pluginHealthCheckDone chan bool
+	pluginRPCClient       plugin.ClientProtocol
+	remoteConn            *grpc.ClientConn
+}
+
+type ConfigV2 struct {
+	Configuration `mapstructure:",squash"`
+
+	configgrpc.ClientConfig        `mapstructure:",squash"`
+	exporterhelper.TimeoutSettings `mapstructure:",squash"`
+}
+
+func translateToConfigV2(v1 Configuration) *ConfigV2 {
+	return &ConfigV2{
+		Configuration: v1,
+
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint: v1.RemoteServerAddr,
+
+			TLSSetting: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:         v1.RemoteTLS.CAPath,
+					CertFile:       v1.RemoteTLS.CertPath,
+					KeyFile:        v1.RemoteTLS.KeyPath,
+					CipherSuites:   v1.RemoteTLS.CipherSuites,
+					MinVersion:     v1.RemoteTLS.MinVersion,
+					MaxVersion:     v1.RemoteTLS.MaxVersion,
+					ReloadInterval: v1.RemoteTLS.ReloadInterval,
+				},
+
+				ServerName:         v1.RemoteTLS.ServerName,
+				InsecureSkipVerify: v1.RemoteTLS.SkipHostVerify,
+			},
+		},
+
+		TimeoutSettings: exporterhelper.TimeoutSettings{
+			Timeout: v1.RemoteConnectTimeout,
+		},
+	}
+
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -77,7 +115,7 @@ type PluginBuilder interface {
 }
 
 // Build instantiates a PluginServices
-func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	if c.PluginBinary != "" {
 		return c.buildPlugin(logger, tracerProvider)
 	} else {
@@ -97,18 +135,17 @@ func (c *Configuration) Close() error {
 	return c.RemoteTLS.Close()
 }
 
-func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+func (c *ConfigV2) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+	c = translateToConfigV2(c.Configuration)
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
-		grpc.WithDefaultCallOptions(grpc.WaitForReady(c.WaitForReady)),
 	}
 
-	if c.ClientConfig.Auth != nil {
+	if c.Auth != nil {
 		return nil, fmt.Errorf("authenticator is not supported")
 	}
 
-	c.ClientConfig.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
 	if c.RemoteTLS.Enabled {
 		tlsCfg, err := c.RemoteTLS.Config(logger)
 		if err != nil {
@@ -128,9 +165,9 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
+
 	var err error
-	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
-	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
+	c.remoteConn, err = c.ToClientConn(ctx, componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
 	}
@@ -146,7 +183,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 	}, nil
 }
 
-func (c *Configuration) buildPlugin(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+func (c *ConfigV2) buildPlugin(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 	}
@@ -219,7 +256,7 @@ func (c *Configuration) buildPlugin(logger *zap.Logger, tracerProvider trace.Tra
 	}, nil
 }
 
-func (c *Configuration) startPluginHealthCheck(rpcClient plugin.ClientProtocol, logger *zap.Logger) error {
+func (c *ConfigV2) startPluginHealthCheck(rpcClient plugin.ClientProtocol, logger *zap.Logger) error {
 	c.pluginRPCClient = rpcClient
 	c.pluginHealthCheckDone = make(chan bool)
 	c.pluginHealthCheck = time.NewTicker(pluginHealthCheckInterval)

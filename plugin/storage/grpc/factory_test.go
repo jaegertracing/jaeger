@@ -148,7 +148,7 @@ func TestGRPCStorageFactory(t *testing.T) {
 }
 
 func TestGRPCStorageFactoryWithConfig(t *testing.T) {
-	cfg := grpcConfig.Configuration{}
+	cfg := grpcConfig.ConfigV2{}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "grpc-plugin builder failed to create a store: error connecting to remote storage")
 
@@ -318,8 +318,10 @@ func TestWithConfiguration(t *testing.T) {
 func TestConfigureFromOptions(t *testing.T) {
 	f := Factory{}
 	o := Options{
-		Configuration: grpcConfig.Configuration{
-			PluginLogLevel: "info",
+		Configuration: grpcConfig.ConfigV2{
+			Configuration: grpcConfig.Configuration{
+				PluginLogLevel: "info",
+			},
 		},
 	}
 	f.configureFromOptions(o)

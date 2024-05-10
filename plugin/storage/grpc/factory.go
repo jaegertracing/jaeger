@@ -65,7 +65,7 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg config.Configuration,
+	cfg config.ConfigV2,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
