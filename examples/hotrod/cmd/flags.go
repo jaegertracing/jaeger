@@ -57,6 +57,4 @@ func addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&jaegerUI, "jaeger-ui", "j", "http://localhost:16686", "Address of Jaeger UI to create [find trace] links")
 
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enables debug logging")
-	// Warning about expvar deprecation
-	logger.Warn("The 'metrics' CLI flag and expvar metrics backend are deprecated and will be removed. Prometheus will be used as the default and only metrics backend.")
 }
