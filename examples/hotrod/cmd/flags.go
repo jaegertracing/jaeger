@@ -38,11 +38,8 @@ var (
 	jaegerUI string
 )
 
-const expvarDepr = "(deprecated, will be removed after 2024-01-01 or in release v1.53.0, whichever is later) "
-
 // used by root command
 func addFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "prometheus", expvarDepr+"Metrics backend (expvar|prometheus). ")
 	cmd.PersistentFlags().StringVarP(&otelExporter, "otel-exporter", "x", "otlp", "OpenTelemetry exporter (otlp|stdout)")
 
 	cmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average latency of MySQL DB query")
@@ -60,4 +57,6 @@ func addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&jaegerUI, "jaeger-ui", "j", "http://localhost:16686", "Address of Jaeger UI to create [find trace] links")
 
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enables debug logging")
+	// Warning about expvar deprecation
+	logger.Warn("The 'metrics' CLI flag and expvar metrics backend are deprecated and will be removed. Prometheus will be used as the default and only metrics backend.")
 }

@@ -24,7 +24,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
@@ -70,16 +69,9 @@ func onInitialize() {
 
 	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
-	switch metricsBackend {
-	case "expvar":
-		metricsFactory = expvar.NewFactory(10) // 10 buckets for histograms
-		logger.Info("*** Using expvar as metrics backend " + expvarDepr)
-	case "prometheus":
-		metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
-		logger.Info("Using Prometheus as metrics backend")
-	default:
-		logger.Fatal("unsupported metrics backend " + metricsBackend)
-	}
+	// Only configure Prometheus as the metrics backend
+	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
+	logger.Info("Using Prometheus as the metrics backend")
 	if config.MySQLGetDelay != fixDBConnDelay {
 		logger.Info("fix: overriding MySQL query delay", zap.Duration("old", config.MySQLGetDelay), zap.Duration("new", fixDBConnDelay))
 		config.MySQLGetDelay = fixDBConnDelay
