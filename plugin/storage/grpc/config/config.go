@@ -15,7 +15,6 @@
 package config
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -57,6 +56,12 @@ type PluginBuilder interface {
 
 // Build instantiates a PluginServices
 func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+	return c.buildRemote(logger, tracerProvider, grpc.NewClient)
+}
+
+type newClientFn func(target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error)
+
+func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider, newClient newClientFn) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
@@ -72,19 +77,15 @@ func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerPro
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.RemoteConnectTimeout)
-	defer cancel()
-
 	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
 	if tenancyMgr.Enabled {
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 	var err error
-	// TODO: Need to replace grpc.DialContext with grpc.NewClient and pass test
-	c.remoteConn, err = grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
+	c.remoteConn, err = newClient(c.RemoteServerAddr, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
+		return nil, fmt.Errorf("error creating remote storage client: %w", err)
 	}
 
 	grpcClient := shared.NewGRPCClient(c.remoteConn)
