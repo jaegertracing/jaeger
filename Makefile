@@ -139,7 +139,6 @@ badger-storage-integration-test:
 
 .PHONY: grpc-storage-integration-test
 grpc-storage-integration-test:
-	(cd examples/memstore-plugin/ && go build .)
 	STORAGE=grpc $(MAKE) storage-integration-test
 
 # this test assumes STORAGE environment variable is set to elasticsearch|opensearch

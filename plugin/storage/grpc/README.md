@@ -1,6 +1,8 @@
 gRPC Storage Plugins
 ====================
 
+TODO update this to remove sidecar references
+
 Update (Jan 2022): as of Jaeger v1.30, the gRPC storage extension can be implemented as a remote gRPC server, in addition to the gRPC plugin architecture described below. The remote server needs to implement the same `storage_v1` gRPC interfaces defined in `plugin/storage/grpc/proto/`.
 
 gRPC Storage Plugins currently use the [Hashicorp go-plugin](https://github.com/hashicorp/go-plugin). This requires the
@@ -25,9 +27,9 @@ Implementing a plugin
 
 Although the instructions below are limited to Go, plugins can be implemented any language. Languages other than
 Go would implement a gRPC server using the `storage_v1` proto interfaces. The `proto` file can be found in `plugin/storage/grpc/proto/`.
-To generate the bindings for your language you would use `protoc` with the appropriate `xx_out=` flag. This is detailed 
+To generate the bindings for your language you would use `protoc` with the appropriate `xx_out=` flag. This is detailed
 in the [protobuf documentation](https://developers.google.com/protocol-buffers/docs/tutorials) and you can see an example of
-how it is done for Go in the top level Jaeger `Makefile`. 
+how it is done for Go in the top level Jaeger `Makefile`.
 
 The easiest way to generate the gRPC storage plugin bindings is to use [Docker Protobuf](https://github.com/jaegertracing/docker-protobuf/) which is a lightweight `protoc` Docker image containing the dependencies needed to generate code for multiple languages. For example, one can generate bindings for C# on Windows with Docker for Windows using the following steps:
 1. First clone the Jaeger github repo to a folder (e.g. `c:\source\repos\jaeger`):
@@ -46,13 +48,13 @@ $ docker run --rm -u 1000 -v/c/source/repos/jaeger:/jaeger -w/jaeger \
     jaegertracing/protobuf:0.2.0 "-I/jaeger -Iidl/proto/api_v2 -I/usr/include/github.com/gogo/protobuf -Iplugin/storage/grpc/proto --csharp_out=/jaeger/code plugin/storage/grpc/proto/storage.proto"
 ```
 
-There are instructions on implementing a `go-plugin` server for non-Go languages in the 
+There are instructions on implementing a `go-plugin` server for non-Go languages in the
 [go-plugin non-go guide](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md).
 Take note of the required [health check service](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md#3-add-the-grpc-health-checking-service).
-  
-A Go plugin is a standalone application which calls `grpc.Serve(&pluginServices)` in its `main` function, where the `grpc` package 
+
+A Go plugin is a standalone application which calls `grpc.Serve(&pluginServices)` in its `main` function, where the `grpc` package
 is `github.com/jaegertracing/jaeger/plugin/storage/grpc`.
- 
+
 ```go
     package main
 
@@ -60,21 +62,21 @@ is `github.com/jaegertracing/jaeger/plugin/storage/grpc`.
         "flag"
         "github.com/jaegertracing/jaeger/plugin/storage/grpc"
     )
-    
+
     func main() {
         var configPath string
         flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
         flag.Parse()
 
         plugin := myStoragePlugin{}
-        
+
         grpc.Serve(&shared.PluginServices{
 			Store:        plugin,
 			ArchiveStore: plugin,
 		})
     }
 ```
- 
+
 Note that `grpc.Serve` is called as the final part of the main. This should be called after you have carried out any necessary
 setup for your plugin, as once running Jaeger may start calling to read/write spans straight away. You could defer
 setup until the first read/write but that could make the first operation slow and also lead to racing behaviours.
@@ -149,10 +151,10 @@ Running with a plugin
 ---------------------
 A plugin can be run using the `all-in-one` application within the top level `cmd` package of the Jaeger project. To do this
 an environment variable must be set to tell the `all-in-one` application to use the gRPC plugin storage:
-`export SPAN_STORAGE_TYPE="grpc-plugin"` 
+`export SPAN_STORAGE_TYPE="grpc-plugin"`
 
-Once this has been set then there are two command line flags that can be used to configure the plugin. The first is 
-`--grpc-storage-plugin.binary` which is required and is the path to the plugin **binary**. The second is 
+Once this has been set then there are two command line flags that can be used to configure the plugin. The first is
+`--grpc-storage-plugin.binary` which is required and is the path to the plugin **binary**. The second is
 `--grpc-storage-plugin.configuration-file` which is optional and is the path to the configuration file which will be
 provided to your plugin as a command line flag. This command line flag is `config`, as can be seen in the code sample
 above. An example invocation would be:
@@ -169,10 +171,10 @@ Logging
 -------
 In order for Jaeger to include the log output from your plugin you need to use `hclog` (`"github.com/hashicorp/go-hclog"`).
 The plugin framework will only include any log output created at the `WARN` or above levels. If you log output in this
-way before calling `grpc.Serve` then it will still be included in the Jaeger output. 
+way before calling `grpc.Serve` then it will still be included in the Jaeger output.
 
 An example logger instantiation could look like:
- 
+
  ```
 logger := hclog.New(&hclog.LoggerOptions{
     Level:      hclog.Warn,

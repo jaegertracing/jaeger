@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
@@ -26,7 +25,7 @@ type RemoteMemoryStorage struct {
 }
 
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
-	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	logger := zaptest.NewLogger(t)
 	opts := &app.Options{
 		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
 		Tenancy: tenancy.Options{
