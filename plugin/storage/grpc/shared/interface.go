@@ -19,9 +19,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// StoragePluginIdentifier is the identifier that is shared by plugin and host.
-const StoragePluginIdentifier = "storage_plugin"
-
 // StoragePlugin is the interface we're exposing as a plugin.
 type StoragePlugin interface {
 	SpanReader() spanstore.Reader
