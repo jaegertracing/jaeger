@@ -16,6 +16,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -33,32 +34,22 @@ import (
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	PluginLogLevel       string `yaml:"log-level" mapstructure:"log_level"`
 	RemoteServerAddr     string `yaml:"server" mapstructure:"server"`
 	RemoteTLS            tlscfg.Options
 	RemoteConnectTimeout time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 	TenancyOpts          tenancy.Options
 
-	pluginHealthCheck     *time.Ticker
-	pluginHealthCheckDone chan bool
-	remoteConn            *grpc.ClientConn
+	remoteConn *grpc.ClientConn
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
 type ClientPluginServices struct {
 	shared.PluginServices
-	Capabilities     shared.PluginCapabilities
-	killPluginClient func()
-}
-
-func (c *ClientPluginServices) Close() error {
-	if c.killPluginClient != nil {
-		c.killPluginClient()
-	}
-	return nil
+	Capabilities shared.PluginCapabilities
 }
 
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
+// TODO this interface should be removed and the building capability moved to Factory.
 type PluginBuilder interface {
 	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
 	Close() error
@@ -66,22 +57,6 @@ type PluginBuilder interface {
 
 // Build instantiates a PluginServices
 func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	return c.buildRemote(logger, tracerProvider)
-}
-
-func (c *Configuration) Close() error {
-	if c.pluginHealthCheck != nil {
-		c.pluginHealthCheck.Stop()
-		c.pluginHealthCheckDone <- true
-	}
-	if c.remoteConn != nil {
-		c.remoteConn.Close()
-	}
-
-	return c.RemoteTLS.Close()
-}
-
-func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
@@ -121,4 +96,13 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 		},
 		Capabilities: grpcClient,
 	}, nil
+}
+
+func (c *Configuration) Close() error {
+	var errs []error
+	if c.remoteConn != nil {
+		errs = append(errs, c.remoteConn.Close())
+	}
+	errs = append(errs, c.RemoteTLS.Close())
+	return errors.Join(errs...)
 }

@@ -303,11 +303,11 @@ func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
-		"--grpc-storage-plugin.log-level=debug",
+		"--grpc-storage.server=foo:1234",
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "debug", f.options.Configuration.PluginLogLevel)
+	assert.Equal(t, "foo:1234", f.options.Configuration.RemoteServerAddr)
 	require.NoError(t, f.Close())
 }
 
@@ -315,7 +315,7 @@ func TestConfigureFromOptions(t *testing.T) {
 	f := Factory{}
 	o := Options{
 		Configuration: grpcConfig.Configuration{
-			PluginLogLevel: "info",
+			RemoteServerAddr: "foo:1234",
 		},
 	}
 	f.configureFromOptions(o)

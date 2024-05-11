@@ -29,13 +29,13 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts := &Options{}
 	v, command := config.Viperize(opts.AddFlags, tenancy.AddFlags)
 	err := command.ParseFlags([]string{
-		"--grpc-storage-plugin.log-level=debug",
+		"--grpc-storage.server=foo:12345",
 		"--multi-tenancy.header=x-scope-orgid",
 	})
 	require.NoError(t, err)
 	opts.InitFromViper(v)
 
-	assert.Equal(t, "debug", opts.Configuration.PluginLogLevel)
+	assert.Equal(t, "foo:12345", opts.Configuration.RemoteServerAddr)
 	assert.False(t, opts.Configuration.TenancyOpts.Enabled)
 	assert.Equal(t, "x-scope-orgid", opts.Configuration.TenancyOpts.Header)
 }

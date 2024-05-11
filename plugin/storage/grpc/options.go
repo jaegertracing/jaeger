@@ -27,11 +27,9 @@ import (
 )
 
 const (
-	pluginLogLevel           = "grpc-storage-plugin.log-level"
 	remotePrefix             = "grpc-storage"
 	remoteServer             = remotePrefix + ".server"
 	remoteConnectionTimeout  = remotePrefix + ".connection-timeout"
-	defaultPluginLogLevel    = "warn"
 	defaultConnectionTimeout = time.Duration(5 * time.Second)
 )
 
@@ -51,14 +49,12 @@ func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	tlsFlagsConfig().AddFlags(flagSet)
 
-	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
 	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) error {
-	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
 	opt.Configuration.RemoteServerAddr = v.GetString(remoteServer)
 	var err error
 	opt.Configuration.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
