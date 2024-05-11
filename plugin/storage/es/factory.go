@@ -16,6 +16,7 @@
 package es
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -55,6 +56,7 @@ var ( // interface comformance checks
 	_ storage.ArchiveFactory = (*Factory)(nil)
 	_ io.Closer              = (*Factory)(nil)
 	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Purger         = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -94,8 +96,8 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 
-	cfg.MaxDocCount = defaultMaxDocCount
-	cfg.Enabled = true
+	defaultConfig := getDefaultConfig()
+	cfg.ApplyDefaults(&defaultConfig)
 
 	archive := make(map[string]*namespaceConfig)
 	archive[archiveNamespace] = &namespaceConfig{
@@ -104,7 +106,7 @@ func NewFactoryWithConfig(
 	}
 
 	f := NewFactory()
-	f.InitFromOptions(Options{
+	f.configureFromOptions(&Options{
 		Primary: namespaceConfig{
 			Configuration: cfg,
 			namespace:     primaryNamespace,
@@ -126,13 +128,12 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.primaryConfig = f.Options.GetPrimary()
-	f.archiveConfig = f.Options.Get(archiveNamespace)
+	f.configureFromOptions(f.Options)
 }
 
-// InitFromOptions configures factory from Options struct.
-func (f *Factory) InitFromOptions(o Options) {
-	f.Options = &o
+// configureFromOptions configures factory from Options struct.
+func (f *Factory) configureFromOptions(o *Options) {
+	f.Options = o
 	f.primaryConfig = f.Options.GetPrimary()
 	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
@@ -266,23 +267,6 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder:              es.TextTemplateBuilder{},
-		Shards:                       cfg.NumShards,
-		Replicas:                     cfg.NumReplicas,
-		EsVersion:                    cfg.Version,
-		IndexPrefix:                  cfg.IndexPrefix,
-		UseILM:                       cfg.UseILM,
-		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
-		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
-		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
-	}
-
-	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-	if err != nil {
-		return nil, err
-	}
-
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
@@ -295,12 +279,17 @@ func createSpanWriter(
 		UseReadWriteAliases:    cfg.UseReadWriteAliases,
 		Logger:                 logger,
 		MetricsFactory:         mFactory,
+		ServiceCacheTTL:        cfg.ServiceCacheTTL,
 	})
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.CreateIndexTemplates && !cfg.UseILM {
-		err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix)
+		mappingBuilder := mappingBuilderFromConfig(cfg)
+		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
+			return nil, err
+		}
+		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix); err != nil {
 			return nil, err
 		}
 	}
@@ -308,7 +297,7 @@ func createSpanWriter(
 }
 
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	store := esSampleStore.NewSamplingStore(esSampleStore.SamplingStoreParams{
+	params := esSampleStore.SamplingStoreParams{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
 		IndexPrefix:            f.primaryConfig.IndexPrefix,
@@ -316,8 +305,35 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 		IndexRolloverFrequency: f.primaryConfig.GetIndexRolloverFrequencySamplingDuration(),
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
 		MaxDocCount:            f.primaryConfig.MaxDocCount,
-	})
+	}
+	store := esSampleStore.NewSamplingStore(params)
+
+	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
+		mappingBuilder := mappingBuilderFromConfig(f.primaryConfig)
+		samplingMapping, err := mappingBuilder.GetSamplingMappings()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := f.getPrimaryClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+			return nil, fmt.Errorf("failed to create template: %w", err)
+		}
+	}
+
 	return store, nil
+}
+
+func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+	return mappings.MappingBuilder{
+		TemplateBuilder:              es.TextTemplateBuilder{},
+		Shards:                       cfg.NumShards,
+		Replicas:                     cfg.NumReplicas,
+		EsVersion:                    cfg.Version,
+		IndexPrefix:                  cfg.IndexPrefix,
+		UseILM:                       cfg.UseILM,
+		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
+		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
+		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+	}
 }
 
 func createDependencyReader(
@@ -386,6 +402,12 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
 		}
 	}
+}
+
+func (f *Factory) Purge(ctx context.Context) error {
+	esClient := f.getPrimaryClient()
+	_, err := esClient.DeleteIndex("*").Do(ctx)
+	return err
 }
 
 func loadTokenFromFile(path string) (string, error) {

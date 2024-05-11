@@ -40,10 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const (
-	iterations = 100
-)
-
 //go:embed fixtures
 var fixtures embed.FS
 
@@ -74,10 +70,6 @@ type StorageIntegration struct {
 
 	// Skip Archive Test if not supported by the storage backend
 	SkipArchiveTest bool
-
-	// TODO: remove this after upstream issue in OTEL jaeger translator is fixed
-	// Skip testing trace binary tags, logs, and process
-	SkipBinaryAttrs bool
 
 	// List of tests which has to be skipped, it can be regex too.
 	SkipList []string
@@ -117,6 +109,17 @@ func SkipUnlessEnv(t *testing.T, storage ...string) {
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
 }
 
+var CassandraSkippedTests = []string{
+	"Tags_+_Operation_name_+_Duration_range",
+	"Tags_+_Duration_range",
+	"Tags_+_Operation_name_+_max_Duration",
+	"Tags_+_max_Duration",
+	"Operation_name_+_Duration_range",
+	"Duration_range",
+	"max_Duration",
+	"Multiple_Traces",
+}
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
 		escapedPat := regexp.QuoteMeta(pat)
@@ -130,12 +133,13 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 }
 
 func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+	const iterations = 100 // Will wait at most 100 seconds.
 	for i := 0; i < iterations; i++ {
-		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
 		if predicate(t) {
 			return true
 		}
-		time.Sleep(time.Second) // Will wait at most 100 seconds.
+		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
+		time.Sleep(time.Second)
 	}
 	return predicate(t)
 }
@@ -316,13 +320,16 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
 		require.NoError(t, err)
 		if len(expected) != len(traces) {
-			t.Logf("FindTraces: expected: %d, actual: %d", len(expected), len(traces))
+			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
+			return false
+		}
+		if spanCount(expected) != spanCount(traces) {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
 		return true
 	})
 	require.True(t, found)
-	tracesMatch(t, traces, expected)
 	return traces
 }
 
@@ -358,39 +365,7 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 
 func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	trace := getTraceFixtureExact(t, fileName)
-
-	if s.SkipBinaryAttrs {
-		t.Logf("Dropped binary type attributes from trace ID: %s", trace.Spans[0].TraceID.String())
-		trace = s.dropBinaryAttrs(t, trace)
-	}
-
-	return trace
-}
-
-func (s *StorageIntegration) dropBinaryAttrs(t *testing.T, trace *model.Trace) *model.Trace {
-	for _, span := range trace.Spans {
-		span.Tags = s.dropBinaryTags(t, span.Tags)
-		span.Process.Tags = s.dropBinaryTags(t, span.Process.Tags)
-
-		for i := range span.Logs {
-			span.Logs[i].Fields = s.dropBinaryTags(t, span.Logs[i].Fields)
-		}
-	}
-
-	return trace
-}
-
-func (s *StorageIntegration) dropBinaryTags(_ *testing.T, tags []model.KeyValue) []model.KeyValue {
-	newTags := make([]model.KeyValue, 0)
-	for _, tag := range tags {
-		if tag.VType == model.ValueType_BINARY {
-			continue
-		}
-		newTags = append(newTags, tag)
-	}
-
-	return newTags
+	return getTraceFixtureExact(t, fileName)
 }
 
 func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
@@ -431,13 +406,6 @@ func correctTime(json []byte) []byte {
 	retString := strings.ReplaceAll(jsonString, "2017-01-26", yesterday)
 	retString = strings.ReplaceAll(retString, "2017-01-25", twoDaysAgo)
 	return []byte(retString)
-}
-
-func tracesMatch(t *testing.T, actual []*model.Trace, expected []*model.Trace) bool {
-	if !assert.Equal(t, len(expected), len(actual), "Expecting certain number of traces") {
-		return false
-	}
-	return assert.Equal(t, spanCount(expected), spanCount(actual), "Expecting certain number of spans")
 }
 
 func spanCount(traces []*model.Trace) int {

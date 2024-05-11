@@ -18,12 +18,15 @@ extensions:
         server_urls: http://localhost:9200
         log_level: "error"
         index_prefix: "jaeger-main"
-        use_aliases: true
+        use_aliases: false
+        create_mappings: true
       es_archive:
         server_urls: http://localhost:9200
         log_level: "error"
         index_prefix: "jaeger-archive"
-        use_aliases: true
+        use_aliases: false
+        create_mappings: true
+
 receivers:
   otlp:
     protocols:

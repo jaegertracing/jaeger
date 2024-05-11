@@ -33,13 +33,8 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	estemplate "github.com/jaegertracing/jaeger/pkg/es"
-	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
@@ -63,10 +58,10 @@ const (
 type ESStorageIntegration struct {
 	StorageIntegration
 
-	client        *elastic.Client
-	v8Client      *elasticsearch8.Client
-	bulkProcessor *elastic.BulkProcessor
-	logger        *zap.Logger
+	client   *elastic.Client
+	v8Client *elasticsearch8.Client
+
+	factory *es.Factory
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -92,7 +87,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
 	require.NoError(t, err)
-	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
 	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
@@ -102,84 +96,47 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	require.NoError(t, err)
 
 	s.initSpanstore(t, allTagsAsFields)
-	s.initSamplingStore(t)
 
 	s.CleanUp = func(t *testing.T) {
-		s.esCleanUp(t, allTagsAsFields)
+		s.esCleanUp(t)
 	}
-	s.esCleanUp(t, allTagsAsFields)
-	s.SkipArchiveTest = false
-	// TODO: remove this flag after ES supports returning spanKind
-	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
-	s.GetOperationsMissingSpanKind = true
+	s.esCleanUp(t)
 }
 
-func (s *ESStorageIntegration) esCleanUp(t *testing.T, allTagsAsFields bool) {
-	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
-	s.initSpanstore(t, allTagsAsFields)
-}
-
-func (s *ESStorageIntegration) initSamplingStore(t *testing.T) {
-	client := s.getEsClient(t)
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: estemplate.TextTemplateBuilder{},
-		Shards:          5,
-		Replicas:        1,
-		EsVersion:       client.GetVersion(),
-		IndexPrefix:     indexPrefix,
-		UseILM:          false,
-	}
-	clientFn := func() estemplate.Client { return client }
-	samplingstore := samplingstore.NewSamplingStore(
-		samplingstore.SamplingStoreParams{
-			Client:          clientFn,
-			Logger:          s.logger,
-			IndexPrefix:     indexPrefix,
-			IndexDateLayout: indexDateLayout,
-			MaxDocCount:     defaultMaxDocCount,
-		})
-	sampleMapping, err := mappingBuilder.GetSamplingMappings()
-	require.NoError(t, err)
-	err = samplingstore.CreateTemplates(sampleMapping)
-	require.NoError(t, err)
-	s.SamplingStore = samplingstore
-}
-
-func (s *ESStorageIntegration) getEsClient(t *testing.T) eswrapper.ClientWrapper {
-	bp, err := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	require.NoError(t, err)
-	s.bulkProcessor = bp
-	esVersion, err := s.getVersion()
-	require.NoError(t, err)
-	return eswrapper.WrapESClient(s.client, bp, esVersion, s.v8Client)
+func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
-	s.logger = zaptest.NewLogger(t)
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	args := []string{
-		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.num-shards=%v", 5),
+		fmt.Sprintf("--es.num-replicas=%v", 1),
 		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
+		fmt.Sprintf("--es.use-ilm=%v", false),
+		fmt.Sprintf("--es.service-cache-ttl=%v", 1*time.Second),
+		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.bulk.actions=%v", 1),
+		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
 		"--es-archive.enabled=true",
 		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
 		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
 	}
 	require.NoError(t, command.ParseFlags(args))
-	f.InitFromViper(v, s.logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, s.logger))
+	f.InitFromViper(v, logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 
-	// TODO ideally we need to close the factory once the test is finished
-	// but because esCleanup calls initialize() we get a panic later
-	// t.Cleanup(func() {
-	// 	require.NoError(t, f.Close())
-	// })
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 	return f
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
 	f := s.initializeESFactory(t, allTagsAsFields)
+	s.factory = f
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
@@ -193,6 +150,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	s.DependencyReader, err = f.CreateDependencyReader()
 	require.NoError(t, err)
 	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
+
+	s.SamplingStore, err = f.CreateSamplingStore(1)
+	require.NoError(t, err)
 }
 
 func healthCheck() error {
@@ -210,11 +170,16 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
-	s := &ESStorageIntegration{}
+	s := &ESStorageIntegration{
+		StorageIntegration: StorageIntegration{
+			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			SkipArchiveTest: false,
+			// TODO: remove this flag after ES supports returning spanKind
+			//  Issue https://github.com/jaegertracing/jaeger/issues/1923
+			GetOperationsMissingSpanKind: true,
+		},
+	}
 	s.initializeES(t, allTagsAsFields)
-
-	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
-
 	s.RunAll(t)
 }
 
