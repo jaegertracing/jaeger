@@ -16,7 +16,6 @@ func TestOSStorage(t *testing.T) {
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:                      purge,
 			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			SkipBinaryAttrs:              true,
 			GetOperationsMissingSpanKind: true,
 		},
 	}
