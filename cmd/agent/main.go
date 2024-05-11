@@ -31,7 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -62,9 +61,9 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
 			mFactory := fork.New("internal",
-				expvar.NewFactory(10), // backend for internal opts
-				baseFactory)
-			version.NewInfoMetrics(mFactory)
+				baseFactory,
+				baseFactory)  // No expvar functionality
+			version.NewInfoMetrics(mFactory) 
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)

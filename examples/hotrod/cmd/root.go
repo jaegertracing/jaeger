@@ -70,8 +70,14 @@ func onInitialize() {
 	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
 	// Only configure Prometheus as the metrics backend
-	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
-	logger.Info("Using Prometheus as the metrics backend")
+	switch metricsBackend {
+	case "prometheus":
+    	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
+    	logger.Info("Using Prometheus as metrics backend")
+	default:
+    	logger.Fatal("Unsupported metrics backend " + metricsBackend)
+	}
+
 	if config.MySQLGetDelay != fixDBConnDelay {
 		logger.Info("fix: overriding MySQL query delay", zap.Duration("old", config.MySQLGetDelay), zap.Duration("new", fixDBConnDelay))
 		config.MySQLGetDelay = fixDBConnDelay
