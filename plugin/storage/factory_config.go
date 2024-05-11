@@ -53,7 +53,7 @@ type FactoryConfig struct {
 // * `memory` - built-in
 // * `kafka` - built-in
 // * `blackhole` - built-in
-// * `plugin` - loads a dynamic plugin that implements storage.Factory interface (not supported at the moment)
+// * `grpc` - build-in
 //
 // For backwards compatibility it also parses the args looking for deprecated --span-storage.type flag.
 // If found, it writes a deprecation warning to the log.
@@ -65,6 +65,13 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	}
 	if spanStorageType == "" {
 		spanStorageType = cassandraStorageType
+	}
+	if spanStorageType == grpcPluginDeprecated {
+		fmt.Fprintf(log,
+			"WARNING: `%s` storage type is deprecated and will be remove from v1.60. Use `%s`.\n\n",
+			grpcPluginDeprecated, grpcStorageType,
+		)
+		spanStorageType = grpcStorageType
 	}
 	spanWriterTypes := strings.Split(spanStorageType, ",")
 	if len(spanWriterTypes) > 1 {
