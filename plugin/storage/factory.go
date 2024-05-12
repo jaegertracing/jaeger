@@ -44,7 +44,8 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
-	grpcPluginStorageType    = "grpc-plugin"
+	grpcStorageType          = "grpc"
+	grpcPluginDeprecated     = "grpc-plugin"
 	badgerStorageType        = "badger"
 	blackholeStorageType     = "blackhole"
 
@@ -67,7 +68,7 @@ var AllStorageTypes = []string{
 	kafkaStorageType,
 	badgerStorageType,
 	blackholeStorageType,
-	grpcPluginStorageType,
+	grpcStorageType,
 }
 
 // AllSamplingStorageTypes returns all storage backends that implement adaptive sampling
@@ -135,7 +136,7 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 		return kafka.NewFactory(), nil
 	case badgerStorageType:
 		return badger.NewFactory(), nil
-	case grpcPluginStorageType:
+	case grpcStorageType:
 		return grpc.NewFactory(), nil
 	case blackholeStorageType:
 		return blackhole.NewFactory(), nil

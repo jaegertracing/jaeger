@@ -101,14 +101,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	services, err := f.builder.Build(logger, f.tracerProvider)
 	if err != nil {
-		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
+		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
 
 	f.store = services.Store
 	f.archiveStore = services.ArchiveStore
 	f.capabilities = services.Capabilities
 	f.streamingSpanWriter = services.StreamingSpanWriter
-	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
 
