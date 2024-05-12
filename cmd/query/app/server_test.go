@@ -408,8 +408,7 @@ func TestServerHTTPTLS(t *testing.T) {
 						TLSClientConfig: clientTLSCfg,
 					},
 				}
-				readMock := querySvc.spanReader
-				readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return([]*model.Trace{mockTrace}, nil).Once()
+				querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
 				req, err := http.NewRequest(http.MethodGet, "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
 				require.NoError(t, err)
@@ -737,6 +736,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 	}
 	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 	querySvc := makeQuerySvc()
+	querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
 	server, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), querySvc.qs,
 		nil, serverOptions, tenancyMgr, jtracer.NoOp())
 	require.NoError(t, err)
