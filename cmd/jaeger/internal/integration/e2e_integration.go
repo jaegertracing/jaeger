@@ -48,6 +48,23 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
+
+	outFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "jaeger_output_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
+	require.NoError(t, err)
+	t.Logf("Writing the Jaeger-v2 output logs into %s", outFile.Name())
+
+	errFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "jaeger_error_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
+	require.NoError(t, err)
+	t.Logf("Writing the Jaeger-v2 error logs into %s", errFile.Name())
+
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", configFile},
@@ -55,8 +72,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		// since the binary config file jaeger_query's ui_config points to
 		// "./cmd/jaeger/config-ui.json"
 		Dir:    "../../../..",
-		Stdout: os.Stderr,
-		Stderr: os.Stderr,
+		Stdout: outFile,
+		Stderr: errFile,
 	}
 	require.NoError(t, cmd.Start())
 	require.Eventually(t, func() bool {
@@ -77,9 +94,23 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		require.NoError(t, cmd.Process.Kill())
+		if t.Failed() {
+			// A Github Actions special annotation to create a foldable section
+			// in the Github runner output.
+			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
+			fmt.Println("::group::Jaeger-v2 binary logs")
+			outLogs, err := os.ReadFile(outFile.Name())
+			require.NoError(t, err)
+			fmt.Printf("Jaeger-v2 output logs:\n%s", outLogs)
+
+			errLogs, err := os.ReadFile(errFile.Name())
+			require.NoError(t, err)
+			fmt.Printf("Jaeger-v2 error logs:\n%s", errLogs)
+			// End of Github Actions foldable section annotation.
+			fmt.Println("::endgroup::")
+		}
 	})
 
-	var err error
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
 	s.SpanReader, err = createSpanReader(ports.QueryGRPC)

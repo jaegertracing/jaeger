@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
@@ -27,9 +28,10 @@ var (
 )
 
 type server struct {
-	config *Config
-	logger *zap.Logger
-	server *queryApp.Server
+	config  *Config
+	logger  *zap.Logger
+	server  *queryApp.Server
+	jtracer *jtracer.JTracer
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -73,7 +75,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 	//nolint
-	jtracer, err := jtracer.New("jaeger")
+	s.jtracer, err = jtracer.New("jaeger")
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
@@ -88,7 +90,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		metricsQueryService,
 		s.makeQueryOptions(),
 		tm,
-		jtracer,
+		s.jtracer,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
@@ -129,8 +131,12 @@ func (s *server) makeQueryOptions() *queryApp.QueryOptions {
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
+	var errs []error
 	if s.server != nil {
-		return s.server.Close()
+		errs = append(errs, s.server.Close())
 	}
-	return nil
+	if s.jtracer != nil {
+		errs = append(errs, s.jtracer.Close(ctx))
+	}
+	return errors.Join(errs...)
 }

@@ -38,7 +38,6 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 	s := &CassandraStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
-			SkipArchiveTest:              true,
 
 			SkipList: CassandraSkippedTests,
 		},
@@ -64,12 +63,19 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, f
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
+		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
+		"--cassandra-archive.enabled=true",
+		"--cassandra-archive.servers=127.0.0.1",
 	})
 	s.factory = f
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	s.SpanReader, err = f.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)

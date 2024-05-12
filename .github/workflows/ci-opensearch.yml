@@ -52,7 +52,12 @@ jobs:
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
     - name: Run opensearch integration tests
+      id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
+
+    - name: Output Opensearch logs
+      run: docker logs ${{ steps.test-execution.outputs.cid }}
+      if: ${{ failure() }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

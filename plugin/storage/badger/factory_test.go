@@ -194,11 +194,15 @@ func TestBadgerMetrics(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestInitFromOptions(t *testing.T) {
+func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
-	opts := Options{}
-	f.InitFromOptions(opts)
-	assert.Equal(t, &opts, f.Options)
+	opts := &Options{
+		Primary: NamespaceConfig{
+			MaintenanceInterval: 42 * time.Second,
+		},
+	}
+	f.configureFromOptions(opts)
+	assert.Equal(t, opts, f.Options)
 }
 
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {

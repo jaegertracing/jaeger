@@ -57,7 +57,7 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 	f, ok := comp.(Extension).Factory(name)
 	if !ok {
 		return nil, fmt.Errorf(
-			"cannot find storage '%s' declared with '%s' extension",
+			"cannot find storage '%s' declared by '%s' extension",
 			name, componentType,
 		)
 	}
