@@ -102,6 +102,7 @@ type PostAggregator struct {
 
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
+	lastCheckedTime               time.Time
 }
 
 // newProcessor creates a new sampling processor that generates sampling rates for service operations.
@@ -144,7 +145,6 @@ func (p *PostAggregator) Start() error {
 		return err
 	}
 	p.shutdown = make(chan struct{})
-	p.runBackground(p.runCalculationLoop)
 	return nil
 }
 
@@ -179,47 +179,35 @@ func addJitter(jitterAmount time.Duration) time.Duration {
 	return (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
 }
 
-func (p *PostAggregator) runCalculationLoop() {
-	lastCheckedTime := time.Now().Add(p.Delay * -1)
-	p.initializeThroughput(lastCheckedTime)
-	// NB: the first tick will be slightly delayed by the initializeThroughput call.
-	ticker := time.NewTicker(p.CalculationInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			endTime := time.Now().Add(p.Delay * -1)
-			startTime := lastCheckedTime
-			throughput, err := p.storage.GetThroughput(startTime, endTime)
-			if err != nil {
-				p.logger.Error(getThroughputErrMsg, zap.Error(err))
-				break
-			}
-			aggregatedThroughput := p.aggregateThroughput(throughput)
-			p.prependThroughputBucket(&throughputBucket{
-				throughput: aggregatedThroughput,
-				interval:   endTime.Sub(startTime),
-				endTime:    endTime,
-			})
-			lastCheckedTime = endTime
-			// Load the latest throughput so that if this host ever becomes leader, it
-			// has the throughput ready in memory. However, only run the actual calculations
-			// if this host becomes leader.
-			// TODO fill the throughput buffer only when we're leader
-			if p.isLeader() {
-				startTime := time.Now()
-				probabilities, qps := p.calculateProbabilitiesAndQPS()
-				p.Lock()
-				p.probabilities = probabilities
-				p.qps = qps
-				p.Unlock()
+func (p *PostAggregator) runCalculation() {
+	endTime := time.Now().Add(p.Delay * -1)
+	startTime := p.lastCheckedTime
+	throughput, err := p.storage.GetThroughput(startTime, endTime)
+	if err != nil {
+		p.logger.Error(getThroughputErrMsg, zap.Error(err))
+		return
+	}
+	aggregatedThroughput := p.aggregateThroughput(throughput)
+	p.prependThroughputBucket(&throughputBucket{
+		throughput: aggregatedThroughput,
+		interval:   endTime.Sub(startTime),
+		endTime:    endTime,
+	})
+	p.lastCheckedTime = endTime
+	// Load the latest throughput so that if this host ever becomes leader, it
+	// has the throughput ready in memory. However, only run the actual calculations
+	// if this host becomes leader.
+	// TODO fill the throughput buffer only when we're leader
+	if p.isLeader() {
+		startTime := time.Now()
+		probabilities, qps := p.calculateProbabilitiesAndQPS()
+		p.Lock()
+		p.probabilities = probabilities
+		p.qps = qps
+		p.Unlock()
 
-				p.calculateProbabilitiesLatency.Record(time.Since(startTime))
-				p.runBackground(p.saveProbabilitiesAndQPS)
-			}
-		case <-p.shutdown:
-			return
-		}
+		p.calculateProbabilitiesLatency.Record(time.Since(startTime))
+		p.runBackground(p.saveProbabilitiesAndQPS)
 	}
 }
 

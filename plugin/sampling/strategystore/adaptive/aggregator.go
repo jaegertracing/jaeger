@@ -15,6 +15,7 @@
 package adaptive
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -43,6 +44,7 @@ type aggregator struct {
 	aggregationInterval time.Duration
 	storage             samplingstore.Store
 	stop                chan struct{}
+	bgFinished          sync.WaitGroup
 }
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
@@ -72,12 +74,17 @@ func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.F
 
 func (a *aggregator) runAggregationLoop() {
 	ticker := time.NewTicker(a.aggregationInterval)
+
+	// NB: the first tick will be slightly delayed by the initializeThroughput call.
+	a.postAggregator.lastCheckedTime = time.Now().Add(a.postAggregator.Delay * -1)
+	a.postAggregator.initializeThroughput(a.postAggregator.lastCheckedTime)
 	for {
 		select {
 		case <-ticker.C:
 			a.Lock()
 			a.saveThroughput()
 			a.currentThroughput = make(serviceOperationThroughput)
+			a.postAggregator.runCalculation()
 			a.Unlock()
 		case <-a.stop:
 			ticker.Stop()
@@ -128,24 +135,26 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 }
 
 func (a *aggregator) Start() {
-	go a.runAggregationLoop()
 	a.postAggregator.Start()
+	a.runBackground(a.runAggregationLoop)
 }
 
 func (a *aggregator) Close() error {
-	a.Lock()
-	defer a.Unlock()
-
+	var errs []error
 	if err := a.postAggregator.Close(); err != nil {
-		return err
+		errs = append(errs, err)
 	}
-
-	select {
-	case <-a.stop:
-		// a.stop is already closed, do nothing
-	default:
+	if a.stop != nil {
 		close(a.stop)
 	}
+	a.bgFinished.Wait()
+	return errors.Join(errs...)
+}
 
-	return nil
+func (a *aggregator) runBackground(f func()) {
+	a.bgFinished.Add(1)
+	go func() {
+		f()
+		a.bgFinished.Done()
+	}()
 }
