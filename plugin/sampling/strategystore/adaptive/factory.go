@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
@@ -83,12 +84,23 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
-	p, err := NewStrategyStore(*f.options, f.metricsFactory, f.logger, f.lock, f.store)
+	participant := leaderelection.NewElectionParticipant(f.lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
+		FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
+		LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
+		Logger:                       f.logger,
+	})
+
+	ss, err := NewStrategyStore(*f.options, f.logger, participant, f.store)
 	if err != nil {
 		return nil, nil, err
 	}
-	p.Start()
-	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store)
+	ss.Start()
+
+	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, participant, f.store)
+	if err != nil {
+		return nil, nil, err
+	}
 	a.Start()
-	return p, a, nil
+
+	return ss, a, nil
 }

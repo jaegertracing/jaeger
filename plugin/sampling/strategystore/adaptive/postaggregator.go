@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 package adaptive
 
 import (
-	"context"
 	"errors"
 	"math"
 	"math/rand"
@@ -28,7 +27,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
@@ -36,8 +34,6 @@ const (
 	maxSamplingProbability = 1.0
 
 	getThroughputErrMsg = "failed to get throughput from storage"
-
-	defaultFollowerProbabilityInterval = 20 * time.Second
 
 	// The number of past entries for samplingCache the leader keeps in memory
 	serviceCacheSize = 25
@@ -71,11 +67,11 @@ type throughputBucket struct {
 	endTime    time.Time
 }
 
-// Processor retrieves service throughput over a look back interval and calculates sampling probabilities
+// PostAggregator retrieves service throughput over a look back interval and calculates sampling probabilities
 // per operation such that each operation is sampled at a specified target QPS. It achieves this by
 // retrieving discrete buckets of operation throughput and doing a weighted average of the throughput
 // and generating a probability to match the targetQPS.
-type Processor struct {
+type PostAggregator struct {
 	sync.RWMutex
 	Options
 
@@ -95,18 +91,9 @@ type Processor struct {
 	// The latest throughput is stored at the head of the slice.
 	throughputs []*throughputBucket
 
-	// strategyResponses is the cache of the sampling strategies for every service, in Thrift format.
-	// TODO change this to work with protobuf model instead, to support gRPC endpoint.
-	strategyResponses map[string]*api_v2.SamplingStrategyResponse
-
 	weightVectorCache *WeightVectorCache
 
 	probabilityCalculator calculationstrategy.ProbabilityCalculator
-
-	// followerRefreshInterval determines how often the follower processor updates its probabilities.
-	// Given only the leader writes probabilities, the followers need to fetch the probabilities into
-	// cache.
-	followerRefreshInterval time.Duration
 
 	serviceCache []SamplingCache
 
@@ -118,14 +105,14 @@ type Processor struct {
 }
 
 // newProcessor creates a new sampling processor that generates sampling rates for service operations.
-func newProcessor(
+func newPostAggregator(
 	opts Options,
 	hostname string,
 	storage samplingstore.Store,
 	electionParticipant leaderelection.ElectionParticipant,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-) (*Processor, error) {
+) (*PostAggregator, error) {
 	if opts.CalculationInterval == 0 || opts.AggregationBuckets == 0 {
 		return nil, errNonZero
 	}
@@ -133,50 +120,35 @@ func newProcessor(
 		return nil, errBucketsForCalculation
 	}
 	metricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "adaptive_sampling_processor"})
-	return &Processor{
+	return &PostAggregator{
 		Options:             opts,
 		storage:             storage,
 		probabilities:       make(model.ServiceOperationProbabilities),
 		qps:                 make(model.ServiceOperationQPS),
 		hostname:            hostname,
-		strategyResponses:   make(map[string]*api_v2.SamplingStrategyResponse),
 		logger:              logger,
 		electionParticipant: electionParticipant,
 		// TODO make weightsCache and probabilityCalculator configurable
 		weightVectorCache:             NewWeightVectorCache(),
 		probabilityCalculator:         calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
-		followerRefreshInterval:       defaultFollowerProbabilityInterval,
 		serviceCache:                  []SamplingCache{},
 		operationsCalculatedGauge:     metricsFactory.Gauge(metrics.Options{Name: "operations_calculated"}),
 		calculateProbabilitiesLatency: metricsFactory.Timer(metrics.TimerOptions{Name: "calculate_probabilities"}),
 	}, nil
 }
 
-// GetSamplingStrategy implements Thrift endpoint for retrieving sampling strategy for a service.
-func (p *Processor) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
-	p.RLock()
-	defer p.RUnlock()
-	if strategy, ok := p.strategyResponses[service]; ok {
-		return strategy, nil
-	}
-	return p.generateDefaultSamplingStrategyResponse(), nil
-}
-
 // Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
-func (p *Processor) Start() error {
+func (p *PostAggregator) Start() error {
 	p.logger.Info("starting adaptive sampling processor")
 	if err := p.electionParticipant.Start(); err != nil {
 		return err
 	}
 	p.shutdown = make(chan struct{})
-	p.loadProbabilities()
-	p.generateStrategyResponses()
 	p.runBackground(p.runCalculationLoop)
-	p.runBackground(p.runUpdateProbabilitiesLoop)
 	return nil
 }
 
-func (p *Processor) runBackground(f func()) {
+func (p *PostAggregator) runBackground(f func()) {
 	p.bgFinished.Add(1)
 	go func() {
 		f()
@@ -185,7 +157,7 @@ func (p *Processor) runBackground(f func()) {
 }
 
 // Close stops the processor from calculating probabilities.
-func (p *Processor) Close() error {
+func (p *PostAggregator) Close() error {
 	p.logger.Info("stopping adaptive sampling processor")
 	err := p.electionParticipant.Close()
 	if p.shutdown != nil {
@@ -195,44 +167,7 @@ func (p *Processor) Close() error {
 	return err
 }
 
-func (p *Processor) loadProbabilities() {
-	// TODO GetLatestProbabilities API can be changed to return the latest measured qps for initialization
-	probabilities, err := p.storage.GetLatestProbabilities()
-	if err != nil {
-		p.logger.Warn("failed to initialize probabilities", zap.Error(err))
-		return
-	}
-	p.Lock()
-	defer p.Unlock()
-	p.probabilities = probabilities
-}
-
-// runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
-// The follower updates its local cache with the latest probabilities and serves them.
-func (p *Processor) runUpdateProbabilitiesLoop() {
-	select {
-	case <-time.After(addJitter(p.followerRefreshInterval)):
-	case <-p.shutdown:
-		return
-	}
-
-	ticker := time.NewTicker(p.followerRefreshInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// Only load probabilities if this processor doesn't hold the leader lock
-			if !p.isLeader() {
-				p.loadProbabilities()
-				p.generateStrategyResponses()
-			}
-		case <-p.shutdown:
-			return
-		}
-	}
-}
-
-func (p *Processor) isLeader() bool {
+func (p *PostAggregator) isLeader() bool {
 	return p.electionParticipant.IsLeader()
 }
 
@@ -244,7 +179,7 @@ func addJitter(jitterAmount time.Duration) time.Duration {
 	return (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
 }
 
-func (p *Processor) runCalculationLoop() {
+func (p *PostAggregator) runCalculationLoop() {
 	lastCheckedTime := time.Now().Add(p.Delay * -1)
 	p.initializeThroughput(lastCheckedTime)
 	// NB: the first tick will be slightly delayed by the initializeThroughput call.
@@ -278,13 +213,7 @@ func (p *Processor) runCalculationLoop() {
 				p.probabilities = probabilities
 				p.qps = qps
 				p.Unlock()
-				// NB: This has the potential of running into a race condition if the CalculationInterval
-				// is set to an extremely low value. The worst case scenario is that probabilities is calculated
-				// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
-				// This will result in one or more batches of probabilities not being saved which is completely
-				// fine. This race condition should not ever occur anyway since the calculation interval will
-				// be way longer than the time to run the calculations.
-				p.generateStrategyResponses()
+
 				p.calculateProbabilitiesLatency.Record(time.Since(startTime))
 				p.runBackground(p.saveProbabilitiesAndQPS)
 			}
@@ -294,7 +223,7 @@ func (p *Processor) runCalculationLoop() {
 	}
 }
 
-func (p *Processor) saveProbabilitiesAndQPS() {
+func (p *PostAggregator) saveProbabilitiesAndQPS() {
 	p.RLock()
 	defer p.RUnlock()
 	if err := p.storage.InsertProbabilitiesAndQPS(p.hostname, p.probabilities, p.qps); err != nil {
@@ -302,7 +231,7 @@ func (p *Processor) saveProbabilitiesAndQPS() {
 	}
 }
 
-func (p *Processor) prependThroughputBucket(bucket *throughputBucket) {
+func (p *PostAggregator) prependThroughputBucket(bucket *throughputBucket) {
 	p.throughputs = append([]*throughputBucket{bucket}, p.throughputs...)
 	if len(p.throughputs) > p.AggregationBuckets {
 		p.throughputs = p.throughputs[0:p.AggregationBuckets]
@@ -312,7 +241,7 @@ func (p *Processor) prependThroughputBucket(bucket *throughputBucket) {
 // aggregateThroughput aggregates operation throughput from different buckets into one.
 // All input buckets represent a single time range, but there are many of them because
 // they are all independently generated by different collector instances from inbound span traffic.
-func (p *Processor) aggregateThroughput(throughputs []*model.Throughput) serviceOperationThroughput {
+func (p *PostAggregator) aggregateThroughput(throughputs []*model.Throughput) serviceOperationThroughput {
 	aggregatedThroughput := make(serviceOperationThroughput)
 	for _, throughput := range throughputs {
 		service := throughput.Service
@@ -344,7 +273,7 @@ func copySet(in map[string]struct{}) map[string]struct{} {
 	return out
 }
 
-func (p *Processor) initializeThroughput(endTime time.Time) {
+func (p *PostAggregator) initializeThroughput(endTime time.Time) {
 	for i := 0; i < p.AggregationBuckets; i++ {
 		startTime := endTime.Add(p.CalculationInterval * -1)
 		throughput, err := p.storage.GetThroughput(startTime, endTime)
@@ -366,7 +295,7 @@ func (p *Processor) initializeThroughput(endTime time.Time) {
 }
 
 // throughputToQPS converts raw throughput counts for all accumulated buckets to QPS values.
-func (p *Processor) throughputToQPS() serviceOperationQPS {
+func (p *PostAggregator) throughputToQPS() serviceOperationQPS {
 	// TODO previous qps buckets have already been calculated, just need to calculate latest batch
 	// and append them where necessary and throw out the oldest batch.
 	// Edge case #buckets < p.AggregationBuckets, then we shouldn't throw out
@@ -394,7 +323,7 @@ func calculateQPS(count int64, interval time.Duration) float64 {
 
 // calculateWeightedQPS calculates the weighted qps of the slice allQPS where weights are biased
 // towards more recent qps. This function assumes that the most recent qps is at the head of the slice.
-func (p *Processor) calculateWeightedQPS(allQPS []float64) float64 {
+func (p *PostAggregator) calculateWeightedQPS(allQPS []float64) float64 {
 	if len(allQPS) == 0 {
 		return 0
 	}
@@ -406,14 +335,14 @@ func (p *Processor) calculateWeightedQPS(allQPS []float64) float64 {
 	return qps
 }
 
-func (p *Processor) prependServiceCache() {
+func (p *PostAggregator) prependServiceCache() {
 	p.serviceCache = append([]SamplingCache{make(SamplingCache)}, p.serviceCache...)
 	if len(p.serviceCache) > serviceCacheSize {
 		p.serviceCache = p.serviceCache[0:serviceCacheSize]
 	}
 }
 
-func (p *Processor) calculateProbabilitiesAndQPS() (model.ServiceOperationProbabilities, model.ServiceOperationQPS) {
+func (p *PostAggregator) calculateProbabilitiesAndQPS() (model.ServiceOperationProbabilities, model.ServiceOperationQPS) {
 	p.prependServiceCache()
 	retProbabilities := make(model.ServiceOperationProbabilities)
 	retQPS := make(model.ServiceOperationQPS)
@@ -437,7 +366,7 @@ func (p *Processor) calculateProbabilitiesAndQPS() (model.ServiceOperationProbab
 	return retProbabilities, retQPS
 }
 
-func (p *Processor) calculateProbability(service, operation string, qps float64) float64 {
+func (p *PostAggregator) calculateProbability(service, operation string, qps float64) float64 {
 	oldProbability := p.InitialSamplingProbability
 	// TODO: is this loop overly expensive?
 	p.RLock()
@@ -472,7 +401,7 @@ func (p *Processor) calculateProbability(service, operation string, qps float64)
 }
 
 // is actual value within p.DeltaTolerance percentage of expected value.
-func (p *Processor) withinTolerance(actual, expected float64) bool {
+func (p *PostAggregator) withinTolerance(actual, expected float64) bool {
 	return math.Abs(actual-expected)/expected < p.DeltaTolerance
 }
 
@@ -484,7 +413,7 @@ func merge(p1 map[string]struct{}, p2 map[string]struct{}) map[string]struct{} {
 	return p1
 }
 
-func (p *Processor) isUsingAdaptiveSampling(
+func (p *PostAggregator) isUsingAdaptiveSampling(
 	probability float64,
 	service string,
 	operation string,
@@ -510,41 +439,4 @@ func (p *Processor) isUsingAdaptiveSampling(
 		}
 	}
 	return false
-}
-
-// generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
-func (p *Processor) generateStrategyResponses() {
-	p.RLock()
-	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
-	for svc, opProbabilities := range p.probabilities {
-		opStrategies := make([]*api_v2.OperationSamplingStrategy, len(opProbabilities))
-		var idx int
-		for op, probability := range opProbabilities {
-			opStrategies[idx] = &api_v2.OperationSamplingStrategy{
-				Operation: op,
-				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-					SamplingRate: probability,
-				},
-			}
-			idx++
-		}
-		strategy := p.generateDefaultSamplingStrategyResponse()
-		strategy.OperationSampling.PerOperationStrategies = opStrategies
-		strategies[svc] = strategy
-	}
-	p.RUnlock()
-
-	p.Lock()
-	defer p.Unlock()
-	p.strategyResponses = strategies
-}
-
-func (p *Processor) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
-	return &api_v2.SamplingStrategyResponse{
-		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-		OperationSampling: &api_v2.PerOperationSamplingStrategies{
-			DefaultSamplingProbability:       p.InitialSamplingProbability,
-			DefaultLowerBoundTracesPerSecond: p.MinSamplesPerSecond,
-		},
-	}
 }

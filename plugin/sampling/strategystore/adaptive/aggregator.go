@@ -18,10 +18,14 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	span_model "github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
@@ -35,6 +39,7 @@ type aggregator struct {
 	operationsCounter   metrics.Counter
 	servicesCounter     metrics.Counter
 	currentThroughput   serviceOperationThroughput
+	postAggregator      *PostAggregator
 	aggregationInterval time.Duration
 	storage             samplingstore.Store
 	stop                chan struct{}
@@ -42,15 +47,27 @@ type aggregator struct {
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
 // about the number of operations seen over the aggregationInterval.
-func NewAggregator(metricsFactory metrics.Factory, interval time.Duration, storage samplingstore.Store) strategystore.Aggregator {
+func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (strategystore.Aggregator, error) {
+	hostname, err := hostname.AsIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Using unique participantName in adaptive sampling", zap.String("participantName", hostname))
+
+	postAgg, err := newPostAggregator(options, hostname, store, participant, metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	return &aggregator{
 		operationsCounter:   metricsFactory.Counter(metrics.Options{Name: "sampling_operations"}),
 		servicesCounter:     metricsFactory.Counter(metrics.Options{Name: "sampling_services"}),
 		currentThroughput:   make(serviceOperationThroughput),
-		aggregationInterval: interval,
-		storage:             storage,
+		aggregationInterval: options.CalculationInterval,
+		postAggregator:      postAgg,
+		storage:             store,
 		stop:                make(chan struct{}),
-	}
+	}, nil
 }
 
 func (a *aggregator) runAggregationLoop() {
@@ -112,9 +129,11 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 
 func (a *aggregator) Start() {
 	go a.runAggregationLoop()
+	a.postAggregator.Start()
 }
 
 func (a *aggregator) Close() error {
 	close(a.stop)
+	a.postAggregator.Close()
 	return nil
 }
