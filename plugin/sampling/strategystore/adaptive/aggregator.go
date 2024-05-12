@@ -146,6 +146,7 @@ func (a *aggregator) Close() error {
 	// default:
 	// 	close(a.stop)
 	// }
+	close(a.stop)
 
-	return a.postAggregator.Close()
+	return nil
 }
