@@ -133,7 +133,19 @@ func (a *aggregator) Start() {
 }
 
 func (a *aggregator) Close() error {
-	close(a.stop)
-	a.postAggregator.Close()
-	return nil
+	a.Lock()
+	defer a.Unlock()
+
+	// if err := a.postAggregator.Close(); err != nil {
+	// 	return err
+	// }
+
+	// select {
+	// case <-a.stop:
+	// 	// a.stop is already closed, do nothing
+	// default:
+	// 	close(a.stop)
+	// }
+
+	return a.postAggregator.Close()
 }
