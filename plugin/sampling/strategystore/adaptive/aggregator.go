@@ -144,9 +144,9 @@ func (a *aggregator) Close() error {
 	if err := a.postAggregator.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if a.stop != nil {
-		close(a.stop)
-	}
+	// if a.stop != nil {
+	// 	close(a.stop)
+	// }
 	a.bgFinished.Wait()
 	return errors.Join(errs...)
 }
