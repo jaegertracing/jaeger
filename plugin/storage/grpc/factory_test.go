@@ -162,9 +162,11 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	}()
 	defer s.Stop()
 
-	cfg := grpcConfig.Configuration{
-		RemoteServerAddr:     lis.Addr().String(),
-		RemoteConnectTimeout: 1 * time.Second,
+	cfg = grpcConfig.ConfigV2{
+		Configuration: grpcConfig.Configuration{
+			RemoteServerAddr:     lis.Addr().String(),
+			RemoteConnectTimeout: 1 * time.Second,
+		},
 	}
 	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
@@ -316,8 +318,9 @@ func TestConfigureFromOptions(t *testing.T) {
 	f := Factory{}
 	o := Options{
 		Configuration: grpcConfig.ConfigV2{
-		Configuration: grpcConfig.Configuration{
-			RemoteServerAddr: "foo:1234",
+			Configuration: grpcConfig.Configuration{
+				RemoteServerAddr: "foo:1234",
+			},
 		},
 	}
 	f.configureFromOptions(o)

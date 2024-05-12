@@ -15,13 +15,14 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/trace"
@@ -52,34 +53,21 @@ type ConfigV2 struct {
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 }
 
-func translateToConfigV2(v1 Configuration) *ConfigV2 {
-	return &ConfigV2{
-		Configuration: v1,
+func (c *ConfigV2) translateToConfigV2(v1 Configuration) *ConfigV2 {
+	c.Endpoint = v1.RemoteServerAddr
+	c.Timeout = v1.RemoteConnectTimeout
 
-		ClientConfig: configgrpc.ClientConfig{
-			Endpoint: v1.RemoteServerAddr,
+	c.ClientConfig.TLSSetting.ServerName = v1.RemoteTLS.ServerName
+	c.ClientConfig.TLSSetting.InsecureSkipVerify = v1.RemoteTLS.SkipHostVerify
+	c.ClientConfig.TLSSetting.CAFile = v1.RemoteTLS.CAPath
+	c.ClientConfig.TLSSetting.CertFile = v1.RemoteTLS.CertPath
+	c.ClientConfig.TLSSetting.KeyFile = v1.RemoteTLS.KeyPath
+	c.ClientConfig.TLSSetting.CipherSuites = v1.RemoteTLS.CipherSuites
+	c.ClientConfig.TLSSetting.MinVersion = v1.RemoteTLS.MinVersion
+	c.ClientConfig.TLSSetting.MaxVersion = v1.RemoteTLS.MaxVersion
+	c.ClientConfig.TLSSetting.ReloadInterval = v1.RemoteTLS.ReloadInterval
 
-			TLSSetting: configtls.ClientConfig{
-				Config: configtls.Config{
-					CAFile:         v1.RemoteTLS.CAPath,
-					CertFile:       v1.RemoteTLS.CertPath,
-					KeyFile:        v1.RemoteTLS.KeyPath,
-					CipherSuites:   v1.RemoteTLS.CipherSuites,
-					MinVersion:     v1.RemoteTLS.MinVersion,
-					MaxVersion:     v1.RemoteTLS.MaxVersion,
-					ReloadInterval: v1.RemoteTLS.ReloadInterval,
-				},
-
-				ServerName:         v1.RemoteTLS.ServerName,
-				InsecureSkipVerify: v1.RemoteTLS.SkipHostVerify,
-			},
-		},
-
-		TimeoutSettings: exporterhelper.TimeoutSettings{
-			Timeout: v1.RemoteConnectTimeout,
-		},
-	}
-
+	return c
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -96,14 +84,12 @@ type PluginBuilder interface {
 }
 
 // Build instantiates a PluginServices
-func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	return c.buildRemote(logger, tracerProvider, grpc.NewClient)
+func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+	return c.buildRemote(logger, tracerProvider)
 }
 
-type newClientFn func(target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error)
-
-func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider, newClient newClientFn) (*ClientPluginServices, error) {
-c = translateToConfigV2(c.Configuration)
+func (c *ConfigV2) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+	c = c.translateToConfigV2(c.Configuration)
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
@@ -129,11 +115,8 @@ c = translateToConfigV2(c.Configuration)
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
-
 	var err error
-	c.remoteConn, err = c.ToClientConn(ctx, componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
-	c.remoteConn, err = newClient(c.RemoteServerAddr, opts...)
-
+	c.remoteConn, err = c.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating remote storage client: %w", err)
 	}
@@ -149,7 +132,7 @@ c = translateToConfigV2(c.Configuration)
 	}, nil
 }
 
-func (c *Configuration) Close() error {
+func (c *ConfigV2) Close() error {
 	var errs []error
 	if c.remoteConn != nil {
 		errs = append(errs, c.remoteConn.Close())
