@@ -151,7 +151,6 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	cfg := grpcConfig.ConfigV2{}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "grpc-plugin builder failed to create a store: error connecting to remote storage")
-
 	lis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err, "failed to listen")
 
@@ -163,8 +162,10 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	}()
 	defer s.Stop()
 
-	cfg.RemoteServerAddr = lis.Addr().String()
-	cfg.RemoteConnectTimeout = 1 * time.Second
+	cfg := grpcConfig.Configuration{
+		RemoteServerAddr:     lis.Addr().String(),
+		RemoteConnectTimeout: 1 * time.Second,
+	}
 	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
@@ -303,15 +304,11 @@ func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
-		"--grpc-storage-plugin.log-level=debug",
-		"--grpc-storage-plugin.binary=noop-grpc-plugin",
-		"--grpc-storage-plugin.configuration-file=config.json",
+		"--grpc-storage.server=foo:1234",
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "noop-grpc-plugin", f.options.Configuration.PluginBinary)
-	assert.Equal(t, "config.json", f.options.Configuration.PluginConfigurationFile)
-	assert.Equal(t, "debug", f.options.Configuration.PluginLogLevel)
+	assert.Equal(t, "foo:1234", f.options.Configuration.RemoteServerAddr)
 	require.NoError(t, f.Close())
 }
 
@@ -319,9 +316,8 @@ func TestConfigureFromOptions(t *testing.T) {
 	f := Factory{}
 	o := Options{
 		Configuration: grpcConfig.ConfigV2{
-			Configuration: grpcConfig.Configuration{
-				PluginLogLevel: "info",
-			},
+		Configuration: grpcConfig.Configuration{
+			RemoteServerAddr: "foo:1234",
 		},
 	}
 	f.configureFromOptions(o)

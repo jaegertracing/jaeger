@@ -21,12 +21,6 @@ jobs:
     strategy:
       matrix:
         version:
-        - major: 5.x
-          image: 5.6.16
-          distribution: elasticsearch
-        - major: 6.x
-          image: 6.8.18
-          distribution: elasticsearch
         - major: 7.x
           image: 7.14.0
           distribution: elasticsearch
