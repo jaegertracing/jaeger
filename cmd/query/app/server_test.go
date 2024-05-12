@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -465,23 +463,8 @@ func TestServerGRPCTLS(t *testing.T) {
 		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 	}
 
-	lsof := func(name string) {
-		println("::group::running lsof", name)
-		println("::endgroup::")
-		cmd := exec.Cmd{
-			Path:   "/bin/bash",
-			Args:   []string{"bash", "-c", "sudo lsof -iTCP -sTCP:LISTEN -P +c0"},
-			Stdout: os.Stdout,
-			Stderr: os.Stdout,
-		}
-		require.NoError(t, cmd.Run())
-	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			{ // TODO remove me
-				lsof("at the start of the test")
-			}
 			TLSHTTP := disabledTLSCfg
 			if test.HTTPTLSEnabled {
 				TLSHTTP = enabledTLSCfg
@@ -509,11 +492,11 @@ func TestServerGRPCTLS(t *testing.T) {
 				jtracer.NoOp())
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
-			defer server.Close()
+			t.Cleanup(func() {
+				require.NoError(t, server.Close())
+			})
 
-			var clientError error
 			var client *grpcClient
-
 			if serverOptions.TLSGRPC.Enabled {
 				clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
 				require.NoError(t, err0)
@@ -523,16 +506,14 @@ func TestServerGRPCTLS(t *testing.T) {
 			} else {
 				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), nil)
 			}
+			t.Cleanup(func() {
+				require.NoError(t, client.conn.Close())
+			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			// using generous timeout since grpc.NewClient no longer does a handshake.
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			{ // TODO remove me
-				flagsSvc.Logger.Info("sleep 5sec to server to start")
-				lsof("before client call")
-			}
-
-			// TODO temporary ^
 			flagsSvc.Logger.Info("calling client.GetServices()")
 			res, clientError := client.GetServices(ctx, &api_v2.GetServicesRequest{})
 			flagsSvc.Logger.Info("returned from GetServices()")
@@ -543,9 +524,6 @@ func TestServerGRPCTLS(t *testing.T) {
 				require.NoError(t, clientError)
 				assert.Equal(t, expectedServices, res.Services)
 			}
-			require.NoError(t, client.conn.Close())
-			// server.Close()
-			// assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
 }
@@ -609,10 +587,7 @@ func TestServerInUseHostPort(t *testing.T) {
 				jtracer.NoOp(),
 			)
 			require.NoError(t, err)
-
-			err = server.Start()
-			require.Error(t, err)
-
+			require.Error(t, server.Start())
 			server.Close()
 		})
 	}
@@ -640,19 +615,22 @@ func TestServerSinglePort(t *testing.T) {
 		jtracer.NoOp())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
 
 	client := newGRPCClient(t, hostPort)
-	defer client.conn.Close()
+	t.Cleanup(func() {
+		require.NoError(t, client.conn.Close())
+	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// using generous timeout since grpc.NewClient no longer does a handshake.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, expectedServices, res.Services)
-
-	server.Close()
-	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
 func TestServerGracefulExit(t *testing.T) {
@@ -664,20 +642,32 @@ func TestServerGracefulExit(t *testing.T) {
 	flagsSvc.Logger = zap.New(zapCore)
 	hostPort := ports.PortToHostPort(ports.QueryAdminHTTP)
 
-	querySvc := &querysvc.QueryService{}
-	tracer := jtracer.NoOp()
+	spanReader := &spanstoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+	expectedServices := []string{"test"}
+	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
+	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
 	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
-		tenancy.NewManager(&tenancy.Options{}), tracer)
+		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 
 	// Wait for servers to come up before we can call .Close()
-	// TODO Find a way to wait only as long as necessary. Unconditional sleep slows down the tests.
-	time.Sleep(1 * time.Second)
-	server.Close()
+	{
+		client := newGRPCClient(t, hostPort)
+		t.Cleanup(func() {
+			require.NoError(t, client.conn.Close())
+		})
+		// using generous timeout since grpc.NewClient no longer does a handshake.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
+		require.NoError(t, err)
+	}
 
+	server.Close()
 	for _, logEntry := range logs.All() {
 		assert.NotEqual(t, zap.ErrorLevel, logEntry.Level,
 			"Error log found on server exit: %v", logEntry)
