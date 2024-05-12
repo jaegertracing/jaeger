@@ -62,8 +62,8 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "agent"})
 			mFactory := fork.New("internal",
 				baseFactory,
-				baseFactory)  // No expvar functionality
-			version.NewInfoMetrics(mFactory) 
+				baseFactory) // No expvar functionality
+			version.NewInfoMetrics(mFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)

@@ -94,7 +94,7 @@ by default uses only in-memory database.`,
 			if err := svc.Start(v); err != nil {
 				return err
 			}
-			logger := svc.Logger // shortcut
+			logger := svc.Logger            // shortcut
 			baseFactory := prometheus.New() // Use Prometheus as the default backend metric
 			version.NewInfoMetrics(baseFactory)
 			agentMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent"})

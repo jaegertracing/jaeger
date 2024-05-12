@@ -72,10 +72,10 @@ func onInitialize() {
 	// Only configure Prometheus as the metrics backend
 	switch metricsBackend {
 	case "prometheus":
-    	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
-    	logger.Info("Using Prometheus as metrics backend")
+		metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
+		logger.Info("Using Prometheus as metrics backend")
 	default:
-    	logger.Fatal("Unsupported metrics backend " + metricsBackend)
+		logger.Fatal("Unsupported metrics backend " + metricsBackend)
 	}
 
 	if config.MySQLGetDelay != fixDBConnDelay {
