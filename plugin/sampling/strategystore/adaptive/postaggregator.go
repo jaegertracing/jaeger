@@ -160,9 +160,6 @@ func (p *PostAggregator) runBackground(f func()) {
 func (p *PostAggregator) Close() error {
 	p.logger.Info("stopping adaptive sampling processor")
 	err := p.electionParticipant.Close()
-	if p.shutdown != nil {
-		close(p.shutdown)
-	}
 	p.bgFinished.Wait()
 	return err
 }
