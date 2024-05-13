@@ -71,7 +71,7 @@ func main() {
 			}
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory // No expvar functionality
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
 			version.NewInfoMetrics(metricsFactory)
 
 			storageFactory.InitFromViper(v, logger)

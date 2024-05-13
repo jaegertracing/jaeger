@@ -72,9 +72,6 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
 		return metricsFactory, nil
 	}
-	if b.Backend == "expvar" {
-		return nil, errors.New("expvar metrics backend is deprecated and no longer supported")
-	}
 	if b.Backend == "none" || b.Backend == "" {
 		return metrics.NullFactory, nil
 	}

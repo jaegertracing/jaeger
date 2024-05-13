@@ -40,6 +40,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
@@ -94,8 +95,10 @@ by default uses only in-memory database.`,
 			if err := svc.Start(v); err != nil {
 				return err
 			}
-			logger := svc.Logger            // shortcut
-			baseFactory := prometheus.New() // Use Prometheus as the default backend metric
+			logger := svc.Logger // shortcut
+			baseFactory := fork.New("internal",
+				prometheus.New(), // backend for internal opts
+				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(baseFactory)
 			agentMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent"})
 			collectorMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
