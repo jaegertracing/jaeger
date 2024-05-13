@@ -22,7 +22,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	_ "google.golang.org/grpc/encoding"
+
+	// _ "google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"

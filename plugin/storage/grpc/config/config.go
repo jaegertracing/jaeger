@@ -42,15 +42,15 @@ type Configuration struct {
 	RemoteTLS            tlscfg.Options
 	RemoteConnectTimeout time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 	TenancyOpts          tenancy.Options
-
-	remoteConn *grpc.ClientConn
 }
 
 type ConfigV2 struct {
-	Configuration `mapstructure:",squash"`
-
+	Configuration
+	TenancyOpts                    tenancy.Options
 	configgrpc.ClientConfig        `mapstructure:",squash"`
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
+
+	remoteConn *grpc.ClientConn
 }
 
 func (c *ConfigV2) translateToConfigV2(v1 Configuration) *ConfigV2 {
