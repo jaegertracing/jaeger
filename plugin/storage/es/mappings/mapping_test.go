@@ -77,13 +77,10 @@ func TestMappingBuilder_loadMapping(t *testing.T) {
 	tests := []struct {
 		name string
 	}{
-		{name: "jaeger-span.json"},
 		{name: "jaeger-span-7.json"},
 		{name: "jaeger-span-8.json"},
-		{name: "jaeger-service.json"},
 		{name: "jaeger-service-7.json"},
 		{name: "jaeger-service-8.json"},
-		{name: "jaeger-dependencies.json"},
 		{name: "jaeger-dependencies-7.json"},
 		{name: "jaeger-dependencies-8.json"},
 	}
