@@ -61,6 +61,7 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 	client, err := createESClient()
 	require.NoError(t, err)
+	esVersion, err := getVersion(client)
 	require.NoError(t, err)
 
 	envVars := []string{
@@ -71,16 +72,18 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 		envVars = append(envVars, "ES_ILM_POLICY_NAME="+ilmPolicyName)
 	}
 
-	expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001"}
-	t.Run("NoPrefix", func(t *testing.T) {
-		runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName, false)
-	})
-	t.Run("WithPrefix", func(t *testing.T) {
-		runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, false)
-	})
-	t.Run("WithAdaptiveSampling", func(t *testing.T) {
-		runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, true)
-	})
+	if esVersion >= 7 {
+		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001"}
+		t.Run("NoPrefix", func(t *testing.T) {
+			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName, false)
+		})
+		t.Run("WithPrefix", func(t *testing.T) {
+			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, false)
+		})
+		t.Run("WithAdaptiveSampling", func(t *testing.T) {
+			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, true)
+		})
+	}
 }
 
 func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string, ilmPolicyName string, adaptiveSampling bool) {
