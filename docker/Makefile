@@ -1,5 +1,5 @@
 VERSION := 1.0.0
-ROOT_IMAGE ?= alpine:3.16.9
+ROOT_IMAGE ?= alpine:3.19
 CERT_IMAGE := $(ROOT_IMAGE)
 GOLANG_IMAGE := golang:1.22-alpine
 
