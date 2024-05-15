@@ -1,4 +1,4 @@
-GOLANG_IMAGE := golang:1.22-alpine
+VERSION := 1.0.0
 
 DOCKER_REGISTRY ?= localhost:5000
 BASE_IMAGE ?= $(DOCKER_REGISTRY)/baseimg_alpine:latest
@@ -14,7 +14,6 @@ create-baseimg: prepare-docker-buildx
 
 create-debugimg: prepare-docker-buildx
 	docker buildx build -t $(DEBUG_IMAGE) --push \
-		--build-arg golang_image=$(GOLANG_IMAGE) \
 		--platform=$(PLATFORMS) \
 		docker/debug
 
