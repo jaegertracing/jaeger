@@ -15,7 +15,6 @@
 package adaptive
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -77,102 +76,6 @@ func (ss *StrategyStore) Start() error {
 	ss.generateStrategyResponses()
 	ss.runBackground(ss.runUpdateProbabilitiesLoop)
 	return nil
-}
-
-// GetSamplingStrategy implements Thrift endpoint for retrieving sampling strategy for a service.
-func (ss *StrategyStore) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
-	ss.RLock()
-	defer ss.RUnlock()
-	if strategy, ok := ss.strategyResponses[service]; ok {
-		return strategy, nil
-	}
-	return ss.generateDefaultSamplingStrategyResponse(), nil
-}
-
-func (ss *StrategyStore) loadProbabilities() {
-	// TODO GetLatestProbabilities API can be changed to return the latest measured qps for initialization
-	probabilities, err := ss.storage.GetLatestProbabilities()
-	if err != nil {
-		ss.logger.Warn("failed to initialize probabilities", zap.Error(err))
-		return
-	}
-	ss.Lock()
-	defer ss.Unlock()
-	ss.probabilities = probabilities
-}
-
-// runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
-// The follower updates its local cache with the latest probabilities and serves them.
-func (ss *StrategyStore) runUpdateProbabilitiesLoop() {
-	select {
-	case <-time.After(addJitter(ss.followerRefreshInterval)):
-	case <-ss.shutdown:
-		return
-	}
-
-	ticker := time.NewTicker(ss.followerRefreshInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// Only load probabilities if this processor doesn't hold the leader lock
-			if !ss.isLeader() {
-				ss.loadProbabilities()
-				ss.generateStrategyResponses()
-			}
-		case <-ss.shutdown:
-			return
-		}
-	}
-}
-
-func (ss *StrategyStore) isLeader() bool {
-	return ss.electionParticipant.IsLeader()
-}
-
-// generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
-func (ss *StrategyStore) generateStrategyResponses() {
-	ss.RLock()
-	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
-	for svc, opProbabilities := range ss.probabilities {
-		opStrategies := make([]*api_v2.OperationSamplingStrategy, len(opProbabilities))
-		var idx int
-		for op, probability := range opProbabilities {
-			opStrategies[idx] = &api_v2.OperationSamplingStrategy{
-				Operation: op,
-				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-					SamplingRate: probability,
-				},
-			}
-			idx++
-		}
-		strategy := ss.generateDefaultSamplingStrategyResponse()
-		strategy.OperationSampling.PerOperationStrategies = opStrategies
-		strategies[svc] = strategy
-	}
-	ss.RUnlock()
-
-	ss.Lock()
-	defer ss.Unlock()
-	ss.strategyResponses = strategies
-}
-
-func (ss *StrategyStore) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
-	return &api_v2.SamplingStrategyResponse{
-		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-		OperationSampling: &api_v2.PerOperationSamplingStrategies{
-			DefaultSamplingProbability:       ss.InitialSamplingProbability,
-			DefaultLowerBoundTracesPerSecond: ss.MinSamplesPerSecond,
-		},
-	}
-}
-
-func (ss *StrategyStore) runBackground(f func()) {
-	ss.bgFinished.Add(1)
-	go func() {
-		f()
-		ss.bgFinished.Done()
-	}()
 }
 
 // Close stops the processor from calculating probabilities.
