@@ -140,7 +140,7 @@ func newPostAggregator(
 	}, nil
 }
 
-// GetSamplingStrategy implements Thrift endpoint for retrieving sampling strategy for a service.
+// GetSamplingStrategy implements protobuf endpoint for retrieving sampling strategy for a service.
 func (ss *StrategyStore) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
 	ss.RLock()
 	defer ss.RUnlock()
@@ -150,7 +150,7 @@ func (ss *StrategyStore) GetSamplingStrategy(_ context.Context, service string) 
 	return ss.generateDefaultSamplingStrategyResponse(), nil
 }
 
-// Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
+// Start initializes and starts the PostAggregator which regularly calculates sampling probabilities.
 func (p *PostAggregator) Start() error {
 	p.logger.Info("starting adaptive sampling processor")
 	if err := p.electionParticipant.Start(); err != nil {
@@ -168,15 +168,7 @@ func (p *PostAggregator) runBackground(f func()) {
 	}()
 }
 
-func (ss *StrategyStore) runBackground(f func()) {
-	ss.bgFinished.Add(1)
-	go func() {
-		f()
-		ss.bgFinished.Done()
-	}()
-}
-
-// Close stops the processor from calculating probabilities.
+// Close stops the PostAggregator from calculating probabilities.
 func (p *PostAggregator) Close() error {
 	p.logger.Info("stopping adaptive sampling processor")
 	err := p.electionParticipant.Close()

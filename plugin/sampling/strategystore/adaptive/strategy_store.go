@@ -39,8 +39,7 @@ type StrategyStore struct {
 	// probabilities contains the latest calculated sampling probabilities for service operations.
 	probabilities model.ServiceOperationProbabilities
 
-	// strategyResponses is the cache of the sampling strategies for every service, in Thrift format.
-	// TODO change this to work with protobuf model instead, to support gRPC endpoint.
+	// strategyResponses is the cache of the sampling strategies for every service, in protobuf format.
 	strategyResponses map[string]*api_v2.SamplingStrategyResponse
 
 	// followerRefreshInterval determines how often the follower processor updates its probabilities.
@@ -65,9 +64,9 @@ func NewStrategyStore(options Options, logger *zap.Logger, participant leaderele
 	}, nil
 }
 
-// Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
+// Start initializes and starts the sampling service which regularly loads sampling probabilities and generates strategies.
 func (ss *StrategyStore) Start() error {
-	ss.logger.Info("starting adaptive sampling processor")
+	ss.logger.Info("starting adaptive sampling service")
 	if err := ss.electionParticipant.Start(); err != nil {
 		return err
 	}
@@ -78,13 +77,21 @@ func (ss *StrategyStore) Start() error {
 	return nil
 }
 
-// Close stops the processor from calculating probabilities.
+// Close stops the service from loading probabilities and generating strategies.
 func (ss *StrategyStore) Close() error {
-	ss.logger.Info("stopping adaptive sampling processor")
+	ss.logger.Info("stopping adaptive sampling service")
 	err := ss.electionParticipant.Close()
 	if ss.shutdown != nil {
 		close(ss.shutdown)
 	}
 	ss.bgFinished.Wait()
 	return err
+}
+
+func (ss *StrategyStore) runBackground(f func()) {
+	ss.bgFinished.Add(1)
+	go func() {
+		f()
+		ss.bgFinished.Done()
+	}()
 }
