@@ -334,6 +334,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 }
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
+	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
 	for _, span := range trace.Spans {
 		err := s.SpanWriter.WriteSpan(context.Background(), span)
 		require.NoError(t, err, "Not expecting error when writing trace to storage")
