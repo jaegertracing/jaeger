@@ -524,3 +524,266 @@ func makeTestingSpan(traceID model.TraceID, suffix string) *model.Span {
 		StartTime: time.Unix(300, 0).UTC(),
 	}
 }
+
+func TestGetDependencies(t *testing.T) {
+	scenarios := []struct {
+		description  string
+		setupSpans   func() []*model.Span
+		endTs        time.Time
+		lookback     time.Duration
+		expectedDeps []model.DependencyLink
+	}{
+		{
+			description: "Simple client-server relationship",
+			setupSpans: func() []*model.Span {
+				// Inline creation of client and server spans
+				now := time.Now()
+				clientSpan := &model.Span{
+					TraceID:       model.NewTraceID(1, 2),
+					SpanID:        model.NewSpanID(3),
+					OperationName: "clientOperation",
+					StartTime:     now,
+					Duration:      time.Millisecond * 500,
+					Tags:          model.KeyValues{model.String("span.kind", "client")},
+					Process: &model.Process{
+						ServiceName: "clientService",
+					},
+				}
+				serverSpan := &model.Span{
+					TraceID:       clientSpan.TraceID,
+					SpanID:        model.NewSpanID(4),
+					OperationName: "serverOperation",
+					StartTime:     now.Add(time.Millisecond * 100),
+					Duration:      time.Millisecond * 500,
+					Tags:          model.KeyValues{model.String("span.kind", "server")},
+					Process: &model.Process{
+						ServiceName: "serverService",
+					},
+					References: []model.SpanRef{
+						{
+							RefType: model.ChildOf,
+							TraceID: clientSpan.TraceID,
+							SpanID:  clientSpan.SpanID,
+						},
+					},
+				}
+				return []*model.Span{clientSpan, serverSpan}
+			},
+			endTs:    time.Now().Add(1 * time.Second),
+			lookback: time.Hour,
+			expectedDeps: []model.DependencyLink{
+				{Parent: "clientService", Child: "serverService", CallCount: 1},
+			},
+		},
+		{
+			description: "Leaf client span with no server span",
+			setupSpans: func() []*model.Span {
+				now := time.Now()
+				clientSpan := &model.Span{
+					TraceID:       model.NewTraceID(1, 2),
+					SpanID:        model.NewSpanID(3),
+					OperationName: "clientOperation",
+					StartTime:     now.Add(-30 * time.Second), // 30 seconds ago
+					Duration:      time.Millisecond * 500,
+					Tags:          model.KeyValues{model.String("span.kind", "client")},
+					Process: &model.Process{
+						ServiceName: "clientService",
+					},
+				}
+				// No server span is created
+				return []*model.Span{clientSpan}
+			},
+			endTs:    time.Now().Add(1 * time.Second),
+			lookback: time.Hour,
+			expectedDeps: []model.DependencyLink{
+				// Depending on the logic of inferServiceName, the Child might be different
+				{Parent: "clientService", Child: "inferred::clientOperation", CallCount: 1},
+			},
+		},
+		{
+			description: "Leaf client span with no server span",
+			setupSpans: func() []*model.Span {
+				now := time.Now()
+				clientSpan := &model.Span{
+					TraceID:       model.NewTraceID(1, 2),
+					SpanID:        model.NewSpanID(3),
+					OperationName: "clientOperation",
+					StartTime:     now.Add(-30 * time.Second), // 30 seconds ago
+					Duration:      time.Millisecond * 500,
+					Tags:          model.KeyValues{model.String("span.kind", "client")},
+					Process: &model.Process{
+						ServiceName: "clientService",
+					},
+				}
+				// No server span is created
+				return []*model.Span{clientSpan}
+			},
+			endTs:        time.Now().Add(1 * time.Second),
+			lookback:     time.Hour,
+			expectedDeps: []model.DependencyLink{{Parent: "clientService", Child: "inferred::clientOperation", CallCount: 1}},
+		},
+		{
+			description: "span.kind=client which is NOT a leaf (has a child)",
+			setupSpans: func() []*model.Span {
+				now := time.Now()
+				clientSpan := &model.Span{
+					TraceID:       model.NewTraceID(1, 2),
+					SpanID:        model.NewSpanID(3),
+					OperationName: "clientOperation",
+					StartTime:     now,
+					Duration:      time.Millisecond * 500,
+					Tags:          model.KeyValues{model.String("span.kind", "client")},
+					Process: &model.Process{
+						ServiceName: "clientService",
+					},
+				}
+				serverSpan := &model.Span{
+					TraceID:       clientSpan.TraceID,
+					SpanID:        model.NewSpanID(4),
+					OperationName: "serverOperation",
+					StartTime:     now.Add(time.Millisecond * 100),
+					Duration:      time.Millisecond * 500,
+					Tags:          model.KeyValues{model.String("span.kind", "server")},
+					Process: &model.Process{
+						ServiceName: "serverService",
+					},
+					References: []model.SpanRef{
+						{
+							RefType: model.ChildOf,
+							TraceID: clientSpan.TraceID,
+							SpanID:  clientSpan.SpanID,
+						},
+					},
+				}
+				return []*model.Span{clientSpan, serverSpan}
+			},
+			endTs:    time.Now().Add(1 * time.Second),
+			lookback: time.Hour,
+			expectedDeps: []model.DependencyLink{
+				{Parent: "clientService", Child: "serverService", CallCount: 1},
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.description, func(t *testing.T) {
+			store := NewStore()
+			spans := scenario.setupSpans()
+
+			for _, span := range spans {
+				assert.NoError(t, store.WriteSpan(context.Background(), span))
+			}
+
+			dependencies, err := store.GetDependencies(context.Background(), scenario.endTs, scenario.lookback)
+			assert.NoError(t, err)
+			assert.Equal(t, scenario.expectedDeps, dependencies, "Dependencies do not match the expected output")
+		})
+	}
+}
+
+func TestIsLeaf(t *testing.T) {
+	scenarios := []struct {
+		description string
+		spans       []*model.Span
+		targetSpan  *model.Span
+		expected    bool
+	}{
+		{
+			description: "Span with no children should be a leaf",
+			spans: []*model.Span{
+				{SpanID: model.NewSpanID(1)},
+			},
+			targetSpan: &model.Span{SpanID: model.NewSpanID(1)},
+			expected:   true,
+		},
+		{
+			description: "Span with a child should not be a leaf",
+			spans: []*model.Span{
+				{
+					SpanID: model.NewSpanID(1),
+				},
+				{
+					SpanID: model.NewSpanID(2),
+					References: []model.SpanRef{
+						{
+							RefType: model.ChildOf,
+							TraceID: model.NewTraceID(1, 2),
+							SpanID:  model.NewSpanID(1),
+						},
+					},
+				},
+			},
+			targetSpan: &model.Span{SpanID: model.NewSpanID(1)},
+			expected:   false,
+		},
+		{
+			description: "Span with no direct children in a list should be a leaf",
+			spans: []*model.Span{
+				{SpanID: model.NewSpanID(1)},
+				{SpanID: model.NewSpanID(2)},
+			},
+			targetSpan: &model.Span{SpanID: model.NewSpanID(1)},
+			expected:   true,
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.description, func(t *testing.T) {
+			result := isLeaf(scenario.targetSpan, scenario.spans)
+			assert.Equal(t, scenario.expected, result, "Unexpected result for isLeaf in scenario '%s'", scenario.description)
+		})
+	}
+}
+
+func TestInferServiceName(t *testing.T) {
+	scenarios := []struct {
+		tags         model.KeyValues
+		isLeaf       bool
+		expectedName string
+	}{
+		{
+			tags: model.KeyValues{
+				model.String("peer.service", "authService"),
+			},
+			expectedName: "authService",
+		},
+		{
+			tags: model.KeyValues{
+				model.String("rpc.service", "grpcService"),
+			},
+			expectedName: "rpc-grpcService",
+		},
+		{
+			tags: model.KeyValues{
+				model.String("http.route", "users"),
+			},
+			expectedName: "http-users",
+		},
+		{
+			tags: model.KeyValues{
+				model.String("db.system", "mysql"),
+			},
+			expectedName: "db-mysql",
+		},
+		{
+			tags: model.KeyValues{
+				model.String("db.system", ""),
+			},
+			expectedName: "db-unknown",
+		},
+		{
+			tags:         model.KeyValues{},
+			expectedName: "inferred::clientOperation",
+		},
+	}
+
+	for _, scenario := range scenarios {
+		span := &model.Span{
+			OperationName: "clientOperation",
+			Tags:          scenario.tags,
+		}
+
+		inferredName := inferServiceName(span)
+		assert.Equal(t, scenario.expectedName, inferredName, "Expected inferred service name to match")
+	}
+}
