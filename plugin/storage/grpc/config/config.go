@@ -16,7 +16,6 @@ package config
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -28,8 +27,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -45,29 +42,27 @@ type Configuration struct {
 }
 
 type ConfigV2 struct {
-	Configuration
 	TenancyOpts                    tenancy.Options
 	configgrpc.ClientConfig        `mapstructure:",squash"`
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
-
-	remoteConn *grpc.ClientConn
 }
 
-func (c *ConfigV2) translateToConfigV2(v1 Configuration) *ConfigV2 {
-	c.Endpoint = v1.RemoteServerAddr
-	c.Timeout = v1.RemoteConnectTimeout
+func (c *Configuration) translateToConfigV2() *ConfigV2 {
+	V2 := &ConfigV2{}
+	V2.Endpoint = c.RemoteServerAddr
+	V2.Timeout = c.RemoteConnectTimeout
 
-	c.ClientConfig.TLSSetting.ServerName = v1.RemoteTLS.ServerName
-	c.ClientConfig.TLSSetting.InsecureSkipVerify = v1.RemoteTLS.SkipHostVerify
-	c.ClientConfig.TLSSetting.CAFile = v1.RemoteTLS.CAPath
-	c.ClientConfig.TLSSetting.CertFile = v1.RemoteTLS.CertPath
-	c.ClientConfig.TLSSetting.KeyFile = v1.RemoteTLS.KeyPath
-	c.ClientConfig.TLSSetting.CipherSuites = v1.RemoteTLS.CipherSuites
-	c.ClientConfig.TLSSetting.MinVersion = v1.RemoteTLS.MinVersion
-	c.ClientConfig.TLSSetting.MaxVersion = v1.RemoteTLS.MaxVersion
-	c.ClientConfig.TLSSetting.ReloadInterval = v1.RemoteTLS.ReloadInterval
+	V2.ClientConfig.TLSSetting.ServerName = c.RemoteTLS.ServerName
+	V2.ClientConfig.TLSSetting.InsecureSkipVerify = c.RemoteTLS.SkipHostVerify
+	V2.ClientConfig.TLSSetting.CAFile = c.RemoteTLS.CAPath
+	V2.ClientConfig.TLSSetting.CertFile = c.RemoteTLS.CertPath
+	V2.ClientConfig.TLSSetting.KeyFile = c.RemoteTLS.KeyPath
+	V2.ClientConfig.TLSSetting.CipherSuites = c.RemoteTLS.CipherSuites
+	V2.ClientConfig.TLSSetting.MinVersion = c.RemoteTLS.MinVersion
+	V2.ClientConfig.TLSSetting.MaxVersion = c.RemoteTLS.MaxVersion
+	V2.ClientConfig.TLSSetting.ReloadInterval = c.RemoteTLS.ReloadInterval
 
-	return c
+	return V2
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -79,35 +74,34 @@ type ClientPluginServices struct {
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
 // TODO this interface should be removed and the building capability moved to Factory.
 type PluginBuilder interface {
-	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
-	Close() error
+	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error)
 }
 
 // Build instantiates a PluginServices
-func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	return c.buildRemote(logger, tracerProvider)
+func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
+	v2Cfg := c.translateToConfigV2()
+	s, remoteConn, err := newRemoteStorage(v2Cfg, tracerProvider)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s, remoteConn, nil
 }
 
-func (c *ConfigV2) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	c = c.translateToConfigV2(c.Configuration)
+func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
+	s, remoteConn, err := newRemoteStorage(c, tracerProvider)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s, remoteConn, nil
+}
+
+func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
 	}
-
 	if c.Auth != nil {
-		return nil, fmt.Errorf("authenticator is not supported")
-	}
-
-	if c.RemoteTLS.Enabled {
-		tlsCfg, err := c.RemoteTLS.Config(logger)
-		if err != nil {
-			return nil, err
-		}
-		creds := credentials.NewTLS(tlsCfg)
-		opts = append(opts, grpc.WithTransportCredentials(creds))
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		return nil, nil, fmt.Errorf("authenticator is not supported")
 	}
 
 	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
@@ -115,13 +109,12 @@ func (c *ConfigV2) buildRemote(logger *zap.Logger, tracerProvider trace.TracerPr
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
-	var err error
-	c.remoteConn, err = c.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("error creating remote storage client: %w", err)
-	}
 
-	grpcClient := shared.NewGRPCClient(c.remoteConn)
+	remoteConn, err := c.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating remote storage client: %w", err)
+	}
+	grpcClient := shared.NewGRPCClient(remoteConn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
@@ -129,14 +122,5 @@ func (c *ConfigV2) buildRemote(logger *zap.Logger, tracerProvider trace.TracerPr
 			StreamingSpanWriter: grpcClient,
 		},
 		Capabilities: grpcClient,
-	}, nil
-}
-
-func (c *ConfigV2) Close() error {
-	var errs []error
-	if c.remoteConn != nil {
-		errs = append(errs, c.remoteConn.Close())
-	}
-	errs = append(errs, c.RemoteTLS.Close())
-	return errors.Join(errs...)
+	}, remoteConn, nil
 }

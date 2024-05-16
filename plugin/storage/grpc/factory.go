@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -53,6 +55,7 @@ type Factory struct {
 	archiveStore        shared.ArchiveStoragePlugin
 	streamingSpanWriter shared.StreamingSpanWriterPlugin
 	capabilities        shared.PluginCapabilities
+	remoteConn          *grpc.ClientConn
 }
 
 // NewFactory creates a new Factory.
@@ -67,7 +70,7 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configureFromOptions(Options{Configuration: cfg})
+	f.configureFromOptions(Options{ConfigV2: cfg})
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
@@ -92,6 +95,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 func (f *Factory) configureFromOptions(opts Options) {
 	f.options = opts
 	f.builder = &f.options.Configuration
+	f.builder = &f.options.ConfigV2
 }
 
 // Initialize implements storage.Factory
@@ -99,7 +103,9 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.tracerProvider = otel.GetTracerProvider()
 
-	services, err := f.builder.Build(logger, f.tracerProvider)
+	var err error
+	var services *config.ClientPluginServices
+	services, f.remoteConn, err = f.builder.Build(logger, f.tracerProvider)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
@@ -165,5 +171,10 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	// TODO Close should move into Services type, instead of being in the Config.
-	return f.builder.Close()
+	var errs []error
+	if f.remoteConn != nil {
+		errs = append(errs, f.remoteConn.Close())
+	}
+	errs = append(errs, f.options.Configuration.RemoteTLS.Close())
+	return errors.Join(errs...)
 }

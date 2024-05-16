@@ -36,7 +36,8 @@ const (
 // Options contains GRPC plugins configs and provides the ability
 // to bind them to command line flags
 type Options struct {
-	Configuration config.ConfigV2 `mapstructure:",squash"`
+	Configuration config.Configuration `mapstructure:",squash"`
+	ConfigV2      config.ConfigV2      `mapstructure:",squash"`
 }
 
 func tlsFlagsConfig() tlscfg.ClientFlagsConfig {

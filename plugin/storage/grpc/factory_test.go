@@ -24,6 +24,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -46,9 +48,9 @@ type mockPluginBuilder struct {
 	err        error
 }
 
-func (b *mockPluginBuilder) Build(logger *zap.Logger, tracer trace.TracerProvider) (*grpcConfig.ClientPluginServices, error) {
+func (b *mockPluginBuilder) Build(logger *zap.Logger, tracer trace.TracerProvider) (*grpcConfig.ClientPluginServices, *grpc.ClientConn, error) {
 	if b.err != nil {
-		return nil, b.err
+		return nil, nil, b.err
 	}
 
 	services := &grpcConfig.ClientPluginServices{
@@ -64,7 +66,7 @@ func (b *mockPluginBuilder) Build(logger *zap.Logger, tracer trace.TracerProvide
 		services.Capabilities = b.plugin
 	}
 
-	return services, nil
+	return services, nil, nil
 }
 
 func (b *mockPluginBuilder) Close() error {
@@ -163,9 +165,11 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	defer s.Stop()
 
 	cfg = grpcConfig.ConfigV2{
-		Configuration: grpcConfig.Configuration{
-			RemoteServerAddr:     lis.Addr().String(),
-			RemoteConnectTimeout: 1 * time.Second,
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint: lis.Addr().String(),
+		},
+		TimeoutSettings: exporterhelper.TimeoutSettings{
+			Timeout: 1 * time.Second,
 		},
 	}
 	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
@@ -317,10 +321,8 @@ func TestWithConfiguration(t *testing.T) {
 func TestConfigureFromOptions(t *testing.T) {
 	f := Factory{}
 	o := Options{
-		Configuration: grpcConfig.ConfigV2{
-			Configuration: grpcConfig.Configuration{
-				RemoteServerAddr: "foo:1234",
-			},
+		Configuration: grpcConfig.Configuration{
+			RemoteServerAddr: "foo:1234",
 		},
 	}
 	f.configureFromOptions(o)
