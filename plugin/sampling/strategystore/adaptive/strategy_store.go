@@ -61,6 +61,7 @@ func NewStrategyStore(options Options, logger *zap.Logger, participant leaderele
 		logger:                  logger,
 		electionParticipant:     participant,
 		followerRefreshInterval: defaultFollowerProbabilityInterval,
+		shutdown:                make(chan struct{}),
 	}, nil
 }
 
@@ -70,10 +71,15 @@ func (ss *StrategyStore) Start() error {
 	if err := ss.electionParticipant.Start(); err != nil {
 		return err
 	}
-	ss.shutdown = make(chan struct{})
 	ss.loadProbabilities()
 	ss.generateStrategyResponses()
-	ss.runBackground(ss.runUpdateProbabilitiesLoop)
+
+	ss.bgFinished.Add(1)
+	go func() {
+		ss.runUpdateProbabilitiesLoop()
+		ss.bgFinished.Done()
+	}()
+
 	return nil
 }
 
@@ -81,17 +87,7 @@ func (ss *StrategyStore) Start() error {
 func (ss *StrategyStore) Close() error {
 	ss.logger.Info("stopping adaptive sampling service")
 	err := ss.electionParticipant.Close()
-	if ss.shutdown != nil {
-		close(ss.shutdown)
-	}
+	close(ss.shutdown)
 	ss.bgFinished.Wait()
 	return err
-}
-
-func (ss *StrategyStore) runBackground(f func()) {
-	ss.bgFinished.Add(1)
-	go func() {
-		f()
-		ss.bgFinished.Done()
-	}()
 }

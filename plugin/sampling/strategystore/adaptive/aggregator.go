@@ -40,7 +40,7 @@ type aggregator struct {
 	operationsCounter   metrics.Counter
 	servicesCounter     metrics.Counter
 	currentThroughput   serviceOperationThroughput
-	postAggregator      *PostAggregator
+	processor           *Processor
 	aggregationInterval time.Duration
 	storage             samplingstore.Store
 	stop                chan struct{}
@@ -56,7 +56,7 @@ func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.F
 	}
 	logger.Info("Using unique participantName in adaptive sampling", zap.String("participantName", hostname))
 
-	postAgg, err := newPostAggregator(options, hostname, store, participant, metricsFactory, logger)
+	processor, err := newProcessor(options, hostname, store, participant, metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.F
 		servicesCounter:     metricsFactory.Counter(metrics.Options{Name: "sampling_services"}),
 		currentThroughput:   make(serviceOperationThroughput),
 		aggregationInterval: options.CalculationInterval,
-		postAggregator:      postAgg,
+		processor:           processor,
 		storage:             store,
 		stop:                make(chan struct{}),
 	}, nil
@@ -74,17 +74,13 @@ func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.F
 
 func (a *aggregator) runAggregationLoop() {
 	ticker := time.NewTicker(a.aggregationInterval)
-
-	// NB: the first tick will be slightly delayed by the initializeThroughput call.
-	a.postAggregator.lastCheckedTime = time.Now().Add(a.postAggregator.Delay * -1)
-	a.postAggregator.initializeThroughput(a.postAggregator.lastCheckedTime)
 	for {
 		select {
 		case <-ticker.C:
 			a.Lock()
 			a.saveThroughput()
 			a.currentThroughput = make(serviceOperationThroughput)
-			a.postAggregator.runCalculation()
+			a.processor.runCalculation()
 			a.Unlock()
 		case <-a.stop:
 			ticker.Stop()
@@ -135,13 +131,13 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 }
 
 func (a *aggregator) Start() {
-	a.postAggregator.Start()
+	a.processor.Start()
 	a.runBackground(a.runAggregationLoop)
 }
 
 func (a *aggregator) Close() error {
 	var errs []error
-	if err := a.postAggregator.Close(); err != nil {
+	if err := a.processor.Close(); err != nil {
 		errs = append(errs, err)
 	}
 	if a.stop != nil {
