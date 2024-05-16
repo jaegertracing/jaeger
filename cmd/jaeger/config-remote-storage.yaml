@@ -16,7 +16,6 @@ extensions:
       external-storage:
         endpoint: localhost:17271
         timeout: 5s
-        # read_buffer_size: 200
         tls:
           insecure: true
 

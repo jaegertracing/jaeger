@@ -48,21 +48,23 @@ type ConfigV2 struct {
 }
 
 func (c *Configuration) translateToConfigV2() *ConfigV2 {
-	V2 := &ConfigV2{}
-	V2.Endpoint = c.RemoteServerAddr
-	V2.Timeout = c.RemoteConnectTimeout
+	v2 := &ConfigV2{}
+	v2.Endpoint = c.RemoteServerAddr
+	v2.Timeout = c.RemoteConnectTimeout
 
-	V2.ClientConfig.TLSSetting.ServerName = c.RemoteTLS.ServerName
-	V2.ClientConfig.TLSSetting.InsecureSkipVerify = c.RemoteTLS.SkipHostVerify
-	V2.ClientConfig.TLSSetting.CAFile = c.RemoteTLS.CAPath
-	V2.ClientConfig.TLSSetting.CertFile = c.RemoteTLS.CertPath
-	V2.ClientConfig.TLSSetting.KeyFile = c.RemoteTLS.KeyPath
-	V2.ClientConfig.TLSSetting.CipherSuites = c.RemoteTLS.CipherSuites
-	V2.ClientConfig.TLSSetting.MinVersion = c.RemoteTLS.MinVersion
-	V2.ClientConfig.TLSSetting.MaxVersion = c.RemoteTLS.MaxVersion
-	V2.ClientConfig.TLSSetting.ReloadInterval = c.RemoteTLS.ReloadInterval
+	v2.ClientConfig.TLSSetting.Insecure = !c.RemoteTLS.Enabled
 
-	return V2
+	v2.ClientConfig.TLSSetting.ServerName = c.RemoteTLS.ServerName
+	v2.ClientConfig.TLSSetting.InsecureSkipVerify = c.RemoteTLS.SkipHostVerify
+	v2.ClientConfig.TLSSetting.CAFile = c.RemoteTLS.CAPath
+	v2.ClientConfig.TLSSetting.CertFile = c.RemoteTLS.CertPath
+	v2.ClientConfig.TLSSetting.KeyFile = c.RemoteTLS.KeyPath
+	v2.ClientConfig.TLSSetting.CipherSuites = c.RemoteTLS.CipherSuites
+	v2.ClientConfig.TLSSetting.MinVersion = c.RemoteTLS.MinVersion
+	v2.ClientConfig.TLSSetting.MaxVersion = c.RemoteTLS.MaxVersion
+	v2.ClientConfig.TLSSetting.ReloadInterval = c.RemoteTLS.ReloadInterval
+
+	return v2
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
