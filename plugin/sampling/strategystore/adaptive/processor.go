@@ -252,6 +252,13 @@ func (p *Processor) runCalculation() {
 		p.probabilities = probabilities
 		p.qps = qps
 		p.Unlock()
+		// NB: This has the potential of running into a race condition if the CalculationInterval
+		// is set to an extremely low value. The worst case scenario is that probabilities is calculated
+		// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
+		// This will result in one or more batches of probabilities not being saved which is completely
+		// fine. This race condition should not ever occur anyway since the calculation interval will
+		// be way longer than the time to run the calculations.
+
 		p.calculateProbabilitiesLatency.Record(time.Since(startTime))
 
 		p.bgFinished.Add(1)
