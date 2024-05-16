@@ -113,7 +113,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
-	s.SpanReader, err = createSpanReader(ports.QueryGRPC)
+	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 }
 
