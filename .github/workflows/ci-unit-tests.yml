@@ -32,6 +32,10 @@ jobs:
         go-version: 1.22.x
         cache-dependency-path: ./go.sum
 
+    # download dependencies separately to keep unit test step's output cleaner
+    - name: go mod download
+      run: go mod download
+
     - name: Install test deps
       # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow
       run: make install-test-tools

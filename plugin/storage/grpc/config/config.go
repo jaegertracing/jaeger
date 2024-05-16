@@ -100,7 +100,6 @@ func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider
 func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
-		grpc.WithBlock(),
 	}
 	if c.Auth != nil {
 		return nil, nil, fmt.Errorf("authenticator is not supported")

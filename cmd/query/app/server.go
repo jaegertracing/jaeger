@@ -308,7 +308,7 @@ func (s *Server) Start() error {
 		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
-
+		s.logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		s.healthCheck.Set(healthcheck.Unavailable)
 		s.bgFinished.Done()
 	}()
@@ -321,6 +321,7 @@ func (s *Server) Start() error {
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
+		s.logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 		s.healthCheck.Set(healthcheck.Unavailable)
 		s.bgFinished.Done()
 	}()

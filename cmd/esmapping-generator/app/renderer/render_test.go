@@ -57,14 +57,6 @@ func Test_getMappingAsString(t *testing.T) {
 			want: "ES version 7",
 		},
 		{
-			name: "ES version 6", args: app.Options{Mapping: "jaeger-span", EsVersion: 6, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "false", ILMPolicyName: "jaeger-test-policy"},
-			want: "ES version 6",
-		},
-		{
-			name: "Parse Error version 6", args: app.Options{Mapping: "jaeger-span", EsVersion: 6, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "false", ILMPolicyName: "jaeger-test-policy"},
-			wantErr: errors.New("parse error"),
-		},
-		{
 			name: "Parse Error version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("parse error"),
 		},

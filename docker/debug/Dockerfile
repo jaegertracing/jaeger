@@ -1,4 +1,4 @@
-ARG golang_image
+ARG golang_image=golang:1.22-alpine
 
 FROM $golang_image AS build
 ARG TARGETARCH

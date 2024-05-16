@@ -10,7 +10,6 @@ import (
 	"io"
 	"math"
 	"strings"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -35,14 +34,10 @@ type spanReader struct {
 
 func createSpanReader(port int) (*spanReader, error) {
 	opts := []grpc.DialOption{
-		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cc, err := grpc.DialContext(ctx, ports.PortToHostPort(port), opts...)
+	cc, err := grpc.NewClient(ports.PortToHostPort(port), opts...)
 	if err != nil {
 		return nil, err
 	}

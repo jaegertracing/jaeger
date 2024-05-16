@@ -18,9 +18,6 @@ updates:
       otel-instrumentation:
         patterns:
           - "go.opentelemetry.io/contrib/instrumentation/*"
-      hashicorp:
-        patterns:
-          - "github.com/hashicorp/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
