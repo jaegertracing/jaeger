@@ -252,7 +252,6 @@ func (p *Processor) runCalculation() {
 		p.probabilities = probabilities
 		p.qps = qps
 		p.Unlock()
-
 		p.calculateProbabilitiesLatency.Record(time.Since(startTime))
 
 		p.bgFinished.Add(1)

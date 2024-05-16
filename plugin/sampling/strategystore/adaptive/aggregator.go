@@ -132,7 +132,12 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 
 func (a *aggregator) Start() {
 	a.processor.Start()
-	a.runBackground(a.runAggregationLoop)
+
+	a.bgFinished.Add(1)
+	go func() {
+		a.runAggregationLoop()
+		a.bgFinished.Done()
+	}()
 }
 
 func (a *aggregator) Close() error {
@@ -145,12 +150,4 @@ func (a *aggregator) Close() error {
 	}
 	a.bgFinished.Wait()
 	return errors.Join(errs...)
-}
-
-func (a *aggregator) runBackground(f func()) {
-	a.bgFinished.Add(1)
-	go func() {
-		f()
-		a.bgFinished.Done()
-	}()
 }
