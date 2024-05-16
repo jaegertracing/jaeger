@@ -65,7 +65,9 @@ IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
 GIT_SHA=$(shell git rev-parse HEAD)
-GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
+GIT_SHALLOW_CLONE := $(shell git rev-parse --is-shallow-repository)
+# Some of GitHub Actions workflows do a shallow checkout without tags. This avoids logging warnings from git.
+GIT_CLOSEST_TAG=$(shell if [ "$(GIT_SHALLOW_CLONE)" = "false" ]; then git describe --abbrev=0 --tags; else echo 0.0.0; fi)
 ifneq ($(GIT_CLOSEST_TAG),$(shell echo ${GIT_CLOSEST_TAG} | grep -E "$(semver_regex)"))
 	$(warning GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG) is not in the semver format $(semver_regex))
 endif
@@ -91,9 +93,15 @@ include Makefile.Crossdock.mk
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
+.PHONY: echo-version
+echo-version:
+	@echo "GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG)"
+
+.PHONY: echo-all-pkgs
 echo-all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
+.PHONY: echo-all-srcs
 echo-all-srcs:
 	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
@@ -473,10 +481,6 @@ generate-mocks: install-tools
 	$(MOCKERY) --all --dir ./pkg/es/ --output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
 	$(MOCKERY) --all --dir ./storage/spanstore/ --output ./storage/spanstore/mocks
 	$(MOCKERY) --all --dir ./proto-gen/storage_v1/ --output ./proto-gen/storage_v1/mocks
-
-.PHONY: echo-version
-echo-version:
-	@echo $(GIT_CLOSEST_TAG)
 
 .PHONY: certs
 certs:
