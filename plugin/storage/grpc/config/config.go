@@ -64,7 +64,6 @@ type newClientFn func(target string, opts ...grpc.DialOption) (conn *grpc.Client
 func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider, newClient newClientFn) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
-		grpc.WithBlock(),
 	}
 	if c.RemoteTLS.Enabled {
 		tlsCfg, err := c.RemoteTLS.Config(logger)

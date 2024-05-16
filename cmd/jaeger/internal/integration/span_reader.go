@@ -34,7 +34,6 @@ type spanReader struct {
 
 func createSpanReader(port int) (*spanReader, error) {
 	opts := []grpc.DialOption{
-		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 
