@@ -28,7 +28,6 @@ import (
 
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-
 	flags         []string
 	factory       *grpc.Factory
 	remoteStorage *RemoteMemoryStorage
