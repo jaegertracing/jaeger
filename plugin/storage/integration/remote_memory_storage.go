@@ -4,11 +4,17 @@
 package integration
 
 import (
+	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -25,7 +31,7 @@ type RemoteMemoryStorage struct {
 }
 
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
-	logger := zaptest.NewLogger(t)
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
 	opts := &app.Options{
 		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
 		Tenancy: tenancy.Options{
@@ -44,6 +50,23 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	server, err := app.NewServer(opts, storageFactory, tm, logger, healthcheck.New())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
+
+	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	conn, err := grpc.NewClient(fmt.Sprintf("localhost:%d", ports.RemoteStorageGRPC), dialOpts...)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		s := conn.GetState()
+		t.Logf("Remote connection state is %s", s.String())
+		if s == connectivity.Idle {
+			conn.Connect()
+		}
+		if s == connectivity.Ready {
+			return true
+		}
+
+		return false
+	}, 30*time.Second, 500*time.Millisecond, "Remote memory storage did not start")
+	require.NoError(t, conn.Close())
 
 	return &RemoteMemoryStorage{
 		server:         server,
