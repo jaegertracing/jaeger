@@ -15,9 +15,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 	"gopkg.in/yaml.v3"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -42,10 +44,27 @@ type E2EStorageIntegration struct {
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
-func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
-	logger, _ := testutils.NewLogger()
-	configFile := createStorageCleanerConfig(t, s.ConfigFile)
+func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
+
+	outFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "jaeger_output_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
+	require.NoError(t, err)
+	t.Logf("Writing the Jaeger-v2 output logs into %s", outFile.Name())
+
+	errFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "jaeger_error_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
+	require.NoError(t, err)
+	t.Logf("Writing the Jaeger-v2 error logs into %s", errFile.Name())
+
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
 		Args: []string{"jaeger", "--config", configFile},
@@ -53,8 +72,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 		// since the binary config file jaeger_query's ui_config points to
 		// "./cmd/jaeger/config-ui.json"
 		Dir:    "../../../..",
-		Stdout: os.Stderr,
-		Stderr: os.Stderr,
+		Stdout: outFile,
+		Stderr: errFile,
 	}
 	require.NoError(t, cmd.Start())
 	require.Eventually(t, func() bool {
@@ -75,12 +94,26 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T) {
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		require.NoError(t, cmd.Process.Kill())
+		if t.Failed() {
+			// A Github Actions special annotation to create a foldable section
+			// in the Github runner output.
+			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
+			fmt.Println("::group::Jaeger-v2 binary logs")
+			outLogs, err := os.ReadFile(outFile.Name())
+			require.NoError(t, err)
+			fmt.Printf("Jaeger-v2 output logs:\n%s", outLogs)
+
+			errLogs, err := os.ReadFile(errFile.Name())
+			require.NoError(t, err)
+			fmt.Printf("Jaeger-v2 error logs:\n%s", errLogs)
+			// End of Github Actions foldable section annotation.
+			fmt.Println("::endgroup::")
+		}
 	})
 
-	var err error
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
-	s.SpanReader, err = createSpanReader(ports.QueryGRPC)
+	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 }
 
@@ -91,7 +124,7 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
-func createStorageCleanerConfig(t *testing.T, configFile string) string {
+func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
 	var config map[string]interface{}
@@ -109,6 +142,28 @@ func createStorageCleanerConfig(t *testing.T, configFile string) string {
 	trace_storage := query["trace_storage"].(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
 
+	jaegerStorage, ok := extensions["jaeger_storage"].(map[string]interface{})
+	require.True(t, ok)
+
+	switch storage {
+	case "elasticsearch":
+		elasticsearch, ok := jaegerStorage["elasticsearch"].(map[string]interface{})
+		require.True(t, ok)
+		esMain, ok := elasticsearch["es_main"].(map[string]interface{})
+		require.True(t, ok)
+		esMain["service_cache_ttl"] = "1ms"
+
+	case "opensearch":
+		opensearch, ok := jaegerStorage["opensearch"].(map[string]interface{})
+		require.True(t, ok)
+		osMain, ok := opensearch["os_main"].(map[string]interface{})
+		require.True(t, ok)
+		osMain["service_cache_ttl"] = "1ms"
+
+	default:
+		// Do Nothing
+	}
+
 	newData, err := yaml.Marshal(config)
 	require.NoError(t, err)
 	tempFile := filepath.Join(t.TempDir(), "storageCleaner_config.yaml")
@@ -116,4 +171,18 @@ func createStorageCleanerConfig(t *testing.T, configFile string) string {
 	require.NoError(t, err)
 
 	return tempFile
+}
+
+func purge(t *testing.T) {
+	Addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, Addr, nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+
+	resp, err := client.Do(r)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

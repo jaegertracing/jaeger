@@ -16,6 +16,7 @@
 package cassandra
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"io"
@@ -49,6 +50,7 @@ const (
 
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
+	_ storage.Purger               = (*Factory)(nil)
 	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
@@ -80,20 +82,40 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig initializes factory with Config.
 func NewFactoryWithConfig(
-	cfg config.Configuration,
+	opts Options,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
-	if err := cfg.Validate(); err != nil {
+	f := NewFactory()
+	// use this to help with testing
+	b := &withConfigBuilder{
+		f:              f,
+		opts:           &opts,
+		metricsFactory: metricsFactory,
+		logger:         logger,
+		initializer:    f.Initialize, // this can be mocked in tests
+	}
+	return b.build()
+}
+
+type withConfigBuilder struct {
+	f              *Factory
+	opts           *Options
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	initializer    func(metricsFactory metrics.Factory, logger *zap.Logger) error
+}
+
+func (b *withConfigBuilder) build() (*Factory, error) {
+	b.f.configureFromOptions(b.opts)
+	if err := b.opts.Primary.Validate(); err != nil {
 		return nil, err
 	}
-	f := NewFactory()
-	f.primaryConfig = &cfg
-	err := f.Initialize(metricsFactory, logger)
+	err := b.initializer(b.metricsFactory, b.logger)
 	if err != nil {
 		return nil, err
 	}
-	return f, nil
+	return b.f, nil
 }
 
 // AddFlags implements plugin.Configurable
@@ -104,15 +126,16 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.primaryConfig = f.Options.GetPrimary()
-	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
-	}
+	f.configureFromOptions(f.Options)
 }
 
 // InitFromOptions initializes factory from options.
-func (f *Factory) InitFromOptions(o *Options) {
+func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
+	// TODO this is a hack because we do not define defaults in Options
+	if o.others == nil {
+		o.others = make(map[string]*namespaceConfig)
+	}
 	f.primaryConfig = o.GetPrimary()
 	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
 		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
@@ -247,7 +270,6 @@ func (f *Factory) Close() error {
 	return errors.Join(errs...)
 }
 
-// PrimarySession is used from integration tests to clean database between tests
-func (f *Factory) PrimarySession() cassandra.Session {
-	return f.primarySession
+func (f *Factory) Purge(_ context.Context) error {
+	return f.primarySession.Query("TRUNCATE traces").Exec()
 }

@@ -96,8 +96,8 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 
-	cfg.MaxDocCount = defaultMaxDocCount
-	cfg.Enabled = true
+	defaultConfig := getDefaultConfig()
+	cfg.ApplyDefaults(&defaultConfig)
 
 	archive := make(map[string]*namespaceConfig)
 	archive[archiveNamespace] = &namespaceConfig{
@@ -106,7 +106,7 @@ func NewFactoryWithConfig(
 	}
 
 	f := NewFactory()
-	f.InitFromOptions(Options{
+	f.configureFromOptions(&Options{
 		Primary: namespaceConfig{
 			Configuration: cfg,
 			namespace:     primaryNamespace,
@@ -128,13 +128,12 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.primaryConfig = f.Options.GetPrimary()
-	f.archiveConfig = f.Options.Get(archiveNamespace)
+	f.configureFromOptions(f.Options)
 }
 
-// InitFromOptions configures factory from Options struct.
-func (f *Factory) InitFromOptions(o Options) {
-	f.Options = &o
+// configureFromOptions configures factory from Options struct.
+func (f *Factory) configureFromOptions(o *Options) {
+	f.Options = o
 	f.primaryConfig = f.Options.GetPrimary()
 	f.archiveConfig = f.Options.Get(archiveNamespace)
 }

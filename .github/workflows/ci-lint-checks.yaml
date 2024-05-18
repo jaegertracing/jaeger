@@ -14,7 +14,7 @@ concurrency:
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
-  
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -30,11 +30,14 @@ jobs:
       with:
         go-version: 1.22.x
 
+    - name: Print Jaeger version
+      run: make echo-version
+
     - name: Install tools
       run: make install-test-tools
 
     - name: Lint
       run: make lint
-    
+
     - name: Ensure PR is not on main branch
       uses: ./.github/actions/block-pr-not-on-main

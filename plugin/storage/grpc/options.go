@@ -17,7 +17,6 @@ package grpc
 import (
 	"flag"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/spf13/viper"
@@ -28,16 +27,10 @@ import (
 )
 
 const (
-	pluginBinary             = "grpc-storage-plugin.binary"
-	pluginConfigurationFile  = "grpc-storage-plugin.configuration-file"
-	pluginLogLevel           = "grpc-storage-plugin.log-level"
 	remotePrefix             = "grpc-storage"
 	remoteServer             = remotePrefix + ".server"
 	remoteConnectionTimeout  = remotePrefix + ".connection-timeout"
-	defaultPluginLogLevel    = "warn"
 	defaultConnectionTimeout = time.Duration(5 * time.Second)
-
-	deprecatedSidecar = "(deprecated, will be removed after 2024-03-01) "
 )
 
 // Options contains GRPC plugins configs and provides the ability
@@ -56,18 +49,12 @@ func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	tlsFlagsConfig().AddFlags(flagSet)
 
-	flagSet.String(pluginBinary, "", deprecatedSidecar+"The location of the plugin binary")
-	flagSet.String(pluginConfigurationFile, "", deprecatedSidecar+"A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
-	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
 	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) error {
-	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
-	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
-	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
 	opt.Configuration.RemoteServerAddr = v.GetString(remoteServer)
 	var err error
 	opt.Configuration.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
@@ -76,8 +63,5 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	}
 	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
 	opt.Configuration.TenancyOpts = tenancy.InitFromViper(v)
-	if opt.Configuration.PluginBinary != "" {
-		log.Printf(deprecatedSidecar + "using sidecar model of grpc-plugin storage, please upgrade to 'remote' gRPC storage. https://github.com/jaegertracing/jaeger/issues/4647")
-	}
 	return nil
 }

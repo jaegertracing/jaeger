@@ -9,23 +9,20 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-func TestBadgerStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "badger")
+func TestESStorage(t *testing.T) {
+	integration.SkipUnlessEnv(t, "elasticsearch")
 
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-badger.yaml",
+		ConfigFile: "../../config-elasticsearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			SkipArchiveTest: true,
-			CleanUp:         purge,
-
-			// TODO: remove this once badger supports returning spanKind from GetOperations
-			// Cf https://github.com/jaegertracing/jaeger/issues/1922
+			CleanUp:                      purge,
+			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.e2eInitialize(t, "badger")
+	s.e2eInitialize(t, "elasticsearch")
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
-	s.RunAll(t)
+	s.RunSpanStoreTests(t)
 }

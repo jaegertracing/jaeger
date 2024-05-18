@@ -10,8 +10,8 @@ import (
 	"io"
 	"math"
 	"strings"
-	"time"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
@@ -29,31 +29,31 @@ var (
 
 // SpanReader retrieve span data from Jaeger-v2 query with api_v2.QueryServiceClient.
 type spanReader struct {
+	logger     *zap.Logger
 	clientConn *grpc.ClientConn
 	client     api_v2.QueryServiceClient
 }
 
-func createSpanReader(port int) (*spanReader, error) {
+func createSpanReader(logger *zap.Logger, port int) (*spanReader, error) {
+	logger.Info("Creating the span reader", zap.Int("port", port))
 	opts := []grpc.DialOption{
-		grpc.WithBlock(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cc, err := grpc.DialContext(ctx, ports.PortToHostPort(port), opts...)
+	cc, err := grpc.NewClient(ports.PortToHostPort(port), opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	return &spanReader{
+		logger:     logger,
 		clientConn: cc,
 		client:     api_v2.NewQueryServiceClient(cc),
 	}, nil
 }
 
 func (r *spanReader) Close() error {
+	r.logger.Info("Closing the span writer")
 	return r.clientConn.Close()
 }
 
@@ -82,7 +82,9 @@ func (r *spanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 		for i := range received.Spans {
 			spans = append(spans, &received.Spans[i])
 		}
+		r.logger.Info(fmt.Sprintf("GetTrace received %d spans (total %d)", len(received.Spans), len(spans)))
 	}
+	r.logger.Info(fmt.Sprintf("GetTraces received a total of %d spans", len(spans)))
 
 	return &model.Trace{
 		Spans: spans,
@@ -94,6 +96,7 @@ func (r *spanReader) GetServices(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
+	r.logger.Info(fmt.Sprintf("Received %d services", len(res.Services)))
 	return res.Services, nil
 }
 
@@ -106,6 +109,7 @@ func (r *spanReader) GetOperations(ctx context.Context, query spanstore.Operatio
 	if err != nil {
 		return operations, err
 	}
+	r.logger.Info(fmt.Sprintf("Received %d operations", len(res.Operations)))
 
 	for _, operation := range res.Operations {
 		operations = append(operations, spanstore.Operation{
@@ -138,6 +142,7 @@ func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 		return traces, err
 	}
 
+	totalSpans := 0
 	spanMaps := map[string][]*model.Span{}
 	for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 		if err != nil {
@@ -150,7 +155,10 @@ func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 			}
 			spanMaps[traceID] = append(spanMaps[traceID], &received.Spans[i])
 		}
+		totalSpans += len(received.Spans)
+		r.logger.Info(fmt.Sprintf("FindTraces received %d spans (total %d)", len(received.Spans), totalSpans))
 	}
+	r.logger.Info(fmt.Sprintf("FindTraces received a total of %d spans", totalSpans))
 
 	for _, spans := range spanMaps {
 		traces = append(traces, &model.Trace{

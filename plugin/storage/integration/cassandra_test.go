@@ -16,13 +16,13 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	dbsession "github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -32,25 +32,15 @@ import (
 type CassandraStorageIntegration struct {
 	StorageIntegration
 
-	session dbsession.Session
+	factory *cassandra.Factory
 }
 
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
 	s := &CassandraStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			GetDependenciesReturnsSource: true,
-			SkipArchiveTest:              true,
 
-			SkipList: []string{
-				"Tags_+_Operation_name_+_Duration_range",
-				"Tags_+_Duration_range",
-				"Tags_+_Operation_name_+_max_Duration",
-				"Tags_+_max_Duration",
-				"Operation_name_+_Duration_range",
-				"Duration_range",
-				"max_Duration",
-				"Multiple_Traces",
-			},
+			SkipList: CassandraSkippedTests,
 		},
 	}
 	s.CleanUp = s.cleanUp
@@ -58,7 +48,7 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 }
 
 func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
-	require.NoError(t, s.session.Query("TRUNCATE traces").Exec())
+	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
@@ -74,12 +64,19 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, f
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.keyspace=jaeger_v1_dc1",
+		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
+		"--cassandra-archive.enabled=true",
+		"--cassandra-archive.servers=127.0.0.1",
 	})
-	s.session = f.PrimarySession()
+	s.factory = f
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	s.SpanReader, err = f.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)

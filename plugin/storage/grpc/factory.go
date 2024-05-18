@@ -15,7 +15,6 @@
 package grpc
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -54,8 +53,6 @@ type Factory struct {
 	archiveStore        shared.ArchiveStoragePlugin
 	streamingSpanWriter shared.StreamingSpanWriterPlugin
 	capabilities        shared.PluginCapabilities
-
-	servicesCloser io.Closer
 }
 
 // NewFactory creates a new Factory.
@@ -70,7 +67,7 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.InitFromOptions(Options{Configuration: cfg})
+	f.configureFromOptions(Options{Configuration: cfg})
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
@@ -91,8 +88,8 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.builder = &f.options.Configuration
 }
 
-// InitFromOptions initializes factory from options
-func (f *Factory) InitFromOptions(opts Options) {
+// configureFromOptions initializes factory from options
+func (f *Factory) configureFromOptions(opts Options) {
 	f.options = opts
 	f.builder = &f.options.Configuration
 }
@@ -104,15 +101,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	services, err := f.builder.Build(logger, f.tracerProvider)
 	if err != nil {
-		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
+		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
 
 	f.store = services.Store
 	f.archiveStore = services.ArchiveStore
 	f.capabilities = services.Capabilities
 	f.streamingSpanWriter = services.StreamingSpanWriter
-	f.servicesCloser = services
-	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
 
@@ -168,10 +164,6 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	errs := []error{}
-	if f.servicesCloser != nil {
-		errs = append(errs, f.servicesCloser.Close())
-	}
-	errs = append(errs, f.builder.Close())
-	return errors.Join(errs...)
+	// TODO Close should move into Services type, instead of being in the Config.
+	return f.builder.Close()
 }

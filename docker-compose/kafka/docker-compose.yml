@@ -72,7 +72,7 @@ services:
       - "--grpc-storage.server=jaeger-remote-storage:17271"
       - "--log-level=debug"
     environment:
-      - SPAN_STORAGE_TYPE=grpc-plugin
+      - SPAN_STORAGE_TYPE=grpc
       - KAFKA_CONSUMER_BROKERS=kafka:9092
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14270/ || exit 1"]
@@ -117,7 +117,7 @@ services:
       - "--grpc-storage.server=jaeger-remote-storage:17271"
       - "--log-level=debug"
     environment:
-      - SPAN_STORAGE_TYPE=grpc-plugin
+      - SPAN_STORAGE_TYPE=grpc
       - JAEGER_AGENT_HOST=jaeger-agent
     ports:
       - "16686:16686"

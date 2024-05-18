@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	memCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -61,11 +62,12 @@ func TestWithConfiguration(t *testing.T) {
 	assert.Equal(t, 100, f.options.Configuration.MaxTraces)
 }
 
-func TestInitFromOptions(t *testing.T) {
-	o := Options{}
-	f := Factory{}
-	f.InitFromOptions(o)
-	assert.Equal(t, o, f.options)
+func TestNewFactoryWithConfig(t *testing.T) {
+	cfg := memCfg.Configuration{
+		MaxTraces: 42,
+	}
+	f := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	assert.Equal(t, cfg, f.options.Configuration)
 }
 
 func TestPublishOpts(t *testing.T) {

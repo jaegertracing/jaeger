@@ -1,5 +1,5 @@
-ARG cert_image
-ARG root_image
+ARG cert_image=alpine:3.19.0
+ARG root_image=alpine:3.19.0
 
 FROM $cert_image AS cert
 RUN apk add --update --no-cache ca-certificates mailcap

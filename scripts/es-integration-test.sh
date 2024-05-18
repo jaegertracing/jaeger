@@ -42,6 +42,7 @@ setup_es() {
 
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
+  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
   echo "${cid}"
 }
 
@@ -57,6 +58,7 @@ setup_opensearch() {
   )
   local cid
   cid=$(docker run "${params[@]}" "${image}:${tag}")
+  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
   echo "${cid}"
 }
 
@@ -134,6 +136,7 @@ main() {
 
   bring_up_storage "${distro}" "${version}"
   STORAGE=${distro} make storage-integration-test
+  STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   make index-cleaner-integration-test
   make index-rollover-integration-test
 }

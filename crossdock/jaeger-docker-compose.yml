@@ -22,7 +22,7 @@ services:
         - "14250"
         - "9411:9411"
       environment:
-        - SPAN_STORAGE_TYPE=grpc-plugin
+        - SPAN_STORAGE_TYPE=grpc
         - LOG_LEVEL=debug
       restart: on-failure
       depends_on:
@@ -37,7 +37,7 @@ services:
         - "16686:16686"
         - "16687"
       environment:
-        - SPAN_STORAGE_TYPE=grpc-plugin
+        - SPAN_STORAGE_TYPE=grpc
       restart: on-failure
       depends_on:
         - jaeger-remote-storage
