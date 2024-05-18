@@ -142,12 +142,8 @@ func (a *aggregator) Start() {
 
 func (a *aggregator) Close() error {
 	var errs []error
-	if err := a.processor.Close(); err != nil {
-		errs = append(errs, err)
-	}
-	if a.stop != nil {
-		close(a.stop)
-	}
+	errs = append(errs, a.processor.Close())
+	close(a.stop)
 	a.bgFinished.Wait()
 	return errors.Join(errs...)
 }
