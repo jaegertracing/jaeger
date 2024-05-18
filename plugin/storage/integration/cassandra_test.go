@@ -31,7 +31,6 @@ import (
 
 type CassandraStorageIntegration struct {
 	StorageIntegration
-
 	factory *cassandra.Factory
 }
 
