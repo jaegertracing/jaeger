@@ -24,7 +24,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -55,7 +54,7 @@ type Factory struct {
 	archiveStore        shared.ArchiveStoragePlugin
 	streamingSpanWriter shared.StreamingSpanWriterPlugin
 	capabilities        shared.PluginCapabilities
-	remoteConn          *grpc.ClientConn
+	services            *config.ClientPluginServices
 }
 
 // NewFactory creates a new Factory.
@@ -104,16 +103,15 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.tracerProvider = otel.GetTracerProvider()
 
 	var err error
-	var services *config.ClientPluginServices
-	services, f.remoteConn, err = f.builder.Build(logger, f.tracerProvider)
+	f.services, err = f.builder.Build(logger, f.tracerProvider)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
 
-	f.store = services.Store
-	f.archiveStore = services.ArchiveStore
-	f.capabilities = services.Capabilities
-	f.streamingSpanWriter = services.StreamingSpanWriter
+	f.store = f.services.Store
+	f.archiveStore = f.services.ArchiveStore
+	f.capabilities = f.services.Capabilities
+	f.streamingSpanWriter = f.services.StreamingSpanWriter
 	logger.Info("Remote storage configuration", zap.Any("configuration", f.options.ConfigV2))
 	return nil
 }
@@ -172,8 +170,9 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 func (f *Factory) Close() error {
 	// TODO Close should move into Services type, instead of being in the Config.
 	var errs []error
-	if f.remoteConn != nil {
-		errs = append(errs, f.remoteConn.Close())
+	err := f.services.Close()
+	if err != nil {
+		errs = append(errs, err)
 	}
 	errs = append(errs, f.options.Configuration.RemoteTLS.Close())
 	return errors.Join(errs...)

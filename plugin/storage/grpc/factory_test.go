@@ -48,9 +48,9 @@ type mockPluginBuilder struct {
 	err        error
 }
 
-func (b *mockPluginBuilder) Build(logger *zap.Logger, tracer trace.TracerProvider) (*grpcConfig.ClientPluginServices, *grpc.ClientConn, error) {
+func (b *mockPluginBuilder) Build(logger *zap.Logger, tracer trace.TracerProvider) (*grpcConfig.ClientPluginServices, error) {
 	if b.err != nil {
-		return nil, nil, b.err
+		return nil, b.err
 	}
 
 	services := &grpcConfig.ClientPluginServices{
@@ -66,7 +66,7 @@ func (b *mockPluginBuilder) Build(logger *zap.Logger, tracer trace.TracerProvide
 		services.Capabilities = b.plugin
 	}
 
-	return services, nil, nil
+	return services, nil
 }
 
 func (b *mockPluginBuilder) Close() error {

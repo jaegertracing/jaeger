@@ -60,34 +60,35 @@ func (c *Configuration) translateToConfigV2() *ConfigV2 {
 type ClientPluginServices struct {
 	shared.PluginServices
 	Capabilities shared.PluginCapabilities
+	remoteConn   *grpc.ClientConn
 }
 
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
 // TODO this interface should be removed and the building capability moved to Factory.
 type PluginBuilder interface {
-	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error)
+	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
 }
 
 // Build instantiates a PluginServices
-func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
+func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	v2Cfg := c.translateToConfigV2()
 	return v2Cfg.Build(logger, tracerProvider)
 }
 
-func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
-	s, remoteConn, err := newRemoteStorage(c, tracerProvider)
+func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+	s, err := newRemoteStorage(c, tracerProvider)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return s, remoteConn, nil
+	return s, nil
 }
 
-func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
+func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
 	}
 	if c.Auth != nil {
-		return nil, nil, fmt.Errorf("authenticator is not supported")
+		return nil, fmt.Errorf("authenticator is not supported")
 	}
 
 	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
@@ -98,7 +99,7 @@ func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*Client
 
 	remoteConn, err := c.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating remote storage client: %w", err)
+		return nil, fmt.Errorf("error creating remote storage client: %w", err)
 	}
 	grpcClient := shared.NewGRPCClient(remoteConn)
 	return &ClientPluginServices{
@@ -108,5 +109,16 @@ func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*Client
 			StreamingSpanWriter: grpcClient,
 		},
 		Capabilities: grpcClient,
-	}, remoteConn, nil
+		remoteConn:   remoteConn,
+	}, nil
+}
+
+func (c *ClientPluginServices) Close() error {
+	if c.remoteConn != nil {
+		err := c.remoteConn.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
