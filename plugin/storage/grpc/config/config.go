@@ -71,11 +71,7 @@ type PluginBuilder interface {
 // Build instantiates a PluginServices
 func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
 	v2Cfg := c.translateToConfigV2()
-	s, remoteConn, err := newRemoteStorage(v2Cfg, tracerProvider)
-	if err != nil {
-		return nil, nil, err
-	}
-	return s, remoteConn, nil
+	return v2Cfg.Build(logger, tracerProvider)
 }
 
 func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, *grpc.ClientConn, error) {
