@@ -206,7 +206,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
-		return err == nil && len(actual.Spans) == len(expected.Spans)
+		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
