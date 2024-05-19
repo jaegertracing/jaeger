@@ -82,7 +82,7 @@ func (r *spanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 		for i := range received.Spans {
 			spans = append(spans, &received.Spans[i])
 		}
-		r.logger.Info(fmt.Sprintf("GetTrace received %d spans (total %d)", len(received.Spans), len(spans)))
+		// r.logger.Info(fmt.Sprintf("GetTrace received %d spans (total %d)", len(received.Spans), len(spans)))
 	}
 	r.logger.Info(fmt.Sprintf("GetTraces received a total of %d spans", len(spans)))
 
