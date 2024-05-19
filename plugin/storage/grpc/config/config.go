@@ -51,18 +51,7 @@ func (c *Configuration) translateToConfigV2() *ConfigV2 {
 	v2 := &ConfigV2{}
 	v2.Endpoint = c.RemoteServerAddr
 	v2.Timeout = c.RemoteConnectTimeout
-
-	v2.ClientConfig.TLSSetting.Insecure = !c.RemoteTLS.Enabled
-
-	v2.ClientConfig.TLSSetting.ServerName = c.RemoteTLS.ServerName
-	v2.ClientConfig.TLSSetting.InsecureSkipVerify = c.RemoteTLS.SkipHostVerify
-	v2.ClientConfig.TLSSetting.CAFile = c.RemoteTLS.CAPath
-	v2.ClientConfig.TLSSetting.CertFile = c.RemoteTLS.CertPath
-	v2.ClientConfig.TLSSetting.KeyFile = c.RemoteTLS.KeyPath
-	v2.ClientConfig.TLSSetting.CipherSuites = c.RemoteTLS.CipherSuites
-	v2.ClientConfig.TLSSetting.MinVersion = c.RemoteTLS.MinVersion
-	v2.ClientConfig.TLSSetting.MaxVersion = c.RemoteTLS.MaxVersion
-	v2.ClientConfig.TLSSetting.ReloadInterval = c.RemoteTLS.ReloadInterval
+	v2.TLSSetting = c.RemoteTLS.ToOtelClientConfig(&v2.TLSSetting)
 
 	return v2
 }

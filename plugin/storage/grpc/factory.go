@@ -114,7 +114,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.archiveStore = services.ArchiveStore
 	f.capabilities = services.Capabilities
 	f.streamingSpanWriter = services.StreamingSpanWriter
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.options.Configuration))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.options.ConfigV2))
 	return nil
 }
 
