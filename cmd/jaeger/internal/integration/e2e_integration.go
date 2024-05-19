@@ -45,7 +45,7 @@ type E2EStorageIntegration struct {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
-	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
