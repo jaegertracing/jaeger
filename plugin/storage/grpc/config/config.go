@@ -113,10 +113,7 @@ func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient
 
 func (c *ClientPluginServices) Close() error {
 	if c.remoteConn != nil {
-		err := c.remoteConn.Close()
-		if err != nil {
-			return err
-		}
+		return c.remoteConn.Close()
 	}
 	return nil
 }

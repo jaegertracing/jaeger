@@ -105,6 +105,7 @@ func makeFactory(t *testing.T) *Factory {
 		f.Close()
 	})
 
+	f.services = makeMockServices()
 	return f
 }
 
@@ -133,8 +134,6 @@ func TestNewFactoryError(t *testing.T) {
 
 func TestInitFactory(t *testing.T) {
 	f := makeFactory(t)
-
-	f.services = makeMockServices()
 	f.services.Capabilities = nil
 
 	reader, err := f.CreateSpanReader()
@@ -178,7 +177,6 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	f := makeFactory(t)
 
-	f.services = makeMockServices()
 	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
 		Return(&shared.Capabilities{
@@ -203,7 +201,6 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 	f := makeFactory(t)
 
-	f.services = makeMockServices()
 	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
 		Return(&shared.Capabilities{
@@ -226,7 +223,6 @@ func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
 	f := makeFactory(t)
 
-	f.services = makeMockServices()
 	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
 	customError := errors.New("made-up error")
 	capabilities.On("Capabilities").Return(nil, customError)
@@ -244,7 +240,6 @@ func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
 
 func TestGRPCStorageFactory_CapabilitiesNil(t *testing.T) {
 	f := makeFactory(t)
-	f.services = makeMockServices()
 	f.services.Capabilities = nil
 
 	reader, err := f.CreateArchiveSpanReader()
@@ -273,7 +268,6 @@ func TestWithCLIFlags(t *testing.T) {
 func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 	f := makeFactory(t)
 
-	f.services = makeMockServices()
 	f.services.Capabilities = nil
 	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
 	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
@@ -290,7 +284,6 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 	f := makeFactory(t)
 
-	f.services = makeMockServices()
 	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
 	customError := errors.New("made-up error")
 	capabilities.
