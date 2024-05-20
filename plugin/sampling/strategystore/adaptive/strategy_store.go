@@ -68,9 +68,6 @@ func NewStrategyStore(options Options, logger *zap.Logger, participant leaderele
 // Start initializes and starts the sampling service which regularly loads sampling probabilities and generates strategies.
 func (ss *StrategyStore) Start() error {
 	ss.logger.Info("starting adaptive sampling service")
-	if err := ss.electionParticipant.Start(); err != nil {
-		return err
-	}
 	ss.loadProbabilities()
 	ss.generateStrategyResponses()
 
@@ -86,8 +83,7 @@ func (ss *StrategyStore) Start() error {
 // Close stops the service from loading probabilities and generating strategies.
 func (ss *StrategyStore) Close() error {
 	ss.logger.Info("stopping adaptive sampling service")
-	err := ss.electionParticipant.Close()
 	close(ss.shutdown)
 	ss.bgFinished.Wait()
-	return err
+	return nil
 }

@@ -33,4 +33,6 @@ type Factory interface {
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
 	CreateStrategyStore() (StrategyStore, Aggregator, error)
+
+	Close() error
 }

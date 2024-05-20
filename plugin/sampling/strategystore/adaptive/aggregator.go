@@ -15,7 +15,6 @@
 package adaptive
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -141,9 +140,7 @@ func (a *aggregator) Start() {
 }
 
 func (a *aggregator) Close() error {
-	var errs []error
-	errs = append(errs, a.processor.Close())
 	close(a.stop)
 	a.bgFinished.Wait()
-	return errors.Join(errs...)
+	return nil
 }

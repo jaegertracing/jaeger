@@ -154,22 +154,10 @@ func (p *StrategyStore) GetSamplingStrategy(_ context.Context, service string) (
 // Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
 func (p *Processor) Start() error {
 	p.logger.Info("starting adaptive sampling processor")
-	if err := p.electionParticipant.Start(); err != nil {
-		return err
-	}
-
 	// NB: the first tick will be slightly delayed by the initializeThroughput call.
 	p.lastCheckedTime = time.Now().Add(p.Delay * -1)
 	p.initializeThroughput(p.lastCheckedTime)
 	return nil
-}
-
-// Close stops the Processor from calculating probabilities.
-func (p *Processor) Close() error {
-	p.logger.Info("stopping adaptive sampling processor")
-	err := p.electionParticipant.Close()
-	p.bgFinished.Wait()
-	return err
 }
 
 func (p *StrategyStore) loadProbabilities() {

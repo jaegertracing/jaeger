@@ -39,6 +39,7 @@ type Factory struct {
 	metricsFactory metrics.Factory
 	lock           distributedlock.Lock
 	store          samplingstore.Store
+	participant    *leaderelection.DistributedElectionParticipant
 }
 
 // NewFactory creates a new Factory.
@@ -71,6 +72,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	var err error
 	f.logger = logger
 	f.metricsFactory = metricsFactory
+	f.participant = leaderelection.NewElectionParticipant(f.lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
+		FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
+		LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
+		Logger:                       f.logger,
+	})
 	f.lock, err = ssFactory.CreateLock()
 	if err != nil {
 		return err
@@ -84,22 +90,22 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
-	participant := leaderelection.NewElectionParticipant(f.lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
-		FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
-		LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
-		Logger:                       f.logger,
-	})
-
-	p, err := NewStrategyStore(*f.options, f.logger, participant, f.store)
+	f.participant.Start()
+	p, err := NewStrategyStore(*f.options, f.logger, f.participant, f.store)
 	if err != nil {
 		return nil, nil, err
 	}
 	p.Start()
-	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, participant, f.store)
+	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
 	if err != nil {
 		return nil, nil, err
 	}
 	a.Start()
 
 	return p, a, nil
+}
+
+// Closes the factory
+func (f *Factory) Close() error {
+	return f.participant.Close()
 }

@@ -134,6 +134,9 @@ func main() {
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
+				if err := strategyStoreFactory.Close(); err != nil {
+					logger.Error("Failed to close sampling strategy store factory", zap.Error(err))
+				}
 			})
 			return nil
 		},
