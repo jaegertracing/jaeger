@@ -99,10 +99,6 @@ func TestWriteDependencies(t *testing.T) {
 	}{
 		{
 			expectedError: "",
-			esVersion:     6,
-		},
-		{
-			expectedError: "",
 			esVersion:     7,
 		},
 	}
