@@ -48,11 +48,10 @@ type ConfigV2 struct {
 }
 
 func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
-	temp := &ConfigV2{} // TODO there is no need to pass this
 	return &ConfigV2{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint:   c.RemoteServerAddr,
-			TLSSetting: c.RemoteTLS.ToOtelClientConfig(&temp.TLSSetting),
+			TLSSetting: c.RemoteTLS.ToOtelClientConfig(),
 		},
 		TimeoutSettings: exporterhelper.TimeoutSettings{
 			Timeout: c.RemoteConnectTimeout,
