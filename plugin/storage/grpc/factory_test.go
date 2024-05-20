@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -68,6 +70,10 @@ func (s *store) DependencyReader() dependencystore.Reader {
 	return s.deps
 }
 
+func (s *store) StreamingSpanWriter() spanstore.Writer {
+	return s.writer
+}
+
 func makeMockServices() *grpcConfig.ClientPluginServices {
 	return &grpcConfig.ClientPluginServices{
 		PluginServices: shared.PluginServices{
@@ -80,9 +86,26 @@ func makeMockServices() *grpcConfig.ClientPluginServices {
 				writer: new(spanStoreMocks.Writer),
 				reader: new(spanStoreMocks.Reader),
 			},
+			StreamingSpanWriter: &store{
+				writer: new(spanStoreMocks.Writer),
+			},
 		},
 		Capabilities: new(mocks.PluginCapabilities),
 	}
+}
+
+func makeFactory(t *testing.T) *Factory {
+	f := NewFactory()
+	f.InitFromViper(viper.New(), zap.NewNop())
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	keepServices := f.services
+	t.Cleanup(func() {
+		keepServices.Close()
+		f.Close()
+	})
+
+	return f
 }
 
 func TestNewFactoryError(t *testing.T) {
@@ -92,25 +115,27 @@ func TestNewFactoryError(t *testing.T) {
 			Auth: &configauth.Authentication{},
 		},
 	}
-	_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "authenticator")
+	t.Run("with_config", func(t *testing.T) {
+		_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticator")
+	})
 
-	f := NewFactory()
-	f.InitFromViper(viper.New(), zap.NewNop())
-
-	f.configV2 = cfg
-	err = f.Initialize(metrics.NullFactory, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "authenticator")
+	t.Run("viper", func(t *testing.T) {
+		f := NewFactory()
+		f.InitFromViper(viper.New(), zap.NewNop())
+		f.configV2 = cfg
+		err := f.Initialize(metrics.NullFactory, zap.NewNop())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticator")
+	})
 }
 
 func TestInitFactory(t *testing.T) {
-	f := NewFactory()
-	f.InitFromViper(viper.New(), zap.NewNop())
+	f := makeFactory(t)
+
 	f.services = makeMockServices()
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	defer f.Close()
+	f.services.Capabilities = nil
 
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)
@@ -148,20 +173,6 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
-}
-
-func makeFactory(t *testing.T) *Factory {
-	f := NewFactory()
-	f.InitFromViper(viper.New(), zap.NewNop())
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-	keepServices := f.services
-	t.Cleanup(func() {
-		keepServices.Close()
-		f.Close()
-	})
-
-	return f
 }
 
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {
@@ -259,51 +270,57 @@ func TestWithCLIFlags(t *testing.T) {
 	require.NoError(t, f.Close())
 }
 
-// func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
-// 	f := NewFactory()
-// 	v := viper.New()
-// 	f.InitFromViper(v, zap.NewNop())
+func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
+	f := makeFactory(t)
 
-// 	f.builder = &mockPluginBuilder{
-// 		plugin: &mockPlugin{
-// 			archiveWriter: new(spanStoreMocks.Writer),
-// 			archiveReader: new(spanStoreMocks.Reader),
-// 			spanWriter:    new(spanStoreMocks.Writer),
-// 		},
-// 		writerType: "streaming",
-// 	}
-// 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-// 	writer, err := f.CreateSpanWriter()
-// 	require.NoError(t, err)
-// 	assert.Equal(t, f.store.SpanWriter(), writer)
-// }
+	f.services = makeMockServices()
+	f.services.Capabilities = nil
+	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
+	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
 
-// func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
-// 	f := NewFactory()
-// 	v := viper.New()
-// 	f.InitFromViper(v, zap.NewNop())
+	writer, err := f.CreateSpanWriter()
+	require.NoError(t, err)
+	err = writer.WriteSpan(context.Background(), nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not streaming writer")
+}
 
-// 	capabilities := new(mocks.PluginCapabilities)
-// 	customError := errors.New("made-up error")
-// 	capabilities.On("Capabilities").
-// 		Return(nil, customError).Once().
-// 		On("Capabilities").Return(&shared.Capabilities{}, nil).Once()
+func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
+	f := makeFactory(t)
 
-// 	f.builder = &mockPluginBuilder{
-// 		plugin: &mockPlugin{
-// 			archiveWriter: new(spanStoreMocks.Writer),
-// 			archiveReader: new(spanStoreMocks.Reader),
-// 			spanWriter:    new(spanStoreMocks.Writer),
-// 			capabilities:  capabilities,
-// 		},
-// 		writerType: "streaming",
-// 	}
-// 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-// 	writer, err := f.CreateSpanWriter()
-// 	require.NoError(t, err)
-// 	assert.Equal(t, f.store.SpanWriter(), writer) // get unary writer when Capabilities return error
+	f.services = makeMockServices()
+	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
+	customError := errors.New("made-up error")
+	capabilities.
+		// return error on the first call
+		On("Capabilities").Return(nil, customError).Once().
+		// then return false on the second call
+		On("Capabilities").Return(&shared.Capabilities{}, nil).Once().
+		// then return true on the second call
+		On("Capabilities").Return(&shared.Capabilities{StreamingSpanWriter: true}, nil).Once()
 
-// 	writer, err = f.CreateSpanWriter()
-// 	require.NoError(t, err)
-// 	assert.Equal(t, f.store.SpanWriter(), writer) // get unary writer when Capabilities return false
-// }
+	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
+	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
+
+	writer, err := f.CreateSpanWriter()
+	require.NoError(t, err)
+	err = writer.WriteSpan(context.Background(), nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return error")
+
+	writer, err = f.CreateSpanWriter()
+	require.NoError(t, err)
+	err = writer.WriteSpan(context.Background(), nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return false")
+
+	writer, err = f.CreateSpanWriter()
+	require.NoError(t, err)
+	err = writer.WriteSpan(context.Background(), nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "I am streaming writer", "streaming writer when Capabilities return true")
+}

@@ -67,18 +67,6 @@ type ClientPluginServices struct {
 	remoteConn   *grpc.ClientConn
 }
 
-// // PluginBuilder is used to create storage plugins. Implemented by Configuration.
-// // TODO this interface should be removed and the building capability moved to Factory.
-// type PluginBuilder interface {
-// 	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
-// }
-
-// // Build instantiates a PluginServices
-// func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-// 	v2Cfg := c.translateToConfigV2()
-// 	return v2Cfg.Build(logger, tracerProvider)
-// }
-
 // TODO move this to factory.go
 func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	telset := component.TelemetrySettings{
@@ -107,7 +95,6 @@ func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 
-	//remoteConn, err := c.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
 	remoteConn, err := newClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating remote storage client: %w", err)
