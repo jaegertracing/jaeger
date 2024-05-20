@@ -42,7 +42,7 @@ type Configuration struct {
 }
 
 type ConfigV2 struct {
-	TenancyOpts                    tenancy.Options
+	Tenancy                        tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig        `mapstructure:",squash"`
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 }
@@ -88,7 +88,7 @@ func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient
 		return nil, fmt.Errorf("authenticator is not supported")
 	}
 
-	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
+	tenancyMgr := tenancy.NewManager(&c.Tenancy)
 	if tenancyMgr.Enabled {
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
