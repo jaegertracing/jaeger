@@ -4,16 +4,21 @@
 package config
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace/noop"
+	"go.opentelemetry.io/collector/component"
+	"google.golang.org/grpc"
 )
 
 func TestBuildRemoteNewClientError(t *testing.T) {
 	// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
 	c := &ConfigV2{}
-	_, err := newRemoteStorage(c, noop.NewTracerProvider())
+	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		return nil, errors.New("test error")
+	}
+	_, err := newRemoteStorage(c, component.TelemetrySettings{}, newClientFn)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "error creating remote storage client")
 }

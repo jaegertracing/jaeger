@@ -47,13 +47,17 @@ type ConfigV2 struct {
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 }
 
-func (c *Configuration) translateToConfigV2() *ConfigV2 {
-	v2 := &ConfigV2{}
-	v2.Endpoint = c.RemoteServerAddr
-	v2.Timeout = c.RemoteConnectTimeout
-	v2.TLSSetting = c.RemoteTLS.ToOtelClientConfig(&v2.TLSSetting)
-
-	return v2
+func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
+	temp := &ConfigV2{} // TODO there is no need to pass this
+	return &ConfigV2{
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint:   c.RemoteServerAddr,
+			TLSSetting: c.RemoteTLS.ToOtelClientConfig(&temp.TLSSetting),
+		},
+		TimeoutSettings: exporterhelper.TimeoutSettings{
+			Timeout: c.RemoteConnectTimeout,
+		},
+	}
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -63,29 +67,35 @@ type ClientPluginServices struct {
 	remoteConn   *grpc.ClientConn
 }
 
-// PluginBuilder is used to create storage plugins. Implemented by Configuration.
-// TODO this interface should be removed and the building capability moved to Factory.
-type PluginBuilder interface {
-	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
-}
+// // PluginBuilder is used to create storage plugins. Implemented by Configuration.
+// // TODO this interface should be removed and the building capability moved to Factory.
+// type PluginBuilder interface {
+// 	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
+// }
 
-// Build instantiates a PluginServices
-func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	v2Cfg := c.translateToConfigV2()
-	return v2Cfg.Build(logger, tracerProvider)
-}
+// // Build instantiates a PluginServices
+// func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+// 	v2Cfg := c.translateToConfigV2()
+// 	return v2Cfg.Build(logger, tracerProvider)
+// }
 
+// TODO move this to factory.go
 func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	s, err := newRemoteStorage(c, tracerProvider)
-	if err != nil {
-		return nil, err
+	telset := component.TelemetrySettings{
+		Logger:         logger,
+		TracerProvider: tracerProvider,
 	}
-	return s, nil
+	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		return c.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+	}
+	return newRemoteStorage(c, telset, newClientFn)
 }
 
-func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
+
+func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
 	}
 	if c.Auth != nil {
 		return nil, fmt.Errorf("authenticator is not supported")
@@ -97,7 +107,8 @@ func newRemoteStorage(c *ConfigV2, tracerProvider trace.TracerProvider) (*Client
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 
-	remoteConn, err := c.ToClientConn(context.Background(), componenttest.NewNopHost(), component.TelemetrySettings{}, opts...)
+	//remoteConn, err := c.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+	remoteConn, err := newClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating remote storage client: %w", err)
 	}
