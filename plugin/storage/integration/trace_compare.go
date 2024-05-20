@@ -47,6 +47,20 @@ func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model
 	}
 }
 
+// trace.Spans may contain spans with the same SpanID. Remove duplicates
+// and keep the first one. Use a map to keep track of the spans we've seen.
+func dedupeSpans(trace *model.Trace) {
+	seen := make(map[model.SpanID]bool)
+	var newSpans []*model.Span
+	for _, span := range trace.Spans {
+		if !seen[span.SpanID] {
+			seen[span.SpanID] = true
+			newSpans = append(newSpans, span)
+		}
+	}
+	trace.Spans = newSpans
+}
+
 // CompareTraces compares two traces
 func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	if expected.Spans == nil {
@@ -55,6 +69,14 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	}
 	require.NotNil(t, actual)
 	require.NotNil(t, actual.Spans)
+
+	// some storage implementation may retry writing of spans and end up with duplicates.
+	countBefore := len(actual.Spans)
+	dedupeSpans(actual)
+	if countAfter := len(actual.Spans); countAfter != countBefore {
+		t.Logf("Removed spans with duplicate span IDs; before=%d, after=%d", countBefore, countAfter)
+	}
+
 	model.SortTrace(expected)
 	model.SortTrace(actual)
 	checkSize(t, expected, actual)

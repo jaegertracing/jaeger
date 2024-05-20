@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -27,13 +28,18 @@ var (
 
 // SpanWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
 type spanWriter struct {
+	logger   *zap.Logger
 	exporter exporter.Traces
 }
 
 func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
+	logger.Info("Creating the span writer", zap.Int("port", port))
+
 	factory := otlpexporter.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
 	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
+	cfg.Timeout = 30 * time.Second
+	cfg.RetryConfig.Enabled = false
 	cfg.QueueConfig.Enabled = false
 	cfg.TLSSetting = configtls.ClientConfig{
 		Insecure: true,
@@ -51,11 +57,13 @@ func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 	}
 
 	return &spanWriter{
+		logger:   logger,
 		exporter: exporter,
 	}, nil
 }
 
 func (w *spanWriter) Close() error {
+	w.logger.Info("Closing the span writer")
 	return w.exporter.Shutdown(context.Background())
 }
 
