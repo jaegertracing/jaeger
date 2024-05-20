@@ -124,3 +124,6 @@ oF+qZY4uEvqFvYo8
 ## Securing a Jaeger installation
 
 If you are looking to secure your Jaeger installation, check out our documentation on the topic: [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/).
+
+## Securing a Jaeger installation
+If you would like additional infromation about Jaeger security, you can find our [Threat Model](./THREAT-MODEL.md) and our [SECURITY-INSIGHTS](./SECURITY-INSIGHTS.yml) for additional information.
