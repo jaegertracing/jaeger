@@ -15,16 +15,18 @@
 package config
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -37,57 +39,66 @@ type Configuration struct {
 	RemoteTLS            tlscfg.Options
 	RemoteConnectTimeout time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 	TenancyOpts          tenancy.Options
+}
 
-	remoteConn *grpc.ClientConn
+type ConfigV2 struct {
+	Tenancy                        tenancy.Options `mapstructure:"multi_tenancy"`
+	configgrpc.ClientConfig        `mapstructure:",squash"`
+	exporterhelper.TimeoutSettings `mapstructure:",squash"`
+}
+
+func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
+	return &ConfigV2{
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint:   c.RemoteServerAddr,
+			TLSSetting: c.RemoteTLS.ToOtelClientConfig(),
+		},
+		TimeoutSettings: exporterhelper.TimeoutSettings{
+			Timeout: c.RemoteConnectTimeout,
+		},
+	}
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
 type ClientPluginServices struct {
 	shared.PluginServices
 	Capabilities shared.PluginCapabilities
+	remoteConn   *grpc.ClientConn
 }
 
-// PluginBuilder is used to create storage plugins. Implemented by Configuration.
-// TODO this interface should be removed and the building capability moved to Factory.
-type PluginBuilder interface {
-	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
-	Close() error
+// TODO move this to factory.go
+func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+	telset := component.TelemetrySettings{
+		Logger:         logger,
+		TracerProvider: tracerProvider,
+	}
+	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		return c.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+	}
+	return newRemoteStorage(c, telset, newClientFn)
 }
 
-// Build instantiates a PluginServices
-func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	return c.buildRemote(logger, tracerProvider, grpc.NewClient)
-}
+type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
-type newClientFn func(target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error)
-
-func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider, newClient newClientFn) (*ClientPluginServices, error) {
+func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
 	}
-	if c.RemoteTLS.Enabled {
-		tlsCfg, err := c.RemoteTLS.Config(logger)
-		if err != nil {
-			return nil, err
-		}
-		creds := credentials.NewTLS(tlsCfg)
-		opts = append(opts, grpc.WithTransportCredentials(creds))
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if c.Auth != nil {
+		return nil, fmt.Errorf("authenticator is not supported")
 	}
 
-	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
+	tenancyMgr := tenancy.NewManager(&c.Tenancy)
 	if tenancyMgr.Enabled {
 		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
-	var err error
-	c.remoteConn, err = newClient(c.RemoteServerAddr, opts...)
+
+	remoteConn, err := newClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating remote storage client: %w", err)
 	}
-
-	grpcClient := shared.NewGRPCClient(c.remoteConn)
+	grpcClient := shared.NewGRPCClient(remoteConn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
@@ -95,14 +106,13 @@ func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.Tra
 			StreamingSpanWriter: grpcClient,
 		},
 		Capabilities: grpcClient,
+		remoteConn:   remoteConn,
 	}, nil
 }
 
-func (c *Configuration) Close() error {
-	var errs []error
+func (c *ClientPluginServices) Close() error {
 	if c.remoteConn != nil {
-		errs = append(errs, c.remoteConn.Close())
+		return c.remoteConn.Close()
 	}
-	errs = append(errs, c.RemoteTLS.Close())
-	return errors.Join(errs...)
+	return nil
 }

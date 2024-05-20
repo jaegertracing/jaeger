@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -27,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -42,17 +42,14 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
-	options        Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	tracerProvider trace.TracerProvider
 
-	builder config.PluginBuilder
+	configV1 config.Configuration
+	configV2 *config.ConfigV2
 
-	store               shared.StoragePlugin
-	archiveStore        shared.ArchiveStoragePlugin
-	streamingSpanWriter shared.StreamingSpanWriterPlugin
-	capabilities        shared.PluginCapabilities
+	services *config.ClientPluginServices
 }
 
 // NewFactory creates a new Factory.
@@ -62,14 +59,13 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg config.Configuration,
+	cfg config.ConfigV2,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configureFromOptions(Options{Configuration: cfg})
-	err := f.Initialize(metricsFactory, logger)
-	if err != nil {
+	f.configV2 = &cfg
+	if err := f.Initialize(metricsFactory, logger); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -77,21 +73,14 @@ func NewFactoryWithConfig(
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.options.AddFlags(flagSet)
+	v1AddFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	if err := f.options.InitFromViper(v); err != nil {
+	if err := v1InitFromViper(&f.configV1, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
 	}
-	f.builder = &f.options.Configuration
-}
-
-// configureFromOptions initializes factory from options
-func (f *Factory) configureFromOptions(opts Options) {
-	f.options = opts
-	f.builder = &f.options.Configuration
 }
 
 // Initialize implements storage.Factory
@@ -99,71 +88,75 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.tracerProvider = otel.GetTracerProvider()
 
-	services, err := f.builder.Build(logger, f.tracerProvider)
+	if f.configV2 == nil {
+		f.configV2 = f.configV1.TranslateToConfigV2()
+	}
+
+	var err error
+	f.services, err = f.configV2.Build(logger, f.tracerProvider)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
-
-	f.store = services.Store
-	f.archiveStore = services.ArchiveStore
-	f.capabilities = services.Capabilities
-	f.streamingSpanWriter = services.StreamingSpanWriter
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.options.Configuration))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.configV2))
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return f.store.SpanReader(), nil
+	return f.services.Store.SpanReader(), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	if f.capabilities != nil && f.streamingSpanWriter != nil {
-		if capabilities, err := f.capabilities.Capabilities(); err == nil && capabilities.StreamingSpanWriter {
-			return f.streamingSpanWriter.StreamingSpanWriter(), nil
+	if f.services.Capabilities != nil && f.services.StreamingSpanWriter != nil {
+		if capabilities, err := f.services.Capabilities.Capabilities(); err == nil && capabilities.StreamingSpanWriter {
+			return f.services.StreamingSpanWriter.StreamingSpanWriter(), nil
 		}
 	}
-	return f.store.SpanWriter(), nil
+	return f.services.Store.SpanWriter(), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return f.store.DependencyReader(), nil
+	return f.services.Store.DependencyReader(), nil
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if f.capabilities == nil {
+	if f.services.Capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	capabilities, err := f.capabilities.Capabilities()
+	capabilities, err := f.services.Capabilities.Capabilities()
 	if err != nil {
 		return nil, err
 	}
 	if capabilities == nil || !capabilities.ArchiveSpanReader {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return f.archiveStore.ArchiveSpanReader(), nil
+	return f.services.ArchiveStore.ArchiveSpanReader(), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if f.capabilities == nil {
+	if f.services.Capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	capabilities, err := f.capabilities.Capabilities()
+	capabilities, err := f.services.Capabilities.Capabilities()
 	if err != nil {
 		return nil, err
 	}
 	if capabilities == nil || !capabilities.ArchiveSpanWriter {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return f.archiveStore.ArchiveSpanWriter(), nil
+	return f.services.ArchiveStore.ArchiveSpanWriter(), nil
 }
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	// TODO Close should move into Services type, instead of being in the Config.
-	return f.builder.Close()
+	var errs []error
+	if f.services != nil {
+		errs = append(errs, f.services.Close())
+	}
+	errs = append(errs, f.configV1.RemoteTLS.Close())
+	return errors.Join(errs...)
 }

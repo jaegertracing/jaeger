@@ -33,12 +33,6 @@ const (
 	defaultConnectionTimeout = time.Duration(5 * time.Second)
 )
 
-// Options contains GRPC plugins configs and provides the ability
-// to bind them to command line flags
-type Options struct {
-	Configuration config.Configuration `mapstructure:",squash"`
-}
-
 func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
 		Prefix: remotePrefix,
@@ -46,22 +40,21 @@ func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 }
 
 // AddFlags adds flags for Options
-func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
+func v1AddFlags(flagSet *flag.FlagSet) {
 	tlsFlagsConfig().AddFlags(flagSet)
 
 	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
-// InitFromViper initializes Options with properties from viper
-func (opt *Options) InitFromViper(v *viper.Viper) error {
-	opt.Configuration.RemoteServerAddr = v.GetString(remoteServer)
+func v1InitFromViper(cfg *config.Configuration, v *viper.Viper) error {
+	cfg.RemoteServerAddr = v.GetString(remoteServer)
 	var err error
-	opt.Configuration.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
+	cfg.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
 	}
-	opt.Configuration.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
-	opt.Configuration.TenancyOpts = tenancy.InitFromViper(v)
+	cfg.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
+	cfg.TenancyOpts = tenancy.InitFromViper(v)
 	return nil
 }
