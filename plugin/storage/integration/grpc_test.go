@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -34,7 +35,7 @@ type GRPCStorageIntegrationTestSuite struct {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
-	logger := zaptest.NewLogger(t)
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	s.remoteStorage = StartNewRemoteMemoryStorage(t)
 
 	f := grpc.NewFactory()

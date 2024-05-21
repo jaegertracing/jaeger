@@ -101,7 +101,7 @@ func (storageHost) GetExporters() map[component.DataType]map[component.ID]compon
 func TestServerDependencies(t *testing.T) {
 	expectedDependencies := []component.ID{jaegerstorage.ID}
 	telemetrySettings := component.TelemetrySettings{
-		Logger: zaptest.NewLogger(t),
+		Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
 	}
 
 	server := newServer(createDefaultConfig().(*Config), telemetrySettings)
@@ -160,7 +160,7 @@ func TestServerStart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger: zaptest.NewLogger(t),
+				Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
 			}
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)

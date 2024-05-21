@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -37,6 +38,8 @@ func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 	factory := otlpexporter.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
 	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
+	cfg.Timeout = 30 * time.Second
+	cfg.RetryConfig.Enabled = false
 	cfg.QueueConfig.Enabled = false
 	cfg.TLSSetting = configtls.ClientConfig{
 		Insecure: true,

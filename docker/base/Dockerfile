@@ -1,9 +1,6 @@
-ARG cert_image=alpine:3.19.0
-ARG root_image=alpine:3.19.0
-
-FROM $cert_image AS cert
+FROM alpine:3.19.0 AS cert
 RUN apk add --update --no-cache ca-certificates mailcap
 
-FROM $root_image
+FROM alpine:3.19.0
 COPY --from=cert /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=cert /etc/mime.types /etc/mime.types
