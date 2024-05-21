@@ -79,12 +79,14 @@ func TestNewFactory(t *testing.T) {
 		require.NoError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()))
 		_, _, err = f.CreateStrategyStore()
 		require.NoError(t, err)
+		require.NoError(t, f.Close())
 
 		// force the mock to return errors
 		mock.retError = true
 		require.EqualError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
 		_, _, err = f.CreateStrategyStore()
 		require.EqualError(t, err, "error creating store")
+		require.EqualError(t, f.Close(), "error closing store")
 
 		// request something that doesn't exist
 		f.StrategyStoreType = "doesntexist"
@@ -140,6 +142,13 @@ func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, ss.Aggregator, er
 func (f *mockFactory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	if f.retError {
 		return errors.New("error initializing store")
+	}
+	return nil
+}
+
+func (f *mockFactory) Close() error {
+	if f.retError {
+		return errors.New("error closing store")
 	}
 	return nil
 }

@@ -67,3 +67,8 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategyst
 
 	return s, nil, nil
 }
+
+// Close closes the factory.
+func (f *Factory) Close() error {
+	return nil
+}

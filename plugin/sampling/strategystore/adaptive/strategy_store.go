@@ -15,32 +15,75 @@
 package adaptive
 
 import (
+	"sync"
+	"time"
+
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/hostname"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
+const defaultFollowerProbabilityInterval = 20 * time.Second
+
+type StrategyStore struct {
+	sync.RWMutex
+	Options
+
+	electionParticipant leaderelection.ElectionParticipant
+	storage             samplingstore.Store
+	logger              *zap.Logger
+
+	// probabilities contains the latest calculated sampling probabilities for service operations.
+	probabilities model.ServiceOperationProbabilities
+
+	// strategyResponses is the cache of the sampling strategies for every service, in protobuf format.
+	strategyResponses map[string]*api_v2.SamplingStrategyResponse
+
+	// followerRefreshInterval determines how often the follower processor updates its probabilities.
+	// Given only the leader writes probabilities, the followers need to fetch the probabilities into
+	// cache.
+	followerRefreshInterval time.Duration
+
+	shutdown   chan struct{}
+	bgFinished sync.WaitGroup
+}
+
 // NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
-func NewStrategyStore(options Options, metricsFactory metrics.Factory, logger *zap.Logger, lock distributedlock.Lock, store samplingstore.Store) (*Processor, error) {
-	hostname, err := hostname.AsIdentifier()
-	if err != nil {
-		return nil, err
+func NewStrategyStore(options Options, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) *StrategyStore {
+	return &StrategyStore{
+		Options:                 options,
+		storage:                 store,
+		probabilities:           make(model.ServiceOperationProbabilities),
+		strategyResponses:       make(map[string]*api_v2.SamplingStrategyResponse),
+		logger:                  logger,
+		electionParticipant:     participant,
+		followerRefreshInterval: defaultFollowerProbabilityInterval,
+		shutdown:                make(chan struct{}),
 	}
-	logger.Info("Using unique participantName in adaptive sampling", zap.String("participantName", hostname))
+}
 
-	participant := leaderelection.NewElectionParticipant(lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
-		FollowerLeaseRefreshInterval: options.FollowerLeaseRefreshInterval,
-		LeaderLeaseRefreshInterval:   options.LeaderLeaseRefreshInterval,
-		Logger:                       logger,
-	})
-	p, err := newProcessor(options, hostname, store, participant, metricsFactory, logger)
-	if err != nil {
-		return nil, err
-	}
+// Start initializes and starts the sampling service which regularly loads sampling probabilities and generates strategies.
+func (ss *StrategyStore) Start() error {
+	ss.logger.Info("starting adaptive sampling service")
+	ss.loadProbabilities()
+	ss.generateStrategyResponses()
 
-	return p, nil
+	ss.bgFinished.Add(1)
+	go func() {
+		ss.runUpdateProbabilitiesLoop()
+		ss.bgFinished.Done()
+	}()
+
+	return nil
+}
+
+// Close stops the service from loading probabilities and generating strategies.
+func (ss *StrategyStore) Close() error {
+	ss.logger.Info("stopping adaptive sampling service")
+	close(ss.shutdown)
+	ss.bgFinished.Wait()
+	return nil
 }

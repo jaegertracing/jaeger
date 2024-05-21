@@ -37,8 +37,6 @@ const (
 
 	getThroughputErrMsg = "failed to get throughput from storage"
 
-	defaultFollowerProbabilityInterval = 20 * time.Second
-
 	// The number of past entries for samplingCache the leader keeps in memory
 	serviceCacheSize = 25
 
@@ -95,26 +93,17 @@ type Processor struct {
 	// The latest throughput is stored at the head of the slice.
 	throughputs []*throughputBucket
 
-	// strategyResponses is the cache of the sampling strategies for every service, in Thrift format.
-	// TODO change this to work with protobuf model instead, to support gRPC endpoint.
-	strategyResponses map[string]*api_v2.SamplingStrategyResponse
-
 	weightVectorCache *WeightVectorCache
 
 	probabilityCalculator calculationstrategy.ProbabilityCalculator
 
-	// followerRefreshInterval determines how often the follower processor updates its probabilities.
-	// Given only the leader writes probabilities, the followers need to fetch the probabilities into
-	// cache.
-	followerRefreshInterval time.Duration
-
 	serviceCache []SamplingCache
 
-	shutdown   chan struct{}
-	bgFinished sync.WaitGroup
+	shutdown chan struct{}
 
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
+	lastCheckedTime               time.Time
 }
 
 // newProcessor creates a new sampling processor that generates sampling rates for service operations.
@@ -139,21 +128,20 @@ func newProcessor(
 		probabilities:       make(model.ServiceOperationProbabilities),
 		qps:                 make(model.ServiceOperationQPS),
 		hostname:            hostname,
-		strategyResponses:   make(map[string]*api_v2.SamplingStrategyResponse),
 		logger:              logger,
 		electionParticipant: electionParticipant,
 		// TODO make weightsCache and probabilityCalculator configurable
 		weightVectorCache:             NewWeightVectorCache(),
 		probabilityCalculator:         calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
-		followerRefreshInterval:       defaultFollowerProbabilityInterval,
 		serviceCache:                  []SamplingCache{},
 		operationsCalculatedGauge:     metricsFactory.Gauge(metrics.Options{Name: "operations_calculated"}),
 		calculateProbabilitiesLatency: metricsFactory.Timer(metrics.TimerOptions{Name: "calculate_probabilities"}),
+		shutdown:                      make(chan struct{}),
 	}, nil
 }
 
-// GetSamplingStrategy implements Thrift endpoint for retrieving sampling strategy for a service.
-func (p *Processor) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
+// GetSamplingStrategy implements protobuf endpoint for retrieving sampling strategy for a service.
+func (p *StrategyStore) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
 	p.RLock()
 	defer p.RUnlock()
 	if strategy, ok := p.strategyResponses[service]; ok {
@@ -165,37 +153,13 @@ func (p *Processor) GetSamplingStrategy(_ context.Context, service string) (*api
 // Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
 func (p *Processor) Start() error {
 	p.logger.Info("starting adaptive sampling processor")
-	if err := p.electionParticipant.Start(); err != nil {
-		return err
-	}
-	p.shutdown = make(chan struct{})
-	p.loadProbabilities()
-	p.generateStrategyResponses()
-	p.runBackground(p.runCalculationLoop)
-	p.runBackground(p.runUpdateProbabilitiesLoop)
+	// NB: the first tick will be slightly delayed by the initializeThroughput call.
+	p.lastCheckedTime = time.Now().Add(p.Delay * -1)
+	p.initializeThroughput(p.lastCheckedTime)
 	return nil
 }
 
-func (p *Processor) runBackground(f func()) {
-	p.bgFinished.Add(1)
-	go func() {
-		f()
-		p.bgFinished.Done()
-	}()
-}
-
-// Close stops the processor from calculating probabilities.
-func (p *Processor) Close() error {
-	p.logger.Info("stopping adaptive sampling processor")
-	err := p.electionParticipant.Close()
-	if p.shutdown != nil {
-		close(p.shutdown)
-	}
-	p.bgFinished.Wait()
-	return err
-}
-
-func (p *Processor) loadProbabilities() {
+func (p *StrategyStore) loadProbabilities() {
 	// TODO GetLatestProbabilities API can be changed to return the latest measured qps for initialization
 	probabilities, err := p.storage.GetLatestProbabilities()
 	if err != nil {
@@ -209,9 +173,10 @@ func (p *Processor) loadProbabilities() {
 
 // runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
 // The follower updates its local cache with the latest probabilities and serves them.
-func (p *Processor) runUpdateProbabilitiesLoop() {
+func (p *StrategyStore) runUpdateProbabilitiesLoop() {
 	select {
 	case <-time.After(addJitter(p.followerRefreshInterval)):
+		// continue after jitter delay
 	case <-p.shutdown:
 		return
 	}
@@ -236,6 +201,10 @@ func (p *Processor) isLeader() bool {
 	return p.electionParticipant.IsLeader()
 }
 
+func (p *StrategyStore) isLeader() bool {
+	return p.electionParticipant.IsLeader()
+}
+
 // addJitter adds a random amount of time. Without jitter, if the host holding the leader
 // lock were to die, then all other collectors can potentially wait for a full cycle before
 // trying to acquire the lock. With jitter, we can reduce the average amount of time before a
@@ -244,53 +213,41 @@ func addJitter(jitterAmount time.Duration) time.Duration {
 	return (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
 }
 
-func (p *Processor) runCalculationLoop() {
-	lastCheckedTime := time.Now().Add(p.Delay * -1)
-	p.initializeThroughput(lastCheckedTime)
-	// NB: the first tick will be slightly delayed by the initializeThroughput call.
-	ticker := time.NewTicker(p.CalculationInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			endTime := time.Now().Add(p.Delay * -1)
-			startTime := lastCheckedTime
-			throughput, err := p.storage.GetThroughput(startTime, endTime)
-			if err != nil {
-				p.logger.Error(getThroughputErrMsg, zap.Error(err))
-				break
-			}
-			aggregatedThroughput := p.aggregateThroughput(throughput)
-			p.prependThroughputBucket(&throughputBucket{
-				throughput: aggregatedThroughput,
-				interval:   endTime.Sub(startTime),
-				endTime:    endTime,
-			})
-			lastCheckedTime = endTime
-			// Load the latest throughput so that if this host ever becomes leader, it
-			// has the throughput ready in memory. However, only run the actual calculations
-			// if this host becomes leader.
-			// TODO fill the throughput buffer only when we're leader
-			if p.isLeader() {
-				startTime := time.Now()
-				probabilities, qps := p.calculateProbabilitiesAndQPS()
-				p.Lock()
-				p.probabilities = probabilities
-				p.qps = qps
-				p.Unlock()
-				// NB: This has the potential of running into a race condition if the CalculationInterval
-				// is set to an extremely low value. The worst case scenario is that probabilities is calculated
-				// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
-				// This will result in one or more batches of probabilities not being saved which is completely
-				// fine. This race condition should not ever occur anyway since the calculation interval will
-				// be way longer than the time to run the calculations.
-				p.generateStrategyResponses()
-				p.calculateProbabilitiesLatency.Record(time.Since(startTime))
-				p.runBackground(p.saveProbabilitiesAndQPS)
-			}
-		case <-p.shutdown:
-			return
-		}
+func (p *Processor) runCalculation() {
+	endTime := time.Now().Add(p.Delay * -1)
+	startTime := p.lastCheckedTime
+	throughput, err := p.storage.GetThroughput(startTime, endTime)
+	if err != nil {
+		p.logger.Error(getThroughputErrMsg, zap.Error(err))
+		return
+	}
+	aggregatedThroughput := p.aggregateThroughput(throughput)
+	p.prependThroughputBucket(&throughputBucket{
+		throughput: aggregatedThroughput,
+		interval:   endTime.Sub(startTime),
+		endTime:    endTime,
+	})
+	p.lastCheckedTime = endTime
+	// Load the latest throughput so that if this host ever becomes leader, it
+	// has the throughput ready in memory. However, only run the actual calculations
+	// if this host becomes leader.
+	// TODO fill the throughput buffer only when we're leader
+	if p.isLeader() {
+		startTime := time.Now()
+		probabilities, qps := p.calculateProbabilitiesAndQPS()
+		p.Lock()
+		p.probabilities = probabilities
+		p.qps = qps
+		p.Unlock()
+		// NB: This has the potential of running into a race condition if the CalculationInterval
+		// is set to an extremely low value. The worst case scenario is that probabilities is calculated
+		// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
+		// This will result in one or more batches of probabilities not being saved which is completely
+		// fine. This race condition should not ever occur anyway since the calculation interval will
+		// be way longer than the time to run the calculations.
+
+		p.calculateProbabilitiesLatency.Record(time.Since(startTime))
+		p.saveProbabilitiesAndQPS()
 	}
 }
 
@@ -513,7 +470,7 @@ func (p *Processor) isUsingAdaptiveSampling(
 }
 
 // generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
-func (p *Processor) generateStrategyResponses() {
+func (p *StrategyStore) generateStrategyResponses() {
 	p.RLock()
 	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
 	for svc, opProbabilities := range p.probabilities {
@@ -539,7 +496,7 @@ func (p *Processor) generateStrategyResponses() {
 	p.strategyResponses = strategies
 }
 
-func (p *Processor) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
+func (p *StrategyStore) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
 	return &api_v2.SamplingStrategyResponse{
 		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
 		OperationSampling: &api_v2.PerOperationSamplingStrategies{
