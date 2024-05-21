@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
@@ -134,4 +135,8 @@ func TestKafkaStorage(t *testing.T) {
 	s := &KafkaIntegrationTestSuite{}
 	s.initialize(t)
 	t.Run("GetTrace", s.testGetTrace)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

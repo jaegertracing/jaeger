@@ -23,6 +23,7 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 const (
@@ -164,4 +165,8 @@ func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 	}
 	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
 	require.NoError(t, err)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
