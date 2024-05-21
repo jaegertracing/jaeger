@@ -99,8 +99,7 @@ type Processor struct {
 
 	serviceCache []SamplingCache
 
-	shutdown   chan struct{}
-	bgFinished sync.WaitGroup
+	shutdown chan struct{}
 
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
@@ -248,12 +247,7 @@ func (p *Processor) runCalculation() {
 		// be way longer than the time to run the calculations.
 
 		p.calculateProbabilitiesLatency.Record(time.Since(startTime))
-
-		p.bgFinished.Add(1)
-		go func() {
-			p.saveProbabilitiesAndQPS()
-			p.bgFinished.Done()
-		}()
+		p.saveProbabilitiesAndQPS()
 	}
 }
 
