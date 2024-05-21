@@ -99,7 +99,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t)
-		require.NoError(t, s.factory.Close())
 	}
 	s.esCleanUp(t)
 }
