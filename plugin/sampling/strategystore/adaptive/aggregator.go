@@ -18,10 +18,14 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	span_model "github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
@@ -35,22 +39,36 @@ type aggregator struct {
 	operationsCounter   metrics.Counter
 	servicesCounter     metrics.Counter
 	currentThroughput   serviceOperationThroughput
+	processor           *Processor
 	aggregationInterval time.Duration
 	storage             samplingstore.Store
 	stop                chan struct{}
+	bgFinished          sync.WaitGroup
 }
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
 // about the number of operations seen over the aggregationInterval.
-func NewAggregator(metricsFactory metrics.Factory, interval time.Duration, storage samplingstore.Store) strategystore.Aggregator {
+func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (strategystore.Aggregator, error) {
+	hostname, err := hostname.AsIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Using unique participantName in adaptive sampling", zap.String("participantName", hostname))
+
+	processor, err := newProcessor(options, hostname, store, participant, metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	return &aggregator{
 		operationsCounter:   metricsFactory.Counter(metrics.Options{Name: "sampling_operations"}),
 		servicesCounter:     metricsFactory.Counter(metrics.Options{Name: "sampling_services"}),
 		currentThroughput:   make(serviceOperationThroughput),
-		aggregationInterval: interval,
-		storage:             storage,
+		aggregationInterval: options.CalculationInterval,
+		processor:           processor,
+		storage:             store,
 		stop:                make(chan struct{}),
-	}
+	}, nil
 }
 
 func (a *aggregator) runAggregationLoop() {
@@ -61,6 +79,7 @@ func (a *aggregator) runAggregationLoop() {
 			a.Lock()
 			a.saveThroughput()
 			a.currentThroughput = make(serviceOperationThroughput)
+			a.processor.runCalculation()
 			a.Unlock()
 		case <-a.stop:
 			ticker.Stop()
@@ -111,10 +130,17 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 }
 
 func (a *aggregator) Start() {
-	go a.runAggregationLoop()
+	a.processor.Start()
+
+	a.bgFinished.Add(1)
+	go func() {
+		a.runAggregationLoop()
+		a.bgFinished.Done()
+	}()
 }
 
 func (a *aggregator) Close() error {
 	close(a.stop)
+	a.bgFinished.Wait()
 	return nil
 }

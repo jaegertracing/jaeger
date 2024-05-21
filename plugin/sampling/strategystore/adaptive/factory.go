@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
@@ -38,6 +39,7 @@ type Factory struct {
 	metricsFactory metrics.Factory
 	lock           distributedlock.Lock
 	store          samplingstore.Store
+	participant    *leaderelection.DistributedElectionParticipant
 }
 
 // NewFactory creates a new Factory.
@@ -66,7 +68,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	if ssFactory == nil {
 		return errors.New("sampling store factory is nil. Please configure a backend that supports adaptive sampling")
 	}
-
 	var err error
 	f.logger = logger
 	f.metricsFactory = metricsFactory
@@ -78,17 +79,31 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	if err != nil {
 		return err
 	}
+	f.participant = leaderelection.NewElectionParticipant(f.lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
+		FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
+		LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
+		Logger:                       f.logger,
+	})
+	f.participant.Start()
+
 	return nil
 }
 
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
-	p, err := NewStrategyStore(*f.options, f.metricsFactory, f.logger, f.lock, f.store)
+	s := NewStrategyStore(*f.options, f.logger, f.participant, f.store)
+	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
 	if err != nil {
 		return nil, nil, err
 	}
-	p.Start()
-	a := NewAggregator(f.metricsFactory, f.options.CalculationInterval, f.store)
+
+	s.Start()
 	a.Start()
-	return p, a, nil
+
+	return s, a, nil
+}
+
+// Closes the factory
+func (f *Factory) Close() error {
+	return f.participant.Close()
 }
