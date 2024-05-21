@@ -485,20 +485,19 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 		AggregationBuckets:         1,
 		Delay:                      time.Second * 10,
 	}
-	p, err := NewStrategyStore(cfg, logger, mockEP, mockStorage)
-	require.NoError(t, err)
-	p.Start()
+	s := NewStrategyStore(cfg, logger, mockEP, mockStorage)
+	s.Start()
 
 	for i := 0; i < 100; i++ {
-		strategy, _ := p.GetSamplingStrategy(context.Background(), "svcA")
+		strategy, _ := s.GetSamplingStrategy(context.Background(), "svcA")
 		if len(strategy.OperationSampling.PerOperationStrategies) != 0 {
 			break
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-	p.Close()
+	s.Close()
 
-	strategy, err := p.GetSamplingStrategy(context.Background(), "svcA")
+	strategy, err := s.GetSamplingStrategy(context.Background(), "svcA")
 	require.NoError(t, err)
 	require.Len(t, strategy.OperationSampling.PerOperationStrategies, 4)
 	strategies := strategy.OperationSampling.PerOperationStrategies

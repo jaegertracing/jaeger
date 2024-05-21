@@ -91,19 +91,16 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
-	p, err := NewStrategyStore(*f.options, f.logger, f.participant, f.store)
-	if err != nil {
-		return nil, nil, err
-	}
+	s := NewStrategyStore(*f.options, f.logger, f.participant, f.store)
 	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	p.Start()
+	s.Start()
 	a.Start()
 
-	return p, a, nil
+	return s, a, nil
 }
 
 // Closes the factory

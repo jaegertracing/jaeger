@@ -52,7 +52,7 @@ type StrategyStore struct {
 }
 
 // NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
-func NewStrategyStore(options Options, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) (*StrategyStore, error) {
+func NewStrategyStore(options Options, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) *StrategyStore {
 	return &StrategyStore{
 		Options:                 options,
 		storage:                 store,
@@ -62,7 +62,7 @@ func NewStrategyStore(options Options, logger *zap.Logger, participant leaderele
 		electionParticipant:     participant,
 		followerRefreshInterval: defaultFollowerProbabilityInterval,
 		shutdown:                make(chan struct{}),
-	}, nil
+	}
 }
 
 // Start initializes and starts the sampling service which regularly loads sampling probabilities and generates strategies.
