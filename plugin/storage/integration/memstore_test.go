@@ -18,8 +18,8 @@ package integration
 import (
 	"testing"
 
-	"go.uber.org/zap"
 	"go.uber.org/goleak"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"

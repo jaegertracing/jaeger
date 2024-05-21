@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/model"
-	"go.uber.org/goleak"
 )
 
 func TestDedupeSpans(t *testing.T) {
