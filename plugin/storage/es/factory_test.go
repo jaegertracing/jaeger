@@ -259,6 +259,7 @@ func TestArchiveEnabled(t *testing.T) {
 	r, err := f.CreateArchiveSpanReader()
 	require.NoError(t, err)
 	assert.NotNil(t, r)
+	defer f.Close()
 }
 
 func TestConfigureFromOptions(t *testing.T) {
