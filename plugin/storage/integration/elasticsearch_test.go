@@ -129,7 +129,7 @@ func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 
 	t.Cleanup(func() {
-		require.NoError(t, s.factory.Close())
+		require.NoError(t, f.Close())
 	})
 	return f
 }
