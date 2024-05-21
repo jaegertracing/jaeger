@@ -17,9 +17,9 @@ package integration
 import (
 	"testing"
 
-	"go.uber.org/goleak"
+	goleakTestutils "github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleakTestutils.VerifyGoLeaks(m)
 }
