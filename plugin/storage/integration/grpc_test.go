@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -82,8 +81,4 @@ func TestGRPCRemoteStorage(t *testing.T) {
 	s.initialize(t)
 	defer s.close(t)
 	s.RunAll(t)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }

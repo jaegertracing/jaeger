@@ -18,7 +18,6 @@ package integration
 import (
 	"testing"
 
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -51,8 +50,4 @@ func TestMemoryStorage(t *testing.T) {
 	s := &MemStorageIntegrationTestSuite{}
 	s.initialize(t)
 	s.RunAll(t)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }

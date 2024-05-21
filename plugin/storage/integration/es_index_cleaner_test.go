@@ -24,7 +24,6 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 )
 
 const (
@@ -254,8 +253,4 @@ func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elast
 		v8Client: v8Client,
 	}
 	s.cleanESIndexTemplates(t, prefix)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }

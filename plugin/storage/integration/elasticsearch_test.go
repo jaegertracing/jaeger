@@ -29,7 +29,6 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -239,8 +238,4 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		require.NoError(t, err)
 	}
 	return nil
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }

@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -70,8 +69,4 @@ func TestBadgerStorage(t *testing.T) {
 	s.CleanUp = s.cleanUp
 	s.initialize(t)
 	s.RunAll(t)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }

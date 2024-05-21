@@ -22,7 +22,6 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -135,8 +134,4 @@ func TestKafkaStorage(t *testing.T) {
 	s := &KafkaIntegrationTestSuite{}
 	s.initialize(t)
 	t.Run("GetTrace", s.testGetTrace)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }

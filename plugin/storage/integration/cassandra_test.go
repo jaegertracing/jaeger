@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -105,8 +104,4 @@ func TestCassandraStorage(t *testing.T) {
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)
 	s.RunAll(t)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }

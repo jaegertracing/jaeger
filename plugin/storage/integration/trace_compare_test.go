@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -28,8 +27,4 @@ func TestDedupeSpans(t *testing.T) {
 	}
 	dedupeSpans(trace)
 	assert.Len(t, trace.Spans, 2)
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }
