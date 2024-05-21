@@ -18,6 +18,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,15 +36,13 @@ var _ io.Closer = (*ProxyBuilder)(nil)
 
 func TestMultipleCollectors(t *testing.T) {
 	spanHandler1 := &mockSpanHandler{}
-	s1, addr1 := initializeGRPCTestServer(t, func(s *grpc.Server) {
+	_, addr1 := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		api_v2.RegisterCollectorServiceServer(s, spanHandler1)
 	})
-	defer s1.Stop()
 	spanHandler2 := &mockSpanHandler{}
-	s2, addr2 := initializeGRPCTestServer(t, func(s *grpc.Server) {
+	_, addr2 := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		api_v2.RegisterCollectorServiceServer(s, spanHandler2)
 	})
-	defer s2.Stop()
 
 	mFactory := metricstest.NewFactory(time.Microsecond)
 	defer mFactory.Stop()
@@ -79,8 +78,15 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	beforeServe(server)
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
 		require.NoError(t, server.Serve(lis))
+		wg.Done()
 	}()
+	t.Cleanup(func() {
+		server.Stop()
+		wg.Wait()
+	})
 	return server, lis.Addr()
 }

@@ -253,6 +253,7 @@ func TestArchiveEnabled(t *testing.T) {
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
+	defer f.Close() // Ensure resources are cleaned up if initialization is successful
 	w, err := f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 	assert.NotNil(t, w)
