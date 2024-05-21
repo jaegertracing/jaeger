@@ -40,4 +40,5 @@ func TestFactory(t *testing.T) {
 	require.NoError(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
 	_, _, err := f.CreateStrategyStore()
 	require.NoError(t, err)
+	require.NoError(t, f.Close())
 }
