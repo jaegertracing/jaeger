@@ -1,6 +1,4 @@
-ARG golang_image
-
-FROM $golang_image AS build
+FROM golang:1.22-alpine AS build
 ARG TARGETARCH
 ENV GOPATH /go
 RUN apk add --update --no-cache ca-certificates make git build-base mailcap
@@ -12,7 +10,7 @@ RUN if [[ "$TARGETARCH" == "s390x"  ||  "$TARGETARCH" == "ppc64le" ]] ; then \
         go install github.com/go-delve/delve/cmd/dlv@latest; \
     fi
 
-FROM $golang_image
+FROM golang:1.22-alpine
 COPY --from=build /go/bin/dlv /go/bin/dlv
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /etc/mime.types /etc/mime.types

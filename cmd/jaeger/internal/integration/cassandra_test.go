@@ -17,7 +17,6 @@ func TestCassandraStorage(t *testing.T) {
 			CleanUp:                      purge,
 			GetDependenciesReturnsSource: true,
 			SkipArchiveTest:              true,
-			SkipBinaryAttrs:              true,
 
 			SkipList: integration.CassandraSkippedTests,
 		},

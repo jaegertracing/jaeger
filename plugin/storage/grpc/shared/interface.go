@@ -15,25 +15,9 @@
 package shared
 
 import (
-	"github.com/hashicorp/go-plugin"
-
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
-
-// StoragePluginIdentifier is the identifier that is shared by plugin and host.
-const StoragePluginIdentifier = "storage_plugin"
-
-// Handshake is a common handshake that is shared by plugin and host.
-var Handshake = plugin.HandshakeConfig{
-	MagicCookieKey:   "STORAGE_PLUGIN",
-	MagicCookieValue: "jaeger",
-}
-
-// PluginMap is the map of plugins we can dispense.
-var PluginMap = map[string]plugin.Plugin{
-	StoragePluginIdentifier: &StorageGRPCPlugin{},
-}
 
 // StoragePlugin is the interface we're exposing as a plugin.
 type StoragePlugin interface {

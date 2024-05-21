@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 )
 
@@ -133,6 +134,23 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 		return nil, err
 	}
 	return certPool, nil
+}
+
+func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
+	return configtls.ClientConfig{
+		Insecure:           !o.Enabled,
+		InsecureSkipVerify: o.SkipHostVerify,
+		ServerName:         o.ServerName,
+		Config: configtls.Config{
+			CAFile:         o.CAPath,
+			CertFile:       o.CertPath,
+			KeyFile:        o.KeyPath,
+			CipherSuites:   o.CipherSuites,
+			MinVersion:     o.MinVersion,
+			MaxVersion:     o.MaxVersion,
+			ReloadInterval: o.ReloadInterval,
+		},
+	}
 }
 
 func addCertToPool(caPath string, certPool *x509.CertPool) error {

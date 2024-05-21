@@ -51,7 +51,7 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 }
 
 func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
-	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags(flags))

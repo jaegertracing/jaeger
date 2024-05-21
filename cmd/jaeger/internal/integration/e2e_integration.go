@@ -45,7 +45,7 @@ type E2EStorageIntegration struct {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
-	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
@@ -98,14 +98,14 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			// A Github Actions special annotation to create a foldable section
 			// in the Github runner output.
 			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
-			fmt.Println("::group::Jaeger-v2 binary logs")
+			fmt.Println("::group::🚧 🚧 🚧 Jaeger-v2 binary logs")
 			outLogs, err := os.ReadFile(outFile.Name())
 			require.NoError(t, err)
-			fmt.Printf("Jaeger-v2 output logs:\n%s", outLogs)
+			fmt.Printf("🚧 🚧 🚧 Jaeger-v2 output logs:\n%s", outLogs)
 
 			errLogs, err := os.ReadFile(errFile.Name())
 			require.NoError(t, err)
-			fmt.Printf("Jaeger-v2 error logs:\n%s", errLogs)
+			fmt.Printf("🚧 🚧 🚧 Jaeger-v2 error logs:\n%s", errLogs)
 			// End of Github Actions foldable section annotation.
 			fmt.Println("::endgroup::")
 		}
@@ -113,7 +113,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
-	s.SpanReader, err = createSpanReader(ports.QueryGRPC)
+	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 }
 

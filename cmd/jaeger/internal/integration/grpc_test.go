@@ -30,9 +30,6 @@ func TestGRPCStorage(t *testing.T) {
 	s := &GRPCStorageIntegration{
 		E2EStorageIntegration: E2EStorageIntegration{
 			ConfigFile: "../../config-remote-storage.yaml",
-			StorageIntegration: integration.StorageIntegration{
-				SkipBinaryAttrs: true,
-			},
 		},
 	}
 	s.CleanUp = s.cleanUp

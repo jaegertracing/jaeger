@@ -108,7 +108,7 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 }
 
 func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
-	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	args := []string{
@@ -201,7 +201,7 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
-	if esVersion <= 7 {
+	if esVersion == 7 {
 		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, serviceTemplateExists)
