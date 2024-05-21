@@ -99,6 +99,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 
 	s.CleanUp = func(t *testing.T) {
 		s.esCleanUp(t)
+		s.factory.Close()
 	}
 	s.esCleanUp(t)
 }
@@ -129,7 +130,7 @@ func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 
 	t.Cleanup(func() {
-		require.NoError(t, f.Close())
+		require.NoError(t, s.factory.Close())
 	})
 	return f
 }
