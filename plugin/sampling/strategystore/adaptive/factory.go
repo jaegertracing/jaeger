@@ -68,15 +68,9 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	if ssFactory == nil {
 		return errors.New("sampling store factory is nil. Please configure a backend that supports adaptive sampling")
 	}
-
 	var err error
 	f.logger = logger
 	f.metricsFactory = metricsFactory
-	f.participant = leaderelection.NewElectionParticipant(f.lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
-		FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
-		LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
-		Logger:                       f.logger,
-	})
 	f.lock, err = ssFactory.CreateLock()
 	if err != nil {
 		return err
@@ -85,21 +79,28 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	if err != nil {
 		return err
 	}
+	f.participant = leaderelection.NewElectionParticipant(f.lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
+		FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
+		LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
+		Logger:                       f.logger,
+	})
+	f.participant.Start()
+
 	return nil
 }
 
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
-	f.participant.Start()
 	p, err := NewStrategyStore(*f.options, f.logger, f.participant, f.store)
 	if err != nil {
 		return nil, nil, err
 	}
-	p.Start()
 	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	p.Start()
 	a.Start()
 
 	return p, a, nil
