@@ -1,4 +1,4 @@
-// Copyright (c) 2023 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,10 +18,8 @@ import (
 	"testing"
 
 	"go.uber.org/goleak"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutils.IgnoreOpenCensusWorkerLeak())
+	goleak.VerifyTestMain(m)
 }
