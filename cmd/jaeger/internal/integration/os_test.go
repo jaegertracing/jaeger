@@ -23,5 +23,5 @@ func TestOSStorage(t *testing.T) {
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
-	s.RunSpanStoreTests(t)
+	s.StorageIntegration.RunSpanStoreTests(t)
 }

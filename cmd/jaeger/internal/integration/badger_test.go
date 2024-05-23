@@ -27,5 +27,5 @@ func TestBadgerStorage(t *testing.T) {
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
-	s.RunAll(t)
+	s.StorageIntegration.RunAll(t)
 }
