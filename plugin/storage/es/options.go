@@ -426,7 +426,8 @@ func getDefaultConfig() config.Configuration {
 			PriorityTemplate: config.PriorityTemplate{
 				Span:         0,
 				Service:      0,
-				Dependencies: 0},
+				Dependencies: 0,
+			},
 		},
 		BulkProcessing: config.BulkProcessing{
 			Size:          5 * 1000 * 1000,

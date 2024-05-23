@@ -107,7 +107,7 @@ type Sniffer struct {
 }
 
 type Aliases struct {
-	UseReadWriteAliases  bool `mapstructure:"use_aliases"`
+	UseReadWriteAliases  bool `mapstructure:"enabled"`
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
 	UseILM               bool `mapstructure:"use_ilm"`
 }
