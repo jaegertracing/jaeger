@@ -32,7 +32,7 @@ func TestProcessorMetrics(t *testing.T) {
 	defer baseMetrics.Backend.Stop()
 	serviceMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "service", Tags: nil})
 	hostMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "host", Tags: nil})
-	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []processor.SpanFormat{processor.SpanFormat("scruffy")})
+	// spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []processor.SpanFormat{processor.SpanFormat("scruffy")})
 	benderFormatHTTPMetrics := spm.GetCountsForFormat("bender", processor.HTTPTransport)
 	assert.NotNil(t, benderFormatHTTPMetrics)
 	benderFormatGRPCMetrics := spm.GetCountsForFormat("bender", processor.GRPCTransport)

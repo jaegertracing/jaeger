@@ -59,28 +59,28 @@ func initOtherServicesSamplers() map[model.SamplerType]string {
 }
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
-type SpanProcessorMetrics struct {
-	// TODO - initialize metrics in the traditional factory way. Initialize map afterward.
-	// SaveLatency measures how long the actual save to storage takes
-	SaveLatency metrics.Timer
-	// InQueueLatency measures how long the span spends in the queue
-	InQueueLatency metrics.Timer
-	// SpansDropped measures the number of spans we discarded because the queue was full
-	SpansDropped metrics.Counter
-	// SpansBytes records how many bytes were processed
-	SpansBytes metrics.Gauge
-	// BatchSize measures the span batch size
-	BatchSize metrics.Gauge // size of span batch
-	// QueueCapacity measures the capacity of the internal span queue
-	QueueCapacity metrics.Gauge
-	// QueueLength measures the current number of elements in the internal span queue
-	QueueLength metrics.Gauge
-	// SavedOkBySvc contains span and trace counts by service
-	SavedOkBySvc  metricsBySvc  // spans actually saved
-	SavedErrBySvc metricsBySvc  // spans failed to save
-	serviceNames  metrics.Gauge // total number of unique service name metrics reported by this collector
-	spanCounts    SpanCountsByFormat
-}
+// type SpanProcessorMetrics struct {
+// 	// TODO - initialize metrics in the traditional factory way. Initialize map afterward.
+// 	// SaveLatency measures how long the actual save to storage takes
+// 	SaveLatency metrics.Timer
+// 	// InQueueLatency measures how long the span spends in the queue
+// 	InQueueLatency metrics.Timer
+// 	// SpansDropped measures the number of spans we discarded because the queue was full
+// 	SpansDropped metrics.Counter
+// 	// SpansBytes records how many bytes were processed
+// 	SpansBytes metrics.Gauge
+// 	// BatchSize measures the span batch size
+// 	BatchSize metrics.Gauge // size of span batch
+// 	// QueueCapacity measures the capacity of the internal span queue
+// 	QueueCapacity metrics.Gauge
+// 	// QueueLength measures the current number of elements in the internal span queue
+// 	QueueLength metrics.Gauge
+// 	// SavedOkBySvc contains span and trace counts by service
+// 	SavedOkBySvc  metricsBySvc  // spans actually saved
+// 	SavedErrBySvc metricsBySvc  // spans failed to save
+// 	serviceNames  metrics.Gauge // total number of unique service name metrics reported by this collector
+// 	spanCounts    SpanCountsByFormat
+// }
 
 type countsBySvc struct {
 	counts          map[string]metrics.Counter // counters per service
@@ -119,33 +119,33 @@ type SpanCounts struct {
 	RejectedBySvc metricsBySvc
 }
 
-// NewSpanProcessorMetrics returns a SpanProcessorMetrics
-func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []processor.SpanFormat) *SpanProcessorMetrics {
-	spanCounts := SpanCountsByFormat{
-		processor.ZipkinSpanFormat:  newCountsByTransport(serviceMetrics, processor.ZipkinSpanFormat),
-		processor.JaegerSpanFormat:  newCountsByTransport(serviceMetrics, processor.JaegerSpanFormat),
-		processor.ProtoSpanFormat:   newCountsByTransport(serviceMetrics, processor.ProtoSpanFormat),
-		processor.UnknownSpanFormat: newCountsByTransport(serviceMetrics, processor.UnknownSpanFormat),
-	}
-	for _, otherFormatType := range otherFormatTypes {
-		spanCounts[otherFormatType] = newCountsByTransport(serviceMetrics, otherFormatType)
-	}
-	m := &SpanProcessorMetrics{
-		SaveLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
-		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
-		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
-		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
-		QueueCapacity:  hostMetrics.Gauge(metrics.Options{Name: "queue-capacity", Tags: nil}),
-		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
-		SpansBytes:     hostMetrics.Gauge(metrics.Options{Name: "spans.bytes", Tags: nil}),
-		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
-		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
-		spanCounts:     spanCounts,
-		serviceNames:   hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
-	}
+// // NewSpanProcessorMetrics returns a SpanProcessorMetrics
+// func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []processor.SpanFormat) *SpanProcessorMetrics {
+// 	spanCounts := SpanCountsByFormat{
+// 		processor.ZipkinSpanFormat:  newCountsByTransport(serviceMetrics, processor.ZipkinSpanFormat),
+// 		processor.JaegerSpanFormat:  newCountsByTransport(serviceMetrics, processor.JaegerSpanFormat),
+// 		processor.ProtoSpanFormat:   newCountsByTransport(serviceMetrics, processor.ProtoSpanFormat),
+// 		processor.UnknownSpanFormat: newCountsByTransport(serviceMetrics, processor.UnknownSpanFormat),
+// 	}
+// 	for _, otherFormatType := range otherFormatTypes {
+// 		spanCounts[otherFormatType] = newCountsByTransport(serviceMetrics, otherFormatType)
+// 	}
+// 	m := &SpanProcessorMetrics{
+// 		SaveLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
+// 		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
+// 		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
+// 		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
+// 		QueueCapacity:  hostMetrics.Gauge(metrics.Options{Name: "queue-capacity", Tags: nil}),
+// 		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
+// 		SpansBytes:     hostMetrics.Gauge(metrics.Options{Name: "spans.bytes", Tags: nil}),
+// 		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
+// 		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
+// 		spanCounts:     spanCounts,
+// 		serviceNames:   hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
+// 	}
 
-	return m
-}
+// 	return m
+// }
 
 func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 	spansFactory := factory.Namespace(metrics.NSOptions{Name: "spans", Tags: nil})
@@ -222,18 +222,18 @@ func newCounts(factory metrics.Factory, transport processor.InboundTransport) Sp
 	}
 }
 
-// GetCountsForFormat gets the SpanCounts for a given format and transport. If none exists, we use the Unknown format.
-func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat processor.SpanFormat, transport processor.InboundTransport) SpanCounts {
-	c, ok := m.spanCounts[spanFormat]
-	if !ok {
-		c = m.spanCounts[processor.UnknownSpanFormat]
-	}
-	t, ok := c[transport]
-	if !ok {
-		t = c[processor.UnknownTransport]
-	}
-	return t
-}
+// // GetCountsForFormat gets the SpanCounts for a given format and transport. If none exists, we use the Unknown format.
+// func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat processor.SpanFormat, transport processor.InboundTransport) SpanCounts {
+// 	c, ok := m.spanCounts[spanFormat]
+// 	if !ok {
+// 		c = m.spanCounts[processor.UnknownSpanFormat]
+// 	}
+// 	t, ok := c[transport]
+// 	if !ok {
+// 		t = c[processor.UnknownTransport]
+// 	}
+// 	return t
+// }
 
 // reportServiceNameForSpan determines the name of the service that emitted
 // the span and reports a counter stat.

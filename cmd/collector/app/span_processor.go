@@ -42,7 +42,7 @@ const (
 type spanProcessor struct {
 	queue              *queue.BoundedQueue
 	queueResizeMu      sync.Mutex
-	metrics            *SpanProcessorMetrics
+	// metrics            *SpanProcessorMetrics
 	preProcessSpans    ProcessSpans
 	filterSpan         FilterSpan             // filter is called before the sanitizer but after preProcessSpans
 	sanitizer          sanitizer.SanitizeSpan // sanitizer is called before processSpan
@@ -89,10 +89,10 @@ func NewSpanProcessor(
 
 func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
 	options := Options.apply(opts...)
-	handlerMetrics := NewSpanProcessorMetrics(
-		options.serviceMetrics,
-		options.hostMetrics,
-		options.extraFormatTypes)
+	// handlerMetrics := NewSpanProcessorMetrics(
+	// 	options.serviceMetrics,
+	// 	options.hostMetrics,
+	// 	options.extraFormatTypes)
 	droppedItemHandler := func(item interface{}) {
 		handlerMetrics.SpansDropped.Inc(1)
 		if options.onDroppedSpan != nil {
