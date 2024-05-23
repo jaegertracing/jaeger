@@ -115,3 +115,58 @@ func TestLowerboundThroughput(t *testing.T) {
 	assert.EqualValues(t, 0, a.(*aggregator).currentThroughput["A"]["GET"].Count)
 	assert.Empty(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities["0.001000"])
 }
+
+func TestRecordThroughput(t *testing.T) {
+	tests := []struct {
+		name  string
+		span  *model.Span
+		count int
+	}{
+		{
+			name: "probabilistic",
+			span: &model.Span{
+				OperationName: "GET",
+				Process: &model.Process{
+					ServiceName: "A",
+				},
+				Tags: model.KeyValues{
+					model.String("sampler.type", "probabilistic"),
+					model.String("sampler.param", "0.001"),
+				},
+			},
+			count: 1,
+		},
+		{
+			name: "lowerbound",
+			span: &model.Span{
+				OperationName: "GET",
+				Process: &model.Process{
+					ServiceName: "A",
+				},
+				Tags: model.KeyValues{
+					model.String("sampler.type", "lowerbound"),
+					model.String("sampler.param", "0.001"),
+				},
+			},
+			count: 0,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metricsFactory := metricstest.NewFactory(0)
+			mockStorage := &mocks.Store{}
+			mockEP := &epmocks.ElectionParticipant{}
+			testOpts := Options{
+				CalculationInterval:   1 * time.Second,
+				AggregationBuckets:    1,
+				BucketsForCalculation: 1,
+			}
+			logger := zap.NewNop()
+			a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+			require.NoError(t, err)
+			RecordThroughput(a, test.span, logger)
+			assert.EqualValues(t, test.count, a.(*aggregator).currentThroughput["A"]["GET"].Count)
+			assert.Empty(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities["0.001000"])
+		})
+	}
+}
