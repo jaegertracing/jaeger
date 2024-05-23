@@ -132,7 +132,9 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f := NewFactory()
 	f.primaryConfig = &escfg.Configuration{
-		UseILM: true,
+		Aliases: escfg.Aliases{
+			UseILM: true,
+		},
 	}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
@@ -206,7 +208,11 @@ func TestTagKeysAsFields(t *testing.T) {
 
 func TestCreateTemplateError(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{CreateIndexTemplates: true}
+	f.primaryConfig = &escfg.Configuration{
+		Aliases: escfg.Aliases{
+			CreateIndexTemplates: true,
+		},
+	}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
@@ -224,7 +230,13 @@ func TestCreateTemplateError(t *testing.T) {
 
 func TestILMDisableTemplateCreation(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
+	f.primaryConfig = &escfg.Configuration{
+		Aliases: escfg.Aliases{
+			UseILM:               true,
+			UseReadWriteAliases:  true,
+			CreateIndexTemplates: true,
+		},
+	}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
@@ -380,19 +392,27 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
 	f.primaryConfig = &escfg.Configuration{
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		Username:         "user",
-		PasswordFilePath: pwdFile,
-		BulkSize:         -1, // disable bulk; we want immediate flush
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			Username:         "user",
+			PasswordFilePath: pwdFile,
+		},
+		BulkProcessing: escfg.BulkProcessing{
+			Size: -1, // disable bulk; we want immediate flush
+		},
 	}
 	f.archiveConfig = &escfg.Configuration{
-		Enabled:          true,
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		Username:         "user",
-		PasswordFilePath: pwdFile,
-		BulkSize:         -1, // disable bulk; we want immediate flush
+		Enabled:  true,
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			Username:         "user",
+			PasswordFilePath: pwdFile,
+		},
+		BulkProcessing: escfg.BulkProcessing{
+			Size: -1, // disable bulk; we want immediate flush
+		},
 	}
 	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	defer f.Close()
@@ -456,14 +476,14 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	f := NewFactory()
 	f.primaryConfig = &escfg.Configuration{
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		PasswordFilePath: pwdFile,
+		Servers:        []string{server.URL},
+		LogLevel:       "debug",
+		Authentication: escfg.Authentication{PasswordFilePath: pwdFile},
 	}
 	f.archiveConfig = &escfg.Configuration{
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		PasswordFilePath: pwdFile,
+		Servers:        []string{server.URL},
+		LogLevel:       "debug",
+		Authentication: escfg.Authentication{PasswordFilePath: pwdFile},
 	}
 
 	logger, buf := testutils.NewEchoLogger(t)

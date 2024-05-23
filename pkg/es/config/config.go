@@ -46,46 +46,70 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                        []string       `mapstructure:"server_urls" valid:"required,url"`
-	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
-	Username                       string         `mapstructure:"username"`
-	Password                       string         `mapstructure:"password" json:"-"`
-	TokenFilePath                  string         `mapstructure:"token_file"`
-	PasswordFilePath               string         `mapstructure:"password_file"`
-	AllowTokenFromContext          bool           `mapstructure:"-"`
-	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount                    int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge                     time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards                      int64          `mapstructure:"num_shards"`
-	NumReplicas                    int64          `mapstructure:"num_replicas"`
-	PrioritySpanTemplate           int64          `mapstructure:"priority_span_template"`
-	PriorityServiceTemplate        int64          `mapstructure:"priority_service_template"`
-	PriorityDependenciesTemplate   int64          `mapstructure:"priority_dependencies_template"`
-	Timeout                        time.Duration  `mapstructure:"-"`
-	BulkSize                       int            `mapstructure:"-"`
-	BulkWorkers                    int            `mapstructure:"-"`
-	BulkActions                    int            `mapstructure:"-"`
-	BulkFlushInterval              time.Duration  `mapstructure:"-"`
-	IndexPrefix                    string         `mapstructure:"index_prefix"`
-	IndexDateLayoutSpans           string         `mapstructure:"-"`
-	IndexDateLayoutServices        string         `mapstructure:"-"`
-	IndexDateLayoutSampling        string         `mapstructure:"-"`
-	IndexDateLayoutDependencies    string         `mapstructure:"-"`
-	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
-	IndexRolloverFrequencyServices string         `mapstructure:"-"`
-	IndexRolloverFrequencySampling string         `mapstructure:"-"`
-	ServiceCacheTTL                time.Duration  `mapstructure:"service_cache_ttl"`
-	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
-	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
-	Enabled                        bool           `mapstructure:"-"`
-	TLS                            tlscfg.Options `mapstructure:"tls"`
-	UseReadWriteAliases            bool           `mapstructure:"use_aliases"`
-	CreateIndexTemplates           bool           `mapstructure:"create_mappings"`
-	UseILM                         bool           `mapstructure:"use_ilm"`
-	Version                        uint           `mapstructure:"version"`
-	LogLevel                       string         `mapstructure:"log_level"`
-	SendGetBodyAs                  string         `mapstructure:"send_get_body_as"`
+	Servers                  []string       `mapstructure:"server_urls" valid:"required,url"`
+	RemoteReadClusters       []string       `mapstructure:"remote_read_clusters"`
+	MaxDocCount              int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge               time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
+	Timeout                  time.Duration  `mapstructure:"-"`
+	ServiceCacheTTL          time.Duration  `mapstructure:"service_cache_ttl"`
+	AdaptiveSamplingLookback time.Duration  `mapstructure:"-"`
+	Tags                     TagsAsFields   `mapstructure:"tags_as_fields"`
+	Enabled                  bool           `mapstructure:"-"`
+	TLS                      tlscfg.Options `mapstructure:"tls"`
+	Version                  uint           `mapstructure:"version"`
+	LogLevel                 string         `mapstructure:"log_level"`
+	SendGetBodyAs            string         `mapstructure:"send_get_body_as"`
+	IndexSettings            IndexSettings  `mapstructure:"index"`
+	BulkProcessing           BulkProcessing `mapstructure:"bulk"`
+	Authentication           Authentication `mapstructure:"auth"`
+	Sniffer                  Sniffer        `mapstructure:"sniffer"`
+	Aliases                  Aliases        `mapstructure:"aliases"`
+}
+
+type IndexSettings struct {
+	NumShards                 int64            `mapstructure:"num_shards"`
+	NumReplicas               int64            `mapstructure:"num_replicas"`
+	PriorityTemplate          PriorityTemplate `mapstructure:"priority_template"`
+	Prefix                    string           `mapstructure:"prefix"`
+	DateLayoutSpans           string           `mapstructure:"-"`
+	DateLayoutServices        string           `mapstructure:"-"`
+	DateLayoutSampling        string           `mapstructure:"-"`
+	DateLayoutDependencies    string           `mapstructure:"-"`
+	RolloverFrequencySpans    string           `mapstructure:"-"`
+	RolloverFrequencyServices string           `mapstructure:"-"`
+	RolloverFrequencySampling string           `mapstructure:"-"`
+}
+
+type PriorityTemplate struct {
+	Span         int64 `mapstructure:"span"`
+	Service      int64 `mapstructure:"service"`
+	Dependencies int64 `mapstructure:"dependencies"`
+}
+
+type BulkProcessing struct {
+	Size          int           `mapstructure:"-"`
+	Workers       int           `mapstructure:"-"`
+	Actions       int           `mapstructure:"-"`
+	FlushInterval time.Duration `mapstructure:"-"`
+}
+
+type Authentication struct {
+	Username              string `mapstructure:"username"`
+	Password              string `mapstructure:"password" json:"-"`
+	TokenFilePath         string `mapstructure:"token_file"`
+	PasswordFilePath      string `mapstructure:"password_file"`
+	AllowTokenFromContext bool   `mapstructure:"-"`
+}
+
+type Sniffer struct {
+	Enabled    bool `mapstructure:"enabled"` // https://github.com/olivere/elastic/wiki/Sniffing
+	TLSEnabled bool `mapstructure:"tls_enabled"`
+}
+
+type Aliases struct {
+	UseReadWriteAliases  bool `mapstructure:"use_aliases"`
+	CreateIndexTemplates bool `mapstructure:"create_mappings"`
+	UseILM               bool `mapstructure:"use_ilm"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -159,10 +183,10 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 					zap.Any("response", response))
 			}
 		}).
-		BulkSize(c.BulkSize).
-		Workers(c.BulkWorkers).
-		BulkActions(c.BulkActions).
-		FlushInterval(c.BulkFlushInterval).
+		BulkSize(c.BulkProcessing.Size).
+		Workers(c.BulkProcessing.Workers).
+		BulkActions(c.BulkProcessing.Actions).
+		FlushInterval(c.BulkProcessing.FlushInterval).
 		Do(context.Background())
 	if err != nil {
 		return nil, err
@@ -207,9 +231,9 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
-	options.Username = c.Username
-	options.Password = c.Password
-	options.DiscoverNodesOnStart = c.Sniffer
+	options.Username = c.Authentication.Username
+	options.Password = c.Authentication.Password
+	options.DiscoverNodesOnStart = c.Sniffer.Enabled
 	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
@@ -223,14 +247,14 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if len(c.RemoteReadClusters) == 0 {
 		c.RemoteReadClusters = source.RemoteReadClusters
 	}
-	if c.Username == "" {
-		c.Username = source.Username
+	if c.Authentication.Username == "" {
+		c.Authentication.Username = source.Authentication.Username
 	}
-	if c.Password == "" {
-		c.Password = source.Password
+	if c.Authentication.Password == "" {
+		c.Authentication.Password = source.Authentication.Password
 	}
-	if !c.Sniffer {
-		c.Sniffer = source.Sniffer
+	if !c.Sniffer.Enabled {
+		c.Sniffer.Enabled = source.Sniffer.Enabled
 	}
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
@@ -238,35 +262,35 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.AdaptiveSamplingLookback == 0 {
 		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
 	}
-	if c.NumShards == 0 {
-		c.NumShards = source.NumShards
+	if c.IndexSettings.NumShards == 0 {
+		c.IndexSettings.NumShards = source.IndexSettings.NumShards
 	}
-	if c.NumReplicas == 0 {
-		c.NumReplicas = source.NumReplicas
+	if c.IndexSettings.NumReplicas == 0 {
+		c.IndexSettings.NumReplicas = source.IndexSettings.NumReplicas
 	}
-	if c.PrioritySpanTemplate == 0 {
-		c.PrioritySpanTemplate = source.PrioritySpanTemplate
+	if c.IndexSettings.PriorityTemplate.Span == 0 {
+		c.IndexSettings.PriorityTemplate.Span = source.IndexSettings.PriorityTemplate.Span
 	}
-	if c.PriorityServiceTemplate == 0 {
-		c.PriorityServiceTemplate = source.PriorityServiceTemplate
+	if c.IndexSettings.PriorityTemplate.Service == 0 {
+		c.IndexSettings.PriorityTemplate.Service = source.IndexSettings.PriorityTemplate.Service
 	}
-	if c.PrioritySpanTemplate == 0 {
-		c.PriorityDependenciesTemplate = source.PriorityDependenciesTemplate
+	if c.IndexSettings.PriorityTemplate.Dependencies == 0 {
+		c.IndexSettings.PriorityTemplate.Dependencies = source.IndexSettings.PriorityTemplate.Dependencies
 	}
-	if c.BulkSize == 0 {
-		c.BulkSize = source.BulkSize
+	if c.BulkProcessing.Size == 0 {
+		c.BulkProcessing.Size = source.BulkProcessing.Size
 	}
-	if c.BulkWorkers == 0 {
-		c.BulkWorkers = source.BulkWorkers
+	if c.BulkProcessing.Workers == 0 {
+		c.BulkProcessing.Workers = source.BulkProcessing.Workers
 	}
-	if c.BulkActions == 0 {
-		c.BulkActions = source.BulkActions
+	if c.BulkProcessing.Actions == 0 {
+		c.BulkProcessing.Actions = source.BulkProcessing.Actions
 	}
-	if c.BulkFlushInterval == 0 {
-		c.BulkFlushInterval = source.BulkFlushInterval
+	if c.BulkProcessing.FlushInterval == 0 {
+		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
 	}
-	if !c.SnifferTLSEnabled {
-		c.SnifferTLSEnabled = source.SnifferTLSEnabled
+	if !c.Sniffer.TLSEnabled {
+		c.Sniffer.TLSEnabled = source.Sniffer.TLSEnabled
 	}
 	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
@@ -293,17 +317,17 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 // GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySpans)
+	return getIndexRolloverFrequencyDuration(c.IndexSettings.RolloverFrequencySpans)
 }
 
 // GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencyServices)
+	return getIndexRolloverFrequencyDuration(c.IndexSettings.RolloverFrequencyServices)
 }
 
 // GetIndexRolloverFrequencySamplingDuration returns jaeger-sampling index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySamplingDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySampling)
+	return getIndexRolloverFrequencyDuration(c.IndexSettings.RolloverFrequencySampling)
 }
 
 // GetIndexRolloverFrequencyDuration returns the index rollover frequency duration for the given frequency string
@@ -348,13 +372,13 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
+		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer.Enabled),
 		// Disable health check when token from context is allowed, this is because at this time
 		// we don' have a valid token to do the check ad if we don't disable the check the service that
 		// uses this won't start.
-		elastic.SetHealthcheck(!c.AllowTokenFromContext),
+		elastic.SetHealthcheck(!c.Authentication.AllowTokenFromContext),
 	}
-	if c.SnifferTLSEnabled {
+	if c.Sniffer.TLSEnabled {
 		options = append(options, elastic.SetScheme("https"))
 	}
 	httpClient := &http.Client{
@@ -362,17 +386,17 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 
-	if c.Password != "" && c.PasswordFilePath != "" {
+	if c.Authentication.Password != "" && c.Authentication.PasswordFilePath != "" {
 		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
 	}
-	if c.PasswordFilePath != "" {
-		passwordFromFile, err := loadTokenFromFile(c.PasswordFilePath)
+	if c.Authentication.PasswordFilePath != "" {
+		passwordFromFile, err := loadTokenFromFile(c.Authentication.PasswordFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load password from file: %w", err)
 		}
-		c.Password = passwordFromFile
+		c.Authentication.Password = passwordFromFile
 	}
-	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+	options = append(options, elastic.SetBasicAuth(c.Authentication.Username, c.Authentication.Password))
 
 	if c.SendGetBodyAs != "" {
 		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
@@ -455,20 +479,20 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	}
 
 	token := ""
-	if c.TokenFilePath != "" {
-		if c.AllowTokenFromContext {
+	if c.Authentication.TokenFilePath != "" {
+		if c.Authentication.AllowTokenFromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := loadTokenFromFile(c.TokenFilePath)
+		tokenFromFile, err := loadTokenFromFile(c.Authentication.TokenFilePath)
 		if err != nil {
 			return nil, err
 		}
 		token = tokenFromFile
 	}
-	if token != "" || c.AllowTokenFromContext {
+	if token != "" || c.Authentication.AllowTokenFromContext {
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
-			OverrideFromCtx: c.AllowTokenFromContext,
+			OverrideFromCtx: c.Authentication.AllowTokenFromContext,
 			StaticToken:     token,
 		}
 	}

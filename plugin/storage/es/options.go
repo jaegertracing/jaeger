@@ -137,23 +137,23 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
-		nsConfig.Username,
+		nsConfig.Authentication.Username,
 		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
-		nsConfig.Password,
+		nsConfig.Authentication.Password,
 		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
-		nsConfig.TokenFilePath,
+		nsConfig.Authentication.TokenFilePath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
-		nsConfig.PasswordFilePath,
+		nsConfig.Authentication.PasswordFilePath,
 		"Path to a file containing password. This file is watched for changes.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
-		nsConfig.Sniffer,
+		nsConfig.Sniffer.Enabled,
 		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
@@ -170,7 +170,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
-		nsConfig.NumShards,
+		nsConfig.IndexSettings.NumShards,
 		"The number of shards per index in Elasticsearch")
 	flagSet.Duration(
 		nsConfig.namespace+suffixServiceCacheTTL,
@@ -179,39 +179,39 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	)
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
-		nsConfig.NumReplicas,
+		nsConfig.IndexSettings.NumReplicas,
 		"The number of replicas per index in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
-		nsConfig.PrioritySpanTemplate,
+		nsConfig.IndexSettings.PriorityTemplate.Span,
 		"Priority of jaeger-span index template (ESv8 only)")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPriorityServiceTemplate,
-		nsConfig.PriorityServiceTemplate,
+		nsConfig.IndexSettings.PriorityTemplate.Service,
 		"Priority of jaeger-service index template (ESv8 only)")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPriorityDependenciesTemplate,
-		nsConfig.PriorityDependenciesTemplate,
+		nsConfig.IndexSettings.PriorityTemplate.Dependencies,
 		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
-		nsConfig.BulkSize,
+		nsConfig.BulkProcessing.Size,
 		"The number of bytes that the bulk requests can take up before the bulk processor decides to commit")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkWorkers,
-		nsConfig.BulkWorkers,
+		nsConfig.BulkProcessing.Workers,
 		"The number of workers that are able to receive bulk requests and eventually commit them to Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkActions,
-		nsConfig.BulkActions,
+		nsConfig.BulkProcessing.Actions,
 		"The number of requests that can be enqueued before the bulk processor decides to commit")
 	flagSet.Duration(
 		nsConfig.namespace+suffixBulkFlushInterval,
-		nsConfig.BulkFlushInterval,
+		nsConfig.BulkProcessing.FlushInterval,
 		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
-		nsConfig.IndexPrefix,
+		nsConfig.IndexSettings.Prefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexDateSeparator,
@@ -250,19 +250,19 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixReadAlias,
-		nsConfig.UseReadWriteAliases,
+		nsConfig.Aliases.UseReadWriteAliases,
 		"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
 			"Note that es"+suffixMaxSpanAge+" will influence trace search window start times.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixUseILM,
-		nsConfig.UseILM,
+		nsConfig.Aliases.UseILM,
 		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with  "+nsConfig.namespace+suffixReadAlias+". "+
 			"It requires an external component to create aliases before startup and then performing its management. "+
 			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
-		nsConfig.CreateIndexTemplates,
+		nsConfig.Aliases.CreateIndexTemplates,
 		"Create index templates at application startup. Set to false when templates are installed manually.")
 	flagSet.Uint(
 		nsConfig.namespace+suffixVersion,
@@ -270,7 +270,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSnifferTLSEnabled,
-		nsConfig.SnifferTLSEnabled,
+		nsConfig.Sniffer.TLSEnabled,
 		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxDocCount,
@@ -313,60 +313,60 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
-	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
-	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
-	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
-	cfg.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
-	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
-	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
+	cfg.Authentication.Username = v.GetString(cfg.namespace + suffixUsername)
+	cfg.Authentication.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.Authentication.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
+	cfg.Authentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
+	cfg.Sniffer.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
+	cfg.Sniffer.TLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
-	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
-	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.PrioritySpanTemplate = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
-	cfg.PriorityServiceTemplate = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
-	cfg.PriorityDependenciesTemplate = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
-	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
-	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
-	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
-	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
+	cfg.IndexSettings.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
+	cfg.IndexSettings.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.IndexSettings.PriorityTemplate.Span = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
+	cfg.IndexSettings.PriorityTemplate.Service = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
+	cfg.IndexSettings.PriorityTemplate.Dependencies = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
+	cfg.BulkProcessing.Size = v.GetInt(cfg.namespace + suffixBulkSize)
+	cfg.BulkProcessing.Workers = v.GetInt(cfg.namespace + suffixBulkWorkers)
+	cfg.BulkProcessing.Actions = v.GetInt(cfg.namespace + suffixBulkActions)
+	cfg.BulkProcessing.FlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
-	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.IndexSettings.Prefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
 	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.Tags.DotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
-	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
+	cfg.Aliases.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
-	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
+	cfg.Aliases.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 	cfg.LogLevel = v.GetString(cfg.namespace + suffixLogLevel)
 	cfg.SendGetBodyAs = v.GetString(cfg.namespace + suffixSendGetBodyAs)
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
-	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
+	cfg.Aliases.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
-	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
+	cfg.Authentication.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
-	cfg.IndexRolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
-	cfg.IndexRolloverFrequencySampling = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
+	cfg.IndexSettings.RolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
+	cfg.IndexSettings.RolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
+	cfg.IndexSettings.RolloverFrequencySampling = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
 
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
-	cfg.IndexDateLayoutSpans = initDateLayout(cfg.IndexRolloverFrequencySpans, separator)
-	cfg.IndexDateLayoutServices = initDateLayout(cfg.IndexRolloverFrequencyServices, separator)
-	cfg.IndexDateLayoutSampling = initDateLayout(cfg.IndexRolloverFrequencySampling, separator)
+	cfg.IndexSettings.DateLayoutSpans = initDateLayout(cfg.IndexSettings.RolloverFrequencySpans, separator)
+	cfg.IndexSettings.DateLayoutServices = initDateLayout(cfg.IndexSettings.RolloverFrequencyServices, separator)
+	cfg.IndexSettings.DateLayoutSampling = initDateLayout(cfg.IndexSettings.RolloverFrequencySampling, separator)
 
 	// Dependencies calculation should be daily, and this index size is very small
-	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
+	cfg.IndexSettings.DateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {
@@ -410,32 +410,44 @@ func initDateLayout(rolloverFreq, sep string) string {
 
 func getDefaultConfig() config.Configuration {
 	return config.Configuration{
-		Username:                     "",
-		Password:                     "",
-		Sniffer:                      false,
-		MaxSpanAge:                   72 * time.Hour,
-		AdaptiveSamplingLookback:     72 * time.Hour,
-		NumShards:                    5,
-		NumReplicas:                  1,
-		PrioritySpanTemplate:         0,
-		PriorityServiceTemplate:      0,
-		PriorityDependenciesTemplate: 0,
-		BulkSize:                     5 * 1000 * 1000,
-		BulkWorkers:                  1,
-		BulkActions:                  1000,
-		BulkFlushInterval:            time.Millisecond * 200,
+		Authentication: config.Authentication{
+			Username: "",
+			Password: "",
+		},
+		Sniffer: config.Sniffer{
+			Enabled: false,
+		},
+		MaxSpanAge:               72 * time.Hour,
+		AdaptiveSamplingLookback: 72 * time.Hour,
+
+		IndexSettings: config.IndexSettings{
+			NumShards:   5,
+			NumReplicas: 1,
+			PriorityTemplate: config.PriorityTemplate{
+				Span:         0,
+				Service:      0,
+				Dependencies: 0},
+		},
+		BulkProcessing: config.BulkProcessing{
+			Size:          5 * 1000 * 1000,
+			Workers:       1,
+			Actions:       1000,
+			FlushInterval: time.Millisecond * 200,
+		},
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},
-		Enabled:              true,
-		CreateIndexTemplates: true,
-		Version:              0,
-		UseReadWriteAliases:  false,
-		UseILM:               false,
-		Servers:              []string{defaultServerURL},
-		RemoteReadClusters:   []string{},
-		MaxDocCount:          defaultMaxDocCount,
-		LogLevel:             "error",
-		SendGetBodyAs:        defaultSendGetBodyAs,
+		Aliases: config.Aliases{
+			CreateIndexTemplates: true,
+			UseReadWriteAliases:  false,
+			UseILM:               false,
+		},
+		Enabled:            true,
+		Version:            0,
+		Servers:            []string{defaultServerURL},
+		RemoteReadClusters: []string{},
+		MaxDocCount:        defaultMaxDocCount,
+		LogLevel:           "error",
+		SendGetBodyAs:      defaultSendGetBodyAs,
 	}
 }
