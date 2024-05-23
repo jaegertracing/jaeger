@@ -111,17 +111,17 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		}
 	})
 
-	s.StorageIntegration.SpanWriter, err = createSpanWriter(logger, otlpPort)
+	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
-	s.StorageIntegration.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
+	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 }
 
 // e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
 // This function should be called after all the tests are finished.
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
-	require.NoError(t, s.StorageIntegration.SpanReader.(io.Closer).Close())
-	require.NoError(t, s.StorageIntegration.SpanWriter.(io.Closer).Close())
+	require.NoError(t, s.SpanReader.(io.Closer).Close())
+	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
