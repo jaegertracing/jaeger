@@ -117,56 +117,41 @@ func TestLowerboundThroughput(t *testing.T) {
 }
 
 func TestRecordThroughput(t *testing.T) {
-	tests := []struct {
-		name  string
-		span  *model.Span
-		count int
-	}{
-		{
-			name: "probabilistic",
-			span: &model.Span{
-				OperationName: "GET",
-				Process: &model.Process{
-					ServiceName: "A",
-				},
-				Tags: model.KeyValues{
-					model.String("sampler.type", "probabilistic"),
-					model.String("sampler.param", "0.001"),
-				},
-			},
-			count: 1,
-		},
-		{
-			name: "lowerbound",
-			span: &model.Span{
-				OperationName: "GET",
-				Process: &model.Process{
-					ServiceName: "A",
-				},
-				Tags: model.KeyValues{
-					model.String("sampler.type", "lowerbound"),
-					model.String("sampler.param", "0.001"),
-				},
-			},
-			count: 0,
-		},
+	metricsFactory := metricstest.NewFactory(0)
+	mockStorage := &mocks.Store{}
+	mockEP := &epmocks.ElectionParticipant{}
+	testOpts := Options{
+		CalculationInterval:   1 * time.Second,
+		AggregationBuckets:    1,
+		BucketsForCalculation: 1,
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			metricsFactory := metricstest.NewFactory(0)
-			mockStorage := &mocks.Store{}
-			mockEP := &epmocks.ElectionParticipant{}
-			testOpts := Options{
-				CalculationInterval:   1 * time.Second,
-				AggregationBuckets:    1,
-				BucketsForCalculation: 1,
-			}
-			logger := zap.NewNop()
-			a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
-			require.NoError(t, err)
-			RecordThroughput(a, test.span, logger)
-			assert.EqualValues(t, test.count, a.(*aggregator).currentThroughput["A"]["GET"].Count)
-			assert.Empty(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities["0.001000"])
-		})
+	logger := zap.NewNop()
+	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	require.NoError(t, err)
+
+	// Testing non-root span
+	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
+	RecordThroughput(a, span, logger)
+	require.Nil(t, a.(*aggregator).currentThroughput["A"]["GET"])
+
+	// Testing span with service name but no operation
+	span.References = []model.SpanRef{}
+	span.Process = &model.Process{
+		ServiceName: "A",
 	}
+	RecordThroughput(a, span, logger)
+	require.Nil(t, a.(*aggregator).currentThroughput["A"]["GET"])
+
+	// Testing span with service name and operation but no probabilistic sampling tags
+	span.OperationName = "GET"
+	RecordThroughput(a, span, logger)
+	require.Nil(t, a.(*aggregator).currentThroughput["A"]["GET"])
+
+	// Testing span with service name, operation, and probabilistic sampling tags
+	span.Tags = model.KeyValues{
+		model.String("sampler.type", "probabilistic"),
+		model.String("sampler.param", "0.001"),
+	}
+	RecordThroughput(a, span, logger)
+	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"]["GET"].Count)
 }
