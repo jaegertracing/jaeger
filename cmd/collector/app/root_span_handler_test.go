@@ -32,6 +32,7 @@ type mockAggregator struct {
 func (t *mockAggregator) RecordThroughput(service, operation string, samplerType model.SamplerType, probability float64) {
 	t.callCount.Add(1)
 }
+
 func (t *mockAggregator) HandleRootSpan(span *model.Span, logger *zap.Logger) {
 	handleRootSpan(t, logger)(span, "")
 }

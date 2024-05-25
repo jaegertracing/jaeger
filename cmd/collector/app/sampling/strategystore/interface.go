@@ -18,9 +18,10 @@ import (
 	"context"
 	"io"
 
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"go.uber.org/zap"
 )
 
 // StrategyStore keeps track of service specific sampling strategies.

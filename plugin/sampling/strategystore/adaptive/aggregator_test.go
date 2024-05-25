@@ -132,7 +132,7 @@ func TestRecordThroughput(t *testing.T) {
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
 	a.HandleRootSpan(span, logger)
-	require.Nil(t, a.(*aggregator).currentThroughput)
+	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name but no operation
 	span.References = []model.SpanRef{}
