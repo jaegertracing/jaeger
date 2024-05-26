@@ -144,3 +144,20 @@ func (a *aggregator) Close() error {
 	a.bgFinished.Wait()
 	return nil
 }
+
+func (a *aggregator) HandleRootSpan(span *span_model.Span, logger *zap.Logger) {
+	// simply checking parentId to determine if a span is a root span is not sufficient. However,
+	// we can be sure that only a root span will have sampler tags.
+	if span.ParentSpanID() != span_model.NewSpanID(0) {
+		return
+	}
+	service := span.Process.ServiceName
+	if service == "" || span.OperationName == "" {
+		return
+	}
+	samplerType, samplerParam := span.GetSamplerParams(logger)
+	if samplerType == span_model.SamplerTypeUnrecognized {
+		return
+	}
+	a.RecordThroughput(service, span.OperationName, samplerType, samplerParam)
+}
