@@ -12,8 +12,8 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image>"
+  if [ ! $# -eq 3 ]; then
+    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
     usage
   fi
 }
