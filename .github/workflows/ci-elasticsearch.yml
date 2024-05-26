@@ -58,11 +58,11 @@ jobs:
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Run elasticsearch integration tests
+    - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }} ${{ matrix.version.jaeger }}
 
-    - name: Output Elasticsearch logs
+    - name: Output ${{ matrix.version.distribution }} logs
       run: docker logs ${{ steps.test-execution.outputs.cid }}
       if: ${{ failure() }}
 
@@ -70,4 +70,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
-        flags: elasticsearch-${{ matrix.version.major }}
+        flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
