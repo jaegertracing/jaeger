@@ -20,14 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version:
-        - major: 7.x
-          image: 7.14.0
-          distribution: elasticsearch
-        - major: 8.x
-          image: 8.8.2
-          distribution: elasticsearch
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
+        major-version: [7, 8]
+    name: Elasticsearch v${{ matrix.major-version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
@@ -50,10 +44,24 @@ jobs:
       run: make install-ci
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+    
+    - name: Set up Elasticsearch
+      run: |
+           docker-compose -f  ./.github/workflows/docker-compose-elasticsearch-v${{ matrix.major-version }}.yml up -d
 
     - name: Run elasticsearch integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
+      run: | 
+          if [ "${{ matrix.major-version }}" = "7" ]; then
+            export ELASTICSEARCH_VERSION=$(grep 'image: docker.elastic.co/elasticsearch/elasticsearch' $(pwd)/.github/workflows/docker-compose-elasticsearch-v7.yml | cut -d ':' -f3)
+          elif [ "${{ matrix.major-version }}" = "8" ]; then
+            export ELASTICSEARCH_VERSION=$(grep 'image: docker.elastic.co/elasticsearch/elasticsearch' $(pwd)/.github/workflows/docker-compose-elasticsearch-v7.yml | cut -d ':' -f3)
+          else
+            echo "Unsupported Elasticsearch version"
+            exit 1
+          fi
+          echo "Elasticsearch version: $ELASTICSEARCH_VERSION"
+          bash scripts/es-integration-test.sh elasticsearch $ELASTICSEARCH_VERSION
 
     - name: Output Elasticsearch logs
       run: docker logs ${{ steps.test-execution.outputs.cid }}
@@ -64,3 +72,7 @@ jobs:
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
         flags: elasticsearch-${{ matrix.version.major }}
+    - name: Tear down
+      run: |
+          docker-compose -f  ./.github/workflows/docker-compose-elasticsearch-v${{ matrix.major-version }}.yml down
+
