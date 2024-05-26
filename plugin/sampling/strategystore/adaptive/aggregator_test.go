@@ -140,12 +140,12 @@ func TestRecordThroughput(t *testing.T) {
 		ServiceName: "A",
 	}
 	a.HandleRootSpan(span, logger)
-	require.Nil(t, a.(*aggregator).currentThroughput["A"]["GET"])
+	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
 	span.OperationName = "GET"
 	a.HandleRootSpan(span, logger)
-	require.Nil(t, a.(*aggregator).currentThroughput["A"]["GET"])
+	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name, operation, and probabilistic sampling tags
 	span.Tags = model.KeyValues{
