@@ -12,8 +12,8 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image>"
+  if [ ! $# -eq 3 ]; then
+    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
     usage
   fi
 }
@@ -132,13 +132,18 @@ teardown_storage() {
 main() {
   check_arg "$@"
   local distro=$1
-  local version=$2
+  local es_version=$2
+  local j_version=$2
 
-  bring_up_storage "${distro}" "${version}"
-  STORAGE=${distro} make storage-integration-test
-  STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
-  make index-cleaner-integration-test
-  make index-rollover-integration-test
+  bring_up_storage "${distro}" "${es_version}"
+
+  if [[ "${j_version}" == "v2" ]]; then
+    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
+  else
+    STORAGE=${distro} make storage-integration-test
+    make index-cleaner-integration-test
+    make index-rollover-integration-test
+  fi
 }
 
 main "$@"
