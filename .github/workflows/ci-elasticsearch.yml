@@ -19,15 +19,22 @@ jobs:
   elasticsearch:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         version:
         - major: 7.x
           image: 7.14.0
           distribution: elasticsearch
+          jaeger: v1
         - major: 8.x
           image: 8.8.2
           distribution: elasticsearch
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
+          jaeger: v1
+        - major: 8.x
+          image: 8.8.2
+          distribution: elasticsearch
+          jaeger: v2
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
@@ -53,7 +60,7 @@ jobs:
 
     - name: Run elasticsearch integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }} ${{ matrix.version.jaeger }}
 
     - name: Output Elasticsearch logs
       run: docker logs ${{ steps.test-execution.outputs.cid }}
