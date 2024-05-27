@@ -40,29 +40,28 @@ var (
 )
 
 func TestFactory(t *testing.T) {
-	buckets := []float64{10, 20, 30, 40, 50, 60}
 	testCases := []struct {
 		name            string
 		tags            map[string]string
-		buckets         []float64
 		durationBuckets []time.Duration
 		namespace       string
 		nsTags          map[string]string
 		fullName        string
 		expectedCounter string
 	}{
-		{name: "x", fullName: "%sx", buckets: buckets},
-		{tags: tagsX, fullName: "%s.x_y", buckets: buckets},
-		{name: "x", tags: tagsA, fullName: "%sx.a_b", buckets: buckets},
-		{namespace: "y", fullName: "y.%s", buckets: buckets},
-		{nsTags: tagsA, fullName: "%s.a_b", buckets: buckets},
-		{namespace: "y", nsTags: tagsX, fullName: "y.%s.x_y", buckets: buckets},
-		{name: "x", namespace: "y", nsTags: tagsX, fullName: "y.%sx.x_y", buckets: buckets},
-		{name: "x", tags: tagsX, namespace: "y", nsTags: tagsX, fullName: "y.%sx.x_y", expectedCounter: "84", buckets: buckets},
-		{name: "x", tags: tagsA, namespace: "y", nsTags: tagsX, fullName: "y.%sx.a_b.x_y", buckets: buckets},
-		{name: "x", tags: tagsX, namespace: "y", nsTags: tagsA, fullName: "y.%sx.a_b.x_y", expectedCounter: "84", buckets: buckets},
+		{name: "x", fullName: "%sx"},
+		{name: "x", fullName: "%sx", expectedCounter: "84"}, // same as above to validate that the same vars are ok to create
+		{tags: tagsX, fullName: "%s.x_y"},
+		{name: "x", tags: tagsA, fullName: "%sx.a_b"},
+		{namespace: "y", fullName: "y.%s"},
+		{nsTags: tagsA, fullName: "%s.a_b"},
+		{namespace: "y", nsTags: tagsX, fullName: "y.%s.x_y"},
+		{name: "x", namespace: "y", nsTags: tagsX, fullName: "y.%sx.x_y"},
+		{name: "x", tags: tagsX, namespace: "y", nsTags: tagsX, fullName: "y.%sx.x_y", expectedCounter: "84"},
+		{name: "x", tags: tagsA, namespace: "y", nsTags: tagsX, fullName: "y.%sx.a_b.x_y"},
+		{name: "x", tags: tagsX, namespace: "y", nsTags: tagsA, fullName: "y.%sx.a_b.x_y", expectedCounter: "84"},
 	}
-	f := NewFactory(2)
+	f := NewFactory()
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
 			if testCase.expectedCounter == "" {
@@ -89,9 +88,8 @@ func TestFactory(t *testing.T) {
 				Buckets: testCase.durationBuckets,
 			})
 			histogram := ff.Histogram(metrics.HistogramOptions{
-				Name:    histogramPrefix + testCase.name,
-				Tags:    testCase.tags,
-				Buckets: testCase.buckets,
+				Name: histogramPrefix + testCase.name,
+				Tags: testCase.tags,
 			})
 
 			// register second time, should not panic
@@ -109,20 +107,19 @@ func TestFactory(t *testing.T) {
 				Buckets: testCase.durationBuckets,
 			})
 			ff.Histogram(metrics.HistogramOptions{
-				Name:    histogramPrefix + testCase.name,
-				Tags:    testCase.tags,
-				Buckets: testCase.buckets,
+				Name: histogramPrefix + testCase.name,
+				Tags: testCase.tags,
 			})
 
 			counter.Inc(42)
 			gauge.Update(42)
 			timer.Record(42 * time.Millisecond)
-			histogram.Record(42)
+			histogram.Record(42.42)
 
 			assertExpvar(t, fmt.Sprintf(testCase.fullName, counterPrefix), testCase.expectedCounter)
 			assertExpvar(t, fmt.Sprintf(testCase.fullName, gaugePrefix), "42")
-			assertExpvar(t, fmt.Sprintf(testCase.fullName, timerPrefix)+".p99", "0.042")
-			assertExpvar(t, fmt.Sprintf(testCase.fullName, histogramPrefix)+".p99", "42")
+			assertExpvar(t, fmt.Sprintf(testCase.fullName, timerPrefix)+"_ns", "42000000")
+			assertExpvar(t, fmt.Sprintf(testCase.fullName, histogramPrefix), "42.42")
 		})
 	}
 }

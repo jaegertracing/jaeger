@@ -16,67 +16,70 @@
 package expvar
 
 import (
+	"expvar"
+	"strings"
 	"time"
-
-	kit "github.com/go-kit/kit/metrics"
 )
 
 // Counter is an adapter from go-kit Counter to jaeger-lib Counter
 type Counter struct {
-	counter kit.Counter
+	intVar *expvar.Int
 }
 
 // NewCounter creates a new Counter
-func NewCounter(counter kit.Counter) *Counter {
-	return &Counter{counter: counter}
+func NewCounter(key string) *Counter {
+	return &Counter{intVar: expvar.NewInt(key)}
 }
 
 // Inc adds the given value to the counter.
 func (c *Counter) Inc(delta int64) {
-	c.counter.Add(float64(delta))
+	c.intVar.Add(delta)
 }
 
 // Gauge is an adapter from go-kit Gauge to jaeger-lib Gauge
 type Gauge struct {
-	gauge kit.Gauge
+	intVar *expvar.Int
 }
 
 // NewGauge creates a new Gauge
-func NewGauge(gauge kit.Gauge) *Gauge {
-	return &Gauge{gauge: gauge}
+func NewGauge(key string) *Gauge {
+	return &Gauge{intVar: expvar.NewInt(key)}
 }
 
 // Update the gauge to the value passed in.
 func (g *Gauge) Update(value int64) {
-	g.gauge.Set(float64(value))
+	g.intVar.Set(value)
 }
 
-// Timer is an adapter from go-kit Histogram to jaeger-lib Timer
+// Timer only records the latest value (like a Gauge).
 type Timer struct {
-	hist kit.Histogram
+	intVar *expvar.Int
 }
 
-// NewTimer creates a new Timer
-func NewTimer(hist kit.Histogram) *Timer {
-	return &Timer{hist: hist}
+// NewTimer creates a new Timer.
+func NewTimer(key string) *Timer {
+	if !strings.HasSuffix(key, "_ns") {
+		key += "_ns"
+	}
+	return &Timer{intVar: expvar.NewInt(key)}
 }
 
 // Record saves the time passed in.
 func (t *Timer) Record(delta time.Duration) {
-	t.hist.Observe(delta.Seconds())
+	t.intVar.Set(delta.Nanoseconds())
 }
 
-// Histogram is an adapter from go-kit Histogram to jaeger-lib Histogram
+// Histogram only records the latest value (like a Gauge).
 type Histogram struct {
-	hist kit.Histogram
+	floatVar *expvar.Float
 }
 
 // NewHistogram creates a new Histogram
-func NewHistogram(hist kit.Histogram) *Histogram {
-	return &Histogram{hist: hist}
+func NewHistogram(key string) *Histogram {
+	return &Histogram{floatVar: expvar.NewFloat(key)}
 }
 
 // Record saves the value passed in.
 func (t *Histogram) Record(value float64) {
-	t.hist.Observe(value)
+	t.floatVar.Set(value)
 }

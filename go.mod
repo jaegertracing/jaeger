@@ -14,7 +14,6 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/elastic/go-elasticsearch/v8 v8.13.1
 	github.com/fsnotify/fsnotify v1.7.0
-	github.com/go-kit/kit v0.13.0
 	github.com/go-logr/zapr v1.3.0
 	github.com/gocql/gocql v1.3.2
 	github.com/gogo/googleapis v1.4.1
@@ -84,7 +83,6 @@ require (
 
 require (
 	github.com/IBM/sarama v1.43.2 // indirect
-	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.53.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
