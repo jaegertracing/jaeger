@@ -83,7 +83,6 @@ require (
 
 require (
 	github.com/IBM/sarama v1.43.2 // indirect
-	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.53.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
