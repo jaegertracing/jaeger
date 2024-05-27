@@ -59,6 +59,7 @@ jobs:
       id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
+
     - name: Output ${{ matrix.version.distribution }} logs
       run: docker logs ${{ steps.test-execution.outputs.cid }}
       if: ${{ failure() }}

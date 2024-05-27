@@ -19,6 +19,7 @@ jobs:
   elasticsearch:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         version:
         - major: 7.x
@@ -57,7 +58,8 @@ jobs:
       id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
-    - name: Output Elasticsearch logs
+
+    - name: Output ${{ matrix.version.distribution }} logs
       run: docker logs ${{ steps.test-execution.outputs.cid }}
       if: ${{ failure() }}
 
@@ -65,6 +67,5 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
-        flags: elasticsearch-${{ matrix.version.major }}
-    
+        flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
 
