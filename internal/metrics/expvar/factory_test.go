@@ -50,6 +50,7 @@ func TestFactory(t *testing.T) {
 		expectedCounter string
 	}{
 		{name: "x", fullName: "%sx"},
+		{name: "x", fullName: "%sx", expectedCounter: "84"}, // same as above to validate that the same vars are ok to create
 		{tags: tagsX, fullName: "%s.x_y"},
 		{name: "x", tags: tagsA, fullName: "%sx.a_b"},
 		{namespace: "y", fullName: "y.%s"},
