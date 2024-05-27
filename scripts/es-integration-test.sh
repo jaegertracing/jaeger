@@ -22,8 +22,8 @@ setup_es() {
   local tag=$1
   local major_version=${tag%%.*}
   local compose_file
-  compose_file="docker-compose/elasticsearch/v${major_verison}.yml"
-  docker-compose -f ${compose_file} up -d
+  compose_file="docker-compose/elasticsearch/v${major_version}.yml"
+  docker-compose -f "${compose_file}" up -d
   echo "${compose_file}"
 }
 
@@ -32,7 +32,7 @@ setup_opensearch() {
   local major_version=${tag%%.*}
   local compose_file
   compose_file="docker-compose/opensearch/v${major_version}.yml"
-  docker-compose -f ${compose_file} up -d
+  docker-compose -f "${compose_file}" up -d
   echo "${compose_file}"
 }
 
@@ -58,8 +58,8 @@ wait_for_storage() {
 
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
-    docker-compose -f ${compose_file} logs
-    docker-compose -f ${compose_file} down
+    docker-compose -f "${compose_file}" logs
+    docker-compose -f "${compose_file}" down
     db_is_up=0
   else
     echo "SUCCESS: ${distro} is available at ${url}"
@@ -70,7 +70,6 @@ wait_for_storage() {
 bring_up_storage() {
   local distro=$1
   local version=$2
-  local cid
 
   echo "starting ${distro} ${version}"
   for retry in 1 2 3
@@ -100,7 +99,7 @@ bring_up_storage() {
 
 teardown_storage() {
   local compose_file=$1
-  docker-compose -f ${compose_file} down
+  docker-compose -f "${compose_file}" down
 }
 
 main() {
