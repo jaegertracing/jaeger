@@ -20,30 +20,16 @@ check_arg() {
 
 setup_es() {
   local tag=$1
-  local major_version=${tag%%.*}
   local compose_file
-
-  if (( major_version < 8 )); then
-    compose_file="docker-compose/elasticsearch/docker-compose-elasticsearch-v7.yml"
-  else
-    compose_file="docker-compose/elasticsearch/docker-compose-elasticsearch-v8.yml"
-  fi
-
+  compose_file="docker-compose/elasticsearch/v${tag}.yml"
   docker-compose -f ${compose_file} up -d
   echo "${compose_file}"
 }
 
 setup_opensearch() {
   local tag=$1
-  local major_version=${tag%%.*}
   local compose_file
-
-  if (( major_version < 2 )); then
-    compose_file="docker-compose/opensearch/docker-compose-opensearch-v1.yml"
-  else
-    compose_file="docker-compose/opensearch/docker-compose-opensearch-v2.yml"
-  fi
-
+  compose_file="docker-compose/opensearch/v${tag}.yml"
   docker-compose -f ${compose_file} up -d
   echo "${compose_file}"
 }
@@ -72,7 +58,7 @@ wait_for_storage() {
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
     docker-compose -f ${compose_file} logs
     docker-compose -f ${compose_file} down
-    ds_is_up=0
+    db_is_up=0
   else
     echo "SUCCESS: ${distro} is available at ${url}"
     db_is_up=1
