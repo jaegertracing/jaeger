@@ -12,60 +12,46 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image>"
+  if [ ! $# -eq 3 ]; then
+    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
     usage
   fi
 }
 
 setup_es() {
   local tag=$1
-  local image=docker.elastic.co/elasticsearch/elasticsearch
-  local params=(
-    --detach
-    --publish 9200:9200
-    --env "http.host=0.0.0.0"
-    --env "transport.host=127.0.0.1"
-    --env "xpack.security.enabled=false"
-  )
   local major_version=${tag%%.*}
+  local compose_file
+
   if (( major_version < 8 )); then
-    params+=(--env "xpack.monitoring.enabled=false")
+    compose_file="docker-compose/elasticsearch/docker-compose-elasticsearch-v7.yml"
   else
-    params+=(--env "xpack.monitoring.collection.enabled=false")
-  fi
-  if (( major_version > 7 )); then
-    params+=(
-      --env "action.destructive_requires_name=false"
-    )
+    compose_file="docker-compose/elasticsearch/docker-compose-elasticsearch-v8.yml"
   fi
 
-  local cid
-  cid=$(docker run "${params[@]}" "${image}:${tag}")
-  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
-  echo "${cid}"
+  docker-compose -f ${compose_file} up -d
+  echo "${compose_file}"
 }
 
 setup_opensearch() {
-  local image=opensearchproject/opensearch
   local tag=$1
-  local params=(
-    --detach
-    --publish 9200:9200
-    --env "http.host=0.0.0.0"
-    --env "transport.host=127.0.0.1"
-    --env "plugins.security.disabled=true"
-  )
-  local cid
-  cid=$(docker run "${params[@]}" "${image}:${tag}")
-  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
-  echo "${cid}"
+  local major_version=${tag%%.*}
+  local compose_file
+
+  if (( major_version < 2 )); then
+    compose_file="docker-compose/opensearch/docker-compose-opensearch-v1.yml"
+  else
+    compose_file="docker-compose/opensearch/docker-compose-opensearch-v2.yml"
+  fi
+
+  docker-compose -f ${compose_file} up -d
+  echo "${compose_file}"
 }
 
 wait_for_storage() {
   local distro=$1
   local url=$2
-  local cid=$3
+  local compose_file=$3
   local params=(
     --silent
     --output
@@ -73,22 +59,22 @@ wait_for_storage() {
     --write-out
     "%{http_code}"
   )
-  local counter=0
-  local max_counter=60
-  while [[ "$(curl "${params[@]}" "${url}")" != "200" && ${counter} -le ${max_counter} ]]; do
-    docker inspect "${cid}" | jq '.[].State'
-    echo "waiting for ${url} to be up..."
+  local max_attempts=60
+  local attempt=0
+  echo "Waiting for ${distro} to be available at ${url}..."
+  until [[ "$(curl "${params[@]}" "${url}")" == "200" ]] || (( attempt >= max_attempts )); do
+    echo "Attempt $(( attempt + 1 )): ${distro} is not yet available at ${url}..."
     sleep 10
-    counter=$((counter+1))
+    attempt=$(( attempt + 1 ))
   done
-  # after the loop, do final verification and set status as global var
+
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
-    echo "ERROR: ${distro} is not ready"
-    docker logs "${cid}"
-    docker kill "${cid}"
-    db_is_up=0
+    echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
+    docker-compose -f ${compose_file} logs
+    docker-compose -f ${compose_file} down
+    ds_is_up=0
   else
-    echo "SUCCESS: ${distro} is ready"
+    echo "SUCCESS: ${distro} is available at ${url}"
     db_is_up=1
   fi
 }
@@ -103,21 +89,21 @@ bring_up_storage() {
   do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ]; then
-      cid=$(setup_es "${version}")
+      compose_file=$(setup_es "${version}")
     elif [ "${distro}" == "opensearch" ]; then
-      cid=$(setup_opensearch "${version}")
+      compose_file=$(setup_opensearch "${version}")
     else
       echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
       usage
     fi
-    wait_for_storage "${distro}" "http://localhost:9200" "${cid}"
+    wait_for_storage "${distro}" "http://localhost:9200" "${compose_file}"
     if [ ${db_is_up} = "1" ]; then
       break
     fi
   done
   if [ ${db_is_up} = "1" ]; then
   # shellcheck disable=SC2064
-    trap "teardown_storage ${cid}" EXIT
+    trap "teardown_storage ${compose_file}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
     exit 1
@@ -125,20 +111,25 @@ bring_up_storage() {
 }
 
 teardown_storage() {
-  local cid=$1
-  docker kill "${cid}"
+  local compose_file=$1
+  docker-compose -f ${compose_file} down
 }
 
 main() {
   check_arg "$@"
   local distro=$1
-  local version=$2
+  local es_version=$2
+  local j_version=$2
 
-  bring_up_storage "${distro}" "${version}"
-  STORAGE=${distro} make storage-integration-test
-  STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
-  make index-cleaner-integration-test
-  make index-rollover-integration-test
+  bring_up_storage "${distro}" "${es_version}"
+
+  if [[ "${j_version}" == "v2" ]]; then
+    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
+  else
+    STORAGE=${distro} make storage-integration-test
+    make index-cleaner-integration-test
+    make index-rollover-integration-test
+  fi
 }
 
 main "$@"
