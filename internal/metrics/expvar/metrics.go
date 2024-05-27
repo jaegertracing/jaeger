@@ -58,8 +58,8 @@ type Timer struct {
 
 // NewTimer creates a new Timer.
 func NewTimer(key string) *Timer {
-	if !strings.HasSuffix(key, "ns") {
-		key += "ns"
+	if !strings.HasSuffix(key, "_ns") {
+		key += "_ns"
 	}
 	return &Timer{intVar: expvar.NewInt(key)}
 }
