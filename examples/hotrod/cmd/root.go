@@ -56,6 +56,8 @@ func init() {
 
 // onInitialize is called before the command is executed.
 func onInitialize() {
+	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
+
 	zapOptions := []zap.Option{
 		zap.AddStacktrace(zapcore.FatalLevel),
 		zap.AddCallerSkip(1),
@@ -66,17 +68,7 @@ func onInitialize() {
 		)
 	}
 	logger, _ = zap.NewDevelopment(zapOptions...)
-
-	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
-
-	// Only configure Prometheus as the metrics backend
-	switch metricsBackend {
-	case "prometheus":
-		metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
-		logger.Info("Using Prometheus as metrics backend")
-	default:
-		logger.Fatal("Unsupported metrics backend " + metricsBackend)
-	}
+	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 
 	if config.MySQLGetDelay != fixDBConnDelay {
 		logger.Info("fix: overriding MySQL query delay", zap.Duration("old", config.MySQLGetDelay), zap.Duration("new", fixDBConnDelay))
