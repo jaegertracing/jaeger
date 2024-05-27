@@ -18,17 +18,16 @@ package expvar
 import (
 	"sort"
 
-	kexpvar "github.com/go-kit/kit/metrics/expvar"
-
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-// NewFactory creates a new metrics factory using go-kit expvar package.
-// buckets is the number of buckets to be used in histograms.
-// Custom buckets passed via options are not supported.
-func NewFactory(buckets int) metrics.Factory {
+// NewFactory creates a new metrics factory backed by expvar variables.
+// Histograms are not supported, only act as gauges.
+// This package is primarily used to expose config parameters / settings
+// via expvar variables for manual inspection, not for remove monitoring,
+// since they are usually emitted only once.
+func NewFactory() metrics.Factory {
 	return &factory{
-		buckets:  buckets,
 		scope:    "",
 		scopeSep: ".",
 		tagsSep:  ".",
@@ -38,8 +37,6 @@ func NewFactory(buckets int) metrics.Factory {
 }
 
 type factory struct {
-	buckets int
-
 	scope    string
 	tags     map[string]string
 	scopeSep string
@@ -96,34 +93,33 @@ func makeKey(name string, tags map[string]string, tagsSep string, tagKVSep strin
 func (f *factory) Counter(options metrics.Options) metrics.Counter {
 	key := f.getKey(options.Name, options.Tags)
 	return f.cache.getOrSetCounter(key, func() metrics.Counter {
-		return NewCounter(kexpvar.NewCounter(key))
+		return NewCounter(key)
 	})
 }
 
 func (f *factory) Gauge(options metrics.Options) metrics.Gauge {
 	key := f.getKey(options.Name, options.Tags)
 	return f.cache.getOrSetGauge(key, func() metrics.Gauge {
-		return NewGauge(kexpvar.NewGauge(key))
+		return NewGauge(key)
 	})
 }
 
 func (f *factory) Timer(options metrics.TimerOptions) metrics.Timer {
 	key := f.getKey(options.Name, options.Tags)
 	return f.cache.getOrSetTimer(key, func() metrics.Timer {
-		return NewTimer(kexpvar.NewHistogram(key, f.buckets))
+		return NewTimer(key)
 	})
 }
 
 func (f *factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
 	key := f.getKey(options.Name, options.Tags)
 	return f.cache.getOrSetHistogram(key, func() metrics.Histogram {
-		return NewHistogram(kexpvar.NewHistogram(key, f.buckets))
+		return NewHistogram(key)
 	})
 }
 
 func (f *factory) Namespace(options metrics.NSOptions) metrics.Factory {
 	return &factory{
-		buckets:  f.buckets,
 		scope:    f.subScope(options.Name),
 		tags:     f.mergeTags(options.Tags),
 		scopeSep: f.scopeSep,

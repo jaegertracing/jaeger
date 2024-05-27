@@ -62,7 +62,7 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
 			mFactory := fork.New("internal",
-				expvar.NewFactory(10), // expvar backend to report settings
+				expvar.NewFactory(), // expvar backend to report settings
 				baseFactory)
 			version.NewInfoMetrics(mFactory)
 

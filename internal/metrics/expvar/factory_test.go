@@ -62,7 +62,7 @@ func TestFactory(t *testing.T) {
 		{name: "x", tags: tagsA, namespace: "y", nsTags: tagsX, fullName: "y.%sx.a_b.x_y", buckets: buckets},
 		{name: "x", tags: tagsX, namespace: "y", nsTags: tagsA, fullName: "y.%sx.a_b.x_y", expectedCounter: "84", buckets: buckets},
 	}
-	f := NewFactory(2)
+	f := NewFactory()
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
 			if testCase.expectedCounter == "" {
