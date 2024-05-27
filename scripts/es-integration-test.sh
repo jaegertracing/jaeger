@@ -20,16 +20,18 @@ check_arg() {
 
 setup_es() {
   local tag=$1
+  local major_version=${tag%%.*}
   local compose_file
-  compose_file="docker-compose/elasticsearch/v${tag}.yml"
+  compose_file="docker-compose/elasticsearch/v${major_verison}.yml"
   docker-compose -f ${compose_file} up -d
   echo "${compose_file}"
 }
 
 setup_opensearch() {
   local tag=$1
+  local major_version=${tag%%.*}
   local compose_file
-  compose_file="docker-compose/opensearch/v${tag}.yml"
+  compose_file="docker-compose/opensearch/v${major_version}.yml"
   docker-compose -f ${compose_file} up -d
   echo "${compose_file}"
 }
