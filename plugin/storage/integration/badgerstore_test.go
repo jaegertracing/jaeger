@@ -35,7 +35,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
 	s.factory.Options.Primary.Ephemeral = false
 
-	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	err := s.factory.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
 	t.Cleanup(func() {

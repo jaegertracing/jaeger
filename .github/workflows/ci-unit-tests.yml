@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -31,6 +31,10 @@ jobs:
       with:
         go-version: 1.22.x
         cache-dependency-path: ./go.sum
+
+    # download dependencies separately to keep unit test step's output cleaner
+    - name: go mod download
+      run: go mod download
 
     - name: Install test deps
       # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow

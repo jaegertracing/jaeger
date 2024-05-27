@@ -76,6 +76,7 @@ func TestFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.Close())
 	require.NoError(t, aggregator.Close())
+	require.NoError(t, f.Close())
 }
 
 func TestBadConfigFail(t *testing.T) {
@@ -97,6 +98,7 @@ func TestBadConfigFail(t *testing.T) {
 		require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
 		_, _, err := f.CreateStrategyStore()
 		require.Error(t, err)
+		require.NoError(t, f.Close())
 	}
 }
 

@@ -14,8 +14,10 @@ extensions:
   jaeger_storage:
     grpc:
       external-storage:
-        server: localhost:17271
-        connection-timeout: 5s
+        endpoint: localhost:17271
+        timeout: 5s
+        tls:
+          insecure: true
 
 receivers:
   otlp:

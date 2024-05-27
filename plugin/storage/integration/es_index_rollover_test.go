@@ -33,11 +33,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	client, err := createESClient()
 	require.NoError(t, err)
-	esVersion, err := getVersion(client)
 	require.NoError(t, err)
-	if esVersion < 7 {
-		t.Skip("Integration test - " + t.Name() + " against ElasticSearch skipped for ES version " + fmt.Sprint(esVersion))
-	}
 	// make sure ES is clean
 	cleanES(t, client, defaultILMPolicyName)
 	envVars := []string{"ES_USE_ILM=true"}
@@ -65,7 +61,6 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 	client, err := createESClient()
 	require.NoError(t, err)
-
 	esVersion, err := getVersion(client)
 	require.NoError(t, err)
 
@@ -77,16 +72,7 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 		envVars = append(envVars, "ES_ILM_POLICY_NAME="+ilmPolicyName)
 	}
 
-	if esVersion < 7 {
-		cleanES(t, client, "")
-		// Run the ES rollover test with adaptive sampling disabled (set to false).
-		err := runEsRollover("init", envVars, false)
-		require.EqualError(t, err, "exit status 1")
-		indices, err1 := client.IndexNames()
-		require.NoError(t, err1)
-		assert.Empty(t, indices)
-
-	} else {
+	if esVersion >= 7 {
 		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001"}
 		t.Run("NoPrefix", func(t *testing.T) {
 			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName, false)

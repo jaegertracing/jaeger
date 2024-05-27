@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -103,7 +104,9 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	var additionalProcessors []ProcessSpan
 	if c.aggregator != nil {
-		additionalProcessors = append(additionalProcessors, handleRootSpan(c.aggregator, c.logger))
+		additionalProcessors = append(additionalProcessors, func(span *model.Span, tenant string) {
+			c.aggregator.HandleRootSpan(span, c.logger)
+		})
 	}
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)

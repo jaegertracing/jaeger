@@ -15,7 +15,6 @@ func TestBadgerStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-badger.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			SkipBinaryAttrs: true,
 			SkipArchiveTest: true,
 			CleanUp:         purge,
 
