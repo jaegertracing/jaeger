@@ -18,20 +18,12 @@ check_arg() {
   fi
 }
 
-setup_es() {
-  local compose_file=$1
+setup_db() {
+  local distro=$1
+  local compose_file=$2
   docker compose -f "${compose_file}" up -d
   local cid 
-  cid=$(docker compose -f "${compose_file}" ps -q elasticsearch)
-  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
-}
-
-setup_opensearch() {
-  local compose_file=$1
-  compose_file="docker-compose/opensearch/v${major_version}.yml"
-  docker compose -f "${compose_file}" up -d
-  local cid 
-  cid=$(docker compose -f "${compose_file}" ps -q opensearch)
+  cid=$(docker compose -f "${compose_file}" ps -q "${distro}")
   echo "cid=${cid}" >> "$GITHUB_OUTPUT"
 }
 
@@ -49,11 +41,13 @@ wait_for_storage() {
   local max_attempts=60
   local attempt=0
   echo "Waiting for ${distro} to be available at ${url}..."
+  echo "::group::Waiting for ${distro} availability"
   until [[ "$(curl "${params[@]}" "${url}")" == "200" ]] || (( attempt >= max_attempts )); do
-    echo "Attempt $(( attempt + 1 )): ${distro} is not yet available at ${url}..."
-    sleep 10
     attempt=$(( attempt + 1 ))
+    echo "Attempt: ${attempt} ${distro} is not yet available at ${url}..."
+    sleep 10
   done
+  echo "::endgroup::"
 
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
@@ -76,10 +70,8 @@ bring_up_storage() {
   for retry in 1 2 3
   do
     echo "attempt $retry"
-    if [ "${distro}" = "elasticsearch" ]; then
-      setup_es "${compose_file}"
-    elif [ "${distro}" == "opensearch" ]; then
-      setup_opensearch "${compose_file}"
+    if [ "${distro}" = "elasticsearch" ] || [ "${distro}" = "opensearch" ]; then
+        setup_db "${distro}" "${compose_file}"
     else
       echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
       usage
