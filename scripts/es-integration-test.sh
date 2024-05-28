@@ -41,17 +41,17 @@ wait_for_storage() {
   local max_attempts=60
   local attempt=0
   echo "Waiting for ${distro} to be available at ${url}..."
-  echo "::group::Waiting for ${distro} availability"
   until [[ "$(curl "${params[@]}" "${url}")" == "200" ]] || (( attempt >= max_attempts )); do
     attempt=$(( attempt + 1 ))
     echo "Attempt: ${attempt} ${distro} is not yet available at ${url}..."
     sleep 10
   done
-  echo "::endgroup::"
 
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
+    echo "::group::${distro} logs"
     docker compose -f "${compose_file}" logs
+    echo "::endgroup::"
     docker compose -f "${compose_file}" down
     db_is_up=0
   else
