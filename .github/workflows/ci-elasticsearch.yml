@@ -23,15 +23,12 @@ jobs:
       matrix:
         version:
         - major: 7.x
-          image: 7.14.0
           distribution: elasticsearch
           jaeger: v1
         - major: 8.x
-          image: 8.8.2
           distribution: elasticsearch
           jaeger: v1
         - major: 8.x
-          image: 8.8.2
           distribution: elasticsearch
           jaeger: v2
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
@@ -57,10 +54,10 @@ jobs:
       run: make install-ci
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }} ${{ matrix.version.jaeger }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+
 
     - name: Output ${{ matrix.version.distribution }} logs
       run: docker logs ${{ steps.test-execution.outputs.cid }}
@@ -71,3 +68,4 @@ jobs:
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
         flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
+
