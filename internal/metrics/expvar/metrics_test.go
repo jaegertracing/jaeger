@@ -12,43 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expvar_test
+package expvar
 
 import (
 	"testing"
 	"time"
-
-	"github.com/go-kit/kit/metrics/generic"
-	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestCounter(t *testing.T) {
-	kitCounter := generic.NewCounter("abc")
-	var counter metrics.Counter = expvar.NewCounter(kitCounter)
+	counter := NewCounter("xyz_counter")
 	counter.Inc(123)
-	assert.EqualValues(t, 123, kitCounter.Value())
+	assertExpvar(t, "xyz_counter", "123")
 }
 
 func TestGauge(t *testing.T) {
-	kitGauge := generic.NewGauge("abc")
-	var gauge metrics.Gauge = expvar.NewGauge(kitGauge)
+	gauge := NewGauge("xyz_gauge")
 	gauge.Update(123)
-	assert.EqualValues(t, 123, kitGauge.Value())
+	assertExpvar(t, "xyz_gauge", "123")
 }
 
 func TestTimer(t *testing.T) {
-	kitHist := generic.NewHistogram("abc", 10)
-	var timer metrics.Timer = expvar.NewTimer(kitHist)
+	timer := NewTimer("xyz_timer")
 	timer.Record(100*time.Millisecond + 500*time.Microsecond) // 100.5 milliseconds
-	assert.EqualValues(t, 0.1005, kitHist.Quantile(0.9))
+	assertExpvar(t, "xyz_timer_ns", "100500000")              // 100500000 nanoseconds
 }
 
 func TestHistogram(t *testing.T) {
-	kitHist := generic.NewHistogram("abc", 10)
-	var histogram metrics.Histogram = expvar.NewHistogram(kitHist)
-	histogram.Record(100)
-	assert.EqualValues(t, 100, kitHist.Quantile(0.9))
+	histogram := NewHistogram("xyz_histogram")
+	histogram.Record(3.1415)
+	assertExpvar(t, "xyz_histogram", "3.1415")
 }

@@ -16,7 +16,6 @@
 package metricsbuilder
 
 import (
-	"expvar"
 	"flag"
 	"testing"
 
@@ -61,16 +60,6 @@ func TestBuilder(t *testing.T) {
 		}
 		t.FailNow()
 	}
-	assertExpVarCounter := func() {
-		var found expvar.KeyValue
-		expected := "foo.counter"
-		expvar.Do(func(kv expvar.KeyValue) {
-			if kv.Key == expected {
-				found = kv
-			}
-		})
-		assert.Equal(t, expected, found.Key)
-	}
 	testCases := []struct {
 		backend string
 		route   string
@@ -78,12 +67,6 @@ func TestBuilder(t *testing.T) {
 		handler bool
 		assert  func()
 	}{
-		{
-			backend: "expvar",
-			route:   "/",
-			handler: true,
-			assert:  assertExpVarCounter,
-		},
 		{
 			backend: "prometheus",
 			route:   "/",

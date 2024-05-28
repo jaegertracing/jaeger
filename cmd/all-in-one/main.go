@@ -97,7 +97,7 @@ by default uses only in-memory database.`,
 			}
 			logger := svc.Logger // shortcut
 			baseFactory := fork.New("internal",
-				expvar.NewFactory(10), // backend for internal opts
+				expvar.NewFactory(), // expvar backend to report settings
 				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
 			version.NewInfoMetrics(baseFactory)
 			agentMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent"})
