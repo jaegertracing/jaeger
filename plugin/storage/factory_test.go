@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -414,8 +413,6 @@ func TestPublishOpts(t *testing.T) {
 	baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
 	forkFactory.Stop()
-	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
-	f.metricsFactory = metricsFactory
 
 	// This method is called inside factory.Initialize method
 	f.publishOpts()

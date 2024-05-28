@@ -27,7 +27,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -158,11 +157,8 @@ func TestCollector_PublishOpts(t *testing.T) {
 	// prepare
 	hc := healthcheck.New()
 	logger := zap.NewNop()
-	baseMetrics := metricstest.NewFactory(time.Second)
-	defer baseMetrics.Backend.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
 	defer forkFactory.Backend.Stop()
-	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 	tm := &tenancy.Manager{}
@@ -170,7 +166,7 @@ func TestCollector_PublishOpts(t *testing.T) {
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
 		Logger:         logger,
-		MetricsFactory: metricsFactory,
+		MetricsFactory: forkFactory,
 		SpanWriter:     spanWriter,
 		StrategyStore:  strategyStore,
 		HealthCheck:    hc,

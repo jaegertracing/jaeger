@@ -17,6 +17,7 @@ package storage
 
 import (
 	"errors"
+	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -339,9 +340,7 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: downsamplingRatio}).
-		Update(int64(f.FactoryConfig.DownsamplingRatio))
-	internalFactory.Gauge(metrics.Options{Name: spanStorageType + "-" + f.SpanReaderType}).
-		Update(1)
+	v := expvar.NewInt("jaeger_storage_max_traces")
+	v.Set(int64(f.FactoryConfig.DownsamplingRatio))
+	v.Set(1)
 }

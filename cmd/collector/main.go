@@ -33,8 +33,6 @@ import (
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -73,10 +71,6 @@ func main() {
 			}
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := fork.New("internal",
-				expvar.NewFactory(), // expvar backend to report settings
-				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
-			version.NewInfoMetrics(metricsFactory)
 
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
@@ -93,7 +87,7 @@ func main() {
 			}
 
 			strategyStoreFactory.InitFromViper(v, logger)
-			if err := strategyStoreFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
+			if err := strategyStoreFactory.Initialize(baseFactory, ssFactory, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
 			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
@@ -109,7 +103,7 @@ func main() {
 			collector := app.New(&app.CollectorParams{
 				ServiceName:    serviceName,
 				Logger:         logger,
-				MetricsFactory: metricsFactory,
+				MetricsFactory: baseFactory,
 				SpanWriter:     spanWriter,
 				StrategyStore:  strategyStore,
 				Aggregator:     aggregator,

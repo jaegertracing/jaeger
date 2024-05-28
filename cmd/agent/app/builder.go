@@ -17,6 +17,7 @@ package app
 
 import (
 	"context"
+	"expvar"
 	"fmt"
 	"io"
 	"net/http"
@@ -111,7 +112,7 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, logger)
-	b.publishOpts(mFactory)
+	b.publishOpts()
 
 	return NewAgent(processors, server, logger), nil
 }
@@ -128,16 +129,12 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 	return reporter.NewMultiReporter(rep...)
 }
 
-func (b *Builder) publishOpts(mFactory metrics.Factory) {
-	internalFactory := mFactory.Namespace(metrics.NSOptions{Name: "internal"})
+func (b *Builder) publishOpts() {
+	v := expvar.NewInt("jaeger_agent_max_traces")
 	for _, p := range b.Processors {
-		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
-		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerMaxPacketSize}).
-			Update(int64(p.Server.MaxPacketSize))
-		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerQueueSize}).
-			Update(int64(p.Server.QueueSize))
-		internalFactory.Gauge(metrics.Options{Name: prefix + suffixWorkers}).
-			Update(int64(p.Workers))
+		v.Set(int64(p.Server.MaxPacketSize))
+		v.Set(int64(p.Server.QueueSize))
+		v.Set((int64(p.Workers)))
 	}
 }
 

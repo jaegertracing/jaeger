@@ -16,6 +16,7 @@
 package memory
 
 import (
+	"expvar"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -124,7 +125,6 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 func (f *Factory) publishOpts() {
-	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: limit}).
-		Update(int64(f.options.Configuration.MaxTraces))
+	v := expvar.NewInt("jaeger_storage_memory_max_traces")
+	v.Set(int64(f.options.Configuration.MaxTraces))
 }

@@ -31,8 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -61,10 +59,7 @@ func main() {
 			baseFactory := svc.MetricsFactory.
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
-			mFactory := fork.New("internal",
-				expvar.NewFactory(), // expvar backend to report settings
-				baseFactory)
-			version.NewInfoMetrics(mFactory)
+			version.NewInfoMetrics(baseFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
@@ -79,7 +74,7 @@ func main() {
 			cp, err := app.CreateCollectorProxy(ctx, app.ProxyBuilderOptions{
 				Options: *rOpts,
 				Logger:  logger,
-				Metrics: mFactory,
+				Metrics: baseFactory,
 			}, builders)
 			if err != nil {
 				logger.Fatal("Failed to create collector proxy", zap.Error(err))
@@ -88,7 +83,7 @@ func main() {
 			// TODO illustrate discovery service wiring
 
 			builder := new(app.Builder).InitFromViper(v)
-			agent, err := builder.CreateAgent(cp, logger, mFactory)
+			agent, err := builder.CreateAgent(cp, logger, baseFactory)
 			if err != nil {
 				return fmt.Errorf("failed to initialize Jaeger Agent: %w", err)
 			}

@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	memCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
@@ -80,8 +79,7 @@ func TestPublishOpts(t *testing.T) {
 	defer baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
 	defer forkFactory.Stop()
-	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
-	require.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(forkFactory, zap.NewNop()))
 
 	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "internal." + limit,

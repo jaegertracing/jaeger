@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -310,8 +309,7 @@ func TestPublishOpts(t *testing.T) {
 	defer baseMetrics.Stop()
 	forkFactory := metricstest.NewFactory(time.Second)
 	defer forkFactory.Stop()
-	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), forkFactory)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
 	require.NoError(t, agent.Run())
