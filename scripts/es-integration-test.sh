@@ -19,24 +19,19 @@ check_arg() {
 }
 
 setup_es() {
-  local tag=$1
-  local major_version=${tag%%.*}
-  local compose_file
-  compose_file="docker-compose/elasticsearch/v${major_version}.yml"
+  local compose_file=$1
   docker compose -f "${compose_file}" up -d
   local cid 
-  cid=$(docker compose -f ./docker-compose/elasticsearch/v"${major_version}".yml ps -q elasticsearch)
+  cid=$(docker compose -f "${compose_file}" ps -q elasticsearch)
   echo "cid=${cid}" >> "$GITHUB_OUTPUT"
 }
 
 setup_opensearch() {
-  local tag=$1
-  local major_version=${tag%%.*}
-  local compose_file
+  local compose_file=$1
   compose_file="docker-compose/opensearch/v${major_version}.yml"
   docker compose -f "${compose_file}" up -d
   local cid 
-  cid=$(docker compose -f ./docker-compose/opensearch/v"${major_version}".yml ps -q opensearch)
+  cid=$(docker compose -f "${compose_file}" ps -q opensearch)
   echo "cid=${cid}" >> "$GITHUB_OUTPUT"
 }
 
@@ -82,9 +77,9 @@ bring_up_storage() {
   do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ]; then
-      setup_es "${version}"
+      setup_es "${compose_file}"
     elif [ "${distro}" == "opensearch" ]; then
-      setup_opensearch "${version}"
+      setup_opensearch "${compose_file}"
     else
       echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
       usage
