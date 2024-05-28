@@ -74,7 +74,7 @@ func main() {
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := fork.New("internal",
-				expvar.NewFactory(10), // backend for internal opts
+				expvar.NewFactory(), // expvar backend to report settings
 				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
 			version.NewInfoMetrics(metricsFactory)
 
