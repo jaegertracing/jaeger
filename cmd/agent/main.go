@@ -56,10 +56,10 @@ func main() {
 			}
 			logger := svc.Logger // shortcut
 
-			baseFactory := svc.MetricsFactory.
+			mFactory := svc.MetricsFactory.
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
-			version.NewInfoMetrics(baseFactory)
+			version.NewInfoMetrics(mFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
@@ -74,7 +74,7 @@ func main() {
 			cp, err := app.CreateCollectorProxy(ctx, app.ProxyBuilderOptions{
 				Options: *rOpts,
 				Logger:  logger,
-				Metrics: baseFactory,
+				Metrics: mFactory,
 			}, builders)
 			if err != nil {
 				logger.Fatal("Failed to create collector proxy", zap.Error(err))
@@ -83,7 +83,7 @@ func main() {
 			// TODO illustrate discovery service wiring
 
 			builder := new(app.Builder).InitFromViper(v)
-			agent, err := builder.CreateAgent(cp, logger, baseFactory)
+			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
 				return fmt.Errorf("failed to initialize Jaeger Agent: %w", err)
 			}

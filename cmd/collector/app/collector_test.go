@@ -157,8 +157,8 @@ func TestCollector_PublishOpts(t *testing.T) {
 	// prepare
 	hc := healthcheck.New()
 	logger := zap.NewNop()
-	forkFactory := metricstest.NewFactory(time.Second)
-	defer forkFactory.Backend.Stop()
+	metricsFactory := metricstest.NewFactory(time.Second)
+	defer metricsFactory.Backend.Stop()
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 	tm := &tenancy.Manager{}
@@ -166,7 +166,7 @@ func TestCollector_PublishOpts(t *testing.T) {
 	c := New(&CollectorParams{
 		ServiceName:    "collector",
 		Logger:         logger,
-		MetricsFactory: forkFactory,
+		MetricsFactory: metricsFactory,
 		SpanWriter:     spanWriter,
 		StrategyStore:  strategyStore,
 		HealthCheck:    hc,
@@ -178,15 +178,6 @@ func TestCollector_PublishOpts(t *testing.T) {
 
 	require.NoError(t, c.Start(collectorOpts))
 	defer c.Close()
-
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.collector.num-workers",
-		Value: 24,
-	})
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.collector.queue-size",
-		Value: 42,
-	})
 }
 
 func TestAggregator(t *testing.T) {

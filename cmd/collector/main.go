@@ -70,10 +70,10 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			metricsFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()
@@ -87,7 +87,7 @@ func main() {
 			}
 
 			strategyStoreFactory.InitFromViper(v, logger)
-			if err := strategyStoreFactory.Initialize(baseFactory, ssFactory, logger); err != nil {
+			if err := strategyStoreFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
 				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 			}
 			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
@@ -103,7 +103,7 @@ func main() {
 			collector := app.New(&app.CollectorParams{
 				ServiceName:    serviceName,
 				Logger:         logger,
-				MetricsFactory: baseFactory,
+				MetricsFactory: metricsFactory,
 				SpanWriter:     spanWriter,
 				StrategyStore:  strategyStore,
 				Aggregator:     aggregator,

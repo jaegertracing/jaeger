@@ -340,7 +340,8 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	v := expvar.NewInt("jaeger_storage_max_traces")
+	v := expvar.NewInt(downsamplingRatio)
 	v.Set(int64(f.FactoryConfig.DownsamplingRatio))
-	v.Set(1)
+	p := expvar.NewInt(spanStorageType + "-" + f.SpanReaderType)
+	p.Set(1)
 }

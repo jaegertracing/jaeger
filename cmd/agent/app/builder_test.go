@@ -18,7 +18,9 @@ package app
 import (
 	"context"
 	"errors"
+	"expvar"
 	"flag"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -307,24 +309,24 @@ func TestPublishOpts(t *testing.T) {
 
 	baseMetrics := metricstest.NewFactory(time.Second)
 	defer baseMetrics.Stop()
-	forkFactory := metricstest.NewFactory(time.Second)
-	defer forkFactory.Stop()
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), forkFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), baseMetrics)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
 	require.NoError(t, agent.Run())
 	defer agent.Stop()
 
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.processor.jaeger-binary.server-max-packet-size",
-		Value: 4242,
-	})
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.processor.jaeger-binary.server-queue-size",
-		Value: 24,
-	})
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.processor.jaeger-binary.workers",
-		Value: 42,
-	})
+
+	p := cfg.Processors[2]
+		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
+		if got := expvar.Get(prefix + suffixServerMaxPacketSize).(*expvar.Int).Value(); got != 4242 {
+			t.Errorf(`expected %d, but got %d for %s`, 4242 , got, fmt.Sprintf(prefix + suffixServerMaxPacketSize))
+		}
+
+		if got := expvar.Get(prefix + suffixServerQueueSize).(*expvar.Int).Value(); got != 24 {
+			t.Errorf(`expected %d, but got %d for %s`, 24 , got, fmt.Sprintf(prefix + suffixServerMaxPacketSize))
+		}
+
+		if got := expvar.Get(prefix + suffixWorkers).(*expvar.Int).Value(); got != 42 {
+			t.Errorf(`expected %d, but got %d for %s`, 42 , got, fmt.Sprintf(prefix + suffixServerMaxPacketSize))
+		}
 }

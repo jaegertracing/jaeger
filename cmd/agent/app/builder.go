@@ -130,10 +130,13 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 }
 
 func (b *Builder) publishOpts() {
-	v := expvar.NewInt("jaeger_agent_max_traces")
 	for _, p := range b.Processors {
+		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
+		v := expvar.NewInt(prefix + suffixServerMaxPacketSize)
 		v.Set(int64(p.Server.MaxPacketSize))
+		v = expvar.NewInt(prefix + suffixServerQueueSize)
 		v.Set(int64(p.Server.QueueSize))
+		v = expvar.NewInt(prefix + suffixWorkers)
 		v.Set((int64(p.Workers)))
 	}
 }

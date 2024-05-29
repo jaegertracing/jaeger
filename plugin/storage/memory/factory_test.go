@@ -16,6 +16,7 @@
 package memory
 
 import (
+	"expvar"
 	"testing"
 	"time"
 
@@ -75,14 +76,11 @@ func TestPublishOpts(t *testing.T) {
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
 
-	baseMetrics := metricstest.NewFactory(time.Second)
-	defer baseMetrics.Stop()
-	forkFactory := metricstest.NewFactory(time.Second)
-	defer forkFactory.Stop()
-	require.NoError(t, f.Initialize(forkFactory, zap.NewNop()))
+	metricsFactory := metricstest.NewFactory(time.Second)
+	defer metricsFactory.Stop()
+	require.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
 
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal." + limit,
-		Value: f.options.Configuration.MaxTraces,
-	})
+	if got := expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value(); got != 100 {
+		t.Errorf("expected %d, but got %d for jaeger_storage_memory_max_traces", 100, got)
+	}
 }
