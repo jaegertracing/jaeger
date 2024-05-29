@@ -414,7 +414,7 @@ func TestPublishOpts(t *testing.T) {
 	}
 
 	if got := expvar.Get(spanStorageType + "-" + f.SpanReaderType).(*expvar.Int).Value(); got != int64(1) {
-		t.Errorf("expected %d, but got %d for %s", 1, got, fmt.Sprintf(spanStorageType))
+		t.Errorf("expected %d, but got %d for %s", 1, got, spanStorageType+"-"+f.SpanReaderType)
 	}
 }
 
