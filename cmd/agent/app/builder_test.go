@@ -315,18 +315,17 @@ func TestPublishOpts(t *testing.T) {
 	require.NoError(t, agent.Run())
 	defer agent.Stop()
 
-
 	p := cfg.Processors[2]
-		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
-		if got := expvar.Get(prefix + suffixServerMaxPacketSize).(*expvar.Int).Value(); got != 4242 {
-			t.Errorf(`expected %d, but got %d for %s`, 4242 , got, fmt.Sprintf(prefix + suffixServerMaxPacketSize))
-		}
+	prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
+	if got := expvar.Get(prefix + suffixServerMaxPacketSize).(*expvar.Int).Value(); got != 4242 {
+		t.Errorf(`expected %d, but got %d for %s`, 4242, got, fmt.Sprintf(prefix+suffixServerMaxPacketSize))
+	}
 
-		if got := expvar.Get(prefix + suffixServerQueueSize).(*expvar.Int).Value(); got != 24 {
-			t.Errorf(`expected %d, but got %d for %s`, 24 , got, fmt.Sprintf(prefix + suffixServerMaxPacketSize))
-		}
+	if got := expvar.Get(prefix + suffixServerQueueSize).(*expvar.Int).Value(); got != 24 {
+		t.Errorf(`expected %d, but got %d for %s`, 24, got, fmt.Sprintf(prefix+suffixServerMaxPacketSize))
+	}
 
-		if got := expvar.Get(prefix + suffixWorkers).(*expvar.Int).Value(); got != 42 {
-			t.Errorf(`expected %d, but got %d for %s`, 42 , got, fmt.Sprintf(prefix + suffixServerMaxPacketSize))
-		}
+	if got := expvar.Get(prefix + suffixWorkers).(*expvar.Int).Value(); got != 42 {
+		t.Errorf(`expected %d, but got %d for %s`, 42, got, fmt.Sprintf(prefix+suffixServerMaxPacketSize))
+	}
 }

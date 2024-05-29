@@ -410,11 +410,11 @@ func TestPublishOpts(t *testing.T) {
 	f.publishOpts()
 
 	if got := expvar.Get(downsamplingRatio).(*expvar.Int).Value(); got != 1 {
-		t.Errorf("expected %d, but got %d for %s", 1 , got, downsamplingRatio)
+		t.Errorf("expected %d, but got %d for %s", 1, got, downsamplingRatio)
 	}
 
 	if got := expvar.Get(spanStorageType + "-" + f.SpanReaderType).(*expvar.Int).Value(); got != int64(1) {
-		t.Errorf("expected %d, but got %d for %s", 1 , got, fmt.Sprintf(spanStorageType))
+		t.Errorf("expected %d, but got %d for %s", 1, got, fmt.Sprintf(spanStorageType))
 	}
 }
 
