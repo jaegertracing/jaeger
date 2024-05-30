@@ -340,6 +340,6 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	safeexpvar.SetExpvarInt(downsamplingRatio, int64(f.FactoryConfig.DownsamplingRatio))
-	safeexpvar.SetExpvarInt(spanStorageType+"-"+f.FactoryConfig.SpanReaderType, 1)
+	safeexpvar.SetInt(downsamplingRatio, int64(f.FactoryConfig.DownsamplingRatio))
+	safeexpvar.SetInt(spanStorageType+"-"+f.FactoryConfig.SpanReaderType, 1)
 }

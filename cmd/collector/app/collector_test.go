@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"expvar"
 	"io"
 	"sync/atomic"
 	"testing"
@@ -178,15 +179,9 @@ func TestCollector_PublishOpts(t *testing.T) {
 
 	require.NoError(t, c.Start(collectorOpts))
 	defer c.Close()
-
-	metricsFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.collector.num-workers",
-		Value: 24,
-	})
-	metricsFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.collector.queue-size",
-		Value: 42,
-	})
+	c.publishOpts(collectorOpts)
+	assert.EqualValues(t, 24, expvar.Get(metricNumWorkers).(*expvar.Int).Value())
+	assert.EqualValues(t, 42, expvar.Get(metricQueueSize).(*expvar.Int).Value())
 }
 
 func TestAggregator(t *testing.T) {

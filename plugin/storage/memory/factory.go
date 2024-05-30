@@ -125,5 +125,5 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 func (f *Factory) publishOpts() {
-	safeexpvar.SetExpvarInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
+	safeexpvar.SetInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
 }

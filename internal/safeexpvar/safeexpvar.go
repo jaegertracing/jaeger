@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ import (
 	"expvar"
 )
 
-func SetExpvarInt(name string, value int64) {
+func SetInt(name string, value int64) {
 	v := expvar.Get(name)
 	if v == nil {
 		v = expvar.NewInt(name)
