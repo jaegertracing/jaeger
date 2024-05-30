@@ -19,7 +19,7 @@ function stage-platform-files {
 # stage-tool-platform-files stages the different tool files in the platform ($1) into the package
 # staging dir ($2). If you pass in a file extension ($3) it will be used when
 # copying on the source
-function stage-tool-platform-files{
+function stage-tool-platform-files {
     local -r PLATFORM=$1
     local -r TOOLS_PACKAGE_STAGING_DIR=$2
     local -r FILE_EXTENSION=${3:-}
