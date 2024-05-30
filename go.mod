@@ -82,6 +82,11 @@ require (
 )
 
 require (
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/tools v0.21.0 // indirect
+)
+
+require (
 	github.com/IBM/sarama v1.43.2 // indirect
 	github.com/aws/aws-sdk-go v1.53.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

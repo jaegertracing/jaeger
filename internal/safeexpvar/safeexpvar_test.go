@@ -4,8 +4,9 @@ import (
 	"expvar"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestSetInt(t *testing.T) {
