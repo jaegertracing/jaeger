@@ -79,8 +79,5 @@ func TestPublishOpts(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
 	require.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
-
-	if got := expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value(); got != 100 {
-		t.Errorf("expected %d, but got %d for jaeger_storage_memory_max_traces", 100, got)
-	}
+	assert.EqualValues(t, 100, expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value())
 }

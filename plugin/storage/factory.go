@@ -17,7 +17,6 @@ package storage
 
 import (
 	"errors"
-	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +24,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
@@ -340,8 +340,6 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	v := expvar.NewInt(downsamplingRatio)
-	v.Set(int64(f.FactoryConfig.DownsamplingRatio))
-	p := expvar.NewInt(spanStorageType + "-" + f.SpanReaderType)
-	p.Set(1)
+	safeexpvar.SetExpvarInt(downsamplingRatio, int64(f.FactoryConfig.DownsamplingRatio))
+	safeexpvar.SetExpvarInt(spanStorageType+"-"+f.FactoryConfig.SpanReaderType, 1)
 }

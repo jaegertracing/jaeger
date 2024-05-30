@@ -409,13 +409,8 @@ func TestPublishOpts(t *testing.T) {
 	require.NoError(t, err)
 	f.publishOpts()
 
-	if got := expvar.Get(downsamplingRatio).(*expvar.Int).Value(); got != 1 {
-		t.Errorf("expected %d, but got %d for %s", 1, got, downsamplingRatio)
-	}
-
-	if got := expvar.Get(spanStorageType + "-" + f.SpanReaderType).(*expvar.Int).Value(); got != int64(1) {
-		t.Errorf("expected %d, but got %d for %s", 1, got, spanStorageType+"-"+f.SpanReaderType)
-	}
+	assert.EqualValues(t, 1, expvar.Get(downsamplingRatio).(*expvar.Int).Value())
+	assert.EqualValues(t, 1, expvar.Get(spanStorageType+"-"+f.SpanReaderType).(*expvar.Int).Value())
 }
 
 type errorFactory struct {

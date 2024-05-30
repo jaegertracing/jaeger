@@ -17,7 +17,6 @@ package app
 
 import (
 	"context"
-	"expvar"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
@@ -132,12 +132,15 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 func (b *Builder) publishOpts() {
 	for _, p := range b.Processors {
 		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
-		v := expvar.NewInt(prefix + suffixServerMaxPacketSize)
-		v.Set(int64(p.Server.MaxPacketSize))
-		v = expvar.NewInt(prefix + suffixServerQueueSize)
-		v.Set(int64(p.Server.QueueSize))
-		v = expvar.NewInt(prefix + suffixWorkers)
-		v.Set((int64(p.Workers)))
+		safeexpvar.SetExpvarInt(prefix+suffixServerMaxPacketSize, int64(p.Server.MaxPacketSize))
+		// v := expvar.NewInt(prefix + suffixServerMaxPacketSize)
+		// v.Set(int64(p.Server.MaxPacketSize))
+		safeexpvar.SetExpvarInt(prefix+suffixServerQueueSize, int64(p.Server.QueueSize))
+		// v = expvar.NewInt(prefix + suffixServerQueueSize)
+		// v.Set(int64(p.Server.QueueSize))
+		safeexpvar.SetExpvarInt(prefix+suffixWorkers, int64(p.Workers))
+		// v = expvar.NewInt(prefix + suffixWorkers)
+		// v.Set((int64(p.Workers)))
 	}
 }
 

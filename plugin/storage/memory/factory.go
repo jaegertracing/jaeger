@@ -16,12 +16,12 @@
 package memory
 
 import (
-	"expvar"
 	"flag"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -125,6 +125,5 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 func (f *Factory) publishOpts() {
-	v := expvar.NewInt("jaeger_storage_memory_max_traces")
-	v.Set(int64(f.options.Configuration.MaxTraces))
+	safeexpvar.SetExpvarInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
 }

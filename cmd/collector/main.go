@@ -70,10 +70,12 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			metricsFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
+			version.NewInfoMetrics(metricsFactory)
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()
