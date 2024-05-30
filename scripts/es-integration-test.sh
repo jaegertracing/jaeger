@@ -10,14 +10,14 @@ usage() {
   echo $"Usage: $0 <elasticsearch|opensearch> <version>"
   exit 1
 }
-
+#check if the number of arguments is correct
 check_arg() {
   if [ ! $# -eq 3 ]; then
-    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
+    echo "ERROR: need exactly three arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
     usage
   fi
 }
-
+#start the elasticsearch/opensearch container
 setup_db() {
   local distro=$1
   local compose_file=$2
@@ -26,7 +26,7 @@ setup_db() {
   cid=$(docker compose -f "${compose_file}" ps -q "${distro}")
   echo "cid=${cid}" >> "$GITHUB_OUTPUT"
 }
-
+#check if the storage is up and running
 wait_for_storage() {
   local distro=$1
   local url=$2
@@ -89,7 +89,7 @@ bring_up_storage() {
     exit 1
   fi
 }
-
+#terminate the elasticsearch/opensearch container
 teardown_storage() {
   local compose_file=$1
   docker compose -f "${compose_file}" down
@@ -102,7 +102,7 @@ main() {
   local j_version=$2
 
   bring_up_storage "${distro}" "${es_version}"
-
+  # continues with integration tests
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   else
