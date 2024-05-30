@@ -18,13 +18,11 @@ package memory
 import (
 	"expvar"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	memCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -76,8 +74,7 @@ func TestPublishOpts(t *testing.T) {
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
 
-	metricsFactory := metricstest.NewFactory(time.Second)
-	defer metricsFactory.Stop()
+	metricsFactory := metrics.NullFactory
 	require.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
 	assert.EqualValues(t, 100, expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value())
 }
