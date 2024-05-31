@@ -34,7 +34,7 @@ jobs:
       run: bash scripts/kafka-integration-test.sh -k
 
     - name: Output Kafka logs
-      run: docker-compose -f docker-compose/kafka-integration-test/v3.yml  logs kafka
+      run: docker compose -f docker-compose/kafka-integration-test/v3.yml  logs kafka
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov
