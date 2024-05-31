@@ -3,11 +3,11 @@
 set -e
 
 export STORAGE=kafka
-compose_file="docker compose -f docker-compose/kafka-integration-test/v3.yml"
+compose_file="docker-compose/kafka-integration-test/v3.yml"
 # Check if the -k parameter is provided or not
 if [ "$1" == "-k" ]; then
     echo "Starting Kafka using Docker Compose..."
-    $compose_file up -d kafka
+    docker compose -f $compose_file up -d kafka
 fi
 
 # Set the timeout in seconds
@@ -17,7 +17,7 @@ interval=5
 
 # Function to check if Kafka is ready
 is_kafka_ready() {
-    $compose_file exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 >/dev/null 2>&1
+    docker compose -f $compose_file exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 >/dev/null 2>&1
 }
 
 # Calculate the end time
