@@ -19,6 +19,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -34,6 +35,7 @@ type Agent struct {
 	httpServer *http.Server
 	httpAddr   atomic.Value // string, set once agent starts listening
 	logger     *zap.Logger
+	exitWG     sync.WaitGroup
 }
 
 // NewAgent creates the new Agent.
@@ -65,12 +67,14 @@ func (a *Agent) Run() error {
 		return err
 	}
 	a.httpAddr.Store(listener.Addr().String())
+	a.exitWG.Add(1)
 	go func() {
 		a.logger.Info("Starting jaeger-agent HTTP server", zap.Int("http-port", listener.Addr().(*net.TCPAddr).Port))
 		if err := a.httpServer.Serve(listener); err != http.ErrServerClosed {
 			a.logger.Error("http server failure", zap.Error(err))
 		}
 		a.logger.Info("agent's http server exiting")
+		a.exitWG.Done()
 	}()
 	for _, processor := range a.processors {
 		go processor.Serve()
@@ -97,4 +101,5 @@ func (a *Agent) Stop() {
 	for _, processor := range a.processors {
 		processor.Stop()
 	}
+	a.exitWG.Wait()
 }
