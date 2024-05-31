@@ -73,8 +73,7 @@ func TestPublishOpts(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
-
-	metricsFactory := metrics.NullFactory
-	require.NoError(t, f.Initialize(metricsFactory, zap.NewNop()))
+	
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.EqualValues(t, 100, expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value())
 }
