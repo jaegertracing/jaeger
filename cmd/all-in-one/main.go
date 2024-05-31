@@ -40,8 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -96,9 +94,7 @@ by default uses only in-memory database.`,
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := fork.New("internal",
-				expvar.NewFactory(), // expvar backend to report settings
-				svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"}))
+			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			version.NewInfoMetrics(baseFactory)
 			agentMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent"})
 			collectorMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})

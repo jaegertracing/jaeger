@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -124,7 +125,5 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 func (f *Factory) publishOpts() {
-	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: limit}).
-		Update(int64(f.options.Configuration.MaxTraces))
+	safeexpvar.SetInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
 }
