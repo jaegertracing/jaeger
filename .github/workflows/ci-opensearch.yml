@@ -22,13 +22,13 @@ jobs:
       fail-fast: false
       matrix:
         version:
-        - major: 1.x
+        - major: 1
           distribution: opensearch
           jaeger: v1
-        - major: 2.x
+        - major: 2
           distribution: opensearch
           jaeger: v1
-        - major: 2.x
+        - major: 2
           distribution: opensearch
           jaeger: v2
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
@@ -61,7 +61,7 @@ jobs:
 
 
     - name: Output ${{ matrix.version.distribution }} logs
-      run: docker logs ${{ steps.test-execution.outputs.cid }}
+      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov

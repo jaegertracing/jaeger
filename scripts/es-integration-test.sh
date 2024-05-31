@@ -13,20 +13,19 @@ usage() {
 
 check_arg() {
   if [ ! $# -eq 3 ]; then
-    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
+    echo "ERROR: need exactly three arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
     usage
   fi
 }
 
+# start the elasticsearch/opensearch container
 setup_db() {
-  local distro=$1
-  local compose_file=$2
+  local compose_file=$1
   docker compose -f "${compose_file}" up -d
-  local cid 
-  cid=$(docker compose -f "${compose_file}" ps -q "${distro}")
-  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
+  echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
+# check if the storage is up and running
 wait_for_storage() {
   local distro=$1
   local url=$2
@@ -47,6 +46,7 @@ wait_for_storage() {
     sleep 10
   done
 
+  # if after all the attempts the storage is not accessible, terminate it and exit
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
     echo "::group::${distro} logs"
@@ -71,7 +71,7 @@ bring_up_storage() {
   do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ] || [ "${distro}" = "opensearch" ]; then
-        setup_db "${distro}" "${compose_file}"
+        setup_db "${compose_file}"
     else
       echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
       usage
@@ -82,7 +82,7 @@ bring_up_storage() {
     fi
   done
   if [ ${db_is_up} = "1" ]; then
-  # shellcheck disable=SC2064
+    # shellcheck disable=SC2064
     trap "teardown_storage ${compose_file}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
@@ -90,6 +90,7 @@ bring_up_storage() {
   fi
 }
 
+# terminate the elasticsearch/opensearch container
 teardown_storage() {
   local compose_file=$1
   docker compose -f "${compose_file}" down
