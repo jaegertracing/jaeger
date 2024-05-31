@@ -10,20 +10,23 @@ usage() {
   echo $"Usage: $0 <elasticsearch|opensearch> <version>"
   exit 1
 }
-#check if the number of arguments is correct
+
+# check if the number of arguments is correct
 check_arg() {
   if [ ! $# -eq 3 ]; then
     echo "ERROR: need exactly three arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
     usage
   fi
 }
-#start the elasticsearch/opensearch container
+
+# start the elasticsearch/opensearch container
 setup_db() {
   local compose_file=$1
   docker compose -f "${compose_file}" up -d
   echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
-#check if the storage is up and running
+
+# check if the storage is up and running
 wait_for_storage() {
   local distro=$1
   local url=$2
@@ -43,7 +46,8 @@ wait_for_storage() {
     echo "Attempt: ${attempt} ${distro} is not yet available at ${url}..."
     sleep 10
   done
-  #if after all the attempts if the storage is not up and running terminate it and exit
+
+  # if after all the attempts if the storage is not up and running terminate it and exit
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
     echo "::group::${distro} logs"
@@ -86,7 +90,8 @@ bring_up_storage() {
     exit 1
   fi
 }
-#terminate the elasticsearch/opensearch container
+
+# terminate the elasticsearch/opensearch container
 teardown_storage() {
   local compose_file=$1
   docker compose -f "${compose_file}" down
@@ -99,7 +104,7 @@ main() {
   local j_version=$2
 
   bring_up_storage "${distro}" "${es_version}"
-  # continues with integration tests
+
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   else

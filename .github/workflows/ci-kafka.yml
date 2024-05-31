@@ -31,10 +31,11 @@ jobs:
         go-version: 1.22.x
 
     - name: Run kafka integration tests
+      id: test-execution
       run: bash scripts/kafka-integration-test.sh -k
 
-    - name: Output Kafka logs
-      run: docker compose -f docker-compose/kafka-integration-test/v3.yml  logs kafka
+    - name: Output Kafka logs on failure
+      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov
