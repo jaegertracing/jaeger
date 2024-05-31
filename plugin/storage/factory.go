@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
@@ -339,9 +340,6 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: downsamplingRatio}).
-		Update(int64(f.FactoryConfig.DownsamplingRatio))
-	internalFactory.Gauge(metrics.Options{Name: spanStorageType + "-" + f.SpanReaderType}).
-		Update(1)
+	safeexpvar.SetInt(downsamplingRatio, int64(f.FactoryConfig.DownsamplingRatio))
+	safeexpvar.SetInt(spanStorageType+"-"+f.FactoryConfig.SpanReaderType, 1)
 }

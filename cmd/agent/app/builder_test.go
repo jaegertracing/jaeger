@@ -18,7 +18,9 @@ package app
 import (
 	"context"
 	"errors"
+	"expvar"
 	"flag"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +35,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -308,25 +309,15 @@ func TestPublishOpts(t *testing.T) {
 
 	baseMetrics := metricstest.NewFactory(time.Second)
 	defer baseMetrics.Stop()
-	forkFactory := metricstest.NewFactory(time.Second)
-	defer forkFactory.Stop()
-	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), baseMetrics)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
 	require.NoError(t, agent.Run())
 	defer agent.Stop()
 
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.processor.jaeger-binary.server-max-packet-size",
-		Value: 4242,
-	})
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.processor.jaeger-binary.server-queue-size",
-		Value: 24,
-	})
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.processor.jaeger-binary.workers",
-		Value: 42,
-	})
+	p := cfg.Processors[2]
+	prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
+	assert.EqualValues(t, 4242, expvar.Get(prefix+suffixServerMaxPacketSize).(*expvar.Int).Value())
+	assert.EqualValues(t, 24, expvar.Get(prefix+suffixServerQueueSize).(*expvar.Int).Value())
+	assert.EqualValues(t, 42, expvar.Get(prefix+suffixWorkers).(*expvar.Int).Value())
 }
