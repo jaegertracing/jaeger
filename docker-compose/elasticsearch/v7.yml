@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
+    environment:
+      - discovery.type=single-node
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
+      - xpack.security.enabled=false  # Disable security features
+      - xpack.security.http.ssl.enabled=false  # Disable HTTPS
+      - xpack.monitoring.enabled=false  # Disable monitoring features
+    ports:
+      - "9200:9200"

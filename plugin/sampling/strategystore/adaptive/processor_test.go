@@ -85,14 +85,14 @@ func testCalculator() calculationstrategy.ProbabilityCalculator {
 }
 
 func TestAggregateThroughputInputsImmutability(t *testing.T) {
-	p := &Processor{}
+	p := &PostAggregator{}
 	in := testThroughputs()
 	_ = p.aggregateThroughput(in)
 	assert.Equal(t, in, testThroughputs())
 }
 
 func TestAggregateThroughput(t *testing.T) {
-	p := &Processor{}
+	p := &PostAggregator{}
 	aggregatedThroughput := p.aggregateThroughput(testThroughputs())
 	require.Len(t, aggregatedThroughput, 2)
 
@@ -128,7 +128,7 @@ func TestInitializeThroughput(t *testing.T) {
 		Return([]*model.Throughput{{Service: "svcA", Operation: "GET", Count: 7}}, nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*17), time.Time{}.Add(time.Minute*18)).
 		Return([]*model.Throughput{}, nil)
-	p := &Processor{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 3}}
+	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 3}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	require.Len(t, p.throughputs, 2)
@@ -144,7 +144,7 @@ func TestInitializeThroughputFailure(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
 		Return(nil, errTestStorage())
-	p := &Processor{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
+	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	assert.Empty(t, p.throughputs)
@@ -159,7 +159,7 @@ func TestCalculateQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS(t *testing.T) {
-	p := &Processor{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
+	p := &PostAggregator{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -207,7 +207,7 @@ func TestGenerateOperationQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
-	p := &Processor{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
+	p := &PostAggregator{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -241,7 +241,7 @@ func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
 }
 
 func TestCalculateWeightedQPS(t *testing.T) {
-	p := Processor{weightVectorCache: NewWeightVectorCache()}
+	p := PostAggregator{weightVectorCache: NewWeightVectorCache()}
 	assert.InDelta(t, 0.86735, p.calculateWeightedQPS([]float64{0.8, 1.2, 1.0}), 0.001)
 	assert.InDelta(t, 0.95197, p.calculateWeightedQPS([]float64{1.0, 1.0, 0.0, 0.0}), 0.001)
 	assert.Equal(t, 0.0, p.calculateWeightedQPS([]float64{}))
@@ -268,7 +268,7 @@ func TestCalculateProbability(t *testing.T) {
 		InitialSamplingProbability: 0.001,
 		MinSamplingProbability:     0.00001,
 	}
-	p := &Processor{
+	p := &PostAggregator{
 		Options:               cfg,
 		probabilities:         probabilities,
 		probabilityCalculator: testCalculator(),
@@ -308,7 +308,7 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 		},
 	}
 	mets := metricstest.NewFactory(0)
-	p := &Processor{
+	p := &PostAggregator{
 		Options: Options{
 			TargetSamplesPerSecond:     1.0,
 			DeltaTolerance:             0.2,
@@ -365,7 +365,7 @@ func TestRunCalculationLoop(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		agg.(*aggregator).Lock()
-		probabilities := agg.(*aggregator).processor.probabilities
+		probabilities := agg.(*aggregator).postAggregator.probabilities
 		agg.(*aggregator).Unlock()
 		if len(probabilities) != 0 {
 			break
@@ -373,7 +373,10 @@ func TestRunCalculationLoop(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	probabilities := agg.(*aggregator).processor.probabilities
+	postAgg := agg.(*aggregator).postAggregator
+	postAgg.Lock()
+	probabilities := postAgg.probabilities
+	postAgg.Unlock()
 	require.Len(t, probabilities["svcA"], 2)
 }
 
@@ -521,7 +524,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 }
 
 func TestPrependBucket(t *testing.T) {
-	p := &Processor{Options: Options{AggregationBuckets: 1}}
+	p := &PostAggregator{Options: Options{AggregationBuckets: 1}}
 	p.prependThroughputBucket(&throughputBucket{interval: time.Minute})
 	require.Len(t, p.throughputs, 1)
 	assert.Equal(t, time.Minute, p.throughputs[0].interval)
@@ -541,17 +544,17 @@ func TestConstructorFailure(t *testing.T) {
 		CalculationInterval:        time.Second * 5,
 		AggregationBuckets:         0,
 	}
-	_, err := newProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	_, err := newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
 	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = 0
-	_, err = newProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
 	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = time.Millisecond
 	cfg.AggregationBuckets = 1
 	cfg.BucketsForCalculation = -1
-	_, err = newProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
 	require.EqualError(t, err, "BucketsForCalculation cannot be less than 1")
 }
 
@@ -591,7 +594,7 @@ func TestGenerateStrategyResponses(t *testing.T) {
 }
 
 func TestUsingAdaptiveSampling(t *testing.T) {
-	p := &Processor{}
+	p := &PostAggregator{}
 	throughput := serviceOperationThroughput{
 		"svc": map[string]*model.Throughput{
 			"op": {Probabilities: map[string]struct{}{"0.010000": {}}},
@@ -617,7 +620,7 @@ func TestUsingAdaptiveSampling(t *testing.T) {
 }
 
 func TestPrependServiceCache(t *testing.T) {
-	p := &Processor{}
+	p := &PostAggregator{}
 	for i := 0; i < serviceCacheSize*2; i++ {
 		p.prependServiceCache()
 	}
@@ -640,7 +643,7 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 		},
 	}
 
-	p := &Processor{
+	p := &PostAggregator{
 		Options: Options{
 			TargetSamplesPerSecond:     1.0,
 			DeltaTolerance:             0.002,

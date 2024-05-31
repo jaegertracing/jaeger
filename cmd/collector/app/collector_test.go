@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,6 +46,26 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts.OTLP.HTTP.HostPort = ":0"
 	collectorOpts.Zipkin.HTTPHostPort = ":0"
 	return collectorOpts
+}
+
+type mockAggregator struct {
+	callCount  atomic.Int32
+	closeCount atomic.Int32
+}
+
+func (t *mockAggregator) RecordThroughput(service, operation string, samplerType model.SamplerType, probability float64) {
+	t.callCount.Add(1)
+}
+
+func (t *mockAggregator) HandleRootSpan(span *model.Span, logger *zap.Logger) {
+	t.callCount.Add(1)
+}
+
+func (t *mockAggregator) Start() {}
+
+func (t *mockAggregator) Close() error {
+	t.closeCount.Add(1)
+	return nil
 }
 
 func TestNewCollector(t *testing.T) {
