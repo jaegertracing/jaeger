@@ -17,7 +17,10 @@ interval=5
 
 # Function to check if Kafka is ready
 is_kafka_ready() {
-    docker compose -f $compose_file exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 >/dev/null 2>&1
+    docker compose -f $compose_file \
+    exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh \
+    --list --bootstrap-server localhost:9092 \
+    >/dev/null 2>&1
 }
 
 # Calculate the end time

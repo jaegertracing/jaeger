@@ -19,12 +19,8 @@ check_arg() {
 }
 #start the elasticsearch/opensearch container
 setup_db() {
-  local distro=$1
-  local compose_file=$2
+  local compose_file=$1
   docker compose -f "${compose_file}" up -d
-  local cid 
-  cid=$(docker compose -f "${compose_file}" ps -q "${distro}")
-  echo "cid=${cid}" >> "$GITHUB_OUTPUT"
 }
 #check if the storage is up and running
 wait_for_storage() {
@@ -71,7 +67,7 @@ bring_up_storage() {
   do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ] || [ "${distro}" = "opensearch" ]; then
-        setup_db "${distro}" "${compose_file}"
+        setup_db "${compose_file}"
     else
       echo "Unknown distribution $distro. Valid options are opensearch or elasticsearch"
       usage
