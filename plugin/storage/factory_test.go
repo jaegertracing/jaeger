@@ -17,21 +17,19 @@ package storage
 
 import (
 	"errors"
+	"expvar"
 	"flag"
 	"fmt"
 	"io"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
-	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
@@ -409,25 +407,10 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 func TestPublishOpts(t *testing.T) {
 	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
-
-	baseMetrics := metricstest.NewFactory(time.Second)
-	baseMetrics.Stop()
-	forkFactory := metricstest.NewFactory(time.Second)
-	forkFactory.Stop()
-	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
-	f.metricsFactory = metricsFactory
-
-	// This method is called inside factory.Initialize method
 	f.publishOpts()
 
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal." + downsamplingRatio,
-		Value: int(f.DownsamplingRatio),
-	})
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal." + spanStorageType + "-" + f.SpanReaderType,
-		Value: 1,
-	})
+	assert.EqualValues(t, 1, expvar.Get(downsamplingRatio).(*expvar.Int).Value())
+	assert.EqualValues(t, 1, expvar.Get(spanStorageType+"-"+f.SpanReaderType).(*expvar.Int).Value())
 }
 
 type errorFactory struct {
