@@ -61,7 +61,7 @@ jobs:
 
 
     - name: Output ${{ matrix.version.distribution }} logs
-      run: docker compose -f docker-compose/${{ matrix.version.distribution }}/v${{ matrix.version.major }}.yml logs 
+      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov
