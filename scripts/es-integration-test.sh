@@ -11,7 +11,6 @@ usage() {
   exit 1
 }
 
-# check if the number of arguments is correct
 check_arg() {
   if [ ! $# -eq 3 ]; then
     echo "ERROR: need exactly three arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
@@ -47,7 +46,7 @@ wait_for_storage() {
     sleep 10
   done
 
-  # if after all the attempts if the storage is not up and running terminate it and exit
+  # if after all the attempts the storage is not accessible, terminate it and exit
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
     echo "::group::${distro} logs"
@@ -83,7 +82,7 @@ bring_up_storage() {
     fi
   done
   if [ ${db_is_up} = "1" ]; then
-  # shellcheck disable=SC2064
+    # shellcheck disable=SC2064
     trap "teardown_storage ${compose_file}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
