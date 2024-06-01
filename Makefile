@@ -95,7 +95,7 @@ test-and-lint: test fmt lint
 
 .PHONY: echo-version
 echo-version:
-	@echo "GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG)"
+	@echo "$(GIT_CLOSEST_TAG)"
 
 .PHONY: echo-all-pkgs
 echo-all-pkgs:
