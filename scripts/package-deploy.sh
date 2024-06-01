@@ -9,12 +9,12 @@ function stage-platform-files {
     local -r PACKAGE_STAGING_DIR=$2
     local -r FILE_EXTENSION=${3:-}
 
-    cp "./cmd/all-in-one/all-in-one-${PLATFORM}"                    "${PACKAGE_STAGING_DIR}/jaeger-all-in-one${FILE_EXTENSION}"
-    cp "./cmd/agent/agent-${PLATFORM}"                              "${PACKAGE_STAGING_DIR}/jaeger-agent${FILE_EXTENSION}"
-    cp "./cmd/query/query-${PLATFORM}"                              "${PACKAGE_STAGING_DIR}/jaeger-query${FILE_EXTENSION}"
-    cp "./cmd/collector/collector-${PLATFORM}"                      "${PACKAGE_STAGING_DIR}/jaeger-collector${FILE_EXTENSION}"
-    cp "./cmd/ingester/ingester-${PLATFORM}"                        "${PACKAGE_STAGING_DIR}/jaeger-ingester${FILE_EXTENSION}"
-    cp "./examples/hotrod/hotrod-${PLATFORM}"                       "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
+    cp "./cmd/all-in-one/all-in-one-${PLATFORM}"  "${PACKAGE_STAGING_DIR}/jaeger-all-in-one${FILE_EXTENSION}"
+    cp "./cmd/agent/agent-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-agent${FILE_EXTENSION}"
+    cp "./cmd/query/query-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-query${FILE_EXTENSION}"
+    cp "./cmd/collector/collector-${PLATFORM}"    "${PACKAGE_STAGING_DIR}/jaeger-collector${FILE_EXTENSION}"
+    cp "./cmd/ingester/ingester-${PLATFORM}"      "${PACKAGE_STAGING_DIR}/jaeger-ingester${FILE_EXTENSION}"
+    cp "./examples/hotrod/hotrod-${PLATFORM}"     "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
 }
 # stage-tool-platform-files stages the different tool files in the platform ($1) into the package
 # staging dir ($2). If you pass in a file extension ($3) it will be used when
@@ -36,8 +36,8 @@ function package {
     local -r PLATFORM=$2
     local -r FILE_EXTENSION=${3:-}
     local -r PACKAGE_NAME=jaeger-$VERSION-$PLATFORM
-    local -r TOOLS_PACKAGE_NAME=jaeger-tools-$VERSION-$PLATFORM
     local -r PACKAGE_STAGING_DIR=$PACKAGE_NAME
+    local -r TOOLS_PACKAGE_NAME=jaeger-tools-$VERSION-$PLATFORM
     local -r TOOLS_PACKAGE_STAGING_DIR=$TOOLS_PACKAGE_NAME
 
     if [ -d "$PACKAGE_STAGING_DIR" ]
