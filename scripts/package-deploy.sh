@@ -16,6 +16,18 @@ function stage-platform-files {
     cp "./cmd/ingester/ingester-${PLATFORM}"      "${PACKAGE_STAGING_DIR}/jaeger-ingester${FILE_EXTENSION}"
     cp "./examples/hotrod/hotrod-${PLATFORM}"     "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
 }
+# stage-tool-platform-files stages the different tool files in the platform ($1) into the package
+# staging dir ($2). If you pass in a file extension ($3) it will be used when
+# copying on the source
+function stage-tool-platform-files {
+    local -r PLATFORM=$1
+    local -r TOOLS_PACKAGE_STAGING_DIR=$2
+    local -r FILE_EXTENSION=${3:-}
+
+    cp "./cmd/es-index-cleaner/es-index-cleaner-${PLATFORM}"        "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-index-cleaner${FILE_EXTENSION}"
+    cp "./cmd/es-rollover/es-rollover-${PLATFORM}"                  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-rollover${FILE_EXTENSION}"
+    cp "./cmd/esmapping-generator/esmapping-generator-${PLATFORM}"  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-esmapping-generator${FILE_EXTENSION}"
+}
 
 # package pulls built files for the platform ($2) and compresses it using the compression ($1).
 # If you pass in a file extension ($3) it will be look for binaries with that extension.
@@ -25,28 +37,44 @@ function package {
     local -r FILE_EXTENSION=${3:-}
     local -r PACKAGE_NAME=jaeger-$VERSION-$PLATFORM
     local -r PACKAGE_STAGING_DIR=$PACKAGE_NAME
+    local -r TOOLS_PACKAGE_NAME=jaeger-tools-$VERSION-$PLATFORM
+    local -r TOOLS_PACKAGE_STAGING_DIR=$TOOLS_PACKAGE_NAME
 
     if [ -d "$PACKAGE_STAGING_DIR" ]
     then
         rm -vrf "$PACKAGE_STAGING_DIR"
     fi
+    if [ -d "$TOOLS_PACKAGE_STAGING_DIR" ]
+    then
+        rm -vrf "$TOOLS_PACKAGE_STAGING_DIR"
+    fi
     mkdir "$PACKAGE_STAGING_DIR"
+    mkdir "$TOOLS_PACKAGE_STAGING_DIR"
     stage-platform-files "$PLATFORM" "$PACKAGE_STAGING_DIR" "$FILE_EXTENSION"
+    stage-tool-platform-files "$PLATFORM" "$TOOLS_PACKAGE_STAGING_DIR" "$FILE_EXTENSION"
     # Create a checksum file for all the files being packaged in the archive. Sorted by filename.
     find "$PACKAGE_STAGING_DIR" -type f -exec shasum -b -a 256 {} \; | sort -k2 | tee "./deploy/$PACKAGE_NAME.sha256sum.txt"
+    find "$TOOLS_PACKAGE_STAGING_DIR" -type f -exec shasum -b -a 256 {} \; | sort -k2 | tee "./deploy/$TOOLS_PACKAGE_NAME.sha256sum.txt"
 
     if [ "$COMPRESSION" == "zip" ]
     then
         local -r ARCHIVE_NAME="$PACKAGE_NAME.zip"
         echo "Packaging into $ARCHIVE_NAME:"
         zip -r "./deploy/$ARCHIVE_NAME" "$PACKAGE_STAGING_DIR"
+        local -r TOOLS_ARCHIVE_NAME="$TOOLS_PACKAGE_NAME.zip"
+        echo "Packaging into $TOOLS_ARCHIVE_NAME:"
+        zip -r "./deploy/$TOOLS_ARCHIVE_NAME" "$TOOLS_PACKAGE_STAGING_DIR"
     else
         local -r ARCHIVE_NAME="$PACKAGE_NAME.tar.gz"
         echo "Packaging into $ARCHIVE_NAME:"
         tar --sort=name -czvf "./deploy/$ARCHIVE_NAME" "$PACKAGE_STAGING_DIR"
+        local -r TOOLS_ARCHIVE_NAME="$TOOLS_PACKAGE_NAME.tar.gz"
+        echo "Packaging into $TOOLS_ARCHIVE_NAME:"
+        tar --sort=name -czvf "./deploy/$TOOLS_ARCHIVE_NAME" "$TOOLS_PACKAGE_STAGING_DIR"
     fi
 
-    rm -rf "$PACKAGE_STAGING_DIR"
+    rm -rf "$PACKAGE_STAGING_DIR" 
+    rm -rf "$TOOLS_PACKAGE_STAGING_DIR" 
 }
 
 set -e
