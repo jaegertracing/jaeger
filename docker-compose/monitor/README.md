@@ -15,7 +15,7 @@ This environment consists the following backend components:
 
 - [MicroSim](https://github.com/yurishkuro/microsim): a program to simulate traces.
 - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single container image.
-- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics processor documentation][spanmetricsprocessor].
+- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics connector documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md).
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
 - [Grafana](https://grafana.com/): a metrics visualization, analytics & monitoring solution supporting multiple metrics databases.
 
@@ -65,7 +65,7 @@ make build
 make dev
 ```
 
-## Backwards compatibility testing with spanmetrics processor
+## Backwards compatibility testing with spanmetrics connector
 
 ```bash
 make dev-processor
