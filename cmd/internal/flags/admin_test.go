@@ -56,7 +56,7 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	onlyEntry := message.All()[0]
 	hostPort := onlyEntry.ContextMap()["http.host-port"].(string)
 	port, _ := strconv.Atoi(strings.Split(hostPort, ":")[3])
-	assert.Greater(t, port, 0)
+	assert.Positive(t, port)
 }
 
 func TestAdminHealthCheck(t *testing.T) {
