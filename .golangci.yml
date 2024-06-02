@@ -20,13 +20,6 @@ issues:
       text: "appendAssign"
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs-use-default: false
-  exclude-dirs:
-    - mocks
-    - thrift-0.9.2
-    - .*-gen
-  exclude-files:
-    - ".*.pb.go$"
 
 linters:
   disable:
@@ -140,6 +133,8 @@ linters-settings:
       - G107
       - G404
       - G601
+  gosimple:
+    go: "1.21"
   govet:
     check-shadowing: false
     enable-all: true
@@ -200,7 +195,6 @@ linters-settings:
         # often looks like a red herring, needs investigation
         - name: flag-parameter
           disabled: true
-        
         # too pendantic
         - name: function-length
           disabled: true
@@ -279,4 +273,11 @@ linters-settings:
 
 run:
   go: "1.21"
-  timeout: 20m  
+  timeout: 20m
+  skip-dirs-use-default: false
+  skip-dirs:
+    - mocks
+    - thrift-0.9.2
+    - .*-gen
+  skip-files:
+    - ".*.pb.go$"
