@@ -33,8 +33,6 @@ import (
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -73,9 +71,7 @@ func main() {
 			}
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := fork.New("internal",
-				expvar.NewFactory(10), // backend for internal opts
-				baseFactory.Namespace(metrics.NSOptions{Name: "collector"}))
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
 			version.NewInfoMetrics(metricsFactory)
 
 			storageFactory.InitFromViper(v, logger)
@@ -133,6 +129,9 @@ func main() {
 				}
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
+				if err := strategyStoreFactory.Close(); err != nil {
+					logger.Error("Failed to close sampling strategy store factory", zap.Error(err))
 				}
 			})
 			return nil

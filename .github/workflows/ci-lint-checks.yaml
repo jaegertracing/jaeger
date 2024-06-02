@@ -14,13 +14,13 @@ concurrency:
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
-  
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -30,11 +30,14 @@ jobs:
       with:
         go-version: 1.22.x
 
+    - name: Print Jaeger version
+      run: make echo-version
+
     - name: Install tools
       run: make install-test-tools
 
     - name: Lint
       run: make lint
-    
+
     - name: Ensure PR is not on main branch
       uses: ./.github/actions/block-pr-not-on-main

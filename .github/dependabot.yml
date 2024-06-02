@@ -18,9 +18,6 @@ updates:
       otel-instrumentation:
         patterns:
           - "go.opentelemetry.io/contrib/instrumentation/*"
-      hashicorp:
-        patterns:
-          - "github.com/hashicorp/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -112,3 +109,24 @@ updates:
     directory: /plugin/storage/cassandra
     schedule:
       interval: daily
+  - package-ecosystem: docker
+    directory: /docker-compose/elasticsearch
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "docker.elastic.co/elasticsearch/elasticsearch"
+        update-types: ["version-update:semver-minor"]
+  - package-ecosystem: docker
+    directory: /docker-compose/opensearch
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "docker.elastic.co/opensearch/opensearch"
+        update-types: ["version-update:semver-minor"]
+  - package-ecosystem: docker
+    directory: /docker-compose/kafka-integration-test
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "bitnami/kafka"
+        update-types: ["version-update:semver-minor"]

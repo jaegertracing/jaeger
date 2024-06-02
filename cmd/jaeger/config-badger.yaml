@@ -1,0 +1,43 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  jaeger_query:
+    trace_storage: badger_main
+    trace_storage_archive: badger_archive
+    ui_config: ./cmd/jaeger/config-ui.json
+
+  jaeger_storage:
+    badger:
+      badger_main:
+        directory_key: "/tmp/jaeger/"
+        directory_value: "/tmp/jaeger/"
+        ephemeral: false
+        maintenance_interval: 5
+        metrics_update_interval: 10
+        span_store_ttl: 72h
+      badger_archive:
+        directory_key: "/tmp/jaeger_archive/"
+        directory_value: "/tmp/jaeger_archive/"
+        ephemeral: false
+        maintenance_interval: 5
+        metrics_update_interval: 10
+        span_store_ttl: 720h
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: badger_main

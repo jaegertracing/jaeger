@@ -15,30 +15,18 @@ extensions:
   jaeger_storage:
     opensearch:
       os_main:
-        server_urls: https://localhost:9200
+        server_urls: http://localhost:9200
         log_level: "error"
         index_prefix: "jaeger-main"
-        use_aliases: true
-        username: "admin"
-        password: "admin"
-        tls:
-          enabled: true
-          skip_host_verify: true
-        tags_as_fields:
-          all: true
+        use_aliases: false
+        create_mappings: true
 
       os_archive:
-        server_urls: https://localhost:9200
+        server_urls: http://localhost:9200
         log_level: "error"
-        index_prefix: "jaeger-archive"
-        use_aliases: true
-        username: "admin"
-        password: "admin"
-        tls:
-          enabled: true
-          skip_host_verify: true
-        tags_as_fields:
-          all: true
+        index_prefix: "jaeger-main"
+        use_aliases: false
+        create_mappings: true
 
 receivers:
   otlp:

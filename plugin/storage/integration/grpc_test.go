@@ -16,47 +16,34 @@
 package integration
 
 import (
-	"os"
-	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-)
-
-const (
-	defaultPluginBinaryPath   = "../../../examples/memstore-plugin/memstore-plugin"
-	streamingPluginConfigPath = "fixtures/grpc_plugin_conf.yaml"
 )
 
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	logger           *zap.Logger
-	flags            []string
-	factory          *grpc.Factory
-	useRemoteStorage bool
-	remoteStorage    *RemoteMemoryStorage
+	flags         []string
+	factory       *grpc.Factory
+	remoteStorage *RemoteMemoryStorage
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
-	s.logger, _ = testutils.NewLogger()
-
-	if s.useRemoteStorage {
-		s.remoteStorage = StartNewRemoteMemoryStorage(t, s.logger)
-	}
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	s.remoteStorage = StartNewRemoteMemoryStorage(t)
 
 	f := grpc.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags(s.flags)
 	require.NoError(t, err)
-	f.InitFromViper(v, zap.NewNop())
-	err = f.Initialize(metrics.NullFactory, s.logger)
-	require.NoError(t, err)
+	f.InitFromViper(v, logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	s.factory = f
 
 	s.SpanWriter, err = f.CreateSpanWriter()
@@ -75,9 +62,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
 	require.NoError(t, s.factory.Close())
-	if s.useRemoteStorage {
-		s.remoteStorage.Close(t)
-	}
+	s.remoteStorage.Close(t)
 }
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
@@ -85,63 +70,13 @@ func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
 	s.initialize(t)
 }
 
-func getPluginFlags(t *testing.T) []string {
-	binaryPath := os.Getenv("PLUGIN_BINARY_PATH")
-	if binaryPath == "" {
-		t.Logf("PLUGIN_BINARY_PATH env var not set, using %s", defaultPluginBinaryPath)
-		binaryPath = defaultPluginBinaryPath
-	}
-
-	return []string{
-		"--grpc-storage-plugin.binary", binaryPath,
-		"--grpc-storage-plugin.log-level", "debug",
-	}
-}
-
-func TestGRPCStorage(t *testing.T) {
-	SkipUnlessEnv(t, "grpc")
-	flags := getPluginFlags(t)
-	if configPath := os.Getenv("PLUGIN_CONFIG_PATH"); configPath == "" {
-		t.Log("PLUGIN_CONFIG_PATH env var not set")
-	} else {
-		flags = append(flags, "--grpc-storage-plugin.configuration-file", configPath)
-	}
-
-	s := &GRPCStorageIntegrationTestSuite{
-		flags: flags,
-	}
-	s.initialize(t)
-	defer s.close(t)
-	s.RunAll(t)
-}
-
-func TestGRPCStreamingWriter(t *testing.T) {
-	SkipUnlessEnv(t, "grpc")
-	flags := getPluginFlags(t)
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	flags = append(flags,
-		"--grpc-storage-plugin.configuration-file",
-		path.Join(wd, streamingPluginConfigPath))
-
-	s := &GRPCStorageIntegrationTestSuite{
-		flags: flags,
-	}
-	s.initialize(t)
-	defer s.close(t)
-	s.RunAll(t)
-}
-
 func TestGRPCRemoteStorage(t *testing.T) {
 	SkipUnlessEnv(t, "grpc")
-	flags := []string{
-		"--grpc-storage.server=localhost:17271",
-		"--grpc-storage.tls.enabled=false",
-	}
-
 	s := &GRPCStorageIntegrationTestSuite{
-		flags:            flags,
-		useRemoteStorage: true,
+		flags: []string{
+			"--grpc-storage.server=localhost:17271",
+			"--grpc-storage.tls.enabled=false",
+		},
 	}
 	s.initialize(t)
 	defer s.close(t)

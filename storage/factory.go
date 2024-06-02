@@ -16,6 +16,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 
 	"go.uber.org/zap"
@@ -47,6 +48,13 @@ type Factory interface {
 
 	// CreateDependencyReader creates a dependencystore.Reader.
 	CreateDependencyReader() (dependencystore.Reader, error)
+}
+
+// Purger defines an interface that is capable of purging the storage.
+// Only meant to be used from integration tests.
+type Purger interface {
+	// Purge removes all data from the storage.
+	Purge(context.Context) error
 }
 
 // SamplingStoreFactory defines an interface that is capable of returning the necessary backends for

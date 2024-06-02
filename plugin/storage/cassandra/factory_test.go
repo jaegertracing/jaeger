@@ -16,6 +16,7 @@
 package cassandra
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -190,45 +191,77 @@ func TestWriterOptions(t *testing.T) {
 	assert.Empty(t, options)
 }
 
-func TestInitFromOptions(t *testing.T) {
+func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
 	o := NewOptions("foo", archiveStorageConfig)
 	o.others[archiveStorageConfig].Enabled = true
-	f.InitFromOptions(o)
+	f.configureFromOptions(o)
 	assert.Equal(t, o, f.Options)
 	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
 	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
 }
 
-func TestConfigurationValidation(t *testing.T) {
-	testCases := []struct {
-		name    string
-		cfg     cassandraCfg.Configuration
-		wantErr bool
-	}{
-		{
-			name: "valid configuration",
-			cfg: cassandraCfg.Configuration{
-				Servers: []string{"http://localhost:9200"},
+func TestNewFactoryWithConfig(t *testing.T) {
+	t.Run("valid configuration", func(t *testing.T) {
+		opts := &Options{
+			Primary: namespaceConfig{
+				Configuration: cassandraCfg.Configuration{
+					Servers: []string{"localhost:9200"},
+				},
 			},
-			wantErr: false,
-		},
-		{
-			name:    "missing servers",
-			cfg:     cassandraCfg.Configuration{},
-			wantErr: true,
-		},
-	}
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			err := test.cfg.Validate()
-			if test.wantErr {
-				require.Error(t, err)
-				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+		}
+		f := NewFactory()
+		b := &withConfigBuilder{
+			f:              f,
+			opts:           opts,
+			metricsFactory: metrics.NullFactory,
+			logger:         zap.NewNop(),
+			initializer:    func(metricsFactory metrics.Factory, logger *zap.Logger) error { return nil },
+		}
+		_, err := b.build()
+		require.NoError(t, err)
+	})
+	t.Run("connection error", func(t *testing.T) {
+		expErr := errors.New("made-up error")
+		opts := &Options{
+			Primary: namespaceConfig{
+				Configuration: cassandraCfg.Configuration{
+					Servers: []string{"localhost:9200"},
+				},
+			},
+		}
+		f := NewFactory()
+		b := &withConfigBuilder{
+			f:              f,
+			opts:           opts,
+			metricsFactory: metrics.NullFactory,
+			logger:         zap.NewNop(),
+			initializer:    func(metricsFactory metrics.Factory, logger *zap.Logger) error { return expErr },
+		}
+		_, err := b.build()
+		require.ErrorIs(t, err, expErr)
+	})
+	t.Run("invalid configuration", func(t *testing.T) {
+		cfg := Options{}
+		_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+		require.Error(t, err)
+		require.ErrorContains(t, err, "Servers: non zero value required")
+	})
+}
+
+func TestFactory_Purge(t *testing.T) {
+	f := NewFactory()
+	var (
+		session = &mocks.Session{}
+		query   = &mocks.Query{}
+	)
+	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	query.On("Exec").Return(nil)
+	f.primarySession = session
+
+	err := f.Purge(context.Background())
+	require.NoError(t, err)
+
+	session.AssertCalled(t, "Query", mock.AnythingOfType("string"), mock.Anything)
+	query.AssertCalled(t, "Exec")
 }

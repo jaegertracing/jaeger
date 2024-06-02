@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -115,8 +116,9 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 	}
 
 	server := grpc.NewServer(grpcOpts...)
+	healthServer := health.NewServer()
 	reflection.Register(server)
-	handler.Register(server)
+	handler.Register(server, healthServer)
 
 	return server, nil
 }

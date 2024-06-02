@@ -15,6 +15,7 @@
 package strategystore
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 
@@ -112,4 +113,15 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategyst
 		return nil, nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
 	}
 	return factory.CreateStrategyStore()
+}
+
+// Close closes all factories.
+func (f *Factory) Close() error {
+	var errs []error
+	for _, factory := range f.factories {
+		if err := factory.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }

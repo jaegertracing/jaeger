@@ -17,16 +17,13 @@ package metricsbuilder
 
 import (
 	"errors"
-	"expvar"
 	"flag"
-	"log"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 
-	jexpvar "github.com/jaegertracing/jaeger/internal/metrics/expvar"
 	jprom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
@@ -47,14 +44,12 @@ type Builder struct {
 	handler   http.Handler
 }
 
-const expvarDepr = "(deprecated, will be removed after 2024-01-01 or in release v1.53.0, whichever is later) "
-
 // AddFlags adds flags for Builder.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		metricsBackend,
 		defaultMetricsBackend,
-		"Defines which metrics backend to use for metrics reporting: prometheus, none, or expvar "+expvarDepr)
+		"Defines which metrics backend to use for metrics reporting: prometheus or none")
 	flags.String(
 		metricsHTTPRoute,
 		defaultMetricsRoute,
@@ -75,12 +70,6 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 	if b.Backend == "prometheus" {
 		metricsFactory := jprom.New().Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
-		return metricsFactory, nil
-	}
-	if b.Backend == "expvar" {
-		metricsFactory := jexpvar.NewFactory(10).Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
-		b.handler = expvar.Handler()
-		log.Printf("using expvar as metrics backend " + expvarDepr)
 		return metricsFactory, nil
 	}
 	if b.Backend == "none" || b.Backend == "" {

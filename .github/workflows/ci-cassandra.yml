@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        jaeger-version: [v1, v2]
         version:
         - distribution: cassandra
           major: 3.x
@@ -29,10 +30,10 @@ jobs:
           major: 4.x
           image: 4.0
           schema: v004
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -43,16 +44,15 @@ jobs:
         go-version: 1.22.x
 
     - name: Run cassandra integration tests
-      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }}
+      id: test-execution
+      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
 
-    - name: Setup CODECOV_TOKEN
-      uses: ./.github/actions/setup-codecov
+    - name: Output Cassandra logs
+      run: docker logs ${{ steps.test-execution.outputs.cid }}
+      if: ${{ failure() }}
 
     - name: Upload coverage to codecov
-      uses: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
+      uses: ./.github/actions/upload-codecov
       with:
-        file: cover.out
-        verbose: true
-        flags: cassandra-${{ matrix.version.major }}
-        fail_ci_if_error: true
-        token: ${{ env.CODECOV_TOKEN }}
+        files: cover.out
+        flags: cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}
