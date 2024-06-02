@@ -17,7 +17,6 @@ package prometheus
 import (
 	"flag"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -48,8 +47,6 @@ const (
 	defaultLatencyUnit                 = "ms"
 	defaultNormalizeCalls              = false
 	defaultNormalizeDuration           = false
-
-	deprecatedSpanMetricsProcessor = "(deprecated, will be removed after 2024-01-01 or in release v1.53.0, whichever is later) "
 )
 
 type namespaceConfig struct {
@@ -97,7 +94,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixSupportSpanmetricsConnector,
 		defaultSupportSpanmetricsConnector,
-		deprecatedSpanMetricsProcessor+" Controls whether the metrics queries should match the OpenTelemetry Collector's spanmetrics connector naming (when true) or spanmetrics processor naming (when false).")
+		" Controls the metrics queries should match the OpenTelemetry Collector's spanmetrics connector naming.")
 	flagSet.String(nsConfig.namespace+suffixMetricNamespace, defaultMetricNamespace,
 		`The metric namespace that is prefixed to the metric name. A '.' separator will be added between `+
 			`the namespace and the metric name.`)
@@ -128,9 +125,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenFilePath)
 
 	cfg.SupportSpanmetricsConnector = v.GetBool(cfg.namespace + suffixSupportSpanmetricsConnector)
-	if !cfg.SupportSpanmetricsConnector {
-		log.Printf("using Spanmetrics Processor's metrics naming conventions " + deprecatedSpanMetricsProcessor)
-	}
 	cfg.MetricNamespace = v.GetString(cfg.namespace + suffixMetricNamespace)
 	cfg.LatencyUnit = v.GetString(cfg.namespace + suffixLatencyUnit)
 	cfg.NormalizeCalls = v.GetBool(cfg.namespace + suffixNormalizeCalls)
