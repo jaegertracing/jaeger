@@ -122,15 +122,15 @@ func (kv *KeyValue) Value() interface{} {
 
 // AsStringLossy returns a potentially lossy string representation of the value.
 func (kv *KeyValue) AsStringLossy() string {
-	return kv.asString(true)
+	return kv.as_String(true)
 }
 
 // AsString returns a string representation of the value.
 func (kv *KeyValue) AsString() string {
-	return kv.asString(false)
+	return kv.as_String(false)
 }
 
-func (kv *KeyValue) asString(truncate bool) string {
+func (kv *KeyValue) as_String(truncate bool) string {
 	switch kv.VType {
 	case StringType:
 		return kv.VStr

@@ -76,14 +76,14 @@ func withServer(
 }
 
 func TestHTTPHandler(t *testing.T) {
-	testHTTPHandler(t, "")
+	test_HTTP_Handler(t, "")
 }
 
 func TestHTTPHandlerWithBasePath(t *testing.T) {
-	testHTTPHandler(t, "/foo")
+	test_HTTP_Handler(t, "/foo")
 }
 
-func testHTTPHandler(t *testing.T, basePath string) {
+func test_HTTP_Handler(t *testing.T, basePath string) {
 	withServer(basePath, rateLimiting(42), restrictions("luggage", 10), func(ts *testServer) {
 		tests := []struct {
 			endpoint  string

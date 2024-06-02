@@ -44,7 +44,7 @@ var _ component.Host = (*otelHost)(nil) // API check
 // StartOTLPReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
 func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) (receiver.Traces, error) {
 	otlpFactory := otlpreceiver.NewFactory()
-	return startOTLPReceiver(
+	return start_OTLP_Receiver(
 		options,
 		logger,
 		spanProcessor,
@@ -58,7 +58,7 @@ func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, span
 // Some of OTELCOL constructor functions return errors when passed nil arguments,
 // which is a situation we cannot reproduce. To test our own error handling, this
 // function allows to mock those constructors.
-func startOTLPReceiver(
+func start_OTLP_Receiver(
 	options *flags.CollectorOptions,
 	logger *zap.Logger,
 	spanProcessor processor.SpanProcessor,

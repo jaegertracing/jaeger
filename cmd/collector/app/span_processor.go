@@ -71,7 +71,7 @@ func NewSpanProcessor(
 	additional []ProcessSpan,
 	opts ...Option,
 ) processor.SpanProcessor {
-	sp := newSpanProcessor(spanWriter, additional, opts...)
+	sp := new_Span_Processor(spanWriter, additional, opts...)
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item interface{}) {
 		value := item.(*queueItem)
@@ -87,7 +87,7 @@ func NewSpanProcessor(
 	return sp
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
+func new_Span_Processor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,

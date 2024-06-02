@@ -142,7 +142,7 @@ func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, jsonSpan)
 	}
-	s.writeSpan(spanIndexName, jsonSpan)
+	s.write_Span(spanIndexName, jsonSpan)
 	return nil
 }
 
@@ -163,6 +163,6 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) write_Span(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }
