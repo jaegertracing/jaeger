@@ -5,7 +5,7 @@ package api_v3
 
 import (
 	"github.com/gogo/protobuf/jsonpb"
-	proto "github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/pkg/gogocodec"

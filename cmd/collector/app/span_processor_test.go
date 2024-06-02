@@ -81,7 +81,7 @@ func TestBySvcMetrics(t *testing.T) {
 		}
 	}
 
-	for _, test := range tests {
+	testFn := func(t *testing.T, test TestCase) {
 		mb := metricstest.NewFactory(time.Hour)
 		defer mb.Backend.Stop()
 		logger := zap.NewNop()
@@ -159,6 +159,11 @@ func TestBySvcMetrics(t *testing.T) {
 			})
 		}
 		mb.AssertCounterMetrics(t, expected...)
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test), func(t *testing.T) {
+			testFn(t, test)
+		})
 	}
 }
 

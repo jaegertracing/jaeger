@@ -79,6 +79,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 	return transport.Addr().String(), processor
 }
 
+// revive:disable-next-line function-result-limit
 func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.GrpcCollector, reporter.Reporter, *grpc.ClientConn) {
 	grpcCollector := testutils.StartGRPCCollector(t)
 	conn, err := grpc.NewClient(grpcCollector.Listener().Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))

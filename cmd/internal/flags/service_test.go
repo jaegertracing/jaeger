@@ -74,7 +74,7 @@ func TestStartErrors(t *testing.T) {
 	}
 	for _, test := range scenarios {
 		t.Run(test.name, func(t *testing.T) {
-			s := NewService( /*default port=*/ 0)
+			s := NewService( /* default port= */ 0)
 			v, cmd := config.Viperize(s.AddFlags)
 			err := cmd.ParseFlags(test.flags)
 			require.NoError(t, err)

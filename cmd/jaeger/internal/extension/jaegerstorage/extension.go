@@ -17,7 +17,6 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
-	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
@@ -79,7 +78,7 @@ type starter[Config any, Factory storage.Factory] struct {
 	builder     func(Config, metrics.Factory, *zap.Logger) (Factory, error)
 }
 
-func (s *starter[Config, Factory]) build(ctx context.Context, host component.Host) error {
+func (s *starter[Config, Factory]) build(_ context.Context, _ component.Host) error {
 	for name, cfg := range s.cfg {
 		if _, ok := s.ext.factories[name]; ok {
 			return fmt.Errorf("duplicate %s storage name %s", s.storageKind, name)
@@ -111,7 +110,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			return memory.NewFactoryWithConfig(cfg, metricsFactory, logger), nil
 		},
 	}
-	badgerStarter := &starter[badgerCfg.NamespaceConfig, *badger.Factory]{
+	badgerStarter := &starter[badger.NamespaceConfig, *badger.Factory]{
 		ext:         s,
 		storageKind: "badger",
 		cfg:         s.config.Badger,
