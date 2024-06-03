@@ -42,12 +42,8 @@ func (x *scramClient) Begin(userName, password, authzID string) (err error) {
 
 // Step steps client through the SCRAM exchange. It is
 // called repeatedly until it errors or `Done` returns true.
-func (x *scramClient) Step(challenge string) (response string, err error) {
-	response, err = x.ClientConversation.Step(challenge)
-	if err != nil {
-		return "", err
-	}
-	return response, nil
+func (x *scramClient) Step(challenge string) (string, error) {
+	return x.ClientConversation.Step(challenge)
 }
 
 // Done should return true when the SCRAM conversation
