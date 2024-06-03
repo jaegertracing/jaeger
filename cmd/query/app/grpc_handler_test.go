@@ -948,6 +948,7 @@ func withTenantedServerAndClient(t *testing.T, tm *tenancy.Manager, actualTest f
 }
 
 // withOutgoingMetadata returns a Context with metadata for a server to receive
+// revive:disable-next-line context-as-argument
 func withOutgoingMetadata(t *testing.T, ctx context.Context, headerName, headerValue string) context.Context {
 	t.Helper()
 

@@ -338,16 +338,16 @@ func TestServerHTTPTLS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			TLSGRPC := disabledTLSCfg
+			tlsGrpc := disabledTLSCfg
 			if test.GRPCTLSEnabled {
-				TLSGRPC = enabledTLSCfg
+				tlsGrpc = enabledTLSCfg
 			}
 
 			serverOptions := &QueryOptions{
 				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
 				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
 				TLSHTTP:      test.TLS,
-				TLSGRPC:      TLSGRPC,
+				TLSGRPC:      tlsGrpc,
 				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
 				},
@@ -478,14 +478,14 @@ func TestServerGRPCTLS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			TLSHTTP := disabledTLSCfg
+			tlsHttp := disabledTLSCfg
 			if test.HTTPTLSEnabled {
-				TLSHTTP = enabledTLSCfg
+				tlsHttp = enabledTLSCfg
 			}
 			serverOptions := &QueryOptions{
 				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
 				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
-				TLSHTTP:      TLSHTTP,
+				TLSHTTP:      tlsHttp,
 				TLSGRPC:      test.TLS,
 				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
