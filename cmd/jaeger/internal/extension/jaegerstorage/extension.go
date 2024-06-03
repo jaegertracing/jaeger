@@ -116,7 +116,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Badger,
 		builder:     badger.NewFactoryWithConfig,
 	}
-	grpcStarter := &starter[grpcCfg.ConfigV2, *grpc.Factory]{
+	grpcStarter := &starter[grpcCfg.ConfigurationV2, *grpc.Factory]{
 		ext:         s,
 		storageKind: "grpc",
 		cfg:         s.config.GRPC,

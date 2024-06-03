@@ -18,7 +18,7 @@ import (
 type Config struct {
 	Memory        map[string]memoryCfg.Configuration   `mapstructure:"memory"`
 	Badger        map[string]badgerCfg.NamespaceConfig `mapstructure:"badger"`
-	GRPC          map[string]grpcCfg.ConfigV2          `mapstructure:"grpc"`
+	GRPC          map[string]grpcCfg.ConfigurationV2   `mapstructure:"grpc"`
 	Opensearch    map[string]esCfg.Configuration       `mapstructure:"opensearch"`
 	Elasticsearch map[string]esCfg.Configuration       `mapstructure:"elasticsearch"`
 	Cassandra     map[string]cassandra.Options         `mapstructure:"cassandra"`

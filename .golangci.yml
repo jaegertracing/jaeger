@@ -222,9 +222,6 @@ linters-settings:
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
           disabled: true
-        # enable after cleanup: warns of stutter names
-        - name: exported
-          disabled: true
         # enable after cleanup
         - name: redefines-builtin-id
           disabled: true

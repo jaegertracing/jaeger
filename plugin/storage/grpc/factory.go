@@ -47,7 +47,7 @@ type Factory struct {
 	tracerProvider trace.TracerProvider
 
 	configV1 config.Configuration
-	configV2 *config.ConfigV2
+	configV2 *config.ConfigurationV2
 
 	services *config.ClientPluginServices
 }
@@ -59,7 +59,7 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg config.ConfigV2,
+	cfg config.ConfigurationV2,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {

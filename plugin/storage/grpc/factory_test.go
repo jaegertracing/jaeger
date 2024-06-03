@@ -110,7 +110,7 @@ func makeFactory(t *testing.T) *Factory {
 }
 
 func TestNewFactoryError(t *testing.T) {
-	cfg := &grpcConfig.ConfigV2{
+	cfg := &grpcConfig.ConfigurationV2{
 		ClientConfig: configgrpc.ClientConfig{
 			// non-empty Auth is currently not supported
 			Auth: &configauth.Authentication{},
@@ -161,7 +161,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	}()
 	defer s.Stop()
 
-	cfg := grpcConfig.ConfigV2{
+	cfg := grpcConfig.ConfigurationV2{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint: lis.Addr().String(),
 		},

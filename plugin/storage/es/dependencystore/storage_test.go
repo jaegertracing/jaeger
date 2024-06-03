@@ -52,7 +52,7 @@ func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn fun
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage: NewDependencyStore(DependencyStoreParams{
+		storage: NewDependencyStore(Params{
 			Client:          func() es.Client { return client },
 			Logger:          logger,
 			IndexPrefix:     indexPrefix,
@@ -79,7 +79,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
-		r := NewDependencyStore(DependencyStoreParams{
+		r := NewDependencyStore(Params{
 			Client:          func() es.Client { return client },
 			Logger:          zap.NewNop(),
 			IndexPrefix:     testCase.prefix,
@@ -216,17 +216,17 @@ func TestGetReadIndices(t *testing.T) {
 	testCases := []struct {
 		indices  []string
 		lookback time.Duration
-		params   DependencyStoreParams
+		params   Params
 	}{
 		{
-			params:   DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndex + "read",
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndex + fixedTime.Format("2006-01-02"),
@@ -234,7 +234,7 @@ func TestGetReadIndices(t *testing.T) {
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 13 * time.Hour,
 			indices: []string{
 				dependencyIndex + fixedTime.UTC().Format("2006-01-02"),
@@ -242,14 +242,14 @@ func TestGetReadIndices(t *testing.T) {
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
 			lookback: 1 * time.Hour,
 			indices: []string{
 				"foo:" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
 			lookback: 0,
 			indices: []string{
 				"foo-" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
@@ -267,14 +267,14 @@ func TestGetWriteIndex(t *testing.T) {
 	testCases := []struct {
 		writeIndex string
 		lookback   time.Duration
-		params     DependencyStoreParams
+		params     Params
 	}{
 		{
-			params:     DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
 			writeIndex: dependencyIndex + "write",
 		},
 		{
-			params:     DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
+			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
 			writeIndex: dependencyIndex + fixedTime.Format("2006-01-02"),
 		},
 	}
