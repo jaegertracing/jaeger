@@ -98,9 +98,9 @@ type Log struct {
 
 // KeyValue is a key-value pair with typed value.
 type KeyValue struct {
-	Key   string      `json:"key"`
-	Type  ValueType   `json:"type,omitempty"`
-	Value interface{} `json:"value"`
+	Key   string    `json:"key"`
+	Type  ValueType `json:"type,omitempty"`
+	Value any       `json:"value"`
 }
 
 // DependencyLink shows dependencies between services

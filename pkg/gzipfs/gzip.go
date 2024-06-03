@@ -80,7 +80,7 @@ func (fi fileInfo) ModTime() time.Time { return fi.info.ModTime() }
 
 func (fi fileInfo) IsDir() bool { return fi.info.IsDir() }
 
-func (fi fileInfo) Sys() interface{} { return nil }
+func (fi fileInfo) Sys() any { return nil }
 
 // New wraps underlying fs that is expected to contain gzipped files
 // and presents an unzipped view of it.

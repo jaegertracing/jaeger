@@ -56,7 +56,7 @@ func NewLRUWithOptions(maxSize int, opts *Options) *LRU {
 }
 
 // Get retrieves the value stored under the given key
-func (c *LRU) Get(key string) interface{} {
+func (c *LRU) Get(key string) any {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -81,7 +81,7 @@ func (c *LRU) Get(key string) interface{} {
 }
 
 // Put puts a new value associated with a given key, returning the existing value (if present)
-func (c *LRU) Put(key string, value interface{}) interface{} {
+func (c *LRU) Put(key string, value any) any {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	elt := c.byKey[key]
@@ -90,7 +90,7 @@ func (c *LRU) Put(key string, value interface{}) interface{} {
 
 // CompareAndSwap puts a new value associated with a given key if existing value matches oldValue.
 // It returns itemInCache as the element in cache after the function is executed and replaced as true if value is replaced, false otherwise.
-func (c *LRU) CompareAndSwap(key string, oldValue, newValue interface{}) (itemInCache interface{}, replaced bool) {
+func (c *LRU) CompareAndSwap(key string, oldValue, newValue any) (itemInCache any, replaced bool) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -113,7 +113,7 @@ func (c *LRU) CompareAndSwap(key string, oldValue, newValue interface{}) (itemIn
 
 // putWithMutexHold populates the cache and returns the inserted value.
 // Caller is expected to hold the c.mut mutex before calling.
-func (c *LRU) putWithMutexHold(key string, value interface{}, elt *list.Element) interface{} {
+func (c *LRU) putWithMutexHold(key string, value any, elt *list.Element) any {
 	if elt != nil {
 		entry := elt.Value.(*cacheEntry)
 		existing := entry.value
@@ -171,5 +171,5 @@ func (c *LRU) Size() int {
 type cacheEntry struct {
 	key        string
 	expiration time.Time
-	value      interface{}
+	value      any
 }

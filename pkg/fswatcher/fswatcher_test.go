@@ -225,7 +225,7 @@ func createTimestampDir(t *testing.T, dir string) {
 }
 
 type delayedFormat struct {
-	fn func() interface{}
+	fn func() any
 }
 
 func (df delayedFormat) String() string {
@@ -237,7 +237,7 @@ func assertLogs(t *testing.T, f func() bool, errorMsg string, logObserver *obser
 		10*time.Second, 10*time.Millisecond,
 		errorMsg,
 		delayedFormat{
-			fn: func() interface{} { return logObserver.All() },
+			fn: func() any { return logObserver.All() },
 		},
 	)
 }

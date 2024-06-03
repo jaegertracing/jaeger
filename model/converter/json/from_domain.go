@@ -120,7 +120,7 @@ func (fd fromDomain) convertRefType(refType model.SpanRefType) json.ReferenceTyp
 func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue {
 	out := make([]json.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
-		var value interface{}
+		var value any
 		switch kv.VType {
 		case model.StringType:
 			value = kv.VStr

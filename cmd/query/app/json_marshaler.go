@@ -23,7 +23,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-type jsonMarshaler = func(writer io.Writer, response interface{}) error
+type jsonMarshaler = func(writer io.Writer, response any) error
 
 // newProtoJSONMarshaler returns a protobuf-friendly JSON marshaler that knows how to handle protobuf-specific
 // field types such as "oneof" as well as dealing with NaNs which are not supported by JSON.
@@ -32,7 +32,7 @@ func newProtoJSONMarshaler(prettyPrint bool) jsonMarshaler {
 	if prettyPrint {
 		marshaler.Indent = prettyPrintIndent
 	}
-	return func(w io.Writer, response interface{}) error {
+	return func(w io.Writer, response any) error {
 		return marshaler.Marshal(w, response.(proto.Message))
 	}
 }
@@ -41,11 +41,11 @@ func newProtoJSONMarshaler(prettyPrint bool) jsonMarshaler {
 func newStructJSONMarshaler(prettyPrint bool) jsonMarshaler {
 	marshaler := json.Marshal
 	if prettyPrint {
-		marshaler = func(v interface{}) ([]byte, error) {
+		marshaler = func(v any) ([]byte, error) {
 			return json.MarshalIndent(v, "", prettyPrintIndent)
 		}
 	}
-	return func(w io.Writer, response interface{}) error {
+	return func(w io.Writer, response any) error {
 		resp, err := marshaler(response)
 		if err != nil {
 			return fmt.Errorf("failed marshalling HTTP response to JSON: %w", err)

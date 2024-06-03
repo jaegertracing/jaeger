@@ -147,7 +147,7 @@ func (td ToDomain) convertKeyValues(tags []KeyValue) ([]model.KeyValue, error) {
 	return retMe, nil
 }
 
-func (td ToDomain) convertTagFields(tagsMap map[string]interface{}) ([]model.KeyValue, error) {
+func (td ToDomain) convertTagFields(tagsMap map[string]any) ([]model.KeyValue, error) {
 	kvs := make([]model.KeyValue, len(tagsMap))
 	i := 0
 	for k, v := range tagsMap {
@@ -161,7 +161,7 @@ func (td ToDomain) convertTagFields(tagsMap map[string]interface{}) ([]model.Key
 	return kvs, nil
 }
 
-func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, error) {
+func (td ToDomain) convertTagField(k string, v any) (model.KeyValue, error) {
 	dKey := td.ReplaceDotReplacement(k)
 	switch val := v.(type) {
 	case int64:

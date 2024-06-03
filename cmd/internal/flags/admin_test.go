@@ -81,7 +81,7 @@ func TestAdminFailToServe(t *testing.T) {
 	adminServer.serveWithListener(l)
 	defer adminServer.Close()
 
-	waitForEqual(t, healthcheck.Broken, func() interface{} { return adminServer.HC().Get() })
+	waitForEqual(t, healthcheck.Broken, func() any { return adminServer.HC().Get() })
 
 	logEntries := logs.TakeAll()
 	var matchedEntry string

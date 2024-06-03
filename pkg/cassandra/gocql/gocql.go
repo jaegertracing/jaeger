@@ -32,7 +32,7 @@ func WrapCQLSession(session *gocql.Session) CQLSession {
 }
 
 // Query delegates to gocql.Session#Query and wraps the result as Query.
-func (s CQLSession) Query(stmt string, values ...interface{}) cassandra.Query {
+func (s CQLSession) Query(stmt string, values ...any) cassandra.Query {
 	return WrapCQLQuery(s.session.Query(stmt, values...))
 }
 
@@ -59,7 +59,7 @@ func (q CQLQuery) Exec() error {
 }
 
 // ScanCAS delegates to gocql.Query#ScanCAS.
-func (q CQLQuery) ScanCAS(dest ...interface{}) (bool, error) {
+func (q CQLQuery) ScanCAS(dest ...any) (bool, error) {
 	return q.query.ScanCAS(dest...)
 }
 
@@ -69,7 +69,7 @@ func (q CQLQuery) Iter() cassandra.Iterator {
 }
 
 // Bind delegates to gocql.Query#Bind and wraps the result as Query.
-func (q CQLQuery) Bind(v ...interface{}) cassandra.Query {
+func (q CQLQuery) Bind(v ...any) cassandra.Query {
 	return WrapCQLQuery(q.query.Bind(v...))
 }
 
@@ -101,7 +101,7 @@ func WrapCQLIterator(iter *gocql.Iter) CQLIterator {
 }
 
 // Scan delegates to gocql.Iter#Scan.
-func (i CQLIterator) Scan(dest ...interface{}) bool {
+func (i CQLIterator) Scan(dest ...any) bool {
 	return i.iter.Scan(dest...)
 }
 

@@ -88,11 +88,11 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				query2 := &mocks.Query{}
 
 				if test.schemaVersion == previousVersion {
-					query.On("Bind", []interface{}{"service-a", "Operation-b"}).Return(query1)
-					query.On("Bind", []interface{}{"service-c", "operation-d"}).Return(query2)
+					query.On("Bind", []any{"service-a", "Operation-b"}).Return(query1)
+					query.On("Bind", []any{"service-c", "operation-d"}).Return(query2)
 				} else {
-					query.On("Bind", []interface{}{"service-a", "", "Operation-b"}).Return(query1)
-					query.On("Bind", []interface{}{"service-c", "", "operation-d"}).Return(query2)
+					query.On("Bind", []any{"service-a", "", "Operation-b"}).Return(query1)
+					query.On("Bind", []any{"service-c", "", "operation-d"}).Return(query2)
 				}
 
 				query1.On("Exec").Return(nil)
@@ -164,14 +164,14 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			withOperationNamesStorage(0, test.schemaVersion, func(s *operationNameStorageTest) {
 				var matched bool
-				matchOnce := mock.MatchedBy(func(v []interface{}) bool {
+				matchOnce := mock.MatchedBy(func(v []any) bool {
 					if matched {
 						return false
 					}
 					matched = true
 					return true
 				})
-				matchEverything := mock.MatchedBy(func(v []interface{}) bool { return true })
+				matchEverything := mock.MatchedBy(func(v []any) bool { return true })
 
 				iter := &mocks.Iterator{}
 				iter.On("Scan", matchOnce).Return(true)

@@ -92,13 +92,13 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 				return esErr.Err
 			}
 			// check for the reason of the error
-			jsonError := map[string]interface{}{}
+			jsonError := map[string]any{}
 			err := json.Unmarshal(esErr.Body, &jsonError)
 			if err != nil {
 				// return unmarshal error
 				return err
 			}
-			errorMap := jsonError["error"].(map[string]interface{})
+			errorMap := jsonError["error"].(map[string]any)
 			// check for reason, ignore already exist error
 			if strings.Contains(errorMap["type"].(string), "resource_already_exists_exception") {
 				return nil

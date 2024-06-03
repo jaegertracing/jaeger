@@ -92,17 +92,17 @@ func TestStartErrors(t *testing.T) {
 			}
 			go s.RunAndThen(shutdown)
 
-			waitForEqual(t, healthcheck.Ready, func() interface{} { return s.HC().Get() })
+			waitForEqual(t, healthcheck.Ready, func() any { return s.HC().Get() })
 			s.HC().Set(healthcheck.Unavailable)
-			waitForEqual(t, healthcheck.Unavailable, func() interface{} { return s.HC().Get() })
+			waitForEqual(t, healthcheck.Unavailable, func() any { return s.HC().Get() })
 
 			s.signalsChannel <- os.Interrupt
-			waitForEqual(t, true, func() interface{} { return stopped.Load() })
+			waitForEqual(t, true, func() any { return stopped.Load() })
 		})
 	}
 }
 
-func waitForEqual(t *testing.T, expected interface{}, getter func() interface{}) {
+func waitForEqual(t *testing.T, expected any, getter func() any) {
 	for i := 0; i < 1000; i++ {
 		value := getter()
 		if reflect.DeepEqual(value, expected) {

@@ -88,7 +88,7 @@ func loadBatch(t *testing.T, file string) *jaeger.Batch {
 	return &batch
 }
 
-func loadJSON(t *testing.T, fileName string, obj interface{}) {
+func loadJSON(t *testing.T, fileName string, obj any) {
 	jsonFile, err := os.Open(fileName)
 	require.NoError(t, err, "Failed to load json fixture file %s", fileName)
 	jsonParser := json.NewDecoder(jsonFile)
