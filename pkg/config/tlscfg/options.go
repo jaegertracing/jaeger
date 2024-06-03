@@ -46,34 +46,34 @@ type Options struct {
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // Config loads TLS certificates and returns a TLS Config.
-func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
+func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	var minVersionId, maxVersionId uint16
 
-	certPool, err := p.loadCertPool()
+	certPool, err := o.loadCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load CA CertPool: %w", err)
 	}
 
-	cipherSuiteIds, err := CipherSuiteNamesToIDs(p.CipherSuites)
+	cipherSuiteIds, err := CipherSuiteNamesToIDs(o.CipherSuites)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cipher suite ids from cipher suite names: %w", err)
 	}
 
-	if p.MinVersion != "" {
-		minVersionId, err = VersionNameToID(p.MinVersion)
+	if o.MinVersion != "" {
+		minVersionId, err = VersionNameToID(o.MinVersion)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get minimum tls version: %w", err)
 		}
 	}
 
-	if p.MaxVersion != "" {
-		maxVersionId, err = VersionNameToID(p.MaxVersion)
+	if o.MaxVersion != "" {
+		maxVersionId, err = VersionNameToID(o.MaxVersion)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get maximum tls version: %w", err)
 		}
 	}
 
-	if p.MinVersion != "" && p.MaxVersion != "" {
+	if o.MinVersion != "" && o.MaxVersion != "" {
 		if minVersionId > maxVersionId {
 			return nil, fmt.Errorf("minimum tls version can't be greater than maximum tls version")
 		}
@@ -81,47 +81,47 @@ func (p *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 
 	tlsCfg := &tls.Config{
 		RootCAs:            certPool,
-		ServerName:         p.ServerName,
-		InsecureSkipVerify: p.SkipHostVerify, /* #nosec G402*/
+		ServerName:         o.ServerName,
+		InsecureSkipVerify: o.SkipHostVerify, /* #nosec G402*/
 		CipherSuites:       cipherSuiteIds,
 		MinVersion:         minVersionId,
 		MaxVersion:         maxVersionId,
 	}
 
-	if p.ClientCAPath != "" {
+	if o.ClientCAPath != "" {
 		// TODO this should be moved to certWatcher, since it already loads key pair
 		certPool := x509.NewCertPool()
-		if err := addCertToPool(p.ClientCAPath, certPool); err != nil {
+		if err := addCertToPool(o.ClientCAPath, certPool); err != nil {
 			return nil, err
 		}
 		tlsCfg.ClientCAs = certPool
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	certWatcher, err := newCertWatcher(*p, logger, tlsCfg.RootCAs, tlsCfg.ClientCAs)
+	certWatcher, err := newCertWatcher(*o, logger, tlsCfg.RootCAs, tlsCfg.ClientCAs)
 	if err != nil {
 		return nil, err
 	}
-	p.certWatcher = certWatcher
+	o.certWatcher = certWatcher
 
-	if (p.CertPath == "" && p.KeyPath != "") || (p.CertPath != "" && p.KeyPath == "") {
+	if (o.CertPath == "" && o.KeyPath != "") || (o.CertPath != "" && o.KeyPath == "") {
 		return nil, fmt.Errorf("for client auth via TLS, either both client certificate and key must be supplied, or neither")
 	}
-	if p.CertPath != "" && p.KeyPath != "" {
+	if o.CertPath != "" && o.KeyPath != "" {
 		tlsCfg.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return p.certWatcher.certificate(), nil
+			return o.certWatcher.certificate(), nil
 		}
 		// GetClientCertificate is used on the client side when server is configured with tls.RequireAndVerifyClientCert e.g. mTLS
 		tlsCfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return p.certWatcher.certificate(), nil
+			return o.certWatcher.certificate(), nil
 		}
 	}
 
 	return tlsCfg, nil
 }
 
-func (p Options) loadCertPool() (*x509.CertPool, error) {
-	if len(p.CAPath) == 0 { // no truststore given, use SystemCertPool
+func (o Options) loadCertPool() (*x509.CertPool, error) {
+	if len(o.CAPath) == 0 { // no truststore given, use SystemCertPool
 		certPool, err := loadSystemCertPool()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
@@ -130,25 +130,25 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 	}
 	certPool := x509.NewCertPool()
 	// setup user specified truststore
-	if err := addCertToPool(p.CAPath, certPool); err != nil {
+	if err := addCertToPool(o.CAPath, certPool); err != nil {
 		return nil, err
 	}
 	return certPool, nil
 }
 
-func (p *Options) ToOtelClientConfig() configtls.ClientConfig {
+func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
 	return configtls.ClientConfig{
-		Insecure:           !p.Enabled,
-		InsecureSkipVerify: p.SkipHostVerify,
-		ServerName:         p.ServerName,
+		Insecure:           !o.Enabled,
+		InsecureSkipVerify: o.SkipHostVerify,
+		ServerName:         o.ServerName,
 		Config: configtls.Config{
-			CAFile:         p.CAPath,
-			CertFile:       p.CertPath,
-			KeyFile:        p.KeyPath,
-			CipherSuites:   p.CipherSuites,
-			MinVersion:     p.MinVersion,
-			MaxVersion:     p.MaxVersion,
-			ReloadInterval: p.ReloadInterval,
+			CAFile:         o.CAPath,
+			CertFile:       o.CertPath,
+			KeyFile:        o.KeyPath,
+			CipherSuites:   o.CipherSuites,
+			MinVersion:     o.MinVersion,
+			MaxVersion:     o.MaxVersion,
+			ReloadInterval: o.ReloadInterval,
 		},
 	}
 }
@@ -168,9 +168,9 @@ func addCertToPool(caPath string, certPool *x509.CertPool) error {
 var _ io.Closer = (*Options)(nil)
 
 // Close shuts down the embedded certificate watcher.
-func (p *Options) Close() error {
-	if p.certWatcher != nil {
-		return p.certWatcher.Close()
+func (o *Options) Close() error {
+	if o.certWatcher != nil {
+		return o.certWatcher.Close()
 	}
 	return nil
 }
