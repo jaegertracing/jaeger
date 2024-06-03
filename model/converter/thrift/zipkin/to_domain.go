@@ -198,9 +198,9 @@ func (toDomain) getFlags(zSpan *zipkincore.Span) model.Flags {
 }
 
 // Get a correct start time to use for the span if it's not set directly
-func (td toDomain) getStartTimeAndDuration(zSpan *zipkincore.Span) (int64, int64) {
-	timestamp := zSpan.GetTimestamp()
-	duration := zSpan.GetDuration()
+func (td toDomain) getStartTimeAndDuration(zSpan *zipkincore.Span) (timestamp, duration int64) {
+	timestamp = zSpan.GetTimestamp()
+	duration = zSpan.GetDuration()
 	if timestamp == 0 {
 		cs := td.findAnnotation(zSpan, zipkincore.CLIENT_SEND)
 		sr := td.findAnnotation(zSpan, zipkincore.SERVER_RECV)

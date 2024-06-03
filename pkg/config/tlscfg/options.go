@@ -136,19 +136,19 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 	return certPool, nil
 }
 
-func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
+func (p *Options) ToOtelClientConfig() configtls.ClientConfig {
 	return configtls.ClientConfig{
-		Insecure:           !o.Enabled,
-		InsecureSkipVerify: o.SkipHostVerify,
-		ServerName:         o.ServerName,
+		Insecure:           !p.Enabled,
+		InsecureSkipVerify: p.SkipHostVerify,
+		ServerName:         p.ServerName,
 		Config: configtls.Config{
-			CAFile:         o.CAPath,
-			CertFile:       o.CertPath,
-			KeyFile:        o.KeyPath,
-			CipherSuites:   o.CipherSuites,
-			MinVersion:     o.MinVersion,
-			MaxVersion:     o.MaxVersion,
-			ReloadInterval: o.ReloadInterval,
+			CAFile:         p.CAPath,
+			CertFile:       p.CertPath,
+			KeyFile:        p.KeyPath,
+			CipherSuites:   p.CipherSuites,
+			MinVersion:     p.MinVersion,
+			MaxVersion:     p.MaxVersion,
+			ReloadInterval: p.ReloadInterval,
 		},
 	}
 }
