@@ -21,9 +21,10 @@ const (
 )
 
 // ApplyDefaults applies defaults to the DependencyLink.
-func (d *DependencyLink) ApplyDefaults() DependencyLink {
-	if d.Source == "" {
-		d.Source = JaegerDependencyLinkSource
+func (d DependencyLink) ApplyDefaults() DependencyLink {
+	dd := d
+	if dd.Source == "" {
+		dd.Source = JaegerDependencyLinkSource
 	}
-	return *d
+	return dd
 }
