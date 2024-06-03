@@ -21,7 +21,7 @@ import (
 
 // TemplateApplier applies a parsed template to input data that maps to the template's variables.
 type TemplateApplier interface {
-	Execute(wr io.Writer, data interface{}) error
+	Execute(wr io.Writer, data any) error
 }
 
 // TemplateBuilder parses a given string and returns TemplateApplier

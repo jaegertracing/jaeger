@@ -144,7 +144,7 @@ func TestGetDependencies(t *testing.T) {
 		expectedOutput []model.DependencyLink
 		indexPrefix    string
 		maxDocCount    int
-		indices        []interface{}
+		indices        []any
 	}{
 		{
 			searchResult: createSearchResult(goodDependencies),
@@ -155,24 +155,24 @@ func TestGetDependencies(t *testing.T) {
 					CallCount: 12,
 				},
 			},
-			indices:     []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:     []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 			maxDocCount: 1000, // can be anything, assertion will check this value is used in search query.
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
 			expectedError: "unmarshalling ElasticSearch documents failed",
-			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for dependencies: search failure",
-			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for dependencies: search failure",
 			indexPrefix:   "foo",
-			indices:       []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
+			indices:       []any{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
 		},
 	}
 	for _, testCase := range testCases {
@@ -285,7 +285,7 @@ func TestGetWriteIndex(t *testing.T) {
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}

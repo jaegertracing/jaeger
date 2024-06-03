@@ -323,7 +323,7 @@ func (g *GRPCHandler) handleErr(msg string, err error) error {
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
-func (g *GRPCHandler) newBaseQueryParameters(r interface{}) (bqp metricsstore.BaseQueryParameters, err error) {
+func (g *GRPCHandler) newBaseQueryParameters(r any) (bqp metricsstore.BaseQueryParameters, err error) {
 	if r == nil {
 		return bqp, errNilRequest
 	}

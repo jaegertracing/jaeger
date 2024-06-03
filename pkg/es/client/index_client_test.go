@@ -545,7 +545,7 @@ func TestClientCreateTemplate(t *testing.T) {
 
 func TestRollover(t *testing.T) {
 	expectedRequestBody := "{\"conditions\":{\"max_age\":\"2d\"}}"
-	mapConditions := map[string]interface{}{
+	mapConditions := map[string]any{
 		"max_age": "2d",
 	}
 

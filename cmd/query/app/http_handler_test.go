@@ -217,7 +217,7 @@ func (h *httpResponseErrWriter) Header() http.Header {
 func TestWriteJSON(t *testing.T) {
 	testCases := []struct {
 		name         string
-		data         interface{}
+		data         any
 		param        string
 		output       string
 		httpWriteErr bool
@@ -530,7 +530,7 @@ func TestGetServicesSuccess(t *testing.T) {
 	err := getJSON(ts.server.URL+"/api/services", &response)
 	require.NoError(t, err)
 	actualServices := make([]string, len(expectedServices))
-	for i, s := range response.Data.([]interface{}) {
+	for i, s := range response.Data.([]any) {
 		actualServices[i] = s.(string)
 	}
 	assert.Equal(t, expectedServices, actualServices)
@@ -617,7 +617,7 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	err := getJSON(ts.server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expectedOperationNames, response.Data.([]interface{}))
+	assert.ElementsMatch(t, expectedOperationNames, response.Data.([]any))
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
@@ -634,7 +634,7 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 
 func TestTransformOTLPSuccess(t *testing.T) {
 	reformat := func(in []byte) []byte {
-		obj := new(interface{})
+		obj := new(any)
 		require.NoError(t, json.Unmarshal(in, obj))
 		// format json similar to `jq .`
 		out, err := json.MarshalIndent(obj, "", "  ")
@@ -671,7 +671,7 @@ func TestTransformOTLPReadError(t *testing.T) {
 
 func TestTransformOTLPBadPayload(t *testing.T) {
 	withTestServer(func(ts *testServer) {
-		response := new(interface{})
+		response := new(any)
 		request := "Bad Payload"
 		err := postJSON(ts.server.URL+"/api/transform", request, response)
 		require.ErrorContains(t, err, "cannot unmarshal OTLP")
@@ -777,7 +777,7 @@ func TestMetricsReaderError(t *testing.T) {
 		urlPath                    string
 		mockedQueryMethod          string
 		mockedQueryMethodParamType string
-		mockedResponse             interface{}
+		mockedResponse             any
 		wantErrorMessage           string
 	}{
 		{
@@ -842,7 +842,7 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test
-			var response interface{}
+			var response any
 			err := getJSON(ts.server.URL+tc.urlPath, &response)
 
 			// Verify
@@ -876,11 +876,11 @@ func TestGetMinStep(t *testing.T) {
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
-func getJSON(url string, out interface{}) error {
+func getJSON(url string, out any) error {
 	return getJSONCustomHeaders(url, make(map[string]string), out)
 }
 
-func getJSONCustomHeaders(url string, additionalHeaders map[string]string, out interface{}) error {
+func getJSONCustomHeaders(url string, additionalHeaders map[string]string, out any) error {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -889,7 +889,7 @@ func getJSONCustomHeaders(url string, additionalHeaders map[string]string, out i
 }
 
 // postJSON submits a JSON document to a server via HTTP POST and parses response as JSON.
-func postJSON(url string, req interface{}, out interface{}) error {
+func postJSON(url string, req any, out any) error {
 	buf := &bytes.Buffer{}
 	encoder := json.NewEncoder(buf)
 	if err := encoder.Encode(req); err != nil {
@@ -903,7 +903,7 @@ func postJSON(url string, req interface{}, out interface{}) error {
 }
 
 // execJSON executes an http request against a server and parses response as JSON
-func execJSON(req *http.Request, additionalHeaders map[string]string, out interface{}) error {
+func execJSON(req *http.Request, additionalHeaders map[string]string, out any) error {
 	req.Header.Add("Accept", "application/json")
 	for k, v := range additionalHeaders {
 		req.Header.Add(k, v)
@@ -1006,14 +1006,14 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
 	defer ts.server.Close()
-	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {
+	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
 		ctx, ok := v.(context.Context)
 		if !ok || tenancy.GetTenant(ctx) != "acme" {
 			return false
 		}
 		return true
 	}), mock.AnythingOfType("model.TraceID")).Return(mockTrace, nil).Twice()
-	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {
+	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
 		ctx, ok := v.(context.Context)
 		if !ok || tenancy.GetTenant(ctx) != "megacorp" {
 			return false

@@ -171,7 +171,7 @@ func TestInvalidAnnotationTypeError(t *testing.T) {
 // TestZipkinEncoding is just for reference to explain the base64 strings
 // used in zipkin_03.json and jaeger_03.json fixtures
 func TestValidateBase64Values(t *testing.T) {
-	numberToBase64 := func(num interface{}) string {
+	numberToBase64 := func(num any) string {
 		buf := &bytes.Buffer{}
 		binary.Write(buf, binary.BigEndian, num)
 		encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
@@ -209,7 +209,7 @@ func getZipkinSpans(t *testing.T, s string) []*z.Span {
 	return zSpans
 }
 
-func loadJSON(t *testing.T, fileName string, i interface{}) {
+func loadJSON(t *testing.T, fileName string, i any) {
 	jsonFile, err := os.Open(fileName)
 	require.NoError(t, err, "Failed to load json fixture file %s", fileName)
 	jsonParser := json.NewDecoder(jsonFile)

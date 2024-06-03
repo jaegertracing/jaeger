@@ -102,8 +102,8 @@ func (kv *KeyValue) Binary() []byte {
 	return nil
 }
 
-// Value returns typed values stored in KeyValue as interface{}.
-func (kv *KeyValue) Value() interface{} {
+// Value returns typed values stored in KeyValue as any.
+func (kv *KeyValue) Value() any {
 	switch kv.VType {
 	case StringType:
 		return kv.VStr

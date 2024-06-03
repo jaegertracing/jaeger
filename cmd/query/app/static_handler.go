@@ -187,7 +187,7 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	ext := filepath.Ext(uiConfig)
 	switch strings.ToLower(ext) {
 	case ".json":
-		var c map[string]interface{}
+		var c map[string]any
 
 		if err := json.Unmarshal(bytesConfig, &c); err != nil {
 			return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)

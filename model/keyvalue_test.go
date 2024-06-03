@@ -120,7 +120,7 @@ func TestKeyValueAsStringAndValue(t *testing.T) {
 		kv       model.KeyValue
 		str      string
 		strLossy string
-		val      interface{}
+		val      any
 	}{
 		{name: "Bender is great!", kv: model.String("x", "Bender is great!"), str: "Bender is great!", val: "Bender is great!"},
 		{name: "false", kv: model.Bool("x", false), str: "false", val: false},
