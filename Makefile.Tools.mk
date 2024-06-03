@@ -23,6 +23,9 @@ install-test-tools: $(LINT) $(GOFUMPT)
 .PHONY: install-build-tools
 install-build-tools: $(GOVERSIONINFO)
 
+.PHONY: install-ci
+install-ci: install-test-tools install-build-tools
+
 list-internal-tools:
 	@echo Third party tool modules:
 	@echo $(TOOLS_PKG_NAMES) | tr ' ' '\n' | sed 's/^/- /g'
