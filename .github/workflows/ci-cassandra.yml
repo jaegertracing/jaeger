@@ -46,7 +46,7 @@ jobs:
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
 
     - name: Output Cassandra logs
-      run: docker logs ${{ steps.test-execution.outputs.cid }}
+      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov

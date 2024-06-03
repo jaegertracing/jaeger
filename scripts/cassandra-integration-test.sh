@@ -17,7 +17,7 @@ check_arg() {
 setup_cassandra() {
   local major_version=$1
   local compose_file=$2
-  docker-compose -f "$compose_file" up -d
+  docker compose -f "$compose_file" up -d
   echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
