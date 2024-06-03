@@ -26,7 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	. "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 )
 
@@ -34,7 +34,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
 	glParams := &metricsstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).
 		Return(&protometrics.MetricFamily{}, nil)
@@ -107,7 +107,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
 	glParams := &metricsstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).
 		Return(&protometrics.MetricFamily{}, errors.New("failure"))

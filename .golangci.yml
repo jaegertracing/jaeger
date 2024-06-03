@@ -213,20 +213,11 @@ linters-settings:
         # enable after cleanup
         - name: early-return
           disabled: true
-        # enable after cleanup
-        - name: bare-return
-          disabled: true
-        # enable after cleanup
-        - name: empty-lines
-          disabled: true
         # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
         - name: range-val-address
           disabled: true
         # enable after cleanup
         - name: confusing-results
-          disabled: true
-        # we do use dot imports, but not a bad idea to make it explicit
-        - name: dot-imports
           disabled: true
         # enable after cleanup: "tag on not-exported field"
         - name: struct-tag

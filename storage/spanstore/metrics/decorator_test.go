@@ -25,7 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	. "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -33,7 +33,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
 	operationQuery := spanstore.OperationQueryParameters{ServiceName: "something"}
@@ -100,7 +100,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).
 		Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())
