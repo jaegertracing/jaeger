@@ -449,7 +449,7 @@ func createSearchResult(rawJsonStr string) *elastic.SearchResult {
 	return searchResult
 }
 
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}

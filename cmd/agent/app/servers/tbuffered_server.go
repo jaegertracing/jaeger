@@ -79,7 +79,7 @@ func NewTBufferedServer(
 	dataChan := make(chan *ReadBuf, maxQueueSize)
 
 	readBufPool := &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &ReadBuf{bytes: make([]byte, maxPacketSize)}
 		},
 	}

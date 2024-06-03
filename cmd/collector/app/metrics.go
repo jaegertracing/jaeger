@@ -169,7 +169,7 @@ func newTraceCountsBySvc(factory metrics.Factory, category string, maxServices i
 		},
 		// use sync.Pool to reduce allocation of stringBuilder
 		stringBuilderPool: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return new(strings.Builder)
 			},
 		},

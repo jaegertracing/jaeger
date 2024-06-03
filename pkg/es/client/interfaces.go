@@ -21,7 +21,7 @@ type IndexAPI interface {
 	CreateAlias(aliases []Alias) error
 	DeleteAlias(aliases []Alias) error
 	CreateTemplate(template, name string) error
-	Rollover(rolloverTarget string, conditions map[string]interface{}) error
+	Rollover(rolloverTarget string, conditions map[string]any) error
 }
 
 type ClusterAPI interface {

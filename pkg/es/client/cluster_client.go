@@ -32,8 +32,8 @@ type ClusterClient struct {
 // Version returns the major version of the ES cluster
 func (c *ClusterClient) Version() (uint, error) {
 	type clusterInfo struct {
-		Version map[string]interface{} `json:"version"`
-		TagLine string                 `json:"tagline"`
+		Version map[string]any `json:"version"`
+		TagLine string         `json:"tagline"`
 	}
 	body, err := c.request(elasticRequest{
 		endpoint: "",
