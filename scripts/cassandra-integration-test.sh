@@ -15,8 +15,7 @@ check_arg() {
 }
 
 setup_cassandra() {
-  local major_version=$1
-  local compose_file=$2
+  local compose_file=$1
   docker compose -f "$compose_file" up -d
   echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
@@ -51,9 +50,9 @@ run_integration_test() {
   local jaegerVersion=$3
   local primaryKeyspace="jaeger_v1_dc1"
   local archiveKeyspace="jaeger_v1_dc1_archive"
-  local compose_file="docker-compose/cassandra/v3.yaml"
+  local compose_file="docker-compose/cassandra/v$major_version.yaml"
 
-  setup_cassandra "${major_version}" "${compose_file}"
+  setup_cassandra "${compose_file}"
 
   apply_schema "$schema_version" "$primaryKeyspace"
   apply_schema "$schema_version" "$archiveKeyspace"
