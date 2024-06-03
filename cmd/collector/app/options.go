@@ -172,7 +172,7 @@ func (options) OnDroppedSpan(onDroppedSpan func(span *model.Span)) Option {
 	}
 }
 
-func (o options) apply(opts ...Option) options {
+func (options) apply(opts ...Option) options {
 	ret := options{}
 	for _, opt := range opts {
 		opt(&ret)

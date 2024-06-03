@@ -278,7 +278,7 @@ func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 }
 
 // FindTraceIDs is not implemented.
-func (m *Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	return nil, errors.New("not implemented")
 }
 

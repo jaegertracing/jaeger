@@ -204,7 +204,7 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 }
 
 // CreateLock implements storage.SamplingStoreFactory
-func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+func (*Factory) CreateLock() (distributedlock.Lock, error) {
 	return &lock{}, nil
 }
 

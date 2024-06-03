@@ -52,19 +52,19 @@ type errorFactory struct {
 	closeErr error
 }
 
-func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	panic("not implemented")
 }
 
-func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (errorFactory) CreateSpanReader() (spanstore.Reader, error) {
 	panic("not implemented")
 }
 
-func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	panic("not implemented")
 }
 
-func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("not implemented")
 }
 

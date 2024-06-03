@@ -197,7 +197,7 @@ func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error 
 	return n.err
 }
 
-func (n *fakeSpanWriter) Close() error {
+func (*fakeSpanWriter) Close() error {
 	return nil
 }
 

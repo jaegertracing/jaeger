@@ -91,7 +91,7 @@ func (f *fakeProcessor) Start() {
 
 type fakeMsg struct{}
 
-func (f *fakeMsg) Value() []byte {
+func (*fakeMsg) Value() []byte {
 	return nil
 }
 

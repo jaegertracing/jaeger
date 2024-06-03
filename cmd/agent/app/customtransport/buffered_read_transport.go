@@ -36,19 +36,19 @@ func NewTBufferedReadTransport(readBuf *bytes.Buffer) (*TBufferedReadTransport, 
 
 // IsOpen does nothing as transport is not maintaining the connection
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) IsOpen() bool {
+func (*TBufferedReadTransport) IsOpen() bool {
 	return true
 }
 
 // Open does nothing as transport is not maintaining the connection
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) Open() error {
+func (*TBufferedReadTransport) Open() error {
 	return nil
 }
 
 // Close does nothing as transport is not maintaining the connection
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) Close() error {
+func (*TBufferedReadTransport) Close() error {
 	return nil
 }
 
@@ -72,6 +72,6 @@ func (p *TBufferedReadTransport) Write(buf []byte) (int, error) {
 
 // Flush does nothing as udp server does not write responses back
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) Flush(_ context.Context) error {
+func (*TBufferedReadTransport) Flush(_ context.Context) error {
 	return nil
 }

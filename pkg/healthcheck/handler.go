@@ -106,7 +106,7 @@ func (hc *HealthCheck) Handler() http.Handler {
 	})
 }
 
-func (hc *HealthCheck) createRespBody(state state, template healthCheckResponse) []byte {
+func (*HealthCheck) createRespBody(state state, template healthCheckResponse) []byte {
 	resp := template // clone
 	if state.status == Ready {
 		resp.UpSince = state.upSince

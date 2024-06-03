@@ -393,7 +393,7 @@ func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Tra
 	return uiTrace, uiError
 }
 
-func (aH *APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
+func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
 	type Key struct {
 		parent string
 		child  string
@@ -412,7 +412,7 @@ func (aH *APIHandler) deduplicateDependencies(dependencies []model.DependencyLin
 	return result
 }
 
-func (aH *APIHandler) filterDependenciesByService(
+func (*APIHandler) filterDependenciesByService(
 	dependencies []model.DependencyLink,
 	service string,
 ) []model.DependencyLink {

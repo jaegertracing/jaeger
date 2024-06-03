@@ -42,7 +42,7 @@ func newServer(config *Config, otel component.TelemetrySettings) *server {
 }
 
 // Dependencies implements extension.Dependent to ensure this always starts after jaegerstorage extension.
-func (s *server) Dependencies() []component.ID {
+func (*server) Dependencies() []component.ID {
 	return []component.ID{jaegerstorage.ID}
 }
 

@@ -102,7 +102,7 @@ func (td ToDomain) SpanToDomain(dbSpan *Span) (*model.Span, error) {
 	return span, nil
 }
 
-func (td ToDomain) convertRefs(refs []Reference) ([]model.SpanRef, error) {
+func (ToDomain) convertRefs(refs []Reference) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
 		// There are some inconsistencies with ReferenceTypes, hence the hacky fix.
@@ -194,7 +194,7 @@ func (td ToDomain) convertTagField(k string, v any) (model.KeyValue, error) {
 
 // convertKeyValue expects the Value field to be string, because it only works
 // as a reverse transformation after FromDomain() for ElasticSearch model.
-func (td ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
+func (ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
 	if tag.Value == nil {
 		return model.KeyValue{}, fmt.Errorf("invalid nil Value in %v", tag)
 	}

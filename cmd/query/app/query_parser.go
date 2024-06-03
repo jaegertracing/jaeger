@@ -369,7 +369,7 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	return otelSpanKinds, nil
 }
 
-func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
+func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.traceIDs) == 0 && traceQuery.ServiceName == "" {
 		return errServiceParameterRequired
 	}
@@ -381,7 +381,7 @@ func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	return nil
 }
 
-func (p *queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
+func (*queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
 	retMe := make(map[string]string)
 	for _, tag := range simpleTags {
 		keyAndValue := strings.Split(tag, ":")

@@ -183,7 +183,7 @@ func TestReporter_MakeModelKeyValue(t *testing.T) {
 
 type mockMultitenantSpanHandler struct{}
 
-func (h *mockMultitenantSpanHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+func (*mockMultitenantSpanHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return &api_v2.PostSpansResponse{}, status.Errorf(codes.PermissionDenied, "missing tenant header")

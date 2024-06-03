@@ -169,7 +169,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	return nil
 }
 
-func (c *Collector) publishOpts(cOpts *flags.CollectorOptions) {
+func (*Collector) publishOpts(cOpts *flags.CollectorOptions) {
 	safeexpvar.SetInt(metricNumWorkers, int64(cOpts.NumWorkers))
 	safeexpvar.SetInt(metricQueueSize, int64(cOpts.QueueSize))
 }

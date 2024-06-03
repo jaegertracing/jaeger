@@ -206,11 +206,11 @@ func TestLogOnServerError(t *testing.T) {
 // httpResponseErrWriter implements the http.ResponseWriter interface that returns an error on Write.
 type httpResponseErrWriter struct{}
 
-func (h *httpResponseErrWriter) Write([]byte) (int, error) {
+func (*httpResponseErrWriter) Write([]byte) (int, error) {
 	return 0, fmt.Errorf("failed to write")
 }
-func (h *httpResponseErrWriter) WriteHeader(statusCode int) {}
-func (h *httpResponseErrWriter) Header() http.Header {
+func (*httpResponseErrWriter) WriteHeader(statusCode int) {}
+func (*httpResponseErrWriter) Header() http.Header {
 	return http.Header{}
 }
 

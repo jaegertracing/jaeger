@@ -138,7 +138,7 @@ func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID
 	return key
 }
 
-func (w *SpanWriter) createBadgerEntry(key []byte, value []byte, expireTime uint64) *badger.Entry {
+func (*SpanWriter) createBadgerEntry(key []byte, value []byte, expireTime uint64) *badger.Entry {
 	return &badger.Entry{
 		Key:       key,
 		Value:     value,

@@ -38,7 +38,7 @@ func (l *StringSlice) Set(value string) error {
 }
 
 // Type implements pflag.Value
-func (l *StringSlice) Type() string {
+func (*StringSlice) Type() string {
 	// this type string needs to match pflag.stringSliceValue's Type
 	return "stringSlice"
 }

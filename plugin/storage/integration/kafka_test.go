@@ -110,22 +110,22 @@ func (r *ingester) GetTrace(ctx context.Context, traceID model.TraceID) (*model.
 	return r.traceStore.GetTrace(ctx, traceID)
 }
 
-func (r *ingester) GetServices(ctx context.Context) ([]string, error) {
+func (*ingester) GetServices(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (r *ingester) GetOperations(
+func (*ingester) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
 	return nil, nil
 }
 
-func (r *ingester) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (*ingester) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	return nil, nil
 }
 
-func (r *ingester) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*ingester) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	return nil, nil
 }
 

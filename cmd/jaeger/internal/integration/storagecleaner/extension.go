@@ -93,6 +93,6 @@ func (c *storageCleaner) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (c *storageCleaner) Dependencies() []component.ID {
+func (*storageCleaner) Dependencies() []component.ID {
 	return []component.ID{jaegerstorage.ID}
 }

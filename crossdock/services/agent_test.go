@@ -65,7 +65,7 @@ func TestGetSamplingRateInternal(t *testing.T) {
 
 type testAgentHandler struct{}
 
-func (h *testAgentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (*testAgentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	svc := r.FormValue("service")
 	body := []byte("bad json")
 	if svc == "crossdock-svc" {

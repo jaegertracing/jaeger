@@ -304,8 +304,8 @@ func (w *mockWriter) Header() http.Header {
 	return w.header
 }
 
-func (w *mockWriter) Write([]byte) (int, error) {
+func (*mockWriter) Write([]byte) (int, error) {
 	return 0, errors.New("write error")
 }
 
-func (w *mockWriter) WriteHeader(int) {}
+func (*mockWriter) WriteHeader(int) {}

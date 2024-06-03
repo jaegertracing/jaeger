@@ -37,7 +37,7 @@ func TestDefaultTagFilter(t *testing.T) {
 
 type onlyStringsFilter struct{}
 
-func (f onlyStringsFilter) filterStringTags(tags model.KeyValues) model.KeyValues {
+func (onlyStringsFilter) filterStringTags(tags model.KeyValues) model.KeyValues {
 	var ret model.KeyValues
 	for _, tag := range tags {
 		if tag.VType == model.StringType {

@@ -171,9 +171,6 @@ linters-settings:
         # do a clean-up and enable
         - name: unused-parameter
           disabled: true
-        # do a clean-up and enable
-        - name: unused-receiver
-          disabled: true
         # we use storage_v2, so...
         - name: var-naming
           disabled: true
