@@ -187,7 +187,6 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 			// update the ring with the trace id
 			m.ids[m.index] = &span.TraceID
 		}
-
 	}
 	m.traces[span.TraceID].Spans = append(m.traces[span.TraceID].Spans, span)
 

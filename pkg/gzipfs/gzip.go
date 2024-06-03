@@ -50,17 +50,17 @@ func (f file) Stat() (fs.FileInfo, error) {
 	}, nil
 }
 
-func (f *file) Read(buf []byte) (n int, err error) {
+func (f *file) Read(buf []byte) (int, error) {
 	if len(buf) > len(f.content)-f.offset {
 		buf = buf[0:len(f.content[f.offset:])]
 	}
 
-	n = copy(buf, f.content[f.offset:])
+	n := copy(buf, f.content[f.offset:])
 	if n == len(f.content)-f.offset {
 		return n, io.EOF
 	}
 	f.offset += n
-	return
+	return n, nil
 }
 
 func (f file) Close() error {

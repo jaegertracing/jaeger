@@ -154,7 +154,6 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 			return fmt.Errorf("could not start Zipkin receiver: %w", err)
 		}
 		c.zipkinReceiver = zipkinReceiver
-
 	}
 
 	if options.OTLP.Enabled {
