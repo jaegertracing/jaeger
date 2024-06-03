@@ -126,7 +126,8 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 				Child:     dependency.Child,
 				CallCount: uint64(dependency.CallCount),
 				Source:    dependency.Source,
-			}.ApplyDefaults()
+			}
+			dl.ApplyDefaults()
 			mDependency = append(mDependency, dl)
 		}
 	}

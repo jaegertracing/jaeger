@@ -166,7 +166,7 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 }
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
+func (c *HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
 	if c.HostPort == "" {
 		c.HostPort = defaultHTTPServerHostPort
 	}

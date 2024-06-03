@@ -21,10 +21,12 @@ import (
 )
 
 func TestDependencyLinkApplyDefaults(t *testing.T) {
-	dl := DependencyLink{}.ApplyDefaults()
+	dl := DependencyLink{}
+	dl.ApplyDefaults()
 	assert.Equal(t, JaegerDependencyLinkSource, dl.Source)
 
 	networkSource := "network"
-	dl = DependencyLink{Source: networkSource}.ApplyDefaults()
+	dl = DependencyLink{Source: networkSource}
+	dl.ApplyDefaults()
 	assert.Equal(t, networkSource, dl.Source)
 }

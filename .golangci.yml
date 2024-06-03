@@ -189,9 +189,6 @@ linters-settings:
         # TBD - often triggered in tests
         - name: unhandled-error
           disabled: true
-        # this one looks like it's catching real errors, need to enable it
-        - name: modifies-value-receiver
-          disabled: true
         # often looks like a red herring, needs investigation
         - name: flag-parameter
           disabled: true
