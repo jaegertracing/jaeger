@@ -205,7 +205,6 @@ func createHTTPServer(
 			return nil, err
 		}
 		server.TLSConfig = tlsCfg
-
 	}
 
 	server.staticHandlerCloser = RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())

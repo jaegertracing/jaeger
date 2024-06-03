@@ -382,9 +382,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				if conn != nil {
 					clientClose = conn.Close
 				}
-
 			} else {
-
 				conn, err1 := net.DialTimeout("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), 2*time.Second)
 				clientError = err1
 				clientClose = nil

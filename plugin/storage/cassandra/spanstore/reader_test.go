@@ -402,7 +402,6 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				if testCase.queryDuration {
 					queryParams.DurationMin = time.Minute
 					queryParams.DurationMax = time.Minute * 3
-
 				}
 				res, err := r.reader.FindTraces(context.Background(), queryParams)
 				if testCase.expectedError == "" {
