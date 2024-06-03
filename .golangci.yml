@@ -219,9 +219,6 @@ linters-settings:
         # enable after cleanup
         - name: confusing-results
           disabled: true
-        # we do use dot imports, but not a bad idea to make it explicit
-        - name: dot-imports
-          disabled: true
         # enable after cleanup: "tag on not-exported field"
         - name: struct-tag
           disabled: true
