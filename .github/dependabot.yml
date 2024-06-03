@@ -19,6 +19,12 @@ updates:
         patterns:
           - "go.opentelemetry.io/contrib/instrumentation/*"
 
+  - package-ecosystem: gomod
+    directory: "/internal/tools"
+    schedule:
+      interval: daily
+    labels: [ "changelog:dependencies" ]
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

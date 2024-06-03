@@ -10,6 +10,9 @@ JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
+# SRC_ROOT is the top of the source tree.
+SRC_ROOT := $(shell git rev-parse --show-toplevel)
+
 # TODO we can compartmentalize this Makefile better, by separting:
 #  - integration tests
 #  - all the binary building targets
@@ -59,7 +62,6 @@ GOTEST_QUIET=$(GO) test $(RACE)
 GOTEST=$(GOTEST_QUIET) -v
 COVEROUT=cover.out
 GOFMT=gofmt
-GOFUMPT=gofumpt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
@@ -78,11 +80,10 @@ DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' -
 BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
-MOCKERY=mockery
-GOVERSIONINFO=goversioninfo
 SYSOFILE=resource.syso
 
 # import other Makefiles after the variables are defined
+include Makefile.Tools.mk
 include docker/Makefile
 include Makefile.Protobuf.mk
 include Makefile.Thrift.mk
@@ -187,7 +188,7 @@ fmt:
 
 .PHONY: lint
 lint: goleak
-	golangci-lint -v run
+	$(LINT) -v run
 	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
@@ -451,22 +452,6 @@ changelog:
 .PHONY: draft-release
 draft-release:
 	./scripts/draft-release.py
-
-.PHONY: install-test-tools
-install-test-tools:
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
-	$(GO) install mvdan.cc/gofumpt@latest
-
-.PHONY: install-build-tools
-install-build-tools:
-	$(GO) install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0
-
-.PHONY: install-tools
-install-tools: install-test-tools install-build-tools
-	$(GO) install github.com/vektra/mockery/v2@v2.42.3
-
-.PHONY: install-ci
-install-ci: install-test-tools install-build-tools
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)
