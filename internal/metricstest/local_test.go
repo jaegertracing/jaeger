@@ -155,7 +155,7 @@ func TestLocalMetricsInterval(t *testing.T) {
 	assert.NotNil(t, timer)
 
 	// timer.hist.Current is modified on every Rotate(), which is called by Backend after every refreshInterval
-	getCurr := func() interface{} {
+	getCurr := func() any {
 		timer.Lock()
 		defer timer.Unlock()
 		return timer.hist.Current

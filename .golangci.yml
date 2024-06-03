@@ -166,9 +166,6 @@ linters-settings:
         - name: cyclomatic
           disabled: true
         # do a clean-up and enable
-        - name: use-any
-          disabled: true
-        # do a clean-up and enable
         - name: unused-parameter
           disabled: true
         # do a clean-up and enable

@@ -346,7 +346,7 @@ func (td toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.Binary
 	return model.KeyValue{}, fmt.Errorf("unknown zipkin annotation type: %d", binaryAnnotation.AnnotationType)
 }
 
-func bytesToNumber(b []byte, number interface{}) error {
+func bytesToNumber(b []byte, number any) error {
 	buf := bytes.NewReader(b)
 	return binary.Read(buf, binary.BigEndian, number)
 }

@@ -81,8 +81,8 @@ func TestExtendLease(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("ScanCAS", matchEverything()).Return(testCase.applied, testCase.errScan)
 
-				var args []interface{}
-				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+				var args []any
+				captureArgs := mock.MatchedBy(func(v []any) bool {
 					args = v
 					return true
 				})
@@ -95,7 +95,7 @@ func TestExtendLease(t *testing.T) {
 					require.EqualError(t, err, testCase.expectedErrMsg)
 				}
 
-				expectedArgs := []interface{}{60, localhost, samplingLock, localhost}
+				expectedArgs := []any{60, localhost, samplingLock, localhost}
 				assert.Equal(t, expectedArgs, args)
 			})
 		})
@@ -162,8 +162,8 @@ func TestAcquire(t *testing.T) {
 				firstQuery := &mocks.Query{}
 				secondQuery := &mocks.Query{}
 
-				scanMatcher := func() interface{} {
-					scanFunc := func(args []interface{}) bool {
+				scanMatcher := func() any {
+					scanFunc := func(args []any) bool {
 						for i, arg := range args {
 							if ptr, ok := arg.(*string); ok {
 								*ptr = testCase.retVals[i]
@@ -228,8 +228,8 @@ func TestForfeit(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("ScanCAS", matchEverything()).Return(testCase.applied, testCase.errScan)
 
-				var args []interface{}
-				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+				var args []any
+				captureArgs := mock.MatchedBy(func(v []any) bool {
 					args = v
 					return true
 				})
@@ -259,12 +259,12 @@ func TestForfeit(t *testing.T) {
 	}
 }
 
-func matchEverything() interface{} {
-	return mock.MatchedBy(func(v []interface{}) bool { return true })
+func matchEverything() any {
+	return mock.MatchedBy(func(v []any) bool { return true })
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}

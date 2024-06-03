@@ -40,7 +40,7 @@ func (a *Action) Do() error {
 }
 
 func (a *Action) rollover(indexSet app.IndexOption) error {
-	conditionsMap := map[string]interface{}{}
+	conditionsMap := map[string]any{}
 	if len(a.Conditions) > 0 {
 		err := json.Unmarshal([]byte(a.Config.Conditions), &conditionsMap)
 		if err != nil {
