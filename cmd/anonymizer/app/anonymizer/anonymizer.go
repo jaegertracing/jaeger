@@ -126,7 +126,7 @@ func (a *Anonymizer) SaveMapping() {
 		a.logger.Error("Failed to marshal mapping file", zap.Error(err))
 		return
 	}
-	if err := os.WriteFile(filepath.Clean(a.mappingFile), dat, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Clean(a.mappingFile), dat, os.ModePerm); err != nil {
 		a.logger.Error("Failed to write mapping file", zap.Error(err))
 		return
 	}
