@@ -60,7 +60,6 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	})
 	defer s.Stop()
 	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	//nolint:staticcheck // don't care about errors
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -103,7 +102,6 @@ func TestReporter_EmitBatch(t *testing.T) {
 	})
 	defer s.Stop()
 	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	//nolint:staticcheck // don't care about errors
 	require.NoError(t, err)
 	defer conn.Close()
 	rep := NewReporter(conn, nil, zap.NewNop())
