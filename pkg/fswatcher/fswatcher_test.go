@@ -47,7 +47,7 @@ func createTestFiles(t *testing.T) (file1 string, file2 string, file3 string) {
 	err = os.WriteFile(file3, []byte("test data"), 0o600)
 	require.NoError(t, err)
 
-	return
+	return file1, file2, file3
 }
 
 func TestFSWatcherAddFiles(t *testing.T) {

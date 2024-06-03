@@ -60,7 +60,7 @@ func (f *file) Read(buf []byte) (n int, err error) {
 		return n, io.EOF
 	}
 	f.offset += n
-	return
+	return n, nil
 }
 
 func (f file) Close() error {

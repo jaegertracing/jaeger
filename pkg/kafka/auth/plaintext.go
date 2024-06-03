@@ -44,7 +44,10 @@ func (x *scramClient) Begin(userName, password, authzID string) (err error) {
 // called repeatedly until it errors or `Done` returns true.
 func (x *scramClient) Step(challenge string) (response string, err error) {
 	response, err = x.ClientConversation.Step(challenge)
-	return
+	if err != nil {
+		return "", err
+	}
+	return response, nil
 }
 
 // Done should return true when the SCRAM conversation
