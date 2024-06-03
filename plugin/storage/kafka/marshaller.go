@@ -35,7 +35,7 @@ func newProtobufMarshaller() *protobufMarshaller {
 }
 
 // Marshal encodes a span as a protobuf byte array
-func (h *protobufMarshaller) Marshal(span *model.Span) ([]byte, error) {
+func (*protobufMarshaller) Marshal(span *model.Span) ([]byte, error) {
 	return proto.Marshal(span)
 }
 

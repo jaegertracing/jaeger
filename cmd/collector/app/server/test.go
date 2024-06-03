@@ -24,20 +24,20 @@ import (
 
 type mockSamplingStore struct{}
 
-func (s mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
 	return nil, nil
 }
 
-func (s mockSamplingStore) Close() error {
+func (mockSamplingStore) Close() error {
 	return nil
 }
 
 type mockSpanProcessor struct{}
 
-func (p *mockSpanProcessor) Close() error {
+func (*mockSpanProcessor) Close() error {
 	return nil
 }
 
-func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
+func (*mockSpanProcessor) ProcessSpans(spans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
 	return []bool{}, nil
 }

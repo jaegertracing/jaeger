@@ -93,7 +93,7 @@ func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 
 // Open does nothing as connection is opened on creation
 // Required to maintain thrift.TTransport interface
-func (p *TUDPTransport) Open() error {
+func (*TUDPTransport) Open() error {
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (p *TUDPTransport) Read(buf []byte) (int, error) {
 
 // RemainingBytes returns the max number of bytes (same as Thrift's StreamTransport) as we
 // do not know how many bytes we have left.
-func (p *TUDPTransport) RemainingBytes() uint64 {
+func (*TUDPTransport) RemainingBytes() uint64 {
 	const maxSize = ^uint64(0)
 	return maxSize
 }

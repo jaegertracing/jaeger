@@ -34,7 +34,7 @@ type Config struct {
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
-func (c *Config) AddFlags(flags *flag.FlagSet) {
+func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.String(conditions, defaultRollbackCondition, "conditions used to rollover to a new write index")
 }
 

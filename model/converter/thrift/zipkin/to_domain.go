@@ -116,7 +116,7 @@ func (td toDomain) ToDomainSpans(zSpan *zipkincore.Span) ([]*model.Span, error) 
 	return jSpans, err
 }
 
-func (td toDomain) findAnnotation(zSpan *zipkincore.Span, value string) *zipkincore.Annotation {
+func (toDomain) findAnnotation(zSpan *zipkincore.Span, value string) *zipkincore.Annotation {
 	for _, ann := range zSpan.Annotations {
 		if ann.Value == value {
 			return ann
@@ -189,7 +189,7 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 }
 
 // getFlags takes a Zipkin Span and deduces the proper flags settings
-func (td toDomain) getFlags(zSpan *zipkincore.Span) model.Flags {
+func (toDomain) getFlags(zSpan *zipkincore.Span) model.Flags {
 	f := model.Flags(0)
 	if zSpan.Debug {
 		f.SetDebug()
@@ -265,12 +265,12 @@ func (td toDomain) findServiceNameAndIP(zSpan *zipkincore.Span) (string, int32, 
 	return UnknownServiceName, 0, err
 }
 
-func (td toDomain) isCoreAnnotation(annotation *zipkincore.Annotation) bool {
+func (toDomain) isCoreAnnotation(annotation *zipkincore.Annotation) bool {
 	_, ok := coreAnnotations[annotation.Value]
 	return ok
 }
 
-func (td toDomain) isProcessTag(binaryAnnotation *zipkincore.BinaryAnnotation) bool {
+func (toDomain) isProcessTag(binaryAnnotation *zipkincore.BinaryAnnotation) bool {
 	_, ok := processTagAnnotations[binaryAnnotation.Key]
 	return ok
 }
@@ -309,7 +309,7 @@ func (td toDomain) getTags(binAnnotations []*zipkincore.BinaryAnnotation, tagInc
 	return retMe
 }
 
-func (td toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.BinaryAnnotation) (model.KeyValue, error) {
+func (toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.BinaryAnnotation) (model.KeyValue, error) {
 	switch binaryAnnotation.AnnotationType {
 	case zipkincore.AnnotationType_BOOL:
 		vBool := bytes.Equal(binaryAnnotation.Value, trueByteSlice)
@@ -372,7 +372,7 @@ func (td toDomain) getLogs(annotations []*zipkincore.Annotation) []model.Log {
 	return retMe
 }
 
-func (td toDomain) getLogFields(annotation *zipkincore.Annotation) []model.KeyValue {
+func (toDomain) getLogFields(annotation *zipkincore.Annotation) []model.KeyValue {
 	var logFields map[string]string
 	// Since Zipkin format does not support kv-logging, some clients encode those Logs
 	// as annotations with JSON value. Therefore, we try JSON decoding first.
@@ -388,7 +388,7 @@ func (td toDomain) getLogFields(annotation *zipkincore.Annotation) []model.KeyVa
 	return []model.KeyValue{model.String(DefaultLogFieldKey, annotation.Value)}
 }
 
-func (td toDomain) getSpanKindTag(annotations []*zipkincore.Annotation) (model.KeyValue, bool) {
+func (toDomain) getSpanKindTag(annotations []*zipkincore.Annotation) (model.KeyValue, bool) {
 	for _, a := range annotations {
 		if spanKind, ok := coreAnnotations[a.Value]; ok {
 			return model.String(keySpanKind, spanKind), true
@@ -397,7 +397,7 @@ func (td toDomain) getSpanKindTag(annotations []*zipkincore.Annotation) (model.K
 	return model.KeyValue{}, false
 }
 
-func (td toDomain) getPeerTags(endpoint *zipkincore.Endpoint, tags []model.KeyValue) []model.KeyValue {
+func (toDomain) getPeerTags(endpoint *zipkincore.Endpoint, tags []model.KeyValue) []model.KeyValue {
 	if endpoint == nil {
 		return tags
 	}

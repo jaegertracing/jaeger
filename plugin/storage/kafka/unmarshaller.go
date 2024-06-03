@@ -39,7 +39,7 @@ func NewProtobufUnmarshaller() *ProtobufUnmarshaller {
 }
 
 // Unmarshal decodes a protobuf byte array to a span
-func (h *ProtobufUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+func (*ProtobufUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 	newSpan := &model.Span{}
 	err := proto.Unmarshal(msg, newSpan)
 	return newSpan, err
@@ -54,7 +54,7 @@ func NewJSONUnmarshaller() *JSONUnmarshaller {
 }
 
 // Unmarshal decodes a json byte array to a span
-func (h *JSONUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+func (*JSONUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 	newSpan := &model.Span{}
 	err := jsonpb.Unmarshal(bytes.NewReader(msg), newSpan)
 	return newSpan, err
@@ -69,7 +69,7 @@ func NewZipkinThriftUnmarshaller() *ZipkinThriftUnmarshaller {
 }
 
 // Unmarshal decodes a json byte array to a span
-func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+func (*ZipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 	tSpans, err := zipkin.DeserializeThrift(context.Background(), msg)
 	if err != nil {
 		return nil, err

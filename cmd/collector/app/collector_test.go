@@ -61,7 +61,7 @@ func (t *mockAggregator) HandleRootSpan(span *model.Span, logger *zap.Logger) {
 	t.callCount.Add(1)
 }
 
-func (t *mockAggregator) Start() {}
+func (*mockAggregator) Start() {}
 
 func (t *mockAggregator) Close() error {
 	t.closeCount.Add(1)
@@ -146,11 +146,11 @@ func TestCollector_StartErrors(t *testing.T) {
 
 type mockStrategyStore struct{}
 
-func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (*mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
-func (m *mockStrategyStore) Close() error {
+func (*mockStrategyStore) Close() error {
 	return nil
 }
 

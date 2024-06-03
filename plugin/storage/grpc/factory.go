@@ -72,7 +72,7 @@ func NewFactoryWithConfig(
 }
 
 // AddFlags implements plugin.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
+func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 	v1AddFlags(flagSet)
 }
 

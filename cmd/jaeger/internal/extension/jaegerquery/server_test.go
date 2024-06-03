@@ -62,18 +62,18 @@ type fakeStorageExt struct{}
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
-func (fse fakeStorageExt) Factory(name string) (storage.Factory, bool) {
+func (fakeStorageExt) Factory(name string) (storage.Factory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}
 	return fakeFactory{name: name}, true
 }
 
-func (fse fakeStorageExt) Start(ctx context.Context, host component.Host) error {
+func (fakeStorageExt) Start(ctx context.Context, host component.Host) error {
 	return nil
 }
 
-func (fse fakeStorageExt) Shutdown(ctx context.Context) error {
+func (fakeStorageExt) Shutdown(ctx context.Context) error {
 	return nil
 }
 
@@ -81,7 +81,7 @@ type storageHost struct {
 	extension component.Component
 }
 
-func (host storageHost) ReportFatalError(err error) {
+func (storageHost) ReportFatalError(err error) {
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {

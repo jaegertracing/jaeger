@@ -155,10 +155,10 @@ func (f *mockFactory) Close() error {
 
 type mockSamplingStoreFactory struct{}
 
-func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
+func (*mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return nil, nil
 }
 
-func (m *mockSamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (*mockSamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return nil, nil
 }

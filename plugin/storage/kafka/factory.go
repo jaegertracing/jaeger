@@ -94,7 +94,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 }
 
 // CreateSpanReader implements storage.Factory
-func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
+func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
 	return nil, errors.New("kafka storage is write-only")
 }
 
@@ -104,7 +104,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 }
 
 // CreateDependencyReader implements storage.Factory
-func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (*Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, errors.New("kafka storage is write-only")
 }
 

@@ -37,27 +37,27 @@ func NewStore() *Store {
 }
 
 // GetDependencies returns nothing.
-func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (*Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	return []model.DependencyLink{}, nil
 }
 
 // WriteSpan writes the given span to blackhole.
-func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*Store) WriteSpan(ctx context.Context, span *model.Span) error {
 	return nil
 }
 
 // GetTrace gets nothing.
-func (st *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (*Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	return nil, spanstore.ErrTraceNotFound
 }
 
 // GetServices returns nothing.
-func (st *Store) GetServices(ctx context.Context) ([]string, error) {
+func (*Store) GetServices(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }
 
 // GetOperations returns nothing.
-func (st *Store) GetOperations(
+func (*Store) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
@@ -65,11 +65,11 @@ func (st *Store) GetOperations(
 }
 
 // FindTraces returns nothing.
-func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (*Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	return []*model.Trace{}, nil
 }
 
 // FindTraceIDs returns nothing.
-func (m *Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	return []model.TraceID{}, nil
 }

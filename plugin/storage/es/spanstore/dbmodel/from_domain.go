@@ -78,7 +78,7 @@ func (fd FromDomain) convertReferences(span *model.Span) []Reference {
 	return out
 }
 
-func (fd FromDomain) convertRefType(refType model.SpanRefType) ReferenceType {
+func (FromDomain) convertRefType(refType model.SpanRefType) ReferenceType {
 	if refType == model.FollowsFrom {
 		return FollowsFrom
 	}
@@ -104,7 +104,7 @@ func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyVal
 	return kvs, tagsMap
 }
 
-func (fd FromDomain) convertLogs(logs []model.Log) []Log {
+func (FromDomain) convertLogs(logs []model.Log) []Log {
 	out := make([]Log, len(logs))
 	for i, log := range logs {
 		var kvs []KeyValue

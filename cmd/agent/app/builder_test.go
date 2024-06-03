@@ -182,11 +182,11 @@ func TestMultipleCollectorProxies(t *testing.T) {
 
 type fakeCollectorProxy struct{}
 
-func (f fakeCollectorProxy) GetReporter() reporter.Reporter {
+func (fakeCollectorProxy) GetReporter() reporter.Reporter {
 	return fakeCollectorProxy{}
 }
 
-func (f fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
+func (fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 	return fakeCollectorProxy{}
 }
 
@@ -202,7 +202,7 @@ func (fakeCollectorProxy) Close() error {
 	return nil
 }
 
-func (f fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*api_v2.SamplingStrategyResponse, error) {
+func (fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*api_v2.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")
 }
 

@@ -422,19 +422,19 @@ var (
 	_ io.Closer       = (*errorFactory)(nil)
 )
 
-func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	panic("implement me")
 }
 
-func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (errorFactory) CreateSpanReader() (spanstore.Reader, error) {
 	panic("implement me")
 }
 
-func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	panic("implement me")
 }
 
-func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("implement me")
 }
 

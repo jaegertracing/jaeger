@@ -195,7 +195,7 @@ func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
 	return nil
 }
 
-func (i *IndicesClient) aliasesString(aliases []Alias) string {
+func (*IndicesClient) aliasesString(aliases []Alias) string {
 	concatAliases := ""
 	for _, alias := range aliases {
 		concatAliases += fmt.Sprintf("[index: %s, alias: %s],", alias.Index, alias.Name)

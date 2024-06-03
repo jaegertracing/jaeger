@@ -34,6 +34,6 @@ type TemplateBuilder interface {
 type TextTemplateBuilder struct{}
 
 // Parse is a wrapper for template.Parse
-func (t TextTemplateBuilder) Parse(tmpl string) (TemplateApplier, error) {
+func (TextTemplateBuilder) Parse(tmpl string) (TemplateApplier, error) {
 	return template.New("mapping").Parse(tmpl)
 }

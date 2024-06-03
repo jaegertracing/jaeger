@@ -44,7 +44,7 @@ type test struct {
 	addresses []string
 }
 
-func (s *testServer) EmptyCall(ctx context.Context, in *grpc_testing.Empty) (*grpc_testing.Empty, error) {
+func (*testServer) EmptyCall(ctx context.Context, in *grpc_testing.Empty) (*grpc_testing.Empty, error) {
 	return &grpc_testing.Empty{}, nil
 }
 

@@ -65,7 +65,7 @@ func (c *autoRefreshCache) Get(key string) string {
 }
 
 // Put implementation that does nothing
-func (c *autoRefreshCache) Put(key string, value string) error {
+func (*autoRefreshCache) Put(key string, value string) error {
 	return nil
 }
 
