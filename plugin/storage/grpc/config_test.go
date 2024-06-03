@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package config
+package grpc
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 
 func TestBuildRemoteNewClientError(t *testing.T) {
 	// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
-	c := &ConfigurationV2{}
+	c := &ConfigV2{}
 	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		return nil, errors.New("test error")
 	}

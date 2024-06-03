@@ -27,7 +27,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -46,10 +45,10 @@ type Factory struct {
 	logger         *zap.Logger
 	tracerProvider trace.TracerProvider
 
-	configV1 config.Configuration
-	configV2 *config.ConfigurationV2
+	configV1 Configuration
+	configV2 *ConfigV2
 
-	services *config.ClientPluginServices
+	services *ClientPluginServices
 }
 
 // NewFactory creates a new Factory.
@@ -59,7 +58,7 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg config.ConfigurationV2,
+	cfg ConfigV2,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package grpc
 
 import (
 	"context"
@@ -41,14 +41,14 @@ type Configuration struct {
 	TenancyOpts          tenancy.Options
 }
 
-type ConfigurationV2 struct {
+type ConfigV2 struct {
 	Tenancy                        tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig        `mapstructure:",squash"`
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 }
 
-func (c *Configuration) TranslateToConfigV2() *ConfigurationV2 {
-	return &ConfigurationV2{
+func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
+	return &ConfigV2{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint:   c.RemoteServerAddr,
 			TLSSetting: c.RemoteTLS.ToOtelClientConfig(),
@@ -67,7 +67,7 @@ type ClientPluginServices struct {
 }
 
 // TODO move this to factory.go
-func (c *ConfigurationV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	telset := component.TelemetrySettings{
 		Logger:         logger,
 		TracerProvider: tracerProvider,
@@ -80,7 +80,7 @@ func (c *ConfigurationV2) Build(logger *zap.Logger, tracerProvider trace.TracerP
 
 type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
-func newRemoteStorage(c *ConfigurationV2, telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
+func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
 	}

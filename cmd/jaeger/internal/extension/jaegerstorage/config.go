@@ -11,14 +11,14 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 // Config has the configuration for jaeger-query,
 type Config struct {
 	Memory        map[string]memoryCfg.Configuration   `mapstructure:"memory"`
 	Badger        map[string]badgerCfg.NamespaceConfig `mapstructure:"badger"`
-	GRPC          map[string]grpcCfg.ConfigurationV2   `mapstructure:"grpc"`
+	GRPC          map[string]grpcCfg.ConfigV2          `mapstructure:"grpc"`
 	Opensearch    map[string]esCfg.Configuration       `mapstructure:"opensearch"`
 	Elasticsearch map[string]esCfg.Configuration       `mapstructure:"elasticsearch"`
 	Cassandra     map[string]cassandra.Options         `mapstructure:"cassandra"`
