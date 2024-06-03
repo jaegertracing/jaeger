@@ -24,11 +24,9 @@ jobs:
         version:
         - distribution: cassandra
           major: 3.x
-          image: 3.11
           schema: v003
         - distribution: cassandra
           major: 4.x
-          image: 4.0
           schema: v004
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }}
     steps:
@@ -45,10 +43,10 @@ jobs:
 
     - name: Run cassandra integration tests
       id: test-execution
-      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.image }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
+      run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
 
     - name: Output Cassandra logs
-      run: docker logs ${{ steps.test-execution.outputs.cid }}
+      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov
