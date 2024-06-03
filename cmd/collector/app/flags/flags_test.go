@@ -90,7 +90,7 @@ func TestCollectorOptionsWithFlags_CheckTLSReloadInterval(t *testing.T) {
 		"--collector.otlp.http",
 		"--collector.otlp.grpc",
 	}
-	OTLPPrefixes := map[string]struct{}{
+	otlpPrefixes := map[string]struct{}{
 		"--collector.otlp.http": {},
 		"--collector.otlp.grpc": {},
 	}
@@ -101,7 +101,7 @@ func TestCollectorOptionsWithFlags_CheckTLSReloadInterval(t *testing.T) {
 				prefix + ".tls.enabled=true",
 				prefix + ".tls.reload-interval=24h",
 			})
-			if _, ok := OTLPPrefixes[prefix]; !ok {
+			if _, ok := otlpPrefixes[prefix]; !ok {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "unknown flag")
 			} else {

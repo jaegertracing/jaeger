@@ -174,8 +174,8 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 }
 
 func purge(t *testing.T) {
-	Addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
-	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, Addr, nil)
+	addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}
