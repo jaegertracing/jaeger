@@ -70,7 +70,7 @@ func Test_getMappingAsString(t *testing.T) {
 			// Prepare
 			mockTemplateApplier := &mocks.TemplateApplier{}
 			mockTemplateApplier.On("Execute", mock.Anything, mock.Anything).Return(
-				func(wr io.Writer, data interface{}) error {
+				func(wr io.Writer, data any) error {
 					wr.Write([]byte(tt.want))
 					return nil
 				},

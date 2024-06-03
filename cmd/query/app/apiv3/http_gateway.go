@@ -66,7 +66,7 @@ func (h *HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
-	args ...interface{},
+	args ...any,
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
 	if h.TenancyMgr.Enabled {

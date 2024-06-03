@@ -72,7 +72,7 @@ func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 
 func (gw *testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	// reformat JSON body with indentation, to make diffing easier
-	var data interface{}
+	var data any
 	require.NoError(t, json.Unmarshal(body, &data), "response: %s", string(body))
 	body, err := json.MarshalIndent(data, "", "  ")
 	require.NoError(t, err)

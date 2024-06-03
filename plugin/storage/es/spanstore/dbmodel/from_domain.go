@@ -85,13 +85,13 @@ func (fd FromDomain) convertRefType(refType model.SpanRefType) ReferenceType {
 	return ChildOf
 }
 
-func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyValue, map[string]interface{}) {
-	var tagsMap map[string]interface{}
+func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyValue, map[string]any) {
+	var tagsMap map[string]any
 	var kvs []KeyValue
 	for _, kv := range keyValues {
 		if kv.GetVType() != model.BinaryType && (fd.allTagsAsFields || fd.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
-				tagsMap = map[string]interface{}{}
+				tagsMap = map[string]any{}
 			}
 			tagsMap[strings.ReplaceAll(kv.Key, ".", fd.tagDotReplacement)] = kv.Value()
 		} else {

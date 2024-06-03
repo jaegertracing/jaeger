@@ -131,7 +131,7 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	s.writeResponse(response, w, r)
 }
 
-func (s *Server) writeResponse(response interface{}, w http.ResponseWriter, r *http.Request) {
+func (s *Server) writeResponse(response any, w http.ResponseWriter, r *http.Request) {
 	data, err := json.Marshal(response)
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
 		s.logger.For(r.Context()).Error("cannot marshal response", zap.Error(err))

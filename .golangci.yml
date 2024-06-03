@@ -86,6 +86,9 @@ linters:
     # Finds sending HTTP request without context.Context.
     - noctx
 
+    # Reports ill-formed or insufficient nolint directives.
+    - nolintlint
+
     # Fast, configurable, extensible, flexible, and beautiful linter for Go. Drop-in replacement of golint.
     - revive
 
@@ -166,9 +169,6 @@ linters-settings:
         - name: cyclomatic
           disabled: true
         # do a clean-up and enable
-        - name: use-any
-          disabled: true
-        # do a clean-up and enable
         - name: unused-parameter
           disabled: true
         # do a clean-up and enable
@@ -200,9 +200,6 @@ linters-settings:
           disabled: true
         # definitely a good one, needs cleanup first
         - name: argument-limit
-          disabled: true
-        # another good one, needs cleanup first
-        - name: unexported-naming
           disabled: true
         # maybe enable, needs invesitgation of the impact
         - name: import-alias-naming

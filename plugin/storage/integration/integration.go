@@ -390,7 +390,7 @@ func LoadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtur
 	return queries
 }
 
-func loadAndParseJSON(t *testing.T, path string, object interface{}) {
+func loadAndParseJSON(t *testing.T, path string, object any) {
 	// #nosec
 	inStr, err := fixtures.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)

@@ -100,7 +100,7 @@ func NewSampler(ratio float64, hashSalt string) *Sampler {
 	}
 	hashSaltBytes := []byte(hashSalt)
 	pool := &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			buffer := make([]byte, len(hashSaltBytes)+traceIDByteSize)
 			copy(buffer, hashSaltBytes)
 			return &hasher{

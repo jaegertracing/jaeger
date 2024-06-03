@@ -127,36 +127,36 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
-	var config map[string]interface{}
+	var config map[string]any
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
 
-	service, ok := config["service"].(map[string]interface{})
+	service, ok := config["service"].(map[string]any)
 	require.True(t, ok)
-	service["extensions"] = append(service["extensions"].([]interface{}), "storage_cleaner")
+	service["extensions"] = append(service["extensions"].([]any), "storage_cleaner")
 
-	extensions, ok := config["extensions"].(map[string]interface{})
+	extensions, ok := config["extensions"].(map[string]any)
 	require.True(t, ok)
-	query, ok := extensions["jaeger_query"].(map[string]interface{})
+	query, ok := extensions["jaeger_query"].(map[string]any)
 	require.True(t, ok)
 	trace_storage := query["trace_storage"].(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
 
-	jaegerStorage, ok := extensions["jaeger_storage"].(map[string]interface{})
+	jaegerStorage, ok := extensions["jaeger_storage"].(map[string]any)
 	require.True(t, ok)
 
 	switch storage {
 	case "elasticsearch":
-		elasticsearch, ok := jaegerStorage["elasticsearch"].(map[string]interface{})
+		elasticsearch, ok := jaegerStorage["elasticsearch"].(map[string]any)
 		require.True(t, ok)
-		esMain, ok := elasticsearch["es_main"].(map[string]interface{})
+		esMain, ok := elasticsearch["es_main"].(map[string]any)
 		require.True(t, ok)
 		esMain["service_cache_ttl"] = "1ms"
 
 	case "opensearch":
-		opensearch, ok := jaegerStorage["opensearch"].(map[string]interface{})
+		opensearch, ok := jaegerStorage["opensearch"].(map[string]any)
 		require.True(t, ok)
-		osMain, ok := opensearch["os_main"].(map[string]interface{})
+		osMain, ok := opensearch["os_main"].(map[string]any)
 		require.True(t, ok)
 		osMain["service_cache_ttl"] = "1ms"
 
@@ -174,8 +174,8 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 }
 
 func purge(t *testing.T) {
-	Addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
-	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, Addr, nil)
+	addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}

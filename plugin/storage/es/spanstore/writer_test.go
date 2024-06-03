@@ -371,8 +371,8 @@ func TestNewSpanTags(t *testing.T) {
 				AllTagsAsFields: true,
 			}),
 			expected: dbmodel.Span{
-				Tag: map[string]interface{}{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
-				Process: dbmodel.Process{Tag: map[string]interface{}{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
 			},
 			name: "allTagsAsFields",
 		},
@@ -382,8 +382,8 @@ func TestNewSpanTags(t *testing.T) {
 				TagKeysAsFields: []string{"foo", "bar", "rere"},
 			}),
 			expected: dbmodel.Span{
-				Tag: map[string]interface{}{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
-				Process: dbmodel.Process{Tag: map[string]interface{}{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
 			},
 			name: "definedTagNames",
 		},
@@ -485,7 +485,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}

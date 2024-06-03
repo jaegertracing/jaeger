@@ -258,9 +258,9 @@ func TestLoadUIConfig(t *testing.T) {
 			regexp: configPattern,
 		},
 	})
-	c, _ := json.Marshal(map[string]interface{}{
-		"menu": []interface{}{
-			map[string]interface{}{
+	c, _ := json.Marshal(map[string]any{
+		"menu": []any{
+			map[string]any{
 				"label": "GitHub",
 				"url":   "https://github.com/jaegertracing/jaeger",
 			},
