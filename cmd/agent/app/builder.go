@@ -167,10 +167,11 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
 func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
-	if c.HostPort == "" {
-		c.HostPort = defaultHTTPServerHostPort
+	hostPort := c.HostPort
+	if hostPort == "" {
+		hostPort = defaultHTTPServerHostPort
 	}
-	return httpserver.NewHTTPServer(c.HostPort, manager, mFactory, logger)
+	return httpserver.NewHTTPServer(hostPort, manager, mFactory, logger)
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration
