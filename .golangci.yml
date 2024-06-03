@@ -204,9 +204,6 @@ linters-settings:
         # maybe enable, needs invesitgation of the impact
         - name: get-return
           disabled: true
-        # enable after cleanup
-        - name: early-return
-          disabled: true
         # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
         - name: range-val-address
           disabled: true
@@ -230,9 +227,6 @@ linters-settings:
           disabled: true
         # "no nested structs are allowed" - don't enable, doesn't make sense
         - name: nested-structs
-          disabled: true
-        # enable after cleanup
-        - name: indent-error-flow
           disabled: true
         # enable after cleanup
         - name: unexported-return

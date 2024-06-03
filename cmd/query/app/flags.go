@@ -122,16 +122,16 @@ func AddFlags(flagSet *flag.FlagSet) {
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
 	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
 	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
-	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
-		qOpts.TLSGRPC = tlsGrpc
-	} else {
+	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
+	if err != nil {
 		return qOpts, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	if tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v); err == nil {
-		qOpts.TLSHTTP = tlsHTTP
-	} else {
+	qOpts.TLSGRPC = tlsGrpc
+	tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v)
+	if err != nil {
 		return qOpts, fmt.Errorf("failed to process HTTP TLS options: %w", err)
 	}
+	qOpts.TLSHTTP = tlsHTTP
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets.Path = v.GetString(queryStaticFiles)
 	qOpts.StaticAssets.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
