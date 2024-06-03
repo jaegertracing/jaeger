@@ -1,6 +1,8 @@
 go.work
 go.work.sum
 
+.tools/
+
 *.out
 *.test
 *.xml
@@ -15,6 +17,8 @@ cover.html
 .tmp/
 .mkdocs-virtual-env/
 vendor/
+
+# Jaeger binaries
 examples/hotrod/hotrod
 examples/hotrod/hotrod-*
 cmd/all-in-one/all-in-one-*
@@ -36,6 +40,7 @@ cmd/query/query-*
 cmd/tracegen/tracegen
 cmd/tracegen/tracegen-*
 crossdock/crossdock-*
+
 run-crossdock.log
 proto-gen/.patched-otel-proto/
 __pycache__
