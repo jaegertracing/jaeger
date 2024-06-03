@@ -5,6 +5,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
@@ -53,7 +54,11 @@ func startZipkinReceiver(
 	createTracesReceiver func(ctx context.Context, set receiver.CreateSettings,
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
-	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
+	receiverConfig, ok := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
+	if !ok {
+		return nil, errors.New("type assertion to *zipkinreceiver.Config failed")
+	}
+
 	applyHTTPSettings(&receiverConfig.ServerConfig, &flags.HTTPOptions{
 		HostPort: options.Zipkin.HTTPHostPort,
 		TLS:      options.Zipkin.TLS,

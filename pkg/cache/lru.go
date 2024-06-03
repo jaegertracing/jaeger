@@ -65,7 +65,10 @@ func (c *LRU) Get(key string) any {
 		return nil
 	}
 
-	cacheEntry := elt.Value.(*cacheEntry)
+	cacheEntry, ok := elt.Value.(*cacheEntry)
+	if !ok {
+		return nil // Handle the case where type assertion fails
+	}
 	if !cacheEntry.expiration.IsZero() && c.TimeNow().After(cacheEntry.expiration) {
 		// Entry has expired
 		if c.onEvict != nil {
@@ -102,7 +105,10 @@ func (c *LRU) CompareAndSwap(key string, oldValue, newValue any) (itemInCache an
 
 	if elt != nil {
 		// Entry found, compare it with that you expect.
-		entry := elt.Value.(*cacheEntry)
+		entry, ok := elt.Value.(*cacheEntry)
+		if !ok {
+			return nil, false
+		}
 		if entry.value != oldValue {
 			return entry.value, false
 		}
@@ -115,7 +121,10 @@ func (c *LRU) CompareAndSwap(key string, oldValue, newValue any) (itemInCache an
 // Caller is expected to hold the c.mut mutex before calling.
 func (c *LRU) putWithMutexHold(key string, value any, elt *list.Element) any {
 	if elt != nil {
-		entry := elt.Value.(*cacheEntry)
+		entry, ok := elt.Value.(*cacheEntry)
+		if !ok {
+			return ""
+		}
 		existing := entry.value
 		entry.value = value
 		if c.ttl != 0 {
@@ -135,7 +144,10 @@ func (c *LRU) putWithMutexHold(key string, value any, elt *list.Element) any {
 	}
 	c.byKey[key] = c.byAccess.PushFront(entry)
 	for len(c.byKey) > c.maxSize {
-		oldest := c.byAccess.Remove(c.byAccess.Back()).(*cacheEntry)
+		oldest, ok := c.byAccess.Remove(c.byAccess.Back()).(*cacheEntry)
+		if !ok {
+			return ""
+		}
 		if c.onEvict != nil {
 			c.onEvict(oldest.key, oldest.value)
 		}
@@ -152,7 +164,10 @@ func (c *LRU) Delete(key string) {
 
 	elt := c.byKey[key]
 	if elt != nil {
-		entry := c.byAccess.Remove(elt).(*cacheEntry)
+		entry, ok := c.byAccess.Remove(elt).(*cacheEntry)
+		if !ok {
+			return
+		}
 		if c.onEvict != nil {
 			c.onEvict(entry.key, entry.value)
 		}

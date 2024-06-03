@@ -74,7 +74,10 @@ func NewSpanProcessor(
 	sp := newSpanProcessor(spanWriter, additional, opts...)
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item any) {
-		value := item.(*queueItem)
+		value, ok := item.(*queueItem)
+		if !ok {
+			return
+		}
 		sp.processItemFromQueue(value)
 	})
 

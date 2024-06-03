@@ -5,6 +5,7 @@ package storageexporter
 
 import (
 	"context"
+	"errors"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
@@ -33,7 +34,10 @@ func createDefaultConfig() component.Config {
 }
 
 func createTracesExporter(ctx context.Context, set exporter.CreateSettings, config component.Config) (exporter.Traces, error) {
-	cfg := config.(*Config)
+	cfg, ok := config.(*Config)
+	if !ok {
+		return nil, errors.New("type assertion to *Config failed")
+	}
 	ex := newExporter(cfg, set.TelemetrySettings)
 	return exporterhelper.NewTracesExporter(ctx, set, cfg,
 		ex.pushTraces,

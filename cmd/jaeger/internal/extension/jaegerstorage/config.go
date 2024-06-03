@@ -33,7 +33,10 @@ type MemoryStorage struct {
 }
 
 func (cfg *Config) Validate() error {
-	emptyCfg := createDefaultConfig().(*Config)
+	emptyCfg, ok := createDefaultConfig().(*Config)
+	if !ok {
+		return fmt.Errorf("type assertion to *Config failed")
+	}
 	if reflect.DeepEqual(*cfg, *emptyCfg) {
 		return fmt.Errorf("%s: no storage type present in config", ID)
 	} else {

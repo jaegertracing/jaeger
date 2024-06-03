@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -95,7 +96,10 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
 func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
-	ss := h.storedStrategies.Load().(*storedStrategies)
+	ss, ok := h.storedStrategies.Load().(*storedStrategies)
+	if !ok {
+		return nil, errors.New("type assertion to *storedStrategies failed")
+	}
 	serviceStrategies := ss.serviceStrategies
 	if strategy, ok := serviceStrategies[serviceName]; ok {
 		return strategy, nil

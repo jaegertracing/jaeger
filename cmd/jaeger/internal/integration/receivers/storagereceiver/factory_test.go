@@ -14,13 +14,15 @@ import (
 )
 
 func TestCreateDefaultConfig(t *testing.T) {
-	cfg := createDefaultConfig().(*Config)
+	cfg, ok := createDefaultConfig().(*Config)
+	require.True(t, ok, "Type assertion to *Config failed")
 	require.NotNil(t, cfg, "failed to create default config")
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
 
 func TestCreateTracesReceiver(t *testing.T) {
-	cfg := createDefaultConfig().(*Config)
+	cfg, ok := createDefaultConfig().(*Config)
+	require.True(t, ok, "Type assertion to *Config failed")
 	f := NewFactory()
 	r, err := f.CreateTracesReceiver(context.Background(), receivertest.NewNopCreateSettings(), cfg, nil)
 	require.NoError(t, err)

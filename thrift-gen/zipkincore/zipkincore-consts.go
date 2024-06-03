@@ -7,10 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 	thrift "github.com/apache/thrift/lib/go/thrift"
-	"strings"
 	"regexp"
+	"strings"
+	"time"
 )
 
 // (needed to ensure safety because of naive import list construction.)
@@ -20,6 +20,7 @@ var _ = errors.New
 var _ = context.Background
 var _ = time.Now
 var _ = bytes.Equal
+
 // (needed by validator.)
 var _ = strings.Contains
 var _ = regexp.MatchString
@@ -43,4 +44,3 @@ const MESSAGE_ADDR = "ma"
 
 func init() {
 }
-

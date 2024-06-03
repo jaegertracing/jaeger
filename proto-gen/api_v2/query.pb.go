@@ -247,7 +247,6 @@ var xxx_messageInfo_ArchiveTraceResponse proto.InternalMessageInfo
 // that match the conditions, and the resulting number of traces can be less.
 //
 // Note: some storage implementations do not guarantee the correct implementation of all parameters.
-//
 type TraceQueryParameters struct {
 	ServiceName          string            `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	OperationName        string            `protobuf:"bytes,2,opt,name=operation_name,json=operationName,proto3" json:"operation_name,omitempty"`

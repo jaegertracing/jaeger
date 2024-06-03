@@ -53,7 +53,8 @@ func TestSpanProcessor_Process(t *testing.T) {
 	mockWriter.On("WriteSpan", context.TODO(), span).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			span := args[1].(*model.Span)
+			span, ok := args[1].(*model.Span)
+			require.True(t, ok, "type assertion to *model.Span failed")
 			assert.NotNil(t, span.Process, "sanitizer must fix Process=nil data issue")
 		})
 

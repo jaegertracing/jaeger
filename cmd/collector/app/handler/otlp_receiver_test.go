@@ -156,8 +156,10 @@ func TestOtelHost(t *testing.T) {
 
 func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 	otlpFactory := otlpreceiver.NewFactory()
-	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-
+	otlpReceiverConfig, ok := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+	if !ok {
+		t.Fatal("Type assertion to *otlpreceiver.Config failed")
+	}
 	grpcOpts := &flags.GRPCOptions{
 		HostPort:                ":54321",
 		MaxReceiveMessageLength: 42 * 1024 * 1024,
@@ -194,8 +196,10 @@ func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 
 func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 	otlpFactory := otlpreceiver.NewFactory()
-	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-
+	otlpReceiverConfig, ok := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+	if !ok {
+		t.Fatal("Type assertion to *otlpreceiver.Config failed")
+	}
 	httpOpts := &flags.HTTPOptions{
 		HostPort: ":12345",
 		TLS: tlscfg.Options{

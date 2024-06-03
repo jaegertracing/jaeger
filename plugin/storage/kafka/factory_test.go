@@ -140,7 +140,8 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 
 			f.InitFromViper(v, zap.NewNop())
 
-			parsedConfig := f.Builder.(*kafkaConfig.Configuration)
+			parsedConfig, ok := f.Builder.(*kafkaConfig.Configuration)
+			require.True(t, ok, "Type assertion to *kafkaConfig.Configuration failed")
 			f.Builder = &mockProducerBuilder{t: t, Configuration: *parsedConfig}
 			logbuf := &bytes.Buffer{}
 			logger := zap.New(zapcore.NewCore(

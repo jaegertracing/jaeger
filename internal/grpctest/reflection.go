@@ -55,7 +55,8 @@ func (v ReflectionServiceValidator) Execute(t *testing.T) {
 		new(grpc_reflection.ServerReflectionResponse_ListServicesResponse),
 		m.MessageResponse)
 
-	resp := m.MessageResponse.(*grpc_reflection.ServerReflectionResponse_ListServicesResponse)
+	resp, ok := m.MessageResponse.(*grpc_reflection.ServerReflectionResponse_ListServicesResponse)
+	require.True(t, ok, "Type assertion to *grpc_reflection.ServerReflectionResponse_ListServicesResponse failed")
 	for _, svc := range v.ExpectedServices {
 		var found string
 		for _, s := range resp.ListServicesResponse.Service {

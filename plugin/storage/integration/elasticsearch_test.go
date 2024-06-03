@@ -149,7 +149,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 
 	s.DependencyReader, err = f.CreateDependencyReader()
 	require.NoError(t, err)
-	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
+	str, ok := s.DependencyReader.(dependencystore.Writer)
+	s.DependencyWriter = str
+	require.True(t, ok, "type assertion to dependencystore.Writer failed")
 
 	s.SamplingStore, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)

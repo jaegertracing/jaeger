@@ -177,7 +177,8 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	f := makeFactory(t)
 
-	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
+	capabilities, ok := f.services.Capabilities.(*mocks.PluginCapabilities)
+	require.True(t, ok, "type assertion to *mocks.PluginCapabilities failed")
 	capabilities.On("Capabilities").
 		Return(&shared.Capabilities{
 			ArchiveSpanReader:   true,
@@ -201,7 +202,8 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 	f := makeFactory(t)
 
-	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
+	capabilities, ok := f.services.Capabilities.(*mocks.PluginCapabilities)
+	require.True(t, ok, "Type assertion to *mocks.PluginCapabilities failed")
 	capabilities.On("Capabilities").
 		Return(&shared.Capabilities{
 			ArchiveSpanReader:   false,
@@ -223,7 +225,8 @@ func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
 	f := makeFactory(t)
 
-	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
+	capabilities, ok := f.services.Capabilities.(*mocks.PluginCapabilities)
+	require.True(t, ok, "Type assertion to *mocks.PluginCapabilities failed")
 	customError := errors.New("made-up error")
 	capabilities.On("Capabilities").Return(nil, customError)
 
@@ -269,9 +272,11 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 	f := makeFactory(t)
 
 	f.services.Capabilities = nil
-	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	mockWriter, ok := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	require.True(t, ok, "Type assertion to *spanStoreMocks.Writer failed")
 	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
-	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	mockWriter2, ok := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	require.True(t, ok, "Type assertion to *spanStoreMocks.Writer failed")
 	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
 
 	writer, err := f.CreateSpanWriter()
@@ -284,7 +289,8 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 	f := makeFactory(t)
 
-	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
+	capabilities, ok := f.services.Capabilities.(*mocks.PluginCapabilities)
+	require.True(t, ok, "Type assertion to *mocks.PluginCapabilities failed")
 	customError := errors.New("made-up error")
 	capabilities.
 		// return error on the first call
@@ -294,9 +300,11 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 		// then return true on the second call
 		On("Capabilities").Return(&shared.Capabilities{StreamingSpanWriter: true}, nil).Once()
 
-	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	mockWriter, ok := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	require.True(t, ok, "Type assertion to *spanStoreMocks.Writer failed")
 	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
-	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	mockWriter2, ok := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	require.True(t, ok, "Type assertion to *spanStoreMocks.Writer failed")
 	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
 
 	writer, err := f.CreateSpanWriter()

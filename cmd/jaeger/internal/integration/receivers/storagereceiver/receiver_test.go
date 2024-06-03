@@ -71,7 +71,10 @@ func withReceiver(
 		name:    r.storageName,
 		factory: factory,
 	})
-	cfg := createDefaultConfig().(*Config)
+	cfg, ok := createDefaultConfig().(*Config)
+	if !ok {
+		return
+	}
 	cfg.TraceStorage = r.receiveName
 	cfg.PullInterval = r.receiveInterval
 	receiver, _ := newTracesReceiver(

@@ -178,8 +178,7 @@ linters-settings:
         - name: var-naming
           disabled: true
         # could be useful to catch issues, but needs a clean-up and some ignores
-        - name: unchecked-type-assertion
-          disabled: true
+        
         # wtf: "you have exceeded the maximum number of public struct declarations"
         - name: max-public-structs
           disabled: true

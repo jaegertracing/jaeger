@@ -135,7 +135,11 @@ func (hc *HealthCheck) Get() Status {
 }
 
 func (hc *HealthCheck) getState() state {
-	return hc.state.Load().(state)
+	loadedState, ok := hc.state.Load().(state)
+	if !ok {
+		return state{}
+	}
+	return loadedState
 }
 
 // Ready is a shortcut for Set(Ready) (kept for backwards compatibility)

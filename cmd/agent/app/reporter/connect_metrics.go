@@ -42,7 +42,11 @@ func NewConnectMetrics(mf metrics.Factory) *ConnectMetrics {
 	if r := expvar.Get("gRPCTarget"); r == nil {
 		cm.target = expvar.NewString("gRPCTarget")
 	} else {
-		cm.target = r.(*expvar.String)
+		str, ok := r.(*expvar.String)
+		if !ok {
+			return nil
+		}
+		cm.target = str
 	}
 
 	return cm

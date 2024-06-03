@@ -691,7 +691,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 	assert.Equal(t, 1, message.Len(), "Expected 'Query server started' log message.")
 
 	onlyEntry := message.All()[0]
-	port := onlyEntry.ContextMap()["port"].(int64)
+	port, ok := onlyEntry.ContextMap()["port"].(int64)
+	require.True(t, ok, "Type assertion to int64 failed")
 	assert.Greater(t, port, int64(0))
 
 	grpctest.ReflectionServiceValidator{

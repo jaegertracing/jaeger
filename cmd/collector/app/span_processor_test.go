@@ -245,8 +245,8 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 
 func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, nil, Options.QueueSize(1)).(*spanProcessor)
-
+	p, ok := NewSpanProcessor(w, nil, Options.QueueSize(1)).(*spanProcessor)
+	require.True(t, ok, "Type assertion to *spanProcessor failed")
 	res, err := p.ProcessSpans(
 		[]*model.Span{{}}, // empty span should be enriched by sanitizers
 		processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
@@ -266,13 +266,13 @@ func TestSpanProcessorErrors(t *testing.T) {
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
-	p := NewSpanProcessor(w,
+	p, ok := NewSpanProcessor(w,
 		nil,
 		Options.Logger(logger),
 		Options.ServiceMetrics(serviceMetrics),
 		Options.QueueSize(1),
 	).(*spanProcessor)
-
+	require.True(t, ok, "Type assertion to *spanProcessor failed")
 	res, err := p.ProcessSpans([]*model.Span{
 		{
 			Process: &model.Process{
@@ -312,12 +312,13 @@ func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error 
 
 func TestSpanProcessorBusy(t *testing.T) {
 	w := &blockingWriter{}
-	p := NewSpanProcessor(w,
+	p, ok := NewSpanProcessor(w,
 		nil,
 		Options.NumWorkers(1),
 		Options.QueueSize(1),
 		Options.ReportBusy(true),
 	).(*spanProcessor)
+	require.True(t, ok, "Type assertion to *spanProcessor failed")
 	defer require.NoError(t, p.Close())
 
 	// block the writer so that the first span is read from the queue and blocks the processor,
@@ -353,7 +354,8 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
+	p, ok := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
+	require.True(t, ok, "Type assertion to *spanProcessor failed")
 	defer require.NoError(t, p.Close())
 
 	p.saveSpan(&model.Span{}, "")
@@ -372,8 +374,8 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 	}
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
-
+	p, ok := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
+	require.True(t, ok, "Type assertion to *spanProcessor failed")
 	defer require.NoError(t, p.Close())
 	span := &model.Span{
 		Process: model.NewProcess("unit-test-service", []model.KeyValue{
@@ -461,7 +463,8 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			} else {
 				opts = append(opts, Options.DynQueueSizeMemory(0))
 			}
-			p := NewSpanProcessor(w, nil, opts...).(*spanProcessor)
+			p, ok := NewSpanProcessor(w, nil, opts...).(*spanProcessor)
+			require.True(t, ok, "Type assertion to *spanProcessorfailed")
 			defer func() {
 				require.NoError(t, p.Close())
 			}()
@@ -685,13 +688,14 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	}
 
 	w := &blockingWriter{}
-	p := NewSpanProcessor(w,
+	p, ok := NewSpanProcessor(w,
 		nil,
 		Options.NumWorkers(1),
 		Options.QueueSize(1),
 		Options.OnDroppedSpan(customOnDroppedSpan),
 		Options.ReportBusy(true),
 	).(*spanProcessor)
+	require.True(t, ok, "Type assertion to *spanProcessor failed")
 	defer p.Close()
 
 	// Acquire the lock externally to force the writer to block.
