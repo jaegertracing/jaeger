@@ -13,9 +13,13 @@ jobs:
     permissions:
       contents: write
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
 
     steps:
+
+    - name: Disk size
+      run: df -g /
+
     - name: Harden Runner
       uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
       with:
