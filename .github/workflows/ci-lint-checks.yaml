@@ -41,3 +41,13 @@ jobs:
 
     - name: Ensure PR is not on main branch
       uses: ./.github/actions/block-pr-not-on-main
+
+    - name: Set up Python 3.x for DCO check
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Run DCO check
+      run: python3 scripts/dco_check.py -b main -v
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
