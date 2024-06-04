@@ -17,7 +17,7 @@ platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 LOCAL_FLAG=''
 BINARY='all-in-one'
 
-while getopts "bhlDp:" opt; do
+while getopts "b:hlDp:" opt; do
 	case "${opt}" in
 	b)
 		BINARY=${OPTARG}
