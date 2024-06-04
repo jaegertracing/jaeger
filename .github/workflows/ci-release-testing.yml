@@ -1,9 +1,6 @@
 name: Publish release
 
 on:
-  release:
-    types:
-      - published
   # allow running release workflow manually
   workflow_dispatch:
 
@@ -15,20 +12,9 @@ jobs:
   publish-release:
     permissions:
       contents: write
-      deployments: write
-    if: github.repository == 'jaegertracing/jaeger'
     runs-on: ubuntu-latest
 
     steps:
-    - name: Clean up some disk space
-      # We had an issue where the workflow was running out of disk space,
-      # because it downloads so many Docker images for different platforms.
-      # Here we delete some stuff from the VM that we do not use.
-      # Inspired by https://github.com/jlumbroso/free-disk-space.
-      run: |
-        sudo rm -rf /usr/local/lib/android || true
-        df -h /
-
     - name: Harden Runner
       uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
       with:
@@ -76,31 +62,16 @@ jobs:
       id: package-binaries
       run: bash scripts/package-deploy.sh
 
-    - name: Upload binaries
-      uses: svenstaro/upload-release-action@1beeb572c19a9242f4361f4cee78f8e0d9aec5df # v2.7.0
-      with:
-        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
-        file_glob: true
-        overwrite: true
-        tag: ${{ env.BRANCH }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Clean up some more disk space
-      # Delete the release artifacts after uploading them.
-      run: |
-        rm -rf deploy || true
-        df -h /
-
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Build and upload all container images
-      run: bash scripts/build-upload-docker-images.sh
+    - name: Build all container images (do not push)
+      run: bash scripts/build-upload-docker-images.sh -l
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish all-in-one image
-      run: bash scripts/build-all-in-one-image.sh
+    - name: Build and test all-in-one image (do not push)
+      run: bash scripts/build-all-in-one-image.sh -l
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

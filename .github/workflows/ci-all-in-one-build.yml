@@ -57,22 +57,24 @@ jobs:
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Define PR_ONLY var if running on a Pull Request
+    - name: Define LOCAL_FLAG var if running on a Pull Request
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request)
-            echo "PR_ONLY=pr-only" >> ${GITHUB_ENV}
+            echo "LOCAL_FLAG=-l" >> ${GITHUB_ENV}
             ;;
           *)
-            echo "PR_ONLY=" >> ${GITHUB_ENV}
+            echo "LOCAL_FLAG=" >> ${GITHUB_ENV}
             ;;
         esac
 
     - name: Build, test, and publish all-in-one image
       run: |
-        BINARY=${{ matrix.mode.binary }} \
-          SKIP_SAMPLING=${{ matrix.mode.skip_sampling }} \
-          bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
+        bash scripts/build-all-in-one-image.sh \
+          ${{ env.LOCAL_FLAG }} \
+          -b ${{ matrix.mode.binary }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        # SKIP_SAMPLING is used by integration tests, see https://github.com/jaegertracing/jaeger/issues/5531
+        SKIP_SAMPLING: =${{ matrix.mode.skip_sampling }}
