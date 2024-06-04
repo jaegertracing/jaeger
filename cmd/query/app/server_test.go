@@ -616,6 +616,7 @@ func TestServerSinglePort(t *testing.T) {
 		jtracer.NoOp())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
+	var once sync.Once
 	closeServer := func() {
 		once.Do(func() {
 			require.NoError(t, server.Close())
