@@ -244,12 +244,10 @@ func (i IndicesClient) version() (uint, error) {
 // CreateTemplate an ES index template
 func (i IndicesClient) CreateTemplate(template, name string) error {
 	endpointFmt := "_template/%s"
-	if v, err := i.version(); err == nil {
-		if v >= 8 {
-			endpointFmt = "_index_template/%s"
-		}
-	} else {
+	if v, err := i.version(); err != nil {
 		return err
+	} else if v >= 8 {
+		endpointFmt = "_index_template/%s"
 	}
 	_, err := i.request(elasticRequest{
 		endpoint: fmt.Sprintf(endpointFmt, name),

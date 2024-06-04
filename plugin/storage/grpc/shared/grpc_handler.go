@@ -156,9 +156,8 @@ func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterReques
 		}
 
 		return &storage_v1.CloseWriterResponse{}, nil
-	} else {
-		return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
 	}
+	return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
 }
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
