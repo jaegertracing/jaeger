@@ -616,15 +616,14 @@ func TestServerSinglePort(t *testing.T) {
 		jtracer.NoOp())
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
-	defer func() {
-		require.NoError(t, server.Close())
-	}()
-
+	closeServer := func() {
+		once.Do(func() {
+			require.NoError(t, server.Close())
+		})
+	}
+	defer closeServer()
 	client := newGRPCClient(t, hostPort)
-	defer func() {
-		require.NoError(t, server.Close())
-	}()
-
+	defer closeServer()
 	// using generous timeout since grpc.NewClient no longer does a handshake.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
