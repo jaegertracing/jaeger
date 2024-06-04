@@ -11,7 +11,7 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 // Config has the configuration for jaeger-query,

@@ -45,7 +45,7 @@ type SamplingStore struct {
 	lookback               time.Duration
 }
 
-type SamplingStoreParams struct {
+type Params struct {
 	Client                 func() es.Client
 	Logger                 *zap.Logger
 	IndexPrefix            string
@@ -55,7 +55,7 @@ type SamplingStoreParams struct {
 	MaxDocCount            int
 }
 
-func NewSamplingStore(p SamplingStoreParams) *SamplingStore {
+func NewSamplingStore(p Params) *SamplingStore {
 	return &SamplingStore{
 		client:                 p.Client,
 		logger:                 p.Logger,
@@ -195,7 +195,7 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 	return indices
 }
 
-func (p *SamplingStoreParams) PrefixedIndexName() string {
+func (p *Params) PrefixedIndexName() string {
 	if p.IndexPrefix != "" {
 		return p.IndexPrefix + indexPrefixSeparator + samplingIndex
 	}
