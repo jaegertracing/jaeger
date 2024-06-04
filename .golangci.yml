@@ -207,9 +207,6 @@ linters-settings:
         # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
         - name: range-val-address
           disabled: true
-        # enable after cleanup: "tag on not-exported field"
-        - name: struct-tag
-          disabled: true
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
           disabled: true
@@ -218,9 +215,6 @@ linters-settings:
           disabled: true
         # "no nested structs are allowed" - don't enable, doesn't make sense
         - name: nested-structs
-          disabled: true
-        # enable after cleanup
-        - name: unexported-return
           disabled: true
         # looks useful, but requires refactoring: "calls to log.Fatal only in main() or init() functions"
         - name: deep-exit

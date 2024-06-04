@@ -40,7 +40,7 @@ type Options struct {
 	MaxVersion     string        `mapstructure:"max_version"`
 	SkipHostVerify bool          `mapstructure:"skip_host_verify"`
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
-	certWatcher    *certWatcher  `mapstructure:"-"`
+	CertWatcher    *certWatcher  `mapstructure:"-"`
 }
 
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
@@ -102,18 +102,18 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	o.certWatcher = certWatcher
+	o.CertWatcher = certWatcher
 
 	if (o.CertPath == "" && o.KeyPath != "") || (o.CertPath != "" && o.KeyPath == "") {
 		return nil, fmt.Errorf("for client auth via TLS, either both client certificate and key must be supplied, or neither")
 	}
 	if o.CertPath != "" && o.KeyPath != "" {
 		tlsCfg.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return o.certWatcher.certificate(), nil
+			return o.CertWatcher.certificate(), nil
 		}
 		// GetClientCertificate is used on the client side when server is configured with tls.RequireAndVerifyClientCert e.g. mTLS
 		tlsCfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return o.certWatcher.certificate(), nil
+			return o.CertWatcher.certificate(), nil
 		}
 	}
 
@@ -169,8 +169,8 @@ var _ io.Closer = (*Options)(nil)
 
 // Close shuts down the embedded certificate watcher.
 func (o *Options) Close() error {
-	if o.certWatcher != nil {
-		return o.certWatcher.Close()
+	if o.CertWatcher != nil {
+		return o.CertWatcher.Close()
 	}
 	return nil
 }
