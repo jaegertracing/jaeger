@@ -86,11 +86,11 @@ func (w *FSWatcher) setupWatchedPaths(filepaths []string) error {
 		if p == "" {
 			continue
 		}
-		if h, err := hashFile(p); err == nil {
-			w.fileHashContentMap[p] = h
-		} else {
+		h, err := hashFile(p)
+		if err != nil {
 			return err
 		}
+		w.fileHashContentMap[p] = h
 		dir := path.Dir(p)
 		if _, ok := uniqueDirs[dir]; !ok {
 			if err := w.watcher.Add(dir); err != nil {

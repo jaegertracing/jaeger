@@ -297,7 +297,7 @@ func createSpanWriter(
 }
 
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	params := esSampleStore.SamplingStoreParams{
+	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
 		IndexPrefix:            f.primaryConfig.IndexPrefix,
@@ -341,7 +341,7 @@ func createDependencyReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStore(esDepStore.DependencyStoreParams{
+	reader := esDepStore.NewDependencyStore(esDepStore.Params{
 		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.IndexPrefix,

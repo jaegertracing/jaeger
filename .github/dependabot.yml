@@ -136,3 +136,10 @@ updates:
     allow:
       - dependency-name: "bitnami/kafka"
         update-types: ["version-update:semver-minor"]
+  - package-ecosystem: docker
+    directory: /docker-compose/cassandra
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "cassandra"
+        update-types: ["version-update:semver-minor"]

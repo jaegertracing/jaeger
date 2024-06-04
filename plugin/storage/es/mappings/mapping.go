@@ -51,12 +51,12 @@ func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
 }
 
 // GetSpanServiceMappings returns span and service mappings
-func (mb *MappingBuilder) GetSpanServiceMappings() (string, string, error) {
-	spanMapping, err := mb.GetMapping("jaeger-span")
+func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceMapping string, err error) {
+	spanMapping, err = mb.GetMapping("jaeger-span")
 	if err != nil {
 		return "", "", err
 	}
-	serviceMapping, err := mb.GetMapping("jaeger-service")
+	serviceMapping, err = mb.GetMapping("jaeger-service")
 	if err != nil {
 		return "", "", err
 	}

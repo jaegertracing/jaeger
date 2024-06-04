@@ -51,11 +51,11 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) (*ConnBuilder, error) {
 		b.CollectorHostPorts = strings.Split(hostPorts, ",")
 	}
 	b.MaxRetry = uint(v.GetInt(retry))
-	if tls, err := tlsFlagsConfig.InitFromViper(v); err == nil {
-		b.TLS = tls
-	} else {
+	tls, err := tlsFlagsConfig.InitFromViper(v)
+	if err != nil {
 		return b, fmt.Errorf("failed to process TLS options: %w", err)
 	}
+	b.TLS = tls
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 	return b, nil
 }

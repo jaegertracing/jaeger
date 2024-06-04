@@ -84,16 +84,16 @@ func (s *Service) Start(v *viper.Viper) error {
 	sFlags := new(SharedFlags).InitFromViper(v)
 	newProdConfig := zap.NewProductionConfig()
 	newProdConfig.Sampling = nil
-	if logger, err := sFlags.NewLogger(newProdConfig); err == nil {
-		s.Logger = logger
-		grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
-			// grpclog is not consistent with the depth of call tree before it's dispatched to zap,
-			// but Skip(2) still shows grpclog as caller, while Skip(3) shows actual grpc packages.
-			zap.AddCallerSkip(3),
-		))
-	} else {
+	logger, err := sFlags.NewLogger(newProdConfig)
+	if err != nil {
 		return fmt.Errorf("cannot create logger: %w", err)
 	}
+	s.Logger = logger
+	grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
+		// grpclog is not consistent with the depth of call tree before it's dispatched to zap,
+		// but Skip(2) still shows grpclog as caller, while Skip(3) shows actual grpc packages.
+		zap.AddCallerSkip(3),
+	))
 
 	metricsBuilder := new(metricsbuilder.Builder).InitFromViper(v)
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")

@@ -607,11 +607,10 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 
 	// we wait up to 50 milliseconds
 	for i := 0; i < 5; i++ {
-		if p.queue.Capacity() == 100 {
-			time.Sleep(10 * time.Millisecond)
-		} else {
+		if p.queue.Capacity() != 100 {
 			break
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	assert.EqualValues(t, 104857, p.queue.Capacity())
