@@ -49,3 +49,5 @@ jobs:
 
     - name: Run DCO check
       run: python3 scripts/dco_check.py -b main -v
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
