@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: write
 
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
 
     steps:
 
@@ -93,14 +93,3 @@ jobs:
         output-file: jaeger-SBOM.spdx.json
         upload-release-assets: false
         upload-artifact: false
-
-    - name: Upload SBOM
-      # Upload SBOM manually, because anchore/sbom-action does not do that
-      # when the workflow is triggered manually, only from a release.
-      # See https://github.com/jaegertracing/jaeger/issues/4817
-      uses: svenstaro/upload-release-action@1beeb572c19a9242f4361f4cee78f8e0d9aec5df # v2.7.0
-      with:
-        file: jaeger-SBOM.spdx.json
-        overwrite: true
-        tag: ${{ env.BRANCH }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
