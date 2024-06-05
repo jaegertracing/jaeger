@@ -26,15 +26,15 @@ while getopts "b:hlDp:" opt; do
 		add_debugger='N'
 		;;
 	l)
-    # in the local-only mode the images will only be pushed to local registry
-    LOCAL_FLAG='-l'
+		# in the local-only mode the images will only be pushed to local registry
+		LOCAL_FLAG='-l'
 		;;
 	p)
 		platforms=${OPTARG}
 		;;
-  ?)
-    print_help
-    ;;
+	?)
+		print_help
+		;;
 	esac
 done
 
