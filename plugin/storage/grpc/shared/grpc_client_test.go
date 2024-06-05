@@ -73,7 +73,7 @@ var (
 )
 
 type grpcClientTest struct {
-	client        *grpcClient
+	client        *GRPCClient
 	spanReader    *grpcMocks.SpanReaderPluginClient
 	spanWriter    *grpcMocks.SpanWriterPluginClient
 	archiveReader *grpcMocks.ArchiveSpanReaderPluginClient
@@ -93,7 +93,7 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 	capabilities := new(grpcMocks.PluginCapabilitiesClient)
 
 	r := &grpcClientTest{
-		client: &grpcClient{
+		client: &GRPCClient{
 			readerClient:        spanReader,
 			writerClient:        spanWriter,
 			archiveReaderClient: archiveReader,
