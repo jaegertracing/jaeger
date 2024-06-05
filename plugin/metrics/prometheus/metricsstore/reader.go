@@ -91,9 +91,6 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 	}
 
 	operationLabel := "operation"
-	if cfg.SupportSpanmetricsConnector {
-		operationLabel = "span_name"
-	}
 
 	mr := &MetricsReader{
 		client: promapi.NewAPI(client),
@@ -135,9 +132,6 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricss
 
 func buildFullLatencyMetricName(cfg config.Configuration) string {
 	metricName := "latency"
-	if !cfg.SupportSpanmetricsConnector {
-		return metricName
-	}
 	metricName = "duration"
 
 	if cfg.MetricNamespace != "" {
@@ -181,10 +175,6 @@ func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricss
 
 func buildFullCallsMetricName(cfg config.Configuration) string {
 	metricName := "calls"
-	if !cfg.SupportSpanmetricsConnector {
-		return metricName
-	}
-
 	if cfg.MetricNamespace != "" {
 		metricName = cfg.MetricNamespace + "_" + metricName
 	}

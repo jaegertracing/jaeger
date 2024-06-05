@@ -61,7 +61,6 @@ const defaultTimeout = 30 * time.Second
 
 // defaultConfig should consist of the default values for the prometheus.query.* command line options.
 var defaultConfig = config.Configuration{
-	SupportSpanmetricsConnector: false,
 	MetricNamespace:             "",
 	LatencyUnit:                 "ms",
 }
@@ -208,7 +207,6 @@ func TestGetLatencies(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
 				cfg.LatencyUnit = "s"
 				return cfg
@@ -227,7 +225,6 @@ func TestGetLatencies(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.NormalizeDuration = true
 				cfg.LatencyUnit = "s"
 				return cfg
@@ -311,7 +308,6 @@ func TestGetCallRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
 				return cfg
 			},
@@ -329,7 +325,6 @@ func TestGetCallRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.NormalizeCalls = true
 				return cfg
 			},
@@ -414,7 +409,6 @@ func TestGetErrorRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: false,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = false
 				cfg.MetricNamespace = "span_metrics"
 				cfg.NormalizeCalls = true
 				return cfg
@@ -434,7 +428,6 @@ func TestGetErrorRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
 				return cfg
 			},
@@ -453,7 +446,6 @@ func TestGetErrorRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.NormalizeCalls = true
 				return cfg
 			},
@@ -699,7 +691,6 @@ func TestInvalidLatencyUnit(t *testing.T) {
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
 	cfg := config.Configuration{
-		SupportSpanmetricsConnector: true,
 		NormalizeDuration:           true,
 		LatencyUnit:                 "something invalid",
 	}

@@ -53,7 +53,6 @@ func TestWithDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, "http://localhost:9090", f.options.Primary.ServerURL)
 	assert.Equal(t, 30*time.Second, f.options.Primary.ConnectTimeout)
 
-	assert.True(t, f.options.Primary.SupportSpanmetricsConnector)
 	assert.Empty(t, f.options.Primary.MetricNamespace)
 	assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
 }
@@ -95,7 +94,6 @@ func TestWithConfiguration(t *testing.T) {
 		})
 		require.NoError(t, err)
 		f.InitFromViper(v, zap.NewNop())
-		assert.True(t, f.options.Primary.SupportSpanmetricsConnector)
 		assert.Equal(t, "mynamespace", f.options.Primary.MetricNamespace)
 		assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
 	})
