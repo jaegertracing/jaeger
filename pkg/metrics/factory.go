@@ -79,4 +79,4 @@ func (nullFactory) Gauge(Options) Gauge {
 func (nullFactory) Histogram(HistogramOptions) Histogram {
 	return NullHistogram
 }
-func (nullFactory) Namespace(NSOptions) Factory { return NullFactory }
+func (nullFactory) Namespace(NSOptions /* scope */) Factory { return NullFactory }

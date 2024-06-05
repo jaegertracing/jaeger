@@ -199,7 +199,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(int) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	return badgerSampling.NewSamplingStore(f.store), nil
 }
 

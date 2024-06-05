@@ -19,11 +19,11 @@ import "time"
 type lock struct{}
 
 // Acquire always returns true for memory storage because it's a single-node
-func (*lock) Acquire(string, time.Duration) (bool, error) {
+func (*lock) Acquire(string /* resource */, time.Duration /* ttl */) (bool, error) {
 	return true, nil
 }
 
 // Forfeit always returns true for memory storage
-func (*lock) Forfeit(string) (bool, error) {
+func (*lock) Forfeit(string /* resource */) (bool, error) {
 	return true, nil
 }

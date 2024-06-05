@@ -37,7 +37,7 @@ func NewStore() *Store {
 }
 
 // GetDependencies returns nothing.
-func (*Store) GetDependencies(context.Context, time.Time, time.Duration) ([]model.DependencyLink, error) {
+func (*Store) GetDependencies(context.Context, time.Time /* endTs */, time.Duration /* lookback */) ([]model.DependencyLink, error) {
 	return []model.DependencyLink{}, nil
 }
 

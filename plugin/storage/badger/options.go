@@ -65,7 +65,7 @@ const (
 )
 
 // NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string, _ ...string) *Options {
+func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
 	defaultBadgerDataDir := getCurrentExecutableDir()
 
 	options := &Options{

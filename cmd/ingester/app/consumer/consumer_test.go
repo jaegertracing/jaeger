@@ -88,7 +88,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 func newConsumer(
 	t *testing.T,
 	metricsFactory metrics.Factory,
-	_ string,
+	_ string, /* topic */
 	processor processor.SpanProcessor,
 	consumer consumer.Consumer,
 ) *Consumer {

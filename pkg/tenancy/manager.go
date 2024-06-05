@@ -53,7 +53,7 @@ func (tc *Manager) Valid(tenant string) bool {
 
 type tenantDontCare bool
 
-func (tenantDontCare) Valid(string) bool {
+func (tenantDontCare) Valid(string /* candidate */) bool {
 	return true
 }
 

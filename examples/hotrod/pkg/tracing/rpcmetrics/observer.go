@@ -48,7 +48,7 @@ func NewObserver(metricsFactory metrics.Factory, normalizer NameNormalizer) *Obs
 	}
 }
 
-func (*Observer) OnStart(context.Context, sdktrace.ReadWriteSpan) {}
+func (*Observer) OnStart(context.Context /* parent */, sdktrace.ReadWriteSpan) {}
 
 func (o *Observer) OnEnd(sp sdktrace.ReadOnlySpan) {
 	operationName := sp.Name()

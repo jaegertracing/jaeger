@@ -24,7 +24,7 @@ import (
 
 type mockSamplingStore struct{}
 
-func (mockSamplingStore) GetSamplingStrategy(context.Context, string) (*api_v2.SamplingStrategyResponse, error) {
+func (mockSamplingStore) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	return nil, nil
 }
 

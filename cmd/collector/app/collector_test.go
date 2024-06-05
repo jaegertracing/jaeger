@@ -53,7 +53,7 @@ type mockAggregator struct {
 	closeCount atomic.Int32
 }
 
-func (t *mockAggregator) RecordThroughput(string, string, model.SamplerType, float64) {
+func (t *mockAggregator) RecordThroughput(string /* service */, string /* operation */, model.SamplerType, float64 /* probability */) {
 	t.callCount.Add(1)
 }
 
@@ -146,7 +146,7 @@ func TestCollector_StartErrors(t *testing.T) {
 
 type mockStrategyStore struct{}
 
-func (*mockStrategyStore) GetSamplingStrategy(context.Context, string) (*api_v2.SamplingStrategyResponse, error) {
+func (*mockStrategyStore) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 

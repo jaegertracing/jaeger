@@ -296,7 +296,7 @@ func createSpanWriter(
 	return writer, nil
 }
 
-func (f *Factory) CreateSamplingStore(int) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
