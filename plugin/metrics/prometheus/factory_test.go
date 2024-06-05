@@ -59,16 +59,6 @@ func TestWithDefaultConfiguration(t *testing.T) {
 }
 
 func TestWithConfiguration(t *testing.T) {
-	t.Run("still supports the deprecated spanmetrics processor", func(t *testing.T) {
-		f := NewFactory()
-		v, command := config.Viperize(f.AddFlags)
-		err := command.ParseFlags([]string{
-			"--prometheus.query.support-spanmetrics-connector=false",
-		})
-		require.NoError(t, err)
-		f.InitFromViper(v, zap.NewNop())
-		assert.False(t, f.options.Primary.SupportSpanmetricsConnector)
-	})
 	t.Run("with custom configuration and no space in token file path", func(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
