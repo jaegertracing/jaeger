@@ -229,7 +229,13 @@ For example:
           },
           "timestamp": "2021-06-03T09:12:11Z"
         },
+      ]
 ...
+    }
+...
+  ]
+...
+}
   ```
 
 If the `groupByOperation=true` parameter is set, the response will include the operation name in the labels like so:
