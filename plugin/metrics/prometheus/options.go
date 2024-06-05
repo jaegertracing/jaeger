@@ -32,7 +32,6 @@ const (
 	suffixTokenFilePath       = ".token-file"
 	suffixOverrideFromContext = ".token-override-from-context"
 
-	suffixSupportSpanmetricsConnector = ".query.support-spanmetrics-connector"
 	suffixMetricNamespace             = ".query.namespace"
 	suffixLatencyUnit                 = ".query.duration-unit"
 	suffixNormalizeCalls              = ".query.normalize-calls"
@@ -65,7 +64,6 @@ func NewOptions(primaryNamespace string) *Options {
 		ServerURL:      defaultServerURL,
 		ConnectTimeout: defaultConnectTimeout,
 
-		SupportSpanmetricsConnector: defaultSupportSpanmetricsConnector,
 		MetricNamespace:             defaultMetricNamespace,
 		LatencyUnit:                 defaultLatencyUnit,
 		NormalizeCalls:              defaultNormalizeCalls,
@@ -91,10 +89,6 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		"The path to a file containing the bearer token which will be included when executing queries against the Prometheus API.")
 	flagSet.Bool(nsConfig.namespace+suffixOverrideFromContext, true,
 		"Whether the bearer token should be overridden from context (incoming request)")
-	flagSet.Bool(
-		nsConfig.namespace+suffixSupportSpanmetricsConnector,
-		defaultSupportSpanmetricsConnector,
-		" Controls the metrics queries should match the OpenTelemetry Collector's spanmetrics connector naming.")
 	flagSet.String(nsConfig.namespace+suffixMetricNamespace, defaultMetricNamespace,
 		`The metric namespace that is prefixed to the metric name. A '.' separator will be added between `+
 			`the namespace and the metric name.`)
@@ -124,7 +118,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenFilePath)
 
-	cfg.SupportSpanmetricsConnector = v.GetBool(cfg.namespace + suffixSupportSpanmetricsConnector)
 	cfg.MetricNamespace = v.GetString(cfg.namespace + suffixMetricNamespace)
 	cfg.LatencyUnit = v.GetString(cfg.namespace + suffixLatencyUnit)
 	cfg.NormalizeCalls = v.GetBool(cfg.namespace + suffixNormalizeCalls)
