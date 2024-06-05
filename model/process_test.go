@@ -60,7 +60,7 @@ func Hash(w io.Writer) {
 	w.Write([]byte("hello"))
 }
 
-func TestX(t *testing.T) {
+func TestX(*testing.T) {
 	h := fnv.New64a()
 	Hash(h)
 }

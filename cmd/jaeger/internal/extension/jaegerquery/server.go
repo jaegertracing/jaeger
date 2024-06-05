@@ -46,7 +46,7 @@ func (*server) Dependencies() []component.ID {
 	return []component.ID{jaegerstorage.ID}
 }
 
-func (s *server) Start(ctx context.Context, host component.Host) error {
+func (s *server) Start(_ context.Context, host component.Host) error {
 	f, err := jaegerstorage.GetStorageFactory(s.config.TraceStoragePrimary, host)
 	if err != nil {
 		return fmt.Errorf("cannot find primary storage %s: %w", s.config.TraceStoragePrimary, err)

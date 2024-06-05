@@ -168,9 +168,6 @@ linters-settings:
         # not sure how different from previous one
         - name: cyclomatic
           disabled: true
-        # do a clean-up and enable
-        - name: unused-parameter
-          disabled: true
         # we use storage_v2, so...
         - name: var-naming
           disabled: true

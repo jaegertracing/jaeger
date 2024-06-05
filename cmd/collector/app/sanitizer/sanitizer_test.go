@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func TestNewStandardSanitizers(t *testing.T) {
+func TestNewStandardSanitizers(*testing.T) {
 	NewStandardSanitizers()
 }
 

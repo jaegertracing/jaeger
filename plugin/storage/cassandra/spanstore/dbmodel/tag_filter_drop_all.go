@@ -35,7 +35,7 @@ func NewTagFilterDropAll(dropTags bool, dropProcessTags bool, dropLogs bool) *Ta
 }
 
 // FilterProcessTags implements TagFilter
-func (f *TagFilterDropAll) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
+func (f *TagFilterDropAll) FilterProcessTags(_ *model.Span, processTags model.KeyValues) model.KeyValues {
 	if f.dropProcessTags {
 		return model.KeyValues{}
 	}
@@ -43,7 +43,7 @@ func (f *TagFilterDropAll) FilterProcessTags(span *model.Span, processTags model
 }
 
 // FilterTags implements TagFilter
-func (f *TagFilterDropAll) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+func (f *TagFilterDropAll) FilterTags(_ *model.Span, tags model.KeyValues) model.KeyValues {
 	if f.dropTags {
 		return model.KeyValues{}
 	}
@@ -51,7 +51,7 @@ func (f *TagFilterDropAll) FilterTags(span *model.Span, tags model.KeyValues) mo
 }
 
 // FilterLogFields implements TagFilter
-func (f *TagFilterDropAll) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
+func (f *TagFilterDropAll) FilterLogFields(_ *model.Span, logFields model.KeyValues) model.KeyValues {
 	if f.dropLogs {
 		return model.KeyValues{}
 	}

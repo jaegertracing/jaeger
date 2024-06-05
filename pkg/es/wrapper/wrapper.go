@@ -199,7 +199,7 @@ func (c TemplateCreatorWrapperV8) Body(mapping string) es.TemplateCreateService 
 }
 
 // Do executes Put Template command.
-func (c TemplateCreatorWrapperV8) Do(ctx context.Context) (*elastic.IndicesPutTemplateResponse, error) {
+func (c TemplateCreatorWrapperV8) Do(context.Context) (*elastic.IndicesPutTemplateResponse, error) {
 	resp, err := c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
 	if err != nil {
 		return nil, fmt.Errorf("error creating index template %s: %w", c.templateName, err)

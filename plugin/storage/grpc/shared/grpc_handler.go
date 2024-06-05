@@ -149,7 +149,7 @@ func (s *GRPCHandler) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequ
 	return &storage_v1.WriteSpanResponse{}, nil
 }
 
-func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
+func (s *GRPCHandler) Close(context.Context, *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
 	if closer, ok := s.impl.SpanWriter().(io.Closer); ok {
 		if err := closer.Close(); err != nil {
 			return nil, err
@@ -179,7 +179,7 @@ func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.
 }
 
 // GetServices returns a list of all known services
-func (s *GRPCHandler) GetServices(ctx context.Context, r *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
+func (s *GRPCHandler) GetServices(ctx context.Context, _ *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
 	services, err := s.impl.SpanReader().GetServices(ctx)
 	if err != nil {
 		return nil, err
@@ -274,7 +274,7 @@ func (*GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Spans
 	return nil
 }
 
-func (s *GRPCHandler) Capabilities(ctx context.Context, request *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
+func (s *GRPCHandler) Capabilities(context.Context, *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
 	return &storage_v1.CapabilitiesResponse{
 		ArchiveSpanReader:   s.impl.ArchiveSpanReader() != nil,
 		ArchiveSpanWriter:   s.impl.ArchiveSpanWriter() != nil,

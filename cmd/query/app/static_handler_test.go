@@ -310,7 +310,7 @@ type fakeFile struct {
 	os.File
 }
 
-func (*fakeFile) Read(p []byte) (n int, err error) {
+func (*fakeFile) Read([]byte) (n int, err error) {
 	return 0, fmt.Errorf("read error")
 }
 

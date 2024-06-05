@@ -157,7 +157,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 	return nil
 }
 
-func (s *storageExt) Shutdown(ctx context.Context) error {
+func (s *storageExt) Shutdown(context.Context) error {
 	var errs []error
 	for _, factory := range s.factories {
 		if closer, ok := factory.(io.Closer); ok {

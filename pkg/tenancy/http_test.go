@@ -29,7 +29,7 @@ type testHttpHandler struct {
 	reached bool
 }
 
-func (thh *testHttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (thh *testHttpHandler) ServeHTTP(http.ResponseWriter, *http.Request) {
 	thh.reached = true
 }
 
