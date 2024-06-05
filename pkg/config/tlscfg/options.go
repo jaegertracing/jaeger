@@ -40,7 +40,7 @@ type Options struct {
 	MaxVersion     string        `mapstructure:"max_version"`
 	SkipHostVerify bool          `mapstructure:"skip_host_verify"`
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
-	certWatcher    *certWatcher  `mapstructure:"-"`
+	certWatcher    *certWatcher
 }
 
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
