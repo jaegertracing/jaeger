@@ -43,7 +43,7 @@ func (exp *storageExporter) start(_ context.Context, host component.Host) error 
 	return nil
 }
 
-func (exp *storageExporter) close(_ context.Context) error {
+func (*storageExporter) close(_ context.Context) error {
 	// span writer is not closable
 	return nil
 }

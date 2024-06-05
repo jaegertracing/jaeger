@@ -20,7 +20,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -116,7 +115,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Badger,
 		builder:     badger.NewFactoryWithConfig,
 	}
-	grpcStarter := &starter[grpcCfg.ConfigV2, *grpc.Factory]{
+	grpcStarter := &starter[grpc.ConfigV2, *grpc.Factory]{
 		ext:         s,
 		storageKind: "grpc",
 		cfg:         s.config.GRPC,

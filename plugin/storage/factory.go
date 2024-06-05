@@ -125,7 +125,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
+func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
 	case cassandraStorageType:
 		return cassandra.NewFactory(), nil

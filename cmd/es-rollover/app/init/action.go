@@ -62,16 +62,15 @@ func (c Action) Do() error {
 		return err
 	}
 	if c.Config.UseILM {
-		if version >= ilmVersionSupport {
-			policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
-			if err != nil {
-				return err
-			}
-			if !policyExist {
-				return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", c.Config.ILMPolicyName)
-			}
-		} else {
+		if version < ilmVersionSupport {
 			return fmt.Errorf("ILM is supported only for ES version 7+")
+		}
+		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
+		if err != nil {
+			return err
+		}
+		if !policyExist {
+			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", c.Config.ILMPolicyName)
 		}
 	}
 	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.IndexPrefix)

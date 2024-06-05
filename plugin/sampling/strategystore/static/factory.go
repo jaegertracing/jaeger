@@ -43,7 +43,7 @@ func NewFactory() *Factory {
 }
 
 // AddFlags implements plugin.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
+func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 	AddFlags(flagSet)
 }
 
@@ -69,6 +69,6 @@ func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategyst
 }
 
 // Close closes the factory.
-func (f *Factory) Close() error {
+func (*Factory) Close() error {
 	return nil
 }

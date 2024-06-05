@@ -155,7 +155,7 @@ func (c converter) fromDBWarnings(tags []KeyValue) ([]string, error) {
 	return retMe, nil
 }
 
-func (c converter) fromDBTag(tag *KeyValue) (model.KeyValue, error) {
+func (converter) fromDBTag(tag *KeyValue) (model.KeyValue, error) {
 	switch tag.ValueType {
 	case stringType:
 		return model.String(tag.Key, tag.ValueString), nil
@@ -186,7 +186,7 @@ func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {
 	return retMe, nil
 }
 
-func (c converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
+func (converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
 		refType, ok := dbToDomainRefMap[r.RefType]
@@ -213,7 +213,7 @@ func (c converter) fromDBProcess(process Process) (*model.Process, error) {
 	}, nil
 }
 
-func (c converter) toDBTags(tags []model.KeyValue) []KeyValue {
+func (converter) toDBTags(tags []model.KeyValue) []KeyValue {
 	retMe := make([]KeyValue, len(tags))
 	for i, t := range tags {
 		// do we want to validate a jaeger tag here? Making sure that the type and value matches up?
@@ -230,7 +230,7 @@ func (c converter) toDBTags(tags []model.KeyValue) []KeyValue {
 	return retMe
 }
 
-func (c converter) toDBWarnings(warnings []string) []KeyValue {
+func (converter) toDBWarnings(warnings []string) []KeyValue {
 	retMe := make([]KeyValue, len(warnings))
 	for i, w := range warnings {
 		kv := model.String(fmt.Sprintf("%s%d", warningStringPrefix, i+1), w)
@@ -254,7 +254,7 @@ func (c converter) toDBLogs(logs []model.Log) []Log {
 	return retMe
 }
 
-func (c converter) toDBRefs(refs []model.SpanRef) []SpanRef {
+func (converter) toDBRefs(refs []model.SpanRef) []SpanRef {
 	retMe := make([]SpanRef, len(refs))
 	for i, r := range refs {
 		retMe[i] = SpanRef{

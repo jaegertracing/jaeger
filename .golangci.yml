@@ -171,9 +171,6 @@ linters-settings:
         # do a clean-up and enable
         - name: unused-parameter
           disabled: true
-        # do a clean-up and enable
-        - name: unused-receiver
-          disabled: true
         # we use storage_v2, so...
         - name: var-naming
           disabled: true
@@ -188,9 +185,6 @@ linters-settings:
           disabled: true
         # TBD - often triggered in tests
         - name: unhandled-error
-          disabled: true
-        # this one looks like it's catching real errors, need to enable it
-        - name: modifies-value-receiver
           disabled: true
         # often looks like a red herring, needs investigation
         - name: flag-parameter
@@ -210,47 +204,17 @@ linters-settings:
         # maybe enable, needs invesitgation of the impact
         - name: get-return
           disabled: true
-        # enable after cleanup
-        - name: early-return
-          disabled: true
-        # enable after cleanup
-        - name: bare-return
-          disabled: true
-        # enable after cleanup
-        - name: empty-lines
-          disabled: true
         # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
         - name: range-val-address
           disabled: true
-        # enable after cleanup
-        - name: confusing-results
-          disabled: true
-        # we do use dot imports, but not a bad idea to make it explicit
-        - name: dot-imports
-          disabled: true
-        # enable after cleanup: "tag on not-exported field"
-        - name: struct-tag
-          disabled: true
-        # enable after cleanup
-        - name: receiver-naming
-          disabled: true
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
-          disabled: true
-        # enable after cleanup: warns of stutter names
-        - name: exported
           disabled: true
         # enable after cleanup
         - name: redefines-builtin-id
           disabled: true
         # "no nested structs are allowed" - don't enable, doesn't make sense
         - name: nested-structs
-          disabled: true
-        # enable after cleanup
-        - name: indent-error-flow
-          disabled: true
-        # enable after cleanup
-        - name: unexported-return
           disabled: true
         # looks useful, but requires refactoring: "calls to log.Fatal only in main() or init() functions"
         - name: deep-exit

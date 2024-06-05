@@ -47,6 +47,6 @@ func (s *ConfigManagerProxy) GetSamplingStrategy(ctx context.Context, serviceNam
 }
 
 // GetBaggageRestrictions returns baggage restrictions from collector.
-func (s *ConfigManagerProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
+func (*ConfigManagerProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
 	return nil, errors.New("baggage not implemented")
 }

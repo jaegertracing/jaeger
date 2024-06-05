@@ -156,9 +156,8 @@ func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterReques
 		}
 
 		return &storage_v1.CloseWriterResponse{}, nil
-	} else {
-		return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
 	}
+	return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
 }
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
@@ -260,7 +259,7 @@ func (s *GRPCHandler) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceI
 	}, nil
 }
 
-func (s *GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.SpansResponseChunk) error) error {
+func (*GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.SpansResponseChunk) error) error {
 	chunk := make([]model.Span, 0, len(spans))
 	for i := 0; i < len(spans); i += spanBatchSize {
 		chunk = chunk[:0]

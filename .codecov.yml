@@ -14,6 +14,7 @@ ignore:
   - "examples/hotrod"
   - "plugin/storage/integration"
   - "cmd/jaeger/internal/integration"
+  - "internal/tools"
 
 coverage:
   precision: 2

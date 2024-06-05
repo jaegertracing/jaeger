@@ -80,11 +80,10 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(i
 	q.StartLengthReporting(time.Millisecond, gauge)
 	for i := 0; i < 1000; i++ {
 		_, g := mFact.Snapshot()
-		if g["size"] == 0 {
-			time.Sleep(time.Millisecond)
-		} else {
+		if g["size"] != 0 {
 			break
 		}
+		time.Sleep(time.Millisecond)
 	}
 
 	c, g := mFact.Snapshot()

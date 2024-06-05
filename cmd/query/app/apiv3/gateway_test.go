@@ -70,7 +70,7 @@ func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 	return body, response.StatusCode
 }
 
-func (gw *testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
+func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	// reformat JSON body with indentation, to make diffing easier
 	var data any
 	require.NoError(t, json.Unmarshal(body, &data), "response: %s", string(body))

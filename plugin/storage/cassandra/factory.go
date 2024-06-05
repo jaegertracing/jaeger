@@ -155,11 +155,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.primarySession = primarySession
 
 	if f.archiveConfig != nil {
-		if archiveSession, err := f.archiveConfig.NewSession(logger); err == nil {
-			f.archiveSession = archiveSession
-		} else {
+		archiveSession, err := f.archiveConfig.NewSession(logger)
+		if err != nil {
 			return err
 		}
+		f.archiveSession = archiveSession
 	} else {
 		logger.Info("Cassandra archive storage configuration is empty, skipping")
 	}

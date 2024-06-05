@@ -65,7 +65,7 @@ func NewFactoryWithConfig(
 }
 
 // AddFlags implements plugin.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
+func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 	AddFlags(flagSet)
 }
 
@@ -115,12 +115,12 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (*Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return NewSamplingStore(maxBuckets), nil
 }
 
 // CreateLock implements storage.SamplingStoreFactory
-func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+func (*Factory) CreateLock() (distributedlock.Lock, error) {
 	return &lock{}, nil
 }
 

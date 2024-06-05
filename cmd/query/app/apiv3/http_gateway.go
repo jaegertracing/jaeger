@@ -131,7 +131,7 @@ func (h *HTTPGateway) returnSpansTestable(
 	h.marshalResponse(response, w)
 }
 
-func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 

@@ -280,7 +280,6 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 		} else if !tagQueryUsed { // Tag query already reduces the search set with a serviceName
 			indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
 			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
-
 		}
 
 		if len(indexSearchKey) > 0 {

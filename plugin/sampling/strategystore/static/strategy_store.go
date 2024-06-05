@@ -278,7 +278,6 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 
 		opS := newStore.serviceStrategies[s.Service].OperationSampling
 		if opS == nil {
-
 			// Service does not have its own per-operation rules, so copy (by value) from the default strategy.
 			newOpS := *newStore.defaultStrategy.OperationSampling
 

@@ -239,11 +239,11 @@ func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 	opts.IdleTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPIdleTimeout)
 	opts.ReadTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadTimeout)
 	opts.ReadHeaderTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadHeaderTimeout)
-	if tlsOpts, err := cfg.tls.InitFromViper(v); err == nil {
-		opts.TLS = tlsOpts
-	} else {
+	tlsOpts, err := cfg.tls.InitFromViper(v)
+	if err != nil {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
 	}
+	opts.TLS = tlsOpts
 	return nil
 }
 
@@ -252,11 +252,11 @@ func (opts *GRPCOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 	opts.MaxReceiveMessageLength = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength)
 	opts.MaxConnectionAge = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge)
 	opts.MaxConnectionAgeGrace = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace)
-	if tlsOpts, err := cfg.tls.InitFromViper(v); err == nil {
-		opts.TLS = tlsOpts
-	} else {
+	tlsOpts, err := cfg.tls.InitFromViper(v)
+	if err != nil {
 		return fmt.Errorf("failed to parse gRPC TLS options: %w", err)
 	}
+	opts.TLS = tlsOpts
 	opts.Tenancy = tenancy.InitFromViper(v)
 
 	return nil
@@ -289,11 +289,11 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 
 	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
 	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
-	if tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v); err == nil {
-		cOpts.Zipkin.TLS = tlsZipkin
-	} else {
+	tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v)
+	if err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
+	cOpts.Zipkin.TLS = tlsZipkin
 	cOpts.Zipkin.CORS = corsZipkinFlags.InitFromViper(v)
 
 	return cOpts, nil

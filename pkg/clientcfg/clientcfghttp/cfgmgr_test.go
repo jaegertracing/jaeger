@@ -37,7 +37,7 @@ func (m *mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName s
 	return m.samplingResponse, nil
 }
 
-func (m *mockSamplingStore) Close() error {
+func (*mockSamplingStore) Close() error {
 	return nil
 }
 

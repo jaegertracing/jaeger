@@ -187,7 +187,6 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 			// update the ring with the trace id
 			m.ids[m.index] = &span.TraceID
 		}
-
 	}
 	m.traces[span.TraceID].Spans = append(m.traces[span.TraceID].Spans, span)
 
@@ -279,7 +278,7 @@ func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 }
 
 // FindTraceIDs is not implemented.
-func (m *Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	return nil, errors.New("not implemented")
 }
 
