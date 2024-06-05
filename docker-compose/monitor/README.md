@@ -104,45 +104,6 @@ Then navigate to the Monitor tab at http://localhost:16686/monitor to view the R
 
 ![TraceGen RED Metrics](images/tracegen_metrics.png)
 
-## Migrating to Span Metrics Connector 
-
-### Background
-
-A new [Connector](https://pkg.go.dev/go.opentelemetry.io/collector/connector#section-readme) API was introduced
-to the OpenTelemetry Collector to provide a means of receiving and exporting between any type of telemetry.
-
-The existing [Span Metrics Processor][spanmetricsprocessor] was a good candidate to migrate over to the connector type,
-resulting in the new [Span Metrics Connector][spanmetricsconnector] component.
-
-The Span Metrics Connector variant introduces some [breaking changes][processor-to-connector], and the following
-section aims to provide the instructions necessary to use the metrics produced by this component.
-
-### Migrating
-
-Assuming the OpenTelemetry Collector is running with the [Span Metrics Connector][spanmetricsconnector] correctly
-configured, the minimum configuration required for jaeger-query or jaeger-all-in-one are as follows:
-
-as command line parameters:
-```shell
---prometheus.query.support-spanmetrics-connector=true
-```
-
-as environment variables:
-```shell
-PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true
-```
-
-If the Span Metrics Connector is configured with a namespace and/or an alternative duration unit,
-the following configuration options are available, as both command line and environment variables:
-
-```shell
---prometheus.query.namespace=span_metrics
---prometheus.query.duration-unit=s
-
-PROMETHEUS_QUERY_NAMESPACE=span_metrics
-PROMETHEUS_QUERY_DURATION_UNIT=s
-```
-
 ## Querying the HTTP API
 
 ### Example 1
@@ -308,7 +269,5 @@ $ curl http://localhost:16686/api/metrics/minstep | jq .
 }
 ```
 
-[spanmetricsprocessor]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor
 [spanmetricsconnector]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector
-[processor-to-connector]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#span-to-metrics-processor-to-span-to-metrics-connector
 [spanmetricsconnectorreadme]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md
