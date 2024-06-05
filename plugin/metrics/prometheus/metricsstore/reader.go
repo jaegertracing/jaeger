@@ -90,7 +90,7 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
-	operationLabel := "operation"
+	operationLabel := "span_name"
 
 	mr := &MetricsReader{
 		client: promapi.NewAPI(client),
