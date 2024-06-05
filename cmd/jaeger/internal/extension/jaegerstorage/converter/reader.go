@@ -32,11 +32,11 @@ func (s *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) (pt
 	// otelcol-contrib has the translator to jaeger proto but declared in private function
 	// similar to https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go#L21
 	traceIDHigh, traceIDLow := binary.BigEndian.Uint64(traceID[:8]), binary.BigEndian.Uint64(traceID[8:])
-	ID := model.TraceID{
+	id := model.TraceID{
 		Low:  traceIDLow,
 		High: traceIDHigh,
 	}
-	trace, err := s.spanReader.GetTrace(ctx, ID)
+	trace, err := s.spanReader.GetTrace(ctx, id)
 	if err != nil {
 		return ptrace.NewTraces(), err
 	}
@@ -111,7 +111,7 @@ func (s *TraceReader) FindTraces(ctx context.Context, query spanstore.TraceQuery
 
 // FindTraceIDs implements spanstore.Reader.
 func (s *TraceReader) FindTraceIDs(ctx context.Context, query spanstore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	IDs, err := s.spanReader.FindTraceIDs(ctx, &spanstore_v1.TraceQueryParameters{
+	ids, err := s.spanReader.FindTraceIDs(ctx, &spanstore_v1.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		Tags:          query.Tags,
@@ -126,12 +126,12 @@ func (s *TraceReader) FindTraceIDs(ctx context.Context, query spanstore.TraceQue
 	}
 
 	traceIDs := []pcommon.TraceID{}
-	for _, ID := range IDs {
+	for _, id := range ids {
 		// otelcol-contrib has the translator to OTLP but declared in private function
 		// similar to https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go#L13
 		traceID := [16]byte{}
-		binary.BigEndian.PutUint64(traceID[:8], ID.High)
-		binary.BigEndian.PutUint64(traceID[8:], ID.Low)
+		binary.BigEndian.PutUint64(traceID[:8], id.High)
+		binary.BigEndian.PutUint64(traceID[8:], id.Low)
 		traceIDs = append(traceIDs, traceID)
 	}
 
