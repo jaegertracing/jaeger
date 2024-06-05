@@ -32,10 +32,10 @@ const (
 	suffixTokenFilePath       = ".token-file"
 	suffixOverrideFromContext = ".token-override-from-context"
 
-	suffixMetricNamespace             = ".query.namespace"
-	suffixLatencyUnit                 = ".query.duration-unit"
-	suffixNormalizeCalls              = ".query.normalize-calls"
-	suffixNormalizeDuration           = ".query.normalize-duration"
+	suffixMetricNamespace   = ".query.namespace"
+	suffixLatencyUnit       = ".query.duration-unit"
+	suffixNormalizeCalls    = ".query.normalize-calls"
+	suffixNormalizeDuration = ".query.normalize-duration"
 
 	defaultServerURL      = "http://localhost:9090"
 	defaultConnectTimeout = 30 * time.Second
@@ -64,10 +64,10 @@ func NewOptions(primaryNamespace string) *Options {
 		ServerURL:      defaultServerURL,
 		ConnectTimeout: defaultConnectTimeout,
 
-		MetricNamespace:             defaultMetricNamespace,
-		LatencyUnit:                 defaultLatencyUnit,
-		NormalizeCalls:              defaultNormalizeCalls,
-		NormalizeDuration:           defaultNormalizeCalls,
+		MetricNamespace:   defaultMetricNamespace,
+		LatencyUnit:       defaultLatencyUnit,
+		NormalizeCalls:    defaultNormalizeCalls,
+		NormalizeDuration: defaultNormalizeCalls,
 	}
 
 	return &Options{
